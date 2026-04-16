@@ -46,6 +46,7 @@ from hassette.test_utils.web_helpers import (
     make_manifest,
     make_old_app_instance,
     make_old_snapshot,
+    make_real_job,
     setup_registry,
 )
 from hassette.test_utils.web_mocks import (
@@ -81,6 +82,7 @@ __all__ = [
     "make_manifest",
     "make_old_app_instance",
     "make_old_snapshot",
+    "make_real_job",
     "make_sensor_state_dict",
     "make_service_failed_event",
     "make_service_running_event",

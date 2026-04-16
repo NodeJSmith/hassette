@@ -99,6 +99,20 @@ class TestSetNextRun:
         assert job.sort_index == (new_time.round(unit="second").timestamp_nanos(), job.job_id)
 
 
+class TestFireAt:
+    def test_fire_at_defaults_to_next_run_without_jitter(self) -> None:
+        """Without jitter, fire_at == next_run exactly."""
+        job = _make_job()
+        assert job.fire_at == job.next_run
+
+    def test_fire_at_equals_next_run_after_set_next_run(self) -> None:
+        """set_next_run() updates both next_run and fire_at when no jitter."""
+        job = _make_job()
+        new_time = ZonedDateTime(2030, 1, 1, 12, 0, tz="UTC")
+        job.set_next_run(new_time)
+        assert job.fire_at == job.next_run
+
+
 class TestMarkRegistered:
     def test_mark_registered_once(self) -> None:
         """Second call to mark_registered() with different db_id does not raise and ignores new value."""

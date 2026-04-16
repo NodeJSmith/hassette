@@ -470,7 +470,10 @@ async def test_once_job_removed_from_group_after_exhaustion() -> None:
 
 
 def test_resolve_trigger_none_job() -> None:
-    """resolve_trigger returns (None, None) for a job with trigger=None."""
+    """resolve_trigger returns ('one-shot', None) for a job with trigger=None.
+
+    The 'one-shot' label distinguishes no-trigger jobs from cron/interval jobs in the UI.
+    """
     job = SimpleNamespace(trigger=None)
     result = resolve_trigger(job)  # pyright: ignore[reportArgumentType]
-    assert result == (None, None), f"Expected (None, None), got {result}"
+    assert result == ("one-shot", None), f"Expected ('one-shot', None), got {result}"

@@ -2,7 +2,7 @@
 
 import asyncio
 import threading
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 
 def _make_hassette_stub() -> AsyncMock:
@@ -20,4 +20,9 @@ def _make_hassette_stub() -> AsyncMock:
     hassette.ready_event.set()
     hassette._loop_thread_id = threading.get_ident()
     hassette.loop = asyncio.get_running_loop()
+    # register_removal_callback and deregister_removal_callback must be sync
+    # callables so Scheduler.__init__/on_shutdown can call them directly without
+    # creating an unawaited coroutine.
+    hassette._scheduler_service.register_removal_callback = Mock()
+    hassette._scheduler_service.deregister_removal_callback = Mock()
     return hassette

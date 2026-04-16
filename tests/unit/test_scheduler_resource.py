@@ -1,9 +1,12 @@
 """Unit tests for Scheduler resource: new schedule() entry point, job groups, convenience wrappers."""
 
-import asyncio
 from collections.abc import Callable
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock, patch
 
+import pytest
+from whenever import ZonedDateTime
+
+from hassette.resources.base import Resource
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import After, Cron, Daily, Every, Once
@@ -285,6 +288,57 @@ class TestConvenienceWrappers:
         job = scheduler.run_once(_noop, at=future)
         assert isinstance(job.trigger, Once)
 
+    def test_run_in_jitter_forwarded(self) -> None:
+        """run_in with jitter=60 creates a job with jitter=60."""
+        scheduler = _make_scheduler()
+        job = scheduler.run_in(_noop, 30, jitter=60)
+        assert job.jitter == 60
+
+    def test_run_once_jitter_forwarded(self) -> None:
+        """run_once with jitter=30 creates a job with jitter=30."""
+        scheduler = _make_scheduler()
+        job = scheduler.run_once(_noop, at="23:59", jitter=30)
+        assert job.jitter == 30
+
+    def test_run_every_jitter_forwarded(self) -> None:
+        """run_every with jitter=10 creates a job with jitter=10."""
+        scheduler = _make_scheduler()
+        job = scheduler.run_every(_noop, seconds=30, jitter=10)
+        assert job.jitter == 10
+
+    def test_run_minutely_jitter_forwarded(self) -> None:
+        """run_minutely with jitter=5 creates a job with jitter=5."""
+        scheduler = _make_scheduler()
+        job = scheduler.run_minutely(_noop, jitter=5)
+        assert job.jitter == 5
+
+    def test_run_hourly_jitter_forwarded(self) -> None:
+        """run_hourly with jitter=120 creates a job with jitter=120."""
+        scheduler = _make_scheduler()
+        job = scheduler.run_hourly(_noop, jitter=120)
+        assert job.jitter == 120
+
+    def test_run_daily_jitter_forwarded(self) -> None:
+        """run_daily with jitter=60 creates a job with jitter=60."""
+        scheduler = _make_scheduler()
+        job = scheduler.run_daily(_noop, at="07:00", jitter=60)
+        assert job.jitter == 60
+
+    def test_run_cron_jitter_forwarded(self) -> None:
+        """run_cron with jitter=15 creates a job with jitter=15."""
+        scheduler = _make_scheduler()
+        job = scheduler.run_cron(_noop, "0 9 * * 1-5", jitter=15)
+        assert job.jitter == 15
+
+    def test_run_once_if_past_error_raises(self) -> None:
+        """run_once(..., if_past='error') raises ValueError when target time is in the past."""
+        # Fix "now" to a known future time so "00:00" is in the past
+        fake_now = ZonedDateTime(2025, 8, 18, 8, 0, 0, tz="America/Chicago")
+        with patch("hassette.utils.date_utils.now", return_value=fake_now):
+            scheduler = _make_scheduler()
+            with pytest.raises(ValueError, match="constructed after the target time"):
+                scheduler.run_once(_noop, at="00:00", if_past="error")
+
     def test_run_daily_group_forwarded(self) -> None:
         """run_daily with group= adds job to _jobs_by_group."""
         scheduler = _make_scheduler()
@@ -299,49 +353,62 @@ class TestConvenienceWrappers:
 
 
 # ---------------------------------------------------------------------------
-# Callback registration guard
+# Callback registration
 # ---------------------------------------------------------------------------
 
 
-class TestCallbackRegistrationGuard:
-    """Verify the registration guard in Scheduler.__init__ is correct.
+# ---------------------------------------------------------------------------
+# F3: TypeError fail-fast for non-protocol triggers
+# ---------------------------------------------------------------------------
 
-    The guard ``callable(_register) and not asyncio.iscoroutinefunction(_register)``
-    must register with a sync service and skip registration for AsyncMock stubs
-    (to avoid unawaited-coroutine warnings in tests that use AsyncMock for
-    SchedulerService methods).
 
-    End-to-end integration of the registration path (``Scheduler.__init__`` →
-    ``SchedulerService.register_removal_callback``) is deferred to WP04, which
-    adds ``register_removal_callback`` to ``SchedulerService``. Until then,
-    ``getattr(scheduler_service, "register_removal_callback", None)`` returns
-    ``None`` on the real service and the block is skipped in integration tests.
-    """
+class TestScheduleTypeError:
+    def test_schedule_raises_typeerror_for_non_protocol_trigger(self) -> None:
+        """schedule() with a non-TriggerProtocol trigger raises TypeError immediately."""
 
-    def _run_registration_block(self, scheduler: Scheduler, mock_service: Mock) -> None:
-        """Execute the exact registration block from Scheduler.__init__."""
-        _register = getattr(mock_service, "register_removal_callback", None)
-        if callable(_register) and not asyncio.iscoroutinefunction(_register):
-            _register(scheduler.owner_id, scheduler._on_job_removed)
+        class NotATrigger:
+            pass
 
-    def test_sync_service_registers_callback(self) -> None:
-        """register_removal_callback is called when the service method is sync."""
         scheduler = _make_scheduler()
-        mock_service = Mock()
-        self._run_registration_block(scheduler, mock_service)
-        mock_service.register_removal_callback.assert_called_once_with("test_owner", scheduler._on_job_removed)
+        with pytest.raises(TypeError, match="trigger must implement TriggerProtocol"):
+            scheduler.schedule(_noop, NotATrigger())
 
-    def test_async_mock_service_skips_registration(self) -> None:
-        """register_removal_callback is NOT called when it is an AsyncMock (avoids coroutine warning)."""
-        scheduler = _make_scheduler()
-        mock_service = Mock()
-        mock_service.register_removal_callback = AsyncMock()
-        self._run_registration_block(scheduler, mock_service)
-        mock_service.register_removal_callback.assert_not_called()
 
-    def test_service_without_method_skips_registration(self) -> None:
-        """No error when the service has no register_removal_callback (pre-WP04 forward compat)."""
-        scheduler = _make_scheduler()
-        mock_service = Mock(spec=[])  # no attributes
-        # Should not raise
-        self._run_registration_block(scheduler, mock_service)
+class TestCallbackRegistration:
+    """Verify register_removal_callback is called during Scheduler.__init__."""
+
+    def test_register_removal_callback_called_during_init(self) -> None:
+        """Scheduler.__init__ directly registers the removal callback on the service.
+
+        Exercises the real __init__ by stubbing Resource.__init__ so the Scheduler
+        construction runs its post-super() body (which includes the direct
+        register_removal_callback call) without requiring a full Hassette harness.
+        Regression guard for the removal of the legacy getattr/iscoroutinefunction guard.
+        """
+        mock_hassette = Mock()
+        mock_hassette._scheduler_service = Mock()
+        mock_hassette._scheduler_service.register_removal_callback = Mock()
+
+        # Build a subclass that overrides owner_id/parent to avoid touching Resource state.
+        _TestScheduler = type("_TestScheduler", (Scheduler,), {})  # noqa: N806
+        _TestScheduler.owner_id = property(  # pyright: ignore[reportAttributeAccessIssue]
+            lambda _self: "test_owner"
+        )
+        _TestScheduler.parent = property(  # pyright: ignore[reportAttributeAccessIssue]
+            lambda _self: None
+        )
+
+        # Stub Resource.__init__ so super().__init__() is a no-op; the rest of
+        # Scheduler.__init__ still runs and must call register_removal_callback directly.
+        with patch.object(Resource, "__init__", return_value=None):
+
+            def _hassette(_self: object) -> object:
+                return mock_hassette
+
+            _TestScheduler.hassette = property(_hassette)  # pyright: ignore[reportAttributeAccessIssue]
+            _TestScheduler(mock_hassette)
+
+        mock_hassette._scheduler_service.register_removal_callback.assert_called_once()
+        call_args = mock_hassette._scheduler_service.register_removal_callback.call_args
+        assert call_args.args[0] == "test_owner"
+        assert callable(call_args.args[1])

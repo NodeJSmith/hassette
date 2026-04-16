@@ -62,7 +62,6 @@ Examples:
 import asyncio
 import typing
 from collections.abc import Mapping
-from contextlib import suppress
 from typing import Any, Literal
 
 from whenever import ZonedDateTime
@@ -70,6 +69,7 @@ from whenever import ZonedDateTime
 import hassette.utils.date_utils as date_utils
 from hassette.core.scheduler_service import SchedulerService
 from hassette.resources.base import Resource
+from hassette.types import TriggerProtocol
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.source_capture import capture_registration_source
 
@@ -78,7 +78,7 @@ from .triggers import After, Cron, Daily, Every, Once
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
-    from hassette.types import JobCallable, TriggerProtocol
+    from hassette.types import JobCallable
 
 
 class Scheduler(Resource):
@@ -90,13 +90,11 @@ class Scheduler(Resource):
     _jobs_by_name: dict[str, "ScheduledJob"]
     """Tracks jobs by name for uniqueness validation within this scheduler instance."""
 
-    _jobs_by_group: dict[str, list["ScheduledJob"]]
+    _jobs_by_group: dict[str, set["ScheduledJob"]]
     """Tracks jobs by group for bulk cancellation.
 
-    Uses ``list`` (not ``set``) because ``ScheduledJob`` is a mutable dataclass
-    (``@dataclass(order=True)``): Python sets ``__hash__ = None`` for mutable
-    dataclasses, making them unhashable. Duplicate-removal is idempotent via
-    ``list.remove()`` wrapped in ``suppress(ValueError)``.
+    Uses ``set`` for O(1) membership test and discard. ``ScheduledJob.__hash__``
+    is based on ``job_id``, which is unique and immutable after construction.
     """
 
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
@@ -104,16 +102,11 @@ class Scheduler(Resource):
         self.scheduler_service = self.hassette._scheduler_service
         assert self.scheduler_service is not None, "Scheduler service not initialized"
         self._jobs_by_name = {}
-        self._jobs_by_group: dict[str, list[ScheduledJob]] = {}
+        self._jobs_by_group: dict[str, set[ScheduledJob]] = {}
 
         # Register removal callback so exhausted one-shot jobs are removed from _jobs_by_group
         # automatically when SchedulerService removes them after firing.
-        # WP04 adds register_removal_callback() to SchedulerService. Guard on
-        # iscoroutinefunction to block AsyncMock stubs (which would produce an
-        # unawaited-coroutine warning if called without await).
-        _register = getattr(self.scheduler_service, "register_removal_callback", None)
-        if callable(_register) and not asyncio.iscoroutinefunction(_register):
-            _register(self.owner_id, self._on_job_removed)
+        self.scheduler_service.register_removal_callback(self.owner_id, self._on_job_removed)
 
     def _on_job_removed(self, job: "ScheduledJob") -> None:
         """Callback invoked by SchedulerService when a job is auto-exhausted.
@@ -123,11 +116,10 @@ class Scheduler(Resource):
         """
         self._jobs_by_name.pop(job.name, None)
         if job.group is not None:
-            group_list = self._jobs_by_group.get(job.group)
-            if group_list is not None:
-                with suppress(ValueError):
-                    group_list.remove(job)
-                if not group_list:
+            group_set = self._jobs_by_group.get(job.group)
+            if group_set is not None:
+                group_set.discard(job)
+                if not group_set:
                     del self._jobs_by_group[job.group]
 
     async def on_initialize(self) -> None:
@@ -135,6 +127,7 @@ class Scheduler(Resource):
 
     async def on_shutdown(self) -> None:
         await self.remove_all_jobs()
+        self.scheduler_service.deregister_removal_callback(self.owner_id)
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -177,8 +170,8 @@ class Scheduler(Resource):
 
         if job.group is not None:
             if job.group not in self._jobs_by_group:
-                self._jobs_by_group[job.group] = []
-            self._jobs_by_group[job.group].append(job)
+                self._jobs_by_group[job.group] = set()
+            self._jobs_by_group[job.group].add(job)
 
         self.scheduler_service.add_job(job)
 
@@ -193,11 +186,10 @@ class Scheduler(Resource):
         self._jobs_by_name.pop(job.name, None)
 
         if job.group is not None:
-            group_list = self._jobs_by_group.get(job.group)
-            if group_list is not None:
-                with suppress(ValueError):
-                    group_list.remove(job)
-                if not group_list:
+            group_set = self._jobs_by_group.get(job.group)
+            if group_set is not None:
+                group_set.discard(job)
+                if not group_set:
                     del self._jobs_by_group[job.group]
 
         return self.scheduler_service.remove_job(job)
@@ -218,7 +210,7 @@ class Scheduler(Resource):
         Args:
             group: The group name to cancel.
         """
-        jobs = list(self._jobs_by_group.get(group, []))
+        jobs = list(self._jobs_by_group.get(group, set()))
         for job in jobs:
             job.cancel()
             self.scheduler_service.remove_job(job)
@@ -240,7 +232,7 @@ class Scheduler(Resource):
         """
         if group is None:
             return list(self._jobs_by_name.values())
-        return list(self._jobs_by_group.get(group, []))
+        return list(self._jobs_by_group.get(group, set()))
 
     def get_job_db_ids(self) -> list[int]:
         """Return the DB IDs of all registered jobs that have been persisted.
@@ -279,7 +271,8 @@ class Scheduler(Resource):
                 the callable and trigger.
             group: Optional group name for bulk management (see ``cancel_group``).
             jitter: Optional seconds of random offset to apply at enqueue time.
-                Implementation deferred to WP06.
+                Jitter is applied via ``SchedulerService._apply_jitter_to_heap`` on enqueue.
+                See the ``fire_at`` field on ``ScheduledJob``.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -288,6 +281,12 @@ class Scheduler(Resource):
         Returns:
             The scheduled job.
         """
+
+        if not isinstance(trigger, TriggerProtocol):
+            raise TypeError(
+                f"trigger must implement TriggerProtocol; got {type(trigger).__name__}. "
+                "Use hassette.scheduler.triggers (After, Once, Every, Daily, Cron)"
+            )
 
         app_key = getattr(self.parent, "app_key", "") if self.parent else ""
         instance_index = getattr(self.parent, "index", 0) if self.parent else 0
@@ -320,6 +319,7 @@ class Scheduler(Resource):
         delay: float,
         name: str = "",
         group: str | None = None,
+        jitter: float | None = None,
         *,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -332,6 +332,8 @@ class Scheduler(Resource):
             delay: The delay in seconds before running the job.
             name: Optional name for the job.
             group: Optional group name.
+            jitter: Optional seconds of random offset to apply at enqueue time.
+                See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -341,7 +343,16 @@ class Scheduler(Resource):
             The scheduled job.
         """
         trigger = After(seconds=float(delay))
-        return self.schedule(func, trigger, name=name, group=group, if_exists=if_exists, args=args, kwargs=kwargs)
+        return self.schedule(
+            func,
+            trigger,
+            name=name,
+            group=group,
+            jitter=jitter,
+            if_exists=if_exists,
+            args=args,
+            kwargs=kwargs,
+        )
 
     def run_once(
         self,
@@ -349,6 +360,8 @@ class Scheduler(Resource):
         at: str | ZonedDateTime,
         name: str = "",
         group: str | None = None,
+        jitter: float | None = None,
+        if_past: Literal["tomorrow", "error"] = "tomorrow",
         *,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -362,6 +375,12 @@ class Scheduler(Resource):
                 tomorrow if already past) or a ``ZonedDateTime``.
             name: Optional name for the job.
             group: Optional group name.
+            jitter: Optional seconds of random offset to apply at enqueue time.
+                See ``schedule()`` for details.
+            if_past: Behaviour when the target time is in the past at construction
+                time. ``"tomorrow"`` (default) defers by one day. ``"error"`` raises
+                ``ValueError``. For ``ZonedDateTime`` inputs, ``if_past`` has no
+                effect — the job always fires immediately if the instant is in the past.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -370,8 +389,17 @@ class Scheduler(Resource):
         Returns:
             The scheduled job.
         """
-        trigger = Once(at=at)
-        return self.schedule(func, trigger, name=name, group=group, if_exists=if_exists, args=args, kwargs=kwargs)
+        trigger = Once(at=at, if_past=if_past)
+        return self.schedule(
+            func,
+            trigger,
+            name=name,
+            group=group,
+            jitter=jitter,
+            if_exists=if_exists,
+            args=args,
+            kwargs=kwargs,
+        )
 
     def run_every(
         self,
@@ -381,6 +409,7 @@ class Scheduler(Resource):
         seconds: float = 0,
         name: str = "",
         group: str | None = None,
+        jitter: float | None = None,
         *,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -395,6 +424,8 @@ class Scheduler(Resource):
             seconds: Interval seconds component.
             name: Optional name for the job.
             group: Optional group name.
+            jitter: Optional seconds of random offset to apply at enqueue time.
+                See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -404,7 +435,16 @@ class Scheduler(Resource):
             The scheduled job.
         """
         trigger = Every(hours=hours, minutes=minutes, seconds=seconds)
-        return self.schedule(func, trigger, name=name, group=group, if_exists=if_exists, args=args, kwargs=kwargs)
+        return self.schedule(
+            func,
+            trigger,
+            name=name,
+            group=group,
+            jitter=jitter,
+            if_exists=if_exists,
+            args=args,
+            kwargs=kwargs,
+        )
 
     def run_minutely(
         self,
@@ -412,6 +452,7 @@ class Scheduler(Resource):
         minutes: int = 1,
         name: str = "",
         group: str | None = None,
+        jitter: float | None = None,
         *,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -424,6 +465,8 @@ class Scheduler(Resource):
             minutes: The minute interval (must be >= 1).
             name: Optional name for the job.
             group: Optional group name.
+            jitter: Optional seconds of random offset to apply at enqueue time.
+                See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -435,7 +478,16 @@ class Scheduler(Resource):
         if minutes < 1:
             raise ValueError("Minute interval must be at least 1")
         trigger = Every(minutes=minutes)
-        return self.schedule(func, trigger, name=name, group=group, if_exists=if_exists, args=args, kwargs=kwargs)
+        return self.schedule(
+            func,
+            trigger,
+            name=name,
+            group=group,
+            jitter=jitter,
+            if_exists=if_exists,
+            args=args,
+            kwargs=kwargs,
+        )
 
     def run_hourly(
         self,
@@ -443,6 +495,7 @@ class Scheduler(Resource):
         hours: int = 1,
         name: str = "",
         group: str | None = None,
+        jitter: float | None = None,
         *,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -455,6 +508,8 @@ class Scheduler(Resource):
             hours: The hour interval (must be >= 1).
             name: Optional name for the job.
             group: Optional group name.
+            jitter: Optional seconds of random offset to apply at enqueue time.
+                See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -466,7 +521,16 @@ class Scheduler(Resource):
         if hours < 1:
             raise ValueError("Hour interval must be at least 1")
         trigger = Every(hours=hours)
-        return self.schedule(func, trigger, name=name, group=group, if_exists=if_exists, args=args, kwargs=kwargs)
+        return self.schedule(
+            func,
+            trigger,
+            name=name,
+            group=group,
+            jitter=jitter,
+            if_exists=if_exists,
+            args=args,
+            kwargs=kwargs,
+        )
 
     def run_daily(
         self,
@@ -474,6 +538,7 @@ class Scheduler(Resource):
         at: str = "00:00",
         name: str = "",
         group: str | None = None,
+        jitter: float | None = None,
         *,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -489,6 +554,8 @@ class Scheduler(Resource):
             at: Target wall-clock time in ``"HH:MM"`` format (default ``"00:00"``).
             name: Optional name for the job.
             group: Optional group name.
+            jitter: Optional seconds of random offset to apply at enqueue time.
+                See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -498,7 +565,16 @@ class Scheduler(Resource):
             The scheduled job.
         """
         trigger = Daily(at=at)
-        return self.schedule(func, trigger, name=name, group=group, if_exists=if_exists, args=args, kwargs=kwargs)
+        return self.schedule(
+            func,
+            trigger,
+            name=name,
+            group=group,
+            jitter=jitter,
+            if_exists=if_exists,
+            args=args,
+            kwargs=kwargs,
+        )
 
     def run_cron(
         self,
@@ -506,6 +582,7 @@ class Scheduler(Resource):
         expression: str,
         name: str = "",
         group: str | None = None,
+        jitter: float | None = None,
         *,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -522,6 +599,8 @@ class Scheduler(Resource):
             expression: A valid 5- or 6-field cron expression.
             name: Optional name for the job.
             group: Optional group name.
+            jitter: Optional seconds of random offset to apply at enqueue time.
+                See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -534,4 +613,13 @@ class Scheduler(Resource):
             ValueError: If the cron expression is syntactically invalid.
         """
         trigger = Cron(expression)
-        return self.schedule(func, trigger, name=name, group=group, if_exists=if_exists, args=args, kwargs=kwargs)
+        return self.schedule(
+            func,
+            trigger,
+            name=name,
+            group=group,
+            jitter=jitter,
+            if_exists=if_exists,
+            args=args,
+            kwargs=kwargs,
+        )

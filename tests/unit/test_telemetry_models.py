@@ -144,7 +144,6 @@ class TestJobSummary:
             "job_name": "my_job",
             "handler_method": "run_job",
             "trigger_type": "interval",
-            "trigger_value": "60",
             "repeat": 1,
             "args_json": "[]",
             "kwargs_json": "{}",

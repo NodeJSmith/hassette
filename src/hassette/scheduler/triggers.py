@@ -68,12 +68,26 @@ class After:
 class Once:
     """One-shot trigger that fires at a specific wall-clock time.
 
+    .. warning::
+        ``"HH:MM"`` string inputs are resolved against the **system process
+        timezone** (``date_utils.now().tz``). Docker containers commonly run
+        with ``TZ=UTC`` while the user's Home Assistant is configured for a
+        local zone — a ``Once(at="07:00")`` written for local time will fire
+        at 07:00 UTC in that environment with no warning. To avoid this: set
+        ``TZ`` on the container to match the HA zone, or pass a
+        ``ZonedDateTime`` directly with the intended timezone.
+
     Args:
         at: Target time. Accepts a ``"HH:MM"`` string (interpreted as today's
-            wall-clock time in the system timezone) or a ``ZonedDateTime``.
-        if_past: Behaviour when the target time is in the past at construction
-            time. ``"tomorrow"`` (default) defers by one day and logs a WARNING.
-            ``"error"`` raises ``ValueError``.
+            wall-clock time in the **system process timezone** — see warning
+            above) or a ``ZonedDateTime`` (absolute instant; timezone is
+            explicit).
+        if_past: Behavior when the computed fire time is in the past.
+            - ``"tomorrow"`` (default): For ``"HH:MM"`` string inputs, defers to the next day.
+              No effect for ``ZonedDateTime`` inputs (the absolute instant is used as-is;
+              if it is in the past, the job fires immediately).
+            - ``"error"``: Raises ``ValueError`` if the computed fire time is in the past.
+              Applies to both ``"HH:MM"`` and ``ZonedDateTime`` inputs.
 
     Example:
         Once(at="07:00")                      # fires today at 07:00 (or tomorrow if past)
@@ -118,7 +132,8 @@ class Once:
                 if if_past == "error":
                     raise ValueError(f"Once(at=<ZonedDateTime {at.format_iso()!r}>) is in the past and if_past='error'")
                 LOGGER.warning(
-                    "Once(at=<ZonedDateTime %r>) is in the past — job will fire immediately.",
+                    "Once received ZonedDateTime in the past; `if_past` does not apply to absolute instants; "
+                    "firing immediately. (at=%r)",
                     at.format_iso(),
                 )
             self._fire_at = at
@@ -143,9 +158,8 @@ class Once:
         return "once"
 
     def trigger_id(self) -> str:
-        if self._at_str is not None:
-            return f"once:{self._at_str}"
-        # For ZonedDateTime at, include full ISO timestamp to avoid cross-day collisions
+        # Always include the full ISO timestamp so two Once jobs constructed on different days
+        # (both at "07:00") do not share a trigger_id and do not shadow each other in the heap.
         return f"once:{self._fire_at.format_iso()}"
 
 
@@ -200,11 +214,7 @@ class Every:
         return self._advance_past(previous_run, current_time)
 
     def _advance_past(self, anchor: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
-        """Advance anchor by whole intervals until the result is strictly after current_time.
-
-        Ported verbatim from IntervalTrigger._advance_past in classes.py to preserve
-        drift-resistant behaviour.
-        """
+        """Advance anchor by whole intervals until the result is strictly after current_time."""
         interval_secs = self._interval.in_seconds()
         elapsed = (current_time - anchor).in_seconds()
         if elapsed > 0:
@@ -218,8 +228,6 @@ class Every:
         return result.round(unit="second")
 
     def trigger_label(self) -> str:
-        # Intentionally "interval" (not "every") for DB/telemetry compatibility with
-        # the legacy IntervalTrigger — will be unified after WP03 removes IntervalTrigger.
         return "interval"
 
     def trigger_detail(self) -> str | None:
@@ -238,8 +246,18 @@ class Daily:
     Internally delegates to a 5-field cron expression to ensure DST-correct,
     wall-clock-aligned scheduling.
 
+    .. warning::
+        ``"HH:MM"`` is resolved against the **system process timezone** (from
+        ``date_utils.now().tz``). Docker containers commonly run ``TZ=UTC``
+        while the user's Home Assistant is configured for a local zone — a
+        ``Daily(at="07:00")`` written for local time will fire at 07:00 UTC
+        in that environment with no warning. To avoid this: set ``TZ`` on the
+        container to match the HA zone. A future ``tz=`` parameter is tracked
+        in the design doc follow-up work.
+
     Args:
-        at: Target time in ``"HH:MM"`` format (e.g. ``"07:00"``).
+        at: Target time in ``"HH:MM"`` format (e.g. ``"07:00"``),
+            interpreted in the **system process timezone** — see warning above.
 
     Example:
         Daily(at="07:00")   # fires every day at 07:00 wall-clock time
@@ -259,7 +277,6 @@ class Daily:
         # 5-field standard cron: minute hour dom month dow
         self._expr = f"{minute} {hour} * * *"
         self._at_str = at
-        # Delegate to CronTrigger (validates expression eagerly)
         self._cron = CronTrigger(self._expr)
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
@@ -271,10 +288,18 @@ class Daily:
         return self._cron.next_run_time(previous_run, current_time)
 
     def trigger_label(self) -> str:
+        # Returns "cron" because Daily is implemented via CronTrigger internally.
+        # Daily jobs surface identically to Cron jobs in `trigger_label`/`trigger_db_type`;
+        # distinction only visible to the user via constructor choice. See design.md TENSION resolution.
         return "cron"
 
     def trigger_detail(self) -> str | None:
-        return self._expr
+        # Return the user-written "HH:MM" so the UI can display "Daily at 07:00"
+        # directly without parsing the underlying cron expression. Cron-backed
+        # siblings return their full expression, letting the UI differentiate
+        # Daily from Cron on the display surface even though trigger_label/db_type
+        # are both "cron".
+        return self._at_str
 
     def trigger_db_type(self) -> Literal["cron"]:
         return "cron"

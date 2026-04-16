@@ -19,11 +19,12 @@ import inspect
 from collections import defaultdict
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from fair_async_rlock import FairAsyncRLock
 from whenever import ZonedDateTime
 
 import hassette.core.scheduler_service as hassette_svc_module
 import hassette.utils.date_utils as date_utils
-from hassette.core.scheduler_service import SchedulerService
+from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import Every
 
@@ -230,6 +231,71 @@ class TestJitter:
 
         assert job.sort_index[0] == job.next_run.timestamp_nanos()
 
+    async def test_fire_at_defaults_to_next_run_without_jitter(self) -> None:
+        """No jitter: fire_at == next_run after reschedule."""
+        svc = _make_scheduler_service()
+        future_time = date_utils.now().add(seconds=60)
+        trig = _make_interval_trigger(next_returns=future_time)
+        job = _make_job(trigger=trig, jitter=None)
+
+        await svc.reschedule_job(job)
+
+        assert job.fire_at == job.next_run
+
+    async def test_jitter_sets_fire_at_to_jittered_time(self) -> None:
+        """With jitter=60, fire_at is set to next_run + offset; next_run is unchanged."""
+        svc = _make_scheduler_service()
+        future_time = date_utils.now().add(seconds=60)
+        trig = _make_interval_trigger(next_returns=future_time)
+        job = _make_job(trigger=trig, jitter=60.0)
+
+        with patch("hassette.core.scheduler_service.random.uniform", return_value=30.0):
+            await svc.reschedule_job(job)
+
+        expected_next_run = future_time.round(unit="second")
+        assert job.next_run == expected_next_run
+        expected_fire_at = expected_next_run.add(seconds=30)
+        assert job.fire_at == expected_fire_at
+
+    async def test_pop_due_uses_fire_at_not_next_run(self) -> None:
+        """pop_due_and_peek_next dequeues based on fire_at, not next_run.
+
+        A job with fire_at > current_time must NOT be dequeued even when next_run <= current_time.
+        """
+        svc = SchedulerService.__new__(SchedulerService)
+        svc.hassette = MagicMock()
+        svc.hassette.config.registration_await_timeout = 30
+        svc.hassette.config.scheduler_behind_schedule_threshold_seconds = 60
+        svc.hassette.config.scheduler_min_delay_seconds = 0.1
+        svc.hassette.config.scheduler_max_delay_seconds = 300.0
+        svc.hassette.config.scheduler_default_delay_seconds = 10.0
+        svc._pending_registration_tasks = defaultdict(list)
+        svc._removal_callbacks = {}
+        svc.logger = MagicMock()
+        svc._wakeup_event = asyncio.Event()
+
+        svc._job_queue = _ScheduledJobQueue.__new__(_ScheduledJobQueue)
+        svc._job_queue._lock = FairAsyncRLock()
+        svc._job_queue._queue = HeapQueue()
+        svc._job_queue.logger = MagicMock()
+
+        # next_run is in the past, but fire_at is in the future (jitter applied)
+        base_time = date_utils.now()
+        future_fire = base_time.add(seconds=60)
+
+        job = _make_job(trigger=None, jitter=60.0)
+        job.set_next_run(base_time.add(seconds=-10))  # next_run in past
+        job.fire_at = future_fire  # fire_at in future
+
+        await svc._job_queue.add(job)
+
+        # Ask for due jobs at current time — job should NOT be dequeued (fire_at > now)
+        current_time = date_utils.now()
+        due_jobs, next_run_time = await svc._job_queue.pop_due_and_peek_next(current_time)
+
+        assert len(due_jobs) == 0, f"Job should not fire yet (fire_at={job.fire_at} > now={current_time})"
+        assert next_run_time == job.fire_at
+
 
 # ---------------------------------------------------------------------------
 # Removal callbacks
@@ -431,6 +497,47 @@ class TestRemoveJobsByOwnerCallbacks:
 
 
 # ---------------------------------------------------------------------------
+# register_removal_callback() — duplicate registration
+# ---------------------------------------------------------------------------
+
+
+class TestDuplicateRemovalCallback:
+    def test_re_registration_overwrites_previous_callback(self) -> None:
+        """Registering a second callback for the same owner_id replaces the first.
+
+        Hot-reload cycles orphan the old Scheduler without calling on_shutdown,
+        so re-registration must silently overwrite rather than raise.
+        """
+        svc = _make_scheduler_service()
+        callback1 = MagicMock()
+        callback2 = MagicMock()
+        svc.register_removal_callback("owner_dup", callback1)
+        svc.register_removal_callback("owner_dup", callback2)  # must not raise
+        assert svc._removal_callbacks["owner_dup"] is callback2
+
+    def test_different_owner_ids_do_not_conflict(self) -> None:
+        """Two different owner_ids can each register a callback without conflict."""
+        svc = _make_scheduler_service()
+        svc.register_removal_callback("owner_a", MagicMock())
+        svc.register_removal_callback("owner_b", MagicMock())  # must not raise
+
+    def test_deregister_allows_reregistration(self) -> None:
+        """deregister_removal_callback removes the entry; a subsequent register succeeds."""
+        svc = _make_scheduler_service()
+        callback1 = MagicMock()
+        callback2 = MagicMock()
+        svc.register_removal_callback("owner_dup", callback1)
+        svc.deregister_removal_callback("owner_dup")
+        svc.register_removal_callback("owner_dup", callback2)  # must not raise
+        assert svc._removal_callbacks["owner_dup"] is callback2
+
+    def test_deregister_unknown_owner_is_noop(self) -> None:
+        """deregister_removal_callback for an unknown owner_id does not raise."""
+        svc = _make_scheduler_service()
+        svc.deregister_removal_callback("nonexistent")  # must not raise
+
+
+# ---------------------------------------------------------------------------
 # reschedule_job() — non-future guard compares against now()
 # ---------------------------------------------------------------------------
 
@@ -461,4 +568,102 @@ class TestNonFutureGuard:
             f"Expected next_run to be future, got delta={job.next_run - date_utils.now()}"
         )
         # A warning must have been logged
+        svc.logger.warning.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# F2: _enqueue_then_register — DB failure logged, not re-raised
+# ---------------------------------------------------------------------------
+
+
+class TestEnqueueThenRegisterDbFailure:
+    async def test_enqueue_then_register_logs_on_db_failure(self) -> None:
+        """When register_job raises, _enqueue_then_register logs exception and does NOT re-raise.
+
+        The job is already enqueued before registration; a DB failure must not crash
+        the scheduler or silently drop the job — it runs without telemetry instead.
+        """
+        svc = SchedulerService.__new__(SchedulerService)
+        svc.hassette = MagicMock()
+        svc.hassette.config.registration_await_timeout = 30
+        svc._pending_registration_tasks = defaultdict(list)
+        svc._removal_callbacks = {}
+        svc.logger = MagicMock()
+        svc._wakeup_event = asyncio.Event()
+
+        svc._job_queue = MagicMock()
+        svc._job_queue.add = AsyncMock(return_value=None)
+
+        async def _failing_register_job(_reg):
+            raise RuntimeError("DB unavailable")
+
+        svc._executor = MagicMock()
+        svc._executor.register_job = _failing_register_job
+
+        trigger = Every(hours=1)
+        job = ScheduledJob(
+            owner_id="test",
+            next_run=date_utils.now(),
+            job=lambda: None,
+            trigger=trigger,
+            app_key="my_app",
+        )
+
+        # Must not raise
+        await svc._enqueue_then_register(job)
+
+        # logger.exception must have been called with owner_id and name context
+        svc.logger.exception.assert_called_once()
+        call_args = svc.logger.exception.call_args
+        log_msg = call_args[0][0]
+        assert "owner_id" in log_msg or "Failed to register" in log_msg
+
+
+# ---------------------------------------------------------------------------
+# F9: run_job() behind-schedule warning uses fire_at not next_run
+# ---------------------------------------------------------------------------
+
+
+class TestBehindScheduleWarning:
+    async def test_behind_schedule_uses_fire_at_not_next_run(self) -> None:
+        """Behind-schedule warning is based on fire_at, not next_run.
+
+        A jittered job fired at fire_at (dispatch time) should NOT trigger the
+        warning. The same job fired well past fire_at SHOULD trigger the warning.
+        Confirmed by patching date_utils.now() to return controlled timestamps.
+        """
+        svc = _make_scheduler_service()
+        # threshold is 60s (configured in _make_scheduler_service via mock)
+        svc.hassette.config.scheduler_behind_schedule_threshold_seconds = 60
+
+        # Create a job whose fire_at is the scheduled dispatch time.
+        # next_run is earlier (unjittered), fire_at is later (jitter applied).
+        base_time = ZonedDateTime(2025, 6, 1, 12, 0, 0, tz="UTC")
+        trigger = Every(hours=1)
+        job = ScheduledJob(
+            owner_id="test_owner",
+            next_run=base_time.add(seconds=-120),  # 2 minutes before fire_at
+            job=lambda: None,
+            trigger=trigger,
+        )
+        # Manually set fire_at to simulate jitter
+        job.fire_at = base_time
+
+        svc._executor = MagicMock()
+        svc._executor.execute = AsyncMock(return_value=None)
+        svc.task_bucket = MagicMock()
+        svc.task_bucket.make_async_adapter = MagicMock(return_value=AsyncMock())
+
+        # Case 1: run_job called exactly at fire_at — no warning expected
+        with patch("hassette.core.scheduler_service.date_utils.now", return_value=base_time):
+            await svc.run_job(job)
+
+        svc.logger.warning.assert_not_called()
+
+        # Case 2: run_job called 90s after fire_at (> 60s threshold) — warning expected
+        svc.logger.warning.reset_mock()
+        late_time = base_time.add(seconds=90)
+        with patch("hassette.core.scheduler_service.date_utils.now", return_value=late_time):
+            await svc.run_job(job)
+
         svc.logger.warning.assert_called_once()

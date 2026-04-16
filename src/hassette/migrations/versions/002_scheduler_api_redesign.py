@@ -19,7 +19,12 @@ Revision ID: 002
 Revises: 001
 """
 
+import logging
+
 from alembic import op
+from sqlalchemy import text
+
+LOGGER = logging.getLogger(__name__)
 
 revision = "002"
 down_revision = "001"
@@ -28,6 +33,15 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # This table swap is safe because DatabaseService._run_migrations() runs via
+    # asyncio.to_thread() during on_initialize(), before the aiosqlite connection is
+    # opened. No other writers or readers are active during migration.
+    #
+    # Atomicity is provided by Alembic's env.py ``context.begin_transaction()`` —
+    # the entire migration runs inside a single transaction. An explicit
+    # ``BEGIN EXCLUSIVE`` here would nest a second transaction, which SQLite
+    # rejects, so we rely on the outer Alembic-managed transaction.
+
     # Drop views that SELECT * from scheduled_jobs — must be dropped before
     # renaming/dropping the underlying table so SQLite does not leave dangling
     # view references (behaviour varies by SQLite version).
@@ -47,7 +61,6 @@ def upgrade() -> None:
             handler_method        TEXT    NOT NULL,
             trigger_type          TEXT
                 CHECK (trigger_type IN ('interval', 'cron', 'once', 'after', 'custom')),
-            trigger_value         TEXT,
             trigger_label         TEXT    NOT NULL DEFAULT '',
             trigger_detail        TEXT,
             repeat                INTEGER NOT NULL DEFAULT 0,
@@ -66,14 +79,14 @@ def upgrade() -> None:
     op.execute("""
         INSERT INTO scheduled_jobs_002 (
             id, app_key, instance_index, job_name, handler_method,
-            trigger_type, trigger_value,
+            trigger_type,
             trigger_label, trigger_detail,
             repeat, args_json, kwargs_json,
             source_location, registration_source, retired_at, source_tier
         )
         SELECT
             id, app_key, instance_index, job_name, handler_method,
-            trigger_type, trigger_value,
+            trigger_type,
             '' AS trigger_label, NULL AS trigger_detail,
             repeat, args_json, kwargs_json,
             source_location, registration_source, retired_at, source_tier
@@ -106,6 +119,17 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Warn about data loss: trigger_label and trigger_detail cannot be recovered after downgrade.
+    conn = op.get_bind()
+    result = conn.execute(text("SELECT COUNT(*) FROM scheduled_jobs"))
+    row_count = result.scalar() or 0
+    LOGGER.warning(
+        "Downgrade 002→001: %d rows will permanently lose trigger_label/trigger_detail data",
+        row_count,
+    )
+
+    # Atomicity provided by Alembic's outer transaction (see upgrade() comment).
+
     # Drop views first (same reason as in upgrade).
     op.execute("DROP VIEW IF EXISTS active_scheduled_jobs")
     op.execute("DROP VIEW IF EXISTS active_framework_scheduled_jobs")
@@ -134,7 +158,7 @@ def downgrade() -> None:
         )
     """)
 
-    # Copy rows back; drop the new columns by not selecting them.
+    # Copy rows back; trigger_value was dropped from the 002 schema so insert NULL.
     op.execute("""
         INSERT INTO scheduled_jobs_001 (
             id, app_key, instance_index, job_name, handler_method,
@@ -144,7 +168,7 @@ def downgrade() -> None:
         )
         SELECT
             id, app_key, instance_index, job_name, handler_method,
-            trigger_type, trigger_value,
+            trigger_type, NULL AS trigger_value,
             repeat, args_json, kwargs_json,
             source_location, registration_source, retired_at, source_tier
         FROM scheduled_jobs

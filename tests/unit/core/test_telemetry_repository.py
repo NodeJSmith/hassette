@@ -63,7 +63,6 @@ CREATE TABLE scheduled_jobs (
     handler_method        TEXT    NOT NULL,
     trigger_type          TEXT
         CHECK (trigger_type IN ('interval', 'cron', 'once', 'after', 'custom')),
-    trigger_value         TEXT,
     trigger_label         TEXT    NOT NULL DEFAULT '',
     trigger_detail        TEXT,
     repeat                INTEGER NOT NULL DEFAULT 0,
@@ -187,7 +186,6 @@ def _make_job_registration(*, job_name: str = "test_job") -> ScheduledJobRegistr
         job_name=job_name,
         handler_method="test_app.my_job",
         trigger_type=None,
-        trigger_value=None,
         trigger_label="once",
         trigger_detail=None,
         args_json="[]",
@@ -872,7 +870,6 @@ async def test_register_job_raises_for_invalid_source_tier(
         job_name="my_job",
         handler_method="some_user_app.my_job",
         trigger_type=None,
-        trigger_value=None,
         trigger_label="once",
         trigger_detail=None,
         args_json="[]",

@@ -29,7 +29,7 @@ This is a full rewrite of `src/hassette/scheduler/`. The following areas will ch
 - **`ScheduledJob`** — adds `group` and `jitter` fields; removes `repeat` as a runtime field (retained DB-only); `matches()` updated to use `trigger_id()` and include `group`
 - **`scheduler_service._enqueue_then_register`** — isinstance dispatch replaced with protocol method calls
 - **`scheduler_service.reschedule_job`** — rewritten to call `trigger.next_run_time()` and remove the job when `None` is returned; `repeat` flag gate removed from this path
-- **`web/utils.resolve_trigger()`** — isinstance dispatch replaced with protocol method calls
+- **`web/utils.resolve_trigger()`** — isinstance dispatch replaced with `TriggerProtocol` methods; returns `trigger_db_type()` (the stable DB discriminator, e.g. `"interval"`, `"cron"`) not `trigger_label()`. REST `trigger_type` field is the stable DB discriminator, not the display label. Custom triggers show as `"custom"` in REST; consumers needing the human label should inspect `trigger_detail`.
 - **DB schema** — no new tables; `trigger_type` value set expands from `{"interval", "cron"}` to `{"interval", "cron", "once", "after"}`; two new columns added to `scheduled_jobs`: `trigger_label TEXT` and `trigger_detail TEXT NULL`; `make_job()` and E2E fixtures updated accordingly
 - **Convenience methods** — kept as thin sugar; old parameter forms (`interval=`, keyword-per-field cron, `start=` tuple, `days=`) removed outright
 
@@ -98,7 +98,7 @@ class TriggerProtocol(Protocol):
 
 **`trigger_db_type()`** is the stable DB/API discriminator. It returns one of five fixed literals and is used to populate `trigger_type` in `scheduled_jobs` and the REST API. This value must never change for a given trigger type — it is a DB key. Built-in triggers return their specific type; custom triggers return `"custom"`. The `Literal` return type ensures Pyright catches any new built-in trigger that omits a DB type.
 
-**`trigger_label()`** is a free human-readable display string. It may change between versions without affecting DB rows or API consumers. It replaces all `isinstance(trigger, IntervalTrigger)` / `isinstance(trigger, CronTrigger)` dispatch in `_enqueue_then_register` and `web/utils.resolve_trigger()`.
+**`trigger_label()`** is a free human-readable display string. `trigger_label` and `trigger_detail` are overwritten on every registration; they reflect the current-version label, not a historical snapshot. If the label changes between versions, the DB row is updated on the next restart. It replaces all `isinstance(trigger, IntervalTrigger)` / `isinstance(trigger, CronTrigger)` dispatch in `_enqueue_then_register` and `web/utils.resolve_trigger()`.
 
 **`trigger_id()`** returns a stable string key uniquely identifying this trigger's configuration (e.g., `"every:3600"`, `"cron:0 7 * * *"`, `"solar_poll:60"`). `ScheduledJob.matches()` uses `trigger_id()` — not `==` — to compare triggers for deduplication. Custom triggers that omit a meaningful `trigger_id()` will register duplicates under `if_exists="skip"` since their default implementation returns the same value for all instances of the same type.
 
@@ -111,7 +111,7 @@ Example built-in implementations:
 | `Every(hours=1)` | `"interval"` | `"interval"` | `"every:3600"` | `"3600s"` |
 | `Daily(at="07:00")` | `"cron"` | `"cron"` | `"cron:0 7 * * *"` | `"0 7 * * *"` |
 | `Cron("0 9 * * 1-5")` | `"cron"` | `"cron"` | `"cron:0 9 * * 1-5"` | `"0 9 * * 1-5"` |
-| `Once(at="07:00")` | `"once"` | `"once"` | `"once:07:00"` | `"07:00"` |
+| `Once(at="07:00")` | `"once"` | `"once"` | `"once:2025-08-18T07:00:00-05:00[America/Chicago]"` (full ISO of the resolved fire instant) | `"07:00"` |
 | `After(seconds=30)` | `"after"` | `"after"` | `"after:30"` | `"30s"` |
 
 Example custom trigger:
@@ -197,6 +197,13 @@ Daily(at="07:00")  # every day at 07:00
 
 `Daily` does **not** accept an `every=N` parameter. "Every N days at 07:00" sounds like a natural extension but `*/N` in the day-of-month cron field fires on even calendar day numbers (1st, 3rd, 5th, ...), not "N days after the last fire." Use `Cron` with an explicit expression for multi-day cadences.
 
+##### DST policy
+
+`Daily` and `Cron` use `CronTrigger._dst_safe_from_dt` for DST disambiguation:
+
+- **Fall-back (ambiguous wall-clock):** uses post-transition occurrence (`fold=1`). Logged at INFO when encountered.
+- **Spring-forward (gap):** croniter advances past the gap automatically to the next valid wall-clock time.
+
 #### `Cron` — cron expression
 
 ```python
@@ -278,6 +285,28 @@ job.jitter      # float | None — seconds of random offset applied at enqueue (
 
 `.cancel()` semantics unchanged — passive flag, checked before execution.
 
+#### fire_at field
+
+`fire_at: ZonedDateTime` — actual dispatch time on `ScheduledJob`. Equals `next_run` when jitter is unset. When jitter is configured, `_apply_jitter_to_heap()` sets `fire_at = next_run + random.uniform(0, jitter)`. The scheduler's dispatch gate (`pop_due_and_peek_next`) and sleep target both compare against `fire_at`, not `next_run`. `reschedule_job` continues to use `next_run` for drift-resistant next-interval arithmetic. The REST API serialises `fire_at` only when it differs from `next_run` (i.e. when jitter is active).
+
+---
+
+### REST API — trigger_type values
+
+`ScheduledJobResponse.trigger_type` reflects `trigger_db_type()` for jobs with a trigger, with one additional sentinel value for legacy jobs:
+
+| Value | Source |
+|---|---|
+| `"interval"` | `Every` trigger |
+| `"cron"` | `Daily` or `Cron` trigger |
+| `"once"` | `Once` trigger |
+| `"after"` | `After` trigger |
+| `"custom"` | Any user-defined trigger implementing `TriggerProtocol` |
+| `"one-shot"` | **API-layer sentinel only** — legacy no-trigger jobs (`job.trigger is None`). Not a DB value; does not appear in the `scheduled_jobs` CHECK constraint. |
+| `null` | Explicit null for jobs registered without a trigger type (pre-migration rows where `trigger_type` was never set). |
+
+`resolve_trigger()` in `web/utils.py` returns `("one-shot", None)` when `job.trigger is None`. This sentinel is API-layer only and must not be added to the DB CHECK constraint.
+
 ---
 
 ## Migration
@@ -290,7 +319,7 @@ job.jitter      # float | None — seconds of random offset applied at enqueue (
 - **`run_cron(hour=N, minute=N, ...)` keyword form removed** — positional string (`run_cron("0 9 * * 1-5")`) is the only accepted form.
 - **`Scheduler.schedule(func, run_at: ZonedDateTime, ...)` replaced** — the existing internal method is rewritten as `schedule(func, trigger: TriggerProtocol, ...)`. One integration test calls the old form directly and must be updated.
 - **`Once(at="07:00")` past-time behavior changed** — the current implementation raises `ValueError` when constructed after the specified wall-clock time. The new behavior fires tomorrow instead. Automations that relied on the exception to detect scheduling errors must be updated.
-- **`trigger_type` DB column values expand** — `job_executions` stores `trigger_type` as `"interval"` or `"cron"` today. This rewrite adds `"once"` and `"after"` as valid values. `make_job()` and any E2E fixtures that assert on `trigger_type` must be updated. No new columns or tables.
+- **`trigger_type` DB column values expand** — `scheduled_jobs.trigger_type` stored `"interval"` or `"cron"` before this rewrite. The new value set is `{"interval", "cron", "once", "after", "custom"}`. `"custom"` is the discriminator for user-defined triggers implementing `TriggerProtocol`. `make_job()` and any E2E fixtures that assert on `trigger_type` must be updated. Note: `"one-shot"` is API-layer-only (see REST API section); it does not appear in the DB CHECK constraint.
 
 ### Unchanged
 
@@ -298,7 +327,7 @@ job.jitter      # float | None — seconds of random offset applied at enqueue (
 - `ScheduledJob.cancel()`, `.next_run`, `.trigger`, `.cancelled`, `.job_id`, `.db_id`
 - `if_exists="error"` and `if_exists="skip"` semantics
 - Source location capture
-- DB schema (no new tables or columns; `trigger_type` value set expands — see Breaking Changes above)
+- DB schema (no new tables; two new columns added: `trigger_label TEXT NOT NULL DEFAULT ''` and `trigger_detail TEXT NULL`; `trigger_type` CHECK constraint expands to `{"interval", "cron", "once", "after", "custom"}` — see Breaking Changes above)
 - Job persistence, restart reconciliation, `mark_registered()`
 - DI callback injection for the job callable itself
 
@@ -309,3 +338,17 @@ job.jitter      # float | None — seconds of random offset applied at enqueue (
 1. **`Cron` second field** — **Keep 6-field extension**. Both 5-field (standard) and 6-field (seconds appended) expressions are accepted via `croniter`. Users needing sub-minute precision use the 6th field; standard users use 5-field.
 
 2. **`trigger_label()` / `trigger_detail()` in DB** — **Persist both columns**. `trigger_label TEXT NOT NULL` and `trigger_detail TEXT NULL` are added to `scheduled_jobs`. Populated at registration time from `trigger.trigger_label()` / `trigger.trigger_detail()`. Enables the web UI to display human-readable trigger descriptions without rehydrating the trigger object from DB.
+
+---
+
+## Follow-up Work
+
+### Frontend: render trigger_label/trigger_detail in job-row.tsx
+
+Completed: `job-row.tsx` now renders `trigger_detail` when non-null, falling back to `trigger_label`, then `trigger_type`. `trigger_value` has been removed from all Python models, DB schema, and the generated TypeScript types.
+
+### Scheduler timezone for wall-clock strings
+
+`Once(at="HH:MM")` and `Daily(at="HH:MM")` currently resolve against the **system process timezone** (`date_utils.now().tz`). In Docker deployments this is typically `TZ=UTC`, which silently mis-schedules jobs for users whose Home Assistant is configured for a local timezone. The docstrings now warn about this, but a proper fix is to add an opt-in `tz: str | ZoneInfo | None` parameter to `Once` and `Daily` — or expose `HassetteConfig.scheduler_timezone` as a single authoritative source that all triggers consult.
+
+Tracked in [#512](https://github.com/NodeJSmith/hassette/issues/512).

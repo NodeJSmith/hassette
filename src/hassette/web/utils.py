@@ -36,28 +36,26 @@ async def gather_all_listeners(
     return listeners
 
 
-def resolve_trigger(job: "ScheduledJob") -> tuple[str | None, str | None]:
-    """Return (trigger_type, trigger_detail) for a ScheduledJob.
+def resolve_trigger(job: "ScheduledJob") -> tuple[str, str | None]:
+    """Return (trigger_db_type, trigger_detail) for a ScheduledJob.
 
-    Delegates to ``TriggerProtocol.trigger_db_type()`` and
-    ``trigger_detail()`` — no isinstance dispatch.  Falls back to
-    ``str(trigger)`` for legacy trigger objects that do not implement
-    the protocol.
+    Delegates to ``TriggerProtocol.trigger_db_type()`` and ``trigger_detail()``.
+    ``trigger_db_type()`` is the stable DB discriminator — not the display label.
+    Custom triggers show as ``"custom"`` in REST; consumers needing the human label
+    should inspect ``trigger_detail``.
+
+    The protocol invariant is enforced at ``Scheduler.schedule()`` via an
+    ``isinstance(trigger, TriggerProtocol)`` check that raises ``TypeError``
+    synchronously, so ``job.trigger`` is guaranteed to either be ``None`` or a
+    protocol-conformant instance when this function is called.
 
     Returns:
-        A tuple of (type, detail) where type is the trigger's DB discriminator
+        A tuple of (db_type, detail) where db_type is the trigger's DB discriminator
         (e.g. "interval", "cron", "once", "after", "custom") and detail is an
-        optional human-readable description (e.g. "3600s", "0 7 * * *"), or
-        ``(None, None)`` when the job has no trigger.
+        optional human-readable description (e.g. "3600s", "07:00"), or
+        ``("one-shot", None)`` when the job has no trigger.
     """
     trigger = job.trigger
     if trigger is None:
-        return None, None
-    if hasattr(trigger, "trigger_db_type"):
-        return trigger.trigger_db_type(), trigger.trigger_detail()
-    # Legacy IntervalTrigger/CronTrigger: __str__ returns "type:detail".
-    text = str(trigger)
-    type_str, sep, detail = text.partition(":")
-    if not sep:
-        LOGGER.warning("Trigger %r has no ':' separator in str() — using full string as type", trigger)
-    return type_str, detail or None
+        return "one-shot", None
+    return trigger.trigger_db_type(), trigger.trigger_detail()

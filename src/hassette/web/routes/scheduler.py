@@ -21,15 +21,24 @@ def _job_to_dict(job: "ScheduledJob") -> dict[str, Any]:
     This variant includes job_id (for ScheduledJobResponse) and omits app_key/instance_index.
     """
     trigger_type, trigger_detail = resolve_trigger(job)
+    trigger_label = job.trigger.trigger_label() if job.trigger is not None else ""
+    # Serialise fire_at only when jitter is actually configured — matches the documented
+    # API contract ("fire_at is present iff jitter was applied"). Using `job.jitter is not
+    # None` instead of `job.fire_at != job.next_run` decouples the REST gate from an
+    # internal invariant that could change if a future non-jitter reason shifts fire_at.
+    fire_at = job.fire_at.format_iso() if job.jitter is not None else None
     return {
-        "job_id": job.db_id or 0,
+        "job_id": job.db_id,
         "name": job.name,
         "owner_id": job.owner_id,
         "next_run": str(job.next_run),
         "repeat": False,  # WP04: repeat field removed from ScheduledJob; triggers handle recurrence
         "cancelled": job.cancelled,
         "trigger_type": trigger_type,
+        "trigger_label": trigger_label,
         "trigger_detail": trigger_detail,
+        "fire_at": fire_at,
+        "jitter": job.jitter,
     }
 
 

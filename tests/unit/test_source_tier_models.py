@@ -339,7 +339,6 @@ class TestRegistrationSourceTier:
             job_name="my_job",
             handler_method="my_app.my_job",
             trigger_type=None,
-            trigger_value=None,
             trigger_label="once",
             trigger_detail=None,
             args_json="[]",

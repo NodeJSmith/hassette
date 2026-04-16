@@ -900,8 +900,13 @@ export interface components {
             handler_method: string;
             /** Trigger Type */
             trigger_type: string | null;
-            /** Trigger Value */
-            trigger_value: string | null;
+            /**
+             * Trigger Label
+             * @default
+             */
+            trigger_label: string;
+            /** Trigger Detail */
+            trigger_detail?: string | null;
             /** Repeat */
             repeat: number;
             /** Args Json */
@@ -1046,7 +1051,7 @@ export interface components {
         /** ScheduledJobResponse */
         ScheduledJobResponse: {
             /** Job Id */
-            job_id: number;
+            job_id?: number | null;
             /** Name */
             name: string;
             /** Owner Id */
@@ -1058,9 +1063,18 @@ export interface components {
             /** Cancelled */
             cancelled: boolean;
             /** Trigger Type */
-            trigger_type: string;
+            trigger_type: ("interval" | "cron" | "once" | "after" | "custom" | "one-shot") | null;
+            /**
+             * Trigger Label
+             * @default
+             */
+            trigger_label: string;
             /** Trigger Detail */
             trigger_detail?: string | null;
+            /** Fire At */
+            fire_at?: string | null;
+            /** Jitter */
+            jitter?: number | null;
         };
         /**
          * SessionRecord

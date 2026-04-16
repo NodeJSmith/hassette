@@ -194,7 +194,6 @@ async def test_job_registration_persists_correct_app_key(
         job_name="test_job",
         handler_method="MyApp.my_job",
         trigger_type=None,
-        trigger_value=None,
         trigger_label="once",
         trigger_detail=None,
         args_json="[]",

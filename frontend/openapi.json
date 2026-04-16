@@ -2349,17 +2349,6 @@
             ],
             "title": "Trigger Type"
           },
-          "trigger_value": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Trigger Value"
-          },
           "trigger_label": {
             "type": "string",
             "title": "Trigger Label",
@@ -2452,7 +2441,6 @@
           "job_name",
           "handler_method",
           "trigger_type",
-          "trigger_value",
           "repeat",
           "args_json",
           "kwargs_json",
@@ -2732,7 +2720,14 @@
       "ScheduledJobResponse": {
         "properties": {
           "job_id": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Job Id"
           },
           "name": {
@@ -2764,7 +2759,8 @@
                   "cron",
                   "once",
                   "after",
-                  "custom"
+                  "custom",
+                  "one-shot"
                 ]
               },
               {
@@ -2772,6 +2768,11 @@
               }
             ],
             "title": "Trigger Type"
+          },
+          "trigger_label": {
+            "type": "string",
+            "title": "Trigger Label",
+            "default": ""
           },
           "trigger_detail": {
             "anyOf": [
@@ -2783,11 +2784,32 @@
               }
             ],
             "title": "Trigger Detail"
+          },
+          "fire_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fire At"
+          },
+          "jitter": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jitter"
           }
         },
         "type": "object",
         "required": [
-          "job_id",
           "name",
           "owner_id",
           "next_run",

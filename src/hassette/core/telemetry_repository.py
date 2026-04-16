@@ -172,8 +172,9 @@ class TelemetryRepository:
             """
             INSERT INTO scheduled_jobs (
                 app_key, instance_index, job_name, handler_method,
-                trigger_type, trigger_value,
+                trigger_type,
                 trigger_label, trigger_detail,
+                repeat,
                 args_json, kwargs_json,
                 source_location, registration_source, source_tier
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -181,9 +182,9 @@ class TelemetryRepository:
             DO UPDATE SET
                 handler_method = excluded.handler_method,
                 trigger_type = excluded.trigger_type,
-                trigger_value = excluded.trigger_value,
                 trigger_label = excluded.trigger_label,
                 trigger_detail = excluded.trigger_detail,
+                repeat = excluded.repeat,
                 args_json = excluded.args_json,
                 kwargs_json = excluded.kwargs_json,
                 source_location = excluded.source_location,
@@ -198,9 +199,9 @@ class TelemetryRepository:
                 registration.job_name,
                 registration.handler_method,
                 registration.trigger_type,
-                registration.trigger_value,
                 registration.trigger_label,
                 registration.trigger_detail,
+                0,  # repeat is always 0 for new-style jobs; triggers handle recurrence
                 registration.args_json,
                 registration.kwargs_json,
                 registration.source_location,
@@ -249,6 +250,12 @@ class TelemetryRepository:
         now = time.time()
 
         try:
+            # Explicit BEGIN — aiosqlite opens connections with isolation_level=None (autocommit),
+            # so without this BEGIN, each execute() below auto-commits individually and the
+            # rollback() in the except clause is a no-op. This pattern mirrors
+            # persist_batch_with_fk_fallback().
+            await db.execute("BEGIN")
+
             # --- Non-once listeners without history: delete ---
             if live_listener_ids:
                 placeholders = ",".join("?" * len(live_listener_ids))

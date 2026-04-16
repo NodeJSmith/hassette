@@ -55,7 +55,7 @@ export function JobRow({ job }: Props) {
           {(job.trigger_type || job.handler_method) && (
             <span class="ht-item-row__subtitle">
               {job.trigger_type
-                ? `${job.trigger_type}${job.trigger_value ? `: ${job.trigger_value}` : ""}`
+                ? (job.trigger_detail ?? job.trigger_label ?? job.trigger_type)
                 : job.handler_method}
             </span>
           )}

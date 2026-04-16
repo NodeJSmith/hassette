@@ -2,6 +2,14 @@
 
 These build manifest, snapshot, listener-metric, and registry objects
 used by both e2e and integration web tests.
+
+**Factory guide**:
+
+- ``make_job()`` — builds a ``SimpleNamespace`` job stub with a real trigger object.
+  Use for web/serialization tests that only need duck-typed attribute access.
+- ``make_real_job()`` — builds a real ``ScheduledJob`` instance.
+  Use for tests that exercise ``ScheduledJob.__post_init__``, ``matches()``,
+  ``sort_index``, ``set_next_run``, or ``fire_at`` behavior.
 """
 
 import re
@@ -10,7 +18,9 @@ from unittest.mock import MagicMock
 
 from whenever import ZonedDateTime
 
+import hassette.utils.date_utils as date_utils
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
+from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
 
 
@@ -218,4 +228,41 @@ def make_job(
         next_run=next_run,
         cancelled=cancelled,
         trigger=trigger,
+    )
+
+
+def make_real_job(
+    name: str = "test_job",
+    owner_id: str = "MyApp.MyApp[0]",
+    trigger: object | None = None,
+    jitter: float | None = None,
+    group: str | None = None,
+    app_key: str = "",
+    instance_index: int = 0,
+) -> ScheduledJob:
+    """Build a real ``ScheduledJob`` instance for tests that need full object behavior.
+
+    Use this instead of ``make_job()`` when the test exercises ``ScheduledJob.__post_init__``,
+    ``matches()``, ``sort_index``, ``set_next_run``, or ``fire_at`` behavior.
+    Use ``make_job()`` for web/serialization tests that only need duck-typed attribute access.
+
+    Args:
+        name: Job name. Defaults to ``"test_job"``.
+        owner_id: Owner ID. Defaults to ``"MyApp.MyApp[0]"``.
+        trigger: Optional trigger. Defaults to ``None``.
+        jitter: Optional jitter in seconds.
+        group: Optional group name.
+        app_key: Optional app key.
+        instance_index: Optional app instance index.
+    """
+    return ScheduledJob(
+        owner_id=owner_id,
+        next_run=date_utils.now(),
+        job=lambda: None,
+        name=name,
+        trigger=trigger,  # pyright: ignore[reportArgumentType]
+        jitter=jitter,
+        group=group,
+        app_key=app_key,
+        instance_index=instance_index,
     )

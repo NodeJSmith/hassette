@@ -103,7 +103,6 @@ def _make_job_registration(*, job_name: str = "test_job") -> ScheduledJobRegistr
         job_name=job_name,
         handler_method="test_app.my_job",
         trigger_type=None,
-        trigger_value=None,
         trigger_label="once",
         trigger_detail=None,
         args_json="[]",

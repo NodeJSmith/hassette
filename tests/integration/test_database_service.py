@@ -426,7 +426,6 @@ EXPECTED_TABLES = {
         "job_name",
         "handler_method",
         "trigger_type",
-        "trigger_value",
         "trigger_label",
         "trigger_detail",
         "repeat",
