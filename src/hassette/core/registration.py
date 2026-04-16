@@ -93,3 +93,6 @@ class ScheduledJobRegistration:
 
     source_tier: SourceTier = "app"
     """Whether this job originates from a user app or the framework itself."""
+
+    group: str | None = None
+    """Scheduler group name, or None if not assigned to a group."""

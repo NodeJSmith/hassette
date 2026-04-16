@@ -2365,10 +2365,6 @@
             ],
             "title": "Trigger Detail"
           },
-          "repeat": {
-            "type": "integer",
-            "title": "Repeat"
-          },
           "args_json": {
             "type": "string",
             "title": "Args Json"
@@ -2431,6 +2427,55 @@
           "avg_duration_ms": {
             "type": "number",
             "title": "Avg Duration Ms"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "next_run": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Run"
+          },
+          "fire_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fire At"
+          },
+          "jitter": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jitter"
+          },
+          "cancelled": {
+            "type": "boolean",
+            "title": "Cancelled",
+            "default": false
           }
         },
         "type": "object",
@@ -2441,7 +2486,6 @@
           "job_name",
           "handler_method",
           "trigger_type",
-          "repeat",
           "args_json",
           "kwargs_json",
           "source_location",

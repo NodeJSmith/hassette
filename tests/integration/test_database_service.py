@@ -435,6 +435,8 @@ EXPECTED_TABLES = {
         "registration_source",
         "retired_at",
         "source_tier",
+        "group",
+        "cancelled_at",
     },
     "handler_invocations": {
         "id",

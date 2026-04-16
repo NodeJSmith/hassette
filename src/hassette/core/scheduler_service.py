@@ -326,6 +326,7 @@ class SchedulerService(Service):
             source_location=source_location,
             registration_source=registration_source,
             source_tier=job.source_tier,
+            group=job.group,
         )
         await self._enqueue_job(job)
         try:

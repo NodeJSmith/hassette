@@ -176,8 +176,9 @@ class TelemetryRepository:
                 trigger_label, trigger_detail,
                 repeat,
                 args_json, kwargs_json,
-                source_location, registration_source, source_tier
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                source_location, registration_source, source_tier,
+                "group"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(app_key, instance_index, job_name)
             DO UPDATE SET
                 handler_method = excluded.handler_method,
@@ -190,7 +191,9 @@ class TelemetryRepository:
                 source_location = excluded.source_location,
                 registration_source = excluded.registration_source,
                 source_tier = excluded.source_tier,
-                retired_at = NULL
+                "group" = excluded."group",
+                retired_at = NULL,
+                cancelled_at = NULL
             RETURNING id
             """,
             (
@@ -207,6 +210,7 @@ class TelemetryRepository:
                 registration.source_location,
                 registration.registration_source,
                 registration.source_tier,
+                registration.group,
             ),
         )
         row = await cursor.fetchone()
@@ -214,6 +218,22 @@ class TelemetryRepository:
         if row is None:
             raise RuntimeError("RETURNING id returned no row after INSERT INTO scheduled_jobs — should never happen")
         return row[0]
+
+    async def mark_job_cancelled(self, db_id: int) -> None:
+        """Set ``cancelled_at`` to the current epoch time for the given job row.
+
+        Called from the cancel path in ``SchedulerService`` when a job is cancelled
+        so that the durable ``cancelled`` state survives heap removal.
+
+        Args:
+            db_id: The ``id`` of the ``scheduled_jobs`` row to mark as cancelled.
+        """
+        db = self._db_service.db
+        await db.execute(
+            "UPDATE scheduled_jobs SET cancelled_at = ? WHERE id = ?",
+            (time.time(), db_id),
+        )
+        await db.commit()
 
     async def reconcile_registrations(
         self,

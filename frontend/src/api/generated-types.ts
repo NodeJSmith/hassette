@@ -907,8 +907,6 @@ export interface components {
             trigger_label: string;
             /** Trigger Detail */
             trigger_detail?: string | null;
-            /** Repeat */
-            repeat: number;
             /** Args Json */
             args_json: string;
             /** Kwargs Json */
@@ -935,6 +933,19 @@ export interface components {
             total_duration_ms: number;
             /** Avg Duration Ms */
             avg_duration_ms: number;
+            /** Group */
+            group?: string | null;
+            /** Next Run */
+            next_run?: number | null;
+            /** Fire At */
+            fire_at?: number | null;
+            /** Jitter */
+            jitter?: number | null;
+            /**
+             * Cancelled
+             * @default false
+             */
+            cancelled: boolean;
         };
         /**
          * ListenerWithSummary

@@ -15,7 +15,7 @@ from hassette.scheduler.classes import JobExecutionRecord
 from hassette.types.types import FRAMEWORK_APP_KEY
 
 # ---------------------------------------------------------------------------
-# Schema DDL (mirrors migrations through 002 final state)
+# Schema DDL (mirrors migrations through 003 final state)
 # ---------------------------------------------------------------------------
 
 _DDL = """
@@ -71,7 +71,9 @@ CREATE TABLE scheduled_jobs (
     source_location       TEXT    NOT NULL,
     registration_source   TEXT,
     source_tier           TEXT    NOT NULL DEFAULT 'app' CHECK (source_tier IN ('app', 'framework')),
-    retired_at            REAL
+    retired_at            REAL,
+    "group"               TEXT,
+    cancelled_at          REAL
 );
 
 CREATE UNIQUE INDEX idx_scheduled_jobs_natural
@@ -179,7 +181,7 @@ def _make_listener_registration(*, topic: str = "hass.event.state_changed") -> L
     )
 
 
-def _make_job_registration(*, job_name: str = "test_job") -> ScheduledJobRegistration:
+def _make_job_registration(*, job_name: str = "test_job", group: str | None = None) -> ScheduledJobRegistration:
     return ScheduledJobRegistration(
         app_key="test_app",
         instance_index=0,
@@ -192,6 +194,7 @@ def _make_job_registration(*, job_name: str = "test_job") -> ScheduledJobRegistr
         kwargs_json="{}",
         source_location="test_telemetry_repository.py:1",
         registration_source=None,
+        group=group,
     )
 
 
@@ -241,6 +244,63 @@ async def test_register_job_inserts_and_returns_id(
     assert row is not None
     assert row["app_key"] == "test_app"
     assert row["job_name"] == "test_job"
+
+
+@pytest.mark.asyncio
+async def test_register_job_persists_group(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+) -> None:
+    """register_job() writes the group value to the database."""
+    reg = _make_job_registration(job_name="morning_job", group="morning")
+    job_id = await repo.register_job(reg)
+
+    cursor = await db.execute('SELECT "group" FROM scheduled_jobs WHERE id = ?', (job_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == "morning", f"Expected group='morning', got {row[0]!r}"
+
+
+@pytest.mark.asyncio
+async def test_register_job_persists_null_group(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+) -> None:
+    """register_job() persists NULL for group when group is not set."""
+    reg = _make_job_registration()
+    job_id = await repo.register_job(reg)
+
+    cursor = await db.execute('SELECT "group" FROM scheduled_jobs WHERE id = ?', (job_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is None, f"Expected group=None, got {row[0]!r}"
+
+
+@pytest.mark.asyncio
+async def test_mark_job_cancelled_sets_cancelled_at(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+) -> None:
+    """mark_job_cancelled() sets cancelled_at to the current epoch time."""
+    reg = _make_job_registration(job_name="cancellable_job")
+    job_id = await repo.register_job(reg)
+
+    # Verify cancelled_at is NULL before marking
+    cursor = await db.execute("SELECT cancelled_at FROM scheduled_jobs WHERE id = ?", (job_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is None, "cancelled_at should be NULL before cancellation"
+
+    # Mark cancelled and verify the timestamp is set
+    before_ts = time.time()
+    await repo.mark_job_cancelled(job_id)
+    after_ts = time.time()
+
+    cursor = await db.execute("SELECT cancelled_at FROM scheduled_jobs WHERE id = ?", (job_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is not None, "cancelled_at should be set after mark_job_cancelled()"
+    assert before_ts <= row[0] <= after_ts, f"cancelled_at={row[0]} should be between {before_ts} and {after_ts}"
 
 
 # ---------------------------------------------------------------------------
