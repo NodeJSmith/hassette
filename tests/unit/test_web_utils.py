@@ -2,10 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from whenever import ZonedDateTime
-
 from hassette.scheduler.triggers import After, Daily, Every, Once
-from hassette.web.routes.scheduler import _job_to_dict
 from hassette.web.utils import resolve_trigger
 
 
@@ -68,41 +65,6 @@ class TestResolveTrigger:
         assert resolve_trigger(job) == ("custom", "every 60s")
 
 
-class TestJobToDictFireAtJitter:
-    """F7: _job_to_dict must include fire_at and jitter for jittered jobs."""
-
-    def _base_job(self) -> MagicMock:
-        job = MagicMock()
-        job.trigger = Every(hours=1)
-        job.db_id = 1
-        job.name = "test_job"
-        job.owner_id = "owner"
-        job.cancelled = False
-        return job
-
-    def test_jittered_job_has_fire_at_and_jitter(self) -> None:
-        """When fire_at != next_run, fire_at and jitter are serialised."""
-        job = self._base_job()
-        base_time = ZonedDateTime(2025, 6, 1, 12, 0, tz="UTC")
-        jittered_time = ZonedDateTime(2025, 6, 1, 12, 0, 45, tz="UTC")
-        job.next_run = base_time
-        job.fire_at = jittered_time
-        job.jitter = 120.0
-
-        result = _job_to_dict(job)
-
-        assert result["fire_at"] == jittered_time.format_iso()
-        assert result["jitter"] == 120.0
-
-    def test_non_jittered_job_fire_at_is_none(self) -> None:
-        """When fire_at == next_run, fire_at is None and jitter may be None."""
-        job = self._base_job()
-        base_time = ZonedDateTime(2025, 6, 1, 12, 0, tz="UTC")
-        job.next_run = base_time
-        job.fire_at = base_time
-        job.jitter = None
-
-        result = _job_to_dict(job)
-
-        assert result["fire_at"] is None
-        assert result["jitter"] is None
+# TestJobToDictFireAtJitter was removed in spec 2039 WP02 — _job_to_dict was
+# deleted along with the /scheduler/jobs route. Live job serialisation now
+# happens in the app_jobs route handler enrichment path.

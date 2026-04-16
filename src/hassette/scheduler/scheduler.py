@@ -203,9 +203,10 @@ class Scheduler(Resource):
     def cancel_group(self, group: str) -> None:
         """Cancel all jobs in the given group.
 
-        Marks each job as cancelled, removes it from the scheduler service queue,
-        and clears the group entry from ``_jobs_by_group``. No-op if the group
-        does not exist.
+        Marks each job as cancelled, persists durable cancellation state via
+        ``SchedulerService.mark_job_cancelled`` (when ``db_id`` is set), removes
+        the job from the scheduler service queue, and clears the group entry from
+        ``_jobs_by_group``. No-op if the group does not exist.
 
         Args:
             group: The group name to cancel.
@@ -213,6 +214,11 @@ class Scheduler(Resource):
         jobs = list(self._jobs_by_group.get(group, set()))
         for job in jobs:
             job.cancel()
+            if job.db_id is not None:
+                self.task_bucket.spawn(
+                    self.scheduler_service.mark_job_cancelled(job.db_id),
+                    name="scheduler:mark_job_cancelled",
+                )
             self.scheduler_service.remove_job(job)
         if group in self._jobs_by_group:
             del self._jobs_by_group[group]

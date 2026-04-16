@@ -136,6 +136,55 @@ class TestCancelGroup:
         # remove_job called twice
         assert scheduler.scheduler_service.remove_job.call_count == 2
 
+    def test_cancel_group_persists_cancelled_at_for_registered_jobs(self) -> None:
+        """cancel_group spawns mark_job_cancelled for each job with a db_id set."""
+        import asyncio
+        from unittest.mock import MagicMock
+
+        scheduler = _make_scheduler()
+        # Add a task_bucket mock. Close any coroutine passed to spawn to avoid
+        # "coroutine never awaited" warnings when mark_job_cancelled returns a real coro.
+        spawned_coroutines: list = []
+
+        def _spawn_and_close(coro, *, name=""):
+            spawned_coroutines.append((coro, name))
+            if asyncio.iscoroutine(coro):
+                coro.close()  # clean up to avoid "never awaited" warnings
+
+        scheduler.task_bucket = MagicMock()
+        scheduler.task_bucket.spawn.side_effect = _spawn_and_close
+
+        job1 = scheduler.schedule(_noop, Every(hours=1), name="job1", group="morning")
+        job2 = scheduler.schedule(_noop, Every(hours=2), name="job2", group="morning")
+
+        # Simulate both jobs having been persisted
+        job1.mark_registered(101)
+        job2.mark_registered(102)
+
+        scheduler.cancel_group("morning")
+
+        # task_bucket.spawn must have been called once per job with a db_id
+        assert scheduler.task_bucket.spawn.call_count == 2
+        # Verify the spawn calls used the correct task name
+        for _coro, name in spawned_coroutines:
+            assert name == "scheduler:mark_job_cancelled"
+
+    def test_cancel_group_skips_mark_job_cancelled_when_db_id_none(self) -> None:
+        """cancel_group does not spawn mark_job_cancelled for jobs without db_id."""
+        from unittest.mock import MagicMock
+
+        scheduler = _make_scheduler()
+        scheduler.task_bucket = MagicMock()
+
+        # Jobs not yet persisted (db_id=None)
+        scheduler.schedule(_noop, Every(hours=1), name="job1", group="morning")
+        scheduler.schedule(_noop, Every(hours=2), name="job2", group="morning")
+
+        scheduler.cancel_group("morning")
+
+        # task_bucket.spawn must NOT be called (no db_ids set)
+        scheduler.task_bucket.spawn.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # list_jobs()

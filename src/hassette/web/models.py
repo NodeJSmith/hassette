@@ -103,24 +103,6 @@ class LogEntryResponse(BaseModel):
     app_key: str | None = None
 
 
-class ScheduledJobResponse(BaseModel):
-    job_id: int | None = None
-    """Database row ID; ``None`` when the job is not yet persisted or registration failed."""
-    name: str
-    owner_id: str
-    next_run: str
-    repeat: bool
-    cancelled: bool
-    trigger_type: Literal["interval", "cron", "once", "after", "custom", "one-shot"] | None
-    trigger_label: str = ""
-    """Human-readable label from ``TriggerProtocol.trigger_label()``; empty string for legacy no-trigger jobs."""
-    trigger_detail: str | None = None
-    fire_at: str | None = None
-    """Actual dispatch time (ISO 8601). Omitted when fire_at == next_run (i.e. no jitter applied)."""
-    jitter: float | None = None
-    """Random jitter offset in seconds applied at enqueue time, if any."""
-
-
 # ---------------------------------------------------------------------------
 # Typed WebSocket message models
 # ---------------------------------------------------------------------------

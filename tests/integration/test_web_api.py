@@ -164,10 +164,10 @@ class TestEventsEndpoint:
 
 
 class TestSchedulerEndpoints:
-    async def test_get_scheduled_jobs(self, client: "AsyncClient") -> None:
+    async def test_scheduler_jobs_endpoint_removed(self, client: "AsyncClient") -> None:
+        """GET /api/scheduler/jobs returns 404 — endpoint deleted in spec 2039 WP02."""
         response = await client.get("/api/scheduler/jobs")
-        assert response.status_code == 200
-        assert response.json() == []
+        assert response.status_code == 404
 
 
 class TestConfigEndpoint:

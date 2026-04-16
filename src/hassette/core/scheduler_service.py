@@ -498,6 +498,16 @@ class SchedulerService(Service):
         """
         return self.task_bucket.spawn(self._remove_job(job), name="scheduler:remove_job")
 
+    async def mark_job_cancelled(self, db_id: int) -> None:
+        """Persist durable cancellation state for a job by setting ``cancelled_at`` in the DB.
+
+        Delegates to ``CommandExecutor.mark_job_cancelled``. No-op when ``db_id`` is None.
+
+        Args:
+            db_id: The ``id`` of the ``scheduled_jobs`` row to mark as cancelled.
+        """
+        await self._executor.mark_job_cancelled(db_id)
+
 
 class _ScheduledJobQueue(Resource):
     """Encapsulates the scheduler heap with fair locking semantics."""
