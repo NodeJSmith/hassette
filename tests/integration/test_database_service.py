@@ -427,6 +427,8 @@ EXPECTED_TABLES = {
         "handler_method",
         "trigger_type",
         "trigger_value",
+        "trigger_label",
+        "trigger_detail",
         "repeat",
         "args_json",
         "kwargs_json",

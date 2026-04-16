@@ -101,6 +101,8 @@ class JobSummary(BaseModel):
     handler_method: str
     trigger_type: str | None
     trigger_value: str | None
+    trigger_label: str = ""
+    trigger_detail: str | None = None
     repeat: int
     args_json: str
     kwargs_json: str

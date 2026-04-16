@@ -15,7 +15,7 @@ from hassette.scheduler.classes import JobExecutionRecord
 from hassette.types.types import FRAMEWORK_APP_KEY
 
 # ---------------------------------------------------------------------------
-# Schema DDL (mirrors migrations 001-006 final state)
+# Schema DDL (mirrors migrations through 002 final state)
 # ---------------------------------------------------------------------------
 
 _DDL = """
@@ -61,8 +61,11 @@ CREATE TABLE scheduled_jobs (
     instance_index        INTEGER NOT NULL,
     job_name              TEXT    NOT NULL,
     handler_method        TEXT    NOT NULL,
-    trigger_type          TEXT,
+    trigger_type          TEXT
+        CHECK (trigger_type IN ('interval', 'cron', 'once', 'after', 'custom')),
     trigger_value         TEXT,
+    trigger_label         TEXT    NOT NULL DEFAULT '',
+    trigger_detail        TEXT,
     repeat                INTEGER NOT NULL DEFAULT 0,
     args_json             TEXT    NOT NULL DEFAULT '[]',
     kwargs_json           TEXT    NOT NULL DEFAULT '{}',

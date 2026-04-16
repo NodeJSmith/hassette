@@ -2360,6 +2360,22 @@
             ],
             "title": "Trigger Value"
           },
+          "trigger_label": {
+            "type": "string",
+            "title": "Trigger Label",
+            "default": ""
+          },
+          "trigger_detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Detail"
+          },
           "repeat": {
             "type": "integer",
             "title": "Repeat"

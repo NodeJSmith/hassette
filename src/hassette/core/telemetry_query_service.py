@@ -187,6 +187,8 @@ class TelemetryQueryService(Resource):
                 sj.handler_method,
                 sj.trigger_type,
                 sj.trigger_value,
+                sj.trigger_label,
+                sj.trigger_detail,
                 sj.repeat,
                 sj.args_json,
                 sj.kwargs_json,
