@@ -14,7 +14,7 @@ class NotifyApp(App[AppConfig]):
         # Pass keyword arguments to the handler
         self.scheduler.run_every(
             self.log_status,
-            interval=300,
+            seconds=300,
             name="status_log",
             kwargs={"level": "info", "include_history": True},
         )
@@ -22,8 +22,8 @@ class NotifyApp(App[AppConfig]):
         # Combine args and kwargs
         self.scheduler.run_daily(
             self.generate_report,
+            at="06:00",
             name="daily_report",
-            start=(6, 0),
             args=("daily",),
             kwargs={"recipients": ["admin"]},
         )

@@ -46,9 +46,9 @@ See [Bus & Events](bus.md) for side-by-side examples.
 ## Step 4: Scheduler
 
 - [ ] Convert each `self.run_in(cb, seconds)` to `self.scheduler.run_in(cb, delay=seconds)`
-- [ ] Convert each `self.run_once(cb, time)` to `self.scheduler.run_once(cb, start=time)`
-- [ ] Convert each `self.run_every(cb, "now", interval)` to `self.scheduler.run_every(cb, start=self.now(), interval=interval)`
-- [ ] Convert each `self.run_daily(cb, time)` to `self.scheduler.run_daily(cb, start=time)`
+- [ ] Convert each `self.run_once(cb, time(H, M))` to `self.scheduler.run_once(cb, at="HH:MM")`
+- [ ] Convert each `self.run_every(cb, "now", interval)` to `self.scheduler.run_every(cb, seconds=interval)`
+- [ ] Convert each `self.run_daily(cb, time(H, M))` to `self.scheduler.run_daily(cb, at="HH:MM")`
 - [ ] Replace `self.cancel_timer(handle)` with `job.cancel()` on the returned `ScheduledJob`
 - [ ] Check any blocking work inside callbacks — for apps with heavy sync logic, switch to `AppSync`; for isolated blocking calls inside an `App` handler, use `await self.task_bucket.run_in_thread(...)`
 
