@@ -250,9 +250,10 @@ async def app_jobs(
         try:
             live_job = live_by_db_id.get(js.job_id)
             if live_job is not None:
-                # OR semantics: preserve DB-derived cancelled_at signal even when the live heap
-                # shows cancelled=False (transient window between cancellation and heap removal).
-                is_cancelled = live_job.cancelled or js.cancelled
+                # DB-only: cancelled_at IS NOT NULL is the source of truth.
+                # There is a brief window between cancel_job() and cancelled_at being committed
+                # where telemetry may show the job as active — accepted (window is milliseconds).
+                is_cancelled = js.cancelled
 
                 # Don't expose next_run/fire_at for cancelled jobs — they won't fire again.
                 if is_cancelled:

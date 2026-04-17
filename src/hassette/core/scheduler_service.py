@@ -45,7 +45,7 @@ class SchedulerService(Service):
     """Tracks pending DB registration tasks per app_key for await barrier support."""
 
     _removal_callbacks: dict[str, Callable[["ScheduledJob"], None]]
-    """Per-owner callbacks invoked whenever a job is removed via _remove_job()."""
+    """Per-owner callbacks invoked whenever a job is removed via dequeue_job() or _remove_job()."""
 
     def __init__(self, hassette: "Hassette", *, executor: "CommandExecutor", parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
@@ -174,12 +174,15 @@ class SchedulerService(Service):
             )
 
     async def _remove_job(self, job: "ScheduledJob") -> None:
-        """Remove a specific job and wake the scheduler.
+        """Remove a specific job via the async path (acquires lock) and wake the scheduler.
 
-        The callback is fired unconditionally because in the normal dispatch flow
-        the serve loop has already popped the job from the queue before
-        reschedule_job calls _remove_job on exhaustion — remove_job would return
-        False and the callback would silently drop.
+        Used by the serve loop for job exhaustion and trigger errors in reschedule_job.
+        The callback is fired unconditionally because the serve loop has already
+        popped the job from the queue before reschedule_job calls _remove_job —
+        remove_job would return False and the callback would silently drop.
+
+        Note: for cancel-initiated removal, use ``dequeue_job`` (synchronous path)
+        instead. Both paths fire ``_fire_removal_callbacks`` unconditionally.
         """
 
         removed = await self._job_queue.remove_job(job)
@@ -345,8 +348,8 @@ class SchedulerService(Service):
         Args:
             job: The job to dispatch.
         """
-        if job.cancelled:
-            self.logger.debug("Job %s is cancelled, skipping dispatch", job)
+        if job._dequeued:
+            self.logger.debug("Job %s was dequeued (cancelled between heap-pop and dispatch), skipping", job)
             return
 
         self.logger.debug("Dispatching job: %s", job)
@@ -377,11 +380,6 @@ class SchedulerService(Service):
         Args:
             job: The job to run.
         """
-        if job.cancelled:
-            self.logger.debug("Job %s is cancelled, skipping", job)
-            await self._remove_job(job)
-            return
-
         lag = (date_utils.now() - job.fire_at).in_seconds()
         if lag > self.hassette.config.scheduler_behind_schedule_threshold_seconds:
             self.logger.warning("Job %s is behind schedule by %.2fs", job, lag)
@@ -402,8 +400,7 @@ class SchedulerService(Service):
     async def reschedule_job(self, job: "ScheduledJob"):
         """Reschedule a job based on its trigger's next_run_time().
 
-        If the job is cancelled, it is removed immediately. If the trigger raises or
-        returns None, the job is treated as exhausted and removed. If the trigger
+        If the trigger raises or returns None, the job is treated as exhausted and removed. If the trigger
         returns a non-future time (delta ≤ 0), a WARNING is logged and the next run
         is advanced by 1 second. Exceptions from next_run_time() are caught, logged,
         and treated as exhaustion — the scheduler must never crash due to a
@@ -412,11 +409,6 @@ class SchedulerService(Service):
         Args:
             job: The job to reschedule.
         """
-
-        if job.cancelled:
-            self.logger.debug("Job %s is cancelled, not rescheduling", job)
-            await self._remove_job(job)
-            return
 
         try:
             next_run = job.trigger.next_run_time(job.next_run, date_utils.now()) if job.trigger else None
@@ -490,13 +482,32 @@ class SchedulerService(Service):
 
         return self.task_bucket.spawn(self._remove_jobs_by_owner(owner), name="scheduler:remove_jobs_by_owner")
 
-    def remove_job(self, job: "ScheduledJob") -> asyncio.Task:
-        """Remove a job from the scheduler.
+    def dequeue_job(self, job: "ScheduledJob") -> bool:
+        """Remove a job from the scheduler synchronously, fire removal callbacks, and kick.
+
+        Calls ``_ScheduledJobQueue.remove_item_sync`` directly (no lock). Fires
+        ``_fire_removal_callbacks`` unconditionally — even when the job was not in
+        the heap — to prevent dict leaks when the serve loop already popped the job.
+        Calls ``kick()`` only when the job was actually removed from the heap.
 
         Args:
             job: The job to remove.
+
+        Returns:
+            True if the job was found and removed from the heap, False otherwise.
         """
-        return self.task_bucket.spawn(self._remove_job(job), name="scheduler:remove_job")
+        removed = self._job_queue.remove_item_sync(job)
+        if removed:
+            self.logger.debug("Dequeued job: %s", job)
+            self.kick()
+        else:
+            self.logger.debug("Job not in heap (already popped by serve loop): %s", job)
+        # Set _dequeued unconditionally — even when the job was already popped
+        # from the heap by the serve loop. This prevents the dispatch race
+        # (guard in _dispatch_and_log) and makes cancel idempotent.
+        job._dequeued = True
+        self._fire_removal_callbacks([job])
+        return removed
 
     async def mark_job_cancelled(self, db_id: int) -> None:
         """Persist durable cancellation state for a job by setting ``cancelled_at`` in the DB.
@@ -631,6 +642,21 @@ class _ScheduledJobQueue(Resource):
 
         self.logger.debug("Job not found in queue, cannot remove: %s", job)
         return removed
+
+    def remove_item_sync(self, job: "ScheduledJob") -> bool:
+        """Remove a specific job from the heap synchronously, without acquiring the lock.
+
+        Calls ``self._queue.remove_item(job)`` directly. Safe to call from
+        synchronous code running on the event loop — other coroutines cannot
+        interleave without an await point in asyncio's cooperative scheduler.
+
+        Args:
+            job: The job to remove.
+
+        Returns:
+            True if the job was found and removed, False otherwise.
+        """
+        return self._queue.remove_item(job)
 
     async def get_all(self) -> list["ScheduledJob"]:
         """Return a snapshot of all queued jobs (non-destructive)."""

@@ -112,7 +112,7 @@ class Scheduler(Resource):
         """Callback invoked by SchedulerService when a job is auto-exhausted.
 
         Keeps _jobs_by_group and _jobs_by_name in sync when SchedulerService removes a
-        one-shot job after it fires (without the caller explicitly calling remove_job).
+        one-shot job after it fires or when a job is dequeued via cancel_job/_dequeue_job.
         """
         self._jobs_by_name.pop(job.name, None)
         if job.group is not None:
@@ -126,7 +126,7 @@ class Scheduler(Resource):
         self.mark_ready(reason="Scheduler initialized")
 
     async def on_shutdown(self) -> None:
-        await self.remove_all_jobs()
+        await self._remove_all_jobs()
         self.scheduler_service.deregister_removal_callback(self.owner_id)
 
     @property
@@ -173,6 +173,7 @@ class Scheduler(Resource):
                 self._jobs_by_group[job.group] = set()
             self._jobs_by_group[job.group].add(job)
 
+        job._scheduler = self
         self.scheduler_service.add_job(job)
 
         return job
@@ -180,42 +181,53 @@ class Scheduler(Resource):
     def cancel_job(self, job: "ScheduledJob") -> None:
         """Cancel an individual job and persist the cancellation to the database.
 
-        Marks the job as cancelled, spawns a durable ``mark_job_cancelled`` DB
-        write (when ``db_id`` is set), and removes the job from the scheduler
-        service queue. Mirrors ``cancel_group()`` semantics for a single job.
+        Idempotent: a second cancel on the same job is a silent no-op. Raises
+        ``ValueError`` if the job belongs to a different scheduler instance.
+        Spawns a durable ``mark_job_cancelled`` DB write (when ``db_id`` is set),
+        dequeues the job from the service, and sets ``job._dequeued = True``.
+
+        Must NOT call ``job.cancel()`` internally — that delegates back here and
+        would cause infinite recursion.
 
         Args:
             job: The job to cancel.
+
+        Raises:
+            ValueError: If the job belongs to a different scheduler instance.
         """
-        job.cancel()
+        if job._dequeued:
+            return  # idempotent — already cancelled
+        if job._scheduler is not self:
+            raise ValueError(
+                f"cancel_job() called with a job belonging to a different scheduler "
+                f"(job owner: {job._scheduler}, this scheduler: {self})"
+            )
         if job.db_id is not None:
-            # mark_job_cancelled and remove_job are spawned without ordering guarantee.
-            # The enrichment OR logic in telemetry.py (live_job.cancelled or js.cancelled)
-            # covers either execution order.
-            self.task_bucket.spawn(
+            # Spawn on scheduler_service.task_bucket (not self.task_bucket) so the
+            # DB write survives Scheduler resource shutdown — the service's lifecycle
+            # extends past the resource's cleanup phase.
+            self.scheduler_service.task_bucket.spawn(
                 self.scheduler_service.mark_job_cancelled(job.db_id),
                 name="scheduler:mark_job_cancelled",
             )
-        self.remove_job(job)
+        self._dequeue_job(job)
+        # _dequeued is set by dequeue_job() in SchedulerService — no need to set here
 
-    def remove_job(self, job: "ScheduledJob") -> asyncio.Task:
-        """Remove a job from the scheduler.
+    def _dequeue_job(self, job: "ScheduledJob") -> bool:
+        """Synchronously remove a job from the scheduler service heap.
+
+        No inline dict cleanup — callback (``_on_job_removed``) is the sole
+        authority for ``_jobs_by_name`` and ``_jobs_by_group`` state.
 
         Args:
             job: The job to remove.
+
+        Returns:
+            True if the job was found and removed from the heap, False otherwise.
         """
-        self._jobs_by_name.pop(job.name, None)
+        return self.scheduler_service.dequeue_job(job)
 
-        if job.group is not None:
-            group_set = self._jobs_by_group.get(job.group)
-            if group_set is not None:
-                group_set.discard(job)
-                if not group_set:
-                    del self._jobs_by_group[job.group]
-
-        return self.scheduler_service.remove_job(job)
-
-    def remove_all_jobs(self) -> asyncio.Task:
+    def _remove_all_jobs(self) -> asyncio.Task:
         """Remove all jobs for the owner of this scheduler."""
         self._jobs_by_name.clear()
         self._jobs_by_group.clear()
@@ -224,28 +236,18 @@ class Scheduler(Resource):
     def cancel_group(self, group: str) -> None:
         """Cancel all jobs in the given group.
 
-        Marks each job as cancelled, persists durable cancellation state via
-        ``SchedulerService.mark_job_cancelled`` (when ``db_id`` is set), removes
-        the job from the scheduler service queue, and clears the group entry from
-        ``_jobs_by_group``. No-op if the group does not exist.
+        Delegates to ``cancel_job`` per-member, which handles the DB write,
+        dequeue, and ``_dequeued`` flag. Dict cleanup (``_jobs_by_group`` and
+        ``_jobs_by_name``) is handled by the ``_on_job_removed`` callback
+        fired by ``scheduler_service.dequeue_job``. No-op if the group does
+        not exist.
 
         Args:
             group: The group name to cancel.
         """
         jobs = list(self._jobs_by_group.get(group, set()))
         for job in jobs:
-            job.cancel()
-            if job.db_id is not None:
-                self.task_bucket.spawn(
-                    self.scheduler_service.mark_job_cancelled(job.db_id),
-                    name="scheduler:mark_job_cancelled",
-                )
-            self.scheduler_service.remove_job(job)
-        if group in self._jobs_by_group:
-            del self._jobs_by_group[group]
-        # Also remove from _jobs_by_name
-        for job in jobs:
-            self._jobs_by_name.pop(job.name, None)
+            self.cancel_job(job)
 
     def list_jobs(self, group: str | None = None) -> list["ScheduledJob"]:
         """Return all or group-filtered jobs.

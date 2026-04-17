@@ -12,7 +12,6 @@ When you schedule a task, you receive a [`ScheduledJob`][hassette.scheduler.clas
 | `group` | `str \| None` | Group name, if the job was registered with `group=`. Used for bulk cancellation via `cancel_group()`. |
 | `jitter` | `float \| None` | Seconds of random offset applied at enqueue time, if specified. |
 | `job_id` | `int` | Unique integer identifier assigned at creation. Stable for the lifetime of the job object. |
-| `cancelled` | `bool` | `True` once `cancel()` has been called. The scheduler skips dispatching cancelled jobs. |
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_job_metadata.py"
@@ -34,7 +33,7 @@ Cancel all jobs in a named group at once with `cancel_group()`:
 self.scheduler.cancel_group("morning")
 ```
 
-This marks each job in the group as cancelled, removes it from the scheduler queue, and clears the group entry. No-op if the group does not exist.
+This cancels each job in the group — removing it from the scheduler queue and recording it as cancelled in the database — then clears the group entry. No-op if the group does not exist.
 
 ### Listing Jobs
 
@@ -47,6 +46,25 @@ all_jobs = self.scheduler.list_jobs()
 # Only jobs in a specific group
 morning_jobs = self.scheduler.list_jobs(group="morning")
 ```
+
+### Checking Cancellation State
+
+`ScheduledJob` does not expose a `cancelled` attribute. Once a job is cancelled it is removed from the scheduler's queue, so the canonical way to check whether a job is still active is to query `list_jobs()`:
+
+```python
+def is_running(self) -> bool:
+    return self.my_job in self.scheduler.list_jobs()
+```
+
+For the common case of guarding against a double-cancel (for example, when multiple code paths may both call `cancel()`), store the reference as `None` after cancelling and check before calling:
+
+```python
+if self.my_job is not None:
+    self.my_job.cancel()
+    self.my_job = None
+```
+
+Calling `cancel()` on an already-cancelled job is a silent no-op — Hassette checks the job's internal state at entry and returns immediately if it has already been dequeued. The null-reference pattern above is still recommended when you need to reason locally about whether your code path has already cancelled the job.
 
 ### Automatic Cleanup
 
@@ -86,7 +104,7 @@ A common pattern for "poll until condition met" automations is a job that cancel
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_self_cancel.py"
 ```
 
-Once `cancel()` is called, the scheduler skips the next dispatch and removes the job from the queue. No external coordination needed.
+Once `cancel()` is called, the job is immediately removed from the scheduler queue. If the dispatch loop has already picked up the job for execution, it checks for dequeue after acquiring the job and skips the handler — so double-execution cannot occur. No external coordination needed.
 
 ## Troubleshooting
 

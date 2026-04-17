@@ -591,11 +591,16 @@ class Router:
     async def add_route(self, topic: str, listener: "Listener") -> None:
         """Add a listener to the appropriate route based on whether it contains glob characters.
 
+        Checks ``listener.is_cancelled`` before insertion to prevent orphaned
+        listeners when ``Subscription.cancel()`` races with the async add task (#451).
+
         Args:
             topic: The topic to add the listener to.
             listener: The listener to add.
         """
         async with self.lock:
+            if listener.is_cancelled:
+                return
             if any(ch in topic for ch in GLOB_CHARS):
                 self.globs[topic].append(listener)
             else:

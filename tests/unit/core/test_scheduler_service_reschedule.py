@@ -109,17 +109,16 @@ class TestRescheduleNoneRemovesJob:
         svc._job_queue.remove_job.assert_called_once_with(job)
         svc._job_queue.add.assert_not_called()
 
-    async def test_reschedule_cancelled_removes_job(self) -> None:
-        """Cancelled job is removed without calling next_run_time()."""
+    async def test_reschedule_exhausted_job_via_none_trigger(self) -> None:
+        """Exhausted job (trigger returns None) is removed via _remove_job."""
         svc = _make_scheduler_service()
-        trig = _make_interval_trigger(next_returns=date_utils.now().add(seconds=60))
+        trig = _make_interval_trigger(next_returns=None)
         job = _make_job(trigger=trig)
-        job.cancel()
 
         await svc.reschedule_job(job)
 
         svc._job_queue.remove_job.assert_called_once_with(job)
-        trig.next_run_time.assert_not_called()
+        trig.next_run_time.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

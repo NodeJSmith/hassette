@@ -35,6 +35,8 @@ def _make_scheduler(removal_callback_supported: bool = True) -> Scheduler:
         mock_service.register_removal_callback = Mock()
     else:
         del mock_service.register_removal_callback
+    # dequeue_job must set job._dequeued = True (mirrors real SchedulerService behavior)
+    mock_service.dequeue_job = Mock(side_effect=lambda job: setattr(job, "_dequeued", True) or True)
     scheduler.scheduler_service = mock_service
     scheduler._jobs_by_name = {}
     scheduler._jobs_by_group = {}
@@ -107,13 +109,16 @@ class TestScheduleEntryPoint:
 
 class TestCancelGroup:
     def test_cancel_group_cancels_all_members(self) -> None:
-        """All jobs in a group have cancelled=True after cancel_group()."""
+        """All jobs in a group are dequeued after cancel_group()."""
         scheduler = _make_scheduler()
         job1 = scheduler.schedule(_noop, Every(hours=1), name="job1", group="morning")
         job2 = scheduler.schedule(_noop, Every(hours=2), name="job2", group="morning")
         scheduler.cancel_group("morning")
-        assert job1.cancelled
-        assert job2.cancelled
+        # Verify dequeue_job was called for each member
+        calls = scheduler.scheduler_service.dequeue_job.call_args_list
+        dequeued_jobs = {c.args[0] for c in calls}
+        assert job1 in dequeued_jobs
+        assert job2 in dequeued_jobs
 
     def test_cancel_group_nonexistent_noop(self) -> None:
         """cancel_group('ghost') does not raise."""
@@ -121,20 +126,23 @@ class TestCancelGroup:
         scheduler.cancel_group("ghost")  # should not raise
 
     def test_cancel_group_clears_group_key(self) -> None:
-        """After cancellation, the group key is removed from _jobs_by_group."""
+        """After cancellation, the group key is removed from _jobs_by_group via _on_job_removed callback."""
         scheduler = _make_scheduler()
-        scheduler.schedule(_noop, Every(hours=1), group="morning")
-        scheduler.cancel_group("morning")
+        job = scheduler.schedule(_noop, Every(hours=1), group="morning")
+        assert "morning" in scheduler._jobs_by_group
+
+        # Simulate callback-based removal (as fired by scheduler_service.dequeue_job)
+        scheduler._on_job_removed(job)
         assert "morning" not in scheduler._jobs_by_group
 
-    def test_cancel_group_calls_remove_job_on_service(self) -> None:
-        """cancel_group calls scheduler_service.remove_job for each member."""
+    def test_cancel_group_calls_dequeue_job_on_service(self) -> None:
+        """cancel_group calls scheduler_service.dequeue_job for each member."""
         scheduler = _make_scheduler()
         scheduler.schedule(_noop, Every(hours=1), name="job1", group="morning")
         scheduler.schedule(_noop, Every(hours=2), name="job2", group="morning")
         scheduler.cancel_group("morning")
-        # remove_job called twice
-        assert scheduler.scheduler_service.remove_job.call_count == 2
+        # dequeue_job called twice
+        assert scheduler.scheduler_service.dequeue_job.call_count == 2
 
     def test_cancel_group_persists_cancelled_at_for_registered_jobs(self) -> None:
         """cancel_group spawns mark_job_cancelled for each job with a db_id set."""
@@ -151,8 +159,8 @@ class TestCancelGroup:
             if asyncio.iscoroutine(coro):
                 coro.close()  # clean up to avoid "never awaited" warnings
 
-        scheduler.task_bucket = MagicMock()
-        scheduler.task_bucket.spawn.side_effect = _spawn_and_close
+        scheduler.scheduler_service.task_bucket = MagicMock()
+        scheduler.scheduler_service.task_bucket.spawn.side_effect = _spawn_and_close
 
         job1 = scheduler.schedule(_noop, Every(hours=1), name="job1", group="morning")
         job2 = scheduler.schedule(_noop, Every(hours=2), name="job2", group="morning")
@@ -164,7 +172,7 @@ class TestCancelGroup:
         scheduler.cancel_group("morning")
 
         # task_bucket.spawn must have been called once per job with a db_id
-        assert scheduler.task_bucket.spawn.call_count == 2
+        assert scheduler.scheduler_service.task_bucket.spawn.call_count == 2
         # Verify the spawn calls used the correct task name
         for _coro, name in spawned_coroutines:
             assert name == "scheduler:mark_job_cancelled"
@@ -174,7 +182,7 @@ class TestCancelGroup:
         from unittest.mock import MagicMock
 
         scheduler = _make_scheduler()
-        scheduler.task_bucket = MagicMock()
+        scheduler.scheduler_service.task_bucket = MagicMock()
 
         # Jobs not yet persisted (db_id=None)
         scheduler.schedule(_noop, Every(hours=1), name="job1", group="morning")
@@ -183,7 +191,7 @@ class TestCancelGroup:
         scheduler.cancel_group("morning")
 
         # task_bucket.spawn must NOT be called (no db_ids set)
-        scheduler.task_bucket.spawn.assert_not_called()
+        scheduler.scheduler_service.task_bucket.spawn.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -222,29 +230,30 @@ class TestListJobs:
 
 
 class TestJobsByGroupMaintenance:
-    def test_remove_job_removes_from_group(self) -> None:
-        """remove_job() removes the job from _jobs_by_group."""
+    def test_dequeue_job_removes_from_group(self) -> None:
+        """_dequeue_job() fires callback which removes the job from _jobs_by_group."""
         scheduler = _make_scheduler()
         job = scheduler.schedule(_noop, Every(hours=1), group="morning")
         assert job in scheduler._jobs_by_group["morning"]
-        scheduler.remove_job(job)
+        # Simulate callback-based removal (as if scheduler_service called _on_job_removed)
+        scheduler._on_job_removed(job)
         assert "morning" not in scheduler._jobs_by_group
 
-    def test_remove_job_leaves_other_group_members(self) -> None:
-        """remove_job() for one job doesn't remove sibling from _jobs_by_group."""
+    def test_dequeue_job_leaves_other_group_members(self) -> None:
+        """Callback removal for one job doesn't remove sibling from _jobs_by_group."""
         scheduler = _make_scheduler()
         job1 = scheduler.schedule(_noop, Every(hours=1), name="a", group="g")
         job2 = scheduler.schedule(_noop, Every(hours=2), name="b", group="g")
-        scheduler.remove_job(job1)
+        scheduler._on_job_removed(job1)
         assert "g" in scheduler._jobs_by_group
         assert job2 in scheduler._jobs_by_group["g"]
 
     def test_remove_all_jobs_clears_groups(self) -> None:
-        """remove_all_jobs() empties _jobs_by_group."""
+        """_remove_all_jobs() empties _jobs_by_group."""
         scheduler = _make_scheduler()
         scheduler.schedule(_noop, Every(hours=1), name="a", group="g1")
         scheduler.schedule(_noop, Every(hours=2), name="b", group="g2")
-        scheduler.remove_all_jobs()
+        scheduler._remove_all_jobs()
         assert scheduler._jobs_by_group == {}
 
     def test_removal_callback_called_on_exhaustion(self) -> None:
@@ -461,3 +470,140 @@ class TestCallbackRegistration:
         call_args = mock_hassette._scheduler_service.register_removal_callback.call_args
         assert call_args.args[0] == "test_owner"
         assert callable(call_args.args[1])
+
+
+# ---------------------------------------------------------------------------
+# add_job() back-reference
+# ---------------------------------------------------------------------------
+
+
+class TestAddJobBackReference:
+    def test_add_job_sets_scheduler_back_reference(self) -> None:
+        """add_job() sets job._scheduler = self before delegating to scheduler_service."""
+        scheduler = _make_scheduler()
+        job = _make_job()
+
+        scheduler.add_job(job)
+
+        assert job._scheduler is scheduler, (
+            f"Expected job._scheduler to be the Scheduler instance, got {job._scheduler!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# cancel_job() semantics
+# ---------------------------------------------------------------------------
+
+
+class TestCancelJob:
+    def test_cancel_job_idempotent(self) -> None:
+        """Second cancel_job call on the same job is a silent no-op."""
+        from unittest.mock import MagicMock
+
+        scheduler = _make_scheduler()
+        scheduler.scheduler_service.task_bucket = MagicMock()
+        scheduler.scheduler_service.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_: coro.close() or None)
+
+        job = scheduler.schedule(_noop, Every(hours=1), name="job1")
+        job.mark_registered(99)
+
+        # First cancel
+        scheduler.cancel_job(job)
+        first_spawn_count = scheduler.scheduler_service.task_bucket.spawn.call_count
+        first_dequeue_count = scheduler.scheduler_service.dequeue_job.call_count
+
+        # Second cancel — must be a no-op
+        scheduler.cancel_job(job)
+        assert scheduler.scheduler_service.task_bucket.spawn.call_count == first_spawn_count, (
+            "No additional DB write on second cancel"
+        )
+        assert scheduler.scheduler_service.dequeue_job.call_count == first_dequeue_count, (
+            "No additional dequeue on second cancel"
+        )
+
+    def test_cancel_job_rejects_wrong_scheduler(self) -> None:
+        """cancel_job raises ValueError when job belongs to a different scheduler."""
+        scheduler_a = _make_scheduler()
+        scheduler_b = _make_scheduler()
+        # Provide minimal unique_id so __repr__ doesn't crash when constructing the error message
+        scheduler_a.unique_id = "sched_a"
+        scheduler_b.unique_id = "sched_b"
+
+        job = scheduler_a.schedule(_noop, Every(hours=1), name="job1")
+
+        with pytest.raises(ValueError, match="different scheduler"):
+            scheduler_b.cancel_job(job)
+
+    def test_cancel_group_delegates_to_cancel_job(self) -> None:
+        """cancel_group calls cancel_job once per member."""
+        from unittest.mock import patch
+
+        scheduler = _make_scheduler()
+        scheduler.schedule(_noop, Every(hours=1), name="job1", group="morning")
+        scheduler.schedule(_noop, Every(hours=2), name="job2", group="morning")
+
+        with patch.object(scheduler, "cancel_job", wraps=scheduler.cancel_job) as mock_cancel:
+            scheduler.cancel_group("morning")
+
+        assert mock_cancel.call_count == 2
+
+    def test_cancel_job_calls_dequeue_job(self) -> None:
+        """cancel_job delegates to _dequeue_job (which sets _dequeued via dequeue_job)."""
+        scheduler = _make_scheduler()
+
+        job = scheduler.schedule(_noop, Every(hours=1), name="job1")
+        scheduler.cancel_job(job)
+        scheduler.scheduler_service.dequeue_job.assert_called_once_with(job)
+
+    def test_cancel_job_dequeued_set_by_dequeue_job(self) -> None:
+        """job._dequeued is False at _dequeue_job entry (set by dequeue_job internally)."""
+        from unittest.mock import MagicMock
+
+        scheduler = _make_scheduler()
+        scheduler.scheduler_service.task_bucket = MagicMock()
+
+        dequeued_state_during_dequeue: list[bool] = []
+
+        original_dequeue = scheduler._dequeue_job
+
+        def capturing_dequeue(job):
+            dequeued_state_during_dequeue.append(job._dequeued)
+            return original_dequeue(job)
+
+        scheduler._dequeue_job = capturing_dequeue
+
+        job = scheduler.schedule(_noop, Every(hours=1), name="job1")
+        scheduler.cancel_job(job)
+
+        assert dequeued_state_during_dequeue == [False], (
+            "_dequeued must be False when _dequeue_job runs; set True afterward"
+        )
+
+
+# ---------------------------------------------------------------------------
+# job.cancel() delegation
+# ---------------------------------------------------------------------------
+
+
+class TestJobCancelDelegation:
+    def test_job_cancel_delegates_to_scheduler(self) -> None:
+        """job.cancel() calls scheduler.cancel_job(self)."""
+        from unittest.mock import MagicMock, patch
+
+        scheduler = _make_scheduler()
+        scheduler.scheduler_service.task_bucket = MagicMock()
+
+        job = scheduler.schedule(_noop, Every(hours=1), name="job1")
+
+        with patch.object(scheduler, "cancel_job", wraps=scheduler.cancel_job) as mock_cancel:
+            job.cancel()
+
+        mock_cancel.assert_called_once_with(job)
+
+    def test_job_cancel_raises_without_scheduler(self) -> None:
+        """job.cancel() raises RuntimeError on a bare job with no _scheduler set."""
+        job = _make_job("bare_job")
+        assert job._scheduler is None
+
+        with pytest.raises(RuntimeError, match="not registered with a Scheduler"):
+            job.cancel()
