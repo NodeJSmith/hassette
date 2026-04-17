@@ -133,4 +133,50 @@ describe("JobRow", () => {
     expect(detail?.textContent).toContain("in 3m");
     expect(detail?.textContent).toContain("±15s jitter");
   });
+
+  it("is expandable when next_run is set but total_executions is 0", () => {
+    const job = createJob({ next_run: 1700010000, total_executions: 0 });
+    const { container, getByRole } = render(<JobRow job={job} />);
+    // Row should have a button role (expandable)
+    const button = getByRole("button");
+    expect(button).toBeDefined();
+    // Chevron should be visible
+    const chevron = container.querySelector(".ht-item-row__chevron");
+    expect(chevron).not.toBeNull();
+    // Click to expand
+    fireEvent.click(button);
+    const detail = container.querySelector(".ht-item-detail");
+    expect(detail).not.toBeNull();
+    expect(detail?.textContent).toContain("Next:");
+  });
+
+  it("is expandable when source_location is set but no executions or next_run", () => {
+    const job = createJob({
+      total_executions: 0,
+      next_run: null,
+      source_location: "/apps/my_app.py:42",
+    });
+    const { container, getByRole } = render(<JobRow job={job} />);
+    const button = getByRole("button");
+    fireEvent.click(button);
+    const detail = container.querySelector(".ht-item-detail");
+    expect(detail).not.toBeNull();
+    expect(detail?.textContent).toContain("/apps/my_app.py:42");
+  });
+
+  it("is not expandable when no executions, no next_run, and no source info", () => {
+    const job = createJob({
+      total_executions: 0,
+      next_run: null,
+      source_location: "",
+      registration_source: null,
+    });
+    const { container } = render(<JobRow job={job} />);
+    // Should not have a button role
+    const button = container.querySelector("[role='button']");
+    expect(button).toBeNull();
+    // No chevron
+    const chevron = container.querySelector(".ht-item-row__chevron");
+    expect(chevron).toBeNull();
+  });
 });
