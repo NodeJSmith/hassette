@@ -238,7 +238,7 @@ async def app_jobs(
     # FairAsyncRLock internally and returns a list copy.
     try:
         live_jobs = await scheduler_service.get_all_jobs()
-    except Exception:
+    except (OSError, RuntimeError, ValueError):
         LOGGER.warning("Failed to fetch live scheduler jobs for enrichment; returning DB rows only", exc_info=True)
         return db_jobs
 
@@ -276,7 +276,7 @@ async def app_jobs(
             else:
                 # No live match — leave next_run/fire_at/jitter as None; cancelled from DB
                 enriched.append(js)
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
             LOGGER.warning("Failed to enrich job summary for job_id=%s; using DB row", js.job_id, exc_info=True)
             enriched.append(js)
 
