@@ -849,3 +849,98 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
     )
 
     assert not handler_fired, "Handler should not fire after rate limiter cancellation"
+
+
+async def test_cancel_before_add_task_completes_does_not_orphan_listener(hassette_with_bus: "Hassette") -> None:
+    """Cancelling a subscription before the add_listener task runs must not leave an orphaned listener.
+
+    Regression test for #451: Bus.on() spawns an async task for add_listener and
+    immediately returns a Subscription. If cancel() is called before the add task
+    completes, the remove finds nothing in the router, then the add task runs —
+    leaving the listener permanently registered with no way to remove it.
+
+    Uses an asyncio.Event gate to block the add task, ensuring cancel() runs first.
+    """
+    hassette = hassette_with_bus
+    router = hassette._bus_service.router
+
+    async def handler(_event) -> None:
+        pass
+
+    # Gate to block the add_route call until we've called cancel()
+    gate = asyncio.Event()
+    original_add_route = router.add_route
+
+    async def gated_add_route(topic: str, listener) -> None:
+        await gate.wait()
+        await original_add_route(topic, listener)
+
+    router.add_route = gated_add_route  # pyright: ignore[reportAttributeAccessIssue]
+    try:
+        # Subscribe — the add task spawns but blocks on the gate
+        sub = hassette._bus.on(topic="custom.orphan_test", handler=handler)
+
+        # Cancel before the add task can proceed
+        sub.cancel()
+        # Let the remove task run (finds nothing, completes)
+        await asyncio.sleep(0)
+
+        # Now release the gate — add task proceeds
+        gate.set()
+        await asyncio.sleep(0.05)
+
+        # The listener must not be in the router
+        listeners = await router.get_topic_listeners("custom.orphan_test")
+        assert len(listeners) == 0, (
+            f"Expected 0 listeners after immediate cancel, found {len(listeners)} — "
+            "listener was orphaned (add ran after remove)"
+        )
+    finally:
+        router.add_route = original_add_route  # pyright: ignore[reportAttributeAccessIssue]
+
+
+async def test_cancel_before_add_task_completes_app_key_path(hassette_with_bus: "Hassette") -> None:
+    """Same race as above but via the app-key code path (_register_then_add_route).
+
+    When a Bus has an app_key, add_listener goes through _register_then_add_route
+    which awaits DB registration before/after add_route. The _cancelled guard in
+    add_route must prevent orphaned listeners on this path too.
+    """
+    hassette = hassette_with_bus
+    bus = hassette._bus
+    router = hassette._bus_service.router
+
+    # Give the bus a mock parent with app_key so it takes the _register_then_add_route path
+    mock_parent = Mock()
+    mock_parent.app_key = "test_app"
+    mock_parent.index = 0
+    mock_parent.unique_name = "test_app.0"
+    original_parent = bus.parent
+    bus.parent = mock_parent
+
+    async def handler(_event) -> None:
+        pass
+
+    gate = asyncio.Event()
+    original_add_route = router.add_route
+
+    async def gated_add_route(topic: str, listener) -> None:
+        await gate.wait()
+        await original_add_route(topic, listener)
+
+    router.add_route = gated_add_route  # pyright: ignore[reportAttributeAccessIssue]
+    try:
+        sub = bus.on(topic="custom.orphan_app_test", handler=handler)
+        sub.cancel()
+        await asyncio.sleep(0)
+
+        gate.set()
+        await asyncio.sleep(0.05)
+
+        listeners = await router.get_topic_listeners("custom.orphan_app_test")
+        assert len(listeners) == 0, (
+            f"Expected 0 listeners after immediate cancel (app-key path), found {len(listeners)}"
+        )
+    finally:
+        router.add_route = original_add_route  # pyright: ignore[reportAttributeAccessIssue]
+        bus.parent = original_parent

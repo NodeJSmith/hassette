@@ -106,9 +106,18 @@ class Listener:
     source_tier: SourceTier = "app"
     """Whether this listener originates from a user app or the framework itself."""
 
+    _cancelled: bool = field(default=False, init=False, repr=False)
+    """Set by cancel() to signal that a pending add_listener task should skip route insertion.
+    Prevents orphaned listeners when Subscription.cancel() races with the async add task (#451)."""
+
     _fired: bool = field(default=False, init=False, repr=False)
     """Guard for once=True listeners: set before the first invocation to prevent double-fire
     when two rapid events both match before the removal task executes."""
+
+    @property
+    def is_cancelled(self) -> bool:
+        """Whether this listener has been cancelled. Read-only — use :meth:`cancel` to set."""
+        return self._cancelled
 
     @property
     def rate_limiter(self) -> RateLimiter | None:
@@ -158,14 +167,19 @@ class Listener:
             await invoke_fn()
 
     def cancel(self) -> None:
-        """Cancel any pending rate limiter tasks.
+        """Cancel the listener: set the cancelled flag and stop any pending rate limiter tasks.
 
-        Called when a listener is removed to prevent dangling debounce tasks.
+        The ``_cancelled`` flag signals a pending ``_register_then_add_route`` task
+        to skip route insertion, preventing orphaned listeners when
+        ``Subscription.cancel()`` races with the async add task (#451).
+
+        Also cancels any active rate limiter (debounce/throttle) tasks.
         This is the sole cancellation path — external code must not call
         ``_rate_limiter.cancel()`` directly.
 
-        Terminal operation: the rate limiter must not be reused after this call.
+        Terminal operation: the listener must not be reused after this call.
         """
+        self._cancelled = True
         if self._rate_limiter:
             self._rate_limiter.cancel()
 
