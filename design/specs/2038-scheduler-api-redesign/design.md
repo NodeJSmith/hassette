@@ -1,5 +1,7 @@
 # Scheduler API Redesign Proposal
 
+**Status:** archived
+
 **Status**: approved
 **Date**: 2026-04-14
 **Scope**: Full rewrite of `src/hassette/scheduler/`
