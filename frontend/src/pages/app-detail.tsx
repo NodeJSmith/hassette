@@ -142,7 +142,7 @@ export function AppDetailPage({ params }: Props) {
           <IconClock />
           Scheduled Jobs ({jobCount} registered)
         </h2>
-        {jobCount > 0 && (
+        {jobCount > 0 && scheduledCount !== jobCount && (
           <p class="ht-text-muted ht-text-xs ht-mb-2" data-testid="jobs-scheduled-count">
             {scheduledCount} currently scheduled
           </p>

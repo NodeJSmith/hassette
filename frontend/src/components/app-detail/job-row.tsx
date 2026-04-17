@@ -4,7 +4,7 @@ import { getJobExecutions } from "../../api/endpoints";
 import type { JobData } from "../../api/endpoints";
 import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useRelativeTime } from "../../hooks/use-relative-time";
-import { formatDuration, pluralize } from "../../utils/format";
+import { formatDuration, formatTriggerDetail, pluralize } from "../../utils/format";
 import { JobExecutions } from "./job-executions";
 
 interface Props {
@@ -66,7 +66,7 @@ export function JobRow({ job, onGroupClick }: Props) {
             <span class="ht-item-row__subtitle">
               {subtitlePrimary}
               {job.trigger_detail !== null && job.trigger_detail !== undefined && (
-                <span class="ht-text-muted"> · {job.trigger_detail}</span>
+                <span class="ht-text-muted"> · {formatTriggerDetail(job.trigger_detail)}</span>
               )}
             </span>
           )}

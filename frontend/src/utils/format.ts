@@ -21,6 +21,26 @@ export function pluralize(count: number, singular: string, plural?: string): str
   return `${count} ${label}`;
 }
 
+/**
+ * Format a trigger detail duration string (e.g., "432000s") as human-readable.
+ * Passes through non-seconds strings unchanged (e.g., "30 7 * * 1-5", "07:00").
+ */
+export function formatTriggerDetail(detail: string): string {
+  const match = detail.match(/^(\d+)s$/);
+  if (!match) return detail;
+  let secs = parseInt(match[1], 10);
+  if (secs < 60) return `${secs}s`;
+  const parts: string[] = [];
+  const days = Math.floor(secs / 86400);
+  if (days > 0) { parts.push(`${days}d`); secs %= 86400; }
+  const hours = Math.floor(secs / 3600);
+  if (hours > 0) { parts.push(`${hours}h`); secs %= 3600; }
+  const mins = Math.floor(secs / 60);
+  if (mins > 0) { parts.push(`${mins}m`); secs %= 60; }
+  if (secs > 0) parts.push(`${secs}s`);
+  return parts.join(" ");
+}
+
 /** Format a Unix timestamp as a relative time string (e.g., "2m ago"). */
 export function formatRelativeTime(ts: number): string {
   const now = Date.now() / 1000;
