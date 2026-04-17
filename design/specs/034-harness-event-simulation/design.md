@@ -116,7 +116,8 @@ A test that introspects `Bus` and `AppTestHarness` to assert 1:1 `on_*` / `simul
 
 ```python
 def test_all_bus_subscriptions_have_simulate_counterparts():
-    bus_methods = {name.removeprefix("on_") for name in dir(Bus) if name.startswith("on_") and not name.startswith("on_initialize") and not name.startswith("on_shutdown")}
+    resource_methods = {name for name in Resource.__dict__ if name.startswith("on_")}
+    bus_methods = {name.removeprefix("on_") for name in Bus.__dict__ if name.startswith("on_") and name not in resource_methods}
     harness_methods = {name.removeprefix("simulate_") for name in dir(AppTestHarness) if name.startswith("simulate_")}
     missing = bus_methods - harness_methods
     assert not missing, f"Bus subscription methods without simulate counterparts: {missing}"
@@ -180,5 +181,5 @@ _None — all questions resolved during specification and research._
 ### Blast radius
 
 - **Public API**: `create_state_change_event` and `create_call_service_event` return types change (breaking, acknowledged in spec)
-- **Internal**: `AppTestHarness` gains 14 public methods; existing 3 simulate methods unchanged in behavior
+- **Internal**: `AppTestHarness` gains 14 new public methods (7 base + 7 convenience delegations); existing 3 simulate methods unchanged in behavior
 - **No impact on**: Bus, Scheduler, Api, StateManager, or any production code paths
