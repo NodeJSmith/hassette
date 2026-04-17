@@ -188,7 +188,7 @@ class TestAppJobsEnrichmentHeapFailureDegrades:
         client, mock_hassette = enrichment_client
 
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[_make_job_summary(job_id=1)])
-        mock_hassette.scheduler_service.get_all_jobs = AsyncMock(side_effect=Exception("unexpected error"))
+        mock_hassette.scheduler_service.get_all_jobs = AsyncMock(side_effect=RuntimeError("scheduler heap unavailable"))
 
         response = await client.get("/api/telemetry/app/my_app/jobs")
         assert response.status_code == 200
