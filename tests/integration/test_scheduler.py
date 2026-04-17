@@ -477,3 +477,82 @@ def test_resolve_trigger_none_job() -> None:
     job = SimpleNamespace(trigger=None)
     result = resolve_trigger(job)  # pyright: ignore[reportArgumentType]
     assert result == ("one-shot", None), f"Expected ('one-shot', None), got {result}"
+
+
+# ---------------------------------------------------------------------------
+# Subtask 5a: job.cancel() back-reference path persists cancelled_at
+# ---------------------------------------------------------------------------
+
+
+async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with_scheduler: Hassette) -> None:
+    """job.cancel() delegates to Scheduler.cancel_job(), which spawns mark_job_cancelled(db_id).
+
+    Verifies AC6: the back-reference cancel path produces a durable DB write
+    (cancelled_at IS NOT NULL). Verified via the mock_executor call record since
+    the integration harness uses a mock executor at the repository boundary.
+    """
+    scheduler_service = hassette_with_scheduler._scheduler_service
+    assert scheduler_service is not None
+    executor = scheduler_service._executor
+
+    # Reset call history so we only see calls from this test
+    executor.mark_job_cancelled.reset_mock()
+
+    db_id = 42
+
+    job_done = asyncio.Event()
+
+    async def target() -> None:
+        hassette_with_scheduler.task_bucket.post_to_loop(job_done.set)
+
+    # Schedule a job and simulate it having been persisted with db_id=42
+    scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=10)
+    scheduled_job.mark_registered(db_id)
+
+    # Cancel via the back-reference (job.cancel() → scheduler.cancel_job())
+    scheduled_job.cancel()
+
+    # Give the spawned mark_job_cancelled task a chance to execute
+    await asyncio.sleep(0)
+
+    # Verify mark_job_cancelled was called with the correct db_id
+    executor.mark_job_cancelled.assert_called_once_with(db_id)
+
+    # Verify the job is dequeued (no longer in the scheduler)
+    remaining = hassette_with_scheduler._scheduler.list_jobs()
+    assert not any(j is scheduled_job for j in remaining), "Cancelled job should be removed from scheduler"
+
+
+# ---------------------------------------------------------------------------
+# Subtask 5b: cancel before db_id set does not raise
+# ---------------------------------------------------------------------------
+
+
+async def test_cancel_before_db_id_set_does_not_raise(hassette_with_scheduler: Hassette) -> None:
+    """job.cancel() does not raise when db_id is None (registration not yet complete).
+
+    Verifies AC5: the cancel path is safe to call before DB registration completes.
+    No mark_job_cancelled DB write should be spawned when db_id is None.
+    """
+    scheduler_service = hassette_with_scheduler._scheduler_service
+    assert scheduler_service is not None
+    executor = scheduler_service._executor
+
+    executor.mark_job_cancelled.reset_mock()
+
+    async def target() -> None:
+        pass
+
+    # Schedule a job without calling mark_registered — db_id remains None
+    scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=10)
+    assert scheduled_job.db_id is None, "db_id should be None before registration"
+
+    # Cancel via back-reference — must not raise
+    scheduled_job.cancel()
+
+    # No DB write should be spawned (db_id is None)
+    executor.mark_job_cancelled.assert_not_called()
+
+    # Job should be dequeued
+    remaining = hassette_with_scheduler._scheduler.list_jobs()
+    assert not any(j is scheduled_job for j in remaining), "Cancelled job should be removed from scheduler"

@@ -122,7 +122,7 @@ class JobSummary(BaseModel):
     jitter: float | None = None
     """Seconds of random jitter offset; sourced from live heap."""
     cancelled: bool = False
-    """True when the job is cancelled (live heap or DB cancelled_at IS NOT NULL)."""
+    """True when the job is cancelled; derived solely from ``cancelled_at IS NOT NULL`` in the DB."""
 
 
 class JobExecution(BaseModel):
