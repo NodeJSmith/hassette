@@ -781,7 +781,7 @@ class AppTestHarness:
             raise RuntimeError("AppTestHarness is not active")
 
         event = create_call_service_event(domain=domain, service=service, service_data=data)
-        await harness.hassette.send_event(event.topic, event)  # pyright: ignore[reportAttributeAccessIssue]
+        await harness.hassette.send_event(event.topic, event)
         await self._drain_task_bucket(timeout=timeout)
 
     async def _drain_task_bucket(self, *, timeout: float = 2.0) -> None:

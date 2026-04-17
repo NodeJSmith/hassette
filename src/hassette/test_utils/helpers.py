@@ -3,8 +3,7 @@ import json
 import textwrap
 from logging import getLogger
 from pathlib import Path
-from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 import tomli_w
@@ -22,6 +21,30 @@ if TYPE_CHECKING:
     from hassette.resources.base import Service
 
 
+def _create_hass_event(event_type: str, data: dict[str, Any]) -> Any:
+    """Build a HassEventEnvelopeDict envelope and delegate to create_event_from_hass.
+
+    Args:
+        event_type: The HA event type string (e.g., "state_changed", "call_service").
+        data: The event data dict specific to the event type.
+
+    Returns:
+        The typed Event produced by create_event_from_hass.
+    """
+    envelope: HassEventEnvelopeDict = {
+        "id": 1,  # Discarded by create_event_from_hass; present only to satisfy HassEventEnvelopeDict shape
+        "type": "event",
+        "event": {
+            "event_type": event_type,
+            "data": data,
+            "origin": "LOCAL",
+            "time_fired": ZonedDateTime.now_in_system_tz().format_iso(),
+            "context": {"id": str(uuid4()), "parent_id": None, "user_id": None},
+        },
+    }
+    return create_event_from_hass(envelope)
+
+
 def create_state_change_event(
     *,
     entity_id: str,
@@ -29,23 +52,20 @@ def create_state_change_event(
     new_value: Any,
     old_attrs: dict[str, Any] | None = None,
     new_attrs: dict[str, Any] | None = None,
-) -> Any:
-    data: HassEventEnvelopeDict = {
-        "id": 1,
-        "type": "event",
-        "event": {
-            "event_type": "state_changed",
-            "data": {
-                "entity_id": entity_id,
-                "old_state": {"state": old_value, "attributes": old_attrs or {}},
-                "new_state": {"state": new_value, "attributes": new_attrs or {}},
-            },
-            "origin": "LOCAL",
-            "time_fired": ZonedDateTime.now_in_system_tz().format_iso(),
-            "context": {"id": "test_context_id", "parent_id": None, "user_id": None},
-        },
-    }
-    return create_event_from_hass(data)
+) -> RawStateChangeEvent:
+    """Create a state change event for testing.
+
+    Pass ``None`` for ``old_value`` or ``new_value`` to simulate entity creation or removal
+    (produces ``None`` for that state dict, not ``{"state": None, ...}``).
+    """
+    old_state = make_state_dict(entity_id, str(old_value), attributes=old_attrs) if old_value is not None else None
+    new_state = make_state_dict(entity_id, str(new_value), attributes=new_attrs) if new_value is not None else None
+    event = _create_hass_event(
+        "state_changed",
+        {"entity_id": entity_id, "old_state": old_state, "new_state": new_state},
+    )
+    assert isinstance(event, RawStateChangeEvent)
+    return event
 
 
 def create_call_service_event(
@@ -54,10 +74,13 @@ def create_call_service_event(
     service: str,
     service_data: dict[str, Any] | None = None,
 ) -> CallServiceEvent:
-    """Create a mock call service event for testing."""
-    data = SimpleNamespace(domain=domain, service=service, service_data=service_data or {})
-    payload = SimpleNamespace(data=data)
-    return cast("CallServiceEvent", SimpleNamespace(topic="hass.event.call_service", payload=payload))
+    """Create a call service event for testing."""
+    event = _create_hass_event(
+        "call_service",
+        {"domain": domain, "service": service, "service_data": service_data or {}},
+    )
+    assert isinstance(event, CallServiceEvent)
+    return event
 
 
 def make_state_dict(
@@ -178,7 +201,7 @@ def make_switch_state_dict(entity_id: str = "switch.outlet", state: str = "on", 
 def make_full_state_change_event(
     entity_id: str, old_state: dict[str, Any] | None, new_state: dict[str, Any] | None
 ) -> RawStateChangeEvent:
-    """Factory for creating state change events.
+    """Factory for creating state change events from pre-built state dicts.
 
     Args:
         entity_id: The entity ID
@@ -188,22 +211,10 @@ def make_full_state_change_event(
     Returns:
         RawStateChangeEvent instance
     """
-    envelope: HassEventEnvelopeDict = {
-        "id": 1,
-        "type": "event",
-        "event": {
-            "event_type": "state_changed",
-            "data": {
-                "entity_id": entity_id,
-                "old_state": old_state,
-                "new_state": new_state,
-            },
-            "origin": "LOCAL",
-            "time_fired": ZonedDateTime.now_in_system_tz().format_iso(),
-            "context": {"id": "test_context_id", "parent_id": None, "user_id": None},
-        },
-    }
-    event = create_event_from_hass(envelope)
+    event = _create_hass_event(
+        "state_changed",
+        {"entity_id": entity_id, "old_state": old_state, "new_state": new_state},
+    )
     assert isinstance(event, RawStateChangeEvent)
     return event
 

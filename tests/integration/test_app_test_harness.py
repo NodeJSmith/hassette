@@ -12,10 +12,11 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
-from hassette import context
+from hassette import D, context
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
-from hassette.events import RawStateChangeEvent
+from hassette.events import CallServiceEvent, RawStateChangeEvent
+from hassette.models import states
 from hassette.test_utils.app_harness import AppConfigurationError, AppTestHarness
 from hassette.test_utils.recording_api import RecordingApi
 from hassette.types.enums import ResourceStatus
@@ -331,3 +332,156 @@ async def test_simulate_attribute_change_uses_explicit_state():
             # The state values should be "25.0" (explicit), not "20.0" (cached)
             assert call_kwargs.kwargs["old_value"] == "25.0"
             assert call_kwargs.kwargs["new_value"] == "25.0"
+
+
+# ---------------------------------------------------------------------------
+# Typed DI handler tests (WP01 — fix existing event factories)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_simulate_state_change_typed_di_state_new():
+    """Handler with D.StateNew[BinarySensorState] receives a valid typed model."""
+    received: list[states.BinarySensorState] = []
+
+    class BinarySensorApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_state_change("binary_sensor.test", handler=self._on_change)
+
+        async def _on_change(self, new_state: D.StateNew[states.BinarySensorState]) -> None:
+            received.append(new_state)
+
+    async with AppTestHarness(BinarySensorApp, config={}) as harness:
+        await harness.simulate_state_change("binary_sensor.test", old_value="off", new_value="on")
+
+    assert len(received) == 1
+    assert isinstance(received[0], states.BinarySensorState)
+    assert received[0].value is True  # "on" converts to True
+    assert received[0].entity_id == "binary_sensor.test"
+
+
+@pytest.mark.asyncio
+async def test_simulate_state_change_typed_di_state_old():
+    """Handler with D.StateOld[BinarySensorState] receives a valid typed model."""
+    received: list[states.BinarySensorState] = []
+
+    class BinarySensorOldApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_state_change("binary_sensor.test", handler=self._on_change)
+
+        async def _on_change(self, old_state: D.StateOld[states.BinarySensorState]) -> None:
+            received.append(old_state)
+
+    async with AppTestHarness(BinarySensorOldApp, config={}) as harness:
+        await harness.simulate_state_change("binary_sensor.test", old_value="off", new_value="on")
+
+    assert len(received) == 1
+    assert isinstance(received[0], states.BinarySensorState)
+    assert received[0].value is False  # "off" converts to False
+    assert received[0].entity_id == "binary_sensor.test"
+
+
+@pytest.mark.asyncio
+async def test_simulate_state_change_none_old_value():
+    """old_value=None produces None old_state dict; D.MaybeStateOld returns None."""
+    received_old: list[Any] = []
+
+    class NewEntityApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_state_change("binary_sensor.test", handler=self._on_change)
+
+        async def _on_change(self, old_state: D.MaybeStateOld[states.BinarySensorState]) -> None:
+            received_old.append(old_state)
+
+    async with AppTestHarness(NewEntityApp, config={}) as harness:
+        await harness.simulate_state_change("binary_sensor.test", old_value=None, new_value="on")
+
+    assert len(received_old) == 1
+    assert received_old[0] is None
+
+
+@pytest.mark.asyncio
+async def test_simulate_state_change_none_new_value():
+    """new_value=None produces None new_state dict (entity removed)."""
+    received: list[RawStateChangeEvent] = []
+
+    class RemovedEntityApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_state_change("binary_sensor.test", handler=self._on_change)
+
+        async def _on_change(self, event: RawStateChangeEvent) -> None:
+            received.append(event)
+
+    async with AppTestHarness(RemovedEntityApp, config={}) as harness:
+        await harness.simulate_state_change("binary_sensor.test", old_value="on", new_value=None)
+
+    assert len(received) == 1
+    assert received[0].payload.data.new_state is None
+
+
+@pytest.mark.asyncio
+async def test_simulate_call_service_typed_di_domain():
+    """Handler with D.Domain receives the correct domain string."""
+    received_domains: list[str] = []
+
+    class CallServiceApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_call_service(handler=self._on_call)
+
+        async def _on_call(self, domain: D.Domain) -> None:
+            received_domains.append(domain)
+
+    async with AppTestHarness(CallServiceApp, config={}) as harness:
+        await harness.simulate_call_service("light", "turn_on")
+
+    assert len(received_domains) == 1
+    assert received_domains[0] == "light"
+
+
+@pytest.mark.asyncio
+async def test_simulate_call_service_is_real_call_service_event():
+    """simulate_call_service produces a real CallServiceEvent (not SimpleNamespace)."""
+    received_events: list[Any] = []
+
+    class EventCapturingApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_call_service(handler=self._on_call)
+
+        async def _on_call(self, event: CallServiceEvent) -> None:
+            received_events.append(event)
+
+    async with AppTestHarness(EventCapturingApp, config={}) as harness:
+        await harness.simulate_call_service("light", "turn_on", brightness=255)
+
+    assert len(received_events) == 1
+    event = received_events[0]
+    assert isinstance(event, CallServiceEvent)
+    assert event.payload.data.domain == "light"
+    assert event.payload.data.service == "turn_on"
+    assert event.payload.data.service_data == {"brightness": 255}
+
+
+@pytest.mark.asyncio
+async def test_simulate_attribute_change_typed_di():
+    """Handler with D.StateNew[SensorState] works through the attribute change delegation path."""
+    received: list[states.SensorState] = []
+
+    class TempSensorApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_attribute_change("sensor.test", "unit_of_measurement", handler=self._on_attr)
+
+        async def _on_attr(self, new_state: D.StateNew[states.SensorState]) -> None:
+            received.append(new_state)
+
+    async with AppTestHarness(TempSensorApp, config={}) as harness:
+        await harness.set_state("sensor.test", "25.5")
+        await harness.simulate_attribute_change(
+            "sensor.test",
+            "unit_of_measurement",
+            old_value="°C",
+            new_value="°F",
+        )
+
+    assert len(received) == 1
+    assert isinstance(received[0], states.SensorState)
+    assert received[0].entity_id == "sensor.test"
