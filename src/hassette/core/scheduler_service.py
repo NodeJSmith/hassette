@@ -490,13 +490,28 @@ class SchedulerService(Service):
 
         return self.task_bucket.spawn(self._remove_jobs_by_owner(owner), name="scheduler:remove_jobs_by_owner")
 
-    def remove_job(self, job: "ScheduledJob") -> asyncio.Task:
-        """Remove a job from the scheduler.
+    def dequeue_job(self, job: "ScheduledJob") -> bool:
+        """Remove a job from the scheduler synchronously, fire removal callbacks, and kick.
+
+        Calls ``_ScheduledJobQueue.remove_item_sync`` directly (no lock). Fires
+        ``_fire_removal_callbacks`` unconditionally — even when the job was not in
+        the heap — to prevent dict leaks when the serve loop already popped the job.
+        Calls ``kick()`` only when the job was actually removed from the heap.
 
         Args:
             job: The job to remove.
+
+        Returns:
+            True if the job was found and removed from the heap, False otherwise.
         """
-        return self.task_bucket.spawn(self._remove_job(job), name="scheduler:remove_job")
+        removed = self._job_queue.remove_item_sync(job)
+        if removed:
+            self.logger.debug("Dequeued job: %s", job)
+            self.kick()
+        else:
+            self.logger.debug("Job not in heap (already popped by serve loop): %s", job)
+        self._fire_removal_callbacks([job])
+        return removed
 
     async def mark_job_cancelled(self, db_id: int) -> None:
         """Persist durable cancellation state for a job by setting ``cancelled_at`` in the DB.
@@ -631,6 +646,21 @@ class _ScheduledJobQueue(Resource):
 
         self.logger.debug("Job not found in queue, cannot remove: %s", job)
         return removed
+
+    def remove_item_sync(self, job: "ScheduledJob") -> bool:
+        """Remove a specific job from the heap synchronously, without acquiring the lock.
+
+        Calls ``self._queue.remove_item(job)`` directly. Safe to call from
+        synchronous code running on the event loop — other coroutines cannot
+        interleave without an await point in asyncio's cooperative scheduler.
+
+        Args:
+            job: The job to remove.
+
+        Returns:
+            True if the job was found and removed, False otherwise.
+        """
+        return self._queue.remove_item(job)
 
     async def get_all(self) -> list["ScheduledJob"]:
         """Return a snapshot of all queued jobs (non-destructive)."""

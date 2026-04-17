@@ -127,14 +127,14 @@ class TestCancelGroup:
         scheduler.cancel_group("morning")
         assert "morning" not in scheduler._jobs_by_group
 
-    def test_cancel_group_calls_remove_job_on_service(self) -> None:
-        """cancel_group calls scheduler_service.remove_job for each member."""
+    def test_cancel_group_calls_dequeue_job_on_service(self) -> None:
+        """cancel_group calls scheduler_service.dequeue_job for each member."""
         scheduler = _make_scheduler()
         scheduler.schedule(_noop, Every(hours=1), name="job1", group="morning")
         scheduler.schedule(_noop, Every(hours=2), name="job2", group="morning")
         scheduler.cancel_group("morning")
-        # remove_job called twice
-        assert scheduler.scheduler_service.remove_job.call_count == 2
+        # dequeue_job called twice
+        assert scheduler.scheduler_service.dequeue_job.call_count == 2
 
     def test_cancel_group_persists_cancelled_at_for_registered_jobs(self) -> None:
         """cancel_group spawns mark_job_cancelled for each job with a db_id set."""
@@ -461,3 +461,21 @@ class TestCallbackRegistration:
         call_args = mock_hassette._scheduler_service.register_removal_callback.call_args
         assert call_args.args[0] == "test_owner"
         assert callable(call_args.args[1])
+
+
+# ---------------------------------------------------------------------------
+# add_job() back-reference
+# ---------------------------------------------------------------------------
+
+
+class TestAddJobBackReference:
+    def test_add_job_sets_scheduler_back_reference(self) -> None:
+        """add_job() sets job._scheduler = self before delegating to scheduler_service."""
+        scheduler = _make_scheduler()
+        job = _make_job()
+
+        scheduler.add_job(job)
+
+        assert job._scheduler is scheduler, (
+            f"Expected job._scheduler to be the Scheduler instance, got {job._scheduler!r}"
+        )

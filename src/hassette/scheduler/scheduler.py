@@ -173,6 +173,7 @@ class Scheduler(Resource):
                 self._jobs_by_group[job.group] = set()
             self._jobs_by_group[job.group].add(job)
 
+        job._scheduler = self
         self.scheduler_service.add_job(job)
 
         return job
@@ -198,11 +199,14 @@ class Scheduler(Resource):
             )
         self.remove_job(job)
 
-    def remove_job(self, job: "ScheduledJob") -> asyncio.Task:
+    def remove_job(self, job: "ScheduledJob") -> bool:
         """Remove a job from the scheduler.
 
         Args:
             job: The job to remove.
+
+        Returns:
+            True if the job was found and removed from the heap, False otherwise.
         """
         self._jobs_by_name.pop(job.name, None)
 
@@ -213,7 +217,7 @@ class Scheduler(Resource):
                 if not group_set:
                     del self._jobs_by_group[job.group]
 
-        return self.scheduler_service.remove_job(job)
+        return self.scheduler_service.dequeue_job(job)
 
     def remove_all_jobs(self) -> asyncio.Task:
         """Remove all jobs for the owner of this scheduler."""
@@ -240,7 +244,7 @@ class Scheduler(Resource):
                     self.scheduler_service.mark_job_cancelled(job.db_id),
                     name="scheduler:mark_job_cancelled",
                 )
-            self.scheduler_service.remove_job(job)
+            self.scheduler_service.dequeue_job(job)
         if group in self._jobs_by_group:
             del self._jobs_by_group[group]
         # Also remove from _jobs_by_name

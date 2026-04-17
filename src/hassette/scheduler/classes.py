@@ -12,6 +12,7 @@ import hassette.utils.date_utils as date_utils
 from hassette.types.types import SourceTier
 
 if typing.TYPE_CHECKING:
+    from hassette.scheduler.scheduler import Scheduler
     from hassette.types import JobCallable, TriggerProtocol
 
 
@@ -208,6 +209,12 @@ class ScheduledJob:
     source_tier: SourceTier = field(default="app", compare=False)
     """Whether this job originates from a user app or the framework itself."""
 
+    _scheduler: "Scheduler | None" = field(default=None, repr=False, compare=False)
+    """Back-reference to the Scheduler that owns this job. Set by Scheduler.add_job()."""
+
+    _dequeued: bool = field(default=False, repr=False, compare=False)
+    """True after the job has been synchronously removed from the heap via dequeue_job()."""
+
     def __hash__(self) -> int:
         # Hashing on job_id is safe because @dataclass(order=True) generates __eq__
         # based on all compare=True fields, and sort_index is (timestamp_nanos, job_id).
@@ -248,7 +255,8 @@ class ScheduledJob:
         """Check whether two jobs represent the same logical configuration.
 
         Compares callable, trigger (by trigger_id()), group, args, and kwargs.
-        Does not compare runtime state (job_id, next_run, sort_index, cancelled, owner).
+        Does not compare runtime state (job_id, next_run, sort_index, _scheduler,
+        _dequeued, owner).
 
         Two jobs with identical callable/trigger/args but different groups are distinct
         logical jobs and will not match.
