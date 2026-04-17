@@ -309,6 +309,9 @@ class Scheduler(Resource):
             The scheduled job.
         """
 
+        if jitter is not None and jitter < 0:
+            raise ValueError("jitter must be non-negative")
+
         if not isinstance(trigger, TriggerProtocol):
             raise TypeError(
                 f"trigger must implement TriggerProtocol; got {type(trigger).__name__}. "

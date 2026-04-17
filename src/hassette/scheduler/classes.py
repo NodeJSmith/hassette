@@ -98,13 +98,16 @@ class CronTrigger:
             # handled above.
             if self._is_fall_back_ambiguous(next_time):
                 ambiguous_ticks_skipped += 1
-        # Too many iterations — skip ahead from current time
+        # Too many iterations — skip ahead from current time.
+        # Re-anchor croniter in the *original* timezone so cron expressions like
+        # "0 9 * * *" still fire at 09:00 local time, not 09:00 UTC.
         LOGGER.warning(
             "CronTrigger(%s) exceeded %d iterations catching up, skipping ahead from current_time",
             self.cron_expression,
             max_iterations,
         )
-        cron = croniter(self.cron_expression, current_dt_utc, ret_type=datetime)
+        skip_ahead_dt = current_time.py_datetime()
+        cron = croniter(self.cron_expression, skip_ahead_dt, ret_type=datetime)
         next_time = cron.get_next()
         return self._dst_safe_from_dt(next_time)
 

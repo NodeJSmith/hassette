@@ -29,10 +29,10 @@ class StatesCacheExample(App[StatesCacheConfig]):
 
         # Schedule periodic checks using cached states
         self.scheduler.run_every(
-            self.check_battery_levels, interval=self.app_config.check_interval, name="battery_check"
+            self.check_battery_levels, seconds=self.app_config.check_interval, name="battery_check"
         )
 
-        self.scheduler.run_every(self.log_state_summary, interval=600, name="state_summary")
+        self.scheduler.run_every(self.log_state_summary, seconds=600, name="state_summary")
 
     async def log_state_summary(self):
         """Log a summary of entities using the state cache."""
