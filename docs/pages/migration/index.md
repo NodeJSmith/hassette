@@ -74,7 +74,7 @@ The table below maps the most common AppDaemon operations to their Hassette equi
 | React on attribute threshold | `self.listen_state(self.cb, "sensor.x", attribute="battery", below=20)` | `self.bus.on_attribute_change("sensor.x", "battery", handler=self.cb, changed_to=lambda v: v < 20)` |
 | Monitor service calls | `self.listen_event(self.on_service, "call_service", domain="light")` | `self.bus.on_call_service(domain="light", handler=self.on_service)` |
 | Schedule something in 60 seconds | `self.run_in(self.turn_off, 60)` | `self.scheduler.run_in(self.turn_off, delay=60)` |
-| Run every morning at 07:30 | `self.run_daily(self.morning, time(7, 30, 0))` | `self.scheduler.run_daily(self.morning, start=time(7, 30))` |
+| Run every morning at 07:30 | `self.run_daily(self.morning, time(7, 30, 0))` | `self.scheduler.run_daily(self.morning, at="07:30")` |
 | Get entity state (cached) | `self.get_state("light.kitchen")` | `self.states.light.get("light.kitchen")` |
 | Call a HA service | `self.call_service("light/turn_on", entity_id="light.x", brightness=200)` | `await self.api.call_service("light", "turn_on", target={"entity_id": "light.x"}, brightness=200)` |
 | Access app configuration | `self.args["args"]["entity"]` | `self.app_config.entity` |

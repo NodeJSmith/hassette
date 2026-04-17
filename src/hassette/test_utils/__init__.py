@@ -35,6 +35,7 @@ from ._internal import make_listener_metric as make_listener_metric
 from ._internal import make_manifest as make_manifest
 from ._internal import make_old_app_instance as make_old_app_instance
 from ._internal import make_old_snapshot as make_old_snapshot
+from ._internal import make_real_job as make_real_job
 from ._internal import make_service_failed_event as make_service_failed_event
 from ._internal import make_service_running_event as make_service_running_event
 from ._internal import preserve_config as preserve_config

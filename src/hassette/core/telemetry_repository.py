@@ -172,22 +172,28 @@ class TelemetryRepository:
             """
             INSERT INTO scheduled_jobs (
                 app_key, instance_index, job_name, handler_method,
-                trigger_type, trigger_value, repeat,
+                trigger_type,
+                trigger_label, trigger_detail,
+                repeat,
                 args_json, kwargs_json,
-                source_location, registration_source, source_tier
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                source_location, registration_source, source_tier,
+                "group"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(app_key, instance_index, job_name)
             DO UPDATE SET
                 handler_method = excluded.handler_method,
                 trigger_type = excluded.trigger_type,
-                trigger_value = excluded.trigger_value,
+                trigger_label = excluded.trigger_label,
+                trigger_detail = excluded.trigger_detail,
                 repeat = excluded.repeat,
                 args_json = excluded.args_json,
                 kwargs_json = excluded.kwargs_json,
                 source_location = excluded.source_location,
                 registration_source = excluded.registration_source,
                 source_tier = excluded.source_tier,
-                retired_at = NULL
+                "group" = excluded."group",
+                retired_at = NULL,
+                cancelled_at = NULL  -- re-registration clears cancellation
             RETURNING id
             """,
             (
@@ -196,13 +202,15 @@ class TelemetryRepository:
                 registration.job_name,
                 registration.handler_method,
                 registration.trigger_type,
-                registration.trigger_value,
-                1 if registration.repeat else 0,
+                registration.trigger_label,
+                registration.trigger_detail,
+                0,  # repeat is always 0 for new-style jobs; triggers handle recurrence
                 registration.args_json,
                 registration.kwargs_json,
                 registration.source_location,
                 registration.registration_source,
                 registration.source_tier,
+                registration.group,
             ),
         )
         row = await cursor.fetchone()
@@ -210,6 +218,22 @@ class TelemetryRepository:
         if row is None:
             raise RuntimeError("RETURNING id returned no row after INSERT INTO scheduled_jobs — should never happen")
         return row[0]
+
+    async def mark_job_cancelled(self, db_id: int) -> None:
+        """Set ``cancelled_at`` to the current epoch time for the given job row.
+
+        Called from the cancel path in ``SchedulerService`` when a job is cancelled
+        so that the durable ``cancelled`` state survives heap removal.
+
+        Args:
+            db_id: The ``id`` of the ``scheduled_jobs`` row to mark as cancelled.
+        """
+        db = self._db_service.db
+        await db.execute(
+            "UPDATE scheduled_jobs SET cancelled_at = ? WHERE id = ?",
+            (time.time(), db_id),
+        )
+        await db.commit()
 
     async def reconcile_registrations(
         self,
@@ -246,6 +270,12 @@ class TelemetryRepository:
         now = time.time()
 
         try:
+            # Explicit BEGIN — aiosqlite opens connections with isolation_level=None (autocommit),
+            # so without this BEGIN, each execute() below auto-commits individually and the
+            # rollback() in the except clause is a no-op. This pattern mirrors
+            # persist_batch_with_fk_fallback().
+            await db.execute("BEGIN")
+
             # --- Non-once listeners without history: delete ---
             if live_listener_ids:
                 placeholders = ",".join("?" * len(live_listener_ids))

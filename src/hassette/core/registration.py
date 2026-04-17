@@ -69,13 +69,15 @@ class ScheduledJobRegistration:
     """Fully qualified name of the job callable."""
 
     trigger_type: str | None
-    """Trigger kind: 'cron', 'interval', or None for one-shot jobs."""
+    """Trigger kind: one of ``"interval"``, ``"cron"``, ``"once"``, ``"after"``, ``"custom"``,
+    or ``None`` for legacy no-trigger jobs registered without a ``TriggerProtocol`` trigger.
+    """
 
-    trigger_value: str | None
-    """String representation of the trigger configuration, or None."""
+    trigger_label: str
+    """Short stable label for telemetry / UI display (from trigger.trigger_label())."""
 
-    repeat: bool
-    """Whether the job repeats after each run."""
+    trigger_detail: str | None
+    """Optional human-readable detail string (from trigger.trigger_detail())."""
 
     args_json: str
     """JSON-serialized positional arguments."""
@@ -91,3 +93,6 @@ class ScheduledJobRegistration:
 
     source_tier: SourceTier = "app"
     """Whether this job originates from a user app or the framework itself."""
+
+    group: str | None = None
+    """Scheduler group name, or None if not assigned to a group."""

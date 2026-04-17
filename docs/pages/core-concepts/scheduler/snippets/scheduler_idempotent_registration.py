@@ -7,7 +7,7 @@ class IdempotentApp(App[AppConfig]):
         # Safe to call on every reload — won't create duplicates
         self.scheduler.run_every(
             self.check_sensors,
-            60,
+            seconds=60,
             name="sensor_check",
             if_exists="skip",
         )

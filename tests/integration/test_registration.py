@@ -118,7 +118,6 @@ def _make_mock_job(
     job.name = name
     job.job = MagicMock(__qualname__="MyApp.my_job")
     job.trigger = None
-    job.repeat = False
     job.args = ()
     job.kwargs = {}
     job.db_id = None
@@ -195,8 +194,8 @@ async def test_job_registration_persists_correct_app_key(
         job_name="test_job",
         handler_method="MyApp.my_job",
         trigger_type=None,
-        trigger_value=None,
-        repeat=False,
+        trigger_label="once",
+        trigger_detail=None,
         args_json="[]",
         kwargs_json="{}",
         source_location="test_registration.py:1",
@@ -320,3 +319,41 @@ def test_job_with_app_key_triggers_registration(mock_hassette: MagicMock) -> Non
 
     # Single spawn: _register_then_enqueue (DB registration + enqueue in sequence)
     assert scheduler_service.task_bucket.spawn.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Group persistence at registration
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_group_persisted_at_registration(
+    executor: CommandExecutor,
+    initialized_db: tuple[DatabaseService, int],
+) -> None:
+    """A job registered with group='morning' has the value written to the DB."""
+    db_service, _ = initialized_db
+    reg = ScheduledJobRegistration(
+        app_key="my_app",
+        instance_index=0,
+        job_name="morning_job",
+        handler_method="MyApp.morning_job",
+        trigger_type="cron",
+        trigger_label="daily at 07:00",
+        trigger_detail="0 7 * * *",
+        args_json="[]",
+        kwargs_json="{}",
+        source_location="test_registration.py:1",
+        registration_source=None,
+        group="morning",
+    )
+    job_id = await executor.register_job(reg)
+    assert job_id > 0
+
+    cursor = await db_service.db.execute(
+        'SELECT "group" FROM scheduled_jobs WHERE id = ?',
+        (job_id,),
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == "morning", f"Expected group='morning' in DB, got {row[0]!r}"

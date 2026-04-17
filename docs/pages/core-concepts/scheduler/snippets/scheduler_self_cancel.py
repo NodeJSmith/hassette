@@ -9,7 +9,7 @@ class PollApp(App[AppConfig]):
         # Store a reference so the handler can cancel itself.
         self._poll_job = self.scheduler.run_every(
             self.wait_for_device,
-            interval=10,
+            seconds=10,
             name="device_poll",
         )
 

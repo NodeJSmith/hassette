@@ -157,23 +157,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/scheduler/jobs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Scheduled Jobs */
-        get: operations["get_scheduled_jobs_api_scheduler_jobs_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/bus/listeners": {
         parameters: {
             query?: never;
@@ -304,7 +287,11 @@ export interface paths {
         };
         /**
          * App Jobs
-         * @description Job summaries for a single app instance.
+         * @description Job summaries for a single app instance, enriched with live heap data.
+         *
+         *     Live fields (``next_run``, ``fire_at``, ``jitter``, ``cancelled``) are joined
+         *     from the live scheduler heap by ``db_id``. On heap failure the DB rows are
+         *     returned without enrichment (degraded but functional; logged warning, no 500).
          */
         get: operations["app_jobs_api_telemetry_app__app_key__jobs_get"];
         put?: never;
@@ -900,10 +887,13 @@ export interface components {
             handler_method: string;
             /** Trigger Type */
             trigger_type: string | null;
-            /** Trigger Value */
-            trigger_value: string | null;
-            /** Repeat */
-            repeat: number;
+            /**
+             * Trigger Label
+             * @default
+             */
+            trigger_label: string;
+            /** Trigger Detail */
+            trigger_detail?: string | null;
             /** Args Json */
             args_json: string;
             /** Kwargs Json */
@@ -930,6 +920,19 @@ export interface components {
             total_duration_ms: number;
             /** Avg Duration Ms */
             avg_duration_ms: number;
+            /** Group */
+            group?: string | null;
+            /** Next Run */
+            next_run?: number | null;
+            /** Fire At */
+            fire_at?: number | null;
+            /** Jitter */
+            jitter?: number | null;
+            /**
+             * Cancelled
+             * @default false
+             */
+            cancelled: boolean;
         };
         /**
          * ListenerWithSummary
@@ -1042,25 +1045,6 @@ export interface components {
             exc_info?: string | null;
             /** App Key */
             app_key?: string | null;
-        };
-        /** ScheduledJobResponse */
-        ScheduledJobResponse: {
-            /** Job Id */
-            job_id: number;
-            /** Name */
-            name: string;
-            /** Owner Id */
-            owner_id: string;
-            /** Next Run */
-            next_run: string;
-            /** Repeat */
-            repeat: boolean;
-            /** Cancelled */
-            cancelled: boolean;
-            /** Trigger Type */
-            trigger_type: string;
-            /** Trigger Detail */
-            trigger_detail?: string | null;
         };
         /**
          * SessionRecord
@@ -1404,38 +1388,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LogEntryResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_scheduled_jobs_api_scheduler_jobs_get: {
-        parameters: {
-            query?: {
-                app_key?: string | null;
-                instance_index?: number | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ScheduledJobResponse"][];
                 };
             };
             /** @description Validation Error */

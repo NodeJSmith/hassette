@@ -72,7 +72,7 @@ Use `self.scheduler.run_minutely()` to run a handler every minute:
 --8<-- "pages/getting-started/snippets/first_automation_step4.py"
 ```
 
-`start=self.now()` means the first run fires immediately. Without it, the first run fires one minute after Hassette starts.
+The first run fires one minute after Hassette starts (the default interval for `run_minutely`).
 
 ## Step 5: Run it
 

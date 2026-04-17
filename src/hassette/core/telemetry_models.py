@@ -100,8 +100,8 @@ class JobSummary(BaseModel):
     job_name: str
     handler_method: str
     trigger_type: str | None
-    trigger_value: str | None
-    repeat: int
+    trigger_label: str = ""
+    trigger_detail: str | None = None
     args_json: str
     kwargs_json: str
     source_location: str
@@ -113,6 +113,16 @@ class JobSummary(BaseModel):
     last_executed_at: float | None
     total_duration_ms: float
     avg_duration_ms: float
+    group: str | None = None
+    """Scheduler group name, persisted at registration."""
+    next_run: float | None = None
+    """Unix epoch seconds of the next scheduled fire time (unjittered); sourced from live heap."""
+    fire_at: float | None = None
+    """Unix epoch seconds of actual dispatch time when jitter applied; sourced from live heap."""
+    jitter: float | None = None
+    """Seconds of random jitter offset; sourced from live heap."""
+    cancelled: bool = False
+    """True when the job is cancelled (live heap or DB cancelled_at IS NOT NULL)."""
 
 
 class JobExecution(BaseModel):

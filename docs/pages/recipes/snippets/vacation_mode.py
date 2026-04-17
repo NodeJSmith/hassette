@@ -34,7 +34,7 @@ class VacationMode(App[VacationModeConfig]):
         self.logger.info("Vacation mode enabled — starting presence simulation")
         self._presence_job = self.scheduler.run_every(
             self.simulate_presence,
-            interval=self.app_config.check_interval,
+            seconds=self.app_config.check_interval,
             name=PRESENCE_JOB_NAME,
         )
 

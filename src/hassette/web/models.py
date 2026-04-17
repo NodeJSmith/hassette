@@ -103,17 +103,6 @@ class LogEntryResponse(BaseModel):
     app_key: str | None = None
 
 
-class ScheduledJobResponse(BaseModel):
-    job_id: int
-    name: str
-    owner_id: str
-    next_run: str
-    repeat: bool
-    cancelled: bool
-    trigger_type: str
-    trigger_detail: str | None = None
-
-
 # ---------------------------------------------------------------------------
 # Typed WebSocket message models
 # ---------------------------------------------------------------------------

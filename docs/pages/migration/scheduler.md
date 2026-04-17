@@ -20,32 +20,18 @@ Hassette exposes the scheduler as a separate attribute `self.scheduler`. Methods
 
 ## Method Equivalents
 
-!!! note "Interval-based, not cron-based"
-    All Hassette interval methods (`run_minutely`, `run_hourly`, `run_daily`) are interval-based, not cron-based — they fire at the given `start` time and then every N units later, not at wall-clock boundaries. Use `run_cron` for wall-clock alignment.
-
 | AppDaemon | Hassette | Hassette Notes |
 |-----------|----------|----------------|
 | `self.run_in(cb, 60)` | `self.scheduler.run_in(cb, delay=60)` | Delay in seconds |
-| `self.run_once(cb, time(7, 30))` | `self.scheduler.run_once(cb, start=time(7, 30))` | Runs once at given time |
-| `self.run_every(cb, "now", 300)` | `self.scheduler.run_every(cb, interval=300, start=self.now())` | Repeating interval in seconds |
-| `self.run_minutely(cb)` | `self.scheduler.run_minutely(cb)` | Interval-based. The first run fires within one scheduler tick (typically under 1 second) — not at the next wall-clock minute boundary. |
-| `self.run_hourly(cb, time(0, 30))` | `self.scheduler.run_hourly(cb, start=time(0, 30))` | Interval-based, not cron-based. Fires at the given offset, then every N hours. |
-| `self.run_daily(cb, time(7, 30))` | `self.scheduler.run_daily(cb, start=time(7, 30))` | Interval-based, not wall-clock — see note below. |
+| `self.run_once(cb, time(7, 30))` | `self.scheduler.run_once(cb, at="07:30")` | `"HH:MM"` string or `ZonedDateTime` |
+| `self.run_every(cb, "now", 300)` | `self.scheduler.run_every(cb, seconds=300)` | Interval via `hours=`, `minutes=`, `seconds=` |
+| `self.run_minutely(cb)` | `self.scheduler.run_minutely(cb)` | Every 1 minute by default |
+| `self.run_hourly(cb, time(0, 30))` | `self.scheduler.run_hourly(cb)` | Every 1 hour by default |
+| `self.run_daily(cb, time(7, 30))` | `self.scheduler.run_daily(cb, at="07:30")` | Wall-clock, DST-safe (cron-backed) |
 | `self.cancel_timer(handle)` | `job.cancel()` | Cancel via the returned job object |
 
-!!! note "run_daily restart behavior"
-    If Hassette restarts after the configured start time has already passed for the day, the job fires immediately at startup, then resumes at the scheduled time on subsequent days. Use `run_cron` for strict wall-clock scheduling that skips a missed run rather than firing immediately.
-
-!!! warning "Always pass `start=` as a keyword argument"
-    Unlike AppDaemon, Hassette's `run_daily`, `run_hourly`, and `run_minutely` take a count (`days`, `hours`, `minutes`) as their second positional parameter. Passing a `time` object positionally will cause a `TypeError`. Always use the keyword form:
-
-    ```python
-    # Correct
-    self.scheduler.run_daily(self.morning_task, start=time(7, 30))
-
-    # Wrong — time(7, 30) is interpreted as the `days` argument
-    self.scheduler.run_daily(self.morning_task, time(7, 30))
-    ```
+!!! note "`run_daily` is now wall-clock-aligned"
+    Hassette's `run_daily` uses a cron-based trigger internally. It fires at the specified wall-clock time every day, correctly handling DST transitions. This is different from the old interval-based approach that could drift by an hour across DST boundaries.
 
 ## Side-by-Side Comparison
 
@@ -63,7 +49,7 @@ Hassette exposes the scheduler as a separate attribute `self.scheduler`. Methods
 
 ## Migration Example
 
-The following shows a typical AppDaemon pattern converted to Hassette. Note the named parameters and the use of `self.now()` for the `start` argument:
+The following shows a typical AppDaemon pattern converted to Hassette:
 
 === "AppDaemon"
 
@@ -85,7 +71,9 @@ The following shows a typical AppDaemon pattern converted to Hassette. Note the 
 **Key changes:**
 
 - Access via `self.scheduler` instead of calling directly on `self`
-- Use named parameters (`delay=`, `start=`, `interval=`)
+- `run_daily` takes an `at="HH:MM"` string instead of a `time` object or `start=` parameter
+- `run_every` takes `hours=`, `minutes=`, `seconds=` keyword arguments instead of a positional `interval`
+- `run_cron` takes a cron expression string instead of keyword fields (`hour=`, `minute=`, etc.)
 - Jobs return rich `ScheduledJob` objects instead of opaque handles
 - Cancel with `job.cancel()` instead of `self.cancel_timer(handle)`
 

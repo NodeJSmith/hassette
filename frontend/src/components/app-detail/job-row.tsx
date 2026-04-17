@@ -4,11 +4,12 @@ import { getJobExecutions } from "../../api/endpoints";
 import type { JobData } from "../../api/endpoints";
 import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useRelativeTime } from "../../hooks/use-relative-time";
-import { formatDuration, pluralize } from "../../utils/format";
+import { formatDuration, formatTriggerDetail, pluralize } from "../../utils/format";
 import { JobExecutions } from "./job-executions";
 
 interface Props {
   job: JobData;
+  onGroupClick?: (group: string) => void;
 }
 
 /**
@@ -18,8 +19,9 @@ interface Props {
  * expanded. On re-expand, `refetch()` is called again — stale data stays
  * visible during the refresh (stale-while-revalidate).
  */
-export function JobRow({ job }: Props) {
+export function JobRow({ job, onGroupClick }: Props) {
   const lastExecuted = useRelativeTime(job.last_executed_at);
+  const nextRunLabel = useRelativeTime(job.next_run ?? null);
   const expanded = useRef(signal(false)).current;
 
   const { data: executions, loading, refetch } = useScopedApi(
@@ -31,32 +33,74 @@ export function JobRow({ job }: Props) {
     job.failed > 0 ? "danger" : job.total_executions > 0 ? "success" : "neutral";
 
   const hasExecutions = job.total_executions > 0;
+  const hasDetail = hasExecutions || job.next_run !== null && job.next_run !== undefined
+    || job.source_location || job.registration_source;
   const toggle = () => {
-    if (!hasExecutions) return;
+    if (!hasDetail) return;
     expanded.value = !expanded.value;
-    if (expanded.value) {
+    if (expanded.value && hasExecutions) {
       void refetch();
     }
   };
 
+  // Subtitle primary: trigger_label when non-empty, otherwise trigger_type
+  const subtitlePrimary = job.trigger_label !== "" ? job.trigger_label : (job.trigger_type ?? "");
+
   return (
-    <div class="ht-item-row" data-testid={`job-row-${job.job_id}`}>
+    <div
+      class={`ht-item-row${job.cancelled ? " is-cancelled" : ""}`}
+      data-testid={`job-row-${job.job_id}`}
+    >
       <div
         class="ht-item-row__main"
-        role={hasExecutions ? "button" : undefined}
-        tabIndex={hasExecutions ? 0 : undefined}
-        aria-expanded={hasExecutions ? expanded.value : undefined}
+        role={hasDetail ? "button" : undefined}
+        tabIndex={hasDetail ? 0 : undefined}
+        aria-expanded={hasDetail ? expanded.value : undefined}
         onClick={toggle}
-        onKeyDown={hasExecutions ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } } : undefined}
+        onKeyDown={hasDetail ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } } : undefined}
       >
         <span class={`ht-item-row__dot ht-item-row__dot--${dotClass}`} />
         <div class="ht-item-row__content">
           <span class="ht-item-row__title">{job.job_name}</span>
-          {(job.trigger_type || job.handler_method) && (
+          {subtitlePrimary && (
             <span class="ht-item-row__subtitle">
-              {job.trigger_type
-                ? `${job.trigger_type}${job.trigger_value ? `: ${job.trigger_value}` : ""}`
-                : job.handler_method}
+              {subtitlePrimary}
+              {job.trigger_detail !== null && job.trigger_detail !== undefined && (
+                <span class="ht-text-muted"> · {formatTriggerDetail(job.trigger_detail)}</span>
+              )}
+            </span>
+          )}
+          {(job.group !== null && job.group !== undefined || job.jitter !== null && job.jitter !== undefined || job.cancelled) && (
+            <span class="ht-item-row__subtitle">
+              {job.group !== null && job.group !== undefined && (
+                onGroupClick ? (
+                  <button
+                    type="button"
+                    class="ht-badge ht-badge--group"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onGroupClick(job.group!);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onGroupClick(job.group!);
+                      }
+                    }}
+                  >
+                    {job.group}
+                  </button>
+                ) : (
+                  <span class="ht-badge ht-badge--group">{job.group}</span>
+                )
+              )}
+              {job.jitter !== null && job.jitter !== undefined && (
+                <span class="ht-tag ht-tag--jitter">±{job.jitter}s</span>
+              )}
+              {job.cancelled && (
+                <span class="ht-badge ht-badge--cancelled" data-testid="cancelled-badge">Cancelled</span>
+              )}
             </span>
           )}
         </div>
@@ -76,7 +120,7 @@ export function JobRow({ job }: Props) {
             </span>
           )}
         </div>
-        {job.total_executions > 0 && (
+        {hasDetail && (
           <span class={`ht-item-row__chevron${expanded.value ? " is-open" : ""}`}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <polyline points="4 2 8 6 4 10" />
@@ -86,6 +130,12 @@ export function JobRow({ job }: Props) {
       </div>
       {expanded.value && (
         <div class="ht-item-detail" id={`job-${job.job_id}-detail`}>
+          {job.next_run !== null && job.next_run !== undefined && (
+            <p class="ht-next-run ht-text-xs">
+              Next: {nextRunLabel}
+              {job.jitter !== null && job.jitter !== undefined && <span class="ht-text-muted"> (±{job.jitter}s jitter)</span>}
+            </p>
+          )}
           {(job.source_location || job.registration_source) && (
             <div class="ht-source-display" data-testid="source-display">
               {job.source_location && (

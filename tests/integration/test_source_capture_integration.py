@@ -10,8 +10,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from hassette.scheduler.classes import IntervalTrigger
-from hassette.utils.date_utils import now
+from hassette.scheduler.triggers import Every
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -98,9 +97,8 @@ async def test_scheduler_schedule_captures_test_file_source(scheduler: "Schedule
     scheduler.scheduler_service = Mock(add_job=add_job_mock)
 
     try:
-        run_at = now().add(hours=1)
-        trigger = IntervalTrigger.from_arguments(hours=1)
-        job = scheduler.schedule(my_job, run_at, trigger=trigger, repeat=True, name="test_job")
+        trigger = Every(hours=1)
+        job = scheduler.schedule(my_job, trigger, name="test_job")
 
         assert job.source_location, "source_location should not be empty"
         assert THIS_FILE in job.source_location, (

@@ -30,7 +30,7 @@ class MyApp(App[MyAppUserConfig]):
         self.bus.on_state_change("input_button.test", handler=self.handle_event_sync)
         self.scheduler.run_in(self.api.get_states, 1)
         self.scheduler.run_every(
-            self.scheduled_job_example, 10, args=("value1", "value2"), kwargs={"kwarg1": "kwarg_value"}
+            self.scheduled_job_example, seconds=10, args=("value1", "value2"), kwargs={"kwarg1": "kwarg_value"}
         )
 
         self.office_light = self.states.light.get("light.office")

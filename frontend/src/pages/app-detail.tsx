@@ -49,6 +49,7 @@ export function AppDetailPage({ params }: Props) {
   const liveStatus = appStatus.value[appKey]?.status ?? currentInstance?.status ?? manifest?.status ?? "unknown";
   const listenerCount = listeners.data.value?.length ?? 0;
   const jobCount = jobs.data.value?.length ?? 0;
+  const scheduledCount = jobs.data.value?.filter((j) => j.next_run !== null && j.next_run !== undefined).length ?? 0;
 
   const isLoading = health.loading.value || listeners.loading.value || jobs.loading.value || manifests.loading.value;
   if (isLoading) return <Spinner />;
@@ -139,8 +140,13 @@ export function AppDetailPage({ params }: Props) {
       <div class="ht-card ht-mb-8">
         <h2 class="ht-heading-5" data-testid="jobs-heading">
           <IconClock />
-          Scheduled Jobs ({jobCount} active)
+          Scheduled Jobs ({jobCount} registered)
         </h2>
+        {jobCount > 0 && scheduledCount !== jobCount && (
+          <p class="ht-text-muted ht-text-xs ht-mb-2" data-testid="jobs-scheduled-count">
+            {scheduledCount} currently scheduled
+          </p>
+        )}
         {jobs.error.value && <p class="ht-text-danger">{jobs.error.value}</p>}
         {jobCount > 0 && <JobList jobs={jobs.data.value} />}
       </div>

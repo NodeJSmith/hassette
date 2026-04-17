@@ -84,8 +84,8 @@ See also: [Writing Handlers](core-concepts/bus/handlers.md) for how to use depen
 
 ## Scheduler not firing
 
-- **Job scheduled for the past**: A time-of-day `start` value like `(7, 0)` is converted to *today* at that time. If it's already past 7:00 AM, `run_once` fires immediately as an overdue job; repeating methods (`run_daily`, `run_hourly`, etc.) advance to the next interval. Use a future `ZonedDateTime` or a seconds offset for guaranteed future scheduling.
-- **Runs too often or too rarely**: `run_every(interval=5)` is 5 *seconds*, not minutes. For `run_cron`, `minute=5` means "at minute 5 of every hour", not "every 5 minutes" — use `minute="*/5"` for intervals.
+- **Job scheduled for the past**: `run_once(at="07:00")` called after 7 AM defers the job to tomorrow (with a WARNING log). `run_daily(at="07:00")` fires at the next 7 AM occurrence (today if before 7 AM, tomorrow otherwise).
+- **Runs too often or too rarely**: `run_every(seconds=5)` is 5 *seconds*, not minutes — use `run_every(minutes=5)` for a 5-minute interval. For `run_cron`, the expression `"5 * * * *"` means "at minute 5 of every hour", not "every 5 minutes" — use `"*/5 * * * *"` for intervals.
 - **Exception in task**: Unhandled exceptions in scheduled tasks are logged at ERROR level but don't crash the scheduler. Check your logs.
 - See [Job Management — Troubleshooting](core-concepts/scheduler/management.md#troubleshooting) for more.
 

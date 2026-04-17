@@ -1,5 +1,6 @@
 import asyncio
 import heapq
+import random
 import typing
 from collections import defaultdict
 from collections.abc import Callable, Iterator
@@ -13,7 +14,6 @@ import hassette.utils.date_utils as date_utils
 from hassette.core.commands import ExecuteJob
 from hassette.core.registration import ScheduledJobRegistration
 from hassette.resources.base import Resource, Service
-from hassette.scheduler.classes import CronTrigger, IntervalTrigger
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.serialization import safe_json_serialize
 
@@ -44,6 +44,9 @@ class SchedulerService(Service):
     _pending_registration_tasks: dict[str, list[asyncio.Task[None]]]
     """Tracks pending DB registration tasks per app_key for await barrier support."""
 
+    _removal_callbacks: dict[str, Callable[["ScheduledJob"], None]]
+    """Per-owner callbacks invoked whenever a job is removed via _remove_job()."""
+
     def __init__(self, hassette: "Hassette", *, executor: "CommandExecutor", parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self._executor = executor
@@ -51,6 +54,7 @@ class SchedulerService(Service):
         self._wakeup_event = asyncio.Event()
         self._exit_event = asyncio.Event()
         self._pending_registration_tasks = defaultdict(list)
+        self._removal_callbacks = {}
 
     @property
     def min_delay(self) -> float:
@@ -99,6 +103,7 @@ class SchedulerService(Service):
     async def _enqueue_job(self, job: "ScheduledJob") -> None:
         """Push a job onto the queue and wake the scheduler."""
 
+        self._apply_jitter_to_heap(job)
         await self._job_queue.add(job)
         self.kick()
 
@@ -109,14 +114,80 @@ class SchedulerService(Service):
 
         if removed:
             self.kick()
+            self._fire_removal_callbacks(removed)
+
+    def register_removal_callback(self, owner_id: str, callback: Callable[["ScheduledJob"], None]) -> None:
+        """Register a callback to be called whenever a job belonging to owner_id is removed.
+
+        If a callback is already registered for owner_id, the new callback replaces it.
+        This handles legitimate re-registration during hot-reload cycles where the old
+        Scheduler instance is orphaned without a formal shutdown.
+
+        Args:
+            owner_id: The owner whose job removals should trigger the callback.
+            callback: Called with the removed ScheduledJob as its single argument.
+        """
+        self._removal_callbacks[owner_id] = callback
+
+    def deregister_removal_callback(self, owner_id: str) -> None:
+        """Remove the removal callback for owner_id, if any.
+
+        No-op when owner_id has no registered callback. Called by
+        ``Scheduler.on_shutdown`` so the slot is freed before the Scheduler
+        is re-initialized (e.g. during a hot-reload cycle).
+
+        Args:
+            owner_id: The owner whose callback should be removed.
+        """
+        self._removal_callbacks.pop(owner_id, None)
+
+    def _fire_removal_callbacks(self, jobs: "list[ScheduledJob]") -> None:
+        """Invoke per-owner removal callbacks for each job in jobs."""
+        for job in jobs:
+            callback = self._removal_callbacks.get(job.owner_id)
+            if callback is not None:
+                callback(job)
+
+    def _apply_jitter_to_heap(self, job: "ScheduledJob") -> None:
+        """Apply jitter to the heap sort_index and fire_at without mutating job.next_run.
+
+        If job.jitter is not None, a random offset in [0, jitter) seconds is added
+        to ``job.fire_at`` and ``job.sort_index``. ``job.next_run`` is never modified
+        — it is the unjittered logical fire time used as ``previous_run`` in subsequent
+        trigger calls. When jitter is None or 0, ``fire_at`` equals ``next_run`` exactly
+        (already set by ``set_next_run``).
+
+        Args:
+            job: The job whose sort_index and fire_at should be jittered.
+        """
+        if job.jitter is not None:
+            offset = random.uniform(0, job.jitter)
+            jittered_time = job.next_run.add(seconds=offset)
+            job.fire_at = jittered_time
+            job.sort_index = (jittered_time.timestamp_nanos(), job.job_id)
+            self.logger.debug(
+                "Applied jitter offset=%.3fs to job %s: next_run=%s → fire_at=%s",
+                offset,
+                job,
+                job.next_run,
+                job.fire_at,
+            )
 
     async def _remove_job(self, job: "ScheduledJob") -> None:
-        """Remove a specific job and wake the scheduler if successful."""
+        """Remove a specific job and wake the scheduler.
+
+        The callback is fired unconditionally because in the normal dispatch flow
+        the serve loop has already popped the job from the queue before
+        reschedule_job calls _remove_job on exhaustion — remove_job would return
+        False and the callback would silently drop.
+        """
 
         removed = await self._job_queue.remove_job(job)
 
         if removed:
             self.kick()
+
+        self._fire_removal_callbacks([job])
 
     async def sleep(self, next_run_time: ZonedDateTime | None = None):
         """Sleep until the next job is due or a kick is received.
@@ -205,15 +276,19 @@ class SchedulerService(Service):
             return
 
         timeout = self.hassette.config.registration_await_timeout
-        try:
-            await asyncio.wait_for(asyncio.gather(*pending, return_exceptions=True), timeout=float(timeout))
-        except TimeoutError:
+        # Use asyncio.wait (not wait_for + gather) so we get the pending set at timeout
+        # BEFORE tasks are cancelled — otherwise the warning's "incomplete" count is
+        # always 0 because wait_for cancels all subtasks before we can inspect them.
+        _done, still_pending = await asyncio.wait(pending, timeout=float(timeout))
+        if still_pending:
+            for task in still_pending:
+                task.cancel()
             self.logger.warning(
                 "await_registrations_complete timed out after %ss for app_key=%r — "
                 "%d registration task(s) incomplete; those jobs will be excluded from live IDs",
                 timeout,
                 app_key,
-                len([t for t in pending if not t.done()]),
+                len(still_pending),
             )
 
     async def _enqueue_then_register(self, job: "ScheduledJob") -> None:
@@ -222,35 +297,47 @@ class SchedulerService(Service):
         The job is enqueued first so it can be dispatched immediately.
         ``db_id`` is set once DB registration completes; until then, dispatch
         produces an orphan execution record with ``job_id=None``.
+
+        Trigger type dispatch uses the TriggerProtocol methods exclusively.
+        Non-protocol triggers are rejected synchronously by ``Scheduler.schedule()``
+        before reaching this path.
         """
         source_location = job.source_location
         registration_source: str | None = job.registration_source or None
         trigger = job.trigger
-        if isinstance(trigger, IntervalTrigger):
-            trigger_type = "interval"
-            trigger_value = str(trigger.interval)
-        elif isinstance(trigger, CronTrigger):
-            trigger_type = "cron"
-            trigger_value = str(trigger.cron_expression)
+        if trigger is not None:
+            trigger_type: str | None = trigger.trigger_db_type()
+            trigger_label: str = trigger.trigger_label()
+            trigger_detail: str | None = trigger.trigger_detail()
         else:
             trigger_type = None
-            trigger_value = None
+            trigger_label = ""
+            trigger_detail = None
         reg = ScheduledJobRegistration(
             app_key=job.app_key,
             instance_index=job.instance_index,
             job_name=job.name,
             handler_method=getattr(job.job, "__qualname__", str(job.job)),
             trigger_type=trigger_type,
-            trigger_value=trigger_value,
-            repeat=job.repeat,
+            trigger_label=trigger_label,
+            trigger_detail=trigger_detail,
             args_json=safe_json_serialize(list(job.args)),
             kwargs_json=safe_json_serialize(job.kwargs),
             source_location=source_location,
             registration_source=registration_source,
             source_tier=job.source_tier,
+            group=job.group,
         )
         await self._enqueue_job(job)
-        job.mark_registered(await self._executor.register_job(reg))
+        try:
+            job.mark_registered(await self._executor.register_job(reg))
+        except Exception:
+            self.logger.exception(
+                "Failed to register job in DB for owner_id=%s name=%s; "
+                "job will run without telemetry until next restart",
+                job.owner_id,
+                job.name,
+            )
 
     async def _dispatch_and_log(self, job: "ScheduledJob"):
         """Dispatch a job and log its execution.
@@ -295,11 +382,9 @@ class SchedulerService(Service):
             await self._remove_job(job)
             return
 
-        run_at_delta = job.next_run - date_utils.now()
-        if run_at_delta.in_seconds() < -self.hassette.config.scheduler_behind_schedule_threshold_seconds:
-            self.logger.warning(
-                "Job %s is behind schedule by %s seconds, running now.", job, abs(run_at_delta.in_seconds())
-            )
+        lag = (date_utils.now() - job.fire_at).in_seconds()
+        if lag > self.hassette.config.scheduler_behind_schedule_threshold_seconds:
+            self.logger.warning("Job %s is behind schedule by %.2fs", job, lag)
 
         async_fn = self.task_bucket.make_async_adapter(job.job)
 
@@ -315,7 +400,14 @@ class SchedulerService(Service):
         await self._executor.execute(cmd)
 
     async def reschedule_job(self, job: "ScheduledJob"):
-        """Reschedule a job if it is repeating.
+        """Reschedule a job based on its trigger's next_run_time().
+
+        If the job is cancelled, it is removed immediately. If the trigger raises or
+        returns None, the job is treated as exhausted and removed. If the trigger
+        returns a non-future time (delta ≤ 0), a WARNING is logged and the next run
+        is advanced by 1 second. Exceptions from next_run_time() are caught, logged,
+        and treated as exhaustion — the scheduler must never crash due to a
+        misbehaving trigger.
 
         Args:
             job: The job to reschedule.
@@ -326,28 +418,38 @@ class SchedulerService(Service):
             await self._remove_job(job)
             return
 
-        if job.repeat and job.trigger:
-            curr_next_run = job.next_run
-            next_run = job.trigger.next_run_time(job.next_run, date_utils.now())
-            job.set_next_run(next_run)
-            next_run_time_delta = job.next_run - curr_next_run
-            secs = next_run_time_delta.in_seconds()
-            if secs <= 0:
-                self.logger.warning("Trigger produced non-future next_run (delta=%ss), advancing by 1s", secs)
-                job.set_next_run(curr_next_run.add(seconds=1))
-
-            self.logger.debug(
-                "Rescheduling repeating job %s from %s to %s (%s)",
-                job,
-                curr_next_run,
-                job.next_run,
-                next_run_time_delta.in_seconds(),
+        try:
+            next_run = job.trigger.next_run_time(job.next_run, date_utils.now()) if job.trigger else None
+        except Exception:
+            self.logger.exception(
+                "reschedule_job: trigger raised for job_id=%s callable=%s trigger=%r",
+                job.job_id,
+                getattr(job.job, "__qualname__", str(job.job)),
+                job.trigger,
             )
-            await self._enqueue_job(job)
+            await self._remove_job(job)
             return
 
-        # One-time job, remove it
-        await self._remove_job(job)
+        if next_run is None:
+            await self._remove_job(job)
+            return
+
+        curr_next_run = job.next_run
+        job.set_next_run(next_run)
+        delta_to_now = (job.next_run - date_utils.now()).in_seconds()
+        if delta_to_now <= 0:
+            self.logger.warning(
+                "Trigger produced non-future next_run (%.3fs in the past), advancing by 1s", -delta_to_now
+            )
+            job.set_next_run(date_utils.now().add(seconds=1))
+
+        self.logger.debug(
+            "Rescheduling repeating job %s from %s to %s",
+            job,
+            curr_next_run,
+            job.next_run,
+        )
+        await self._enqueue_job(job)
 
     async def _test_trigger_due_jobs(self) -> int:
         """Fire all jobs due at the current time. For test harnesses only.
@@ -396,6 +498,16 @@ class SchedulerService(Service):
         """
         return self.task_bucket.spawn(self._remove_job(job), name="scheduler:remove_job")
 
+    async def mark_job_cancelled(self, db_id: int) -> None:
+        """Persist durable cancellation state for a job by setting ``cancelled_at`` in the DB.
+
+        Delegates to ``CommandExecutor.mark_job_cancelled``. No-op when ``db_id`` is None.
+
+        Args:
+            db_id: The ``id`` of the ``scheduled_jobs`` row to mark as cancelled.
+        """
+        await self._executor.mark_job_cancelled(db_id)
+
 
 class _ScheduledJobQueue(Resource):
     """Encapsulates the scheduler heap with fair locking semantics."""
@@ -425,7 +537,16 @@ class _ScheduledJobQueue(Resource):
         async with self._lock:
             self._queue.push(job)
 
-        self.logger.debug("Queued job %s for %s", job, job.next_run)
+        if job.fire_at != job.next_run:
+            self.logger.debug(
+                "Queued job %s for next_run=%s (fire_at=%s, jitter=%ss)",
+                job,
+                job.next_run,
+                job.fire_at,
+                job.jitter,
+            )
+        else:
+            self.logger.debug("Queued job %s for %s", job, job.next_run)
 
     async def pop_due(self, reference_time: ZonedDateTime | None = None) -> list["ScheduledJob"]:
         """Return and remove all jobs due to run at or before the reference time."""
@@ -436,7 +557,7 @@ class _ScheduledJobQueue(Resource):
             current_time = reference_time or date_utils.now()
             while not self._queue.is_empty():
                 candidate = self._queue.peek()
-                if candidate is None or candidate.next_run > current_time:
+                if candidate is None or candidate.fire_at > current_time:
                     break
 
                 due_jobs.append(self._queue.pop())
@@ -458,14 +579,14 @@ class _ScheduledJobQueue(Resource):
             current_time = reference_time
             while not self._queue.is_empty():
                 candidate = self._queue.peek()
-                if candidate is None or candidate.next_run > current_time:
+                if candidate is None or candidate.fire_at > current_time:
                     break
 
                 due_jobs.append(self._queue.pop())
                 current_time = date_utils.now()
 
             upcoming = self._queue.peek()
-            next_run = upcoming.next_run if upcoming else None
+            next_run = upcoming.fire_at if upcoming else None
 
         if due_jobs:
             self.logger.debug("Dequeued %d due jobs", len(due_jobs))
@@ -473,11 +594,11 @@ class _ScheduledJobQueue(Resource):
         return due_jobs, next_run
 
     async def next_run_time(self) -> ZonedDateTime | None:
-        """Return the next scheduled run time if available."""
+        """Return the next scheduled fire time (fire_at) if available."""
 
         async with self._lock:
             upcoming = self._queue.peek()
-            return upcoming.next_run if upcoming else None
+            return upcoming.fire_at if upcoming else None
 
     async def peek(self) -> "ScheduledJob | None":
         """Return the next scheduled job without removing it."""
@@ -485,17 +606,17 @@ class _ScheduledJobQueue(Resource):
         async with self._lock:
             return self._queue.peek()
 
-    async def remove_owner(self, owner: str) -> int:
-        """Remove all jobs belonging to the given owner."""
+    async def remove_owner(self, owner: str) -> "list[ScheduledJob]":
+        """Remove all jobs belonging to the given owner. Returns the removed jobs."""
 
         async with self._lock:
             removed = self._queue.remove_where(lambda job: job.owner_id == owner)
 
         if removed:
-            self.logger.debug("Removed %d jobs for owner '%s'", removed, owner)
-            return removed
+            self.logger.debug("Removed %d jobs for owner '%s'", len(removed), owner)
+        else:
+            self.logger.debug("No jobs found for owner '%s' to remove", owner)
 
-        self.logger.debug("No jobs found for owner '%s' to remove", owner)
         return removed
 
     async def remove_job(self, job: "ScheduledJob") -> bool:
@@ -528,10 +649,11 @@ class _ScheduledJobQueue(Resource):
         async with self._lock:
             removed = self._queue.remove_where(predicate)
 
-        if removed:
-            self.logger.debug("Cleared %d jobs from queue", removed)
+        count = len(removed)
+        if count:
+            self.logger.debug("Cleared %d jobs from queue", count)
 
-        return removed
+        return count
 
 
 @dataclass
@@ -579,17 +701,22 @@ class HeapQueue(Generic[T]):
         """Check if the queue is empty."""
         return not self._queue
 
-    def remove_where(self, predicate: Callable[[T], bool]) -> int:
-        """Remove all items matching the predicate, returning the number removed."""
+    def remove_where(self, predicate: Callable[[T], bool]) -> list[T]:
+        """Remove all items matching the predicate, returning the removed items."""
 
-        original_length = len(self._queue)
-        if not original_length:
-            return 0
+        if not self._queue:
+            return []
 
-        self._queue = [job for job in self._queue if not predicate(job)]
-        removed = original_length - len(self._queue)
+        remaining: list[T] = []
+        removed: list[T] = []
+        for item in self._queue:
+            if predicate(item):
+                removed.append(item)
+            else:
+                remaining.append(item)
 
         if removed:
+            self._queue = remaining
             heapq.heapify(self._queue)  # pyright: ignore[reportArgumentType]
 
         return removed

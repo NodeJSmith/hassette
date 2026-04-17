@@ -21,7 +21,7 @@ from hassette.core.telemetry_models import (
     SessionRecord,
 )
 from hassette.types.types import QuerySourceTier
-from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
+from hassette.web.dependencies import HassetteDep, RuntimeDep, SchedulerDep, TelemetryDep
 from hassette.web.mappers import to_listener_with_summary
 from hassette.web.models import (
     AppHealthResponse,
@@ -208,16 +208,22 @@ async def app_listeners(
 @router.get("/app/{app_key}/jobs", response_model=list[JobSummary])
 async def app_jobs(
     telemetry: TelemetryDep,
+    scheduler_service: SchedulerDep,
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
     instance_index: int = 0,
     session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = _SOURCE_TIER_PARAM,
 ) -> list[JobSummary]:
-    """Job summaries for a single app instance."""
+    """Job summaries for a single app instance, enriched with live heap data.
+
+    Live fields (``next_run``, ``fire_at``, ``jitter``, ``cancelled``) are joined
+    from the live scheduler heap by ``db_id``. On heap failure the DB rows are
+    returned without enrichment (degraded but functional; logged warning, no 500).
+    """
     effective_tier = source_tier if source_tier is not None else "app"
     try:
-        return list(
+        db_jobs = list(
             await telemetry.get_job_summary(
                 app_key=app_key, instance_index=instance_index, session_id=session_id, source_tier=effective_tier
             )
@@ -226,6 +232,55 @@ async def app_jobs(
         LOGGER.warning("Failed to fetch jobs for %s", app_key, exc_info=True)
         response.status_code = 503
         return []
+
+    # Enrich DB rows with live heap state. All enrichment happens on the returned
+    # snapshot — never inside the heap lock. INVARIANT: get_all_jobs() acquires
+    # FairAsyncRLock internally and returns a list copy.
+    try:
+        live_jobs = await scheduler_service.get_all_jobs()
+    except (OSError, RuntimeError, ValueError):
+        LOGGER.warning("Failed to fetch live scheduler jobs for enrichment; returning DB rows only", exc_info=True)
+        return db_jobs
+
+    # Build lookup by db_id (skip jobs not yet persisted)
+    live_by_db_id = {job.db_id: job for job in live_jobs if job.db_id is not None}
+
+    enriched: list[JobSummary] = []
+    for js in db_jobs:
+        try:
+            live_job = live_by_db_id.get(js.job_id)
+            if live_job is not None:
+                # OR semantics: preserve DB-derived cancelled_at signal even when the live heap
+                # shows cancelled=False (transient window between cancellation and heap removal).
+                is_cancelled = live_job.cancelled or js.cancelled
+
+                # Don't expose next_run/fire_at for cancelled jobs — they won't fire again.
+                if is_cancelled:
+                    next_run_ts = None
+                    fire_at_ts = None
+                else:
+                    # next_run and fire_at as epoch floats, matching last_executed_at convention
+                    next_run_ts = live_job.next_run.timestamp()
+                    fire_at_ts = live_job.fire_at.timestamp() if live_job.jitter is not None else None
+
+                enriched.append(
+                    js.model_copy(
+                        update={
+                            "next_run": next_run_ts,
+                            "fire_at": fire_at_ts,
+                            "jitter": live_job.jitter,
+                            "cancelled": is_cancelled,
+                        }
+                    )
+                )
+            else:
+                # No live match — leave next_run/fire_at/jitter as None; cancelled from DB
+                enriched.append(js)
+        except (AttributeError, TypeError, ValueError):
+            LOGGER.warning("Failed to enrich job summary for job_id=%s; using DB row", js.job_id, exc_info=True)
+            enriched.append(js)
+
+    return enriched
 
 
 @router.get("/handler/{listener_id}/invocations", response_model=list[HandlerInvocation])

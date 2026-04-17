@@ -1,7 +1,7 @@
 from collections.abc import Awaitable, Callable, Coroutine
 from datetime import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Protocol, Required, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, Protocol, Required, TypeAlias, TypeVar, runtime_checkable
 
 from typing_extensions import TypeAliasType, TypedDict
 from whenever import Time, TimeDelta, ZonedDateTime
@@ -71,15 +71,48 @@ class ComparisonCondition(Protocol[V_contra]):
     def __call__(self, old_value: V_contra, new_value: V_contra, /) -> bool: ...
 
 
+@runtime_checkable
 class TriggerProtocol(Protocol):
-    """Protocol for defining triggers."""
+    """Protocol for defining triggers.
+
+    Six methods make up the contract:
+    - first_run_time: returns the first scheduled run time given the current time
+    - next_run_time: returns the next run time after a previous run, or None for one-shot triggers
+    - trigger_label: short stable label for telemetry / UI display
+    - trigger_detail: optional human-readable detail string
+    - trigger_db_type: canonical type string for database storage
+    - trigger_id: stable string identifier used for deduplication
+    """
 
     def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:
-        """Return the first run time of the trigger."""
+        """Return the first scheduled run time at or after current_time."""
         ...
 
-    def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime:
-        """Return the next run time of the trigger after a previous run."""
+    def next_run_time(self, previous_run: ZonedDateTime, current_time: ZonedDateTime) -> ZonedDateTime | None:
+        """Return the next run time after previous_run, or None for one-shot triggers."""
+        ...
+
+    def trigger_label(self) -> str:
+        """Short stable label for telemetry / UI display.
+
+        Custom triggers (those returning ``"custom"`` from ``trigger_db_type()``)
+        MUST NOT return one of the built-in reserved names (``"interval"``,
+        ``"cron"``, ``"once"``, ``"after"``) from this method. Doing so creates
+        misleading telemetry and UI rows where the ``trigger_type`` column is
+        ``"custom"`` but the label implies a built-in trigger kind.
+        """
+        ...
+
+    def trigger_detail(self) -> str | None:
+        """Optional human-readable detail string."""
+        ...
+
+    def trigger_db_type(self) -> Literal["interval", "cron", "once", "after", "custom"]:
+        """Canonical type string for database storage."""
+        ...
+
+    def trigger_id(self) -> str:
+        """Stable string identifier used for deduplication."""
         ...
 
 
@@ -109,7 +142,7 @@ ChangeType = TypeAliasType(
 JobCallable: TypeAlias = Callable[..., Awaitable[None]] | Callable[..., Any]
 """Type representing a callable that can be scheduled as a job."""
 
-ScheduleStartType: TypeAlias = ZonedDateTime | Time | time | tuple[int, int] | TimeDelta | int | float | None
+ScheduleStartType: TypeAlias = ZonedDateTime | Time | time | TimeDelta | int | float | None
 """Type representing a value that can be used to specify a start time."""
 
 

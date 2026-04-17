@@ -522,7 +522,6 @@ CREATE TABLE scheduled_jobs (
     job_name TEXT NOT NULL,
     handler_method TEXT NOT NULL,
     trigger_type TEXT,
-    trigger_value TEXT,
     repeat INTEGER NOT NULL DEFAULT 0,
     args_json TEXT NOT NULL DEFAULT '[]',
     kwargs_json TEXT NOT NULL DEFAULT '{}',

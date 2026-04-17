@@ -124,9 +124,9 @@ async def _insert_job(
     cursor = await db_svc.db.execute(
         """INSERT INTO scheduled_jobs
                (app_key, instance_index, job_name, handler_method,
-                trigger_type, trigger_value, repeat,
+                trigger_type, repeat,
                 source_location, source_tier)
-           VALUES (?, ?, ?, ?, 'interval', '60', 1, 'test.py:1', ?)""",
+           VALUES (?, ?, ?, ?, 'interval', 1, 'test.py:1', ?)""",
         (app_key, instance_index, job_name, handler_method, source_tier),
     )
     await db_svc.db.commit()
@@ -978,8 +978,8 @@ class TestCrossSessionAndRetiredRows:
         # Insert old retired scheduled_job
         cursor = await db_svc.db.execute(
             "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, "
-            "trigger_type, trigger_value, repeat, source_location, retired_at) "
-            "VALUES ('test_app', 0, 'old_job', 'run_old', 'interval', '60', 1, 'test.py:3', ?)",
+            "trigger_type, repeat, source_location, retired_at) "
+            "VALUES ('test_app', 0, 'old_job', 'run_old', 'interval', 1, 'test.py:3', ?)",
             (old_retired_at,),
         )
         old_job_id = cursor.lastrowid
@@ -987,8 +987,8 @@ class TestCrossSessionAndRetiredRows:
         # Insert recent retired scheduled_job (should survive cleanup)
         cursor = await db_svc.db.execute(
             "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, "
-            "trigger_type, trigger_value, repeat, source_location, retired_at) "
-            "VALUES ('test_app', 0, 'recent_job', 'run_recent', 'interval', '60', 1, 'test.py:4', ?)",
+            "trigger_type, repeat, source_location, retired_at) "
+            "VALUES ('test_app', 0, 'recent_job', 'run_recent', 'interval', 1, 'test.py:4', ?)",
             (recent_retired_at,),
         )
         recent_job_id = cursor.lastrowid

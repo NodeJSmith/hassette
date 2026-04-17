@@ -2,15 +2,26 @@
 
 These build manifest, snapshot, listener-metric, and registry objects
 used by both e2e and integration web tests.
+
+**Factory guide**:
+
+- ``make_job()`` — builds a ``SimpleNamespace`` job stub with a real trigger object.
+  Use for web/serialization tests that only need duck-typed attribute access.
+- ``make_real_job()`` — builds a real ``ScheduledJob`` instance.
+  Use for tests that exercise ``ScheduledJob.__post_init__``, ``matches()``,
+  ``sort_index``, ``set_next_run``, or ``fire_at`` behavior.
 """
 
+import re
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from whenever import TimeDelta
+from whenever import ZonedDateTime
 
+import hassette.utils.date_utils as date_utils
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
-from hassette.scheduler.classes import CronTrigger, IntervalTrigger
+from hassette.scheduler.classes import ScheduledJob
+from hassette.scheduler.triggers import After, Cron, Every, Once
 
 
 def make_full_snapshot(
@@ -176,7 +187,6 @@ def make_job(
     name: str = "check_lights",
     owner_id: str = "MyApp.MyApp[0]",
     next_run: str = "2024-01-01T00:05:00",
-    repeat: bool = True,
     cancelled: bool = False,
     trigger_type: str = "interval",
     trigger_detail: str | None = None,
@@ -186,24 +196,28 @@ def make_job(
 ) -> SimpleNamespace:
     """Build a ``SimpleNamespace`` scheduler job for test fixtures.
 
-    Uses real ``IntervalTrigger``/``CronTrigger`` objects so that ``job_to_dict``
-    isinstance checks work correctly in route handlers.
+    Uses real trigger objects (``Every``, ``Cron``, ``Once``, ``After``) that
+    implement ``TriggerProtocol`` so that ``resolve_trigger()`` works via the
+    ``trigger_db_type()`` path.
     """
+    trigger: object
     if trigger_type == "cron":
         cron_expr = trigger_detail or "0 0 * * *"
-        trigger = CronTrigger(cron_expr)
+        trigger = Cron(cron_expr)
     elif trigger_type == "interval":
         seconds = 30
         if trigger_detail is not None:
             # Parse ISO 8601 duration like "PT30S" → 30 seconds
-            import re
-
             m = re.search(r"(\d+)S", trigger_detail)
             if m:
                 seconds = int(m.group(1))
-        trigger = IntervalTrigger(TimeDelta(seconds=seconds))
+        trigger = Every(seconds=seconds)
+    elif trigger_type == "once":
+        trigger = Once(at=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0))
+    elif trigger_type == "after":
+        trigger = After(seconds=30)
     else:
-        trigger = SimpleNamespace()  # "once" — no interval or cron attrs
+        trigger = None
     return SimpleNamespace(
         job_id=job_id,
         db_id=db_id,
@@ -212,7 +226,43 @@ def make_job(
         app_key=app_key,
         instance_index=instance_index,
         next_run=next_run,
-        repeat=repeat,
         cancelled=cancelled,
         trigger=trigger,
+    )
+
+
+def make_real_job(
+    name: str = "test_job",
+    owner_id: str = "MyApp.MyApp[0]",
+    trigger: object | None = None,
+    jitter: float | None = None,
+    group: str | None = None,
+    app_key: str = "",
+    instance_index: int = 0,
+) -> ScheduledJob:
+    """Build a real ``ScheduledJob`` instance for tests that need full object behavior.
+
+    Use this instead of ``make_job()`` when the test exercises ``ScheduledJob.__post_init__``,
+    ``matches()``, ``sort_index``, ``set_next_run``, or ``fire_at`` behavior.
+    Use ``make_job()`` for web/serialization tests that only need duck-typed attribute access.
+
+    Args:
+        name: Job name. Defaults to ``"test_job"``.
+        owner_id: Owner ID. Defaults to ``"MyApp.MyApp[0]"``.
+        trigger: Optional trigger. Defaults to ``None``.
+        jitter: Optional jitter in seconds.
+        group: Optional group name.
+        app_key: Optional app key.
+        instance_index: Optional app instance index.
+    """
+    return ScheduledJob(
+        owner_id=owner_id,
+        next_run=date_utils.now(),
+        job=lambda: None,
+        name=name,
+        trigger=trigger,  # pyright: ignore[reportArgumentType]
+        jitter=jitter,
+        group=group,
+        app_key=app_key,
+        instance_index=instance_index,
     )

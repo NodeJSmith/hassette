@@ -3,24 +3,14 @@ from hassette import App, AppConfig
 
 class CronApp(App[AppConfig]):
     async def on_initialize(self):
-        # Weekdays at 9 AM
-        self.scheduler.run_cron(
-            self.work_start,
-            hour=9,
-            minute=0,
-            day_of_week="1-5",
-        )
+        # Weekdays at 9 AM (5-field standard cron: minute hour dom month dow)
+        self.scheduler.run_cron(self.work_start, "0 9 * * 1-5")
 
         # Every 15 minutes
-        self.scheduler.run_cron(self.check, minute="*/15")
+        self.scheduler.run_cron(self.check, "*/15 * * * *")
 
         # First of the month at midnight
-        self.scheduler.run_cron(
-            self.monthly_job,
-            day_of_month=1,
-            hour=0,
-            minute=0,
-        )
+        self.scheduler.run_cron(self.monthly_job, "0 0 1 * *")
 
     async def work_start(self):
         pass

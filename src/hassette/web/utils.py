@@ -4,8 +4,6 @@ import asyncio
 from logging import getLogger
 from typing import TYPE_CHECKING
 
-from hassette.scheduler.classes import CronTrigger, IntervalTrigger
-
 if TYPE_CHECKING:
     from hassette.core.runtime_query_service import RuntimeQueryService
     from hassette.core.telemetry_models import ListenerSummary
@@ -39,16 +37,25 @@ async def gather_all_listeners(
 
 
 def resolve_trigger(job: "ScheduledJob") -> tuple[str, str | None]:
-    """Return (trigger_type, trigger_detail) for a ScheduledJob.
+    """Return (trigger_db_type, trigger_detail) for a ScheduledJob.
+
+    Delegates to ``TriggerProtocol.trigger_db_type()`` and ``trigger_detail()``.
+    ``trigger_db_type()`` is the stable DB discriminator — not the display label.
+    Custom triggers show as ``"custom"`` in REST; consumers needing the human label
+    should inspect ``trigger_detail``.
+
+    The protocol invariant is enforced at ``Scheduler.schedule()`` via an
+    ``isinstance(trigger, TriggerProtocol)`` check that raises ``TypeError``
+    synchronously, so ``job.trigger`` is guaranteed to either be ``None`` or a
+    protocol-conformant instance when this function is called.
 
     Returns:
-        A tuple of (trigger_type, trigger_detail) where trigger_type is one of
-        "interval", "cron", or "one-shot", and trigger_detail is a human-readable
-        description (e.g. "every 30s", "*/5 * * * *", or None for one-shot jobs).
+        A tuple of (db_type, detail) where db_type is the trigger's DB discriminator
+        (e.g. "interval", "cron", "once", "after", "custom") and detail is an
+        optional human-readable description (e.g. "3600s", "07:00"), or
+        ``("one-shot", None)`` when the job has no trigger.
     """
     trigger = job.trigger
-    if isinstance(trigger, IntervalTrigger):
-        return "interval", f"every {trigger.interval}"
-    if isinstance(trigger, CronTrigger):
-        return "cron", str(trigger.cron_expression)
-    return "one-shot", None
+    if trigger is None:
+        return "one-shot", None
+    return trigger.trigger_db_type(), trigger.trigger_detail()

@@ -358,75 +358,6 @@
         }
       }
     },
-    "/api/scheduler/jobs": {
-      "get": {
-        "tags": [
-          "scheduler"
-        ],
-        "summary": "Get Scheduled Jobs",
-        "operationId": "get_scheduled_jobs_api_scheduler_jobs_get",
-        "parameters": [
-          {
-            "name": "app_key",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "App Key"
-            }
-          },
-          {
-            "name": "instance_index",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Instance Index"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ScheduledJobResponse"
-                  },
-                  "title": "Response Get Scheduled Jobs Api Scheduler Jobs Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/bus/listeners": {
       "get": {
         "tags": [
@@ -808,7 +739,7 @@
           "telemetry"
         ],
         "summary": "App Jobs",
-        "description": "Job summaries for a single app instance.",
+        "description": "Job summaries for a single app instance, enriched with live heap data.\n\nLive fields (``next_run``, ``fire_at``, ``jitter``, ``cancelled``) are joined\nfrom the live scheduler heap by ``db_id``. On heap failure the DB rows are\nreturned without enrichment (degraded but functional; logged warning, no 500).",
         "operationId": "app_jobs_api_telemetry_app__app_key__jobs_get",
         "parameters": [
           {
@@ -2349,7 +2280,12 @@
             ],
             "title": "Trigger Type"
           },
-          "trigger_value": {
+          "trigger_label": {
+            "type": "string",
+            "title": "Trigger Label",
+            "default": ""
+          },
+          "trigger_detail": {
             "anyOf": [
               {
                 "type": "string"
@@ -2358,11 +2294,7 @@
                 "type": "null"
               }
             ],
-            "title": "Trigger Value"
-          },
-          "repeat": {
-            "type": "integer",
-            "title": "Repeat"
+            "title": "Trigger Detail"
           },
           "args_json": {
             "type": "string",
@@ -2426,6 +2358,55 @@
           "avg_duration_ms": {
             "type": "number",
             "title": "Avg Duration Ms"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "next_run": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Run"
+          },
+          "fire_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fire At"
+          },
+          "jitter": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jitter"
+          },
+          "cancelled": {
+            "type": "boolean",
+            "title": "Cancelled",
+            "default": false
           }
         },
         "type": "object",
@@ -2436,8 +2417,6 @@
           "job_name",
           "handler_method",
           "trigger_type",
-          "trigger_value",
-          "repeat",
           "args_json",
           "kwargs_json",
           "source_location",
@@ -2712,60 +2691,6 @@
           "message"
         ],
         "title": "LogEntryResponse"
-      },
-      "ScheduledJobResponse": {
-        "properties": {
-          "job_id": {
-            "type": "integer",
-            "title": "Job Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "owner_id": {
-            "type": "string",
-            "title": "Owner Id"
-          },
-          "next_run": {
-            "type": "string",
-            "title": "Next Run"
-          },
-          "repeat": {
-            "type": "boolean",
-            "title": "Repeat"
-          },
-          "cancelled": {
-            "type": "boolean",
-            "title": "Cancelled"
-          },
-          "trigger_type": {
-            "type": "string",
-            "title": "Trigger Type"
-          },
-          "trigger_detail": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Trigger Detail"
-          }
-        },
-        "type": "object",
-        "required": [
-          "job_id",
-          "name",
-          "owner_id",
-          "next_run",
-          "repeat",
-          "cancelled",
-          "trigger_type"
-        ],
-        "title": "ScheduledJobResponse"
       },
       "SessionRecord": {
         "properties": {
