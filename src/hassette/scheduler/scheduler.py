@@ -211,10 +211,7 @@ class Scheduler(Resource):
                 name="scheduler:mark_job_cancelled",
             )
         self._dequeue_job(job)
-        # Mark as dequeued AFTER _dequeue_job — signals to _dispatch_and_log that
-        # this job was cancelled between heap-pop and dispatch (race guard).
-        # Back-reference preserved for debugging/telemetry.
-        job._dequeued = True
+        # _dequeued is set by dequeue_job() in SchedulerService — no need to set here
 
     def _dequeue_job(self, job: "ScheduledJob") -> bool:
         """Synchronously remove a job from the scheduler service heap.

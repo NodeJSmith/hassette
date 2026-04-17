@@ -52,7 +52,7 @@ morning_jobs = self.scheduler.list_jobs(group="morning")
 `ScheduledJob` does not expose a `cancelled` attribute. Once a job is cancelled it is removed from the scheduler's queue, so the canonical way to check whether a job is still active is to query `list_jobs()`:
 
 ```python
-async def is_running(self) -> bool:
+def is_running(self) -> bool:
     return self.my_job in self.scheduler.list_jobs()
 ```
 

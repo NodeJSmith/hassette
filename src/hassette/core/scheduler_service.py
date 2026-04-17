@@ -502,6 +502,10 @@ class SchedulerService(Service):
             self.kick()
         else:
             self.logger.debug("Job not in heap (already popped by serve loop): %s", job)
+        # Set _dequeued unconditionally — even when the job was already popped
+        # from the heap by the serve loop. This prevents the dispatch race
+        # (guard in _dispatch_and_log) and makes cancel idempotent.
+        job._dequeued = True
         self._fire_removal_callbacks([job])
         return removed
 

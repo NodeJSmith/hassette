@@ -35,6 +35,8 @@ def _make_scheduler(removal_callback_supported: bool = True) -> Scheduler:
         mock_service.register_removal_callback = Mock()
     else:
         del mock_service.register_removal_callback
+    # dequeue_job must set job._dequeued = True (mirrors real SchedulerService behavior)
+    mock_service.dequeue_job = Mock(side_effect=lambda job: setattr(job, "_dequeued", True) or True)
     scheduler.scheduler_service = mock_service
     scheduler._jobs_by_name = {}
     scheduler._jobs_by_group = {}
@@ -107,13 +109,16 @@ class TestScheduleEntryPoint:
 
 class TestCancelGroup:
     def test_cancel_group_cancels_all_members(self) -> None:
-        """All jobs in a group have _dequeued=True after cancel_group()."""
+        """All jobs in a group are dequeued after cancel_group()."""
         scheduler = _make_scheduler()
         job1 = scheduler.schedule(_noop, Every(hours=1), name="job1", group="morning")
         job2 = scheduler.schedule(_noop, Every(hours=2), name="job2", group="morning")
         scheduler.cancel_group("morning")
-        assert job1._dequeued
-        assert job2._dequeued
+        # Verify dequeue_job was called for each member
+        calls = scheduler.scheduler_service.dequeue_job.call_args_list
+        dequeued_jobs = {c.args[0] for c in calls}
+        assert job1 in dequeued_jobs
+        assert job2 in dequeued_jobs
 
     def test_cancel_group_nonexistent_noop(self) -> None:
         """cancel_group('ghost') does not raise."""
@@ -542,21 +547,16 @@ class TestCancelJob:
 
         assert mock_cancel.call_count == 2
 
-    def test_cancel_job_sets_dequeued_flag(self) -> None:
-        """cancel_job sets job._dequeued = True after _dequeue_job."""
-        from unittest.mock import MagicMock
-
+    def test_cancel_job_calls_dequeue_job(self) -> None:
+        """cancel_job delegates to _dequeue_job (which sets _dequeued via dequeue_job)."""
         scheduler = _make_scheduler()
-        scheduler.scheduler_service.task_bucket = MagicMock()
 
         job = scheduler.schedule(_noop, Every(hours=1), name="job1")
-        assert not job._dequeued
-
         scheduler.cancel_job(job)
-        assert job._dequeued, "job._dequeued must be True after cancel_job"
+        scheduler.scheduler_service.dequeue_job.assert_called_once_with(job)
 
-    def test_cancel_job_dequeued_set_after_dequeue_not_before(self) -> None:
-        """job._dequeued is False when _dequeue_job is called (set after, not before)."""
+    def test_cancel_job_dequeued_set_by_dequeue_job(self) -> None:
+        """job._dequeued is False at _dequeue_job entry (set by dequeue_job internally)."""
         from unittest.mock import MagicMock
 
         scheduler = _make_scheduler()

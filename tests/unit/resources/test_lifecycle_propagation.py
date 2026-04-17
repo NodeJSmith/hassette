@@ -622,7 +622,7 @@ def _make_dummy_job(owner_id: str, name: str = "test_job") -> ScheduledJob:
 
 
 async def test_scheduler_on_shutdown_dequeues_all_jobs():
-    """Scheduler.on_shutdown() awaits remove_all_jobs (via remove_jobs_by_owner)."""
+    """Scheduler.on_shutdown() awaits _remove_all_jobs (via remove_jobs_by_owner)."""
     hassette = _make_hassette_stub()
     # Make add_job a sync MagicMock so calling it doesn't create an unawaited coroutine
     hassette._scheduler_service.add_job = MagicMock()
