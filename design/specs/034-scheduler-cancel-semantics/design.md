@@ -1,7 +1,7 @@
 # Design: Clarify Cancel vs Remove Job Semantics
 
 **Date:** 2026-04-17
-**Status:** approved
+**Status:** archived
 **Spec:** design/specs/034-scheduler-cancel-semantics/spec.md
 **Research:** /tmp/claude-mine-design-research-jx7LB6/brief.md
 
