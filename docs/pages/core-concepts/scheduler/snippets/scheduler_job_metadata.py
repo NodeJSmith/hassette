@@ -8,7 +8,6 @@ class JobApp(App[AppConfig]):
         self.logger.info("Next run:  %s", job.next_run)
         self.logger.info("Trigger:   %s", job.trigger)
         self.logger.info("Job ID:    %s", job.job_id)
-        self.logger.info("Cancelled: %s", job.cancelled)
 
     async def task(self):
         pass
