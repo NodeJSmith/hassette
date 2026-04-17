@@ -637,6 +637,23 @@ strong {
   background: var(--ht-surface-recessed);
 }
 
+/* Scheduler job badge variants */
+.ht-badge--group {
+  color: var(--ht-accent);
+  background: var(--ht-accent-light);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.ht-badge--group:hover {
+  border-color: var(--ht-accent);
+}
+
+.ht-badge--cancelled {
+  color: var(--ht-danger);
+  background: var(--ht-danger-light);
+}
+
 /* — Group filter chip bar ————————————————————————————— */
 .ht-group-filter-bar {
   display: flex;
@@ -1193,6 +1210,22 @@ strong {
   transform: rotate(90deg);
 }
 
+/* Cancelled job row — muted appearance with strikethrough on title */
+.ht-item-row.is-cancelled {
+  opacity: 0.6;
+}
+
+.ht-item-row.is-cancelled .ht-item-row__title {
+  text-decoration: line-through;
+}
+
+/* Next run line in expanded job detail */
+.ht-next-run {
+  font-size: var(--ht-text-xs);
+  color: var(--ht-text-secondary);
+  margin: 0 0 var(--ht-sp-2);
+}
+
 /* — Item Detail (expanded panel) —————————————————————— */
 .ht-item-detail {
   padding: var(--ht-sp-4);
@@ -1604,6 +1637,12 @@ strong {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-size: 0.65em;
+}
+
+.ht-tag--jitter {
+  color: var(--ht-text-secondary);
+  background: var(--ht-surface-recessed);
+  border: 1px solid var(--ht-border);
 }
 
 .ht-log-app-tag {

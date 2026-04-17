@@ -247,23 +247,37 @@ async def app_jobs(
 
     enriched: list[JobSummary] = []
     for js in db_jobs:
-        live_job = live_by_db_id.get(js.job_id)
-        if live_job is not None:
-            # next_run and fire_at as epoch floats, matching last_executed_at convention
-            next_run_ts = live_job.next_run.timestamp()
-            fire_at_ts = live_job.fire_at.timestamp() if live_job.jitter is not None else None
-            enriched.append(
-                js.model_copy(
-                    update={
-                        "next_run": next_run_ts,
-                        "fire_at": fire_at_ts,
-                        "jitter": live_job.jitter,
-                        "cancelled": live_job.cancelled,
-                    }
+        try:
+            live_job = live_by_db_id.get(js.job_id)
+            if live_job is not None:
+                # OR semantics: preserve DB-derived cancelled_at signal even when the live heap
+                # shows cancelled=False (transient window between cancellation and heap removal).
+                is_cancelled = live_job.cancelled or js.cancelled
+
+                # Don't expose next_run/fire_at for cancelled jobs — they won't fire again.
+                if is_cancelled:
+                    next_run_ts = None
+                    fire_at_ts = None
+                else:
+                    # next_run and fire_at as epoch floats, matching last_executed_at convention
+                    next_run_ts = live_job.next_run.timestamp()
+                    fire_at_ts = live_job.fire_at.timestamp() if live_job.jitter is not None else None
+
+                enriched.append(
+                    js.model_copy(
+                        update={
+                            "next_run": next_run_ts,
+                            "fire_at": fire_at_ts,
+                            "jitter": live_job.jitter,
+                            "cancelled": is_cancelled,
+                        }
+                    )
                 )
-            )
-        else:
-            # No live match — leave next_run/fire_at/jitter as None; cancelled from DB
+            else:
+                # No live match — leave next_run/fire_at/jitter as None; cancelled from DB
+                enriched.append(js)
+        except Exception:
+            LOGGER.warning("Failed to enrich job summary for job_id=%s; using DB row", js.job_id, exc_info=True)
             enriched.append(js)
 
     return enriched

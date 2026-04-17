@@ -193,7 +193,7 @@ class TelemetryRepository:
                 source_tier = excluded.source_tier,
                 "group" = excluded."group",
                 retired_at = NULL,
-                cancelled_at = NULL
+                cancelled_at = NULL  -- re-registration clears cancellation
             RETURNING id
             """,
             (

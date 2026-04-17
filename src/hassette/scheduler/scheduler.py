@@ -177,6 +177,27 @@ class Scheduler(Resource):
 
         return job
 
+    def cancel_job(self, job: "ScheduledJob") -> None:
+        """Cancel an individual job and persist the cancellation to the database.
+
+        Marks the job as cancelled, spawns a durable ``mark_job_cancelled`` DB
+        write (when ``db_id`` is set), and removes the job from the scheduler
+        service queue. Mirrors ``cancel_group()`` semantics for a single job.
+
+        Args:
+            job: The job to cancel.
+        """
+        job.cancel()
+        if job.db_id is not None:
+            # mark_job_cancelled and remove_job are spawned without ordering guarantee.
+            # The enrichment OR logic in telemetry.py (live_job.cancelled or js.cancelled)
+            # covers either execution order.
+            self.task_bucket.spawn(
+                self.scheduler_service.mark_job_cancelled(job.db_id),
+                name="scheduler:mark_job_cancelled",
+            )
+        self.remove_job(job)
+
     def remove_job(self, job: "ScheduledJob") -> asyncio.Task:
         """Remove a job from the scheduler.
 
