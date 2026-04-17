@@ -59,7 +59,7 @@ async def reset_scheduler(scheduler: "Scheduler") -> None:
     Args:
         scheduler: The Scheduler instance to reset.
     """
-    await scheduler.remove_all_jobs()
+    await scheduler._remove_all_jobs()
 
 
 def reset_mock_api(server: "SimpleTestServer") -> None:

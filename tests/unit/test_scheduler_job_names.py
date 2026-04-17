@@ -78,7 +78,8 @@ class TestJobNameUniqueness:
         scheduler.add_job(job)
         assert "ephemeral" in scheduler._jobs_by_name
 
-        scheduler.remove_job(job)
+        # Simulate callback-based removal (as fired by scheduler_service.dequeue_job)
+        scheduler._on_job_removed(job)
         assert "ephemeral" not in scheduler._jobs_by_name
 
         # Re-adding with the same name should now succeed
@@ -91,7 +92,7 @@ class TestJobNameUniqueness:
         scheduler.add_job(_make_job("b"))
         assert set(scheduler._jobs_by_name) == {"a", "b"}
 
-        scheduler.remove_all_jobs()
+        scheduler._remove_all_jobs()
         assert scheduler._jobs_by_name == {}
 
 

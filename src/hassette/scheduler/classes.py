@@ -185,9 +185,6 @@ class ScheduledJob:
     name: str = field(default="", compare=False)
     """Optional name for the job for easier identification."""
 
-    cancelled: bool = field(default=False, compare=False)
-    """Flag indicating whether the job has been cancelled."""
-
     args: tuple[Any, ...] = field(default_factory=tuple, compare=False)
     """Positional arguments to pass to the job callable."""
 
@@ -256,7 +253,7 @@ class ScheduledJob:
 
         Compares callable, trigger (by trigger_id()), group, args, and kwargs.
         Does not compare runtime state (job_id, next_run, sort_index, _scheduler,
-        _dequeued, owner).
+        _dequeued, owner, or any other mutable runtime field).
 
         Two jobs with identical callable/trigger/args but different groups are distinct
         logical jobs and will not match.
@@ -274,8 +271,18 @@ class ScheduledJob:
         )
 
     def cancel(self) -> None:
-        """Cancel the scheduled job by setting the cancelled flag to True."""
-        self.cancelled = True
+        """Cancel the job by delegating to the owning Scheduler.
+
+        Raises:
+            RuntimeError: When called on a job that has not been registered with a Scheduler.
+                Use ``Scheduler.cancel_job(job)`` directly, or register the job first.
+        """
+        if self._scheduler is None:
+            raise RuntimeError(
+                "cancel() called on a job not registered with a Scheduler. "
+                "Use Scheduler.cancel_job(job) or register the job first."
+            )
+        self._scheduler.cancel_job(self)
 
     def set_next_run(self, next_run: ZonedDateTime) -> None:
         """Update the next run timestamp, fire_at, and ordering metadata.

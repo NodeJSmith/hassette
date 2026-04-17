@@ -345,8 +345,8 @@ class SchedulerService(Service):
         Args:
             job: The job to dispatch.
         """
-        if job.cancelled:
-            self.logger.debug("Job %s is cancelled, skipping dispatch", job)
+        if job._dequeued:
+            self.logger.debug("Job %s was dequeued (cancelled between heap-pop and dispatch), skipping", job)
             return
 
         self.logger.debug("Dispatching job: %s", job)
@@ -377,11 +377,6 @@ class SchedulerService(Service):
         Args:
             job: The job to run.
         """
-        if job.cancelled:
-            self.logger.debug("Job %s is cancelled, skipping", job)
-            await self._remove_job(job)
-            return
-
         lag = (date_utils.now() - job.fire_at).in_seconds()
         if lag > self.hassette.config.scheduler_behind_schedule_threshold_seconds:
             self.logger.warning("Job %s is behind schedule by %.2fs", job, lag)
@@ -412,11 +407,6 @@ class SchedulerService(Service):
         Args:
             job: The job to reschedule.
         """
-
-        if job.cancelled:
-            self.logger.debug("Job %s is cancelled, not rescheduling", job)
-            await self._remove_job(job)
-            return
 
         try:
             next_run = job.trigger.next_run_time(job.next_run, date_utils.now()) if job.trigger else None

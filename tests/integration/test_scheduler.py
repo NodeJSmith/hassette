@@ -422,9 +422,9 @@ async def test_group_cancel_removes_all_members() -> None:
         # Cancel the group
         scheduler.cancel_group("morning")
 
-        # All jobs should be cancelled
+        # All jobs should be dequeued (cancelled)
         for job in group_jobs:
-            assert job.cancelled is True, f"Job {job.name} should be cancelled"
+            assert job._dequeued is True, f"Job {job.name} should have _dequeued=True after cancel_group"
 
         # Group should be empty
         remaining = scheduler.list_jobs(group="morning")
