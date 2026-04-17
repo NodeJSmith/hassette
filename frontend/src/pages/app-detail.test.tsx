@@ -124,7 +124,7 @@ describe("AppDetailPage", () => {
       instance_index: 0,
       job_name: "my_job",
       handler_method: "my_app.my_job",
-      trigger_type: "every",
+      trigger_type: "interval",
       trigger_label: "Every 5 minutes",
       trigger_detail: null,
       args_json: "[]",

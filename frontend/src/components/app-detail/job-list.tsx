@@ -1,5 +1,5 @@
 import { signal } from "@preact/signals";
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useMemo, useRef } from "preact/hooks";
 import { useSearch } from "wouter";
 import type { JobData } from "../../api/endpoints";
 import { JobRow } from "./job-row";
@@ -21,10 +21,19 @@ export function JobList({ jobs }: Props) {
   // Local signal for active group filter; initialized from URL on first mount
   const activeGroup = useRef(signal<string | null>(initialGroup.current)).current;
 
+  // Derive a stable identity from the jobs data so the filter only resets on
+  // instance/session switches, not on WS reconnect refetches that produce a
+  // new array reference with identical content.
+  const jobsIdentity = useMemo(() => {
+    const first = jobs?.[0];
+    return first ? `${first.app_key}:${first.instance_index}` : null;
+  }, [jobs]);
+
   // Track whether the component has mounted so we skip the initial effect run
   const isMounted = useRef(false);
 
-  // Reset filter when jobs prop changes (instance switch / session change), but not on initial mount
+  // Reset filter when the app/instance identity changes, but not on initial mount
+  // or mere WS reconnect refetches that produce a new array reference
   useEffect(() => {
     if (!isMounted.current) {
       isMounted.current = true;
@@ -36,7 +45,7 @@ export function JobList({ jobs }: Props) {
     params.delete("group");
     const newSearch = params.toString();
     history.replaceState(null, "", newSearch ? `?${newSearch}` : window.location.pathname);
-  }, [jobs]);
+  }, [jobsIdentity]);
 
   if (!jobs) return null;
   if (jobs.length === 0) return null;
