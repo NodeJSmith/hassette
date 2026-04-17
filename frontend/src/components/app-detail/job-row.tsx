@@ -33,10 +33,12 @@ export function JobRow({ job, onGroupClick }: Props) {
     job.failed > 0 ? "danger" : job.total_executions > 0 ? "success" : "neutral";
 
   const hasExecutions = job.total_executions > 0;
+  const hasDetail = hasExecutions || job.next_run !== null && job.next_run !== undefined
+    || job.source_location || job.registration_source;
   const toggle = () => {
-    if (!hasExecutions) return;
+    if (!hasDetail) return;
     expanded.value = !expanded.value;
-    if (expanded.value) {
+    if (expanded.value && hasExecutions) {
       void refetch();
     }
   };
@@ -51,11 +53,11 @@ export function JobRow({ job, onGroupClick }: Props) {
     >
       <div
         class="ht-item-row__main"
-        role={hasExecutions ? "button" : undefined}
-        tabIndex={hasExecutions ? 0 : undefined}
-        aria-expanded={hasExecutions ? expanded.value : undefined}
+        role={hasDetail ? "button" : undefined}
+        tabIndex={hasDetail ? 0 : undefined}
+        aria-expanded={hasDetail ? expanded.value : undefined}
         onClick={toggle}
-        onKeyDown={hasExecutions ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } } : undefined}
+        onKeyDown={hasDetail ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } } : undefined}
       >
         <span class={`ht-item-row__dot ht-item-row__dot--${dotClass}`} />
         <div class="ht-item-row__content">
@@ -118,7 +120,7 @@ export function JobRow({ job, onGroupClick }: Props) {
             </span>
           )}
         </div>
-        {job.total_executions > 0 && (
+        {hasDetail && (
           <span class={`ht-item-row__chevron${expanded.value ? " is-open" : ""}`}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <polyline points="4 2 8 6 4 10" />
