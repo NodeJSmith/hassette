@@ -4,7 +4,7 @@
 **Status:** archived
 **Spec:** _(no spec.md — v2 convention expects one; this design was scoped inline as a direct follow-on to spec 2038)_
 **Research:** `/tmp/claude-mine-design-research-HQ6Giu/brief.md` (ephemeral; copy into `design/research/` before merge if you want it preserved)
-**Related:** `design/specs/2038-scheduler-api-redesign/design.md`
+**Related:** `design/specs/032-scheduler-api-redesign/design.md`
 **Challenge:** `/tmp/claude-mine-design-challenge-wU9RCc/findings.md` (15 findings; all resolved)
 
 ## Problem
