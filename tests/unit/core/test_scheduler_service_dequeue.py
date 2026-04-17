@@ -196,3 +196,51 @@ class TestDequeueJobIsSynchronous:
         """dequeue_job must be a synchronous method — no yield points."""
         svc = SchedulerService.__new__(SchedulerService)
         assert not inspect.iscoroutinefunction(svc.dequeue_job), "dequeue_job must be synchronous — no async def"
+
+
+class TestDispatchRaceGuard:
+    """Regression test for the dispatch race window (#518 spec).
+
+    Scenario: serve loop pops a job into due_jobs, then cancel_job runs
+    before _dispatch_and_log executes. The _dequeued guard must prevent
+    the handler from firing.
+    """
+
+    async def test_dispatch_skips_dequeued_job(self) -> None:
+        """_dispatch_and_log returns immediately when job._dequeued is True."""
+        svc = _make_scheduler_service()
+        job = _make_job()
+
+        # Simulate the race: job was popped from heap, then cancelled
+        job._dequeued = True
+
+        # Mock run_job to detect if it would have been called
+        run_called = False
+        original_run_job = svc.run_job
+
+        async def spy_run_job(_j):
+            nonlocal run_called
+            run_called = True
+            await original_run_job(_j)
+
+        svc.run_job = spy_run_job  # pyright: ignore[reportAttributeAccessIssue]
+
+        await svc._dispatch_and_log(job)
+        assert not run_called, "run_job must NOT be called when job._dequeued is True"
+
+    async def test_dispatch_runs_non_dequeued_job(self) -> None:
+        """_dispatch_and_log proceeds normally when job._dequeued is False."""
+        svc = _make_scheduler_service()
+        job = _make_job()
+        job._dequeued = False
+
+        run_called = False
+
+        async def spy_run_job(_j):
+            nonlocal run_called
+            run_called = True
+
+        svc.run_job = spy_run_job  # pyright: ignore[reportAttributeAccessIssue]
+
+        await svc._dispatch_and_log(job)
+        assert run_called, "run_job must be called when job._dequeued is False"

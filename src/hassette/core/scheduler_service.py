@@ -45,7 +45,7 @@ class SchedulerService(Service):
     """Tracks pending DB registration tasks per app_key for await barrier support."""
 
     _removal_callbacks: dict[str, Callable[["ScheduledJob"], None]]
-    """Per-owner callbacks invoked whenever a job is removed via _remove_job()."""
+    """Per-owner callbacks invoked whenever a job is removed via dequeue_job() or _remove_job()."""
 
     def __init__(self, hassette: "Hassette", *, executor: "CommandExecutor", parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
@@ -174,12 +174,15 @@ class SchedulerService(Service):
             )
 
     async def _remove_job(self, job: "ScheduledJob") -> None:
-        """Remove a specific job and wake the scheduler.
+        """Remove a specific job via the async path (acquires lock) and wake the scheduler.
 
-        The callback is fired unconditionally because in the normal dispatch flow
-        the serve loop has already popped the job from the queue before
-        reschedule_job calls _remove_job on exhaustion — remove_job would return
-        False and the callback would silently drop.
+        Used by the serve loop for job exhaustion and trigger errors in reschedule_job.
+        The callback is fired unconditionally because the serve loop has already
+        popped the job from the queue before reschedule_job calls _remove_job —
+        remove_job would return False and the callback would silently drop.
+
+        Note: for cancel-initiated removal, use ``dequeue_job`` (synchronous path)
+        instead. Both paths fire ``_fire_removal_callbacks`` unconditionally.
         """
 
         removed = await self._job_queue.remove_job(job)
@@ -397,8 +400,7 @@ class SchedulerService(Service):
     async def reschedule_job(self, job: "ScheduledJob"):
         """Reschedule a job based on its trigger's next_run_time().
 
-        If the job is cancelled, it is removed immediately. If the trigger raises or
-        returns None, the job is treated as exhausted and removed. If the trigger
+        If the trigger raises or returns None, the job is treated as exhausted and removed. If the trigger
         returns a non-future time (delta ≤ 0), a WARNING is logged and the next run
         is advanced by 1 second. Exceptions from next_run_time() are caught, logged,
         and treated as exhaustion — the scheduler must never crash due to a

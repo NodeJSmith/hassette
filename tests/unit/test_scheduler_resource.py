@@ -154,8 +154,8 @@ class TestCancelGroup:
             if asyncio.iscoroutine(coro):
                 coro.close()  # clean up to avoid "never awaited" warnings
 
-        scheduler.task_bucket = MagicMock()
-        scheduler.task_bucket.spawn.side_effect = _spawn_and_close
+        scheduler.scheduler_service.task_bucket = MagicMock()
+        scheduler.scheduler_service.task_bucket.spawn.side_effect = _spawn_and_close
 
         job1 = scheduler.schedule(_noop, Every(hours=1), name="job1", group="morning")
         job2 = scheduler.schedule(_noop, Every(hours=2), name="job2", group="morning")
@@ -167,7 +167,7 @@ class TestCancelGroup:
         scheduler.cancel_group("morning")
 
         # task_bucket.spawn must have been called once per job with a db_id
-        assert scheduler.task_bucket.spawn.call_count == 2
+        assert scheduler.scheduler_service.task_bucket.spawn.call_count == 2
         # Verify the spawn calls used the correct task name
         for _coro, name in spawned_coroutines:
             assert name == "scheduler:mark_job_cancelled"
@@ -177,7 +177,7 @@ class TestCancelGroup:
         from unittest.mock import MagicMock
 
         scheduler = _make_scheduler()
-        scheduler.task_bucket = MagicMock()
+        scheduler.scheduler_service.task_bucket = MagicMock()
 
         # Jobs not yet persisted (db_id=None)
         scheduler.schedule(_noop, Every(hours=1), name="job1", group="morning")
@@ -186,7 +186,7 @@ class TestCancelGroup:
         scheduler.cancel_group("morning")
 
         # task_bucket.spawn must NOT be called (no db_ids set)
-        scheduler.task_bucket.spawn.assert_not_called()
+        scheduler.scheduler_service.task_bucket.spawn.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -496,20 +496,22 @@ class TestCancelJob:
         from unittest.mock import MagicMock
 
         scheduler = _make_scheduler()
-        scheduler.task_bucket = MagicMock()
-        scheduler.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_: coro.close() or None)
+        scheduler.scheduler_service.task_bucket = MagicMock()
+        scheduler.scheduler_service.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_: coro.close() or None)
 
         job = scheduler.schedule(_noop, Every(hours=1), name="job1")
         job.mark_registered(99)
 
         # First cancel
         scheduler.cancel_job(job)
-        first_spawn_count = scheduler.task_bucket.spawn.call_count
+        first_spawn_count = scheduler.scheduler_service.task_bucket.spawn.call_count
         first_dequeue_count = scheduler.scheduler_service.dequeue_job.call_count
 
         # Second cancel — must be a no-op
         scheduler.cancel_job(job)
-        assert scheduler.task_bucket.spawn.call_count == first_spawn_count, "No additional DB write on second cancel"
+        assert scheduler.scheduler_service.task_bucket.spawn.call_count == first_spawn_count, (
+            "No additional DB write on second cancel"
+        )
         assert scheduler.scheduler_service.dequeue_job.call_count == first_dequeue_count, (
             "No additional dequeue on second cancel"
         )
@@ -545,7 +547,7 @@ class TestCancelJob:
         from unittest.mock import MagicMock
 
         scheduler = _make_scheduler()
-        scheduler.task_bucket = MagicMock()
+        scheduler.scheduler_service.task_bucket = MagicMock()
 
         job = scheduler.schedule(_noop, Every(hours=1), name="job1")
         assert not job._dequeued
@@ -558,7 +560,7 @@ class TestCancelJob:
         from unittest.mock import MagicMock
 
         scheduler = _make_scheduler()
-        scheduler.task_bucket = MagicMock()
+        scheduler.scheduler_service.task_bucket = MagicMock()
 
         dequeued_state_during_dequeue: list[bool] = []
 
@@ -589,7 +591,7 @@ class TestJobCancelDelegation:
         from unittest.mock import MagicMock, patch
 
         scheduler = _make_scheduler()
-        scheduler.task_bucket = MagicMock()
+        scheduler.scheduler_service.task_bucket = MagicMock()
 
         job = scheduler.schedule(_noop, Every(hours=1), name="job1")
 

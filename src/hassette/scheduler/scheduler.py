@@ -203,7 +203,10 @@ class Scheduler(Resource):
                 f"(job owner: {job._scheduler}, this scheduler: {self})"
             )
         if job.db_id is not None:
-            self.task_bucket.spawn(
+            # Spawn on scheduler_service.task_bucket (not self.task_bucket) so the
+            # DB write survives Scheduler resource shutdown — the service's lifecycle
+            # extends past the resource's cleanup phase.
+            self.scheduler_service.task_bucket.spawn(
                 self.scheduler_service.mark_job_cancelled(job.db_id),
                 name="scheduler:mark_job_cancelled",
             )

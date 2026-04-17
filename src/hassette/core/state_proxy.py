@@ -85,6 +85,7 @@ class StateProxy(Resource):
             self.state_change_sub = None
         if self.poll_job is not None:
             self.scheduler._dequeue_job(self.poll_job)
+            self.poll_job._dequeued = True  # prevent dispatch race (same as cancel_job)
             self.poll_job = None
 
         self.state_change_sub = self.bus.on(topic=Topic.HASS_EVENT_STATE_CHANGED, handler=self._on_state_change)
@@ -289,6 +290,7 @@ class StateProxy(Resource):
 
         if self.poll_job is not None:
             self.scheduler._dequeue_job(self.poll_job)
+            self.poll_job._dequeued = True  # prevent dispatch race (same as cancel_job)
             self.poll_job = None
 
         # mark the proxy as not ready
