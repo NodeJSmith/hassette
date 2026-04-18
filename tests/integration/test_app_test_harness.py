@@ -487,6 +487,38 @@ async def test_simulate_attribute_change_typed_di():
     assert received[0].entity_id == "sensor.test"
 
 
+@pytest.mark.asyncio
+async def test_simulate_attribute_change_without_set_state():
+    """simulate_attribute_change uses 'unknown' as state when entity is not seeded."""
+    received_old: list[Any] = []
+    received_new: list[Any] = []
+
+    class UnseededAttrApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_state_change(
+                "sensor.unseeded",
+                changed=False,
+                handler=self._on_change,
+            )
+
+        async def _on_change(
+            self,
+            old: D.StateOld[states.SensorState],
+            new: D.StateNew[states.SensorState],
+        ) -> None:
+            received_old.append(old)
+            received_new.append(new)
+
+    async with AppTestHarness(UnseededAttrApp, config={}) as harness:
+        await harness.simulate_attribute_change("sensor.unseeded", "temperature", old_value=20, new_value=25)
+
+    assert len(received_new) == 1
+    # State falls back to "unknown" when entity is not seeded.
+    # The type registry converts "unknown" to None for SensorState.
+    assert received_new[0].value is None
+    assert received_old[0].value is None
+
+
 # ---------------------------------------------------------------------------
 # simulate_component_loaded / simulate_service_registered
 # ---------------------------------------------------------------------------
@@ -675,14 +707,14 @@ async def test_simulate_app_state_changed():
 
 @pytest.mark.asyncio
 async def test_simulate_app_running():
-    """simulate_app_running fires on_app_state_changed handler with RUNNING status."""
+    """simulate_app_running fires on_app_running handler."""
     calls: list[Any] = []
 
     class AppRunningApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_app_state_changed(handler=self._on_state)
+            self.bus.on_app_running(handler=self._on_running)
 
-        async def _on_state(self) -> None:
+        async def _on_running(self) -> None:
             calls.append(True)
 
     async with AppTestHarness(AppRunningApp, config={}) as harness:
@@ -693,14 +725,14 @@ async def test_simulate_app_running():
 
 @pytest.mark.asyncio
 async def test_simulate_app_stopping():
-    """simulate_app_stopping fires on_app_state_changed handler with STOPPING status."""
+    """simulate_app_stopping fires on_app_stopping handler."""
     calls: list[Any] = []
 
     class AppStoppingApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
-            self.bus.on_app_state_changed(handler=self._on_state)
+            self.bus.on_app_stopping(handler=self._on_stopping)
 
-        async def _on_state(self) -> None:
+        async def _on_stopping(self) -> None:
             calls.append(True)
 
     async with AppTestHarness(AppStoppingApp, config={}) as harness:

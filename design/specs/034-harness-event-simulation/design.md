@@ -19,7 +19,7 @@ The `AppTestHarness` provides simulation methods for only 3 of 17 bus subscripti
 |--------|---------------|-------------------|
 | `app_harness.py` | Setup/teardown, `__aenter__`/`__aexit__`, config validation, property accessors, state seeding | ~450 |
 | `simulation.py` | All `simulate_*` methods + `_drain_task_bucket` | ~500 (after new methods) |
-| `time_control.py` | `freeze_time`, `advance_time`, `trigger_due_jobs`, `_FrozenClock` | ~200 |
+| `time_control.py` | `freeze_time`, `advance_time`, `trigger_due_jobs`, `_TestClock` | ~200 |
 
 `AppTestHarness` inherits from `SimulationMixin` and `TimeControlMixin` (both defined in the new modules), keeping the public API surface identical.
 
@@ -90,7 +90,7 @@ def _create_hass_event(event_type: str, data: dict[str, Any]) -> Any:
             "event_type": event_type,
             "data": data,
             "origin": "LOCAL",
-            "time_fired": ZonedDateTime.now_in_system_tz().format_iso(),
+            "time_fired": date_utils.now().format_iso(),
             "context": {"id": str(uuid4()), "parent_id": None, "user_id": None},
         },
     }
@@ -173,7 +173,7 @@ _None — all questions resolved during specification and research._
 | `src/hassette/test_utils/helpers.py` | Fix `create_state_change_event`, fix `create_call_service_event`, add `_create_hass_event` helper, add `_create_component_loaded_event`, `_create_service_registered_event` factories (Tier 2 private) |
 | `src/hassette/test_utils/app_harness.py` | Extract simulation and time control methods to mixins; keep setup/teardown/accessors/state-seeding |
 | `src/hassette/test_utils/simulation.py` | **New** — `SimulationMixin` with all `simulate_*` methods + `_drain_task_bucket` |
-| `src/hassette/test_utils/time_control.py` | **New** — `TimeControlMixin` with `freeze_time`, `advance_time`, `trigger_due_jobs`, `_FrozenClock` |
+| `src/hassette/test_utils/time_control.py` | **New** — `TimeControlMixin` with `freeze_time`, `advance_time`, `trigger_due_jobs`, `_TestClock` |
 | `tests/integration/test_app_test_harness.py` | ~25 new tests |
 | `tests/unit/test_harness_coverage.py` | **New** — structural drift regression test |
 | `docs/pages/testing/index.md` | Representative examples of typed DI testing |

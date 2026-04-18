@@ -217,6 +217,11 @@ class TimeControlMixin:
             shutdown guards are not exercised. For testing the scheduler's own
             timing behavior, use the full harness with real time progression.
 
+            If scheduled jobs send events through the bus, downstream handler
+            tasks are spawned but not drained by this method. Call a
+            ``simulate_*`` method or ``_drain_task_bucket`` afterward to ensure
+            handler tasks complete before asserting on side effects.
+
         Returns:
             The number of jobs that were dispatched and completed.
 

@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 import tomli_w
-from whenever import ZonedDateTime
 
+import hassette.utils.date_utils as _date_utils
 from hassette.config.classes import AppManifest
 from hassette.events import (
     CallServiceEvent,
@@ -17,13 +17,13 @@ from hassette.events import (
     ServiceRegisteredEvent,
     create_event_from_hass,
 )
+from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent
 from hassette.types.enums import ResourceStatus
 
 if TYPE_CHECKING:
     from hassette.bus.bus import Bus
     from hassette.core.core import Hassette
     from hassette.events import HassEventEnvelopeDict
-    from hassette.events.hassette import HassetteServiceEvent
     from hassette.resources.base import Service
 
 
@@ -44,7 +44,7 @@ def _create_hass_event(event_type: str, data: dict[str, Any]) -> Any:
             "event_type": event_type,
             "data": data,
             "origin": "LOCAL",
-            "time_fired": ZonedDateTime.now_in_system_tz().format_iso(),
+            "time_fired": _date_utils.now().format_iso(),
             "context": {"id": str(uuid4()), "parent_id": None, "user_id": None},
         },
     }
@@ -144,7 +144,7 @@ def make_state_dict(
     Returns:
         Dictionary matching Home Assistant state format
     """
-    now = ZonedDateTime.now("UTC").format_iso()
+    now = _date_utils.now().format_iso()
     return {
         "entity_id": entity_id,
         "state": state,
@@ -359,8 +359,6 @@ async def emit_service_event(hassette: "Hassette", event: "HassetteServiceEvent"
 
 async def emit_file_change_event(hassette: "Hassette", changed_paths: set[Path]) -> None:
     """Emit a synthetic file-watcher event for the given paths."""
-    from hassette.events.hassette import HassetteFileWatcherEvent
-
     event = HassetteFileWatcherEvent.create_event(changed_file_paths=changed_paths)
     await hassette.send_event(event.topic, event)
 
@@ -368,10 +366,8 @@ async def emit_file_change_event(hassette: "Hassette", changed_paths: set[Path])
 def make_service_failed_event(
     service: "Service",
     exception: Exception | None = None,
-) -> "HassetteServiceEvent":
+) -> HassetteServiceEvent:
     """Create a HassetteServiceEvent with FAILED status for testing."""
-    from hassette.events.hassette import HassetteServiceEvent
-
     return HassetteServiceEvent.from_data(
         resource_name=service.class_name,
         role=service.role,
@@ -380,10 +376,8 @@ def make_service_failed_event(
     )
 
 
-def make_service_running_event(service: "Service") -> "HassetteServiceEvent":
+def make_service_running_event(service: "Service") -> HassetteServiceEvent:
     """Create a HassetteServiceEvent with RUNNING status for testing."""
-    from hassette.events.hassette import HassetteServiceEvent
-
     return HassetteServiceEvent.from_data(
         resource_name=service.class_name,
         role=service.role,

@@ -30,7 +30,7 @@ LOGGER = logging.getLogger(__name__)
 class SimulationMixin:
     """Mixin providing event simulation and drain mechanics for ``AppTestHarness``.
 
-    Depends on the host providing ``_harness``, ``_app``, and ``bus`` —
+    Depends on the host providing ``_harness`` and ``_app`` —
     declared as class-level annotations below, satisfied by ``AppTestHarness``.
     """
 
@@ -71,12 +71,19 @@ class SimulationMixin:
         Waits for all triggered handlers to complete by polling the task bucket
         until empty, with a configurable timeout.
 
+        When ``old_attrs`` or ``new_attrs`` is not provided, attributes are
+        automatically merged from the StateProxy (populated by :meth:`set_state`).
+        This means ``set_state`` + ``simulate_state_change`` compose naturally —
+        seeded attributes appear in the event without needing to pass them again.
+
         Args:
             entity_id: The entity ID that changed.
             old_value: Previous state value.
             new_value: New state value.
-            old_attrs: Previous attributes dict (optional).
-            new_attrs: New attributes dict (optional).
+            old_attrs: Previous attributes dict. If ``None``, uses attributes
+                from the StateProxy (seeded via :meth:`set_state`).
+            new_attrs: New attributes dict. If ``None``, uses attributes
+                from the StateProxy (seeded via :meth:`set_state`).
             timeout: Maximum seconds to wait for handlers to complete.
 
         Raises:
@@ -84,6 +91,19 @@ class SimulationMixin:
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
         harness = self._require_harness()
+
+        # Merge seeded attributes from StateProxy when not explicitly provided.
+        if old_attrs is None or new_attrs is None:
+            state_proxy = harness.hassette._state_proxy
+            existing_attrs: dict[str, Any] = {}
+            if state_proxy is not None:
+                raw = state_proxy.states.get(entity_id)
+                if raw is not None:
+                    existing_attrs = dict(raw.get("attributes", {}))
+            if old_attrs is None:
+                old_attrs = existing_attrs
+            if new_attrs is None:
+                new_attrs = dict(existing_attrs)
 
         event = create_state_change_event(
             entity_id=entity_id,
@@ -127,24 +147,27 @@ class SimulationMixin:
         """
         harness = self._require_harness()
 
-        if state is not None:
-            current_state = state
-        else:
-            state_proxy = harness.hassette._state_proxy
-            if state_proxy is not None:
-                # Lock-free read is safe: dict.get() is atomic in CPython, consistent
-                # with StateProxy.get_state()'s documented lock-free read pattern.
-                raw = state_proxy.states.get(entity_id)
-                current_state = raw["state"] if raw is not None else "unknown"
-            else:
-                current_state = "unknown"
+        # Read both state value and existing attributes from the proxy.
+        # Lock-free read is safe: dict.get() is atomic in CPython, consistent
+        # with StateProxy.get_state()'s documented lock-free read pattern.
+        state_proxy = harness.hassette._state_proxy
+        existing_attrs: dict[str, Any] = {}
+        proxy_state: str = "unknown"
+
+        if state_proxy is not None:
+            raw = state_proxy.states.get(entity_id)
+            if raw is not None:
+                proxy_state = raw["state"]
+                existing_attrs = dict(raw.get("attributes", {}))
+
+        current_state = state if state is not None else proxy_state
 
         await self.simulate_state_change(
             entity_id,
             old_value=current_state,
             new_value=current_state,
-            old_attrs={attribute: old_value},
-            new_attrs={attribute: new_value},
+            old_attrs={**existing_attrs, attribute: old_value},
+            new_attrs={**existing_attrs, attribute: new_value},
             timeout=timeout,
         )
 
@@ -152,6 +175,7 @@ class SimulationMixin:
         self,
         domain: str,
         service: str,
+        *,
         timeout: float = 2.0,
         **data: Any,
     ) -> None:
@@ -242,7 +266,9 @@ class SimulationMixin:
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
 
         Note:
-            Only ``app.task_bucket`` is drained — see :meth:`_drain_task_bucket`.
+            Only ``app.task_bucket`` is drained. If handlers use ``debounce=`` or
+            ``throttle=``, pass a ``timeout=`` larger than the debounce window.
+            See :meth:`_drain_task_bucket` for details.
         """
         harness = self._require_harness()
 
@@ -312,7 +338,9 @@ class SimulationMixin:
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
 
         Note:
-            Only ``app.task_bucket`` is drained — see :meth:`_drain_task_bucket`.
+            Only ``app.task_bucket`` is drained. If handlers use ``debounce=`` or
+            ``throttle=``, pass a ``timeout=`` larger than the debounce window.
+            See :meth:`_drain_task_bucket` for details.
         """
         harness = self._require_harness()
 
@@ -334,7 +362,9 @@ class SimulationMixin:
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
 
         Note:
-            Only ``app.task_bucket`` is drained — see :meth:`_drain_task_bucket`.
+            Only ``app.task_bucket`` is drained. If handlers use ``debounce=`` or
+            ``throttle=``, pass a ``timeout=`` larger than the debounce window.
+            See :meth:`_drain_task_bucket` for details.
         """
         harness = self._require_harness()
 
@@ -367,7 +397,9 @@ class SimulationMixin:
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
 
         Note:
-            Only ``app.task_bucket`` is drained — see :meth:`_drain_task_bucket`.
+            Only ``app.task_bucket`` is drained. If handlers use ``debounce=`` or
+            ``throttle=``, pass a ``timeout=`` larger than the debounce window.
+            See :meth:`_drain_task_bucket` for details.
         """
         harness = self._require_harness()
         app = self._app
@@ -479,6 +511,7 @@ class SimulationMixin:
         )
 
         app = self._app
+        assert app is not None, "drain called before app was initialized — is the harness active?"
         deadline = asyncio.get_running_loop().time() + timeout
         collected_exceptions: list[tuple[str, BaseException]] = []
 
@@ -495,8 +528,7 @@ class SimulationMixin:
             seen_tasks.add(task)
             collected_exceptions.append((task.get_name(), exc))
 
-        if app is not None:
-            app.task_bucket.install_exception_recorder(_recorder)
+        app.task_bucket.install_exception_recorder(_recorder)
 
         try:
             while True:
@@ -517,15 +549,14 @@ class SimulationMixin:
                 # Step 2: wait for any pending tasks in the app's task_bucket.
                 # Exceptions are collected via the recorder installed above — no per-task
                 # collection needed here. We still await the tasks to pace the loop.
-                if app is not None:
-                    pending = app.task_bucket.pending_tasks()
-                    if pending:
-                        remaining = deadline - asyncio.get_running_loop().time()
-                        if remaining <= 0:
-                            self._raise_drain_timeout(timeout, bus_service, app, collected_exceptions)
-                        _done, still_pending = await asyncio.wait(pending, timeout=remaining)
-                        if still_pending:
-                            self._raise_drain_timeout(timeout, bus_service, app, collected_exceptions)
+                pending = app.task_bucket.pending_tasks()
+                if pending:
+                    remaining = deadline - asyncio.get_running_loop().time()
+                    if remaining <= 0:
+                        self._raise_drain_timeout(timeout, bus_service, app, collected_exceptions)
+                    _done, still_pending = await asyncio.wait(pending, timeout=remaining)
+                    if still_pending:
+                        self._raise_drain_timeout(timeout, bus_service, app, collected_exceptions)
 
                 # Step 3: stability check via await_dispatch_idle, which has its own 5ms anyio
                 # stability window. No-op when dispatch is already idle; re-runs the stability
@@ -541,7 +572,7 @@ class SimulationMixin:
                     self._raise_drain_timeout(timeout, bus_service, app, collected_exceptions)
 
                 # Step 4: exit condition — both sides quiescent.
-                if app is None or not app.task_bucket.pending_tasks():
+                if not app.task_bucket.pending_tasks():
                     if bus_service.is_dispatch_idle:
                         # All quiescent; surface any collected exceptions.
                         if collected_exceptions:
@@ -549,8 +580,7 @@ class SimulationMixin:
                         return
                 # else: loop back for another pass
         finally:
-            if app is not None:
-                app.task_bucket.uninstall_exception_recorder()
+            app.task_bucket.uninstall_exception_recorder()
 
     def _raise_drain_timeout(
         self,

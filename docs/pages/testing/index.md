@@ -104,8 +104,8 @@ If your handler reads entity state during handling (e.g., `self.states.light.get
 
 The generated event carries the entity's current cached state for the `state` field. If you haven't seeded the entity with `set_state()` first, that field defaults to `"unknown"` — which silently breaks any state-conditional predicates on the same entity. You can pass an explicit `state=` to avoid this, as shown above.
 
-!!! warning "`simulate_attribute_change` also fires state-change handlers"
-    This method delegates to `simulate_state_change` under the hood, which matches Home Assistant's real behavior — `state_changed` events fire even when only attributes change. If your app registers both `on_state_change` and `on_attribute_change` for the same entity, both handlers will fire:
+!!! warning "`simulate_attribute_change` can also fire state-change handlers"
+    This method delegates to `simulate_state_change` under the hood. With the default `changed=True`, state-change handlers do **not** fire (the state value is unchanged). But if your app registers `on_state_change` with `changed=False`, that handler **will** fire — matching HA's real behavior where `state_changed` events fire even when only attributes change:
 
     ```python
     --8<-- "pages/testing/snippets/testing_attribute_change_both_handlers.py"
