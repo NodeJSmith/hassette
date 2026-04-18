@@ -1,7 +1,7 @@
 # Design: Complete Event Simulation for AppTestHarness
 
 **Date:** 2026-04-17
-**Status:** approved
+**Status:** archived
 **Spec:** design/specs/034-harness-event-simulation/spec.md
 **Research:** /tmp/claude-mine-design-research-KFepfV/brief.md
 
