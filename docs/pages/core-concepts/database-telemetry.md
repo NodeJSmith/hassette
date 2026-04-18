@@ -14,10 +14,10 @@ Telemetry is collected automatically. You do not need to enable it or write any 
 
 ### Source Tier
 
-Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) are excluded from Dashboard KPIs. The **Handlers** and **Jobs** counts on the Dashboard reflect only your app registrations — not Hassette's own housekeeping listeners.
+Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) are excluded from Dashboard KPIs. The **Handlers** and **Jobs** counts on the Dashboard reflect only your app registrations — not Hassette's own housekeeping listeners. Framework errors do appear in the **Recent Errors** feed, labelled with the component name, so you can distinguish them from your app errors.
 
 ??? note "Internal detail"
-    Internally, framework handlers are stored with `source_tier='framework'` and filtered out of the KPI queries. This distinction is invisible to your apps — it only affects what appears on the Dashboard.
+    Internally, framework handlers are stored with `source_tier='framework'` and a component-specific `app_key` of the form `__hassette__.<component>` — for example `__hassette__.service_watcher`, `__hassette__.app_handler`, or `__hassette__.core`. This naming identifies which part of the framework produced an error and is used by the web UI to display the component name in the **Framework** badge. KPI queries filter out all keys that start with `__hassette__.`, so framework activity never inflates your app's counts.
 
 ## Configuration
 
