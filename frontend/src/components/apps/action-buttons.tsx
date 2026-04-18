@@ -37,38 +37,38 @@ export function ActionButtons({ appKey, status }: Props) {
     <div class="ht-btn-group">
       {canStart && (
         <button
-          class="ht-btn ht-btn--xs ht-btn--ghost ht-btn--success"
+          class="ht-btn ht-btn--icon ht-btn--ghost ht-btn--success"
           data-testid={`btn-start-${appKey}`}
           disabled={loading.value}
           onClick={() => void exec(startApp)}
-          title="Start app"
+          title="Start"
+          aria-label="Start app"
         >
           <IconPlay />
-          <span>Start</span>
         </button>
       )}
       {canStop && (
         <button
-          class="ht-btn ht-btn--xs ht-btn--ghost ht-btn--warning"
+          class="ht-btn ht-btn--icon ht-btn--ghost ht-btn--warning"
           data-testid={`btn-stop-${appKey}`}
           disabled={loading.value}
           onClick={() => void exec(stopApp)}
-          title="Stop app"
+          title="Stop"
+          aria-label="Stop app"
         >
           <IconSquare />
-          <span>Stop</span>
         </button>
       )}
       {canReload && (
         <button
-          class="ht-btn ht-btn--xs ht-btn--ghost ht-btn--info"
+          class="ht-btn ht-btn--icon ht-btn--ghost ht-btn--info"
           data-testid={`btn-reload-${appKey}`}
           disabled={loading.value}
           onClick={() => void exec(reloadApp)}
-          title="Reload app"
+          title="Reload"
+          aria-label="Reload app"
         >
           <IconRefresh />
-          <span>Reload</span>
         </button>
       )}
     </div>

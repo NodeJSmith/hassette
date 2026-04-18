@@ -56,7 +56,7 @@ export function FrameworkHealth() {
   };
 
   return (
-    <div class="ht-card ht-mb-4" data-testid="framework-health">
+    <div class="ht-card ht-card--receded" data-testid="framework-health">
       <div
         class="ht-framework-health__header"
         role="button"

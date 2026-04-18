@@ -11,11 +11,11 @@ export default defineConfig({
     proxy: {
       // WebSocket must come before generic /api to avoid being caught by the prefix match
       "/api/ws": {
-        target: "http://localhost:5000",
+        target: "http://localhost:8126",
         ws: true,
       },
       "/api": {
-        target: "http://localhost:5000",
+        target: "http://localhost:8126",
       },
     },
   },

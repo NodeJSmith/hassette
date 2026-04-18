@@ -339,7 +339,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
               const desktopColCount = (showAppColumn ? 5 : 4) + sourceAdjust;
               const colCount = isMobile ? mobileColCount : desktopColCount;
               const rows = [
-              <tr key={rowKey}>
+              <tr key={rowKey} data-level={entry.level}>
                 <td>
                   <span class={`ht-badge ht-badge--sm ht-badge--${entry.level === "ERROR" || entry.level === "CRITICAL" ? "danger" : entry.level === "WARNING" ? "warning" : entry.level === "DEBUG" ? "neutral" : "success"}`}>
                     {isMobile ? (LEVEL_ABBREV[entry.level] ?? entry.level) : entry.level}

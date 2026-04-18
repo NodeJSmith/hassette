@@ -53,8 +53,8 @@ def test_running_app_has_success_badge(page: Page, base_url: str) -> None:
 
 def test_running_app_shows_stop_and_reload_buttons(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps/my_app")
-    expect(page.locator("button:has-text('Stop')")).to_be_visible()
-    expect(page.locator("button:has-text('Reload')")).to_be_visible()
+    expect(page.get_by_label("Stop app")).to_be_visible()
+    expect(page.get_by_label("Reload app")).to_be_visible()
 
 
 def test_failed_app_shows_error_message(page: Page, base_url: str) -> None:
@@ -71,7 +71,7 @@ def test_failed_app_has_danger_badge(page: Page, base_url: str) -> None:
 
 def test_failed_app_shows_start_button(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps/broken_app")
-    expect(page.locator("button:has-text('Start')")).to_be_visible()
+    expect(page.get_by_label("Start app")).to_be_visible()
 
 
 def test_stopped_app_has_stopped_badge(page: Page, base_url: str) -> None:

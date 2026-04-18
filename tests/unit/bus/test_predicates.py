@@ -57,10 +57,12 @@ def test_value_is_with_literal_condition() -> None:
 
 def test_value_is_with_callable_condition() -> None:
     """Test ValueIs with callable conditions."""
-    event = create_state_change_event(entity_id="sensor.temp", old_value=20, new_value=25)
+    # State values are stored as strings; conditions that need numeric comparison
+    # should use string comparison or convert within the condition
+    event = create_state_change_event(entity_id="sensor.temp", old_value="20", new_value="25")
 
-    def gt_twenty(value: int) -> bool:
-        return value > 20
+    def gt_twenty(value: str) -> bool:
+        return float(value) > 20
 
     predicate = P.ValueIs(source=A.get_state_value_new, condition=gt_twenty)
     assert predicate(event) is True  # pyright: ignore[reportArgumentType]
@@ -126,8 +128,8 @@ def test_attr_from_to_predicates_apply_conditions() -> None:
     """Test that AttrFrom and AttrTo predicates correctly match old and new attribute values."""
     event = create_state_change_event(
         entity_id="light.office",
-        old_value=None,
-        new_value=None,
+        old_value="on",
+        new_value="on",
         old_attrs={"brightness": 100},
         new_attrs={"brightness": 150},
     )
@@ -170,8 +172,8 @@ def test_attr_did_change_detects_attribute_modifications() -> None:
     predicate = P.AttrDidChange("brightness")
     event = create_state_change_event(
         entity_id="light.office",
-        old_value=None,
-        new_value=None,
+        old_value="on",
+        new_value="on",
         old_attrs={"brightness": 100},
         new_attrs={"brightness": 150},
     )
@@ -279,10 +281,11 @@ def test_get_domain_accessor() -> None:
 
 def test_get_state_value_accessors() -> None:
     """Test state value accessor functions."""
-    event = create_state_change_event(entity_id="sensor.temp", old_value=20, new_value=25)
+    # State values are stored as strings (HA always serializes state as str)
+    event = create_state_change_event(entity_id="sensor.temp", old_value="20", new_value="25")
 
-    assert A.get_state_value_old(event) == 20
-    assert A.get_state_value_new(event) == 25
+    assert A.get_state_value_old(event) == "20"
+    assert A.get_state_value_new(event) == "25"
 
 
 def test_get_attr_accessors() -> None:
