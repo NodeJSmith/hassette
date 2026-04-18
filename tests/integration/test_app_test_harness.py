@@ -568,21 +568,22 @@ async def test_simulate_service_registered():
 @pytest.mark.asyncio
 async def test_simulate_hassette_service_status():
     """simulate_hassette_service_status fires on_hassette_service_status handler."""
-    calls: list[Any] = []
+    from hassette.events.hassette import HassetteServiceEvent
+
+    received: list[HassetteServiceEvent] = []
 
     class ServiceStatusApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
             self.bus.on_hassette_service_status(handler=self._on_status)
 
-        async def _on_status(self) -> None:
-            calls.append(True)
+        async def _on_status(self, event: HassetteServiceEvent) -> None:
+            received.append(event)
 
     async with AppTestHarness(ServiceStatusApp, config={}) as harness:
-        # Clear calls accumulated during harness startup (services emit status events)
-        calls.clear()
         await harness.simulate_hassette_service_status("MyService", ResourceStatus.RUNNING)
-
-    assert len(calls) == 1
+        # Filter by sentinel resource_name — startup services use real names, never "MyService"
+        my_events = [e for e in received if e.payload.data.resource_name == "MyService"]
+        assert len(my_events) == 1
 
 
 @pytest.mark.asyncio
@@ -820,13 +821,12 @@ async def test_simulate_hassette_service_status_typed_di():
             received.append(event)
 
     async with AppTestHarness(ServiceStatusDiApp, config={}) as harness:
-        # Clear events accumulated during harness startup
-        received.clear()
-        await harness.simulate_hassette_service_status("WebSocketService", ResourceStatus.FAILED)
-
-    assert len(received) == 1
-    assert received[0].payload.data.status == ResourceStatus.FAILED
-    assert received[0].payload.data.resource_name == "WebSocketService"
+        await harness.simulate_hassette_service_status("SyntheticTestService", ResourceStatus.FAILED)
+        # Filter by sentinel resource_name to isolate from startup/teardown noise
+        test_events = [e for e in received if e.payload.data.resource_name == "SyntheticTestService"]
+        assert len(test_events) == 1
+        assert test_events[0].payload.data.status == ResourceStatus.FAILED
+        assert test_events[0].payload.data.resource_name == "SyntheticTestService"
 
 
 @pytest.mark.asyncio
