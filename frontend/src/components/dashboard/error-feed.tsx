@@ -73,7 +73,7 @@ function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
           <span class="ht-tag ht-tag--framework ht-tag--xs">Framework</span>
         )}
         {!isFramework && err.app_key ? (
-          <a href={`/apps/${err.app_key}`} class="ht-text-sm">{err.app_key}</a>
+          <a href={`/apps/${err.app_key}`} class="ht-text-sm">{appDisplay}</a>
         ) : (
           <span class="ht-text-sm ht-text-muted">{appDisplay}</span>
         )}

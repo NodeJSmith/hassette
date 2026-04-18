@@ -14,10 +14,10 @@ Telemetry is collected automatically. You do not need to enable it or write any 
 
 ### Source Tier
 
-Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) are excluded from Dashboard KPIs. The **Handlers** and **Jobs** counts on the Dashboard reflect only your app registrations — not Hassette's own housekeeping listeners. Framework errors do appear in the **Recent Errors** feed, labelled with the component name, so you can distinguish them from your app errors.
+Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) are included in Dashboard KPI counts alongside your app registrations. Framework errors appear in the unified **Recent Errors** feed with a **Framework** badge and the component name (e.g. Service Watcher, App Handler), so you can distinguish them from your app errors at a glance. The **App Health** grid shows only your apps — framework components do not appear there.
 
 ??? note "Internal detail"
-    Internally, framework handlers are stored with `source_tier='framework'` and a component-specific `app_key` of the form `__hassette__.<component>` — for example `__hassette__.service_watcher`, `__hassette__.app_handler`, or `__hassette__.core`. This naming identifies which part of the framework produced an error and is used by the web UI to display the component name in the **Framework** badge. KPI queries filter out all keys that start with `__hassette__.`, so framework activity never inflates your app's counts.
+    Internally, framework handlers are stored with `source_tier='framework'` and a component-specific `app_key` of the form `__hassette__.<component>` — for example `__hassette__.service_watcher`, `__hassette__.app_handler`, or `__hassette__.core`. This naming identifies which part of the framework produced an error and is used by the web UI to display the component name in the **Framework** badge. The App Health grid filters out all framework keys, while KPIs and the error feed include all tiers by default.
 
 ## Configuration
 

@@ -35,7 +35,7 @@ The **Recent Errors** section is a unified feed of the most recent handler and j
 
 - **Error type** — the Python exception class (e.g. `ValueError`, `TimeoutError`).
 - **Kind badge** — `handler` or `job`, indicating the source of the error.
-- **Source** — for app errors, links to the app detail page. For framework errors, a **Framework** badge with the component name (e.g. `service_watcher`, `app_handler`) is shown instead of a link.
+- **Source** — for app errors, links to the app detail page. For framework errors, a **Framework** badge with the component name (e.g. Service Watcher, App Handler) is shown instead of a link.
 - **Method or job name** — the specific handler method or job that failed.
 - **Relative timestamp** — when the error occurred.
 - **Error message** — the exception message text.

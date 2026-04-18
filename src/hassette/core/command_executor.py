@@ -176,11 +176,11 @@ class CommandExecutor(Service):
     ) -> ExecutionResult:
         """Core execution wrapper: time the call, capture errors, queue the record.
 
-        Wraps ``track_execution()`` with the full 5-branch exception contract:
+        Wraps ``track_execution()`` with a tier-aware exception contract:
 
         - ``CancelledError``   — record queued with status='cancelled', then re-raised.
-        - ``DependencyError``  — record queued with status='error', no traceback.
-        - ``HassetteError``    — record queued with status='error', no traceback.
+        - ``DependencyError``  — app tier: no traceback; framework tier: traceback included.
+        - ``HassetteError``    — app tier: no traceback; framework tier: traceback included.
         - ``Exception``        — record queued with status='error', traceback included.
         - success              — record queued with status='success'.
 
@@ -298,12 +298,7 @@ class CommandExecutor(Service):
     async def _execute_handler(self, cmd: InvokeHandler) -> None:
         """Execute a listener handler invocation and queue the result record.
 
-        Exception contract:
-            CancelledError   → record queued with status='cancelled', then re-raised.
-            DependencyError  → record queued with status='error', logger.error (no traceback).
-            HassetteError    → record queued with status='error', logger.error (no traceback).
-            Exception        → record queued with status='error', logger.error (with traceback string).
-            success          → record queued with status='success'.
+        Exception contract (tier-aware — see ``_execute()`` docstring for details).
         """
 
         def _log_error(result: ExecutionResult) -> None:
@@ -319,7 +314,7 @@ class CommandExecutor(Service):
     async def _execute_job(self, cmd: ExecuteJob) -> None:
         """Execute a scheduled job and queue the result record.
 
-        Exception contract is identical to _execute_handler, but uses JobExecutionRecord.
+        Exception contract (tier-aware — see ``_execute()`` docstring for details).
         """
 
         def _log_error(result: ExecutionResult) -> None:

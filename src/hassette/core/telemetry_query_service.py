@@ -360,11 +360,10 @@ class TelemetryQueryService(Resource):
             d = _row_to_dict(row)
             job_act[d["app_key"]] = d
 
-        # Merge into AppHealthSummary per app_key (exclude all framework keys — bare and prefixed)
         all_keys = {
             k
             for k in set(listener_reg.keys()) | set(listener_act.keys()) | set(job_reg.keys()) | set(job_act.keys())
-            if not is_framework_key(k)
+            if source_tier == "framework" or not is_framework_key(k)
         }
         result: dict[str, AppHealthSummary] = {}
         for app_key in all_keys:
