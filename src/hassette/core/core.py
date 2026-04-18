@@ -22,7 +22,6 @@ from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.types.enums import ResourceStatus, Topic
-from hassette.types.types import FRAMEWORK_APP_KEY
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
@@ -331,6 +330,7 @@ class Hassette(Resource):
 
         try:
             self._bus_service.register_framework_listener(
+                component="core",
                 topic=str(Topic.HASSETTE_EVENT_SERVICE_STATUS),
                 handler=self._session_manager.on_service_crashed,
                 name="hassette.session_manager.on_service_crashed",
@@ -342,10 +342,10 @@ class Hassette(Resource):
             return
 
         # Drain completed framework registration tasks to free stale Task references.
-        # Without this, _pending_registration_tasks[FRAMEWORK_APP_KEY] holds N completed
+        # Without this, _pending_registration_tasks[<framework_key>] holds N completed
         # Tasks for the process lifetime since no further register_framework_listener()
         # calls trigger the pruning logic.
-        await self._bus_service.await_registrations_complete(FRAMEWORK_APP_KEY)
+        await self._bus_service.drain_framework_registrations()
 
         # Clean up stale once=True listeners from previous sessions. Safe to run here
         # because: (a) CommandExecutor is ready, (b) session_id is set, and (c) the

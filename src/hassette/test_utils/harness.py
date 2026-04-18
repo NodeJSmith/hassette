@@ -486,6 +486,7 @@ class HassetteHarness:
 async def _register_framework_listener(
     self: HassetteHarness,
     *,
+    component: str,
     topic: str,
     handler: "Callable[..., Awaitable[None]]",
     name: str,
@@ -496,13 +497,16 @@ async def _register_framework_listener(
     and awaits completion of the registration task.
 
     Args:
+        component: Snake_case component identifier, e.g. ``'service_watcher'``.
         topic: Event topic to subscribe to.
         handler: Async handler function.
         name: Stable component-prefixed name, e.g., 'hassette.core.on_service_crashed'.
     """
     if not self.hassette._bus_service:
         raise RuntimeError("Bus is not enabled on this harness")
-    task = self.hassette._bus_service.register_framework_listener(topic=topic, handler=handler, name=name)
+    task = self.hassette._bus_service.register_framework_listener(
+        component=component, topic=topic, handler=handler, name=name
+    )
     await task
 
 

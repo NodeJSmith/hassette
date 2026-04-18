@@ -87,6 +87,7 @@ async def test_framework_listener_registers_with_source_tier(harness_config: Has
             pass
 
         await harness.register_framework_listener(
+            component="test_component",
             topic="test.topic",
             handler=test_handler,
             name="hassette.test.listener",
@@ -98,7 +99,7 @@ async def test_framework_listener_registers_with_source_tier(harness_config: Has
         listeners = await harness.hassette._bus_service.router.get_topic_listeners("test.topic")
         assert len(listeners) > 0
         listener = listeners[0]
-        assert listener.app_key == "__hassette__"
+        assert listener.app_key == "__hassette__.test_component"
         assert listener.source_tier == "framework"
 
 
