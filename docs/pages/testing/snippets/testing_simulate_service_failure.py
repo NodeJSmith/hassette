@@ -12,9 +12,7 @@ class WatchdogApp(App[WatchdogConfig]):
         self.bus.on_hassette_service_failed(handler=self.on_service_failed)
 
     async def on_service_failed(self) -> None:
-        await self.api.call_service(
-            "notify", "send_message", message="Service failed"
-        )
+        await self.api.call_service("notify", "send_message", message="Service failed")
 
 
 async def test_service_failure_triggers_notification():

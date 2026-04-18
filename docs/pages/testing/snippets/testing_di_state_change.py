@@ -22,15 +22,7 @@ class SecurityApp(App[SecurityConfig]):
 
 
 async def test_typed_state_change_handler():
-    async with AppTestHarness(
-        SecurityApp, config={"door_entity": "binary_sensor.front_door"}
-    ) as harness:
-        await harness.set_state(
-            "binary_sensor.front_door", "off", device_class="door"
-        )
-        await harness.simulate_state_change(
-            "binary_sensor.front_door", old_value="off", new_value="on"
-        )
-        harness.api_recorder.assert_called(
-            "call_service", domain="notify", service="send_message", message="Door opened"
-        )
+    async with AppTestHarness(SecurityApp, config={"door_entity": "binary_sensor.front_door"}) as harness:
+        await harness.set_state("binary_sensor.front_door", "off", device_class="door")
+        await harness.simulate_state_change("binary_sensor.front_door", old_value="off", new_value="on")
+        harness.api_recorder.assert_called("call_service", domain="notify", service="send_message", message="Door opened")

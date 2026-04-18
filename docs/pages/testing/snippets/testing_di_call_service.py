@@ -18,6 +18,4 @@ class AuditApp(App[AuditConfig]):
 async def test_typed_call_service_handler():
     async with AppTestHarness(AuditApp, config={}) as harness:
         await harness.simulate_call_service("light", "turn_on", entity_id="light.kitchen")
-        harness.api_recorder.assert_called(
-            "call_service", domain="notify", service="log", message="Service called on light"
-        )
+        harness.api_recorder.assert_called("call_service", domain="notify", service="log", message="Service called on light")
