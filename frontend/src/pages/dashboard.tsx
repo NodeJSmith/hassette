@@ -63,7 +63,7 @@ export function DashboardPage() {
         runningCount={appGrid.data.value?.filter((a) => a.status === "running").length ?? 0}
       />
 
-      <div class="ht-card ht-mb-4">
+      <div class="ht-dashboard-section ht-mb-6">
         <h2 class="ht-heading-5"><a href="/apps" class="ht-heading-link">App Health</a></h2>
         {appGrid.error.value && (
           <p class="ht-text-danger">Failed to load app grid: {appGrid.error.value}</p>
@@ -72,12 +72,12 @@ export function DashboardPage() {
       </div>
 
       {errors.error.value ? (
-        <div class="ht-empty-section ht-mb-4">
+        <div class="ht-empty-section ht-mb-6">
           <IconWarning />
           <span class="ht-text-danger ht-text-xs">Failed to load errors: {errors.error.value}</span>
         </div>
       ) : errors.data.value && errors.data.value.length > 0 ? (
-        <div class="ht-card ht-mb-4">
+        <div class="ht-card ht-card--urgent ht-mb-6">
           <h2 class="ht-heading-5">
             <IconWarning />
             <span>Recent Errors</span>
@@ -85,7 +85,7 @@ export function DashboardPage() {
           <ErrorFeed errors={errors.data.value} />
         </div>
       ) : (
-        <div class="ht-empty-section ht-mb-4">
+        <div class="ht-empty-section ht-mb-6">
           <IconCheck />
           <span class="ht-text-muted ht-text-xs">No recent errors. All systems healthy.</span>
         </div>

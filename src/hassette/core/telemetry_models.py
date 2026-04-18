@@ -134,6 +134,7 @@ class JobExecution(BaseModel):
     source_tier: SourceTier = "app"
     error_type: str | None
     error_message: str | None
+    error_traceback: str | None = None
 
 
 class ListenerGlobalStats(BaseModel):

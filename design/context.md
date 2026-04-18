@@ -1,6 +1,6 @@
 ---
 schema_version: 1
-updated_at: 2026-04-05
+updated_at: 2026-04-17
 ---
 
 ## Users & Purpose
@@ -55,8 +55,9 @@ The green LED on a running Raspberry Pi. The cool gray of a breaker panel. The r
 
 The breathing pulse dot — a slow inhale/exhale animation on the WebSocket connection indicator. Emerald when connected (breathing). Red and static when disconnected. The only continuously animated element. It exists because the system maintains a persistent WebSocket to Home Assistant — the dot breathes because the connection is alive.
 
-- Appears in the sidebar, anchored to the bottom
+- Appears in the **StatusBar** (top bar), not the sidebar
 - 8px circle, `--ht-accent` color with `breathe` keyframe animation (2.5s ease-in-out infinite)
+- Additional states: `connecting` (amber pulse), `degraded` (amber, for DB degradation or dropped events)
 - Reduced motion: static dot, no animation
 
 ### Defaults Rejected
@@ -78,7 +79,7 @@ The breathing pulse dot — a slow inhale/exhale animation on the WebSocket conn
 - **Maximum 3 color families beyond neutrals** (emerald accent, amber values, red errors) — density demands restraint
 - **No drop shadows as primary depth in dark mode** — use border highlights and surface tint differentiation instead; shadows supplement but don't carry depth alone against near-black backgrounds
 - **Monospace for all data** — entity IDs, timestamps, handler names, invocation counts, log entries. Most content on the page is mono.
-- **No icons without text labels** in main content areas (sidebar icon rail is the exception)
+- **No icons without text labels** in main content areas — exceptions: sidebar icon rail, and dense data-row action clusters (e.g., Stop/Reload in app list rows) where universal icons (play/stop/refresh) with `aria-label` and `title` suffice
 - **Density is a feature** — row padding is compact (10-12px vertical), meta text gaps are tight (12-16px), whitespace is for section separation not breathing room inside components
 
 ## Design Principles
@@ -125,13 +126,13 @@ The breathing pulse dot — a slow inhale/exhale animation on the WebSocket conn
 
 | Token | Value | Role |
 |-------|-------|------|
-| `--ht-bg` | `#f7f7f8` | Page canvas — cool chalk, no warmth |
-| `--ht-surface` | `#ffffff` | Cards, panels, list rows |
-| `--ht-surface-recessed` | `#f0f0f2` | Hover states, inset areas, expanded details |
-| `--ht-surface-sticky` | `#ffffff` | Sticky headers |
-| `--ht-border` | `rgba(0, 0, 0, 0.06)` | Default separation |
-| `--ht-border-strong` | `rgba(0, 0, 0, 0.10)` | Interactive element borders |
-| `--ht-border-highlight` | `rgba(0, 0, 0, 0.03)` | Card top-edge highlight |
+| `--ht-bg` | `#ededf0` | Page canvas — cool chalk with visible separation from cards |
+| `--ht-surface` | `#f9f9fa` | Cards, panels, list rows |
+| `--ht-surface-recessed` | `#e6e6ea` | Hover states, inset areas, expanded details |
+| `--ht-surface-sticky` | `#f9f9fa` | Sticky headers |
+| `--ht-border` | `rgba(0, 0, 0, 0.08)` | Default separation |
+| `--ht-border-strong` | `rgba(0, 0, 0, 0.13)` | Interactive element borders |
+| `--ht-border-highlight` | `rgba(0, 0, 0, 0.04)` | Card top-edge highlight |
 | `--ht-text` | `#111113` | Primary text — near-black graphite |
 | `--ht-text-secondary` | `#55555e` | Secondary labels, meta text |
 | `--ht-text-dim` | `#9898a0` | Tertiary text, timestamps |
@@ -155,13 +156,13 @@ The breathing pulse dot — a slow inhale/exhale animation on the WebSocket conn
 - **Body**: DM Sans (400/500) — clean geometric sans that pairs with Space Grotesk without competing. Readable at small sizes for meta text and descriptions.
 - **Mono**: JetBrains Mono (400/500/600) — entity IDs, timestamps, handler names, invocation data, log entries. The workhorse font — most data on the page is monospace.
 - **Scale**:
-  - `--ht-text-xs`: 12px — uppercase labels (INIT STATUS, FIRES, AVG)
-  - `--ht-text-sm`: 13px — meta text, badge text, timestamps
-  - `--ht-text-base`: 15px — handler summaries, table data, log entries
-  - `--ht-text-md`: 16px — body text, descriptions
-  - `--ht-text-lg`: 18px — section headings (Event Handlers, Scheduled Jobs)
-  - `--ht-text-xl`: 22px — page titles (Garage Proximity)
-  - `--ht-text-2xl`: 26px — hero numbers in health cards (0.4%, 18ms, 3m ago)
+  - `--ht-text-xs`: 13px — uppercase labels (INIT STATUS, FIRES, AVG)
+  - `--ht-text-sm`: 14px — meta text, badge text, timestamps
+  - `--ht-text-base`: 16px — handler summaries, table data, log entries
+  - `--ht-text-md`: 17px — body text, descriptions
+  - `--ht-text-lg`: 19px — section headings (Event Handlers, Scheduled Jobs)
+  - `--ht-text-xl`: 23px — page titles (Garage Proximity)
+  - `--ht-text-2xl`: 27px — hero numbers in health cards (0.4%, 18ms, 3m ago)
 - **Weights**: 400 (body), 500 (mono emphasis, meta strong values), 600 (headings, stat values), 700 (page title only)
 - **Self-hosted**: WOFF2 files in `/frontend/public/fonts/` — DM Sans 400/500/700, Space Grotesk 400/500/600/700, JetBrains Mono 400/500
 
@@ -206,10 +207,10 @@ The breathing pulse dot — a slow inhale/exhale animation on the WebSocket conn
 
 - **Handler rows**: Grid layout — `8px dot | 1fr content | auto stats`. Plain-language summary as primary text. Invocation count, last-fired, avg duration as mono meta text below. Expandable.
 - **Health strip**: 4-column grid of compact cards at top of App Detail. Init status, error rate, avg duration, last activity.
-- **Pulse dot**: 8px circle in sidebar. `--ht-accent` with breathe animation when connected. `--ht-danger` and static when disconnected.
+- **StatusBar**: Top bar with pulse dot (WebSocket indicator), theme toggle, session scope toggle, and degraded/dropped-events indicators. Pulse dot uses `--ht-accent` with breathe animation when connected; `--ht-danger` and static when disconnected; amber when connecting or degraded.
 - **Status badges**: Pill-shaped (radius-full), mono font, colored dot + text. Running = emerald, Failed = red, Stopped/Disabled = dim gray. Background uses `-light` token variant.
 - **Log level toggle**: Segmented button group (DEBUG | INFO | WARN). Active state uses `--ht-accent-light` background with `--ht-accent` text.
-- **Sidebar**: 56px collapsed icon rail. Same background temperature as page. Pulse dot anchored to bottom. Active nav item highlighted with accent background tint.
+- **Sidebar**: 56px icon rail (no expanded state). Same background temperature as page (`--ht-bg`). Active nav item uses `--ht-surface-recessed` background (neutral, not accent). Hidden below 768px — replaced by bottom nav on mobile.
 
 ## Open Questions
 

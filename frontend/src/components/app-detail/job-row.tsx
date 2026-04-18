@@ -48,7 +48,7 @@ export function JobRow({ job, onGroupClick }: Props) {
 
   return (
     <div
-      class={`ht-item-row${job.cancelled ? " is-cancelled" : ""}`}
+      class={`ht-item-row${expanded.value ? " is-expanded" : ""}${job.cancelled ? " is-cancelled" : ""}`}
       data-testid={`job-row-${job.job_id}`}
     >
       <div
@@ -139,10 +139,10 @@ export function JobRow({ job, onGroupClick }: Props) {
           {(job.source_location || job.registration_source) && (
             <div class="ht-source-display" data-testid="source-display">
               {job.source_location && (
-                <div class="ht-text-muted ht-text-xs">{job.source_location}</div>
+                <div class="ht-source-display__location">{job.source_location}</div>
               )}
               {job.registration_source && (
-                <code class="ht-text-mono ht-text-xs" style="display: block">{job.registration_source}</code>
+                <code class="ht-source-display__code">{job.registration_source}</code>
               )}
             </div>
           )}
