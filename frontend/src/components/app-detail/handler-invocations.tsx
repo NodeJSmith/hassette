@@ -13,12 +13,12 @@ interface Props {
 }
 
 export function HandlerInvocations({ invocations, listenerId }: Props) {
+  const showAll = useRef(signal(false)).current;
+  const expandedTracebacks = useRef(signal<Set<number>>(new Set())).current;
+
   if (invocations.length === 0) {
     return <p class="ht-text-muted ht-text-xs">No invocations recorded.</p>;
   }
-
-  const showAll = useRef(signal(false)).current;
-  const expandedTracebacks = useRef(signal<Set<number>>(new Set())).current;
   const visible = showAll.value ? invocations : invocations.slice(0, INITIAL_ROWS);
   const hasMore = invocations.length > INITIAL_ROWS;
 

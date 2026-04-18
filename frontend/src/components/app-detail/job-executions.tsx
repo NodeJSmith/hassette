@@ -13,12 +13,12 @@ interface Props {
 }
 
 export function JobExecutions({ executions, jobId }: Props) {
+  const showAll = useRef(signal(false)).current;
+  const expandedTracebacks = useRef(signal<Set<number>>(new Set())).current;
+
   if (executions.length === 0) {
     return <p class="ht-text-muted ht-text-xs">No executions recorded.</p>;
   }
-
-  const showAll = useRef(signal(false)).current;
-  const expandedTracebacks = useRef(signal<Set<number>>(new Set())).current;
   const visible = showAll.value ? executions : executions.slice(0, INITIAL_ROWS);
   const hasMore = executions.length > INITIAL_ROWS;
 
