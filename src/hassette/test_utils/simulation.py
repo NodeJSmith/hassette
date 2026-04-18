@@ -127,8 +127,10 @@ class SimulationMixin:
     ) -> None:
         """Create an attribute change event and send it through the bus.
 
-        Delegates to :meth:`simulate_state_change`, so any ``on_state_change``
-        handler for the same entity will also fire (matching HA behavior).
+        Delegates to :meth:`simulate_state_change` with the same old/new state
+        value, so ``on_state_change`` handlers for the same entity only fire if
+        their ``changed`` predicate matches an unchanged-state event (e.g.,
+        handlers registered with ``changed=False``).
 
         State value resolution order: explicit ``state`` arg, cached proxy value,
         ``"unknown"`` fallback. Call :meth:`set_state` first to avoid the fallback.
