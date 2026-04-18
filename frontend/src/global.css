@@ -1277,19 +1277,13 @@ strong {
   transform: rotate(90deg);
 }
 
-/* Expanded row — transforms from list item to section */
-.ht-item-row.is-expanded {
-  background: var(--ht-surface-recessed);
-  border-radius: var(--ht-radius-sm);
-  margin: var(--ht-sp-2) 0;
+/* Expanded row — transforms from list item to section header */
+.ht-item-row.is-expanded .ht-item-row__title {
+  font-size: var(--ht-text-base);
 }
 
 .ht-item-row.is-expanded .ht-item-row__main {
-  background: transparent;
-}
-
-.ht-item-row.is-expanded .ht-item-row__main:hover {
-  background: transparent;
+  padding-bottom: var(--ht-sp-2);
 }
 
 /* Cancelled job row — muted appearance with strikethrough on title */
@@ -1310,8 +1304,9 @@ strong {
 
 /* — Item Detail (expanded panel) —————————————————————— */
 .ht-item-detail {
-  padding: var(--ht-sp-4);
+  padding: var(--ht-sp-4) var(--ht-sp-4) var(--ht-sp-4) var(--ht-sp-8);
   border-top: 1px solid var(--ht-border);
+  border-bottom: 2px solid var(--ht-border-strong);
 }
 
 .ht-item-detail__loading {
