@@ -10,7 +10,13 @@ import tomli_w
 from whenever import ZonedDateTime
 
 from hassette.config.classes import AppManifest
-from hassette.events import CallServiceEvent, RawStateChangeEvent, create_event_from_hass
+from hassette.events import (
+    CallServiceEvent,
+    ComponentLoadedEvent,
+    RawStateChangeEvent,
+    ServiceRegisteredEvent,
+    create_event_from_hass,
+)
 from hassette.types.enums import ResourceStatus
 
 if TYPE_CHECKING:
@@ -80,6 +86,40 @@ def create_call_service_event(
         {"domain": domain, "service": service, "service_data": service_data or {}},
     )
     assert isinstance(event, CallServiceEvent)
+    return event
+
+
+def _create_component_loaded_event(  # pyright: ignore[reportUnusedFunction] — imported by simulation.py
+    component: str,
+) -> ComponentLoadedEvent:
+    """Create a component_loaded event for testing.
+
+    Args:
+        component: The component name (e.g., "mqtt", "zwave").
+
+    Returns:
+        ComponentLoadedEvent instance.
+    """
+    event = _create_hass_event("component_loaded", {"component": component})
+    assert isinstance(event, ComponentLoadedEvent)
+    return event
+
+
+def _create_service_registered_event(  # pyright: ignore[reportUnusedFunction] — imported by simulation.py
+    domain: str,
+    service: str,
+) -> ServiceRegisteredEvent:
+    """Create a service_registered event for testing.
+
+    Args:
+        domain: The service domain (e.g., "light").
+        service: The service name (e.g., "turn_on").
+
+    Returns:
+        ServiceRegisteredEvent instance.
+    """
+    event = _create_hass_event("service_registered", {"domain": domain, "service": service})
+    assert isinstance(event, ServiceRegisteredEvent)
     return event
 
 

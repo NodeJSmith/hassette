@@ -8,13 +8,21 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
+from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent, HassetteSimpleEvent
+from hassette.types import ResourceRole, ResourceStatus, Topic
+
 if TYPE_CHECKING:
     from hassette.app.app import App
     from hassette.core.bus_service import BusService
     from hassette.test_utils.harness import HassetteHarness
 
 from hassette.test_utils.exceptions import DrainError, DrainTimeout
-from hassette.test_utils.helpers import create_call_service_event, create_state_change_event
+from hassette.test_utils.helpers import (
+    _create_component_loaded_event,
+    _create_service_registered_event,
+    create_call_service_event,
+    create_state_change_event,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -72,15 +80,8 @@ class SimulationMixin:
             timeout: Maximum seconds to wait for handlers to complete.
 
         Raises:
-            DrainError: If any handler task raised a non-cancellation exception.
-                When a timeout also occurs, this is the primary exception
-                raised, chained from a ``DrainTimeout``.
-            DrainTimeout: If the drain does not reach quiescence within
-                ``timeout`` and no handler exceptions were collected.
-
-        Both ``DrainError`` and ``DrainTimeout`` inherit from ``DrainFailure``,
-        so callers can catch either outcome uniformly with
-        ``except DrainFailure:``.
+            DrainError: If any handler raised an exception.
+            DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
         harness = self._require_harness()
 
@@ -106,49 +107,23 @@ class SimulationMixin:
     ) -> None:
         """Create an attribute change event and send it through the bus.
 
-        Note:
-            This method delegates to :meth:`simulate_state_change` under the hood,
-            which means **any** ``bus.on_state_change`` **handler registered for the
-            same entity will also fire** — not just attribute-change handlers. This
-            matches Home Assistant's real behavior (``state_changed`` events fire even
-            when only attributes change), but it affects handler call counts::
+        Delegates to :meth:`simulate_state_change`, so any ``on_state_change``
+        handler for the same entity will also fire (matching HA behavior).
 
-                # If your app registers both:
-                self.bus.on_state_change("sensor.temp", handler=self.on_temp_state)
-                self.bus.on_attribute_change("sensor.temp", "temperature", handler=self.on_temp_attr)
-
-                # Then simulate_attribute_change fires BOTH handlers.
-                # Account for this in assert_call_count() assertions.
-
-        The state value used for the event is resolved in this order:
-        1. The explicit ``state`` argument, if provided.
-        2. The current cached state value for the entity in the StateProxy.
-        3. ``"unknown"`` if the entity has not been seeded.
-
-        Tip:
-            Call :meth:`set_state` for the entity before
-            ``simulate_attribute_change`` to avoid the ``"unknown"`` fallback.
+        State value resolution order: explicit ``state`` arg, cached proxy value,
+        ``"unknown"`` fallback. Call :meth:`set_state` first to avoid the fallback.
 
         Args:
             entity_id: The entity ID whose attribute changed.
             attribute: The attribute name.
             old_value: Previous attribute value.
             new_value: New attribute value.
-            state: Optional explicit state value to use for the event. If omitted, the
-                current cached state for the entity is used (defaulting to ``"unknown"``
-                if the entity is unseeded).
+            state: Explicit state value; if omitted, uses cached value or ``"unknown"``.
             timeout: Maximum seconds to wait for handlers to complete.
 
         Raises:
-            DrainError: If any handler task raised a non-cancellation exception.
-                When a timeout also occurs, this is the primary exception
-                raised, chained from a ``DrainTimeout``.
-            DrainTimeout: If the drain does not reach quiescence within
-                ``timeout`` and no handler exceptions were collected.
-
-        Both ``DrainError`` and ``DrainTimeout`` inherit from ``DrainFailure``,
-        so callers can catch either outcome uniformly with
-        ``except DrainFailure:``.
+            DrainError: If any handler raised an exception.
+            DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
         harness = self._require_harness()
 
@@ -189,21 +164,276 @@ class SimulationMixin:
             **data: Service call data.
 
         Raises:
-            DrainError: If any handler task raised a non-cancellation exception.
-                When a timeout also occurs, this is the primary exception
-                raised, chained from a ``DrainTimeout``.
-            DrainTimeout: If the drain does not reach quiescence within
-                ``timeout`` and no handler exceptions were collected.
-
-        Both ``DrainError`` and ``DrainTimeout`` inherit from ``DrainFailure``,
-        so callers can catch either outcome uniformly with
-        ``except DrainFailure:``.
+            DrainError: If any handler raised an exception.
+            DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
         harness = self._require_harness()
 
         event = create_call_service_event(domain=domain, service=service, service_data=data)
         await harness.hassette.send_event(event.topic, event)
         await self._drain_task_bucket(timeout=timeout)
+
+    async def simulate_component_loaded(
+        self,
+        component: str,
+        timeout: float = 2.0,
+    ) -> None:
+        """Create a component_loaded event and send it through the bus.
+
+        Args:
+            component: The component name (e.g., "mqtt", "zwave").
+            timeout: Maximum seconds to wait for handlers to complete.
+
+        Raises:
+            DrainError: If any handler task raised a non-cancellation exception.
+            DrainTimeout: If the drain does not reach quiescence within ``timeout``.
+        """
+        harness = self._require_harness()
+
+        event = _create_component_loaded_event(component)
+        await harness.hassette.send_event(event.topic, event)
+        await self._drain_task_bucket(timeout=timeout)
+
+    async def simulate_service_registered(
+        self,
+        domain: str,
+        service: str,
+        timeout: float = 2.0,
+    ) -> None:
+        """Create a service_registered event and send it through the bus.
+
+        Args:
+            domain: Service domain (e.g., "light").
+            service: Service name (e.g., "turn_on").
+            timeout: Maximum seconds to wait for handlers to complete.
+
+        Raises:
+            DrainError: If any handler task raised a non-cancellation exception.
+            DrainTimeout: If the drain does not reach quiescence within ``timeout``.
+        """
+        harness = self._require_harness()
+
+        event = _create_service_registered_event(domain, service)
+        await harness.hassette.send_event(event.topic, event)
+        await self._drain_task_bucket(timeout=timeout)
+
+    async def simulate_hassette_service_status(
+        self,
+        resource_name: str,
+        status: ResourceStatus,
+        *,
+        role: ResourceRole = ResourceRole.SERVICE,
+        previous_status: ResourceStatus | None = None,
+        exception: Exception | None = None,
+        timeout: float = 2.0,
+    ) -> None:
+        """Create a Hassette service status event and send it through the bus.
+
+        Args:
+            resource_name: Name of the service (e.g., "WebSocketService").
+            status: The new status of the service.
+            role: The resource role. Defaults to ``ResourceRole.SERVICE``.
+            previous_status: The previous status, if known.
+            exception: An exception associated with the status change, if any.
+            timeout: Maximum seconds to wait for handlers to complete.
+
+        Raises:
+            DrainError: If any handler raised an exception.
+            DrainTimeout: If drain does not reach quiescence within ``timeout``.
+
+        Note:
+            Only ``app.task_bucket`` is drained — see :meth:`_drain_task_bucket`.
+        """
+        harness = self._require_harness()
+
+        event = HassetteServiceEvent.from_data(
+            resource_name=resource_name,
+            role=role,
+            status=status,
+            previous_status=previous_status,
+            exception=exception,
+        )
+        await harness.hassette.send_event(event.topic, event)
+        await self._drain_task_bucket(timeout=timeout)
+
+    async def simulate_hassette_service_failed(
+        self,
+        resource_name: str,
+        *,
+        exception: Exception | None = None,
+        timeout: float = 2.0,
+    ) -> None:
+        """Convenience: simulate a service reaching FAILED status.
+
+        Delegates to :meth:`simulate_hassette_service_status`.
+        """
+        await self.simulate_hassette_service_status(
+            resource_name, ResourceStatus.FAILED, exception=exception, timeout=timeout
+        )
+
+    async def simulate_hassette_service_crashed(
+        self,
+        resource_name: str,
+        *,
+        exception: Exception | None = None,
+        timeout: float = 2.0,
+    ) -> None:
+        """Convenience: simulate a service reaching CRASHED status.
+
+        Delegates to :meth:`simulate_hassette_service_status`.
+        """
+        await self.simulate_hassette_service_status(
+            resource_name, ResourceStatus.CRASHED, exception=exception, timeout=timeout
+        )
+
+    async def simulate_hassette_service_started(
+        self,
+        resource_name: str,
+        *,
+        timeout: float = 2.0,
+    ) -> None:
+        """Convenience: simulate a service reaching RUNNING status.
+
+        Delegates to :meth:`simulate_hassette_service_status`.
+        """
+        await self.simulate_hassette_service_status(resource_name, ResourceStatus.RUNNING, timeout=timeout)
+
+    async def simulate_websocket_connected(
+        self,
+        timeout: float = 2.0,
+    ) -> None:
+        """Create a websocket connected event and send it through the bus.
+
+        Args:
+            timeout: Maximum seconds to wait for handlers to complete.
+
+        Raises:
+            DrainError: If any handler raised an exception.
+            DrainTimeout: If drain does not reach quiescence within ``timeout``.
+
+        Note:
+            Only ``app.task_bucket`` is drained — see :meth:`_drain_task_bucket`.
+        """
+        harness = self._require_harness()
+
+        event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
+        await harness.hassette.send_event(event.topic, event)
+        await self._drain_task_bucket(timeout=timeout)
+
+    async def simulate_websocket_disconnected(
+        self,
+        timeout: float = 2.0,
+    ) -> None:
+        """Create a websocket disconnected event and send it through the bus.
+
+        Args:
+            timeout: Maximum seconds to wait for handlers to complete.
+
+        Raises:
+            DrainError: If any handler raised an exception.
+            DrainTimeout: If drain does not reach quiescence within ``timeout``.
+
+        Note:
+            Only ``app.task_bucket`` is drained — see :meth:`_drain_task_bucket`.
+        """
+        harness = self._require_harness()
+
+        event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
+        await harness.hassette.send_event(event.topic, event)
+        await self._drain_task_bucket(timeout=timeout)
+
+    async def simulate_app_state_changed(
+        self,
+        status: ResourceStatus,
+        *,
+        previous_status: ResourceStatus | None = None,
+        exception: Exception | None = None,
+        timeout: float = 2.0,
+    ) -> None:
+        """Create an app state changed event and send it through the bus.
+
+        Always emits for the harness's own app. For cross-app coordination tests,
+        construct ``HassetteAppStateEvent`` manually and call
+        ``harness._harness.hassette.send_event(...)`` directly.
+
+        Args:
+            status: The new app status.
+            previous_status: The previous status, if known.
+            exception: An exception associated with the status change, if any.
+            timeout: Maximum seconds to wait for handlers to complete.
+
+        Raises:
+            DrainError: If any handler raised an exception.
+            DrainTimeout: If drain does not reach quiescence within ``timeout``.
+
+        Note:
+            Only ``app.task_bucket`` is drained — see :meth:`_drain_task_bucket`.
+        """
+        harness = self._require_harness()
+        app = self._app
+        if app is None:
+            raise RuntimeError("AppTestHarness is not active — no app available")
+
+        event = HassetteAppStateEvent.from_data(
+            app=app,
+            status=status,
+            previous_status=previous_status,
+            exception=exception,
+        )
+        await harness.hassette.send_event(event.topic, event)
+        await self._drain_task_bucket(timeout=timeout)
+
+    async def simulate_app_running(
+        self,
+        *,
+        timeout: float = 2.0,
+    ) -> None:
+        """Convenience: simulate the app reaching RUNNING status.
+
+        Delegates to :meth:`simulate_app_state_changed`.
+        """
+        await self.simulate_app_state_changed(ResourceStatus.RUNNING, timeout=timeout)
+
+    async def simulate_app_stopping(
+        self,
+        *,
+        timeout: float = 2.0,
+    ) -> None:
+        """Convenience: simulate the app reaching STOPPING status.
+
+        Delegates to :meth:`simulate_app_state_changed`.
+        """
+        await self.simulate_app_state_changed(ResourceStatus.STOPPING, timeout=timeout)
+
+    async def simulate_homeassistant_restart(
+        self,
+        timeout: float = 2.0,
+    ) -> None:
+        """Convenience: simulate a homeassistant restart call_service event.
+
+        Delegates to :meth:`simulate_call_service`.
+        """
+        await self.simulate_call_service("homeassistant", "restart", timeout=timeout)
+
+    async def simulate_homeassistant_start(
+        self,
+        timeout: float = 2.0,
+    ) -> None:
+        """Convenience: simulate a homeassistant start call_service event.
+
+        Delegates to :meth:`simulate_call_service`.
+        """
+        await self.simulate_call_service("homeassistant", "start", timeout=timeout)
+
+    async def simulate_homeassistant_stop(
+        self,
+        timeout: float = 2.0,
+    ) -> None:
+        """Convenience: simulate a homeassistant stop call_service event.
+
+        Delegates to :meth:`simulate_call_service`.
+        """
+        await self.simulate_call_service("homeassistant", "stop", timeout=timeout)
 
     async def _drain_task_bucket(self, *, timeout: float = 2.0) -> None:
         """Wait until bus dispatch queue AND app task_bucket are jointly quiescent.
