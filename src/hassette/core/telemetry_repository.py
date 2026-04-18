@@ -8,7 +8,7 @@ import typing
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.scheduler.classes import JobExecutionRecord
-from hassette.types.types import FRAMEWORK_APP_KEY
+from hassette.types.types import FRAMEWORK_APP_KEY, is_framework_key
 
 if typing.TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
@@ -40,10 +40,10 @@ class TelemetryRepository:
     @staticmethod
     def _validate_source_tier(app_key: str, source_tier: str) -> None:
         """Guard against user apps injecting source_tier='framework'."""
-        if source_tier == "framework" and app_key != FRAMEWORK_APP_KEY:
+        if source_tier == "framework" and not is_framework_key(app_key):
             raise ValueError(
-                f"Only the framework (app_key={FRAMEWORK_APP_KEY!r}) may use source_tier='framework'; "
-                f"got app_key={app_key!r}"
+                f"Only the framework (app_key={FRAMEWORK_APP_KEY!r} or '{FRAMEWORK_APP_KEY}.component') "
+                f"may use source_tier='framework'; got app_key={app_key!r}"
             )
 
     async def register_listener(self, registration: ListenerRegistration) -> int:
@@ -259,10 +259,10 @@ class TelemetryRepository:
             session_id: Current session ID, used to guard once=True row deletion.
                 When None, once=True rows are unconditionally deleted.
         """
-        if app_key == FRAMEWORK_APP_KEY:
+        if is_framework_key(app_key):
             logging.getLogger(__name__).warning(
                 "reconcile_registrations() called for app_key=%r — framework listeners are not reconciled; skipping",
-                FRAMEWORK_APP_KEY,
+                app_key,
             )
             return
 
@@ -338,7 +338,7 @@ class TelemetryRepository:
                         f"""
                         DELETE FROM listeners
                         WHERE app_key = ? AND once = 1
-                          AND source_tier = 'app'  -- app only; see FRAMEWORK_APP_KEY
+                          AND source_tier = 'app'  -- app only; framework keys are skipped by the guard above
                           AND id NOT IN ({placeholders})
                           AND NOT EXISTS (
                               SELECT 1 FROM handler_invocations
@@ -352,7 +352,7 @@ class TelemetryRepository:
                         """
                         DELETE FROM listeners
                         WHERE app_key = ? AND once = 1
-                          AND source_tier = 'app'  -- app only; see FRAMEWORK_APP_KEY
+                          AND source_tier = 'app'  -- app only; framework keys are skipped by the guard above
                           AND NOT EXISTS (
                               SELECT 1 FROM handler_invocations
                               WHERE listener_id = listeners.id AND session_id = ?

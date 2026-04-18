@@ -24,7 +24,7 @@ from hassette.config.helpers import (
     get_dev_mode,
     log_level_default_factory,
 )
-from hassette.types.types import FRAMEWORK_APP_KEY, LOG_LEVEL_TYPE, AppDict, RawAppDict
+from hassette.types.types import FRAMEWORK_APP_KEY, LOG_LEVEL_TYPE, AppDict, RawAppDict, is_framework_key
 from hassette.utils.app_utils import autodetect_apps, clean_app
 
 LOGGER = getLogger(__name__)
@@ -510,9 +510,10 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
         app_manifest_dict: dict[str, AppManifest] = {}
         for k, v in cleaned_apps_dict.items():
-            if k == FRAMEWORK_APP_KEY:
+            if is_framework_key(k):
                 raise ValueError(
-                    f"App key {FRAMEWORK_APP_KEY!r} is reserved for framework internals. "
+                    f"App key {k!r} is reserved for framework internals "
+                    f"(reserved: '{FRAMEWORK_APP_KEY}' and '{FRAMEWORK_APP_KEY}.' prefix). "
                     f"Rename the app in your configuration (source: {v.get('full_path', 'unknown')})."
                 )
             app_manifest_dict[k] = AppManifest.model_validate(v)

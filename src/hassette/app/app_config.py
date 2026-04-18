@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hassette.config.defaults import ENV_FILE_LOCATIONS
 from hassette.config.helpers import log_level_default_factory
-from hassette.types.types import FRAMEWORK_APP_KEY, LOG_LEVEL_TYPE
+from hassette.types.types import FRAMEWORK_APP_KEY, LOG_LEVEL_TYPE, is_framework_key
 
 
 class AppConfig(BaseSettings):
@@ -26,14 +26,15 @@ class AppConfig(BaseSettings):
     """Log level for the app instance. Defaults to INFO if not provided."""
 
     app_key: str = ""
-    """Configuration-level app key. Reserved: '__hassette__' is rejected."""
+    """Configuration-level app key. Reserved: '__hassette__' and '__hassette__.*' prefixes are rejected."""
 
     @field_validator("app_key")
     @classmethod
     def _reject_hassette_sentinel(cls, v: str) -> str:
-        if v == FRAMEWORK_APP_KEY:
+        if is_framework_key(v):
             raise ValueError(
-                "'__hassette__' is a reserved app_key used by the framework internally. "
+                f"'{v}' is a reserved app_key used by the framework internally "
+                f"(reserved prefix: '{FRAMEWORK_APP_KEY}' and '{FRAMEWORK_APP_KEY}.'). "
                 "Choose a different app_key for your application."
             )
         return v

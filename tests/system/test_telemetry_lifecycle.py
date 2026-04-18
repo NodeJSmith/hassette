@@ -19,17 +19,17 @@ pytestmark = [pytest.mark.system, pytest.mark.filterwarnings("default::Deprecati
 
 
 async def test_framework_listeners_registered_with_correct_source_tier(ha_container, tmp_path):
-    """After startup, listeners table has rows with source_tier='framework' and app_key='__hassette__'."""
+    """After startup, listeners table has rows with source_tier='framework'."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:  # noqa: SIM117
         async with hassette.database_service.db.execute(
-            "SELECT COUNT(*) FROM listeners WHERE source_tier = 'framework' AND app_key = '__hassette__'"
+            "SELECT COUNT(*) FROM listeners WHERE source_tier = 'framework'"
         ) as cursor:
             row = await cursor.fetchone()
 
     assert row is not None
     count = row[0]
-    assert count > 0, f"Expected at least one framework listener with app_key='__hassette__', found {count}"
+    assert count > 0, f"Expected at least one framework listener with source_tier='framework', found {count}"
 
 
 async def test_handler_invocations_have_valid_session_id(ha_container, tmp_path):

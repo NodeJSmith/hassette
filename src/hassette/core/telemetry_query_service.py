@@ -19,7 +19,7 @@ from hassette.core.telemetry_models import (
     SlowHandlerRecord,
 )
 from hassette.resources.base import Resource
-from hassette.types.types import FRAMEWORK_APP_KEY, LOG_LEVEL_TYPE, QuerySourceTier
+from hassette.types.types import LOG_LEVEL_TYPE, QuerySourceTier, is_framework_key
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -360,9 +360,12 @@ class TelemetryQueryService(Resource):
             d = _row_to_dict(row)
             job_act[d["app_key"]] = d
 
-        # Merge into AppHealthSummary per app_key (exclude framework sentinel — see FRAMEWORK_APP_KEY)
-        all_keys = set(listener_reg.keys()) | set(listener_act.keys()) | set(job_reg.keys()) | set(job_act.keys())
-        all_keys.discard(FRAMEWORK_APP_KEY)
+        # Merge into AppHealthSummary per app_key (exclude all framework keys — bare and prefixed)
+        all_keys = {
+            k
+            for k in set(listener_reg.keys()) | set(listener_act.keys()) | set(job_reg.keys()) | set(job_act.keys())
+            if not is_framework_key(k)
+        }
         result: dict[str, AppHealthSummary] = {}
         for app_key in all_keys:
             lr = listener_reg.get(app_key, {})

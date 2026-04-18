@@ -25,8 +25,45 @@ QuerySourceTier = Literal["app", "framework", "all"]
 FRAMEWORK_APP_KEY = "__hassette__"
 """Reserved app_key for framework-internal listeners and jobs.
 
-Referenced in SQL constraints (CHECK app_key != '__hassette__' OR source_tier = 'framework')
-and in Python guards throughout the codebase. All non-SQL usages should reference this constant."""
+Referenced in SQL constraints and in Python guards throughout the codebase.
+All non-SQL usages should reference this constant or use ``is_framework_key()``."""
+
+FRAMEWORK_APP_KEY_PREFIX = "__hassette__."
+"""Prefix for component-specific framework keys (e.g. ``'__hassette__.service_watcher'``).
+
+The trailing dot distinguishes the prefix from the bare sentinel so that
+``'__hassette__other'`` is never mistakenly treated as a framework key.
+Use ``is_framework_key()`` rather than comparing against this constant directly."""
+
+
+def is_framework_key(app_key: str | None) -> bool:
+    """Return True if *app_key* is a framework-reserved key.
+
+    Matches both the legacy bare key ``'__hassette__'`` and any key with the
+    component prefix ``'__hassette__.'``.
+
+    Args:
+        app_key: The app key to test. ``None`` returns ``False``.
+    """
+    if app_key is None:
+        return False
+    return app_key == FRAMEWORK_APP_KEY or app_key.startswith(FRAMEWORK_APP_KEY_PREFIX)
+
+
+def framework_display_name(app_key: str) -> str:
+    """Return a human-readable display name for a framework app key.
+
+    For prefixed keys (e.g. ``'__hassette__.service_watcher'``) returns the
+    component slug (``'service_watcher'``).  For the bare legacy key
+    ``'__hassette__'`` returns ``'framework'``.
+
+    Args:
+        app_key: A framework app key.  Behaviour is undefined for non-framework keys.
+    """
+    if app_key.startswith(FRAMEWORK_APP_KEY_PREFIX):
+        return app_key.removeprefix(FRAMEWORK_APP_KEY_PREFIX)
+    return "framework"
+
 
 CoroT = TypeVar("CoroT")
 CoroLikeT = Coroutine[Any, Any, CoroT]
