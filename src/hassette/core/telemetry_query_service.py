@@ -524,7 +524,8 @@ class TelemetryQueryService(Resource):
                 je.status,
                 je.source_tier,
                 je.error_type,
-                je.error_message
+                je.error_message,
+                je.error_traceback
             FROM job_executions je
             WHERE je.job_id = ? {session_clause}
             ORDER BY je.execution_start_ts DESC

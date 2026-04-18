@@ -43,7 +43,7 @@ export function HandlerRow({ listener }: Props) {
 
   return (
     <div
-      class="ht-item-row"
+      class={`ht-item-row${expanded.value ? " is-expanded" : ""}`}
       data-testid={`handler-row-${listener.listener_id}`}
     >
       <div
@@ -88,10 +88,10 @@ export function HandlerRow({ listener }: Props) {
           {(listener.source_location || listener.registration_source) && (
             <div class="ht-source-display" data-testid="source-display">
               {listener.source_location && (
-                <div class="ht-text-muted ht-text-xs">{listener.source_location}</div>
+                <div class="ht-source-display__location">{listener.source_location}</div>
               )}
               {listener.registration_source && (
-                <code class="ht-text-mono ht-text-xs" style="display: block">{listener.registration_source}</code>
+                <code class="ht-source-display__code">{listener.registration_source}</code>
               )}
             </div>
           )}

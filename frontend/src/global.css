@@ -484,6 +484,18 @@ strong {
   height: 100%;
 }
 
+/* Urgent card — left border accent for active errors/warnings */
+.ht-card--urgent {
+  border-left: 3px solid var(--ht-danger);
+  padding-left: calc(var(--ht-sp-5) - 2px);
+}
+
+/* Receded card — reduced weight for secondary affordances (System Health) */
+.ht-card--receded {
+  box-shadow: none;
+  border-top-color: var(--ht-border);
+}
+
 .ht-error-page { text-align: center; padding: var(--ht-sp-10); }
 .ht-error-card { padding: var(--ht-sp-6); text-align: center; }
 
@@ -518,9 +530,18 @@ strong {
   padding: var(--ht-sp-1) var(--ht-sp-3);
 }
 
+.ht-table--compact {
+  table-layout: fixed;
+}
+
 .ht-table--compact td {
   padding: var(--ht-sp-1) var(--ht-sp-2);
 }
+
+.ht-table--compact .ht-col-status   { width: 14%; }
+.ht-table--compact .ht-col-time     { width: 25%; }
+.ht-table--compact .ht-col-duration { width: 14%; }
+/* Error column: no width — takes remaining space */
 
 /* Message cell — interactive only when text is truncated */
 .ht-log-message-cell {
@@ -715,6 +736,18 @@ strong {
   padding: 0.15em 0.45em;
 }
 
+/* Icon-only button — square, centered icon, no text */
+.ht-btn--icon {
+  padding: var(--ht-sp-1);
+  line-height: 1;
+  justify-content: center;
+}
+
+.ht-btn--icon svg {
+  width: 16px;
+  height: 16px;
+}
+
 .ht-btn--ghost {
   border-color: transparent;
   background: transparent;
@@ -725,9 +758,15 @@ strong {
   border-color: transparent;
 }
 
+/* Ghost + semantic: border stays transparent at rest, only color on hover */
+.ht-btn--ghost.ht-btn--success,
+.ht-btn--ghost.ht-btn--warning,
+.ht-btn--ghost.ht-btn--info,
+.ht-btn--ghost.ht-btn--danger { border-color: transparent; }
+
 .ht-btn--ghost.ht-btn--success:hover { background: var(--ht-success-light); }
 .ht-btn--ghost.ht-btn--warning:hover { background: var(--ht-warning-light); }
-.ht-btn--ghost.ht-btn--info:hover { background: var(--ht-surface-recessed); }
+.ht-btn--ghost.ht-btn--info:hover { background: var(--ht-surface-recessed); color: var(--ht-link-hover); }
 .ht-btn--ghost.ht-btn--danger:hover { background: var(--ht-danger-light); }
 
 .ht-btn--primary {
@@ -760,10 +799,11 @@ strong {
 
 .ht-btn--info {
   border-color: var(--ht-border-strong);
-  color: var(--ht-text);
+  color: var(--ht-link);
 }
 
 .ht-btn--info:hover {
+  color: var(--ht-link-hover);
   background: var(--ht-surface-recessed);
 }
 
@@ -1024,6 +1064,31 @@ strong {
   line-height: 1.6;
 }
 
+/* Error cell — compact message + collapsible traceback toggle */
+.ht-error-cell {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ht-sp-2);
+  flex-wrap: wrap;
+}
+
+.ht-traceback-toggle {
+  color: var(--ht-link);
+  font-size: var(--ht-text-xs);
+  white-space: nowrap;
+}
+
+/* Traceback expansion row — full-width below the data row */
+.ht-traceback-row td {
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Don't highlight traceback rows on hover */
+.ht-table tbody tr.ht-traceback-row:hover {
+  background: transparent;
+}
+
 /* — Detail Label ——————————————————————————————————————— */
 .ht-detail-label {
   font-size: var(--ht-text-xs);
@@ -1210,6 +1275,15 @@ strong {
   transform: rotate(90deg);
 }
 
+/* Expanded row — transforms from list item to section header */
+.ht-item-row.is-expanded .ht-item-row__title {
+  font-size: var(--ht-text-base);
+}
+
+.ht-item-row.is-expanded .ht-item-row__main {
+  padding-bottom: var(--ht-sp-2);
+}
+
 /* Cancelled job row — muted appearance with strikethrough on title */
 .ht-item-row.is-cancelled {
   opacity: 0.6;
@@ -1228,14 +1302,46 @@ strong {
 
 /* — Item Detail (expanded panel) —————————————————————— */
 .ht-item-detail {
-  padding: var(--ht-sp-4);
+  padding: var(--ht-sp-4) var(--ht-sp-4) var(--ht-sp-4) var(--ht-sp-8);
   border-top: 1px solid var(--ht-border);
+  border-bottom: 2px solid var(--ht-border-strong);
 }
 
 .ht-item-detail__loading {
   font-size: var(--ht-text-sm);
   color: var(--ht-text-secondary);
   padding: var(--ht-sp-3);
+}
+
+/* — Source Display (registration code block) ————————————— */
+.ht-source-display {
+  background: var(--ht-surface-recessed);
+  border: 1px solid var(--ht-border);
+  border-radius: var(--ht-radius-sm);
+  padding: var(--ht-sp-2) var(--ht-sp-3);
+  margin-bottom: var(--ht-sp-3);
+  overflow-x: auto;
+}
+
+.ht-source-display__location {
+  font-family: var(--ht-font-mono);
+  font-size: var(--ht-text-xs);
+  color: var(--ht-text-dim);
+  margin-bottom: var(--ht-sp-1);
+}
+
+.ht-source-display__code {
+  font-family: var(--ht-font-mono);
+  font-size: var(--ht-text-sm);
+  color: var(--ht-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Show more/less toggle below execution tables */
+.ht-show-more {
+  margin-top: var(--ht-sp-2);
+  color: var(--ht-link);
 }
 
 /* — Button: danger variant ———————————————————————————— */
@@ -1289,11 +1395,11 @@ strong {
 .ht-meta-item {
   font-family: var(--ht-font-mono);
   font-size: var(--ht-text-xs);
-  color: var(--ht-text-dim);
+  color: var(--ht-text-secondary);
 }
 
 .ht-meta-item--strong {
-  color: var(--ht-text-secondary);
+  color: var(--ht-text);
   font-weight: var(--ht-weight-medium);
 }
 
@@ -1391,7 +1497,8 @@ strong {
   }
 
   .ht-btn--sm,
-  .ht-btn--xs {
+  .ht-btn--xs,
+  .ht-btn--icon {
     min-height: 44px;
   }
 
@@ -1432,7 +1539,7 @@ strong {
   display: grid;
   grid-template-columns: 1.4fr repeat(4, 1fr);
   gap: var(--ht-sp-4);
-  margin-bottom: var(--ht-sp-6);
+  margin-bottom: var(--ht-sp-8);
 }
 
 .ht-kpi-strip > [data-kpi="error-rate"] .ht-health-card__value {
@@ -1458,6 +1565,11 @@ strong {
   .ht-kpi-strip {
     grid-template-columns: 1fr;
   }
+}
+
+/* — Dashboard Section (unwrapped — heading + content, no card border) */
+.ht-dashboard-section {
+  padding: var(--ht-sp-5) 0;
 }
 
 /* — App Grid (dashboard card grid) ————————————————————— */
@@ -1743,6 +1855,11 @@ strong {
 .ht-table-log .ht-col-source  { width: 15%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Message column: no width set — takes all remaining space */
 
+/* Severity row tinting — visible at scroll speed, not just badge-reading speed */
+.ht-table-log tr[data-level="WARNING"] { background: var(--ht-warning-light); }
+.ht-table-log tr[data-level="ERROR"],
+.ht-table-log tr[data-level="CRITICAL"] { background: var(--ht-danger-light); }
+
 @media screen and (max-width: 1024px) {
   .ht-table-log .ht-col-source {
     display: none;
@@ -1813,6 +1930,17 @@ strong {
   border: 1px solid var(--ht-border);
   border-top: 1px solid var(--ht-border-highlight);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* Light mode .ht-card resets border via shorthand — modifiers must reapply */
+[data-theme="light"] .ht-card--urgent {
+  border-left: 3px solid var(--ht-danger);
+  padding-left: calc(var(--ht-sp-5) - 2px);
+}
+
+[data-theme="light"] .ht-card--receded {
+  box-shadow: none;
+  border-top-color: var(--ht-border);
 }
 
 /* — Skip Navigation Link ——————————————————————————————— */

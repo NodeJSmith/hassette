@@ -52,7 +52,10 @@ def test_handler_invocation_shows_error_trace(page: Page, base_url: str) -> None
     # Wait for invocations to load
     invocation_table = page.locator("[data-testid='invocation-table-1']")
     expect(invocation_table).to_be_visible(timeout=5000)
-    # Error traceback should be visible (from seed data)
+    # Tracebacks are collapsed by default — click toggle to reveal
+    traceback_toggle = page.get_by_label("Show traceback").first
+    expect(traceback_toggle).to_be_visible(timeout=5000)
+    traceback_toggle.click()
     traceback = page.locator("[data-testid='invocation-traceback']")
     expect(traceback.first).to_be_visible()
     expect(traceback.first).to_contain_text("ValueError")

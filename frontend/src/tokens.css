@@ -54,15 +54,15 @@
 /* — Light Mode ——————————————————————————————————————— */
 [data-theme="light"] {
   /* Surfaces */
-  --ht-bg: #f7f7f8;
-  --ht-surface: #ffffff;
-  --ht-surface-recessed: #f0f0f2;
-  --ht-surface-sticky: #ffffff;
+  --ht-bg: #ededf0;
+  --ht-surface: #f9f9fa;
+  --ht-surface-recessed: #e6e6ea;
+  --ht-surface-sticky: #f9f9fa;
 
   /* Borders */
-  --ht-border: rgba(0, 0, 0, 0.06);
-  --ht-border-strong: rgba(0, 0, 0, 0.10);
-  --ht-border-highlight: rgba(0, 0, 0, 0.03);
+  --ht-border: rgba(0, 0, 0, 0.08);
+  --ht-border-strong: rgba(0, 0, 0, 0.13);
+  --ht-border-highlight: rgba(0, 0, 0, 0.04);
 
   /* Text */
   --ht-text: #111113;
@@ -109,13 +109,13 @@
   --ht-weight-bold: 700;
 
   /* Type scale */
-  --ht-text-xs: 12px;
-  --ht-text-sm: 13px;
-  --ht-text-base: 15px;
-  --ht-text-md: 16px;
-  --ht-text-lg: 18px;
-  --ht-text-xl: 22px;
-  --ht-text-2xl: 26px;
+  --ht-text-xs: 13px;
+  --ht-text-sm: 14px;
+  --ht-text-base: 16px;
+  --ht-text-md: 17px;
+  --ht-text-lg: 19px;
+  --ht-text-xl: 23px;
+  --ht-text-2xl: 27px;
 }
 
 /* — Spacing (4px grid) ————————————————————————————— */
