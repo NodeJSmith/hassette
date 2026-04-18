@@ -625,21 +625,22 @@ async def test_simulate_hassette_service_crashed():
 @pytest.mark.asyncio
 async def test_simulate_hassette_service_started():
     """simulate_hassette_service_started fires on_hassette_service_started handler."""
-    calls: list[Any] = []
+    from hassette.events.hassette import HassetteServiceEvent
+
+    received: list[HassetteServiceEvent] = []
 
     class ServiceStartedApp(App[SensorConfig]):
         async def on_initialize(self) -> None:
             self.bus.on_hassette_service_started(handler=self._on_started)
 
-        async def _on_started(self) -> None:
-            calls.append(True)
+        async def _on_started(self, event: HassetteServiceEvent) -> None:
+            received.append(event)
 
     async with AppTestHarness(ServiceStartedApp, config={}) as harness:
-        # Clear calls accumulated during harness startup (services emit RUNNING events)
-        calls.clear()
         await harness.simulate_hassette_service_started("MyService")
-
-    assert len(calls) == 1
+        # Filter by sentinel resource_name — startup services use real names, never "MyService"
+        my_events = [e for e in received if e.payload.data.resource_name == "MyService"]
+        assert len(my_events) == 1
 
 
 # ---------------------------------------------------------------------------
