@@ -1,7 +1,7 @@
 ---
 feature_number: "035"
 feature_slug: "framework-error-identity"
-status: "draft"
+status: "approved"
 created: "2026-04-18"
 ---
 
