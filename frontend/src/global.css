@@ -530,9 +530,18 @@ strong {
   padding: var(--ht-sp-1) var(--ht-sp-3);
 }
 
+.ht-table--compact {
+  table-layout: fixed;
+}
+
 .ht-table--compact td {
   padding: var(--ht-sp-1) var(--ht-sp-2);
 }
+
+.ht-table--compact .ht-col-status   { width: 14%; }
+.ht-table--compact .ht-col-time     { width: 25%; }
+.ht-table--compact .ht-col-duration { width: 14%; }
+/* Error column: no width — takes remaining space */
 
 /* Message cell — interactive only when text is truncated */
 .ht-log-message-cell {
@@ -1068,16 +1077,6 @@ strong {
   font-size: var(--ht-text-xs);
   white-space: nowrap;
 }
-
-/* Execution/invocation tables — fixed layout prevents traceback rows from reflowing columns */
-.ht-table--compact {
-  table-layout: fixed;
-}
-
-.ht-table--compact .ht-col-status   { width: 14%; }
-.ht-table--compact .ht-col-time     { width: 25%; }
-.ht-table--compact .ht-col-duration { width: 14%; }
-/* Error column: no width — takes remaining space */
 
 /* Traceback expansion row — full-width below the data row */
 .ht-traceback-row td {
