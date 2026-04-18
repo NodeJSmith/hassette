@@ -7,7 +7,7 @@ Replaces the exact-match CHECK constraint on ``listeners`` and ``scheduled_jobs`
 with a GLOB-based prefix constraint that covers both the bare legacy key and any
 component-specific key using the ``__hassette__.`` prefix:
 
-    CHECK (app_key NOT GLOB '__hassette__*' OR source_tier = 'framework')
+    CHECK ((app_key != '__hassette__' AND app_key NOT GLOB '__hassette__.*') OR source_tier = 'framework')
 
 SQLite LIKE uses ``_`` as a single-character wildcard, which would incorrectly
 match keys like ``__hassette_x__``. GLOB uses ``*`` and ``?`` instead, making
@@ -65,7 +65,7 @@ def upgrade() -> None:
             retired_at            REAL,
             source_tier           TEXT    NOT NULL DEFAULT 'app'
                 CHECK (source_tier IN ('app', 'framework')),
-            CHECK (app_key NOT GLOB '__hassette__*' OR source_tier = 'framework')
+            CHECK ((app_key != '__hassette__' AND app_key NOT GLOB '__hassette__.*') OR source_tier = 'framework')
         )
     """)
 
@@ -142,7 +142,7 @@ def upgrade() -> None:
                 CHECK (source_tier IN ('app', 'framework')),
             "group"               TEXT,
             cancelled_at          REAL,
-            CHECK (app_key NOT GLOB '__hassette__*' OR source_tier = 'framework')
+            CHECK ((app_key != '__hassette__' AND app_key NOT GLOB '__hassette__.*') OR source_tier = 'framework')
         )
     """)
 

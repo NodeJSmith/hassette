@@ -32,6 +32,11 @@ class TestIsFrameworkKey:
         """Keys that contain but don't start with the prefix are not framework keys."""
         assert is_framework_key("user__hassette__") is False
 
+    def test_is_framework_key_no_dot_separator(self) -> None:
+        """Keys starting with __hassette__ but without the dot separator are not framework keys."""
+        assert is_framework_key("__hassette__custom") is False
+        assert is_framework_key("__hassette__x") is False
+
     def test_is_framework_key_sub_component(self) -> None:
         """Multiple dotted sub-keys with framework prefix are framework keys."""
         assert is_framework_key("__hassette__.bus.on_event") is True

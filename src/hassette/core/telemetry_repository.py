@@ -8,7 +8,7 @@ import typing
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.scheduler.classes import JobExecutionRecord
-from hassette.types.types import FRAMEWORK_APP_KEY, is_framework_key
+from hassette.types.types import FRAMEWORK_APP_KEY, FRAMEWORK_APP_KEY_PREFIX, is_framework_key
 
 if typing.TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
@@ -42,7 +42,7 @@ class TelemetryRepository:
         """Guard against user apps injecting source_tier='framework'."""
         if source_tier == "framework" and not is_framework_key(app_key):
             raise ValueError(
-                f"Only the framework (app_key={FRAMEWORK_APP_KEY!r} or '{FRAMEWORK_APP_KEY}.component') "
+                f"Only the framework (app_key={FRAMEWORK_APP_KEY!r} or '{FRAMEWORK_APP_KEY_PREFIX}<component>') "
                 f"may use source_tier='framework'; got app_key={app_key!r}"
             )
 

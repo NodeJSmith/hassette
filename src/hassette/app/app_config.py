@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hassette.config.defaults import ENV_FILE_LOCATIONS
 from hassette.config.helpers import log_level_default_factory
-from hassette.types.types import FRAMEWORK_APP_KEY, LOG_LEVEL_TYPE, is_framework_key
+from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, is_framework_key
 
 
 class AppConfig(BaseSettings):
@@ -34,7 +34,7 @@ class AppConfig(BaseSettings):
         if is_framework_key(v):
             raise ValueError(
                 f"'{v}' is a reserved app_key used by the framework internally "
-                f"(reserved prefix: '{FRAMEWORK_APP_KEY}' and '{FRAMEWORK_APP_KEY}.'). "
+                f"(reserved prefix: '{FRAMEWORK_APP_KEY_PREFIX}'). "
                 "Choose a different app_key for your application."
             )
         return v
