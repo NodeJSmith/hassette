@@ -12,10 +12,11 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
-from hassette import context
+from hassette import D, context
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
-from hassette.events import RawStateChangeEvent
+from hassette.events import CallServiceEvent, RawStateChangeEvent
+from hassette.models import states
 from hassette.test_utils.app_harness import AppConfigurationError, AppTestHarness
 from hassette.test_utils.recording_api import RecordingApi
 from hassette.types.enums import ResourceStatus
@@ -331,3 +332,529 @@ async def test_simulate_attribute_change_uses_explicit_state():
             # The state values should be "25.0" (explicit), not "20.0" (cached)
             assert call_kwargs.kwargs["old_value"] == "25.0"
             assert call_kwargs.kwargs["new_value"] == "25.0"
+
+
+# ---------------------------------------------------------------------------
+# Typed DI handler tests (WP01 — fix existing event factories)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_simulate_state_change_typed_di_state_new():
+    """Handler with D.StateNew[BinarySensorState] receives a valid typed model."""
+    received: list[states.BinarySensorState] = []
+
+    class BinarySensorApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_state_change("binary_sensor.test", handler=self._on_change)
+
+        async def _on_change(self, new_state: D.StateNew[states.BinarySensorState]) -> None:
+            received.append(new_state)
+
+    async with AppTestHarness(BinarySensorApp, config={}) as harness:
+        await harness.simulate_state_change("binary_sensor.test", old_value="off", new_value="on")
+
+    assert len(received) == 1
+    assert isinstance(received[0], states.BinarySensorState)
+    assert received[0].value is True  # "on" converts to True
+    assert received[0].entity_id == "binary_sensor.test"
+
+
+@pytest.mark.asyncio
+async def test_simulate_state_change_typed_di_state_old():
+    """Handler with D.StateOld[BinarySensorState] receives a valid typed model."""
+    received: list[states.BinarySensorState] = []
+
+    class BinarySensorOldApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_state_change("binary_sensor.test", handler=self._on_change)
+
+        async def _on_change(self, old_state: D.StateOld[states.BinarySensorState]) -> None:
+            received.append(old_state)
+
+    async with AppTestHarness(BinarySensorOldApp, config={}) as harness:
+        await harness.simulate_state_change("binary_sensor.test", old_value="off", new_value="on")
+
+    assert len(received) == 1
+    assert isinstance(received[0], states.BinarySensorState)
+    assert received[0].value is False  # "off" converts to False
+    assert received[0].entity_id == "binary_sensor.test"
+
+
+@pytest.mark.asyncio
+async def test_simulate_state_change_none_old_value():
+    """old_value=None produces None old_state dict; D.MaybeStateOld returns None."""
+    received_old: list[Any] = []
+
+    class NewEntityApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_state_change("binary_sensor.test", handler=self._on_change)
+
+        async def _on_change(self, old_state: D.MaybeStateOld[states.BinarySensorState]) -> None:
+            received_old.append(old_state)
+
+    async with AppTestHarness(NewEntityApp, config={}) as harness:
+        await harness.simulate_state_change("binary_sensor.test", old_value=None, new_value="on")
+
+    assert len(received_old) == 1
+    assert received_old[0] is None
+
+
+@pytest.mark.asyncio
+async def test_simulate_state_change_none_new_value():
+    """new_value=None produces None new_state dict (entity removed)."""
+    received: list[RawStateChangeEvent] = []
+
+    class RemovedEntityApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_state_change("binary_sensor.test", handler=self._on_change)
+
+        async def _on_change(self, event: RawStateChangeEvent) -> None:
+            received.append(event)
+
+    async with AppTestHarness(RemovedEntityApp, config={}) as harness:
+        await harness.simulate_state_change("binary_sensor.test", old_value="on", new_value=None)
+
+    assert len(received) == 1
+    assert received[0].payload.data.new_state is None
+
+
+@pytest.mark.asyncio
+async def test_simulate_call_service_typed_di_domain():
+    """Handler with D.Domain receives the correct domain string."""
+    received_domains: list[str] = []
+
+    class CallServiceApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_call_service(handler=self._on_call)
+
+        async def _on_call(self, domain: D.Domain) -> None:
+            received_domains.append(domain)
+
+    async with AppTestHarness(CallServiceApp, config={}) as harness:
+        await harness.simulate_call_service("light", "turn_on")
+
+    assert len(received_domains) == 1
+    assert received_domains[0] == "light"
+
+
+@pytest.mark.asyncio
+async def test_simulate_call_service_is_real_call_service_event():
+    """simulate_call_service produces a real CallServiceEvent (not SimpleNamespace)."""
+    received_events: list[Any] = []
+
+    class EventCapturingApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_call_service(handler=self._on_call)
+
+        async def _on_call(self, event: CallServiceEvent) -> None:
+            received_events.append(event)
+
+    async with AppTestHarness(EventCapturingApp, config={}) as harness:
+        await harness.simulate_call_service("light", "turn_on", brightness=255)
+
+    assert len(received_events) == 1
+    event = received_events[0]
+    assert isinstance(event, CallServiceEvent)
+    assert event.payload.data.domain == "light"
+    assert event.payload.data.service == "turn_on"
+    assert event.payload.data.service_data == {"brightness": 255}
+
+
+@pytest.mark.asyncio
+async def test_simulate_attribute_change_typed_di():
+    """Handler with D.StateNew[SensorState] works through the attribute change delegation path."""
+    received: list[states.SensorState] = []
+
+    class TempSensorApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_attribute_change("sensor.test", "unit_of_measurement", handler=self._on_attr)
+
+        async def _on_attr(self, new_state: D.StateNew[states.SensorState]) -> None:
+            received.append(new_state)
+
+    async with AppTestHarness(TempSensorApp, config={}) as harness:
+        await harness.set_state("sensor.test", "25.5")
+        await harness.simulate_attribute_change(
+            "sensor.test",
+            "unit_of_measurement",
+            old_value="°C",
+            new_value="°F",
+        )
+
+    assert len(received) == 1
+    assert isinstance(received[0], states.SensorState)
+    assert received[0].entity_id == "sensor.test"
+
+
+@pytest.mark.asyncio
+async def test_simulate_attribute_change_without_set_state():
+    """simulate_attribute_change uses 'unknown' as state when entity is not seeded."""
+    received_old: list[Any] = []
+    received_new: list[Any] = []
+
+    class UnseededAttrApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_state_change(
+                "sensor.unseeded",
+                changed=False,
+                handler=self._on_change,
+            )
+
+        async def _on_change(
+            self,
+            old: D.StateOld[states.SensorState],
+            new: D.StateNew[states.SensorState],
+        ) -> None:
+            received_old.append(old)
+            received_new.append(new)
+
+    async with AppTestHarness(UnseededAttrApp, config={}) as harness:
+        await harness.simulate_attribute_change("sensor.unseeded", "temperature", old_value=20, new_value=25)
+
+    assert len(received_new) == 1
+    # State falls back to "unknown" when entity is not seeded.
+    # The type registry converts "unknown" to None for SensorState.
+    assert received_new[0].value is None
+    assert received_old[0].value is None
+
+
+# ---------------------------------------------------------------------------
+# simulate_component_loaded / simulate_service_registered
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_simulate_component_loaded():
+    """simulate_component_loaded fires on_component_loaded handler."""
+    calls: list[Any] = []
+
+    class ComponentApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_component_loaded(handler=self._on_loaded)
+
+        async def _on_loaded(self) -> None:
+            calls.append(True)
+
+    async with AppTestHarness(ComponentApp, config={}) as harness:
+        await harness.simulate_component_loaded("my_component")
+
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_simulate_service_registered():
+    """simulate_service_registered fires on_service_registered handler."""
+    calls: list[Any] = []
+
+    class ServiceRegApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_service_registered(handler=self._on_registered)
+
+        async def _on_registered(self) -> None:
+            calls.append(True)
+
+    async with AppTestHarness(ServiceRegApp, config={}) as harness:
+        await harness.simulate_service_registered("light", "turn_on")
+
+    assert len(calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# simulate_hassette_service_status / failed / crashed / started
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_simulate_hassette_service_status():
+    """simulate_hassette_service_status fires on_hassette_service_status handler."""
+    from hassette.events.hassette import HassetteServiceEvent
+
+    received: list[HassetteServiceEvent] = []
+
+    class ServiceStatusApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_hassette_service_status(handler=self._on_status)
+
+        async def _on_status(self, event: HassetteServiceEvent) -> None:
+            received.append(event)
+
+    async with AppTestHarness(ServiceStatusApp, config={}) as harness:
+        await harness.simulate_hassette_service_status("MyService", ResourceStatus.RUNNING)
+        # Filter by sentinel resource_name — startup services use real names, never "MyService"
+        my_events = [e for e in received if e.payload.data.resource_name == "MyService"]
+        assert len(my_events) == 1
+
+
+@pytest.mark.asyncio
+async def test_simulate_hassette_service_failed():
+    """simulate_hassette_service_failed fires on_hassette_service_failed handler."""
+    calls: list[Any] = []
+
+    class ServiceFailedApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_hassette_service_failed(handler=self._on_failed)
+
+        async def _on_failed(self) -> None:
+            calls.append(True)
+
+    async with AppTestHarness(ServiceFailedApp, config={}) as harness:
+        await harness.simulate_hassette_service_failed("MyService", exception=RuntimeError("boom"))
+
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_simulate_hassette_service_crashed():
+    """simulate_hassette_service_crashed fires on_hassette_service_crashed handler."""
+    calls: list[Any] = []
+
+    class ServiceCrashedApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_hassette_service_crashed(handler=self._on_crashed)
+
+        async def _on_crashed(self) -> None:
+            calls.append(True)
+
+    async with AppTestHarness(ServiceCrashedApp, config={}) as harness:
+        await harness.simulate_hassette_service_crashed("MyService")
+
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_simulate_hassette_service_started():
+    """simulate_hassette_service_started fires on_hassette_service_started handler."""
+    from hassette.events.hassette import HassetteServiceEvent
+
+    received: list[HassetteServiceEvent] = []
+
+    class ServiceStartedApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_hassette_service_started(handler=self._on_started)
+
+        async def _on_started(self, event: HassetteServiceEvent) -> None:
+            received.append(event)
+
+    async with AppTestHarness(ServiceStartedApp, config={}) as harness:
+        await harness.simulate_hassette_service_started("MyService")
+        # Filter by sentinel resource_name — startup services use real names, never "MyService"
+        my_events = [e for e in received if e.payload.data.resource_name == "MyService"]
+        assert len(my_events) == 1
+
+
+# ---------------------------------------------------------------------------
+# simulate_websocket_connected / disconnected
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_simulate_websocket_connected():
+    """simulate_websocket_connected fires on_websocket_connected handler."""
+    calls: list[Any] = []
+
+    class WsConnectedApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_websocket_connected(handler=self._on_connected)
+
+        async def _on_connected(self) -> None:
+            calls.append(True)
+
+    async with AppTestHarness(WsConnectedApp, config={}) as harness:
+        await harness.simulate_websocket_connected()
+
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_simulate_websocket_disconnected():
+    """simulate_websocket_disconnected fires on_websocket_disconnected handler."""
+    calls: list[Any] = []
+
+    class WsDisconnectedApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_websocket_disconnected(handler=self._on_disconnected)
+
+        async def _on_disconnected(self) -> None:
+            calls.append(True)
+
+    async with AppTestHarness(WsDisconnectedApp, config={}) as harness:
+        await harness.simulate_websocket_disconnected()
+
+    assert len(calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# simulate_app_state_changed / running / stopping
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_simulate_app_state_changed():
+    """simulate_app_state_changed fires on_app_state_changed handler."""
+    from hassette.events.hassette import HassetteAppStateEvent
+
+    received: list[HassetteAppStateEvent] = []
+
+    class AppStateApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_app_state_changed(handler=self._on_state)
+
+        async def _on_state(self, event: HassetteAppStateEvent) -> None:
+            received.append(event)
+
+    async with AppTestHarness(AppStateApp, config={}) as harness:
+        await harness.simulate_app_state_changed(ResourceStatus.STOPPING)
+        # Filter by STOPPING — startup emits RUNNING/STARTING, teardown emits STOPPING
+        stopping_events = [e for e in received if e.payload.data.status == ResourceStatus.STOPPING]
+        assert len(stopping_events) == 1
+
+
+@pytest.mark.asyncio
+async def test_simulate_app_running():
+    """simulate_app_running fires on_app_running handler."""
+    from hassette.events.hassette import HassetteAppStateEvent
+
+    received: list[HassetteAppStateEvent] = []
+
+    class AppRunningApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_app_running(handler=self._on_running)
+
+        async def _on_running(self, event: HassetteAppStateEvent) -> None:
+            received.append(event)
+
+    async with AppTestHarness(AppRunningApp, config={}) as harness:
+        await harness.simulate_app_running()
+        # Filter by harness app key — startup may emit RUNNING for the app itself
+        app_key = harness.app.app_manifest.app_key
+        my_events = [e for e in received if e.payload.data.app_key == app_key]
+        # At least one from our simulate call (startup may also produce one)
+        assert len(my_events) >= 1
+
+
+@pytest.mark.asyncio
+async def test_simulate_app_stopping():
+    """simulate_app_stopping fires on_app_stopping handler."""
+    calls: list[Any] = []
+
+    class AppStoppingApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_app_stopping(handler=self._on_stopping)
+
+        async def _on_stopping(self) -> None:
+            calls.append(True)
+
+    async with AppTestHarness(AppStoppingApp, config={}) as harness:
+        await harness.simulate_app_stopping()
+
+    assert len(calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# simulate_homeassistant_restart / start / stop
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_simulate_homeassistant_restart():
+    """simulate_homeassistant_restart fires on_homeassistant_restart handler."""
+    calls: list[Any] = []
+
+    class HaRestartApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_homeassistant_restart(handler=self._on_restart)
+
+        async def _on_restart(self) -> None:
+            calls.append(True)
+
+    async with AppTestHarness(HaRestartApp, config={}) as harness:
+        await harness.simulate_homeassistant_restart()
+
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_simulate_homeassistant_start():
+    """simulate_homeassistant_start fires on_homeassistant_start handler."""
+    calls: list[Any] = []
+
+    class HaStartApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_homeassistant_start(handler=self._on_start)
+
+        async def _on_start(self) -> None:
+            calls.append(True)
+
+    async with AppTestHarness(HaStartApp, config={}) as harness:
+        await harness.simulate_homeassistant_start()
+
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_simulate_homeassistant_stop():
+    """simulate_homeassistant_stop fires on_homeassistant_stop handler."""
+    calls: list[Any] = []
+
+    class HaStopApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_homeassistant_stop(handler=self._on_stop)
+
+        async def _on_stop(self) -> None:
+            calls.append(True)
+
+    async with AppTestHarness(HaStopApp, config={}) as harness:
+        await harness.simulate_homeassistant_stop()
+
+    assert len(calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# Typed DI handler tests for new simulate methods
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_simulate_hassette_service_status_typed_di():
+    """Handler asserts event.payload.data.status and resource_name match expected values."""
+    from hassette.events.hassette import HassetteServiceEvent
+
+    received: list[HassetteServiceEvent] = []
+
+    class ServiceStatusDiApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_hassette_service_status(handler=self._on_status)
+
+        async def _on_status(self, event: HassetteServiceEvent) -> None:
+            received.append(event)
+
+    async with AppTestHarness(ServiceStatusDiApp, config={}) as harness:
+        await harness.simulate_hassette_service_status("SyntheticTestService", ResourceStatus.FAILED)
+        # Filter by sentinel resource_name to isolate from startup/teardown noise
+        test_events = [e for e in received if e.payload.data.resource_name == "SyntheticTestService"]
+        assert len(test_events) == 1
+        assert test_events[0].payload.data.status == ResourceStatus.FAILED
+        assert test_events[0].payload.data.resource_name == "SyntheticTestService"
+
+
+@pytest.mark.asyncio
+async def test_simulate_app_state_changed_typed_di():
+    """Handler asserts event.payload.data.app_key matches harness app key."""
+    from hassette.events.hassette import HassetteAppStateEvent
+
+    received: list[HassetteAppStateEvent] = []
+
+    class AppStateDiApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_app_state_changed(handler=self._on_state)
+
+        async def _on_state(self, event: HassetteAppStateEvent) -> None:
+            received.append(event)
+
+    async with AppTestHarness(AppStateDiApp, config={}) as harness:
+        await harness.simulate_app_state_changed(ResourceStatus.STOPPING)
+        expected_key = harness.app.app_manifest.app_key
+
+    assert len(received) == 1
+    assert received[0].payload.data.app_key == expected_key

@@ -104,8 +104,8 @@ If your handler reads entity state during handling (e.g., `self.states.light.get
 
 The generated event carries the entity's current cached state for the `state` field. If you haven't seeded the entity with `set_state()` first, that field defaults to `"unknown"` — which silently breaks any state-conditional predicates on the same entity. You can pass an explicit `state=` to avoid this, as shown above.
 
-!!! warning "`simulate_attribute_change` also fires state-change handlers"
-    This method delegates to `simulate_state_change` under the hood, which matches Home Assistant's real behavior — `state_changed` events fire even when only attributes change. If your app registers both `on_state_change` and `on_attribute_change` for the same entity, both handlers will fire:
+!!! warning "`simulate_attribute_change` can also fire state-change handlers"
+    This method delegates to `simulate_state_change` under the hood. With the default `changed=True`, state-change handlers do **not** fire (the state value is unchanged). But if your app registers `on_state_change` with `changed=False`, that handler **will** fire — matching HA's real behavior where `state_changed` events fire even when only attributes change:
 
     ```python
     --8<-- "pages/testing/snippets/testing_attribute_change_both_handlers.py"
@@ -131,6 +131,30 @@ All three simulate methods wait for dispatched handlers to finish before returni
 
 !!! note "Task chains drain to completion"
     The drain is iterative: after the bus dispatch queue clears, any tasks spawned by `self.task_bucket.spawn(...)` inside a handler are awaited in turn, to arbitrary depth. `simulate_*` does not return until the full chain is settled. If a task raises or the drain times out, a `DrainFailure` subclass is raised — see [DrainFailure Exception Hierarchy](concurrency.md#drainfailure-exception-hierarchy) for the full exception hierarchy and catch patterns.
+
+### Typed dependency injection in handlers
+
+Hassette handlers support typed dependency injection via `D.*` annotations. These work seamlessly with `simulate_*` — the harness dispatches the same event objects that production code receives, so DI resolution runs identically.
+
+**State change with `D.StateNew`** — extract a typed state model from the event:
+
+```python
+--8<-- "pages/testing/snippets/testing_di_state_change.py"
+```
+
+**Service call with `D.Domain`** — extract the service domain from the event:
+
+```python
+--8<-- "pages/testing/snippets/testing_di_call_service.py"
+```
+
+### Hassette service events
+
+`simulate_hassette_service_status()` and its convenience wrappers (`simulate_hassette_service_failed`, `simulate_hassette_service_crashed`, `simulate_hassette_service_started`) let you test how your app responds to internal service lifecycle changes.
+
+```python
+--8<-- "pages/testing/snippets/testing_simulate_service_failure.py"
+```
 
 ## Asserting API Calls
 
