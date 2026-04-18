@@ -819,7 +819,7 @@ export interface components {
             /** Error Message */
             error_message: string | null;
             /** Error Traceback */
-            error_traceback: string | null;
+            error_traceback?: string | null;
         };
         /** JobErrorEntry */
         JobErrorEntry: {

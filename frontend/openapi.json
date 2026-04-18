@@ -2096,8 +2096,7 @@
           "duration_ms",
           "status",
           "error_type",
-          "error_message",
-          "error_traceback"
+          "error_message"
         ],
         "title": "HandlerInvocation",
         "description": "Single invocation record returned by ``get_handler_invocations()``."
@@ -2234,6 +2233,17 @@
               }
             ],
             "title": "Error Message"
+          },
+          "error_traceback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Traceback"
           }
         },
         "type": "object",
