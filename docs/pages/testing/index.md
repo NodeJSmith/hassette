@@ -132,6 +132,30 @@ All three simulate methods wait for dispatched handlers to finish before returni
 !!! note "Task chains drain to completion"
     The drain is iterative: after the bus dispatch queue clears, any tasks spawned by `self.task_bucket.spawn(...)` inside a handler are awaited in turn, to arbitrary depth. `simulate_*` does not return until the full chain is settled. If a task raises or the drain times out, a `DrainFailure` subclass is raised — see [DrainFailure Exception Hierarchy](concurrency.md#drainfailure-exception-hierarchy) for the full exception hierarchy and catch patterns.
 
+### Typed dependency injection in handlers
+
+Hassette handlers support typed dependency injection via `D.*` annotations. These work seamlessly with `simulate_*` — the harness dispatches the same event objects that production code receives, so DI resolution runs identically.
+
+**State change with `D.StateNew`** — extract a typed state model from the event:
+
+```python
+--8<-- "pages/testing/snippets/testing_di_state_change.py"
+```
+
+**Service call with `D.Domain`** — extract the service domain from the event:
+
+```python
+--8<-- "pages/testing/snippets/testing_di_call_service.py"
+```
+
+### Hassette service events
+
+`simulate_hassette_service_status()` and its convenience wrappers (`simulate_hassette_service_failed`, `simulate_hassette_service_crashed`, `simulate_hassette_service_started`) let you test how your app responds to internal service lifecycle changes.
+
+```python
+--8<-- "pages/testing/snippets/testing_simulate_service_failure.py"
+```
+
 ## Asserting API Calls
 
 `harness.api_recorder` records every call your app makes to `self.api`. Use it to assert that your app called the right services.
