@@ -1,5 +1,8 @@
+import { useSignal } from "@preact/signals";
 import type { DashboardErrorEntry } from "../../api/endpoints";
+import { ErrorCell } from "../app-detail/error-cell";
 import { useRelativeTime } from "../../hooks/use-relative-time";
+import { isFrameworkKey, frameworkDisplayLabel } from "../../utils/framework-keys";
 
 interface Props {
   errors: DashboardErrorEntry[] | null;
@@ -41,6 +44,7 @@ export function ErrorFeed({ errors }: Props) {
 function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
   const relativeTime = useRelativeTime(err.execution_start_ts);
   const badgeText = shortErrorType(err.error_type) || err.kind;
+  const tracebackExpanded = useSignal(false);
 
   // Orphan detection: null listener_id or job_id means the handler/job was deleted
   const isOrphan = err.kind === "handler" ? err.listener_id === null : err.job_id === null;
@@ -49,8 +53,13 @@ function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
     ? (err.kind === "handler" ? "deleted handler" : "deleted job")
     : rawSubtitle;
 
-  const appDisplay = err.app_key ?? (err.kind === "handler" ? "deleted handler" : "deleted job");
-  const isFramework = err.source_tier === "framework";
+  // Use source_tier to determine if this is a framework error (badge display)
+  const isFrameworkTier = err.source_tier === "framework";
+  // Use isFrameworkKey to decide link vs span (prevents broken links for framework keys)
+  const isFramework = isFrameworkKey(err.app_key);
+  const appDisplay = isFramework
+    ? frameworkDisplayLabel(err.app_key as string)
+    : (err.app_key ?? (err.kind === "handler" ? "deleted handler" : "deleted job"));
 
   return (
     <div class="ht-error-entry" data-testid="error-item">
@@ -60,13 +69,11 @@ function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
         >
           {badgeText}
         </span>
-        {isFramework && (
+        {isFrameworkTier && (
           <span class="ht-tag ht-tag--framework ht-tag--xs">Framework</span>
         )}
-        {err.app_key ? (
-          <a href={`/apps/${err.app_key}`} class="ht-text-sm">
-            {err.app_key}
-          </a>
+        {!isFramework && err.app_key ? (
+          <a href={`/apps/${err.app_key}`} class="ht-text-sm">{err.app_key}</a>
         ) : (
           <span class="ht-text-sm ht-text-muted">{appDisplay}</span>
         )}
@@ -82,7 +89,15 @@ function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
       </div>
       <div class="ht-error-entry__body">
         <code class="ht-text-sm">{err.error_type}</code>
-        <span class="ht-text-sm">{err.error_message}</span>
+        <ErrorCell
+          traceback={err.error_traceback}
+          message={err.error_message}
+          expanded={tracebackExpanded.value}
+          onToggle={() => { tracebackExpanded.value = !tracebackExpanded.value; }}
+        />
+        {tracebackExpanded.value && err.error_traceback && (
+          <pre class="ht-traceback">{err.error_traceback}</pre>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render } from "@testing-library/preact";
+import { render, fireEvent } from "@testing-library/preact";
 import { ErrorFeed } from "./error-feed";
 import type { DashboardErrorEntry, HandlerErrorEntry, JobErrorEntry } from "../../api/endpoints";
 
@@ -123,5 +123,59 @@ describe("ErrorFeed", () => {
     );
     expect(keyWarnings).toHaveLength(0);
     spy.mockRestore();
+  });
+
+  it("test_framework_error_renders_badge_not_link: framework app_key renders as span not anchor", () => {
+    const err = createError({ app_key: "__hassette__.service_watcher", source_tier: "framework" });
+    const { container, queryByRole } = render(<ErrorFeed errors={[err]} />);
+    // Must not be an anchor link
+    const links = queryByRole("link");
+    expect(links).toBeNull();
+    // Must be a span with muted text showing the display label
+    const spans = container.querySelectorAll(".ht-text-muted");
+    const found = Array.from(spans).some((el) => el.textContent === "Service Watcher");
+    expect(found).toBe(true);
+  });
+
+  it("test_traceback_toggle_shown_when_present: traceback button visible when error_traceback set", () => {
+    const err = createError({ error_traceback: "Traceback (most recent call last):\n  File test.py" });
+    const { getByRole } = render(<ErrorFeed errors={[err]} />);
+    const button = getByRole("button", { name: /traceback/i });
+    expect(button).toBeDefined();
+  });
+
+  it("test_traceback_toggle_hidden_when_absent: no traceback button when error_traceback is null", () => {
+    const err = createError({ error_traceback: null });
+    const { queryByRole } = render(<ErrorFeed errors={[err]} />);
+    expect(queryByRole("button", { name: /traceback/i })).toBeNull();
+  });
+
+  it("test_traceback_toggle_expands_pre: clicking toggle reveals pre with traceback text", () => {
+    const tracebackText = "Traceback (most recent call last):\n  File test.py, line 1";
+    const err = createError({ error_traceback: tracebackText });
+    const { getByRole, queryByText } = render(<ErrorFeed errors={[err]} />);
+
+    // Pre with traceback not visible initially
+    expect(queryByText(tracebackText)).toBeNull();
+
+    // Click toggle
+    const button = getByRole("button", { name: /traceback/i });
+    fireEvent.click(button);
+
+    // Pre with traceback should now be visible
+    expect(queryByText(tracebackText)).not.toBeNull();
+  });
+
+  it("test_unified_feed_includes_both_tiers: renders both app and framework errors", () => {
+    const appErr = createError({ app_key: "my_app", source_tier: "app" });
+    const fwErr = createError({ app_key: "__hassette__.core", source_tier: "framework", listener_id: 99 });
+    const { getByText } = render(<ErrorFeed errors={[appErr, fwErr]} />);
+
+    // App error renders as link
+    expect(getByText("my_app").tagName.toLowerCase()).toBe("a");
+    // Framework error renders as span (no links for framework)
+    expect(getByText("Core")).toBeDefined();
+    // Both Framework badges appear
+    expect(getByText("Framework")).toBeDefined();
   });
 });

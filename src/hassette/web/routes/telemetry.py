@@ -328,7 +328,7 @@ async def dashboard_kpis(
     source_tier: QuerySourceTier | None = _SOURCE_TIER_PARAM,
 ) -> DashboardKpisResponse:
     """Global KPI metrics for the dashboard strip."""
-    effective_tier = source_tier if source_tier is not None else "app"
+    effective_tier = source_tier if source_tier is not None else "all"
     try:
         summary = await telemetry.get_global_summary(session_id=session_id, source_tier=effective_tier)
     except DB_ERRORS:
@@ -432,7 +432,7 @@ async def dashboard_errors(
     source_tier: QuerySourceTier | None = _SOURCE_TIER_PARAM,
 ) -> DashboardErrorsResponse:
     """Recent errors for the dashboard error feed."""
-    effective_tier = source_tier if source_tier is not None else "app"
+    effective_tier = source_tier if source_tier is not None else "all"
     since_ts = time.time() - 86400
     try:
         raw_errors = await telemetry.get_recent_errors(
@@ -480,60 +480,28 @@ async def dashboard_framework_summary(
     telemetry: TelemetryDep,
     session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> FrameworkSummaryResponse:
-    """Combined framework KPIs + recent errors in one atomic response.
+    """Framework KPI counts for the System Health badge.
 
-    Eliminates the dual-fetch desync between error count badge and error feed
-    that occurs when two separate calls race under incident conditions.
+    Returns only error counts (24h window) for the badge — the unified error feed
+    in dashboard_errors handles displaying framework errors inline.
     """
     total_errors = 0
     total_job_errors = 0
-    typed_errors: list[HandlerErrorEntry | JobErrorEntry] = []
-
-    try:
-        summary = await telemetry.get_global_summary(session_id=session_id, source_tier="framework")
-        total_errors = summary.listeners.total_errors
-        total_job_errors = summary.jobs.total_errors
-    except DB_ERRORS:
-        LOGGER.warning("Failed to fetch framework global summary", exc_info=True)
 
     since_ts = time.time() - 86400
     try:
         raw_errors = await telemetry.get_recent_errors(
-            since_ts=since_ts, limit=10, session_id=session_id, source_tier="framework"
+            since_ts=since_ts, limit=1000, session_id=session_id, source_tier="framework"
         )
         for err in raw_errors:
             if isinstance(err, JobErrorRecord):
-                typed_errors.append(
-                    JobErrorEntry(
-                        job_id=err.job_id,
-                        job_name=err.job_name,
-                        error_message=err.error_message or "",
-                        error_type=err.error_type or "",
-                        execution_start_ts=err.execution_start_ts,
-                        app_key=err.app_key,
-                        source_tier=err.source_tier,
-                        error_traceback=err.error_traceback,
-                    )
-                )
+                total_job_errors += 1
             elif isinstance(err, HandlerErrorRecord):
-                typed_errors.append(
-                    HandlerErrorEntry(
-                        listener_id=err.listener_id,
-                        topic=err.topic,
-                        handler_method=err.handler_method,
-                        error_message=err.error_message or "",
-                        error_type=err.error_type or "",
-                        execution_start_ts=err.execution_start_ts,
-                        app_key=err.app_key,
-                        source_tier=err.source_tier,
-                        error_traceback=err.error_traceback,
-                    )
-                )
+                total_errors += 1
     except DB_ERRORS:
-        LOGGER.warning("Failed to fetch framework recent errors", exc_info=True)
+        LOGGER.warning("Failed to fetch framework recent errors for badge count", exc_info=True)
 
     return FrameworkSummaryResponse(
         total_errors=total_errors,
         total_job_errors=total_job_errors,
-        errors=typed_errors,
     )

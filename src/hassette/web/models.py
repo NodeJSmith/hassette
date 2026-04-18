@@ -294,11 +294,10 @@ class DashboardErrorsResponse(BaseModel):
 
 
 class FrameworkSummaryResponse(BaseModel):
-    """Combined framework KPIs + recent errors in one atomic response."""
+    """Framework KPI counts for the System Health badge."""
 
     total_errors: int
     total_job_errors: int
-    errors: list[HandlerErrorEntry | JobErrorEntry]
 
 
 SessionListEntry = SessionRecord

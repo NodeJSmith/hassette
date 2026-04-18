@@ -1183,7 +1183,7 @@
           "telemetry"
         ],
         "summary": "Dashboard Framework Summary",
-        "description": "Combined framework KPIs + recent errors in one atomic response.\n\nEliminates the dual-fetch desync between error count badge and error feed\nthat occurs when two separate calls race under incident conditions.",
+        "description": "Framework KPI counts for the System Health badge.\n\nReturns only error counts (24h window) for the badge \u2014 the unified error feed\nin dashboard_errors handles displaying framework errors inline.",
         "operationId": "dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get",
         "parameters": [
           {
@@ -1895,30 +1895,15 @@
           "total_job_errors": {
             "type": "integer",
             "title": "Total Job Errors"
-          },
-          "errors": {
-            "items": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/HandlerErrorEntry"
-                },
-                {
-                  "$ref": "#/components/schemas/JobErrorEntry"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Errors"
           }
         },
         "type": "object",
         "required": [
           "total_errors",
-          "total_job_errors",
-          "errors"
+          "total_job_errors"
         ],
         "title": "FrameworkSummaryResponse",
-        "description": "Combined framework KPIs + recent errors in one atomic response."
+        "description": "Framework KPI counts for the System Health badge."
       },
       "HTTPValidationError": {
         "properties": {
