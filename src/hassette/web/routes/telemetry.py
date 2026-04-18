@@ -454,6 +454,7 @@ async def dashboard_errors(
                     execution_start_ts=err.execution_start_ts,
                     app_key=err.app_key,
                     source_tier=err.source_tier,
+                    error_traceback=err.error_traceback,
                 )
             )
         elif isinstance(err, HandlerErrorRecord):
@@ -467,6 +468,7 @@ async def dashboard_errors(
                     execution_start_ts=err.execution_start_ts,
                     app_key=err.app_key,
                     source_tier=err.source_tier,
+                    error_traceback=err.error_traceback,
                 )
             )
 
@@ -510,6 +512,7 @@ async def dashboard_framework_summary(
                         execution_start_ts=err.execution_start_ts,
                         app_key=err.app_key,
                         source_tier=err.source_tier,
+                        error_traceback=err.error_traceback,
                     )
                 )
             elif isinstance(err, HandlerErrorRecord):
@@ -523,6 +526,7 @@ async def dashboard_framework_summary(
                         execution_start_ts=err.execution_start_ts,
                         app_key=err.app_key,
                         source_tier=err.source_tier,
+                        error_traceback=err.error_traceback,
                     )
                 )
     except DB_ERRORS:

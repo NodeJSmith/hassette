@@ -579,7 +579,8 @@ class TelemetryQueryService(Resource):
                 hi.duration_ms,
                 hi.source_tier,
                 hi.error_type,
-                hi.error_message
+                hi.error_message,
+                hi.error_traceback
             FROM handler_invocations hi
             LEFT JOIN listeners l ON l.id = hi.listener_id
             WHERE hi.status = 'error'
@@ -600,7 +601,8 @@ class TelemetryQueryService(Resource):
                 je.duration_ms,
                 je.source_tier,
                 je.error_type,
-                je.error_message
+                je.error_message,
+                je.error_traceback
             FROM job_executions je
             LEFT JOIN scheduled_jobs sj ON sj.id = je.job_id
             WHERE je.status = 'error'
@@ -636,6 +638,7 @@ class TelemetryQueryService(Resource):
                         source_tier=d["source_tier"],
                         error_type=d["error_type"],
                         error_message=d["error_message"],
+                        error_traceback=d["error_traceback"],
                     )
                 )
             else:
@@ -650,6 +653,7 @@ class TelemetryQueryService(Resource):
                         source_tier=d["source_tier"],
                         error_type=d["error_type"],
                         error_message=d["error_message"],
+                        error_traceback=d["error_traceback"],
                     )
                 )
         return result

@@ -2019,6 +2019,17 @@
             ],
             "title": "Source Tier",
             "default": "app"
+          },
+          "error_traceback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Traceback"
           }
         },
         "type": "object",
@@ -2176,6 +2187,17 @@
             ],
             "title": "Source Tier",
             "default": "app"
+          },
+          "error_traceback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Traceback"
           }
         },
         "type": "object",

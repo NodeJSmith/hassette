@@ -13,6 +13,9 @@ from dataclasses import dataclass
 
 from hassette.exceptions import DependencyError
 
+MAX_TRACEBACK_SIZE = 8192
+"""Maximum traceback string size in bytes. Tracebacks exceeding this are truncated."""
+
 
 @dataclass
 class ExecutionResult:
@@ -83,7 +86,10 @@ async def track_execution(
         if known_errors and isinstance(exc, known_errors):
             result.error_traceback = None
         else:
-            result.error_traceback = traceback.format_exc()
+            tb = traceback.format_exc()
+            if len(tb) > MAX_TRACEBACK_SIZE:
+                tb = tb[:MAX_TRACEBACK_SIZE] + "\n... [truncated]"
+            result.error_traceback = tb
         raise
     finally:
         result.duration_ms = (time.monotonic() - result.monotonic_start) * 1000

@@ -1105,6 +1105,92 @@ class TestDashboardErrorsOrphanRendering:
         assert entry["app_key"] is None
 
 
+class TestDashboardErrorsTraceback:
+    """Verify error_traceback is passed through in dashboard error response."""
+
+    async def test_dashboard_errors_handler_traceback_included(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """HandlerErrorRecord with traceback passes it through to HandlerErrorEntry."""
+        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(
+            return_value=[
+                HandlerErrorRecord(
+                    listener_id=42,
+                    topic="state_changed.light.kitchen",
+                    handler_method="on_light",
+                    error_message="unexpected error",
+                    error_type="RuntimeError",
+                    execution_start_ts=1234567890.0,
+                    duration_ms=12.5,
+                    app_key="my_app",
+                    error_traceback="Traceback (most recent call last):\n  File 'test.py'\nRuntimeError: error\n",
+                )
+            ]
+        )
+        response = await client.get("/api/telemetry/dashboard/errors")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["errors"]) == 1
+        entry = data["errors"][0]
+        assert entry["kind"] == "handler"
+        assert entry["error_traceback"] is not None
+        assert "RuntimeError" in entry["error_traceback"]
+
+    async def test_dashboard_errors_handler_traceback_none(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """HandlerErrorRecord with no traceback passes None through."""
+        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(
+            return_value=[
+                HandlerErrorRecord(
+                    listener_id=42,
+                    topic="state_changed.light.kitchen",
+                    handler_method="on_light",
+                    error_message="known error",
+                    error_type="DependencyError",
+                    execution_start_ts=1234567890.0,
+                    duration_ms=5.0,
+                    app_key="my_app",
+                    error_traceback=None,
+                )
+            ]
+        )
+        response = await client.get("/api/telemetry/dashboard/errors")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["errors"]) == 1
+        entry = data["errors"][0]
+        assert entry["error_traceback"] is None
+
+    async def test_dashboard_errors_job_traceback_included(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """JobErrorRecord with traceback passes it through to JobErrorEntry."""
+        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(
+            return_value=[
+                JobErrorRecord(
+                    job_id=7,
+                    job_name="check_sensors",
+                    handler_method="check",
+                    error_message="timeout",
+                    error_type="TimeoutError",
+                    execution_start_ts=1234567891.0,
+                    duration_ms=5000.0,
+                    app_key="sensor_app",
+                    error_traceback="Traceback:\n  File 'job.py'\nTimeoutError: timeout\n",
+                )
+            ]
+        )
+        response = await client.get("/api/telemetry/dashboard/errors")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["errors"]) == 1
+        entry = data["errors"][0]
+        assert entry["kind"] == "job"
+        assert entry["error_traceback"] is not None
+        assert "TimeoutError" in entry["error_traceback"]
+
+
 class TestDashboardErrorsSinceTs:
     """Verify since_ts defaults to last 24h instead of 0."""
 

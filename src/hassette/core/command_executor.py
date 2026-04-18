@@ -199,8 +199,15 @@ class CommandExecutor(Service):
         """
         execution_start_ts = time.time()
         result = ExecutionResult()  # safe default if CancelledError fires before yield
+        match cmd.source_tier:
+            case "app":
+                known: tuple[type[Exception], ...] = (DependencyError, HassetteError)
+            case "framework":
+                known = ()
+            case _:
+                raise AssertionError(f"Unexpected source_tier: {cmd.source_tier!r}")
         try:
-            async with track_execution(known_errors=(DependencyError, HassetteError)) as result:
+            async with track_execution(known_errors=known) as result:
                 await fn()
         except asyncio.CancelledError:
             self._enqueue_record(self._build_record(cmd, result, execution_start_ts))
