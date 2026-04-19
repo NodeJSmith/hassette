@@ -74,6 +74,17 @@ class CommandExecutor(Service):
     _last_capacity_warn_ts: float
     """Monotonic timestamp of the last 75%-capacity warning (rate-limiting)."""
 
+    _timeout_warn_timestamps: dict[int, float]
+    """Per-entity timeout warning rate limiter.
+
+    Maps in-memory ID (listener_id or job_id) to the monotonic timestamp of the
+    last timeout WARNING. Entries older than 60s are lazily evicted during
+    rate-limit checks.
+    """
+
+    _TIMEOUT_WARN_SUPPRESS_SECS: float = 60.0
+    """Minimum interval between timeout WARNINGs for the same entity."""
+
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         self._write_queue = asyncio.Queue(maxsize=hassette.config.telemetry_write_queue_max)
@@ -83,6 +94,7 @@ class CommandExecutor(Service):
         self._dropped_no_session = 0
         self._dropped_shutdown = 0
         self._last_capacity_warn_ts = 0.0
+        self._timeout_warn_timestamps = {}
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -208,17 +220,59 @@ class CommandExecutor(Service):
                 raise AssertionError(f"Unexpected source_tier: {cmd.source_tier!r}")
         try:
             async with track_execution(known_errors=known) as result:
-                await fn()
+                async with asyncio.timeout(cmd.effective_timeout):
+                    await fn()
         except asyncio.CancelledError:
             self._enqueue_record(self._build_record(cmd, result, execution_start_ts))
             raise
         except Exception:
             pass  # track_execution() already re-raised; result is populated. Swallowing is intentional.
         # result is available for both success and error paths
+        if result.is_timed_out:
+            self._log_timeout_rate_limited(cmd, result)
         if result.is_error:
             log_error(result)
         self._enqueue_record(self._build_record(cmd, result, execution_start_ts))
         return result
+
+    def _log_timeout_rate_limited(self, cmd: InvokeHandler | ExecuteJob, result: ExecutionResult) -> None:
+        """Log a timeout WARNING, rate-limited per entity (60s suppression window).
+
+        Uses the in-memory ID (``listener_id`` for handlers, ``job.job_id`` for jobs)
+        to key the suppression window. Lazily evicts stale entries (>60s old)
+        during each check.
+        """
+        now = time.monotonic()
+
+        # Determine the in-memory ID for rate-limiting
+        match cmd:
+            case InvokeHandler():
+                entity_id = cmd.listener.listener_id
+                label = f"listener_id={cmd.listener.listener_id}, topic={cmd.topic}"
+            case ExecuteJob():
+                entity_id = cmd.job.job_id
+                label = f"job_id={cmd.job.job_id}, job_db_id={cmd.job_db_id}"
+
+        # Lazy eviction of stale entries
+        stale_ids = [
+            k for k, ts in self._timeout_warn_timestamps.items() if now - ts > self._TIMEOUT_WARN_SUPPRESS_SECS
+        ]
+        for k in stale_ids:
+            del self._timeout_warn_timestamps[k]
+
+        # Rate-limit check
+        if entity_id is not None:
+            last_ts = self._timeout_warn_timestamps.get(entity_id)
+            if last_ts is not None and now - last_ts < self._TIMEOUT_WARN_SUPPRESS_SECS:
+                return  # suppressed
+            self._timeout_warn_timestamps[entity_id] = now
+
+        self.logger.warning(
+            "Execution timed out after %.1fms (%s, timeout=%.1fs)",
+            result.duration_ms,
+            label,
+            cmd.effective_timeout if cmd.effective_timeout is not None else 0.0,
+        )
 
     def _enqueue_record(self, record: HandlerInvocationRecord | JobExecutionRecord) -> None:
         """Enqueue a record, dropping and logging if the queue is full.

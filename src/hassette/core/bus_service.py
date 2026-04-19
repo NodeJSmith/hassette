@@ -410,6 +410,7 @@ class BusService(Service):
                 topic=topic,
                 listener_id=listener.db_id,
                 source_tier=listener.source_tier,
+                effective_timeout=None,
             )
             await self._executor.execute(cmd)
 

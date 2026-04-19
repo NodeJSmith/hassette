@@ -379,6 +379,7 @@ class SchedulerService(Service):
             callable=_bound_callable,
             job_db_id=job.db_id,
             source_tier=job.source_tier,
+            effective_timeout=None,
         )
         await self._executor.execute(cmd)
 

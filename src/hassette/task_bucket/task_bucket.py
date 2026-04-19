@@ -192,6 +192,8 @@ class TaskBucket(Resource):
         async def _sync_fn(*args: P.args, **kwargs: P.kwargs) -> R:
             try:
                 return await self.run_in_thread(cast("Callable[P, R]", fn), *args, **kwargs)
+            except TimeoutError:
+                raise
             except Exception:
                 # optional: you can re-raise without cancelling; no task to cancel anymore
                 self.logger.exception("Error in sync function '%s'", getattr(fn, "__name__", repr(fn)))
