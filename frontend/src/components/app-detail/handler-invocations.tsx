@@ -2,6 +2,7 @@ import { signal } from "@preact/signals";
 import { useRef } from "preact/hooks";
 import type { HandlerInvocationData } from "../../api/endpoints";
 import { formatDuration, formatTimestamp } from "../../utils/format";
+import { executionStatusVariant } from "../../utils/status";
 import { ErrorCell } from "./error-cell";
 
 const INITIAL_ROWS = 5;
@@ -45,7 +46,7 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
             return [
               <tr key={i}>
                 <td>
-                  <span class={`ht-badge ht-badge--sm ht-badge--${inv.status === "success" ? "success" : "danger"}`}>{inv.status}</span>
+                  <span class={`ht-badge ht-badge--sm ht-badge--${executionStatusVariant(inv.status)}`}>{inv.status}</span>
                 </td>
                 <td class="ht-text-mono ht-text-xs">{formatTimestamp(inv.execution_start_ts)}</td>
                 <td>{formatDuration(inv.duration_ms)}</td>
