@@ -10,7 +10,7 @@ import { AppGrid } from "../components/dashboard/app-grid";
 import { ErrorFeed } from "../components/dashboard/error-feed";
 import { FrameworkHealth } from "../components/dashboard/framework-health";
 import { KpiStrip } from "../components/dashboard/kpi-strip";
-import { IconCheck, IconWarning } from "../components/shared/icons";
+import { IconCheck, IconInfo, IconWarning } from "../components/shared/icons";
 import { Spinner } from "../components/shared/spinner";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { useDebouncedEffect } from "../hooks/use-debounced-effect";
@@ -94,7 +94,7 @@ export function DashboardPage() {
           <h2 class="ht-heading-5">
             {errors.loading.value ? null : errors.data.value && errors.data.value.length > 0 ? <IconWarning /> : <IconCheck />}
             <span>Recent Errors</span>
-            <span class="ht-info-hint" title="Showing errors from the last 24 hours">?</span>
+            <span class="ht-info-hint" title="Showing errors from the last 24 hours"><IconInfo /></span>
             <div class="ht-tier-toggle">
               {TIER_OPTIONS.map((opt) => (
                 <button
