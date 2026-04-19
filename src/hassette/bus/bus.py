@@ -116,6 +116,13 @@ class Options(TypedDict, total=False):
     throttle: float | None
     """Length of time in seconds to wait before allowing the handler to be invoked again."""
 
+    timeout: float | None
+    """Per-listener timeout in seconds. Overrides the global event_handler_timeout_seconds config.
+    None means fall through to the config default."""
+
+    timeout_disabled: bool
+    """When True, disables timeout enforcement for this listener regardless of config."""
+
     name: str | None
     """Optional stable name for the listener. Used as the natural key escape hatch to disambiguate
     registrations that would otherwise share the same natural key."""
@@ -212,6 +219,8 @@ class Bus(Resource):
         once: bool = False,
         debounce: float | None = None,
         throttle: float | None = None,
+        timeout: float | None = None,
+        timeout_disabled: bool = False,
         name: str | None = None,
     ) -> Subscription:
         """Subscribe to an event topic with optional filtering and modifiers.
@@ -225,6 +234,9 @@ class Bus(Resource):
             once: If True, the handler will be called only once and then removed.
             debounce: If set, applies a debounce to the handler.
             throttle: If set, applies a throttle to the handler.
+            timeout: Per-listener timeout in seconds. Overrides the global event_handler_timeout_seconds config.
+                None means fall through to the config default.
+            timeout_disabled: When True, disables timeout enforcement for this listener regardless of config.
             name: Optional stable name for this listener. When provided, it replaces the predicate
                 summary in the natural key and disambiguates registrations that would otherwise collide.
 
@@ -244,6 +256,8 @@ class Bus(Resource):
             once=once,
             debounce=debounce,
             throttle=throttle,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
             priority=self.priority,
             logger=self.logger,
             app_key=app_key,

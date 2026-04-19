@@ -402,6 +402,14 @@ class BusService(Service):
         Can propagate ``CancelledError`` — the ``CommandExecutor`` re-raises it after
         recording a cancellation record.
         """
+        # Resolve effective timeout: timeout_disabled → None; listener.timeout → use it;
+        # listener.timeout is None → config default
+        if listener.timeout_disabled:
+            effective_timeout = None
+        elif listener.timeout is not None:
+            effective_timeout = listener.timeout
+        else:
+            effective_timeout = self.hassette.config.event_handler_timeout_seconds
 
         async def execute_fn() -> None:
             cmd = InvokeHandler(
@@ -410,7 +418,7 @@ class BusService(Service):
                 topic=topic,
                 listener_id=listener.db_id,
                 source_tier=listener.source_tier,
-                effective_timeout=None,
+                effective_timeout=effective_timeout,
             )
             await self._executor.execute(cmd)
 

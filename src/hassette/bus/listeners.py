@@ -77,6 +77,13 @@ class Listener:
     throttle: float | None = None
     """Throttle interval in seconds. At most one handler execution per window; extras are dropped."""
 
+    timeout: float | None = None
+    """Per-listener timeout in seconds. Overrides the global event_handler_timeout_seconds config.
+    None means fall through to the config default."""
+
+    timeout_disabled: bool = False
+    """When True, disables timeout enforcement for this listener regardless of config."""
+
     priority: int = 0
     """Priority for listener ordering. Higher values run first. Default is 0 for app handlers."""
 
@@ -202,7 +209,12 @@ class Listener:
         return f"Listener<{self.owner_id} - {self.handler_short_name}>"
 
     @staticmethod
-    def _validate_options(once: bool, debounce: float | None, throttle: float | None) -> None:
+    def _validate_options(
+        once: bool,
+        debounce: float | None,
+        throttle: float | None,
+        timeout: float | None = None,
+    ) -> None:
         if debounce is not None and debounce <= 0:
             raise ValueError("'debounce' must be a positive number")
         if throttle is not None and throttle <= 0:
@@ -211,6 +223,8 @@ class Listener:
             raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
         if once and (debounce is not None or throttle is not None):
             raise ValueError("Cannot combine 'once=True' with 'debounce' or 'throttle'")
+        if timeout is not None and (isinstance(timeout, bool) or timeout <= 0):
+            raise ValueError("timeout must be a positive number")
 
     @classmethod
     def create(
@@ -224,6 +238,8 @@ class Listener:
         once: bool = False,
         debounce: float | None = None,
         throttle: float | None = None,
+        timeout: float | None = None,
+        timeout_disabled: bool = False,
         priority: int = 0,
         logger: Logger = LOGGER,
         app_key: str = "",
@@ -231,7 +247,7 @@ class Listener:
         name: str | None = None,
         source_tier: SourceTier = "app",
     ) -> "Listener":
-        cls._validate_options(once=once, debounce=debounce, throttle=throttle)
+        cls._validate_options(once=once, debounce=debounce, throttle=throttle, timeout=timeout)
 
         pred = normalize_where(where)
         signature = get_typed_signature(handler)
@@ -257,6 +273,8 @@ class Listener:
             once=once,
             debounce=debounce,
             throttle=throttle,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
             priority=priority,
             handler_name=handler_name,
             handler_short_name=short_name,
