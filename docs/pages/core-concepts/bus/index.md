@@ -58,6 +58,33 @@ You can rate-limit your handlers directly in the subscription call to handle noi
 
 Both `debounce` and `throttle` must be positive; zero or negative values raise `ValueError` at registration. Specifying both `debounce` and `throttle` together also raises `ValueError` — only one rate-limiting strategy may be active at a time. Combining `once=True` with either also raises `ValueError`.
 
+## Timeouts
+
+All subscription methods (`on`, `on_state_change`, `on_attribute_change`, `on_call_service`, `on_component_loaded`) accept `timeout` and `timeout_disabled` parameters to control per-listener execution timeouts.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `timeout` | `float \| None` | `None` | Per-listener timeout in seconds. `None` uses the global `event_handler_timeout_seconds` default. A positive `float` overrides it. |
+| `timeout_disabled` | `bool` | `False` | When `True`, disables timeout enforcement for this listener regardless of the global default. |
+
+```python
+# Override the global timeout for a slow handler
+self.bus.on_state_change(
+    "sensor.weather",
+    handler=self.fetch_forecast,
+    timeout=30.0,  # 30 seconds instead of the global default
+)
+
+# Disable timeout for a handler that legitimately runs long
+self.bus.on_state_change(
+    "input_boolean.run_backup",
+    handler=self.run_full_backup,
+    timeout_disabled=True,
+)
+```
+
+See [Timeouts](../configuration/global.md#timeouts) for global configuration and override semantics.
+
 ## Handler Exceptions
 
 If a handler raises an exception, Hassette catches it, logs it at `ERROR` level with the full traceback, and records the failure in the telemetry database. The exception does not propagate — the app keeps running, and the next event dispatches as normal. Other handlers for the same event are not affected.

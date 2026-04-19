@@ -290,6 +290,20 @@ class Hassette(Resource):
 
         return await wait_for_ready(resources, timeout=timeout, shutdown_event=self.shutdown_event)
 
+    async def on_initialize(self) -> None:
+        """Emit warnings for disabled global timeouts.
+
+        Called once during startup after log infrastructure is running.
+        """
+        for field in ("scheduler_job_timeout_seconds", "event_handler_timeout_seconds"):
+            if getattr(self.config, field) is None:
+                self.logger.warning(
+                    "%s is None — "
+                    "execution timeout enforcement is disabled globally — "
+                    "framework components are unprotected",
+                    field,
+                )
+
     async def run_forever(self) -> None:
         """Start Hassette and run until shutdown signal is received."""
         self._loop = asyncio.get_running_loop()
@@ -298,6 +312,8 @@ class Hassette(Resource):
 
         # pyright ignore is to handle what seems like another 3.11 bug/type issue
         self.loop.set_task_factory(make_task_factory(self.task_bucket))  # pyright: ignore[reportArgumentType]
+
+        await self.on_initialize()
 
         # Phase 1: Start database and create session before anything else.
         # This guarantees a valid session_id exists before any handler can fire.

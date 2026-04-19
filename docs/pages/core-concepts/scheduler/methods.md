@@ -15,6 +15,8 @@ The primary entry point for scheduling. All convenience methods delegate here. U
 | `name` | `str` | `""` | Optional name for the job. |
 | `group` | `str \| None` | `None` | Optional group name for bulk management. See [Job Groups](#job-groups). |
 | `jitter` | `float \| None` | `None` | Optional seconds of random offset applied at enqueue time. See [Jitter](#jitter). |
+| `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global `scheduler_job_timeout_seconds` default. A positive `float` overrides it. See [Timeouts](../configuration/global.md#timeouts). |
+| `timeout_disabled` | `bool` | `False` | When `True`, timeout enforcement is disabled for this job regardless of the global default. |
 | `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
@@ -45,6 +47,8 @@ Run once after a delay. Useful for timeouts or delayed actions.
 | `delay` | `float` | *(required)* | Delay in seconds before running. |
 | `name` | `str` | `""` | Optional name for the job. |
 | `group` | `str \| None` | `None` | Optional group name. See [Job Groups](#job-groups). |
+| `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global default. See [Timeouts](../configuration/global.md#timeouts). |
+| `timeout_disabled` | `bool` | `False` | Disable timeout enforcement for this job. |
 | `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
@@ -62,6 +66,8 @@ Run once at a specific wall-clock time. Accepts a `"HH:MM"` string or a `ZonedDa
 | `at` | `str \| ZonedDateTime` | *(required)* | Target time. `"HH:MM"` is interpreted as today in the system timezone; if already past, defers to tomorrow. |
 | `name` | `str` | `""` | Optional name for the job. |
 | `group` | `str \| None` | `None` | Optional group name. See [Job Groups](#job-groups). |
+| `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global default. See [Timeouts](../configuration/global.md#timeouts). |
+| `timeout_disabled` | `bool` | `False` | Disable timeout enforcement for this job. |
 | `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
@@ -84,6 +90,8 @@ Run repeatedly at a fixed interval. Specify the interval using `hours`, `minutes
 | `seconds` | `float` | `0` | Seconds component of the interval. |
 | `name` | `str` | `""` | Optional name for the job. |
 | `group` | `str \| None` | `None` | Optional group name. See [Job Groups](#job-groups). |
+| `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global default. See [Timeouts](../configuration/global.md#timeouts). |
+| `timeout_disabled` | `bool` | `False` | Disable timeout enforcement for this job. |
 | `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
@@ -105,6 +113,8 @@ Run every N minutes. Shorthand for `run_every(minutes=N)`.
 | `minutes` | `int` | `1` | Minute interval. Must be at least 1. |
 | `name` | `str` | `""` | Optional name for the job. |
 | `group` | `str \| None` | `None` | Optional group name. See [Job Groups](#job-groups). |
+| `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global default. See [Timeouts](../configuration/global.md#timeouts). |
+| `timeout_disabled` | `bool` | `False` | Disable timeout enforcement for this job. |
 | `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
@@ -122,6 +132,8 @@ Run every N hours. Shorthand for `run_every(hours=N)`.
 | `hours` | `int` | `1` | Hour interval. Must be at least 1. |
 | `name` | `str` | `""` | Optional name for the job. |
 | `group` | `str \| None` | `None` | Optional group name. See [Job Groups](#job-groups). |
+| `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global default. See [Timeouts](../configuration/global.md#timeouts). |
+| `timeout_disabled` | `bool` | `False` | Disable timeout enforcement for this job. |
 | `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
@@ -139,6 +151,8 @@ Run once per day at a fixed wall-clock time. Uses a cron-based trigger internall
 | `at` | `str` | `"00:00"` | Target wall-clock time in `"HH:MM"` format. |
 | `name` | `str` | `""` | Optional name for the job. |
 | `group` | `str \| None` | `None` | Optional group name. See [Job Groups](#job-groups). |
+| `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global default. See [Timeouts](../configuration/global.md#timeouts). |
+| `timeout_disabled` | `bool` | `False` | Disable timeout enforcement for this job. |
 | `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
@@ -160,6 +174,8 @@ Run on a schedule defined by a cron expression. Accepts both 5-field (standard U
 | `expression` | `str` | *(required)* | A valid 5- or 6-field cron expression. |
 | `name` | `str` | `""` | Optional name for the job. |
 | `group` | `str \| None` | `None` | Optional group name. See [Job Groups](#job-groups). |
+| `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global default. See [Timeouts](../configuration/global.md#timeouts). |
+| `timeout_disabled` | `bool` | `False` | Disable timeout enforcement for this job. |
 | `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
