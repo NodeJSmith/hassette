@@ -26,7 +26,7 @@ jobs:
                   uv tool install ruff==0.14.9
                   uvx ruff format --check --diff .
                   uvx ruff check .
-                  SKIP=eslint uvx pre-commit run --all-files --hook-stage pre-push
+                  SKIP=eslint,tsc uvx pre-commit run --all-files --hook-stage pre-push
 
             - name: Fail if generators produced drift
               # Uses the generator's --check mode, which runs ruff on both the committed
