@@ -150,7 +150,7 @@ Individual jobs and listeners can override the global default using two paramete
 | `timeout=30.0` | Override with an explicit timeout (30 seconds in this example). |
 | `timeout_disabled=True` | Disable timeout enforcement entirely for this item, regardless of the global default. |
 
-When a job or handler exceeds its timeout, Hassette cancels the task via `asyncio.CancelledError` and records the execution as `timed_out` in the telemetry database.
+When a job or handler exceeds its timeout, Hassette raises `TimeoutError` to cancel the execution and records it as `timed_out` in the telemetry database.
 
 #### Disabling timeouts globally
 

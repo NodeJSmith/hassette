@@ -261,11 +261,10 @@ class CommandExecutor(Service):
             del self._timeout_warn_timestamps[k]
 
         # Rate-limit check
-        if entity_id is not None:
-            last_ts = self._timeout_warn_timestamps.get(entity_id)
-            if last_ts is not None and now - last_ts < self._TIMEOUT_WARN_SUPPRESS_SECS:
-                return  # suppressed
-            self._timeout_warn_timestamps[entity_id] = now
+        last_ts = self._timeout_warn_timestamps.get(entity_id)
+        if last_ts is not None and now - last_ts < self._TIMEOUT_WARN_SUPPRESS_SECS:
+            return  # suppressed
+        self._timeout_warn_timestamps[entity_id] = now
 
         self.logger.warning(
             "Execution timed out after %.1fms (%s, timeout=%.1fs)",

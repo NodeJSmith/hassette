@@ -247,7 +247,7 @@ All scheduling methods accept an `if_exists` parameter to control this behavior:
 | Value | Behavior |
 |-------|----------|
 | `"error"` (default) | Raise `ValueError` if a job with the same name already exists. |
-| `"skip"` | Return the existing job if its configuration matches. Raises `ValueError` if a job with the same name exists but has a different configuration. Two jobs match when they have the same callable, trigger (by `trigger_id()`), group, `args`, and `kwargs`. Useful for safe re-registration in `on_initialize`. |
+| `"skip"` | Return the existing job if its configuration matches. Raises `ValueError` if a job with the same name exists but has a different configuration. Two jobs match when they have the same callable, trigger (by `trigger_id()`), group, jitter, timeout, timeout_disabled, `args`, and `kwargs`. Useful for safe re-registration in `on_initialize`. |
 
 This is especially useful in `on_initialize`, which runs again on app reload:
 
