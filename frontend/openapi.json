@@ -1183,7 +1183,7 @@
           "telemetry"
         ],
         "summary": "Dashboard Framework Summary",
-        "description": "Framework KPI counts for the System Health badge.\n\nReturns only error counts (24h window) for the badge \u2014 the unified error feed\nin dashboard_errors handles displaying framework errors inline.",
+        "description": "Framework error counts for the System Health badge.\n\nScoped by session_id when provided (matching the dashboard's session toggle),\notherwise returns all-time counts.",
         "operationId": "dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get",
         "parameters": [
           {

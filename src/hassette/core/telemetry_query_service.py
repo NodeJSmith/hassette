@@ -40,8 +40,7 @@ def _source_tier_clause(source_tier: QuerySourceTier, alias: str) -> tuple[str, 
         source_tier: One of ``'app'``, ``'framework'``, or ``'all'``.
         alias: The SQL table alias to qualify the ``source_tier`` column.
     """
-    if alias not in {"l", "hi", "je", "sj"}:
-        raise ValueError(f"Unexpected SQL alias: {alias!r}")
+    # alias is an internal SQL table alias; no user data flows through this parameter
     match source_tier:
         case "all":
             return ("", [])
@@ -70,6 +69,16 @@ class TelemetryQueryService(Resource):
             self.mark_ready(reason="Web API disabled")
             return
         await self.hassette.wait_for_ready([self.hassette.database_service])
+
+        async with self._db.execute("PRAGMA journal_mode") as cursor:
+            row = await cursor.fetchone()
+            mode = row[0] if row else "unknown"
+        if mode != "wal":
+            raise RuntimeError(
+                f"TelemetryQueryService requires WAL journal mode on the read connection, "
+                f"got {mode!r}. Snapshot isolation for multi-query reads is not guaranteed."
+            )
+
         self.mark_ready(reason="TelemetryQueryService initialized")
 
     @property
@@ -363,7 +372,7 @@ class TelemetryQueryService(Resource):
         all_keys = {
             k
             for k in set(listener_reg.keys()) | set(listener_act.keys()) | set(job_reg.keys()) | set(job_act.keys())
-            if source_tier == "framework" or not is_framework_key(k)
+            if source_tier in ("framework", "all") or not is_framework_key(k)
         }
         result: dict[str, AppHealthSummary] = {}
         for app_key in all_keys:
@@ -723,7 +732,8 @@ class TelemetryQueryService(Resource):
                 l.handler_method,
                 l.topic,
                 hi.execution_start_ts,
-                hi.duration_ms
+                hi.duration_ms,
+                hi.source_tier
             FROM handler_invocations hi
             LEFT JOIN listeners l ON l.id = hi.listener_id
             WHERE hi.duration_ms > ?

@@ -1,71 +1,98 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/preact";
-import { signal } from "@preact/signals";
 import { FrameworkHealth } from "./framework-health";
-import type { FrameworkSummary } from "../../api/endpoints";
+import type { DashboardErrorEntry } from "../../api/endpoints";
 
-vi.mock("../../hooks/use-scoped-api", () => ({
-  useScopedApi: vi.fn(),
-}));
-
-import { useScopedApi } from "../../hooks/use-scoped-api";
-
-function makeSummary(data: FrameworkSummary | null = null) {
+function makeError(overrides: Partial<DashboardErrorEntry> = {}): DashboardErrorEntry {
   return {
-    data: signal(data),
-    loading: signal(false),
-    error: signal<string | null>(null),
-    refetch: vi.fn(),
+    kind: "handler",
+    listener_id: 1,
+    job_id: null,
+    topic: "state_changed",
+    handler_method: "on_test",
+    job_name: null,
+    error_message: "boom",
+    error_type: "RuntimeError",
+    execution_start_ts: 1000,
+    app_key: "test_app",
+    source_tier: "app",
+    error_traceback: null,
+    ...overrides,
   };
 }
 
 describe("FrameworkHealth", () => {
-  it("test_renders_count_badge: shows error count badge", () => {
-    vi.mocked(useScopedApi).mockReturnValue(
-      makeSummary({ total_errors: 3, total_job_errors: 1 }),
+  it("test_renders_count_badge: shows error count badge from feed data", () => {
+    const errors: DashboardErrorEntry[] = [
+      makeError({ source_tier: "framework", app_key: "__hassette__.bus_service" }),
+      makeError({ source_tier: "framework", app_key: "__hassette__.service_watcher" }),
+      makeError({ source_tier: "framework", app_key: "__hassette__.command_executor" }),
+      makeError({ source_tier: "app" }),
+    ];
+    const { getByTestId } = render(
+      <FrameworkHealth errors={errors} loading={false} hasError={false} />,
     );
-    const { getByTestId } = render(<FrameworkHealth />);
     const badge = getByTestId("framework-error-count");
-    expect(badge.textContent).toBe("4");
+    expect(badge.textContent).toBe("3");
   });
 
-  it("shows zero count when no errors", () => {
-    vi.mocked(useScopedApi).mockReturnValue(
-      makeSummary({ total_errors: 0, total_job_errors: 0 }),
+  it("shows zero count when no framework errors", () => {
+    const errors: DashboardErrorEntry[] = [
+      makeError({ source_tier: "app" }),
+    ];
+    const { getByTestId } = render(
+      <FrameworkHealth errors={errors} loading={false} hasError={false} />,
     );
-    const { getByTestId } = render(<FrameworkHealth />);
     const badge = getByTestId("framework-error-count");
     expect(badge.textContent).toBe("0");
     expect(badge.className).toContain("ht-badge--success");
   });
 
-  it("badge shows danger variant when errors present", () => {
-    vi.mocked(useScopedApi).mockReturnValue(
-      makeSummary({ total_errors: 2, total_job_errors: 0 }),
+  it("badge shows danger variant when framework errors present", () => {
+    const errors: DashboardErrorEntry[] = [
+      makeError({ source_tier: "framework", app_key: "__hassette__.bus_service" }),
+    ];
+    const { getByTestId } = render(
+      <FrameworkHealth errors={errors} loading={false} hasError={false} />,
     );
-    const { getByTestId } = render(<FrameworkHealth />);
     const badge = getByTestId("framework-error-count");
     expect(badge.className).toContain("ht-badge--danger");
   });
 
   it("test_no_error_feed_expansion: no expandable error list or aria-expanded", () => {
-    vi.mocked(useScopedApi).mockReturnValue(
-      makeSummary({ total_errors: 5, total_job_errors: 2 }),
+    const errors: DashboardErrorEntry[] = [
+      makeError({ source_tier: "framework", app_key: "__hassette__.bus_service" }),
+    ];
+    const { container, queryByRole } = render(
+      <FrameworkHealth errors={errors} loading={false} hasError={false} />,
     );
-    const { container, queryByRole } = render(<FrameworkHealth />);
-    // No expand button
     expect(queryByRole("button")).toBeNull();
-    // No aria-expanded attribute anywhere
     expect(container.querySelector("[aria-expanded]")).toBeNull();
-    // No error feed rendered
     expect(container.querySelector("[data-testid='dashboard-errors']")).toBeNull();
   });
 
   it("shows System Health label", () => {
-    vi.mocked(useScopedApi).mockReturnValue(
-      makeSummary({ total_errors: 0, total_job_errors: 0 }),
+    const { getByText } = render(
+      <FrameworkHealth errors={[]} loading={false} hasError={false} />,
     );
-    const { getByText } = render(<FrameworkHealth />);
     expect(getByText("System Health")).toBeDefined();
+  });
+
+  it("shows loading state", () => {
+    const { getByTestId } = render(
+      <FrameworkHealth errors={null} loading={true} hasError={false} />,
+    );
+    const badge = getByTestId("framework-error-count");
+    expect(badge.textContent).toBe("…");
+    expect(badge.className).toContain("ht-badge--neutral");
+  });
+
+  it("shows error state", () => {
+    const { getByTestId } = render(
+      <FrameworkHealth errors={null} loading={false} hasError={true} />,
+    );
+    const badge = getByTestId("framework-error-count");
+    expect(badge.textContent).toBe("?");
+    expect(badge.className).toContain("ht-badge--neutral");
   });
 });

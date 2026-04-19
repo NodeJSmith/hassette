@@ -414,10 +414,10 @@ export interface paths {
         };
         /**
          * Dashboard Framework Summary
-         * @description Framework KPI counts for the System Health badge.
+         * @description Framework error counts for the System Health badge.
          *
-         *     Returns only error counts (24h window) for the badge — the unified error feed
-         *     in dashboard_errors handles displaying framework errors inline.
+         *     Scoped by session_id when provided (matching the dashboard's session toggle),
+         *     otherwise returns all-time counts.
          */
         get: operations["dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get"];
         put?: never;

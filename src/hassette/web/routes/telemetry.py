@@ -6,6 +6,7 @@ all-time aggregates.
 """
 
 import sqlite3
+import time
 from logging import getLogger
 
 from fastapi import APIRouter, Path, Query, Response
@@ -48,6 +49,8 @@ DB_ERRORS: tuple[type[Exception], ...] = (sqlite3.Error, OSError, ValueError)
 Includes ``ValueError`` because aiosqlite raises it for closed-connection
 errors during shutdown.  All three types are suppressed uniformly — a degraded
 response is always preferable to an unhandled 500."""
+
+_ERROR_WINDOW_SECONDS = 86400
 
 _SOURCE_TIER_PARAM = Query(
     default=None,
@@ -434,7 +437,10 @@ async def dashboard_errors(
     effective_tier = source_tier if source_tier is not None else "all"
     try:
         raw_errors = await telemetry.get_recent_errors(
-            since_ts=0, limit=10, session_id=session_id, source_tier=effective_tier
+            since_ts=time.time() - _ERROR_WINDOW_SECONDS,
+            limit=10,
+            session_id=session_id,
+            source_tier=effective_tier,
         )
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch recent errors for dashboard", exc_info=True)
@@ -488,7 +494,9 @@ async def dashboard_framework_summary(
 
     try:
         total_errors, total_job_errors = await telemetry.get_error_counts(
-            since_ts=0, session_id=session_id, source_tier="framework"
+            since_ts=time.time() - _ERROR_WINDOW_SECONDS,
+            session_id=session_id,
+            source_tier="framework",
         )
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch framework error counts for badge", exc_info=True)

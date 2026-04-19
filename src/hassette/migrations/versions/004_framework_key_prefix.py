@@ -200,12 +200,33 @@ def downgrade() -> None:
     result = conn.execute(text("SELECT COUNT(*) FROM scheduled_jobs WHERE app_key GLOB '__hassette__.*'"))
     prefixed_job_count = result.scalar() or 0
     if prefixed_listener_count > 0 or prefixed_job_count > 0:
+        # Count child rows that will be orphaned by the parent deletion
+        result = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM handler_invocations hi "
+                "JOIN listeners l ON hi.listener_id = l.id "
+                "WHERE l.app_key GLOB '__hassette__.*'"
+            )
+        )
+        orphaned_invocations = result.scalar() or 0
+        result = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM job_executions je "
+                "JOIN scheduled_jobs sj ON je.job_id = sj.id "
+                "WHERE sj.app_key GLOB '__hassette__.*'"
+            )
+        )
+        orphaned_executions = result.scalar() or 0
+
+        # COUNT and DELETE are within Alembic's transaction — no TOCTOU gap
         LOGGER.warning(
-            "Downgrade 004→003: %d listener rows and %d scheduled_job rows use prefixed framework "
-            "keys ('__hassette__.*') that will violate the old exact-match CHECK constraint. "
-            "Those rows will be deleted before the downgrade to preserve referential integrity.",
+            "Downgrade 004→003: %d listener rows (%d invocation records) and %d scheduled_job rows "
+            "(%d execution records) use prefixed framework keys ('__hassette__.*'). "
+            "Parent rows will be deleted; child records will be orphaned.",
             prefixed_listener_count,
+            orphaned_invocations,
             prefixed_job_count,
+            orphaned_executions,
         )
         op.execute("DELETE FROM listeners WHERE app_key GLOB '__hassette__.*'")
         op.execute("DELETE FROM scheduled_jobs WHERE app_key GLOB '__hassette__.*'")

@@ -162,7 +162,7 @@ class ServiceWatcher(Resource):
         role = data.role
 
         try:
-            self.logger.exception(
+            self.logger.error(
                 "%s '%s' has crashed (event_id %d), shutting down Hassette, %s",
                 role,
                 name,

@@ -23,6 +23,9 @@ def _is_fk_violation(exc: sqlite3.IntegrityError) -> bool:
     return "FOREIGN KEY" in str(exc).upper()
 
 
+_TIER_APP: str = "app"
+
+
 class TelemetryRepository:
     """Encapsulates all write-side SQL for handler and job telemetry.
 
@@ -338,27 +341,27 @@ class TelemetryRepository:
                         f"""
                         DELETE FROM listeners
                         WHERE app_key = ? AND once = 1
-                          AND source_tier = 'app'  -- app only; framework keys are skipped by the guard above
+                          AND source_tier = ?
                           AND id NOT IN ({placeholders})
                           AND NOT EXISTS (
                               SELECT 1 FROM handler_invocations
                               WHERE listener_id = listeners.id AND session_id = ?
                           )
                         """,
-                        (app_key, *live_listener_ids, session_id),
+                        (app_key, _TIER_APP, *live_listener_ids, session_id),
                     )
                 else:
                     await db.execute(
                         """
                         DELETE FROM listeners
                         WHERE app_key = ? AND once = 1
-                          AND source_tier = 'app'  -- app only; framework keys are skipped by the guard above
+                          AND source_tier = ?
                           AND NOT EXISTS (
                               SELECT 1 FROM handler_invocations
                               WHERE listener_id = listeners.id AND session_id = ?
                           )
                         """,
-                        (app_key, session_id),
+                        (app_key, _TIER_APP, session_id),
                     )
             else:
                 # session_id is unavailable (DB write queue backpressure at startup).
@@ -433,12 +436,17 @@ class TelemetryRepository:
         invocations: list[HandlerInvocationRecord],
         job_executions: list[JobExecutionRecord],
     ) -> int:
-        """Insert records row-by-row with FK violation fallback, in a single transaction.
+        """Insert records row-by-row with FK violation fallback (best-effort per record).
 
         Called by ``CommandExecutor._handle_fk_violation`` after a batch INSERT already
         failed with IntegrityError. Each record is inserted individually; on FK violation
         the FK field is nulled and retried. Runs as one ``submit()`` call on the DB write
         queue, avoiding N round-trips.
+
+        Atomicity is best-effort per record, not per batch: if an individual record fails
+        even after FK nulling (e.g. disk error), it is silently dropped and the remaining
+        records are still committed. This is intentional for append-only telemetry — losing
+        one record to a transient error is preferable to losing the entire batch.
 
         Returns the number of records that were dropped (failed even with null FK).
         """

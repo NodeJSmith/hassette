@@ -345,7 +345,16 @@ class Hassette(Resource):
         # Without this, _pending_registration_tasks[<framework_key>] holds N completed
         # Tasks for the process lifetime since no further register_framework_listener()
         # calls trigger the pruning logic.
-        await self._bus_service.drain_framework_registrations()
+        try:
+            await asyncio.wait_for(
+                self._bus_service.drain_framework_registrations(),
+                timeout=self.config.registration_await_timeout,
+            )
+        except TimeoutError:
+            self.logger.warning(
+                "drain_framework_registrations timed out after %ds — proceeding with startup",
+                self.config.registration_await_timeout,
+            )
 
         # Clean up stale once=True listeners from previous sessions. Safe to run here
         # because: (a) CommandExecutor is ready, (b) session_id is set, and (c) the

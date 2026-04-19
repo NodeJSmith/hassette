@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "preact/hooks";
+import { useSignal } from "@preact/signals";
 import {
   getDashboardAppGrid,
   getDashboardErrors,
   getDashboardKpis,
 } from "../api/endpoints";
+import type { SourceTier } from "../api/endpoints";
 import { AppGrid } from "../components/dashboard/app-grid";
 import { ErrorFeed } from "../components/dashboard/error-feed";
 import { FrameworkHealth } from "../components/dashboard/framework-health";
@@ -14,6 +16,12 @@ import { useScopedApi } from "../hooks/use-scoped-api";
 import { useDebouncedEffect } from "../hooks/use-debounced-effect";
 import { useAppState } from "../state/context";
 
+const TIER_OPTIONS: { value: SourceTier; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "app", label: "Apps" },
+  { value: "framework", label: "Framework" },
+];
+
 export function DashboardPage() {
   useEffect(() => { document.title = "Dashboard - Hassette"; }, []);
   const { appStatus } = useAppState();
@@ -21,6 +29,8 @@ export function DashboardPage() {
   const kpis = useScopedApi((sid) => getDashboardKpis(sid));
   const appGrid = useScopedApi((sid) => getDashboardAppGrid(sid).then((r) => r.apps));
   const errors = useScopedApi((sid) => getDashboardErrors(sid).then((r) => r.errors));
+
+  const errorTierFilter = useSignal<SourceTier>("all");
 
   // Debounce appStatus-driven refetches so rapid WS updates coalesce into one
   // round of API calls. maxWait caps staleness during bulk startup. Reconnection
@@ -52,6 +62,10 @@ export function DashboardPage() {
     return <Spinner />;
   }
 
+  const filteredErrors = errors.data.value && errorTierFilter.value !== "all"
+    ? errors.data.value.filter((e) => e.source_tier === errorTierFilter.value)
+    : errors.data.value;
+
   return (
     <div>
       {kpis.error.value && (
@@ -81,8 +95,20 @@ export function DashboardPage() {
           <h2 class="ht-heading-5">
             <IconWarning />
             <span>Recent Errors</span>
+            <span class="ht-info-hint" title="Showing errors from the last 24 hours">?</span>
+            <div class="ht-tier-toggle">
+              {TIER_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  class={`ht-tier-toggle__btn${errorTierFilter.value === opt.value ? " ht-tier-toggle__btn--active" : ""}`}
+                  onClick={() => { errorTierFilter.value = opt.value; }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </h2>
-          <ErrorFeed errors={errors.data.value} />
+          <ErrorFeed errors={filteredErrors} />
         </div>
       ) : (
         <div class="ht-empty-section ht-mb-6">
@@ -91,9 +117,11 @@ export function DashboardPage() {
         </div>
       )}
 
-      <FrameworkHealth />
-
-
+      <FrameworkHealth
+        errors={errors.data.value}
+        loading={errors.loading.value}
+        hasError={!!errors.error.value}
+      />
     </div>
   );
 }

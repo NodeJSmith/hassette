@@ -13,11 +13,13 @@ export function isFrameworkKey(appKey: string | null | undefined): boolean {
 /**
  * Returns the component slug from a framework key.
  * `__hassette__.service_watcher` → `service_watcher`
- * `__hassette__` → `framework`
+ * `__hassette__` → `framework` (legacy bare-key path — new telemetry rows use prefixed keys)
  */
 export function frameworkDisplayName(appKey: string): string {
   if (appKey === FRAMEWORK_KEY_BARE) return "framework";
-  return appKey.replace(FRAMEWORK_KEY_PREFIX, "");
+  return appKey.startsWith(FRAMEWORK_KEY_PREFIX)
+    ? appKey.slice(FRAMEWORK_KEY_PREFIX.length)
+    : appKey;
 }
 
 /**

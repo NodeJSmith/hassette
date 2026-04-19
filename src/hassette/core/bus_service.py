@@ -148,10 +148,10 @@ class BusService(Service):
         Raises:
             ValueError: If ``component`` is empty or does not match the required pattern.
         """
-        if not component or not self._COMPONENT_RE.match(component):
+        if not component or not self._COMPONENT_RE.match(component) or "__" in component:
             raise ValueError(
                 f"Invalid framework component name: {component!r}; "
-                "must match ^[a-z][a-z_]*[a-z]$ (snake_case, at least 2 chars)"
+                "must match ^[a-z][a-z_]*[a-z]$ (snake_case, at least 2 chars, no consecutive underscores)"
             )
         app_key = f"{FRAMEWORK_APP_KEY_PREFIX}{component}"
         listener = Listener.create(
