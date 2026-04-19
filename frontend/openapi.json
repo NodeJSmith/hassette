@@ -1183,7 +1183,7 @@
           "telemetry"
         ],
         "summary": "Dashboard Framework Summary",
-        "description": "Framework error counts for the System Health badge (24h window).\n\nScoped by session_id when provided (matching the dashboard's session toggle).\nWithout session_id, returns counts from the last 24 hours.",
+        "description": "Framework error counts for the System Health badge.\n\nAlways scoped to the last 24 hours. When session_id is provided,\nfurther narrows to errors from that session.",
         "operationId": "dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get",
         "parameters": [
           {
