@@ -8,7 +8,7 @@ import typing
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.scheduler.classes import JobExecutionRecord
-from hassette.types.types import FRAMEWORK_APP_KEY
+from hassette.types.types import FRAMEWORK_APP_KEY, FRAMEWORK_APP_KEY_PREFIX, is_framework_key
 
 if typing.TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
@@ -21,6 +21,9 @@ def _is_fk_violation(exc: sqlite3.IntegrityError) -> bool:
     IntegrityError subtypes (CHECK, NOT NULL, UNIQUE) use different messages.
     """
     return "FOREIGN KEY" in str(exc).upper()
+
+
+_TIER_APP: str = "app"
 
 
 class TelemetryRepository:
@@ -40,10 +43,10 @@ class TelemetryRepository:
     @staticmethod
     def _validate_source_tier(app_key: str, source_tier: str) -> None:
         """Guard against user apps injecting source_tier='framework'."""
-        if source_tier == "framework" and app_key != FRAMEWORK_APP_KEY:
+        if source_tier == "framework" and not is_framework_key(app_key):
             raise ValueError(
-                f"Only the framework (app_key={FRAMEWORK_APP_KEY!r}) may use source_tier='framework'; "
-                f"got app_key={app_key!r}"
+                f"Only the framework (app_key={FRAMEWORK_APP_KEY!r} or '{FRAMEWORK_APP_KEY_PREFIX}<component>') "
+                f"may use source_tier='framework'; got app_key={app_key!r}"
             )
 
     async def register_listener(self, registration: ListenerRegistration) -> int:
@@ -259,10 +262,10 @@ class TelemetryRepository:
             session_id: Current session ID, used to guard once=True row deletion.
                 When None, once=True rows are unconditionally deleted.
         """
-        if app_key == FRAMEWORK_APP_KEY:
+        if is_framework_key(app_key):
             logging.getLogger(__name__).warning(
                 "reconcile_registrations() called for app_key=%r — framework listeners are not reconciled; skipping",
-                FRAMEWORK_APP_KEY,
+                app_key,
             )
             return
 
@@ -338,27 +341,27 @@ class TelemetryRepository:
                         f"""
                         DELETE FROM listeners
                         WHERE app_key = ? AND once = 1
-                          AND source_tier = 'app'  -- app only; see FRAMEWORK_APP_KEY
+                          AND source_tier = ?
                           AND id NOT IN ({placeholders})
                           AND NOT EXISTS (
                               SELECT 1 FROM handler_invocations
                               WHERE listener_id = listeners.id AND session_id = ?
                           )
                         """,
-                        (app_key, *live_listener_ids, session_id),
+                        (app_key, _TIER_APP, *live_listener_ids, session_id),
                     )
                 else:
                     await db.execute(
                         """
                         DELETE FROM listeners
                         WHERE app_key = ? AND once = 1
-                          AND source_tier = 'app'  -- app only; see FRAMEWORK_APP_KEY
+                          AND source_tier = ?
                           AND NOT EXISTS (
                               SELECT 1 FROM handler_invocations
                               WHERE listener_id = listeners.id AND session_id = ?
                           )
                         """,
-                        (app_key, session_id),
+                        (app_key, _TIER_APP, session_id),
                     )
             else:
                 # session_id is unavailable (DB write queue backpressure at startup).
@@ -433,12 +436,17 @@ class TelemetryRepository:
         invocations: list[HandlerInvocationRecord],
         job_executions: list[JobExecutionRecord],
     ) -> int:
-        """Insert records row-by-row with FK violation fallback, in a single transaction.
+        """Insert records row-by-row with FK violation fallback (best-effort per record).
 
         Called by ``CommandExecutor._handle_fk_violation`` after a batch INSERT already
         failed with IntegrityError. Each record is inserted individually; on FK violation
         the FK field is nulled and retried. Runs as one ``submit()`` call on the DB write
         queue, avoiding N round-trips.
+
+        Atomicity is best-effort per record, not per batch: if an individual record fails
+        even after FK nulling (e.g. disk error), it is silently dropped and the remaining
+        records are still committed. This is intentional for append-only telemetry — losing
+        one record to a transient error is preferable to losing the entire batch.
 
         Returns the number of records that were dropped (failed even with null FK).
         """

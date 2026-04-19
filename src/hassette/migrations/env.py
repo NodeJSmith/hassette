@@ -1,5 +1,5 @@
 from alembic import context
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 
 
 def run_migrations_online() -> None:
@@ -9,6 +9,11 @@ def run_migrations_online() -> None:
         msg = "sqlalchemy.url must be set in Alembic config"
         raise RuntimeError(msg)
     connectable = create_engine(url)
+
+    @event.listens_for(connectable, "connect")
+    def _set_sqlite_fk_pragma(dbapi_conn: object, _connection_record: object) -> None:  # pyright: ignore[reportUnusedFunction]
+        cursor = dbapi_conn.execute("PRAGMA foreign_keys = ON")  # pyright: ignore[reportAttributeAccessIssue]
+        cursor.close()  # pyright: ignore[reportAttributeAccessIssue]
 
     try:
         with connectable.connect() as connection:

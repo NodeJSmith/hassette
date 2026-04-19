@@ -1,10 +1,12 @@
 """Tests for the track_execution() async context manager."""
 
 import asyncio
+import traceback as tb_module
+from unittest.mock import patch
 
 import pytest
 
-from hassette.utils.execution import ExecutionResult, track_execution
+from hassette.utils.execution import MAX_TRACEBACK_SIZE, ExecutionResult, track_execution
 
 
 class TestExecutionResult:
@@ -138,3 +140,41 @@ class TestTrackExecution:
         assert result.status == "error"
         assert result.error_traceback is not None
         assert "RuntimeError" in result.error_traceback
+
+
+class TestTrackExecutionTracebackCap:
+    """Verify traceback truncation at 8 KB."""
+
+    async def test_traceback_cap_under_limit(self) -> None:
+        """Short traceback is not truncated."""
+        with pytest.raises(RuntimeError):
+            async with track_execution() as result:
+                raise RuntimeError("short error")
+
+        assert result.error_traceback is not None
+        assert "... [truncated]" not in result.error_traceback
+
+    async def test_traceback_cap_over_limit(self) -> None:
+        """Traceback exceeding 8192 bytes is truncated with suffix."""
+        # Produce a traceback longer than 8192 bytes
+        long_tb = "x" * (MAX_TRACEBACK_SIZE + 100) + "\nTraceback line"
+
+        with pytest.raises(RuntimeError), patch.object(tb_module, "format_exc", return_value=long_tb):
+            async with track_execution() as result:
+                raise RuntimeError("long error")
+
+        assert result.error_traceback is not None
+        assert result.error_traceback.endswith("\n... [truncated]")
+        assert len(result.error_traceback) == MAX_TRACEBACK_SIZE + len("\n... [truncated]")
+
+    async def test_traceback_cap_exactly_at_limit(self) -> None:
+        """Traceback exactly at 8192 bytes is NOT truncated."""
+        exact_tb = "y" * MAX_TRACEBACK_SIZE
+
+        with pytest.raises(RuntimeError), patch.object(tb_module, "format_exc", return_value=exact_tb):
+            async with track_execution() as result:
+                raise RuntimeError("exact limit")
+
+        assert result.error_traceback is not None
+        assert "... [truncated]" not in result.error_traceback
+        assert len(result.error_traceback) == MAX_TRACEBACK_SIZE

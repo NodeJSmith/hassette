@@ -890,28 +890,24 @@ def test_validate_source_tier_passes_for_user_app_with_app_tier() -> None:
     TelemetryRepository._validate_source_tier("some_user_app", "app")
 
 
-@pytest.mark.asyncio
-async def test_register_listener_raises_for_invalid_source_tier(
-    repo: TelemetryRepository,
-) -> None:
-    """register_listener() propagates ValueError when source_tier='framework' and app_key is not framework."""
-    reg = ListenerRegistration(
-        app_key="some_user_app",
-        instance_index=0,
-        handler_method="some_user_app.on_event",
-        topic="hass.event.state_changed",
-        debounce=None,
-        throttle=None,
-        once=False,
-        priority=0,
-        predicate_description=None,
-        human_description=None,
-        source_location="test.py:1",
-        registration_source=None,
-        source_tier="framework",
-    )
+def test_register_listener_raises_for_invalid_source_tier() -> None:
+    """__post_init__ raises ValueError for non-framework app_key with source_tier='framework'."""
     with pytest.raises(ValueError, match="Only the framework"):
-        await repo.register_listener(reg)
+        ListenerRegistration(
+            app_key="some_user_app",
+            instance_index=0,
+            handler_method="some_user_app.on_event",
+            topic="hass.event.state_changed",
+            debounce=None,
+            throttle=None,
+            once=False,
+            priority=0,
+            predicate_description=None,
+            human_description=None,
+            source_location="test.py:1",
+            registration_source=None,
+            source_tier="framework",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -919,27 +915,23 @@ async def test_register_listener_raises_for_invalid_source_tier(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_register_job_raises_for_invalid_source_tier(
-    repo: TelemetryRepository,
-) -> None:
-    """register_job() propagates ValueError when source_tier='framework' and app_key is not framework."""
-    reg = ScheduledJobRegistration(
-        app_key="some_user_app",
-        instance_index=0,
-        job_name="my_job",
-        handler_method="some_user_app.my_job",
-        trigger_type=None,
-        trigger_label="once",
-        trigger_detail=None,
-        args_json="[]",
-        kwargs_json="{}",
-        source_location="test.py:1",
-        registration_source=None,
-        source_tier="framework",
-    )
+def test_register_job_raises_for_invalid_source_tier() -> None:
+    """__post_init__ raises ValueError for non-framework app_key with source_tier='framework'."""
     with pytest.raises(ValueError, match="Only the framework"):
-        await repo.register_job(reg)
+        ScheduledJobRegistration(
+            app_key="some_user_app",
+            instance_index=0,
+            job_name="my_job",
+            handler_method="some_user_app.my_job",
+            trigger_type=None,
+            trigger_label="once",
+            trigger_detail=None,
+            args_json="[]",
+            kwargs_json="{}",
+            source_location="test.py:1",
+            registration_source=None,
+            source_tier="framework",
+        )
 
 
 # ---------------------------------------------------------------------------

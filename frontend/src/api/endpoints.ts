@@ -65,11 +65,7 @@ export const getDashboardKpis = (sessionId?: number | null, sourceTier?: SourceT
 export const getDashboardAppGrid = (sessionId?: number | null) =>
   apiFetch<{ apps: DashboardAppGridEntry[] }>(withSession("/telemetry/dashboard/app-grid", sessionId));
 
-export type FrameworkSummary = {
-  total_errors: number;
-  total_job_errors: number;
-  errors: DashboardErrorEntry[];
-};
+export type FrameworkSummary = components["schemas"]["FrameworkSummaryResponse"];
 
 export const getFrameworkSummary = (sessionId?: number | null) =>
   apiFetch<FrameworkSummary>(withSession("/telemetry/dashboard/framework-summary", sessionId));

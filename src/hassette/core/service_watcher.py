@@ -162,7 +162,7 @@ class ServiceWatcher(Resource):
         role = data.role
 
         try:
-            self.logger.exception(
+            self.logger.error(
                 "%s '%s' has crashed (event_id %d), shutting down Hassette, %s",
                 role,
                 name,
@@ -215,23 +215,27 @@ class ServiceWatcher(Resource):
         bus_service = self.hassette._bus_service
         topic = str(Topic.HASSETTE_EVENT_SERVICE_STATUS)
         bus_service.register_framework_listener(
+            component="service_watcher",
             topic=topic,
             handler=self.restart_service,
             name="hassette.service_watcher.restart_service",
             where=P.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.FAILED),
         )
         bus_service.register_framework_listener(
+            component="service_watcher",
             topic=topic,
             handler=self.shutdown_if_crashed,
             name="hassette.service_watcher.shutdown_if_crashed",
             where=P.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.CRASHED),
         )
         bus_service.register_framework_listener(
+            component="service_watcher",
             topic=topic,
             handler=self.log_service_event,
             name="hassette.service_watcher.log_service_event",
         )
         bus_service.register_framework_listener(
+            component="service_watcher",
             topic=topic,
             handler=self._on_service_running,
             name="hassette.service_watcher._on_service_running",

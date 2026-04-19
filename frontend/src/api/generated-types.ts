@@ -414,10 +414,10 @@ export interface paths {
         };
         /**
          * Dashboard Framework Summary
-         * @description Combined framework KPIs + recent errors in one atomic response.
+         * @description Framework error counts for the System Health badge.
          *
-         *     Eliminates the dual-fetch desync between error count badge and error feed
-         *     that occurs when two separate calls race under incident conditions.
+         *     Always scoped to the last 24 hours. When session_id is provided,
+         *     further narrows to errors from that session.
          */
         get: operations["dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get"];
         put?: never;
@@ -753,15 +753,13 @@ export interface components {
         };
         /**
          * FrameworkSummaryResponse
-         * @description Combined framework KPIs + recent errors in one atomic response.
+         * @description Framework KPI counts for the System Health badge.
          */
         FrameworkSummaryResponse: {
             /** Total Errors */
             total_errors: number;
             /** Total Job Errors */
             total_job_errors: number;
-            /** Errors */
-            errors: (components["schemas"]["HandlerErrorEntry"] | components["schemas"]["JobErrorEntry"])[];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -796,6 +794,8 @@ export interface components {
              * @enum {string}
              */
             source_tier: "app" | "framework";
+            /** Error Traceback */
+            error_traceback?: string | null;
         };
         /**
          * HandlerInvocation
@@ -847,6 +847,8 @@ export interface components {
              * @enum {string}
              */
             source_tier: "app" | "framework";
+            /** Error Traceback */
+            error_traceback?: string | null;
         };
         /**
          * JobExecution

@@ -31,6 +31,14 @@ repos:
         types_or: [ts, tsx]
         files: ^frontend/src/
 
+      - id: tsc
+        name: tsc (frontend)
+        language: system
+        entry: bash -c 'cd frontend && npx tsc --noEmit'
+        types_or: [ts, tsx]
+        files: ^frontend/src/
+        pass_filenames: false
+
       # regenerate sync.py
       # language: system + uv run so the hook uses the same PEP 723 script metadata
       # path as local development — otherwise any future generator dependency added

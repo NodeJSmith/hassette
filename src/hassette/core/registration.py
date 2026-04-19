@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from hassette.types.types import SourceTier
+from hassette.types.types import FRAMEWORK_APP_KEY, FRAMEWORK_APP_KEY_PREFIX, SourceTier, is_framework_key
 
 
 @dataclass(frozen=True)
@@ -51,6 +51,13 @@ class ListenerRegistration:
     source_tier: SourceTier = "app"
     """Whether this listener originates from a user app or the framework itself."""
 
+    def __post_init__(self) -> None:
+        if self.source_tier == "framework" and not is_framework_key(self.app_key):
+            raise ValueError(
+                f"Only the framework (app_key={FRAMEWORK_APP_KEY!r} or '{FRAMEWORK_APP_KEY_PREFIX}<component>') "
+                f"may use source_tier='framework'; got app_key={self.app_key!r}"
+            )
+
 
 @dataclass(frozen=True)
 class ScheduledJobRegistration:
@@ -96,3 +103,10 @@ class ScheduledJobRegistration:
 
     group: str | None = None
     """Scheduler group name, or None if not assigned to a group."""
+
+    def __post_init__(self) -> None:
+        if self.source_tier == "framework" and not is_framework_key(self.app_key):
+            raise ValueError(
+                f"Only the framework (app_key={FRAMEWORK_APP_KEY!r} or '{FRAMEWORK_APP_KEY_PREFIX}<component>') "
+                f"may use source_tier='framework'; got app_key={self.app_key!r}"
+            )

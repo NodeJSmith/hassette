@@ -127,14 +127,18 @@ def test_app_card_shows_invocation_and_execution_counts(page: Page, base_url: st
 
 
 def test_dashboard_renders_error_feed(page: Page, base_url: str) -> None:
-    """Error items visible with app name and message."""
+    """Error items visible with app name and message.
+
+    The unified error feed shows both app-tier and framework-tier errors together.
+    Seed data: 3 app errors + 1 orphan + 1 framework error = 5 items.
+    """
     page.goto(base_url + "/")
     error_feed = page.locator("[data-testid='dashboard-errors']")
     expect(error_feed).to_be_visible()
 
-    # Should contain seeded error data (3 app errors + 1 orphan = 4)
+    # Should contain seeded error data (3 app errors + 1 orphan + 1 framework = 5)
     error_items = error_feed.locator("[data-testid='error-item']")
-    expect(error_items).to_have_count(4)
+    expect(error_items).to_have_count(5)
 
     # Check errors from multiple apps
     expect(error_feed).to_contain_text("my_app")
@@ -142,6 +146,10 @@ def test_dashboard_renders_error_feed(page: Page, base_url: str) -> None:
     expect(error_feed).to_contain_text("Light service unavailable")
     expect(error_feed).to_contain_text("broken_app")
     expect(error_feed).to_contain_text("Lock service timed out")
+
+    # Framework error also appears in the unified feed with a "Framework" badge
+    expect(error_feed).to_contain_text("DispatchError")
+    expect(error_feed).to_contain_text("Framework dispatch failed")
 
 
 # ── Existing tests (preserved from original) ────────────────────────
@@ -172,11 +180,11 @@ def test_app_health_heading_links_to_apps(page: Page, base_url: str) -> None:
 # ── Framework Health affordance ─────────────────────────────────────
 
 
-def test_dashboard_default_shows_app_errors_only(page: Page, base_url: str) -> None:
-    """Default error feed shows app-tier errors only (not framework errors).
+def test_dashboard_default_shows_all_errors(page: Page, base_url: str) -> None:
+    """Default error feed shows all errors: both app-tier and framework-tier.
 
-    Framework errors have source_tier='framework' and must NOT appear in the
-    default error feed. They are only accessible via the System Health section.
+    The unified error feed uses source_tier='all' by default. Framework errors
+    appear alongside app errors, distinguished by a "Framework" badge.
     """
     page.goto(base_url + "/")
     error_feed = page.locator("[data-testid='dashboard-errors']")
@@ -186,9 +194,9 @@ def test_dashboard_default_shows_app_errors_only(page: Page, base_url: str) -> N
     expect(error_feed).to_contain_text("my_app")
     expect(error_feed).to_contain_text("Bad state value")
 
-    # Framework-tier error must NOT appear in the default feed
-    expect(error_feed).not_to_contain_text("DispatchError")
-    expect(error_feed).not_to_contain_text("Framework dispatch failed")
+    # Framework-tier error must also appear in the unified feed
+    expect(error_feed).to_contain_text("DispatchError")
+    expect(error_feed).to_contain_text("Framework dispatch failed")
 
 
 def test_framework_affordance_visible(page: Page, base_url: str) -> None:
@@ -207,23 +215,44 @@ def test_framework_affordance_visible(page: Page, base_url: str) -> None:
     expect(error_badge).to_be_visible()
 
 
-def test_framework_affordance_shows_framework_errors(page: Page, base_url: str) -> None:
-    """Clicking System Health affordance shows framework errors with tier tag."""
+def test_framework_affordance_shows_error_count_badge(page: Page, base_url: str) -> None:
+    """System Health affordance shows a summary badge with the framework error count.
+
+    The System Health section is a collapsed summary badge — it does NOT expand
+    to show its own error list. Framework errors appear in the unified "Recent
+    Errors" feed below, with "Framework" badges.
+    AC-18: the badge count must be non-zero when framework errors exist.
+    """
     page.goto(base_url + "/")
     framework_section = page.locator("[data-testid='framework-health']")
     expect(framework_section).to_be_visible()
+    expect(framework_section).to_contain_text("System Health")
 
-    # Click to expand
-    framework_section.click()
+    # Error count badge shows the number of framework errors
+    error_badge = page.locator("[data-testid='framework-error-count']")
+    expect(error_badge).to_be_visible()
+    # Seed data has 1 framework error — badge count must reflect it
+    expect(error_badge).to_contain_text("1")
 
-    # Framework errors should appear
-    expect(framework_section).to_contain_text("DispatchError")
-    expect(framework_section).to_contain_text("Framework dispatch failed")
 
-    # Framework tier badge should be visible on the framework error
-    framework_tag = framework_section.locator(".ht-tag--framework")
+def test_framework_errors_in_feed_have_framework_badge(page: Page, base_url: str) -> None:
+    """Framework errors in the unified feed show a 'Framework' tier badge.
+
+    The unified error feed renders framework errors with a .ht-tag--framework
+    badge and without an <a href> link (no navigable app detail page).
+    """
+    page.goto(base_url + "/")
+    error_feed = page.locator("[data-testid='dashboard-errors']")
+    expect(error_feed).to_be_visible()
+
+    # The framework error should have a "Framework" tier badge
+    framework_tag = error_feed.locator(".ht-tag--framework")
     expect(framework_tag).to_be_visible()
     expect(framework_tag).to_contain_text("Framework")
+
+    # The framework app_key must NOT be rendered as a clickable link
+    framework_error_link = error_feed.locator("a[href*='__hassette__']")
+    expect(framework_error_link).to_have_count(0)
 
 
 def test_orphan_error_renders_deleted_label(page: Page, base_url: str) -> None:

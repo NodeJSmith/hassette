@@ -205,6 +205,7 @@ class HandlerErrorRecord(BaseModel):
     source_tier: SourceTier = "app"
     error_type: str | None
     error_message: str | None
+    error_traceback: str | None = None
 
 
 class JobErrorRecord(BaseModel):
@@ -220,6 +221,7 @@ class JobErrorRecord(BaseModel):
     source_tier: SourceTier = "app"
     error_type: str | None
     error_message: str | None
+    error_traceback: str | None = None
 
 
 class SlowHandlerRecord(BaseModel):
@@ -235,4 +237,4 @@ class SlowHandlerRecord(BaseModel):
     topic: str | None
     execution_start_ts: float
     duration_ms: float
-    source_tier: SourceTier = "app"
+    source_tier: SourceTier

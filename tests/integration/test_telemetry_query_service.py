@@ -1372,12 +1372,13 @@ class TestGetGlobalSummarySourceTier:
 
 
 class TestSourceTierClause:
-    def test_invalid_alias_raises_value_error(self) -> None:
-        """_source_tier_clause raises ValueError for an alias not in the allowed set."""
+    def test_any_alias_accepted(self) -> None:
+        """_source_tier_clause accepts any alias (developer-controlled, not user input)."""
         from hassette.core.telemetry_query_service import _source_tier_clause
 
-        with pytest.raises(ValueError, match="Unexpected SQL alias"):
-            _source_tier_clause("app", "x")
+        fragment, params = _source_tier_clause("app", "custom_alias")
+        assert "custom_alias.source_tier" in fragment
+        assert params == ["app"]
 
     def test_framework_tier_returns_filter_fragment(self) -> None:
         """_source_tier_clause('framework', ...) returns an AND clause with 'framework' param."""

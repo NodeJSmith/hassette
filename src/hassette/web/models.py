@@ -176,6 +176,7 @@ class HandlerErrorEntry(BaseModel):
     execution_start_ts: float
     app_key: str | None
     source_tier: SourceTier = "app"
+    error_traceback: str | None = None
 
 
 class JobErrorEntry(BaseModel):
@@ -187,6 +188,7 @@ class JobErrorEntry(BaseModel):
     execution_start_ts: float
     app_key: str | None
     source_tier: SourceTier = "app"
+    error_traceback: str | None = None
 
 
 RecentErrorEntry = Annotated[HandlerErrorEntry | JobErrorEntry, Field(discriminator="kind")]
@@ -292,11 +294,10 @@ class DashboardErrorsResponse(BaseModel):
 
 
 class FrameworkSummaryResponse(BaseModel):
-    """Combined framework KPIs + recent errors in one atomic response."""
+    """Framework KPI counts for the System Health badge."""
 
     total_errors: int
     total_job_errors: int
-    errors: list[HandlerErrorEntry | JobErrorEntry]
 
 
 SessionListEntry = SessionRecord

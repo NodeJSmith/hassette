@@ -5,7 +5,7 @@ import socket
 import threading
 import time
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import uvicorn
@@ -504,9 +504,6 @@ def mock_hassette():
         ],
     )
 
-    # Wire telemetry mock to return typed models per app_key.
-    from unittest.mock import AsyncMock
-
     hassette._telemetry_query_service.get_listener_summary = AsyncMock(
         side_effect=lambda app_key, **_: telemetry_listeners_by_app.get(app_key, [])
     )
@@ -631,10 +628,10 @@ def mock_hassette():
         ),
     ]
 
-    # Framework-tier errors — shown only in System Health affordance.
+    # Framework-tier errors — shown in the unified error feed with a "Framework" badge.
     framework_tier_errors = [
         HandlerErrorRecord(
-            app_key="__hassette__",
+            app_key="__hassette__.service_watcher",
             listener_id=999,
             handler_method="on_state_change_dispatch",
             topic="state_changed",
@@ -646,11 +643,13 @@ def mock_hassette():
         ),
     ]
 
-    def _make_errors_side_effect(source_tier: str = "app", **_kwargs):
+    def _make_errors_side_effect(source_tier: str = "all", **_kwargs):
         if source_tier == "framework":
             return framework_tier_errors
-        # "app" or "all" (default: app)
-        return app_tier_errors
+        if source_tier == "app":
+            return app_tier_errors
+        # "all" (default) — return both app and framework errors
+        return app_tier_errors + framework_tier_errors
 
     hassette._telemetry_query_service.get_recent_errors = AsyncMock(
         side_effect=lambda **kwargs: _make_errors_side_effect(**kwargs)
@@ -698,6 +697,15 @@ def mock_hassette():
 
     hassette._telemetry_query_service.get_global_summary = AsyncMock(
         side_effect=lambda **kwargs: _make_summary_side_effect(**kwargs)
+    )
+
+    def _make_error_counts_side_effect(source_tier: str = "app", **_kwargs) -> tuple[int, int]:
+        if source_tier == "framework":
+            return (1, 0)
+        return (3, 6)
+
+    hassette._telemetry_query_service.get_error_counts = AsyncMock(
+        side_effect=lambda **kwargs: _make_error_counts_side_effect(**kwargs)
     )
 
     hassette.telemetry_query_service = hassette._telemetry_query_service

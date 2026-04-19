@@ -1,4 +1,5 @@
 import asyncio
+import re
 import typing
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
@@ -13,7 +14,7 @@ from hassette.core.commands import InvokeHandler
 from hassette.core.registration import ListenerRegistration
 from hassette.events import Event, HassPayload
 from hassette.resources.base import Resource, Service
-from hassette.types.types import FRAMEWORK_APP_KEY, LOG_LEVEL_TYPE
+from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, is_framework_key
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
@@ -110,9 +111,12 @@ class BusService(Service):
             return task
         return self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
 
+    _COMPONENT_RE = re.compile(r"^[a-z][a-z_]*[a-z]$")
+
     def register_framework_listener(
         self,
         *,
+        component: str,
         topic: str,
         handler: "Callable[..., Awaitable[None]]",
         name: str,
@@ -123,11 +127,13 @@ class BusService(Service):
     ) -> asyncio.Task[None]:
         """Register a framework-internal listener with ``source_tier='framework'``.
 
-        Framework listeners are registered with ``app_key='__hassette__'`` and
+        Framework listeners are registered with ``app_key='__hassette__.<component>'`` and
         ``source_tier='framework'``.  They are excluded from app-level reconciliation
         by the guard in ``TelemetryRepository.reconcile_registrations()``.
 
         Args:
+            component: Snake_case component identifier, e.g. ``'service_watcher'``.
+                Must match ``^[a-z][a-z_]*[a-z]$`` (at least 2 chars, lowercase).
             topic: The event topic to subscribe to.
             handler: The coroutine function to call when the event fires.
             name: Component-prefixed stable name, e.g. ``'hassette.core.on_service_crashed'``.
@@ -138,10 +144,19 @@ class BusService(Service):
 
         Returns:
             The task spawned to register the listener.
+
+        Raises:
+            ValueError: If ``component`` is empty or does not match the required pattern.
         """
+        if not component or not self._COMPONENT_RE.match(component) or "__" in component:
+            raise ValueError(
+                f"Invalid framework component name: {component!r}; "
+                "must match ^[a-z][a-z_]*[a-z]$ (snake_case, at least 2 chars, no consecutive underscores)"
+            )
+        app_key = f"{FRAMEWORK_APP_KEY_PREFIX}{component}"
         listener = Listener.create(
             task_bucket=self.task_bucket,
-            owner_id=f"{FRAMEWORK_APP_KEY}:{name}",
+            owner_id=f"{app_key}:{name}",
             topic=topic,
             handler=handler,
             where=where,
@@ -150,18 +165,29 @@ class BusService(Service):
             throttle=throttle,
             priority=0,
             logger=self.logger,
-            app_key=FRAMEWORK_APP_KEY,
+            app_key=app_key,
             instance_index=0,
             name=name,
             source_tier="framework",
         )
-        app_key = listener.app_key
         existing = self._pending_registration_tasks.get(app_key)
         if existing:
             self._pending_registration_tasks[app_key] = [t for t in existing if not t.done()]
         task = self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_framework_listener")
         self._pending_registration_tasks[app_key].append(task)
         return task
+
+    async def drain_framework_registrations(self) -> None:
+        """Drain all pending framework registration tasks.
+
+        Iterates a snapshot of ``_pending_registration_tasks`` keys and awaits
+        completion for any key that matches ``is_framework_key()``.  Using
+        ``list()`` prevents RuntimeError if a concurrent coroutine mutates the
+        dict during iteration.
+        """
+        for key in list(self._pending_registration_tasks):
+            if is_framework_key(key):
+                await self.await_registrations_complete(key)
 
     async def _register_then_add_route(self, listener: Listener) -> None:
         """Register a listener in the DB and add its route.
