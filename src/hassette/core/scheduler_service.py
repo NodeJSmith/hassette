@@ -374,12 +374,21 @@ class SchedulerService(Service):
         async def _bound_callable() -> None:
             await async_fn(*job.args, **job.kwargs)
 
+        # Resolve effective timeout: timeout_disabled → None; job.timeout → use it;
+        # job.timeout is None → config default
+        if job.timeout_disabled:
+            effective_timeout = None
+        elif job.timeout is not None:
+            effective_timeout = job.timeout
+        else:
+            effective_timeout = self.hassette.config.scheduler_job_timeout_seconds
+
         cmd = ExecuteJob(
             job=job,
             callable=_bound_callable,
             job_db_id=job.db_id,
             source_tier=job.source_tier,
-            effective_timeout=None,
+            effective_timeout=effective_timeout,
         )
         await self._executor.execute(cmd)
 

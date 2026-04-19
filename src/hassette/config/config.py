@@ -202,6 +202,10 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     scheduler_behind_schedule_threshold_seconds: int = Field(default=5)
     """Threshold in seconds before a 'behind schedule' warning is logged for a job."""
 
+    scheduler_job_timeout_seconds: float | None = Field(default=600.0)
+    """Default timeout in seconds for scheduled job execution. ``None`` disables the default timeout.
+    Individual jobs can override via ``timeout=`` or ``timeout_disabled=True``."""
+
     run_sync_timeout_seconds: int = Field(default=6)
     """Default timeout for synchronous function calls."""
 

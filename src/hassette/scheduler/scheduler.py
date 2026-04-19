@@ -161,6 +161,12 @@ class Scheduler(Resource):
         if existing is not None:
             if if_exists == "skip" and existing.matches(job):
                 return existing
+            if if_exists == "skip":
+                changed_fields = existing.diff_fields(job)
+                raise ValueError(
+                    f"A job named '{job.name}' already exists but its configuration has changed "
+                    f"(changed fields: {', '.join(changed_fields)})"
+                )
             raise ValueError(
                 f"A job named '{job.name}' already exists in scheduler for '{self.owner_id}'. "
                 "Job names must be unique per scheduler instance."
@@ -282,6 +288,8 @@ class Scheduler(Resource):
         name: str = "",
         group: str | None = None,
         jitter: float | None = None,
+        timeout: float | None = None,
+        timeout_disabled: bool = False,
         *,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -302,6 +310,10 @@ class Scheduler(Resource):
             jitter: Optional seconds of random offset to apply at enqueue time.
                 Jitter is applied via ``SchedulerService._apply_jitter_to_heap`` on enqueue.
                 See the ``fire_at`` field on ``ScheduledJob``.
+            timeout: Per-job timeout in seconds. ``None`` uses the global default.
+                A positive ``float`` overrides the default.
+            timeout_disabled: When ``True``, timeout enforcement is disabled for this
+                job regardless of the global default.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -336,6 +348,8 @@ class Scheduler(Resource):
             name=name,
             group=group,
             jitter=jitter,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
             args=tuple(args) if args else (),
             kwargs=dict(kwargs) if kwargs else {},
             app_key=app_key,
@@ -352,6 +366,8 @@ class Scheduler(Resource):
         name: str = "",
         group: str | None = None,
         jitter: float | None = None,
+        timeout: float | None = None,
+        timeout_disabled: bool = False,
         *,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -366,6 +382,8 @@ class Scheduler(Resource):
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
+            timeout: Per-job timeout in seconds. See ``schedule()`` for details.
+            timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -381,6 +399,8 @@ class Scheduler(Resource):
             name=name,
             group=group,
             jitter=jitter,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
@@ -393,6 +413,8 @@ class Scheduler(Resource):
         name: str = "",
         group: str | None = None,
         jitter: float | None = None,
+        timeout: float | None = None,
+        timeout_disabled: bool = False,
         if_past: Literal["tomorrow", "error"] = "tomorrow",
         *,
         if_exists: Literal["error", "skip"] = "error",
@@ -409,6 +431,8 @@ class Scheduler(Resource):
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
+            timeout: Per-job timeout in seconds. See ``schedule()`` for details.
+            timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
             if_past: Behaviour when the target time is in the past at construction
                 time. ``"tomorrow"`` (default) defers by one day. ``"error"`` raises
                 ``ValueError``. For ``ZonedDateTime`` inputs, ``if_past`` has no
@@ -428,6 +452,8 @@ class Scheduler(Resource):
             name=name,
             group=group,
             jitter=jitter,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
@@ -442,6 +468,8 @@ class Scheduler(Resource):
         name: str = "",
         group: str | None = None,
         jitter: float | None = None,
+        timeout: float | None = None,
+        timeout_disabled: bool = False,
         *,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -458,6 +486,8 @@ class Scheduler(Resource):
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
+            timeout: Per-job timeout in seconds. See ``schedule()`` for details.
+            timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -473,6 +503,8 @@ class Scheduler(Resource):
             name=name,
             group=group,
             jitter=jitter,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
@@ -485,6 +517,8 @@ class Scheduler(Resource):
         name: str = "",
         group: str | None = None,
         jitter: float | None = None,
+        timeout: float | None = None,
+        timeout_disabled: bool = False,
         *,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -499,6 +533,8 @@ class Scheduler(Resource):
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
+            timeout: Per-job timeout in seconds. See ``schedule()`` for details.
+            timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -516,6 +552,8 @@ class Scheduler(Resource):
             name=name,
             group=group,
             jitter=jitter,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
@@ -528,6 +566,8 @@ class Scheduler(Resource):
         name: str = "",
         group: str | None = None,
         jitter: float | None = None,
+        timeout: float | None = None,
+        timeout_disabled: bool = False,
         *,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -542,6 +582,8 @@ class Scheduler(Resource):
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
+            timeout: Per-job timeout in seconds. See ``schedule()`` for details.
+            timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -559,6 +601,8 @@ class Scheduler(Resource):
             name=name,
             group=group,
             jitter=jitter,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
@@ -571,6 +615,8 @@ class Scheduler(Resource):
         name: str = "",
         group: str | None = None,
         jitter: float | None = None,
+        timeout: float | None = None,
+        timeout_disabled: bool = False,
         *,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -588,6 +634,8 @@ class Scheduler(Resource):
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
+            timeout: Per-job timeout in seconds. See ``schedule()`` for details.
+            timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -603,6 +651,8 @@ class Scheduler(Resource):
             name=name,
             group=group,
             jitter=jitter,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
@@ -615,6 +665,8 @@ class Scheduler(Resource):
         name: str = "",
         group: str | None = None,
         jitter: float | None = None,
+        timeout: float | None = None,
+        timeout_disabled: bool = False,
         *,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
@@ -633,6 +685,8 @@ class Scheduler(Resource):
             group: Optional group name.
             jitter: Optional seconds of random offset to apply at enqueue time.
                 See ``schedule()`` for details.
+            timeout: Per-job timeout in seconds. See ``schedule()`` for details.
+            timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -651,6 +705,8 @@ class Scheduler(Resource):
             name=name,
             group=group,
             jitter=jitter,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
