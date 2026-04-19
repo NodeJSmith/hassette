@@ -153,17 +153,19 @@ describe("ErrorFeed", () => {
   it("test_traceback_toggle_expands_pre: clicking toggle reveals pre with traceback text", () => {
     const tracebackText = "Traceback (most recent call last):\n  File test.py, line 1";
     const err = createError({ error_traceback: tracebackText });
-    const { getByRole, queryByText } = render(<ErrorFeed errors={[err]} />);
+    const { container, getByRole } = render(<ErrorFeed errors={[err]} />);
 
-    // Pre with traceback not visible initially
-    expect(queryByText(tracebackText)).toBeNull();
+    // No <pre> element initially
+    expect(container.querySelector("pre.ht-traceback")).toBeNull();
 
     // Click toggle
     const button = getByRole("button", { name: /traceback/i });
     fireEvent.click(button);
 
-    // Pre with traceback should now be visible
-    expect(queryByText(tracebackText)).not.toBeNull();
+    // <pre> with traceback should now be visible
+    const pre = container.querySelector("pre.ht-traceback");
+    expect(pre).not.toBeNull();
+    expect(pre!.textContent).toContain("Traceback (most recent call last)");
   });
 
   it("test_unified_feed_includes_both_tiers: renders both app and framework errors", () => {
