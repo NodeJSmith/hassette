@@ -1192,23 +1192,16 @@ class TestDashboardErrorsTraceback:
 
 
 class TestDashboardErrorsSinceTs:
-    """Verify since_ts defaults to last 24h instead of 0."""
+    """Verify since_ts defaults to 0 (all-time, scoped by session_id)."""
 
-    async def test_dashboard_errors_default_since_ts_is_recent(
+    async def test_dashboard_errors_default_since_ts_is_zero(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """Without explicit since_ts, get_recent_errors called with ts > now-86401."""
-        import time
-
-        before = time.time()
+        """Without explicit since_ts, get_recent_errors called with since_ts=0 (all-time)."""
         response = await client.get("/api/telemetry/dashboard/errors")
         assert response.status_code == 200
         call_kwargs = mock_hassette.telemetry_query_service.get_recent_errors.call_args.kwargs
-        since = call_kwargs["since_ts"]
-        after = time.time()
-        # since_ts must be approximately now - 86400
-        assert since >= before - 86401
-        assert since <= after - 86399
+        assert call_kwargs["since_ts"] == 0
 
 
 class TestHassetteAppKey:

@@ -45,7 +45,7 @@ When no errors exist, a "No recent errors. All systems healthy." message is disp
 
 ## System Health
 
-Below the error feed, the **System Health** badge summarizes framework-level health — issues within Hassette itself rather than in your automations. The badge shows the framework error count from the last 24 hours; green means none.
+Below the error feed, the **System Health** badge summarizes framework-level health — issues within Hassette itself rather than in your automations. The badge shows the framework error count (scoped by the session toggle); green means none.
 
 ## Session Scope
 

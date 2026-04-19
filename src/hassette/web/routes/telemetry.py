@@ -6,7 +6,6 @@ all-time aggregates.
 """
 
 import sqlite3
-import time
 from logging import getLogger
 
 from fastapi import APIRouter, Path, Query, Response
@@ -433,10 +432,9 @@ async def dashboard_errors(
 ) -> DashboardErrorsResponse:
     """Recent errors for the dashboard error feed."""
     effective_tier = source_tier if source_tier is not None else "all"
-    since_ts = time.time() - 86400
     try:
         raw_errors = await telemetry.get_recent_errors(
-            since_ts=since_ts, limit=10, session_id=session_id, source_tier=effective_tier
+            since_ts=0, limit=10, session_id=session_id, source_tier=effective_tier
         )
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch recent errors for dashboard", exc_info=True)
@@ -480,18 +478,17 @@ async def dashboard_framework_summary(
     telemetry: TelemetryDep,
     session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> FrameworkSummaryResponse:
-    """Framework KPI counts for the System Health badge.
+    """Framework error counts for the System Health badge.
 
-    Returns only error counts (24h window) for the badge — the unified error feed
-    in dashboard_errors handles displaying framework errors inline.
+    Scoped by session_id when provided (matching the dashboard's session toggle),
+    otherwise returns all-time counts.
     """
     total_errors = 0
     total_job_errors = 0
 
-    since_ts = time.time() - 86400
     try:
         total_errors, total_job_errors = await telemetry.get_error_counts(
-            since_ts=since_ts, session_id=session_id, source_tier="framework"
+            since_ts=0, session_id=session_id, source_tier="framework"
         )
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch framework error counts for badge", exc_info=True)
