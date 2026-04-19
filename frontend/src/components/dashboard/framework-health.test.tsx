@@ -1,22 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/preact";
 import { FrameworkHealth } from "./framework-health";
-import type { DashboardErrorEntry } from "../../api/endpoints";
+import type { DashboardErrorEntry, HandlerErrorEntry } from "../../api/endpoints";
 
-function makeError(overrides: Partial<DashboardErrorEntry> = {}): DashboardErrorEntry {
+function makeError(overrides: Partial<HandlerErrorEntry> = {}): DashboardErrorEntry {
   return {
     kind: "handler",
     listener_id: 1,
-    job_id: null,
     topic: "state_changed",
     handler_method: "on_test",
-    job_name: null,
     error_message: "boom",
     error_type: "RuntimeError",
     execution_start_ts: 1000,
     app_key: "test_app",
     source_tier: "app",
-    error_traceback: null,
     ...overrides,
   };
 }
