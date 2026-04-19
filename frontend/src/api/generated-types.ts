@@ -416,8 +416,8 @@ export interface paths {
          * Dashboard Framework Summary
          * @description Framework error counts for the System Health badge.
          *
-         *     Scoped by session_id when provided (matching the dashboard's session toggle),
-         *     otherwise returns all-time counts.
+         *     Always scoped to the last 24 hours. When session_id is provided,
+         *     further narrows to errors from that session.
          */
         get: operations["dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get"];
         put?: never;

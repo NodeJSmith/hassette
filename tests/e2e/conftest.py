@@ -699,6 +699,15 @@ def mock_hassette():
         side_effect=lambda **kwargs: _make_summary_side_effect(**kwargs)
     )
 
+    def _make_error_counts_side_effect(source_tier: str = "app", **_kwargs) -> tuple[int, int]:
+        if source_tier == "framework":
+            return (1, 0)
+        return (3, 6)
+
+    hassette._telemetry_query_service.get_error_counts = AsyncMock(
+        side_effect=lambda **kwargs: _make_error_counts_side_effect(**kwargs)
+    )
+
     hassette.telemetry_query_service = hassette._telemetry_query_service
 
     # --- Session ID for error feed session scoping ---
