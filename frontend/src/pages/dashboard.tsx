@@ -59,7 +59,7 @@ export function DashboardPage() {
     2000,
   );
 
-  const isLoading = kpis.loading.value || appGrid.loading.value || errors.loading.value;
+  const isLoading = kpis.loading.value || appGrid.loading.value;
 
   if (isLoading) {
     return <Spinner />;
@@ -89,10 +89,10 @@ export function DashboardPage() {
           <IconWarning />
           <span class="ht-text-danger ht-text-xs">Failed to load errors: {errors.error.value}</span>
         </div>
-      ) : errors.data.value && errors.data.value.length > 0 ? (
-        <div class="ht-card ht-card--urgent ht-mb-6">
+      ) : errors.loading.value || errors.data.value || errorTierFilter.value !== "all" ? (
+        <div class={`ht-card${errors.data.value && errors.data.value.length > 0 ? " ht-card--urgent" : ""} ht-mb-6`}>
           <h2 class="ht-heading-5">
-            <IconWarning />
+            {errors.loading.value ? null : errors.data.value && errors.data.value.length > 0 ? <IconWarning /> : <IconCheck />}
             <span>Recent Errors</span>
             <span class="ht-info-hint" title="Showing errors from the last 24 hours">?</span>
             <div class="ht-tier-toggle">
@@ -107,7 +107,13 @@ export function DashboardPage() {
               ))}
             </div>
           </h2>
-          <ErrorFeed errors={errors.data.value} />
+          {errors.loading.value ? (
+            <Spinner />
+          ) : errors.data.value && errors.data.value.length > 0 ? (
+            <ErrorFeed errors={errors.data.value} />
+          ) : (
+            <p class="ht-text-muted ht-text-xs">No errors for this filter.</p>
+          )}
         </div>
       ) : (
         <div class="ht-empty-section ht-mb-6">
