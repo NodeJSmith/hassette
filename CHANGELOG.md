@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.0](https://github.com/NodeJSmith/hassette/compare/v0.24.0...v0.25.0) (2026-04-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **test_utils:** complete event simulation for AppTestHarness ([#525](https://github.com/NodeJSmith/hassette/issues/525))
+* **scheduler:** trigger-based API redesign + frontend integration (specs 032+033) ([#517](https://github.com/NodeJSmith/hassette/issues/517))
+* **test_utils:** `RecordingApi.get_entity` and `get_entity_or_none` now require an explicit `BaseEntity` subclass model argument, matching the production `Api.get_entity` signature. The previous `BaseState`-sentinel default silently aliased to `get_state()` and hid real bugs in test apps that forgot the model argument. Callers that want registry-converted state without a specific entity model should call `get_state(entity_id)` instead.
+* redesign Docker startup deps with constraints-based protection ([#480](https://github.com/NodeJSmith/hassette/issues/480))
+
+### Features
+
+* **api:** add typed Home Assistant helper CRUD (input_*, counter, timer) ([#506](https://github.com/NodeJSmith/hassette/issues/506)) ([0dcda5d](https://github.com/NodeJSmith/hassette/commit/0dcda5d6e729ef6489f72a06c8b5287f227e9961))
+* color system overhaul + responsive mobile adaptation ([#483](https://github.com/NodeJSmith/hassette/issues/483)) ([679fe4f](https://github.com/NodeJSmith/hassette/commit/679fe4f8d054f35129cf67c5c9c27bac339de0b0))
+* end-user test utilities — AppTestHarness, RecordingApi, time control ([#492](https://github.com/NodeJSmith/hassette/issues/492)) ([399a081](https://github.com/NodeJSmith/hassette/commit/399a0814c0a06831e097174f4f80106fe381069a))
+* framework error identity, traceback in feed, unified dashboard ([#537](https://github.com/NodeJSmith/hassette/issues/537)) ([5b4132a](https://github.com/NodeJSmith/hassette/commit/5b4132a3b0d321657e8488c929d3c8a794ffb70d))
+* preserve listener/job registrations across sessions ([#466](https://github.com/NodeJSmith/hassette/issues/466)) ([#487](https://github.com/NodeJSmith/hassette/issues/487)) ([f62a2a7](https://github.com/NodeJSmith/hassette/commit/f62a2a7c69093ad7760e1d23d30e4dec42ffe197))
+* **scheduler:** trigger-based API redesign + frontend integration (specs 032+033) ([#517](https://github.com/NodeJSmith/hassette/issues/517)) ([c510a35](https://github.com/NodeJSmith/hassette/commit/c510a350790e6ba56931e872332b2ea735d6702c))
+* telemetry source-tier unification ([#484](https://github.com/NodeJSmith/hassette/issues/484)) ([#495](https://github.com/NodeJSmith/hassette/issues/495)) ([804f8ed](https://github.com/NodeJSmith/hassette/commit/804f8ed0b429de2f705184acddc49628090197bc))
+* **test_utils:** complete event simulation for AppTestHarness ([#525](https://github.com/NodeJSmith/hassette/issues/525)) ([2d3f044](https://github.com/NodeJSmith/hassette/commit/2d3f044e643d12d75bd3a6cc4f7bf7ff7df75d19))
+* **test_utils:** docs sync + close 3 safety holes in test utilities ([#502](https://github.com/NodeJSmith/hassette/issues/502)) ([2743e4e](https://github.com/NodeJSmith/hassette/commit/2743e4e6d95ccdb1e7e3775049f7596374b3003b))
+* **test_utils:** generate _RecordingSyncFacade via codegen and unify drain exceptions ([#503](https://github.com/NodeJSmith/hassette/issues/503)) ([89b6f2c](https://github.com/NodeJSmith/hassette/commit/89b6f2cd90621adbcce4a291e815980912e58b51))
+* **ui:** dashboard hierarchy, app detail polish, and design system refinements ([#523](https://github.com/NodeJSmith/hassette/issues/523)) ([7be31ab](https://github.com/NodeJSmith/hassette/commit/7be31ab2840803f69e355df9cbad81406b52523b))
+* **ui:** dashboard polish — KPI hierarchy, quiet-canvas status, sorted grids ([#485](https://github.com/NodeJSmith/hassette/issues/485)) ([dfdbc61](https://github.com/NodeJSmith/hassette/commit/dfdbc6143d7f5c42494cb77d7a8d158882ed7290))
+
+
+### Bug Fixes
+
+* **bus,scheduler:** subscription race fix + cancel semantics redesign ([#451](https://github.com/NodeJSmith/hassette/issues/451), [#518](https://github.com/NodeJSmith/hassette/issues/518)) ([#520](https://github.com/NodeJSmith/hassette/issues/520)) ([260e0a7](https://github.com/NodeJSmith/hassette/commit/260e0a7da8a3490812d6cd55389ce9a98ac507da))
+* **docker:** prune uv cache on startup to prevent unbounded volume growth ([#542](https://github.com/NodeJSmith/hassette/issues/542)) ([dc5b503](https://github.com/NodeJSmith/hassette/commit/dc5b503280d8e0ccd25df38bc8baf6a3c8f9ee87))
+* handle SIGTERM for graceful Docker shutdown ([#479](https://github.com/NodeJSmith/hassette/issues/479)) ([91eba12](https://github.com/NodeJSmith/hassette/commit/91eba1276c24c509b20b7a3cc14b0140b125f173))
+
+
+### Refactoring
+
+* redesign Docker startup deps with constraints-based protection ([#480](https://github.com/NodeJSmith/hassette/issues/480)) ([1775a62](https://github.com/NodeJSmith/hassette/commit/1775a621248ebc7dbf3739bcab403f87aacb37b2))
+
+
+### Documentation
+
+* add event bus API prior art research brief ([#531](https://github.com/NodeJSmith/hassette/issues/531)) ([c620526](https://github.com/NodeJSmith/hassette/commit/c6205263edccd031e244e628de5775c22715ae99))
+* add prior art research for execution overlap modes ([#544](https://github.com/NodeJSmith/hassette/issues/544)) ([a8059ac](https://github.com/NodeJSmith/hassette/commit/a8059ac08ed84ad6370170fb712ce21305f0ee4d)), closes [#543](https://github.com/NodeJSmith/hassette/issues/543)
+* comprehensive docs rewrite, review pass, recipes, and scheduler expansion ([#507](https://github.com/NodeJSmith/hassette/issues/507)) ([2056262](https://github.com/NodeJSmith/hassette/commit/20562625ea5bb9663b49cdf507616ee22394671a))
+
+
+### Miscellaneous
+
+* remove manual changelog content and note release-please ownership ([#497](https://github.com/NodeJSmith/hassette/issues/497)) ([215819c](https://github.com/NodeJSmith/hassette/commit/215819ce403e2ab8c082468e2a7fe05bddc73c02))
+
+
+### CI/CD
+
+* replace sha-tagged docker images with pr-N and main tags ([#499](https://github.com/NodeJSmith/hassette/issues/499)) ([10f51fb](https://github.com/NodeJSmith/hassette/commit/10f51fba3b325b325dd6068ebc9703c73e26d4c0))
+
 ## [0.24.0](https://github.com/NodeJSmith/hassette/compare/v0.23.0...v0.24.0) - 2026-04-03
 
 ### Breaking Changes
