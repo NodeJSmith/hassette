@@ -199,11 +199,11 @@ fi
 
 if [ "${PRUNE_UV_CACHE}" = "1" ]; then
     echo "Pruning stale uv cache entries..."
-    uv cache prune || echo "WARNING: uv cache prune failed (exit $?) — continuing anyway"
+    uv cache prune || echo "WARNING: uv cache prune failed — continuing anyway"
 else
     case "${PRUNE_UV_CACHE}" in
         true|yes|on|TRUE|YES|ON)
-            echo "WARNING: HASSETTE__PRUNE_UV_CACHE='${PRUNE_UV_CACHE}' is not recognized — use '1' to enable or '0' to disable."
+            echo "WARNING: HASSETTE__PRUNE_UV_CACHE='${PRUNE_UV_CACHE}' is not recognized — use '1' to enable or '0' to disable. Cache will NOT be pruned."
             ;;
     esac
     echo "uv cache pruning disabled (set HASSETTE__PRUNE_UV_CACHE=1 to enable)"
