@@ -2,7 +2,6 @@ import asyncio
 import heapq
 import random
 import typing
-from collections import defaultdict
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar, cast
@@ -13,6 +12,7 @@ from whenever import TimeDelta, ZonedDateTime
 import hassette.utils.date_utils as date_utils
 from hassette.core.commands import ExecuteJob
 from hassette.core.registration import ScheduledJobRegistration
+from hassette.core.registration_tracker import RegistrationTracker
 from hassette.resources.base import Resource, Service
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.serialization import safe_json_serialize
@@ -41,8 +41,20 @@ class SchedulerService(Service):
     _executor: "CommandExecutor"
     """Command executor for running jobs and persisting registration/execution records."""
 
-    _pending_registration_tasks: dict[str, list[asyncio.Task[None]]]
+    _reg_tracker: RegistrationTracker
     """Tracks pending DB registration tasks per app_key for await barrier support."""
+
+    @property
+    def _pending_registration_tasks(self) -> dict[str, list[asyncio.Task[None]]]:
+        """Backward-compatible access to the registration tracker's internal tasks dict."""
+        return self._reg_tracker._tasks
+
+    @_pending_registration_tasks.setter
+    def _pending_registration_tasks(self, value: dict[str, list[asyncio.Task[None]]]) -> None:
+        """Allow direct assignment for tests that bypass __init__."""
+        if not hasattr(self, "_reg_tracker"):
+            self._reg_tracker = RegistrationTracker()
+        self._reg_tracker._tasks = value
 
     _removal_callbacks: dict[str, Callable[["ScheduledJob"], None]]
     """Per-owner callbacks invoked whenever a job is removed via dequeue_job() or _remove_job()."""
@@ -53,7 +65,7 @@ class SchedulerService(Service):
         self._job_queue = self.add_child(_ScheduledJobQueue)
         self._wakeup_event = asyncio.Event()
         self._exit_event = asyncio.Event()
-        self._pending_registration_tasks = defaultdict(list)
+        self._reg_tracker = RegistrationTracker()
         self._removal_callbacks = {}
 
     @property
@@ -245,13 +257,8 @@ class SchedulerService(Service):
         unbounded growth for long-lived apps with dynamic job registration.
         """
         if job.app_key:
-            # Prune completed tasks to prevent unbounded list growth.
-            app_key = job.app_key
-            existing = self._pending_registration_tasks.get(app_key)
-            if existing:
-                self._pending_registration_tasks[app_key] = [t for t in existing if not t.done()]
             task = self.task_bucket.spawn(self._enqueue_then_register(job), name="scheduler:add_job")
-            self._pending_registration_tasks[app_key].append(task)
+            self._reg_tracker.prune_and_track(job.app_key, task)
             return task
         return self.task_bucket.spawn(self._enqueue_job(job), name="scheduler:add_job")
 
@@ -269,30 +276,8 @@ class SchedulerService(Service):
         Args:
             app_key: The app key whose pending registration tasks to await.
         """
-        tasks = self._pending_registration_tasks.pop(app_key, [])
-        if not tasks:
-            return
-
-        # Filter out already-done tasks
-        pending = [t for t in tasks if not t.done()]
-        if not pending:
-            return
-
-        timeout = self.hassette.config.registration_await_timeout
-        # Use asyncio.wait (not wait_for + gather) so we get the pending set at timeout
-        # BEFORE tasks are cancelled — otherwise the warning's "incomplete" count is
-        # always 0 because wait_for cancels all subtasks before we can inspect them.
-        _done, still_pending = await asyncio.wait(pending, timeout=float(timeout))
-        if still_pending:
-            for task in still_pending:
-                task.cancel()
-            self.logger.warning(
-                "await_registrations_complete timed out after %ss for app_key=%r — "
-                "%d registration task(s) incomplete; those jobs will be excluded from live IDs",
-                timeout,
-                app_key,
-                len(still_pending),
-            )
+        timeout = float(self.hassette.config.registration_await_timeout)
+        await self._reg_tracker.await_complete(app_key, timeout=timeout, logger=self.logger)
 
     async def _enqueue_then_register(self, job: "ScheduledJob") -> None:
         """Enqueue the job, then register in DB.
