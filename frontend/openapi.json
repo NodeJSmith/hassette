@@ -2357,6 +2357,11 @@
             "type": "integer",
             "title": "Failed"
           },
+          "timed_out": {
+            "type": "integer",
+            "title": "Timed Out",
+            "default": 0
+          },
           "last_executed_at": {
             "anyOf": [
               {

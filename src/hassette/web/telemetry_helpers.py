@@ -102,9 +102,9 @@ def compute_health_metrics(
     ``job_avg_duration``, and ``last_activity_ts``.
     """
     total_invocations = sum(ls.total_invocations for ls in listeners)
-    total_errors = sum(ls.failed for ls in listeners)
+    total_errors = sum(ls.failed + ls.timed_out for ls in listeners)
     total_job_executions = sum(j.total_executions for j in jobs)
-    total_job_errors = sum(j.failed for j in jobs)
+    total_job_errors = sum(j.failed + j.timed_out for j in jobs)
     combined_total = total_invocations + total_job_executions
     combined_errors = total_errors + total_job_errors
     error_rate = (combined_errors / combined_total * 100) if combined_total > 0 else 0.0

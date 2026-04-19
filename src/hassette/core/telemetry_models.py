@@ -70,6 +70,7 @@ class ListenerSummary(BaseModel):
     failed: int
     di_failures: int
     cancelled: int
+    timed_out: int = 0
     total_duration_ms: float
     avg_duration_ms: float
     min_duration_ms: float
@@ -110,6 +111,7 @@ class JobSummary(BaseModel):
     total_executions: int
     successful: int
     failed: int
+    timed_out: int = 0
     last_executed_at: float | None
     total_duration_ms: float
     avg_duration_ms: float

@@ -355,7 +355,7 @@ class JobExecutionRecord:
     """Unix timestamp (epoch seconds) when execution began."""
 
     duration_ms: float
-    status: str  # "success", "error", "cancelled"
+    status: str  # "success", "error", "cancelled", "timed_out"
     source_tier: SourceTier = "app"
     """Whether this execution originates from a user app or the framework itself."""
 

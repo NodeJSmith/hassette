@@ -25,7 +25,7 @@ class HandlerInvocationRecord:
     """Execution duration in milliseconds."""
 
     status: str
-    """Outcome: 'success', 'error', or 'cancelled'."""
+    """Outcome: 'success', 'error', 'cancelled', or 'timed_out'."""
 
     source_tier: SourceTier = "app"
     """Whether this invocation originates from a user app or the framework itself."""
