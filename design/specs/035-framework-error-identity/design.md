@@ -7,6 +7,8 @@ created: "2026-04-18"
 
 # Design: Framework Error Identity and Dashboard Unification
 
+**Status:** archived
+
 ## Architecture
 
 ### 1. Framework key convention
