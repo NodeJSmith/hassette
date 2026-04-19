@@ -1402,66 +1402,35 @@ class TestDashboardAppGridDbErrorFallback:
 
 
 class TestDashboardFrameworkSummary:
-    """Cover the dashboard_framework_summary endpoint (counts-only, no errors list)."""
+    """Cover the dashboard_framework_summary endpoint (counts-only via get_error_counts)."""
 
-    def _make_handler_record(self, listener_id: int = 10) -> HandlerErrorRecord:
-        return HandlerErrorRecord(
-            listener_id=listener_id,
-            topic="state_changed.light.kitchen",
-            handler_method="on_light",
-            error_message="boom",
-            error_type="RuntimeError",
-            execution_start_ts=1234567890.0,
-            duration_ms=5.0,
-            app_key="__hassette__",
-            source_tier="framework",
-        )
-
-    def _make_job_record(self, job_id: int = 20) -> JobErrorRecord:
-        return JobErrorRecord(
-            job_id=job_id,
-            job_name="heartbeat",
-            handler_method="run",
-            error_message="timeout",
-            error_type="TimeoutError",
-            execution_start_ts=1234567891.0,
-            duration_ms=999.0,
-            app_key="__hassette__",
-            source_tier="framework",
-        )
-
-    async def test_happy_path_returns_kpis_and_empty_errors(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
+    async def test_happy_path_returns_zero_counts(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """Happy path with no errors: total_errors=0, total_job_errors=0, no errors field."""
-        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(return_value=[])
+        mock_hassette.telemetry_query_service.get_error_counts = AsyncMock(return_value=(0, 0))
         response = await client.get("/api/telemetry/dashboard/framework-summary")
         assert response.status_code == 200
         data = response.json()
         assert data["total_errors"] == 0
         assert data["total_job_errors"] == 0
-        # Response must NOT contain an errors list (slimmed model)
         assert "errors" not in data
 
     async def test_happy_path_with_handler_and_job_errors(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """Counts handler and job errors from get_recent_errors; no errors list in response."""
-        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(
-            return_value=[self._make_handler_record(), self._make_job_record()]
-        )
+        """Counts come from get_error_counts; no errors list in response."""
+        mock_hassette.telemetry_query_service.get_error_counts = AsyncMock(return_value=(3, 1))
         response = await client.get("/api/telemetry/dashboard/framework-summary")
         assert response.status_code == 200
         data = response.json()
-        assert data["total_errors"] == 1
+        assert data["total_errors"] == 3
         assert data["total_job_errors"] == 1
         assert "errors" not in data
 
-    async def test_db_error_on_kpis_returns_zero_totals(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """sqlite3.Error on get_recent_errors falls back to total_errors=0, total_job_errors=0."""
+    async def test_db_error_falls_back_to_zeros(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """sqlite3.Error on get_error_counts falls back to total_errors=0, total_job_errors=0."""
         import sqlite3
 
-        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(
+        mock_hassette.telemetry_query_service.get_error_counts = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
         response = await client.get("/api/telemetry/dashboard/framework-summary")
@@ -1470,67 +1439,35 @@ class TestDashboardFrameworkSummary:
         assert data["total_errors"] == 0
         assert data["total_job_errors"] == 0
 
-    async def test_db_error_on_errors_returns_empty_errors_list(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """sqlite3.Error falls back to zeros (same as test_db_error_on_kpis — single call now)."""
-        import sqlite3
-
-        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(
-            side_effect=sqlite3.OperationalError("database is locked")
-        )
+    async def test_oserror_falls_back_to_zeros(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """OSError on get_error_counts falls back to zeros."""
+        mock_hassette.telemetry_query_service.get_error_counts = AsyncMock(side_effect=OSError("disk I/O error"))
         response = await client.get("/api/telemetry/dashboard/framework-summary")
         assert response.status_code == 200
         data = response.json()
         assert data["total_errors"] == 0
         assert data["total_job_errors"] == 0
 
-    async def test_oserror_on_errors_returns_empty_errors_list(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """OSError on get_recent_errors falls back to zeros."""
-        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(side_effect=OSError("disk I/O error"))
-        response = await client.get("/api/telemetry/dashboard/framework-summary")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["total_errors"] == 0
-        assert data["total_job_errors"] == 0
-
-    async def test_both_calls_fail_returns_all_zeros_and_empty_errors(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """DB call failing returns total_errors=0 and total_job_errors=0."""
-        import sqlite3
-
-        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(
-            side_effect=sqlite3.OperationalError("database is locked")
-        )
-        response = await client.get("/api/telemetry/dashboard/framework-summary")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["total_errors"] == 0
-        assert data["total_job_errors"] == 0
-
-    async def test_session_id_forwarded_to_both_calls(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """session_id query param is forwarded to get_recent_errors."""
-        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(return_value=[])
+    async def test_session_id_forwarded(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """session_id query param is forwarded to get_error_counts."""
+        mock_hassette.telemetry_query_service.get_error_counts = AsyncMock(return_value=(0, 0))
         response = await client.get("/api/telemetry/dashboard/framework-summary?session_id=42")
         assert response.status_code == 200
-        errors_kwargs = mock_hassette.telemetry_query_service.get_recent_errors.call_args.kwargs
-        assert errors_kwargs["session_id"] == 42
+        kwargs = mock_hassette.telemetry_query_service.get_error_counts.call_args.kwargs
+        assert kwargs["session_id"] == 42
 
     async def test_omitted_session_id_passes_none(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """When session_id is omitted, None is forwarded to get_recent_errors."""
-        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(return_value=[])
+        """When session_id is omitted, None is forwarded to get_error_counts."""
+        mock_hassette.telemetry_query_service.get_error_counts = AsyncMock(return_value=(0, 0))
         response = await client.get("/api/telemetry/dashboard/framework-summary")
         assert response.status_code == 200
-        errors_kwargs = mock_hassette.telemetry_query_service.get_recent_errors.call_args.kwargs
-        assert errors_kwargs["session_id"] is None
+        kwargs = mock_hassette.telemetry_query_service.get_error_counts.call_args.kwargs
+        assert kwargs["session_id"] is None
 
     async def test_source_tier_is_always_framework(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """The endpoint always queries with source_tier='framework' regardless of caller."""
-        mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(return_value=[])
+        mock_hassette.telemetry_query_service.get_error_counts = AsyncMock(return_value=(0, 0))
         response = await client.get("/api/telemetry/dashboard/framework-summary")
         assert response.status_code == 200
-        errors_kwargs = mock_hassette.telemetry_query_service.get_recent_errors.call_args.kwargs
-        assert errors_kwargs["source_tier"] == "framework"
+        kwargs = mock_hassette.telemetry_query_service.get_error_counts.call_args.kwargs
+        assert kwargs["source_tier"] == "framework"

@@ -490,16 +490,11 @@ async def dashboard_framework_summary(
 
     since_ts = time.time() - 86400
     try:
-        raw_errors = await telemetry.get_recent_errors(
-            since_ts=since_ts, limit=1000, session_id=session_id, source_tier="framework"
+        total_errors, total_job_errors = await telemetry.get_error_counts(
+            since_ts=since_ts, session_id=session_id, source_tier="framework"
         )
-        for err in raw_errors:
-            if isinstance(err, JobErrorRecord):
-                total_job_errors += 1
-            elif isinstance(err, HandlerErrorRecord):
-                total_errors += 1
     except DB_ERRORS:
-        LOGGER.warning("Failed to fetch framework recent errors for badge count", exc_info=True)
+        LOGGER.warning("Failed to fetch framework error counts for badge", exc_info=True)
 
     return FrameworkSummaryResponse(
         total_errors=total_errors,

@@ -538,6 +538,50 @@ class TelemetryQueryService(Resource):
             rows = await cursor.fetchall()
         return [JobExecution.model_validate(_row_to_dict(row)) for row in rows]
 
+    async def get_error_counts(
+        self,
+        since_ts: float,
+        session_id: int | None = None,
+        source_tier: QuerySourceTier = "app",
+    ) -> tuple[int, int]:
+        """Return (handler_error_count, job_error_count) since a given timestamp.
+
+        Uses COUNT(*) queries — no row materialization. Suitable for badge counts
+        where exact numbers are needed without a LIMIT cap.
+        """
+        session_filter_hi = "AND hi.session_id = ?" if session_id is not None else ""
+        session_filter_je = "AND je.session_id = ?" if session_id is not None else ""
+        tier_hi_clause, tier_hi_params = _source_tier_clause(source_tier, "hi")
+        tier_je_clause, tier_je_params = _source_tier_clause(source_tier, "je")
+
+        handler_query = f"""
+            SELECT COUNT(*) FROM handler_invocations hi
+            WHERE hi.status = 'error' AND hi.execution_start_ts > ?
+                {session_filter_hi} {tier_hi_clause}
+        """
+        job_query = f"""
+            SELECT COUNT(*) FROM job_executions je
+            WHERE je.status = 'error' AND je.execution_start_ts > ?
+                {session_filter_je} {tier_je_clause}
+        """
+
+        hi_params: list = [since_ts]
+        if session_id is not None:
+            hi_params.append(session_id)
+        hi_params.extend(tier_hi_params)
+
+        je_params: list = [since_ts]
+        if session_id is not None:
+            je_params.append(session_id)
+        je_params.extend(tier_je_params)
+
+        async with self._db.execute(handler_query, hi_params) as cursor:
+            handler_count = (await cursor.fetchone())[0]  # pyright: ignore[reportOptionalSubscript]
+        async with self._db.execute(job_query, je_params) as cursor:
+            job_count = (await cursor.fetchone())[0]  # pyright: ignore[reportOptionalSubscript]
+
+        return handler_count, job_count
+
     async def get_recent_errors(
         self,
         since_ts: float,
