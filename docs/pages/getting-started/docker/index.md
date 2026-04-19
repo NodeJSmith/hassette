@@ -115,6 +115,7 @@ Override any configuration via environment variables using the `HASSETTE__` pref
 | `HASSETTE__CONFIG_DIR`  | Directory containing configuration files                                                             |
 | `HASSETTE__LOG_LEVEL`   | Logging level (`debug`, `info`, `warning`, `error`). (`LOG_LEVEL` is also read at startup before the config initializes, but `HASSETTE__LOG_LEVEL` controls the full runtime log level.) |
 | `HASSETTE__INSTALL_DEPS`| Set to `1` to enable `requirements.txt` file discovery and installation at startup                   |
+| `HASSETTE__PRUNE_UV_CACHE` | Set to `0` to skip `uv cache prune` at startup (default: `1`)                                    |
 | `TZ`                    | System timezone (e.g., `America/New_York`)                                                           |
 
 See [Managing Dependencies](dependencies.md) for details on `HASSETTE__APP_DIR` and `HASSETTE__PROJECT_DIR`.

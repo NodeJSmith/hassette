@@ -29,6 +29,7 @@ When the container starts, the [startup script](https://github.com/NodeJSmith/ha
 4. **Constraints protection for all installs**: Every `uv pip install` — whether from a project lockfile or a `requirements.txt` — passes `-c /app/constraints.txt`. Conflicts produce a clear error message before the container exits.
 5. **Fail-fast**: A failing dependency install exits the container immediately with an actionable message. With `restart: unless-stopped`, Docker retries automatically, giving transient network issues a chance to resolve.
 6. **Timeouts**: All network calls are wrapped with `timeout` (300 s for project export/install, 120 s per requirements file).
+7. **Cache pruning**: After dependency installation, stale uv cache entries are pruned by default. Disable with `HASSETTE__PRUNE_UV_CACHE=0` if startup time is critical and you prefer to manage cache size manually.
 
 ## Understanding APP_DIR vs PROJECT_DIR
 

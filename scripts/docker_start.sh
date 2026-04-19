@@ -19,6 +19,7 @@ APP_DIR="${HASSETTE__APP_DIR:-/apps}"
 PROJECT_DIR="${HASSETTE__PROJECT_DIR:-/apps}"
 CONFIG="${HASSETTE__CONFIG_DIR:-/config}"
 INSTALL_DEPS="${HASSETTE__INSTALL_DEPS:-0}"
+PRUNE_UV_CACHE="${HASSETTE__PRUNE_UV_CACHE:-1}"
 CONSTRAINTS="/app/constraints.txt"
 
 # Debian package is `fd-find`; binary name is usually `fdfind`.
@@ -194,6 +195,18 @@ else
             ;;
     esac
     echo "Runtime dependency installation disabled (set HASSETTE__INSTALL_DEPS=1 to enable)"
+fi
+
+if [ "${PRUNE_UV_CACHE}" = "1" ]; then
+    echo "Pruning stale uv cache entries..."
+    uv cache prune || echo "WARNING: uv cache prune failed — continuing anyway"
+else
+    case "${PRUNE_UV_CACHE}" in
+        true|yes|on|TRUE|YES|ON)
+            echo "WARNING: HASSETTE__PRUNE_UV_CACHE='${PRUNE_UV_CACHE}' is not recognized — use '1' to enable or '0' to disable. Cache will NOT be pruned."
+            ;;
+    esac
+    echo "uv cache pruning disabled (set HASSETTE__PRUNE_UV_CACHE=1 to enable)"
 fi
 
 exec hassette "$@"
