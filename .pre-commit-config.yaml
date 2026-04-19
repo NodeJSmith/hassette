@@ -34,7 +34,7 @@ repos:
       - id: tsc
         name: tsc (frontend)
         language: system
-        entry: npx --prefix frontend tsc --noEmit
+        entry: bash -c 'cd frontend && npx tsc --noEmit'
         types_or: [ts, tsx]
         files: ^frontend/src/
         pass_filenames: false

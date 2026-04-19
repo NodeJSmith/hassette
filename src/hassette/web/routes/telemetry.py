@@ -484,10 +484,10 @@ async def dashboard_framework_summary(
     telemetry: TelemetryDep,
     session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> FrameworkSummaryResponse:
-    """Framework error counts for the System Health badge.
+    """Framework error counts for the System Health badge (24h window).
 
-    Scoped by session_id when provided (matching the dashboard's session toggle),
-    otherwise returns all-time counts.
+    Scoped by session_id when provided (matching the dashboard's session toggle).
+    Without session_id, returns counts from the last 24 hours.
     """
     total_errors = 0
     total_job_errors = 0

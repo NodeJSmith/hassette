@@ -26,11 +26,14 @@ export function DashboardPage() {
   useEffect(() => { document.title = "Dashboard - Hassette"; }, []);
   const { appStatus } = useAppState();
 
+  const errorTierFilter = useSignal<SourceTier>("all");
+
   const kpis = useScopedApi((sid) => getDashboardKpis(sid));
   const appGrid = useScopedApi((sid) => getDashboardAppGrid(sid).then((r) => r.apps));
-  const errors = useScopedApi((sid) => getDashboardErrors(sid).then((r) => r.errors));
-
-  const errorTierFilter = useSignal<SourceTier>("all");
+  const errors = useScopedApi(
+    (sid) => getDashboardErrors(sid, errorTierFilter.value).then((r) => r.errors),
+    { deps: [errorTierFilter.value] },
+  );
 
   // Debounce appStatus-driven refetches so rapid WS updates coalesce into one
   // round of API calls. maxWait caps staleness during bulk startup. Reconnection
@@ -61,10 +64,6 @@ export function DashboardPage() {
   if (isLoading) {
     return <Spinner />;
   }
-
-  const filteredErrors = errors.data.value && errorTierFilter.value !== "all"
-    ? errors.data.value.filter((e) => e.source_tier === errorTierFilter.value)
-    : errors.data.value;
 
   return (
     <div>
@@ -108,7 +107,7 @@ export function DashboardPage() {
               ))}
             </div>
           </h2>
-          <ErrorFeed errors={filteredErrors} />
+          <ErrorFeed errors={errors.data.value} />
         </div>
       ) : (
         <div class="ht-empty-section ht-mb-6">
@@ -117,11 +116,7 @@ export function DashboardPage() {
         </div>
       )}
 
-      <FrameworkHealth
-        errors={errors.data.value}
-        loading={errors.loading.value}
-        hasError={!!errors.error.value}
-      />
+      <FrameworkHealth />
     </div>
   );
 }
