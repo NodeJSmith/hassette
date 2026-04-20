@@ -44,18 +44,6 @@ class SchedulerService(Service):
     _reg_tracker: RegistrationTracker
     """Tracks pending DB registration tasks per app_key for await barrier support."""
 
-    @property
-    def _pending_registration_tasks(self) -> dict[str, list[asyncio.Task[None]]]:
-        """Backward-compatible access to the registration tracker's internal tasks dict."""
-        return self._reg_tracker._tasks
-
-    @_pending_registration_tasks.setter
-    def _pending_registration_tasks(self, value: dict[str, list[asyncio.Task[None]]]) -> None:
-        """Allow direct assignment for tests that bypass __init__."""
-        if not hasattr(self, "_reg_tracker"):
-            self._reg_tracker = RegistrationTracker()
-        self._reg_tracker._tasks = value
-
     _removal_callbacks: dict[str, Callable[["ScheduledJob"], None]]
     """Per-owner callbacks invoked whenever a job is removed via dequeue_job() or _remove_job()."""
 

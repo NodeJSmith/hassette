@@ -1,13 +1,13 @@
 """Tests for SchedulerService.run_job() effective timeout resolution."""
 
 import asyncio
-from collections import defaultdict
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 import hassette.utils.date_utils as date_utils
 from hassette.core.commands import ExecuteJob
+from hassette.core.registration_tracker import RegistrationTracker
 from hassette.core.scheduler_service import SchedulerService
 from hassette.scheduler.classes import ScheduledJob
 
@@ -19,7 +19,7 @@ def _make_scheduler_service(*, config_timeout: float | None = 600.0) -> Schedule
     svc.hassette.config.scheduler_behind_schedule_threshold_seconds = 60
     svc.hassette.config.scheduler_job_timeout_seconds = config_timeout
     svc.hassette.config.registration_await_timeout = 30
-    svc._pending_registration_tasks = defaultdict(list)
+    svc._reg_tracker = RegistrationTracker()
     svc._removal_callbacks = {}
     svc.logger = MagicMock()
 

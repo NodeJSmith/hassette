@@ -10,8 +10,9 @@ Tests verify:
 
 import asyncio
 import contextlib
-from collections import defaultdict
 from unittest.mock import MagicMock
+
+from hassette.core.registration_tracker import RegistrationTracker
 
 
 def _make_scheduler_service() -> "SchedulerService":  # noqa: F821
@@ -22,7 +23,7 @@ def _make_scheduler_service() -> "SchedulerService":  # noqa: F821
     # Minimal mock for hassette with required config
     svc.hassette = MagicMock()
     svc.hassette.config.registration_await_timeout = 30
-    svc._pending_registration_tasks = defaultdict(list)
+    svc._reg_tracker = RegistrationTracker()
     # Logger used by await_registrations_complete
     svc.logger = MagicMock()
     return svc
@@ -38,7 +39,7 @@ class TestAwaitRegistrationsComplete:
     async def test_returns_immediately_for_empty_task_list(self) -> None:
         """Empty task list for app_key — returns without error."""
         svc = _make_scheduler_service()
-        svc._pending_registration_tasks["my_app"] = []
+        svc._reg_tracker._tasks["my_app"] = []
         await svc.await_registrations_complete("my_app")
 
     async def test_awaits_pending_tasks(self) -> None:
@@ -50,7 +51,7 @@ class TestAwaitRegistrationsComplete:
             completed.set()
 
         task = asyncio.create_task(_work())
-        svc._pending_registration_tasks["my_app"].append(task)
+        svc._reg_tracker._tasks["my_app"].append(task)
 
         await svc.await_registrations_complete("my_app")
 
@@ -64,11 +65,11 @@ class TestAwaitRegistrationsComplete:
             pass
 
         task = asyncio.create_task(_noop())
-        svc._pending_registration_tasks["my_app"].append(task)
+        svc._reg_tracker._tasks["my_app"].append(task)
 
         await svc.await_registrations_complete("my_app")
 
-        assert "my_app" not in svc._pending_registration_tasks
+        assert "my_app" not in svc._reg_tracker._tasks
 
     async def test_already_done_tasks_skipped_immediately(self) -> None:
         """Already-done tasks are filtered out without awaiting gather."""
@@ -80,7 +81,7 @@ class TestAwaitRegistrationsComplete:
         task = asyncio.create_task(_noop())
         await task  # complete it first
 
-        svc._pending_registration_tasks["my_app"].append(task)
+        svc._reg_tracker._tasks["my_app"].append(task)
 
         # Should return without hanging
         await svc.await_registrations_complete("my_app")
@@ -96,7 +97,7 @@ class TestAwaitRegistrationsComplete:
             await gate.wait()
 
         task = asyncio.create_task(_blocked())
-        svc._pending_registration_tasks["my_app"].append(task)
+        svc._reg_tracker._tasks["my_app"].append(task)
 
         try:
             # Should not raise — timeout is swallowed
@@ -132,17 +133,17 @@ class TestAddJobPruning:
         done_task = asyncio.create_task(_done())
         await done_task  # ensure it is done
 
-        svc._pending_registration_tasks["my_app"].append(done_task)
+        svc._reg_tracker._tasks["my_app"].append(done_task)
         assert done_task.done()
 
         # Simulate the pruning branch: replicate the internal logic add_job uses
         # without invoking add_job itself (which requires a full Resource setup).
         # This is a direct test of the pruning invariant.
         app_key = "my_app"
-        existing = svc._pending_registration_tasks.get(app_key)
+        existing = svc._reg_tracker._tasks.get(app_key)
         if existing:
-            svc._pending_registration_tasks[app_key] = [t for t in existing if not t.done()]
+            svc._reg_tracker._tasks[app_key] = [t for t in existing if not t.done()]
 
-        remaining = svc._pending_registration_tasks.get(app_key, [])
+        remaining = svc._reg_tracker._tasks.get(app_key, [])
         assert done_task not in remaining, "Completed task should have been pruned"
         assert len(remaining) == 0, "No non-done tasks were present, list should be empty"

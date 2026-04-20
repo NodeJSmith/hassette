@@ -358,9 +358,9 @@ class Hassette(Resource):
             return
 
         # Drain completed framework registration tasks to free stale Task references.
-        # Without this, _pending_registration_tasks[<framework_key>] holds N completed
-        # Tasks for the process lifetime since no further register_framework_listener()
-        # calls trigger the pruning logic.
+        # Without this, the registration tracker holds N completed Tasks for the
+        # process lifetime since no further register_framework_listener() calls
+        # trigger the pruning logic.
         try:
             await asyncio.wait_for(
                 self._bus_service.drain_framework_registrations(),
