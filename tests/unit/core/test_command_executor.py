@@ -19,6 +19,7 @@ def _make_cmd_invoke_handler(source_tier: str) -> MagicMock:
     cmd.topic = "test/topic"
     cmd.listener = MagicMock()
     cmd.listener.invoke = AsyncMock(return_value=None)
+    cmd.effective_timeout = None
     return cmd
 
 
@@ -28,6 +29,7 @@ def _make_cmd_execute_job(source_tier: str) -> MagicMock:
     cmd.source_tier = source_tier
     cmd.job_db_id = 1
     cmd.callable = AsyncMock(return_value=None)
+    cmd.effective_timeout = None
     return cmd
 
 
@@ -45,6 +47,7 @@ def _make_executor() -> CommandExecutor:
     executor._dropped_no_session = 0
     executor._dropped_shutdown = 0
     executor._last_capacity_warn_ts = 0.0
+    executor._timeout_warn_timestamps = {}
     executor.repository = MagicMock()
     executor.hassette = hassette
     executor._logger = MagicMock()

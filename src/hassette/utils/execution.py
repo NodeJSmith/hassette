@@ -42,6 +42,10 @@ class ExecutionResult:
     def is_cancelled(self) -> bool:
         return self.status == "cancelled"
 
+    @property
+    def is_timed_out(self) -> bool:
+        return self.status == "timed_out"
+
 
 @asynccontextmanager
 async def track_execution(
@@ -77,6 +81,11 @@ async def track_execution(
         result.status = "success"
     except asyncio.CancelledError:
         result.status = "cancelled"
+        raise
+    except TimeoutError as exc:
+        result.status = "timed_out"
+        result.error_type = "TimeoutError"
+        result.error_message = str(exc) if str(exc) else "execution timed out"
         raise
     except Exception as exc:
         result.status = "error"

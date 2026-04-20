@@ -12,9 +12,10 @@ from fair_async_rlock import FairAsyncRLock
 from hassette.bus.listeners import Listener
 from hassette.core.commands import InvokeHandler
 from hassette.core.registration import ListenerRegistration
+from hassette.core.registration_tracker import RegistrationTracker
 from hassette.events import Event, HassPayload
 from hassette.resources.base import Resource, Service
-from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, is_framework_key
+from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
@@ -41,7 +42,7 @@ class BusService(Service):
     _excluded_entity_globs: tuple[str, ...]
     _has_exclusions: bool
 
-    _pending_registration_tasks: dict[str, list[asyncio.Task[None]]]
+    _reg_tracker: RegistrationTracker
     """Tracks pending DB registration tasks per app_key for await barrier support."""
 
     def __init__(
@@ -56,7 +57,7 @@ class BusService(Service):
         self.stream = stream
         self._executor = executor
         self.router = Router()
-        self._pending_registration_tasks = defaultdict(list)
+        self._reg_tracker = RegistrationTracker()
         # Dispatch tracking for deterministic drain in test harnesses.
         self._dispatch_pending: int = 0
         self._dispatch_idle_event: asyncio.Event = asyncio.Event()
@@ -100,14 +101,8 @@ class BusService(Service):
         ``await_registrations_complete()`` can drain them before reconciliation.
         """
         if listener.app_key:
-            # Prune completed tasks to prevent unbounded list growth for apps
-            # that register listeners dynamically after startup.
-            app_key = listener.app_key
-            existing = self._pending_registration_tasks.get(app_key)
-            if existing:
-                self._pending_registration_tasks[app_key] = [t for t in existing if not t.done()]
             task = self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_listener")
-            self._pending_registration_tasks[app_key].append(task)
+            self._reg_tracker.prune_and_track(listener.app_key, task)
             return task
         return self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
 
@@ -124,6 +119,8 @@ class BusService(Service):
         once: bool = False,
         debounce: float | None = None,
         throttle: float | None = None,
+        timeout: float | None = None,
+        timeout_disabled: bool = False,
     ) -> asyncio.Task[None]:
         """Register a framework-internal listener with ``source_tier='framework'``.
 
@@ -163,6 +160,8 @@ class BusService(Service):
             once=once,
             debounce=debounce,
             throttle=throttle,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
             priority=0,
             logger=self.logger,
             app_key=app_key,
@@ -170,24 +169,18 @@ class BusService(Service):
             name=name,
             source_tier="framework",
         )
-        existing = self._pending_registration_tasks.get(app_key)
-        if existing:
-            self._pending_registration_tasks[app_key] = [t for t in existing if not t.done()]
         task = self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_framework_listener")
-        self._pending_registration_tasks[app_key].append(task)
+        self._reg_tracker.prune_and_track(app_key, task)
         return task
 
     async def drain_framework_registrations(self) -> None:
         """Drain all pending framework registration tasks.
 
-        Iterates a snapshot of ``_pending_registration_tasks`` keys and awaits
-        completion for any key that matches ``is_framework_key()``.  Using
-        ``list()`` prevents RuntimeError if a concurrent coroutine mutates the
-        dict during iteration.
+        Delegates to ``RegistrationTracker.drain_framework_keys()`` which
+        iterates a snapshot of keys and calls ``await_registrations_complete``
+        for any key that matches ``is_framework_key()``.
         """
-        for key in list(self._pending_registration_tasks):
-            if is_framework_key(key):
-                await self.await_registrations_complete(key)
+        await self._reg_tracker.drain_framework_keys(self.await_registrations_complete)
 
     async def _register_then_add_route(self, listener: Listener) -> None:
         """Register a listener in the DB and add its route.
@@ -270,26 +263,8 @@ class BusService(Service):
         Args:
             app_key: The app key whose pending registration tasks to await.
         """
-        tasks = self._pending_registration_tasks.pop(app_key, [])
-        if not tasks:
-            return
-
-        # Filter out already-done tasks
-        pending = [t for t in tasks if not t.done()]
-        if not pending:
-            return
-
-        timeout = self.hassette.config.registration_await_timeout
-        try:
-            await asyncio.wait_for(asyncio.gather(*pending, return_exceptions=True), timeout=float(timeout))
-        except TimeoutError:
-            self.logger.warning(
-                "await_registrations_complete timed out after %ss for app_key=%r — "
-                "%d registration task(s) incomplete; those listeners will be excluded from live IDs",
-                timeout,
-                app_key,
-                len([t for t in pending if not t.done()]),
-            )
+        timeout = float(self.hassette.config.registration_await_timeout)
+        await self._reg_tracker.await_complete(app_key, timeout=timeout, logger=self.logger)
 
     def _should_log_event(self, event: "Event[Any]") -> bool:
         """Determine if an event should be logged based on its type."""
@@ -421,12 +396,23 @@ class BusService(Service):
         """
 
         async def execute_fn() -> None:
+            # Resolve effective timeout lazily at fire time (not capture time) so that
+            # debounced handlers see config changes applied via hot reload, consistent
+            # with the lazy db_id resolution documented above.
+            if listener.timeout_disabled:
+                effective_timeout = None
+            elif listener.timeout is not None:
+                effective_timeout = listener.timeout
+            else:
+                effective_timeout = self.hassette.config.event_handler_timeout_seconds
+
             cmd = InvokeHandler(
                 listener=listener,
                 event=event,
                 topic=topic,
                 listener_id=listener.db_id,
                 source_tier=listener.source_tier,
+                effective_timeout=effective_timeout,
             )
             await self._executor.execute(cmd)
 

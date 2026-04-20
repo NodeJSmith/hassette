@@ -74,6 +74,7 @@ class TestInvokeHandlerSourceTier:
             topic="test.topic",
             listener_id=42,
             source_tier="framework",
+            effective_timeout=None,
         )
 
         assert cmd.source_tier == "framework"
@@ -367,6 +368,7 @@ class TestExecuteJobSourceTier:
             callable=callable_,
             job_db_id=42,
             source_tier="app",
+            effective_timeout=None,
         )
 
         assert cmd.source_tier == "app"

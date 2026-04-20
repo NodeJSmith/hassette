@@ -16,7 +16,6 @@ Tests cover:
 
 import asyncio
 import inspect
-from collections import defaultdict
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fair_async_rlock import FairAsyncRLock
@@ -24,6 +23,7 @@ from whenever import ZonedDateTime
 
 import hassette.core.scheduler_service as hassette_svc_module
 import hassette.utils.date_utils as date_utils
+from hassette.core.registration_tracker import RegistrationTracker
 from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import Every
@@ -39,7 +39,7 @@ def _make_scheduler_service() -> SchedulerService:
     svc.hassette = MagicMock()
     svc.hassette.config.registration_await_timeout = 30
     svc.hassette.config.scheduler_behind_schedule_threshold_seconds = 60
-    svc._pending_registration_tasks = defaultdict(list)
+    svc._reg_tracker = RegistrationTracker()
     svc._removal_callbacks = {}
     svc.logger = MagicMock()
 
@@ -268,7 +268,7 @@ class TestJitter:
         svc.hassette.config.scheduler_min_delay_seconds = 0.1
         svc.hassette.config.scheduler_max_delay_seconds = 300.0
         svc.hassette.config.scheduler_default_delay_seconds = 10.0
-        svc._pending_registration_tasks = defaultdict(list)
+        svc._reg_tracker = RegistrationTracker()
         svc._removal_callbacks = {}
         svc.logger = MagicMock()
         svc._wakeup_event = asyncio.Event()
@@ -399,7 +399,7 @@ class TestEnqueueThenRegisterUsesProtocol:
         svc = SchedulerService.__new__(SchedulerService)
         svc.hassette = MagicMock()
         svc.hassette.config.registration_await_timeout = 30
-        svc._pending_registration_tasks = defaultdict(list)
+        svc._reg_tracker = RegistrationTracker()
         svc._removal_callbacks = {}
         svc.logger = MagicMock()
         svc._wakeup_event = asyncio.Event()
@@ -585,7 +585,7 @@ class TestEnqueueThenRegisterDbFailure:
         svc = SchedulerService.__new__(SchedulerService)
         svc.hassette = MagicMock()
         svc.hassette.config.registration_await_timeout = 30
-        svc._pending_registration_tasks = defaultdict(list)
+        svc._reg_tracker = RegistrationTracker()
         svc._removal_callbacks = {}
         svc.logger = MagicMock()
         svc._wakeup_event = asyncio.Event()
