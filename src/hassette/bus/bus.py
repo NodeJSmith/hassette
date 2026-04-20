@@ -138,6 +138,7 @@ class Bus(Resource):
 
     def __init__(self, hassette: "Hassette", *, priority: int = 0, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
+        assert self.parent is not None, "Bus requires a parent Resource for telemetry identity (app_key/source_tier)"
         self.bus_service = self.hassette._bus_service
         self.priority = priority
         self._registered_keys: set[tuple[str, int, str, str, str]] = set()
@@ -169,7 +170,7 @@ class Bus(Resource):
         # once=True listeners are excluded from collision detection: the partial unique index
         # (WHERE once = 0) explicitly allows unlimited fresh inserts for the same natural key,
         # so two once=True registrations for the same (handler, topic) are valid and expected.
-        if listener.app_key and not listener.once:
+        if not listener.once:
             natural_key = self._listener_natural_key(listener)
             if natural_key in self._registered_keys:
                 key_str = natural_key[-1] or listener.handler_name
@@ -196,8 +197,7 @@ class Bus(Resource):
 
     def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Remove a listener from the bus."""
-        if listener.app_key:
-            self._registered_keys.discard(self._listener_natural_key(listener))
+        self._registered_keys.discard(self._listener_natural_key(listener))
         return self.bus_service.remove_listener(listener)
 
     def remove_all_listeners(self) -> asyncio.Task[None]:
@@ -243,8 +243,12 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        app_key = getattr(self.parent, "app_key", "") if self.parent else ""
-        instance_index = getattr(self.parent, "index", 0) if self.parent else 0
+        parent = self.parent
+        assert parent is not None
+        app_key = parent.app_key
+        instance_index = parent.index
+        source_tier = parent.source_tier
+        assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
 
         listener = Listener.create(
             task_bucket=self.task_bucket,
@@ -263,6 +267,7 @@ class Bus(Resource):
             app_key=app_key,
             instance_index=instance_index,
             name=name,
+            source_tier=source_tier,
         )
 
         # Capture source while user code is still on the stack (before async spawn boundary)

@@ -212,30 +212,25 @@ class ServiceWatcher(Resource):
 
     def _register_internal_event_listeners(self) -> None:
         """Register internal event listeners for resource lifecycle."""
-        bus_service = self.hassette._bus_service
         topic = str(Topic.HASSETTE_EVENT_SERVICE_STATUS)
-        bus_service.register_framework_listener(
-            component="service_watcher",
+        self.bus.on(
             topic=topic,
             handler=self.restart_service,
             name="hassette.service_watcher.restart_service",
             where=P.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.FAILED),
         )
-        bus_service.register_framework_listener(
-            component="service_watcher",
+        self.bus.on(
             topic=topic,
             handler=self.shutdown_if_crashed,
             name="hassette.service_watcher.shutdown_if_crashed",
             where=P.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.CRASHED),
         )
-        bus_service.register_framework_listener(
-            component="service_watcher",
+        self.bus.on(
             topic=topic,
             handler=self.log_service_event,
             name="hassette.service_watcher.log_service_event",
         )
-        bus_service.register_framework_listener(
-            component="service_watcher",
+        self.bus.on(
             topic=topic,
             handler=self._on_service_running,
             name="hassette.service_watcher._on_service_running",

@@ -8,7 +8,7 @@ import typing
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.scheduler.classes import JobExecutionRecord
-from hassette.types.types import FRAMEWORK_APP_KEY, FRAMEWORK_APP_KEY_PREFIX, is_framework_key
+from hassette.types.types import is_framework_key
 
 if typing.TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
@@ -40,15 +40,6 @@ class TelemetryRepository:
     def __init__(self, db_service: "DatabaseService") -> None:
         self._db_service = db_service
 
-    @staticmethod
-    def _validate_source_tier(app_key: str, source_tier: str) -> None:
-        """Guard against user apps injecting source_tier='framework'."""
-        if source_tier == "framework" and not is_framework_key(app_key):
-            raise ValueError(
-                f"Only the framework (app_key={FRAMEWORK_APP_KEY!r} or '{FRAMEWORK_APP_KEY_PREFIX}<component>') "
-                f"may use source_tier='framework'; got app_key={app_key!r}"
-            )
-
     async def register_listener(self, registration: ListenerRegistration) -> int:
         """Upsert a listener registration into the listeners table.
 
@@ -71,7 +62,6 @@ class TelemetryRepository:
         Raises:
             RuntimeError: If the RETURNING clause returns no row (should never happen).
         """
-        self._validate_source_tier(registration.app_key, registration.source_tier)
         db = self._db_service.db
 
         if registration.once:
@@ -169,7 +159,6 @@ class TelemetryRepository:
         Raises:
             RuntimeError: If the RETURNING clause returns no row (should never happen).
         """
-        self._validate_source_tier(registration.app_key, registration.source_tier)
         db = self._db_service.db
         cursor = await db.execute(
             """

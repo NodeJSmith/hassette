@@ -58,7 +58,7 @@ export type SourceTier = "app" | "framework" | "all";
 
 export const getDashboardKpis = (sessionId?: number | null, sourceTier?: SourceTier) => {
   let url = withSession("/telemetry/dashboard/kpis", sessionId);
-  if (sourceTier) url += (url.includes("?") ? "&" : "?") + `source_tier=${sourceTier}`;
+  if (sourceTier && sourceTier !== "all") url += (url.includes("?") ? "&" : "?") + `source_tier=${sourceTier}`;
   return apiFetch<DashboardKpis>(url);
 };
 
@@ -72,7 +72,7 @@ export const getFrameworkSummary = (sessionId?: number | null) =>
 
 export const getDashboardErrors = (sessionId?: number | null, sourceTier?: SourceTier) => {
   let url = withSession("/telemetry/dashboard/errors", sessionId);
-  if (sourceTier) url += (url.includes("?") ? "&" : "?") + `source_tier=${sourceTier}`;
+  if (sourceTier && sourceTier !== "all") url += (url.includes("?") ? "&" : "?") + `source_tier=${sourceTier}`;
   return apiFetch<{ errors: DashboardErrorEntry[] }>(url);
 };
 

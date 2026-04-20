@@ -15,7 +15,7 @@ from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.types import AppConfigT
 from hassette.types.enums import ResourceRole
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import LOG_LEVEL_TYPE, SourceTier
 
 from .app_config import AppConfig
 
@@ -58,6 +58,8 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 
     role: ClassVar[ResourceRole] = ResourceRole.APP
     """Role of the resource, e.g. 'App', 'Service', etc."""
+
+    source_tier: ClassVar[SourceTier] = "app"
 
     app_manifest: ClassVar[AppManifest]
     "Manifest for the app itself, not used by app instances."

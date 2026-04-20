@@ -49,9 +49,12 @@ function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
   const isFramework = isFrameworkKey(err.app_key);
   const isOrphan = !isFramework && (err.kind === "handler" ? err.listener_id === null : err.job_id === null);
   const rawSubtitle = err.kind === "handler" ? err.handler_method : err.job_name;
+  const isUnregisteredFramework = isFramework && (err.kind === "handler" ? err.listener_id === null : err.job_id === null);
   const subtitle = isOrphan
     ? (err.kind === "handler" ? "deleted handler" : "deleted job")
-    : rawSubtitle;
+    : isUnregisteredFramework
+      ? `${rawSubtitle} (unregistered)`
+      : rawSubtitle;
 
   // Use source_tier to determine if this is a framework error (badge display)
   const isFrameworkTier = err.source_tier === "framework";

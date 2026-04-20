@@ -15,7 +15,12 @@ def _make_bus() -> Bus:
     bus.logger = MagicMock()
     bus.task_bucket = MagicMock()
     bus.task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-    bus._parent = None
+    mock_parent = MagicMock()
+    mock_parent.app_key = "test_app"
+    mock_parent.index = 0
+    mock_parent.source_tier = "app"
+    mock_parent.class_name = "TestParent"
+    bus.parent = mock_parent
     bus._registered_keys = set()
     bus._unique_name = "test_bus"
     bus.unique_id = "test_bus_id"

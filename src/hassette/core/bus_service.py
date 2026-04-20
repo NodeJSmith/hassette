@@ -1,5 +1,4 @@
 import asyncio
-import re
 import typing
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
@@ -15,7 +14,7 @@ from hassette.core.registration import ListenerRegistration
 from hassette.core.registration_tracker import RegistrationTracker
 from hassette.events import Event, HassPayload
 from hassette.resources.base import Resource, Service
-from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE
+from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
@@ -100,76 +99,8 @@ class BusService(Service):
         Registration tasks are tracked per ``app_key`` so
         ``await_registrations_complete()`` can drain them before reconciliation.
         """
-        if listener.app_key:
-            task = self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_listener")
-            self._reg_tracker.prune_and_track(listener.app_key, task)
-            return task
-        return self.task_bucket.spawn(self.router.add_route(listener.topic, listener), name="bus:add_listener")
-
-    _COMPONENT_RE = re.compile(r"^[a-z][a-z_]*[a-z]$")
-
-    def register_framework_listener(
-        self,
-        *,
-        component: str,
-        topic: str,
-        handler: "Callable[..., Awaitable[None]]",
-        name: str,
-        where: "Any | None" = None,
-        once: bool = False,
-        debounce: float | None = None,
-        throttle: float | None = None,
-        timeout: float | None = None,
-        timeout_disabled: bool = False,
-    ) -> asyncio.Task[None]:
-        """Register a framework-internal listener with ``source_tier='framework'``.
-
-        Framework listeners are registered with ``app_key='__hassette__.<component>'`` and
-        ``source_tier='framework'``.  They are excluded from app-level reconciliation
-        by the guard in ``TelemetryRepository.reconcile_registrations()``.
-
-        Args:
-            component: Snake_case component identifier, e.g. ``'service_watcher'``.
-                Must match ``^[a-z][a-z_]*[a-z]$`` (at least 2 chars, lowercase).
-            topic: The event topic to subscribe to.
-            handler: The coroutine function to call when the event fires.
-            name: Component-prefixed stable name, e.g. ``'hassette.core.on_service_crashed'``.
-            where: Optional predicate(s) to filter events.
-            once: If True, remove the listener after one invocation.
-            debounce: Debounce window in seconds.
-            throttle: Throttle interval in seconds.
-
-        Returns:
-            The task spawned to register the listener.
-
-        Raises:
-            ValueError: If ``component`` is empty or does not match the required pattern.
-        """
-        if not component or not self._COMPONENT_RE.match(component) or "__" in component:
-            raise ValueError(
-                f"Invalid framework component name: {component!r}; "
-                "must match ^[a-z][a-z_]*[a-z]$ (snake_case, at least 2 chars, no consecutive underscores)"
-            )
-        app_key = f"{FRAMEWORK_APP_KEY_PREFIX}{component}"
-        listener = Listener.create(
-            task_bucket=self.task_bucket,
-            owner_id=f"{app_key}:{name}",
-            topic=topic,
-            handler=handler,
-            where=where,
-            once=once,
-            debounce=debounce,
-            throttle=throttle,
-            timeout=timeout,
-            timeout_disabled=timeout_disabled,
-            priority=0,
-            logger=self.logger,
-            app_key=app_key,
-            instance_index=0,
-            name=name,
-            source_tier="framework",
-        )
-        task = self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_framework_listener")
+        app_key = listener.app_key or listener.owner_id
+        task = self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_listener")
         self._reg_tracker.prune_and_track(app_key, task)
         return task
 
@@ -181,6 +112,7 @@ class BusService(Service):
         for any key that matches ``is_framework_key()``.
         """
         await self._reg_tracker.drain_framework_keys(self.await_registrations_complete)
+
 
     async def _register_then_add_route(self, listener: Listener) -> None:
         """Register a listener in the DB and add its route.
@@ -213,11 +145,27 @@ class BusService(Service):
             source_tier=listener.source_tier,
         )
         if listener.once:
-            listener.mark_registered(await self._executor.register_listener(reg))
+            try:
+                listener.mark_registered(await self._executor.register_listener(reg))
+            except Exception:
+                self.logger.exception(
+                    "Failed to register once=True listener in DB for owner_id=%s topic=%s; "
+                    "listener will fire once and produce an orphan invocation record",
+                    listener.owner_id,
+                    listener.topic,
+                )
             await self.router.add_route(listener.topic, listener)
         else:
             await self.router.add_route(listener.topic, listener)
-            listener.mark_registered(await self._executor.register_listener(reg))
+            try:
+                listener.mark_registered(await self._executor.register_listener(reg))
+            except Exception:
+                self.logger.exception(
+                    "Failed to register listener in DB for owner_id=%s topic=%s; "
+                    "listener will run without telemetry until next restart",
+                    listener.owner_id,
+                    listener.topic,
+                )
 
     def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Remove a listener from the bus.

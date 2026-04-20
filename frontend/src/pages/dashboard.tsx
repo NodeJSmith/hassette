@@ -27,6 +27,7 @@ export function DashboardPage() {
   const { appStatus } = useAppState();
 
   const errorTierFilter = useSignal<SourceTier>("all");
+  const errorFilterInteracted = useSignal(false);
 
   const kpis = useScopedApi((sid) => getDashboardKpis(sid));
   const appGrid = useScopedApi((sid) => getDashboardAppGrid(sid).then((r) => r.apps));
@@ -89,7 +90,7 @@ export function DashboardPage() {
           <IconWarning />
           <span class="ht-text-danger ht-text-xs">Failed to load errors: {errors.error.value}</span>
         </div>
-      ) : errors.loading.value || errors.data.value || errorTierFilter.value !== "all" ? (
+      ) : errors.loading.value || errors.data.value || errorTierFilter.value !== "all" || errorFilterInteracted.value ? (
         <div class={`ht-card${errors.data.value && errors.data.value.length > 0 ? " ht-card--urgent" : ""} ht-mb-6`}>
           <h2 class="ht-heading-5">
             {errors.loading.value ? null : errors.data.value && errors.data.value.length > 0 ? <IconWarning /> : <IconCheck />}
@@ -100,7 +101,7 @@ export function DashboardPage() {
                 <button
                   key={opt.value}
                   class={`ht-tier-toggle__btn${errorTierFilter.value === opt.value ? " ht-tier-toggle__btn--active" : ""}`}
-                  onClick={() => { errorTierFilter.value = opt.value; }}
+                  onClick={() => { errorTierFilter.value = opt.value; errorFilterInteracted.value = true; }}
                 >
                   {opt.label}
                 </button>

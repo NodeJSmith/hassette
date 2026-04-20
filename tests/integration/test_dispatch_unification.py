@@ -154,7 +154,7 @@ async def test_pre_registration_listener_produces_orphan_record(executor: Comman
 
 
 # ---------------------------------------------------------------------------
-# Subtask 4 & 5: register_framework_listener() and _register_then_add_route
+# Subtask 4 & 5: framework listener DB registration via _register_then_add_route
 # ---------------------------------------------------------------------------
 
 
@@ -164,7 +164,7 @@ async def test_framework_listener_registration(
     initialized_db: tuple[DatabaseService, int],
     mock_hassette: MagicMock,
 ) -> None:
-    """register_framework_listener() writes a DB row with app_key='__hassette__' and source_tier='framework'."""
+    """Framework listener via _register_then_add_route writes a DB row with source_tier='framework'."""
     db_service, _ = initialized_db
     stream = MagicMock()
     bus_service = BusService(mock_hassette, stream=stream, executor=executor, parent=mock_hassette)

@@ -109,6 +109,8 @@ class TestStateProxyInit:
             with pytest.raises(Exception, match="API failure during init"):
                 await proxy.on_initialize()
 
+        # Clear collision-detection state so the retry doesn't raise "duplicate listener"
+        proxy.bus._registered_keys.clear()
         await proxy.on_initialize()  # Ensure it can be used in later tests
 
 

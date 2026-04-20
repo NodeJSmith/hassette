@@ -17,7 +17,12 @@ def _make_scheduler() -> Scheduler:
     scheduler._jobs_by_group = {}
     scheduler.scheduler_service = MagicMock()
     scheduler._unique_name = "test_scheduler"
-    scheduler.parent = None
+    mock_parent = MagicMock()
+    mock_parent.app_key = "test_app"
+    mock_parent.index = 0
+    mock_parent.source_tier = "app"
+    mock_parent.class_name = "TestParent"
+    scheduler.parent = mock_parent
     return scheduler
 
 

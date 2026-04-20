@@ -80,27 +80,25 @@ async def mock_hassette_with_db(tmp_path: Path) -> MagicMock:
 
 @pytest.mark.asyncio
 async def test_framework_listener_registers_with_source_tier(harness_config: HassetteConfig) -> None:
-    """Framework listener registration → source_tier='framework' in DB."""
+    """Framework listener via Bus.on() on a framework Resource → source_tier='framework' in DB."""
     async with HassetteHarness(harness_config).with_bus() as harness:
-        # Register framework listener
+
         async def test_handler(event: MagicMock) -> None:
             pass
 
-        await harness.register_framework_listener(
-            component="test_component",
+        bus = harness.hassette._bus
+        bus.on(
             topic="test.topic",
             handler=test_handler,
             name="hassette.test.listener",
         )
+        await harness.hassette._bus_service.await_registrations_complete(bus.parent.app_key)
 
-        # Verify listener is registered (it was awaited)
-        # Verify that the listener was created with the right app_key/source_tier
-        # by checking the router
         listeners = await harness.hassette._bus_service.router.get_topic_listeners("test.topic")
         assert len(listeners) > 0
         listener = listeners[0]
-        assert listener.app_key == "__hassette__.test_component"
         assert listener.source_tier == "framework"
+        assert listener.app_key.startswith("__hassette__.")
 
 
 @pytest.mark.asyncio
