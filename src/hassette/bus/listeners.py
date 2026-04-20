@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from logging import Logger, getLogger
 from typing import Any, cast
 
+from hassette.bus.duration_timer import DurationTimer
 from hassette.bus.injection import ParameterInjector
 from hassette.bus.rate_limiter import RateLimiter
 from hassette.event_handling.predicates import normalize_where
@@ -94,6 +95,10 @@ class Listener:
     """Rate limiter for debounce/throttle. Private — use :attr:`rate_limiter` for read access
     and :meth:`cancel` for lifecycle management.  Contains an active runtime component
     (spawns tasks, holds event loop references) — not a simple scalar like ``_fired``."""
+
+    _duration_timer: DurationTimer | None = field(default=None, init=False, repr=False)
+    """Duration timer for state-hold listeners. Private — constructed in :meth:`create` when
+    ``duration`` is set, and cancelled in :meth:`cancel` alongside ``_rate_limiter``."""
 
     handler_name: str = ""
     """Human-readable name for the handler, computed once at creation time."""
@@ -198,6 +203,8 @@ class Listener:
         self._cancelled = True
         if self._rate_limiter:
             self._rate_limiter.cancel()
+        if self._duration_timer:
+            self._duration_timer.cancel()
 
     def matches(self, ev: "Event[Any]") -> bool:
         """Check if the event matches the listener's predicate."""
@@ -268,6 +275,7 @@ class Listener:
         immediate: bool = False,
         duration: float | None = None,
         entity_id: str | None = None,
+        create_cancel_sub: "Callable[[], Subscription] | None" = None,
     ) -> "Listener":
         cls._validate_options(
             once=once,
@@ -322,6 +330,20 @@ class Listener:
                 debounce=debounce,
                 throttle=throttle,
                 handler_name=handler_name,
+            )
+
+        # Construct DurationTimer when duration is set and a cancel-sub factory was provided.
+        # The factory is injected by BusService during integration wiring (WP04); unit tests
+        # pass a mock.  When create_cancel_sub is None (e.g., listeners created before WP04
+        # wiring), _duration_timer remains None and duration is handled separately.
+        if duration is not None and create_cancel_sub is not None:
+            listener._duration_timer = DurationTimer(
+                task_bucket=task_bucket,
+                duration=duration,
+                predicates=pred,
+                entity_id=entity_id or "",
+                owner_id=owner_id,
+                create_cancel_sub=create_cancel_sub,
             )
 
         return listener
