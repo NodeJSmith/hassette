@@ -2451,7 +2451,7 @@
           "avg_duration_ms"
         ],
         "title": "JobSummary",
-        "description": "Per-job summary returned by ``get_job_summary()``."
+        "description": "Per-job summary returned by ``get_job_summary()``.\n\n``failed`` counts only ``'error'`` status; ``timed_out`` is tracked separately.\nInvariant: ``successful + failed + cancelled + timed_out == total_executions``."
       },
       "ListenerWithSummary": {
         "properties": {

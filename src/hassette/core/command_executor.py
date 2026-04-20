@@ -191,6 +191,8 @@ class CommandExecutor(Service):
         Wraps ``track_execution()`` with a tier-aware exception contract:
 
         - ``CancelledError``   — record queued with status='cancelled', then re-raised.
+        - ``TimeoutError``     — record queued with status='timed_out', then swallowed.
+                                 Warning logged by ``_log_timeout_rate_limited``; not re-raised.
         - ``DependencyError``  — app tier: no traceback; framework tier: traceback included.
         - ``HassetteError``    — app tier: no traceback; framework tier: traceback included.
         - ``Exception``        — record queued with status='error', traceback included.
@@ -253,15 +255,14 @@ class CommandExecutor(Service):
                 entity_id = cmd.job.job_id
                 label = f"job_id={cmd.job.job_id}, job_db_id={cmd.job_db_id}"
 
-        # Lazy eviction of stale entries; cap at 1000 to bound memory under sustained unavailability
+        # Lazy eviction of stale entries, then cap to bound memory under sustained unavailability
+        stale_ids = [
+            k for k, ts in self._timeout_warn_timestamps.items() if now - ts > self._TIMEOUT_WARN_SUPPRESS_SECS
+        ]
+        for k in stale_ids:
+            del self._timeout_warn_timestamps[k]
         if len(self._timeout_warn_timestamps) > 1000:
             self._timeout_warn_timestamps.clear()
-        else:
-            stale_ids = [
-                k for k, ts in self._timeout_warn_timestamps.items() if now - ts > self._TIMEOUT_WARN_SUPPRESS_SECS
-            ]
-            for k in stale_ids:
-                del self._timeout_warn_timestamps[k]
 
         # Rate-limit check
         last_ts = self._timeout_warn_timestamps.get(entity_id)

@@ -1,7 +1,7 @@
 # Design: Execution Timeouts for Scheduler Jobs and Event Handlers
 
 **Date:** 2026-04-19
-**Status:** approved
+**Status:** archived
 **Research:** /tmp/claude-mine-prior-art-okJvHe/brief.md
 
 ## Problem
