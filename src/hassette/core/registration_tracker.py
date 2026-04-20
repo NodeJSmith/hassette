@@ -63,7 +63,7 @@ class RegistrationTracker:
         if still_pending:
             for task in still_pending:
                 task.cancel()
-            await asyncio.gather(*still_pending, return_exceptions=True)
+            await asyncio.wait(still_pending, timeout=1.0)
             logger.warning(
                 "await_registrations_complete timed out after %ss for app_key=%r — "
                 "%d registration task(s) incomplete; those registrations will be excluded from live IDs",

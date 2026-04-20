@@ -231,7 +231,14 @@ class CommandExecutor(Service):
             pass  # track_execution() already re-raised; result is populated. Swallowing is intentional.
         # result is available for both success and error paths
         if result.is_timed_out:
-            self._log_timeout_rate_limited(cmd, result)
+            if cmd.effective_timeout is not None:
+                self._log_timeout_rate_limited(cmd, result)
+            else:
+                self.logger.warning(
+                    "Handler raised TimeoutError after %.1fms (no framework timeout configured — "
+                    "exception originated from user code)",
+                    result.duration_ms,
+                )
         if result.is_error:
             log_error(result)
         self._enqueue_record(self._build_record(cmd, result, execution_start_ts))
@@ -270,7 +277,6 @@ class CommandExecutor(Service):
             return  # suppressed
         self._timeout_warn_timestamps[entity_id] = now
 
-        assert cmd.effective_timeout is not None, "timed_out with no timeout set — invariant violation"
         self.logger.warning(
             "Execution timed out after %.1fms (%s, timeout=%.1fs)",
             result.duration_ms,
