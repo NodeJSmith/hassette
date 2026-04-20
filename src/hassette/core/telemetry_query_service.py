@@ -475,10 +475,15 @@ class TelemetryQueryService(Resource):
             listener_params = [*tier_hi_params]
             job_params = [*tier_je_params]
 
-        async with self._db.execute(listener_query, listener_params) as cursor:
-            listener_row = await cursor.fetchone()
-        async with self._db.execute(job_query, job_params) as cursor:
-            job_row = await cursor.fetchone()
+        # BEGIN DEFERRED pins the WAL read snapshot so both queries see consistent state.
+        try:
+            await self._db.execute("BEGIN DEFERRED")
+            async with self._db.execute(listener_query, listener_params) as cursor:
+                listener_row = await cursor.fetchone()
+            async with self._db.execute(job_query, job_params) as cursor:
+                job_row = await cursor.fetchone()
+        finally:
+            await self._db.execute("ROLLBACK")
 
         listener_data = _row_to_dict(listener_row) if listener_row else {}
         job_data = _row_to_dict(job_row) if job_row else {}

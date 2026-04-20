@@ -131,6 +131,8 @@ class BusService(Service):
         once: bool = False,
         debounce: float | None = None,
         throttle: float | None = None,
+        timeout: float | None = None,
+        timeout_disabled: bool = False,
     ) -> asyncio.Task[None]:
         """Register a framework-internal listener with ``source_tier='framework'``.
 
@@ -170,6 +172,8 @@ class BusService(Service):
             once=once,
             debounce=debounce,
             throttle=throttle,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
             priority=0,
             logger=self.logger,
             app_key=app_key,
@@ -402,16 +406,18 @@ class BusService(Service):
         Can propagate ``CancelledError`` — the ``CommandExecutor`` re-raises it after
         recording a cancellation record.
         """
-        # Resolve effective timeout: timeout_disabled → None; listener.timeout → use it;
-        # listener.timeout is None → config default
-        if listener.timeout_disabled:
-            effective_timeout = None
-        elif listener.timeout is not None:
-            effective_timeout = listener.timeout
-        else:
-            effective_timeout = self.hassette.config.event_handler_timeout_seconds
 
         async def execute_fn() -> None:
+            # Resolve effective timeout lazily at fire time (not capture time) so that
+            # debounced handlers see config changes applied via hot reload, consistent
+            # with the lazy db_id resolution documented above.
+            if listener.timeout_disabled:
+                effective_timeout = None
+            elif listener.timeout is not None:
+                effective_timeout = listener.timeout
+            else:
+                effective_timeout = self.hassette.config.event_handler_timeout_seconds
+
             cmd = InvokeHandler(
                 listener=listener,
                 event=event,

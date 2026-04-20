@@ -214,6 +214,7 @@ class Listener:
         debounce: float | None,
         throttle: float | None,
         timeout: float | None = None,
+        timeout_disabled: bool = False,
     ) -> None:
         if debounce is not None and debounce <= 0:
             raise ValueError("'debounce' must be a positive number")
@@ -225,6 +226,8 @@ class Listener:
             raise ValueError("Cannot combine 'once=True' with 'debounce' or 'throttle'")
         if timeout is not None and (isinstance(timeout, bool) or timeout <= 0):
             raise ValueError("timeout must be a positive number")
+        if timeout_disabled and timeout is not None:
+            raise ValueError("Cannot specify both 'timeout' and 'timeout_disabled=True'")
 
     @classmethod
     def create(
@@ -247,7 +250,9 @@ class Listener:
         name: str | None = None,
         source_tier: SourceTier = "app",
     ) -> "Listener":
-        cls._validate_options(once=once, debounce=debounce, throttle=throttle, timeout=timeout)
+        cls._validate_options(
+            once=once, debounce=debounce, throttle=throttle, timeout=timeout, timeout_disabled=timeout_disabled
+        )
 
         pred = normalize_where(where)
         signature = get_typed_signature(handler)

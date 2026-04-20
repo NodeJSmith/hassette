@@ -235,6 +235,8 @@ class ScheduledJob:
     def __post_init__(self):
         if self.timeout is not None and (isinstance(self.timeout, bool) or self.timeout <= 0):
             raise ValueError("timeout must be a positive number")
+        if self.timeout_disabled and self.timeout is not None:
+            raise ValueError("Cannot specify both 'timeout' and 'timeout_disabled=True'")
 
         self.set_next_run(self.next_run)
 

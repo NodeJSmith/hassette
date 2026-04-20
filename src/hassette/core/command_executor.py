@@ -266,11 +266,12 @@ class CommandExecutor(Service):
             return  # suppressed
         self._timeout_warn_timestamps[entity_id] = now
 
+        assert cmd.effective_timeout is not None, "timed_out with no timeout set — invariant violation"
         self.logger.warning(
             "Execution timed out after %.1fms (%s, timeout=%.1fs)",
             result.duration_ms,
             label,
-            cmd.effective_timeout if cmd.effective_timeout is not None else 0.0,
+            cmd.effective_timeout,
         )
 
     def _enqueue_record(self, record: HandlerInvocationRecord | JobExecutionRecord) -> None:

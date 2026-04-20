@@ -4,7 +4,8 @@ import threading
 import typing
 import weakref
 from collections.abc import Awaitable, Callable, Coroutine
-from concurrent.futures import Future, TimeoutError
+from concurrent.futures import Future
+from concurrent.futures import TimeoutError as CfTimeoutError
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette import context as ctx
@@ -226,7 +227,7 @@ class TaskBucket(Resource):
         try:
             fut = asyncio.run_coroutine_threadsafe(fn, self.hassette.loop)
             return fut.result(timeout=timeout_seconds)
-        except TimeoutError:
+        except CfTimeoutError:
             self.logger.exception("Sync function '%s' timed out", fn.__name__)
             raise
         except Exception:

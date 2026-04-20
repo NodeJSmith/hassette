@@ -6,6 +6,10 @@ Extends the allowed status values from ``('success', 'error', 'cancelled')`` to
 SQLite cannot modify CHECK constraints via ALTER TABLE, so this migration uses
 the table-recreation pattern (same as migrations 002, 003, and 004).
 
+Note: unlike migrations 002/004, no views reference handler_invocations or
+job_executions directly, so there is no DROP VIEW step here. Future migrations
+adding views over these tables must add a DROP VIEW before the table swap.
+
 Revision ID: 005
 Revises: 004
 """

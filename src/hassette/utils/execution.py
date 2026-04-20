@@ -82,8 +82,10 @@ async def track_execution(
     except asyncio.CancelledError:
         result.status = "cancelled"
         raise
-    except TimeoutError:
+    except TimeoutError as exc:
         result.status = "timed_out"
+        result.error_type = "TimeoutError"
+        result.error_message = str(exc) if str(exc) else "execution timed out"
         raise
     except Exception as exc:
         result.status = "error"
