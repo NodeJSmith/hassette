@@ -113,7 +113,6 @@ class BusService(Service):
         """
         await self._reg_tracker.drain_framework_keys(self.await_registrations_complete)
 
-
     async def _register_then_add_route(self, listener: Listener) -> None:
         """Register a listener in the DB and add its route.
 

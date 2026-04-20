@@ -53,7 +53,7 @@ function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
   const subtitle = isOrphan
     ? (err.kind === "handler" ? "deleted handler" : "deleted job")
     : isUnregisteredFramework
-      ? `${rawSubtitle} (unregistered)`
+      ? (rawSubtitle ? `${rawSubtitle} (unregistered)` : "(unregistered)")
       : rawSubtitle;
 
   // Use source_tier to determine if this is a framework error (badge display)

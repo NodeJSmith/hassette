@@ -44,7 +44,7 @@ export function DashboardPage() {
   // counter that only increments on real WS-driven appStatus changes AFTER load.
   // The hook sees numeric changes (0→1→2...) instead of object reference changes,
   // avoiding the undefined→object transition that would trigger a false refetch.
-  const initialLoadDone = !kpis.loading.value && !appGrid.loading.value && !errors.loading.value;
+  const initialLoadDone = !kpis.loading.value && !appGrid.loading.value;
   const statusVersionRef = useRef(0);
   const prevStatusRef = useRef(appStatus.value);
   if (initialLoadDone && appStatus.value !== prevStatusRef.current) {
@@ -90,12 +90,12 @@ export function DashboardPage() {
           <IconWarning />
           <span class="ht-text-danger ht-text-xs">Failed to load errors: {errors.error.value}</span>
         </div>
-      ) : errors.loading.value || errors.data.value || errorTierFilter.value !== "all" || errorFilterInteracted.value ? (
+      ) : errors.loading.value || (errors.data.value && errors.data.value.length > 0) || errorTierFilter.value !== "all" || errorFilterInteracted.value ? (
         <div class={`ht-card${errors.data.value && errors.data.value.length > 0 ? " ht-card--urgent" : ""} ht-mb-6`}>
           <h2 class="ht-heading-5">
             {errors.loading.value ? null : errors.data.value && errors.data.value.length > 0 ? <IconWarning /> : <IconCheck />}
             <span>Recent Errors</span>
-            <span class="ht-info-hint" title="Showing errors from the last 24 hours"><IconInfo /></span>
+            <span class="ht-info-hint" title="Showing errors from the last 24 hours" aria-label="Showing errors from the last 24 hours"><IconInfo /></span>
             <div class="ht-tier-toggle">
               {TIER_OPTIONS.map((opt) => (
                 <button

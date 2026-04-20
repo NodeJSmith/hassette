@@ -25,9 +25,11 @@ export function frameworkDisplayName(appKey: string): string {
 /**
  * Returns a human-readable label for a framework key.
  * `__hassette__.service_watcher` → `Service Watcher`
+ * `__hassette__.ServiceWatcher` → `Service Watcher`
  * `__hassette__` → `Framework`
  */
 export function frameworkDisplayLabel(appKey: string): string {
   const slug = frameworkDisplayName(appKey);
-  return slug.split("_").filter((w) => w.length > 0).map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+  const words = slug.replace(/([a-z])([A-Z])/g, "$1 $2").split(/[_ ]+/).filter((w) => w.length > 0);
+  return words.map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(" ");
 }

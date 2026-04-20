@@ -26,10 +26,12 @@ This is the core fix. The gate was coupling identity (labeling) with tracking (p
 - `Scheduler.schedule()` reads `self.parent.source_tier` and passes it to `ScheduledJob()`
 - Child resources inherit their parent's tier automatically
 
-### 3. No other changes in this scope
+### 3. Additional changes completed in this scope
 
+- Removed `register_framework_listener()` — framework components (ServiceWatcher, SessionManager, AppHandler) now own Bus children and register via `Bus.on()` directly (originally scoped as #548, completed here)
+- Added `app_key` property to `Resource` base class for framework identity
+- Added runtime assertions: Bus/Scheduler require parent, `source_tier` must be valid
 - Do NOT introduce `FrameworkResource`, `telemetry_key`, or any new base classes
-- Do NOT remove `register_framework_listener` yet (separate issue #548)
 - Do NOT rename `app_key` (cosmetic, follow-up)
 - Do NOT add a DB migration for key format changes (not needed for the fix)
 
@@ -45,7 +47,7 @@ This is the core fix. The gate was coupling identity (labeling) with tracking (p
 
 1. **Default to framework, not app** — almost everything that runs is framework; App/AppSync are the exceptions that override
 2. **Remove the registration gate, don't work around it** — the `app_key` gate was the real root cause of invisible framework errors
-3. **Small scope** — just fix source_tier propagation and the gate; leave register_framework_listener removal, app_key rename, and getattr cleanup as follow-up work
+3. **Scope expanded** — source_tier propagation, gate removal, and register_framework_listener removal completed together; app_key rename remains follow-up
 4. **No new abstractions** — FrameworkResource was over-engineering; just put source_tier on Resource directly
 
 ## Context From Prior Challenges (informational)
@@ -57,4 +59,4 @@ Two rounds of challenge on a more complex design revealed:
 - `drain_framework_registrations()` works regardless of registration entry point — it queries by key pattern
 - `handler_invocations` and `job_executions` have no `app_key` column (verified against 001_initial_schema.py) — they reference listeners/scheduled_jobs via FK
 
-These findings are relevant if the follow-up work (#548) tackles register_framework_listener removal.
+These findings informed the register_framework_listener removal completed in this PR.
