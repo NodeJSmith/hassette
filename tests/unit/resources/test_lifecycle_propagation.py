@@ -557,9 +557,9 @@ async def test_service_status_is_starting_after_initialize():
 def _make_leaf(hassette, leaf_type: str) -> Resource:
     """Create a leaf resource by type name, returning the resource to check readiness on."""
     if leaf_type == "Bus":
-        return Bus(hassette)
+        return Bus(hassette, parent=hassette)
     if leaf_type == "Scheduler":
-        return Scheduler(hassette)
+        return Scheduler(hassette, parent=hassette)
     if leaf_type == "Api":
         return Api(hassette)
     if leaf_type == "ApiSyncFacade":
@@ -626,7 +626,7 @@ async def test_scheduler_on_shutdown_dequeues_all_jobs():
     hassette = _make_hassette_stub()
     # Make add_job a sync MagicMock so calling it doesn't create an unawaited coroutine
     hassette._scheduler_service.add_job = MagicMock()
-    scheduler = Scheduler(hassette)
+    scheduler = Scheduler(hassette, parent=hassette)
 
     await scheduler.initialize()
 

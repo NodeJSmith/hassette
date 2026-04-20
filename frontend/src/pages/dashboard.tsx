@@ -10,7 +10,7 @@ import { AppGrid } from "../components/dashboard/app-grid";
 import { ErrorFeed } from "../components/dashboard/error-feed";
 import { FrameworkHealth } from "../components/dashboard/framework-health";
 import { KpiStrip } from "../components/dashboard/kpi-strip";
-import { IconCheck, IconWarning } from "../components/shared/icons";
+import { IconCheck, IconInfo, IconWarning } from "../components/shared/icons";
 import { Spinner } from "../components/shared/spinner";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { useDebouncedEffect } from "../hooks/use-debounced-effect";
@@ -27,6 +27,7 @@ export function DashboardPage() {
   const { appStatus } = useAppState();
 
   const errorTierFilter = useSignal<SourceTier>("all");
+  const errorFilterInteracted = useSignal(false);
 
   const kpis = useScopedApi((sid) => getDashboardKpis(sid));
   const appGrid = useScopedApi((sid) => getDashboardAppGrid(sid).then((r) => r.apps));
@@ -43,7 +44,7 @@ export function DashboardPage() {
   // counter that only increments on real WS-driven appStatus changes AFTER load.
   // The hook sees numeric changes (0→1→2...) instead of object reference changes,
   // avoiding the undefined→object transition that would trigger a false refetch.
-  const initialLoadDone = !kpis.loading.value && !appGrid.loading.value && !errors.loading.value;
+  const initialLoadDone = !kpis.loading.value && !appGrid.loading.value;
   const statusVersionRef = useRef(0);
   const prevStatusRef = useRef(appStatus.value);
   if (initialLoadDone && appStatus.value !== prevStatusRef.current) {
@@ -59,7 +60,7 @@ export function DashboardPage() {
     2000,
   );
 
-  const isLoading = kpis.loading.value || appGrid.loading.value || errors.loading.value;
+  const isLoading = kpis.loading.value || appGrid.loading.value;
 
   if (isLoading) {
     return <Spinner />;
@@ -89,25 +90,31 @@ export function DashboardPage() {
           <IconWarning />
           <span class="ht-text-danger ht-text-xs">Failed to load errors: {errors.error.value}</span>
         </div>
-      ) : errors.data.value && errors.data.value.length > 0 ? (
-        <div class="ht-card ht-card--urgent ht-mb-6">
+      ) : errors.loading.value || (errors.data.value && errors.data.value.length > 0) || errorTierFilter.value !== "all" || errorFilterInteracted.value ? (
+        <div class={`ht-card${errors.data.value && errors.data.value.length > 0 ? " ht-card--urgent" : ""} ht-mb-6`}>
           <h2 class="ht-heading-5">
-            <IconWarning />
+            {errors.loading.value ? null : errors.data.value && errors.data.value.length > 0 ? <IconWarning /> : <IconCheck />}
             <span>Recent Errors</span>
-            <span class="ht-info-hint" title="Showing errors from the last 24 hours">?</span>
+            <span class="ht-info-hint" title="Showing errors from the last 24 hours" aria-label="Showing errors from the last 24 hours"><IconInfo /></span>
             <div class="ht-tier-toggle">
               {TIER_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
                   class={`ht-tier-toggle__btn${errorTierFilter.value === opt.value ? " ht-tier-toggle__btn--active" : ""}`}
-                  onClick={() => { errorTierFilter.value = opt.value; }}
+                  onClick={() => { errorTierFilter.value = opt.value; errorFilterInteracted.value = true; }}
                 >
                   {opt.label}
                 </button>
               ))}
             </div>
           </h2>
-          <ErrorFeed errors={errors.data.value} />
+          {errors.loading.value ? (
+            <Spinner />
+          ) : errors.data.value && errors.data.value.length > 0 ? (
+            <ErrorFeed errors={errors.data.value} />
+          ) : (
+            <p class="ht-text-muted ht-text-xs">No errors for this filter.</p>
+          )}
         </div>
       ) : (
         <div class="ht-empty-section ht-mb-6">

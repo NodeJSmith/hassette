@@ -4,8 +4,13 @@ import asyncio
 import time
 import typing
 
+from hassette.bus import Bus
+from hassette.event_handling.accessors import get_path
+from hassette.event_handling.predicates import ValueIs
 from hassette.events import HassetteServiceEvent
 from hassette.resources.base import Resource
+from hassette.types import Topic
+from hassette.types.enums import ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
@@ -21,6 +26,8 @@ class SessionManager(Resource):
     was previously inline on ``Hassette``.
     """
 
+    bus: Bus
+
     def __init__(
         self,
         hassette: "Hassette",
@@ -30,12 +37,19 @@ class SessionManager(Resource):
     ) -> None:
         super().__init__(hassette, parent=parent)
         self._database_service = database_service
+        self.bus = self.add_child(Bus)
         self._session_id: int | None = None
         self._session_error: bool = False
         self._session_lock = asyncio.Lock()
 
     async def on_initialize(self) -> None:
-        """Signal readiness — session creation happens later in run_forever()."""
+        """Register crash listener and signal readiness."""
+        self.bus.on(
+            topic=str(Topic.HASSETTE_EVENT_SERVICE_STATUS),
+            handler=self.on_service_crashed,
+            name="hassette.session_manager.on_service_crashed",
+            where=ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.CRASHED),
+        )
         self.mark_ready(reason="SessionManager initialized")
 
     @property
@@ -169,22 +183,20 @@ class SessionManager(Resource):
             self.logger.exception("Failed to record service crash for session %d", self._session_id)
 
     async def _do_cleanup_once_listeners(self, current_session_id: int) -> None:
-        """Delete stale once=True app listeners from previous sessions.
+        """Delete stale once=True listeners from previous sessions.
 
         Runs after session creation.  Removes ``once=True`` listener rows where:
-        - ``source_tier = 'app'`` (framework once=True listeners are preserved)
         - The owning session has already stopped (``stopped_at IS NOT NULL``)
         - No invocation for this listener exists in the current session
 
         This prevents unbounded row growth from once=True listeners registered by
-        long-running apps that restart across sessions.
+        long-running apps or framework components that restart across sessions.
         """
         try:
             await self._database_service.db.execute(
                 """
                 DELETE FROM listeners
                 WHERE once = 1
-                  AND source_tier = 'app'
                   AND NOT EXISTS (
                       SELECT 1 FROM handler_invocations
                       WHERE listener_id = listeners.id AND session_id = ?
@@ -202,7 +214,7 @@ class SessionManager(Resource):
                 (current_session_id,),
             )
             await self._database_service.db.commit()
-            self.logger.debug("Cleaned up stale once=True app listeners from previous sessions")
+            self.logger.debug("Cleaned up stale once=True listeners from previous sessions")
         except Exception:
             await self._database_service.db.rollback()
             self.logger.exception("Failed to clean up stale once=True listeners")

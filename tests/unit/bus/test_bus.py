@@ -49,6 +49,8 @@ def bus(hassette_with_bus: "Hassette") -> "Bus":
     mock_parent.app_key = "test_app"
     mock_parent.index = 0
     mock_parent.unique_name = "test_app.0"
+    mock_parent.source_tier = "app"
+    mock_parent.class_name = "TestApp"
     b.parent = mock_parent
     return b  # pyright: ignore[reportReturnType]
 
@@ -180,6 +182,89 @@ def test_collision_detection_is_synchronous(bus: "Bus") -> None:
         assert add_listener_mock.call_count == call_count_after_first
     finally:
         bus.bus_service.add_listener = original_add
+
+
+# ---------------------------------------------------------------------------
+# Tests — identity pass-through (Bus uses parent's telemetry identity)
+# ---------------------------------------------------------------------------
+
+
+def test_listener_inherits_parent_app_key(bus: "Bus") -> None:
+    """Bus.on() sets listener.app_key from self.parent.app_key, not from Bus itself."""
+    add_listener_mock = Mock()
+    original_add = bus.bus_service.add_listener
+    bus.bus_service.add_listener = add_listener_mock
+    try:
+        sub = bus.on(topic="test.identity", handler=_handler_a, name="test_identity")
+        assert sub.listener.app_key == "test_app"
+        assert sub.listener.app_key != bus.app_key
+    finally:
+        bus.bus_service.add_listener = original_add
+
+
+def test_listener_inherits_parent_source_tier(bus: "Bus") -> None:
+    """Bus.on() sets listener.source_tier from self.parent.source_tier."""
+    add_listener_mock = Mock()
+    original_add = bus.bus_service.add_listener
+    bus.bus_service.add_listener = add_listener_mock
+    try:
+        sub = bus.on(topic="test.tier", handler=_handler_a, name="test_tier")
+        assert sub.listener.source_tier == "app"
+    finally:
+        bus.bus_service.add_listener = original_add
+
+
+def test_listener_inherits_parent_instance_index(bus: "Bus") -> None:
+    """Bus.on() sets listener.instance_index from self.parent.index."""
+    bus.parent.index = 3
+    add_listener_mock = Mock()
+    original_add = bus.bus_service.add_listener
+    bus.bus_service.add_listener = add_listener_mock
+    try:
+        sub = bus.on(topic="test.index", handler=_handler_a, name="test_index")
+        assert sub.listener.instance_index == 3
+    finally:
+        bus.bus_service.add_listener = original_add
+        bus.parent.index = 0
+
+
+def test_framework_bus_inherits_framework_tier(hassette_with_bus: "Hassette") -> None:
+    """A Bus owned by a framework Resource inherits source_tier='framework'."""
+    b = hassette_with_bus._bus
+    assert b is not None
+    add_listener_mock = Mock()
+    original_add = b.bus_service.add_listener
+    b.bus_service.add_listener = add_listener_mock
+    try:
+        sub = b.on(topic="test.fw", handler=_handler_a, name="test_fw")
+        assert sub.listener.source_tier == "framework"
+        assert sub.listener.app_key.startswith("__hassette__.")
+    finally:
+        b.bus_service.add_listener = original_add
+
+
+def test_bus_requires_parent() -> None:
+    """Bus.__init__ raises AssertionError when parent is None."""
+    from hassette.bus.bus import Bus
+
+    mock_hassette = Mock()
+    mock_hassette._bus_service = Mock()
+    with pytest.raises(AssertionError, match="Bus requires a parent"):
+        Bus(mock_hassette, parent=None)
+
+
+def test_source_tier_assertion_rejects_invalid_value(bus: "Bus") -> None:
+    """Bus.on() raises AssertionError for invalid source_tier values."""
+    bus.parent.source_tier = "invalid"
+    add_listener_mock = Mock()
+    original_add = bus.bus_service.add_listener
+    bus.bus_service.add_listener = add_listener_mock
+    try:
+        with pytest.raises(AssertionError, match="Invalid source_tier"):
+            bus.on(topic="test.invalid", handler=_handler_a, name="test_invalid")
+    finally:
+        bus.bus_service.add_listener = original_add
+        bus.parent.source_tier = "app"
 
 
 def test_registered_keys_cleared_on_reinit(bus: "Bus") -> None:

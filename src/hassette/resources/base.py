@@ -11,7 +11,7 @@ from diskcache import Cache
 
 from hassette.exceptions import CannotOverrideFinalError, FatalError
 from hassette.types.enums import ResourceRole, ResourceStatus
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, SourceTier
 
 from .mixins import LifecycleMixin
 
@@ -84,6 +84,18 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     role: ClassVar[ResourceRole] = ResourceRole.RESOURCE
     """Role of the resource, e.g. 'App', 'Service', etc."""
+
+    source_tier: ClassVar[SourceTier] = "framework"
+    """Telemetry classification inherited by Bus/Scheduler children for DB registration.
+
+    Defaults to ``'framework'`` for all Resources. User-facing app classes (``App``,
+    ``AppSync``) override to ``'app'``. Do not set ``source_tier = 'app'`` on framework
+    components — their Bus/Scheduler children inherit this value and it determines
+    cleanup, reconciliation, and UI display behavior.
+    """
+
+    index: int = 0
+    """Instance index. Apps override with their manifest-assigned index."""
 
     task_bucket: "TaskBucket"
     """Task bucket for managing tasks owned by this instance."""
@@ -180,6 +192,11 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 self._unique_name = f"{self.class_name}.{self.unique_id}"
 
         return self._unique_name
+
+    @property
+    def app_key(self) -> str:
+        """Identity key for telemetry. App overrides with its manifest key."""
+        return f"{FRAMEWORK_APP_KEY_PREFIX}{self.class_name}"
 
     @property
     def owner_id(self) -> str:

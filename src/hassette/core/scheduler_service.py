@@ -241,14 +241,11 @@ class SchedulerService(Service):
 
         Registration tasks are tracked per ``app_key`` so
         ``await_registrations_complete()`` can drain them before reconciliation.
-        Completed tasks are pruned from the list on each call to prevent
-        unbounded growth for long-lived apps with dynamic job registration.
         """
-        if job.app_key:
-            task = self.task_bucket.spawn(self._enqueue_then_register(job), name="scheduler:add_job")
-            self._reg_tracker.prune_and_track(job.app_key, task)
-            return task
-        return self.task_bucket.spawn(self._enqueue_job(job), name="scheduler:add_job")
+        app_key = job.app_key or job.owner_id
+        task = self.task_bucket.spawn(self._enqueue_then_register(job), name="scheduler:add_job")
+        self._reg_tracker.prune_and_track(app_key, task)
+        return task
 
     async def await_registrations_complete(self, app_key: str) -> None:
         """Wait for all pending DB registration tasks for an app to complete.

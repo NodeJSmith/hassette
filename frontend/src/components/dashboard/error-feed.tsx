@@ -46,17 +46,18 @@ function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
   const badgeText = shortErrorType(err.error_type) || err.kind;
   const tracebackExpanded = useSignal(false);
 
-  // Orphan detection: null listener_id or job_id means the handler/job was deleted
-  const isOrphan = err.kind === "handler" ? err.listener_id === null : err.job_id === null;
+  const isFramework = isFrameworkKey(err.app_key);
+  const isOrphan = !isFramework && (err.kind === "handler" ? err.listener_id === null : err.job_id === null);
   const rawSubtitle = err.kind === "handler" ? err.handler_method : err.job_name;
+  const isUnregisteredFramework = isFramework && (err.kind === "handler" ? err.listener_id === null : err.job_id === null);
   const subtitle = isOrphan
     ? (err.kind === "handler" ? "deleted handler" : "deleted job")
-    : rawSubtitle;
+    : isUnregisteredFramework
+      ? (rawSubtitle ? `${rawSubtitle} (unregistered)` : "(unregistered)")
+      : rawSubtitle;
 
   // Use source_tier to determine if this is a framework error (badge display)
   const isFrameworkTier = err.source_tier === "framework";
-  // Use isFrameworkKey to decide link vs span (prevents broken links for framework keys)
-  const isFramework = isFrameworkKey(err.app_key);
   const appDisplay = isFramework
     ? frameworkDisplayLabel(err.app_key as string)
     : (err.app_key ?? (err.kind === "handler" ? "deleted handler" : "deleted job"));

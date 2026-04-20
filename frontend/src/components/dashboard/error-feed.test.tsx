@@ -168,6 +168,49 @@ describe("ErrorFeed", () => {
     expect(pre!.textContent).toContain("Traceback (most recent call last)");
   });
 
+  it("framework error with null listener_id does not render 'deleted handler'", () => {
+    const err = createError({
+      app_key: "__hassette__.service_watcher",
+      listener_id: null as unknown as number,
+      source_tier: "framework",
+    });
+    const { queryByText, getByText } = render(<ErrorFeed errors={[err]} />);
+    expect(queryByText("deleted handler")).toBeNull();
+    expect(getByText("Service Watcher")).toBeDefined();
+  });
+
+  it("framework error with null listener_id shows '(unregistered)' suffix", () => {
+    const err = createError({
+      app_key: "__hassette__.service_watcher",
+      listener_id: null as unknown as number,
+      handler_method: "restart_service",
+      source_tier: "framework",
+    });
+    const { getByText } = render(<ErrorFeed errors={[err]} />);
+    expect(getByText("restart_service (unregistered)")).toBeDefined();
+  });
+
+  it("framework error with null handler_method and null listener_id shows '(unregistered)'", () => {
+    const err = createError({
+      app_key: "__hassette__.service_watcher",
+      listener_id: null as unknown as number,
+      handler_method: null as unknown as string,
+      source_tier: "framework",
+    });
+    const { getByText } = render(<ErrorFeed errors={[err]} />);
+    expect(getByText("(unregistered)")).toBeDefined();
+  });
+
+  it("framework job error with null job_id does not render 'deleted job'", () => {
+    const err = createJobError({
+      app_key: "__hassette__.scheduler_service",
+      job_id: null as unknown as number,
+      source_tier: "framework",
+    });
+    const { queryByText } = render(<ErrorFeed errors={[err]} />);
+    expect(queryByText("deleted job")).toBeNull();
+  });
+
   it("test_unified_feed_includes_both_tiers: renders both app and framework errors", () => {
     const appErr = createError({ app_key: "my_app", source_tier: "app" });
     const fwErr = createError({ app_key: "__hassette__.core", source_tier: "framework", listener_id: 99 });

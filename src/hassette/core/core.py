@@ -13,15 +13,13 @@ from hassette.app.app_config import AppConfig
 from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry
-from hassette.event_handling import predicates as Predicates
-from hassette.event_handling.accessors import get_path
 from hassette.exceptions import AppPrecheckFailedError
 from hassette.logging_ import enable_logging
 from hassette.resources.base import Resource, Service
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
-from hassette.types.enums import ResourceStatus, Topic
+from hassette.types.enums import ResourceStatus
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
@@ -96,18 +94,19 @@ class Hassette(Resource):
         # private background services — EventStreamService FIRST (BusService needs receive_stream at construction)
         self._event_stream_service = self.add_child(EventStreamService)
         self._database_service = self.add_child(DatabaseService)
-        self._session_manager = self.add_child(SessionManager, database_service=self._database_service)
         self._command_executor = self.add_child(CommandExecutor)
         self._bus_service = self.add_child(
             BusService, stream=self._event_stream_service.receive_stream.clone(), executor=self._command_executor
         )
+        self._scheduler_service = self.add_child(SchedulerService, executor=self._command_executor)
 
+        # Resources below have Bus/Scheduler children — must come after _bus_service/_scheduler_service
+        self._session_manager = self.add_child(SessionManager, database_service=self._database_service)
         self._service_watcher = self.add_child(ServiceWatcher)
         self._websocket_service = self.add_child(WebsocketService)
         self._file_watcher = self.add_child(FileWatcherService)
         self._web_ui_watcher = self.add_child(WebUiWatcherService)
         self._app_handler = self.add_child(AppHandler)
-        self._scheduler_service = self.add_child(SchedulerService, executor=self._command_executor)
 
         self._api_service = self.add_child(ApiResource)
         self._state_proxy = self.add_child(StateProxy)
@@ -344,23 +343,6 @@ class Hassette(Resource):
             await self.shutdown()
             return
 
-        try:
-            self._bus_service.register_framework_listener(
-                component="core",
-                topic=str(Topic.HASSETTE_EVENT_SERVICE_STATUS),
-                handler=self._session_manager.on_service_crashed,
-                name="hassette.session_manager.on_service_crashed",
-                where=Predicates.ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.CRASHED),
-            )
-        except Exception:
-            self.logger.exception("Failed to initialize session tracking")
-            await self.shutdown()
-            return
-
-        # Drain completed framework registration tasks to free stale Task references.
-        # Without this, the registration tracker holds N completed Tasks for the
-        # process lifetime since no further register_framework_listener() calls
-        # trigger the pruning logic.
         try:
             await asyncio.wait_for(
                 self._bus_service.drain_framework_registrations(),

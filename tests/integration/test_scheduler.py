@@ -107,8 +107,8 @@ async def test_run_job_calls_executor(hassette_with_scheduler: Hassette) -> None
     assert executed_cmds[0].job is scheduled_job, "ExecuteJob.job should be the scheduled job"
 
 
-async def test_run_job_unregistered_routes_through_executor(hassette_with_scheduler: Hassette) -> None:
-    """Jobs with db_id=None (unregistered) still route through CommandExecutor as orphan records."""
+async def test_run_job_non_app_routes_through_executor(hassette_with_scheduler: Hassette) -> None:
+    """Jobs without app_key still route through CommandExecutor and get DB-registered (#547)."""
     job_executed = asyncio.Event()
 
     async def target() -> None:
@@ -118,58 +118,44 @@ async def test_run_job_unregistered_routes_through_executor(hassette_with_schedu
     executor = scheduler_service._executor
     executor.execute.reset_mock()
 
-    # Use the internal scheduler (no app_key) — job gets db_id=None
     scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=0.01)
 
     await asyncio.wait_for(job_executed.wait(), timeout=1)
     scheduled_job.cancel()
 
-    # All jobs now route through CommandExecutor regardless of db_id;
-    # db_id=None produces an orphan JobExecutionRecord with job_db_id=None.
     executor.execute.assert_called_once()
     cmd = executor.execute.call_args[0][0]
     assert isinstance(cmd, ExecuteJob)
-    assert cmd.job_db_id is None, "Unregistered job should produce orphan record with job_db_id=None"
+    assert cmd.job_db_id is not None
 
 
 async def test_job_registration_sets_db_id(hassette_with_scheduler: Hassette) -> None:
     """Adding a job triggers register_job() and sets job.db_id.
 
-    The scheduler's parent must have app_key set so the job gets a non-empty
-    app_key and triggers DB registration (empty app_key skips registration).
+    All jobs now go through DB registration regardless of app_key (#547).
     """
     db_id = 99
 
     scheduler = hassette_with_scheduler._scheduler
     assert scheduler is not None
-    # Set app_key on the scheduler's parent so the job has a non-empty app_key
-    # and triggers DB registration (without this, the guard skips registration).
-    scheduler.parent.app_key = "test_app"  # pyright: ignore[reportOptionalMemberAccess]
-    scheduler.parent.index = 0  # pyright: ignore[reportOptionalMemberAccess]
-    try:
-        scheduler_service = hassette_with_scheduler._scheduler_service
-        assert scheduler_service is not None
-        executor = scheduler_service._executor
-        executor.register_job = AsyncMock(return_value=db_id)
+    scheduler_service = hassette_with_scheduler._scheduler_service
+    assert scheduler_service is not None
+    executor = scheduler_service._executor
+    executor.register_job = AsyncMock(return_value=db_id)
 
-        job_executed = asyncio.Event()
+    job_executed = asyncio.Event()
 
-        async def target() -> None:
-            hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
+    async def target() -> None:
+        hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
 
-        scheduled_job = scheduler.run_in(target, delay=0.5)
+    scheduled_job = scheduler.run_in(target, delay=0.5)
 
-        # Give the background registration task time to complete
-        await asyncio.sleep(0.1)
+    await asyncio.sleep(0.1)
 
-        assert scheduled_job.db_id is not None, "job.db_id should be set after registration"
-        assert scheduled_job.db_id == db_id, f"Expected db_id={db_id}, got {scheduled_job.db_id}"
+    assert scheduled_job.db_id is not None, "job.db_id should be set after registration"
+    assert scheduled_job.db_id == db_id, f"Expected db_id={db_id}, got {scheduled_job.db_id}"
 
-        scheduled_job.cancel()
-    finally:
-        # Clean up: reset app_key and index so other tests using this module-scoped fixture aren't affected
-        scheduler.parent.app_key = ""  # pyright: ignore[reportOptionalMemberAccess]
-        scheduler.parent.index = 0  # pyright: ignore[reportOptionalMemberAccess]
+    scheduled_job.cancel()
 
 
 async def test_jobs_execute_in_run_order(hassette_with_scheduler: Hassette) -> None:

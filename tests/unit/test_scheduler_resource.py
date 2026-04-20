@@ -17,6 +17,16 @@ from hassette.utils.date_utils import now
 # ---------------------------------------------------------------------------
 
 
+def _make_mock_parent(*, app_key: str = "test_app", index: int = 0, source_tier: str = "app") -> Mock:
+    """Create a mock parent Resource with telemetry identity fields."""
+    parent = Mock()
+    parent.app_key = app_key
+    parent.index = index
+    parent.source_tier = source_tier
+    parent.class_name = "TestParent"
+    return parent
+
+
 def _make_scheduler(removal_callback_supported: bool = True) -> Scheduler:
     """Create a minimal Scheduler instance with mocked internals.
 
@@ -25,9 +35,10 @@ def _make_scheduler(removal_callback_supported: bool = True) -> Scheduler:
     test workers that create real Scheduler instances concurrently.
     """
     # Fresh subclass per call: property assignments stay on _TestScheduler, not Scheduler.
+    mock_parent = _make_mock_parent()
     _TestScheduler = type("_TestScheduler", (Scheduler,), {})  # noqa: N806
     _TestScheduler.owner_id = property(lambda _self: "test_owner")  # pyright: ignore[reportAttributeAccessIssue]
-    _TestScheduler.parent = property(lambda _self: None)  # pyright: ignore[reportAttributeAccessIssue]
+    _TestScheduler.parent = property(lambda _self: mock_parent)  # pyright: ignore[reportAttributeAccessIssue]
 
     scheduler = _TestScheduler.__new__(_TestScheduler)
     mock_service = Mock()
@@ -448,12 +459,13 @@ class TestCallbackRegistration:
         mock_hassette._scheduler_service.register_removal_callback = Mock()
 
         # Build a subclass that overrides owner_id/parent to avoid touching Resource state.
+        mock_parent = _make_mock_parent()
         _TestScheduler = type("_TestScheduler", (Scheduler,), {})  # noqa: N806
         _TestScheduler.owner_id = property(  # pyright: ignore[reportAttributeAccessIssue]
             lambda _self: "test_owner"
         )
         _TestScheduler.parent = property(  # pyright: ignore[reportAttributeAccessIssue]
-            lambda _self: None
+            lambda _self: mock_parent
         )
 
         # Stub Resource.__init__ so super().__init__() is a no-op; the rest of
@@ -607,3 +619,54 @@ class TestJobCancelDelegation:
 
         with pytest.raises(RuntimeError, match="not registered with a Scheduler"):
             job.cancel()
+
+
+# ---------------------------------------------------------------------------
+# Identity pass-through (Scheduler uses parent's telemetry identity)
+# ---------------------------------------------------------------------------
+
+
+class TestIdentityPassThrough:
+    def test_job_inherits_parent_app_key(self) -> None:
+        """schedule() sets job.app_key from parent.app_key, not Scheduler's own."""
+        scheduler = _make_scheduler()
+        job = scheduler.schedule(_noop, Every(hours=1))
+        assert job.app_key == "test_app"
+
+    def test_job_inherits_parent_source_tier(self) -> None:
+        """schedule() sets job.source_tier from parent.source_tier."""
+        scheduler = _make_scheduler()
+        job = scheduler.schedule(_noop, Every(hours=1))
+        assert job.source_tier == "app"
+
+    def test_job_inherits_parent_instance_index(self) -> None:
+        """schedule() sets job.instance_index from parent.index."""
+        scheduler = _make_scheduler()
+        scheduler.parent.index = 5
+        job = scheduler.schedule(_noop, Every(hours=1))
+        assert job.instance_index == 5
+
+    def test_framework_scheduler_inherits_framework_tier(self) -> None:
+        """A Scheduler with a framework parent produces jobs with source_tier='framework'."""
+        scheduler = _make_scheduler()
+        scheduler.parent.source_tier = "framework"
+        scheduler.parent.app_key = "__hassette__.TestComponent"
+        scheduler.parent.class_name = "TestComponent"
+        job = scheduler.schedule(_noop, Every(hours=1))
+        assert job.source_tier == "framework"
+        assert job.app_key == "__hassette__.TestComponent"
+
+    def test_source_tier_assertion_rejects_invalid_value(self) -> None:
+        """schedule() raises AssertionError for invalid source_tier values."""
+        scheduler = _make_scheduler()
+        scheduler.parent.source_tier = "invalid"
+        with pytest.raises(AssertionError, match="Invalid source_tier"):
+            scheduler.schedule(_noop, Every(hours=1))
+
+    def test_scheduler_requires_parent(self) -> None:
+        """Scheduler.__init__ raises AssertionError when parent is None."""
+        mock_hassette = Mock()
+        mock_hassette._scheduler_service = Mock()
+        mock_hassette._scheduler_service.register_removal_callback = Mock()
+        with pytest.raises(AssertionError, match="Scheduler requires a parent"):
+            Scheduler(mock_hassette, parent=None)

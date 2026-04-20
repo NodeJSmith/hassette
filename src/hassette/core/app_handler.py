@@ -7,6 +7,7 @@ AppLifecycleService (a Resource child).
 import typing
 from logging import getLogger
 
+from hassette.bus import Bus
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry, AppStatusSnapshot
@@ -38,9 +39,12 @@ class AppHandler(Resource):
     lifecycle: AppLifecycleService
     """Service owning lifecycle orchestration, change detection, and factory."""
 
+    bus: Bus
+
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
 
+        self.bus = self.add_child(Bus)
         self.registry = AppRegistry()
         self.lifecycle = self.add_child(AppLifecycleService, registry=self.registry)
         self.lifecycle.set_apps_configs(hassette.config.app_manifests)
@@ -77,8 +81,7 @@ class AppHandler(Resource):
             if self.hassette.config.allow_reload_in_prod:
                 self.logger.warning("Allowing app reloads in production mode due to config")
             self.logger.debug("Watching for app changes...")
-            self.hassette._bus_service.register_framework_listener(
-                component="app_handler",
+            self.bus.on(
                 topic=str(Topic.HASSETTE_EVENT_FILE_WATCHER),
                 handler=self.lifecycle.handle_change_event,
                 name="hassette.app_handler.handle_change_event",

@@ -12,7 +12,6 @@ from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.scheduler.classes import JobExecutionRecord
-from hassette.types.types import FRAMEWORK_APP_KEY
 
 # ---------------------------------------------------------------------------
 # Schema DDL (mirrors migrations through 003 final state)
@@ -865,73 +864,6 @@ async def test_active_views_exist(db: aiosqlite.Connection) -> None:
     cursor = await db.execute("SELECT * FROM active_scheduled_jobs")
     rows = await cursor.fetchall()
     assert rows == []  # empty DB
-
-
-# ---------------------------------------------------------------------------
-# _validate_source_tier tests (line 35)
-# ---------------------------------------------------------------------------
-
-
-def test_validate_source_tier_raises_for_user_app_with_framework_tier() -> None:
-    """_validate_source_tier() raises ValueError when a user app claims source_tier='framework'."""
-    with pytest.raises(ValueError, match="Only the framework"):
-        TelemetryRepository._validate_source_tier("some_user_app", "framework")
-
-
-def test_validate_source_tier_passes_for_framework_app_key() -> None:
-    """_validate_source_tier() does not raise when app_key is FRAMEWORK_APP_KEY with source_tier='framework'."""
-    # Should not raise
-    TelemetryRepository._validate_source_tier(FRAMEWORK_APP_KEY, "framework")
-
-
-def test_validate_source_tier_passes_for_user_app_with_app_tier() -> None:
-    """_validate_source_tier() does not raise when a user app uses source_tier='app'."""
-    # Should not raise
-    TelemetryRepository._validate_source_tier("some_user_app", "app")
-
-
-def test_register_listener_raises_for_invalid_source_tier() -> None:
-    """__post_init__ raises ValueError for non-framework app_key with source_tier='framework'."""
-    with pytest.raises(ValueError, match="Only the framework"):
-        ListenerRegistration(
-            app_key="some_user_app",
-            instance_index=0,
-            handler_method="some_user_app.on_event",
-            topic="hass.event.state_changed",
-            debounce=None,
-            throttle=None,
-            once=False,
-            priority=0,
-            predicate_description=None,
-            human_description=None,
-            source_location="test.py:1",
-            registration_source=None,
-            source_tier="framework",
-        )
-
-
-# ---------------------------------------------------------------------------
-# register_job RuntimeError path (line 202) and register_listener RuntimeError path (line 140)
-# ---------------------------------------------------------------------------
-
-
-def test_register_job_raises_for_invalid_source_tier() -> None:
-    """__post_init__ raises ValueError for non-framework app_key with source_tier='framework'."""
-    with pytest.raises(ValueError, match="Only the framework"):
-        ScheduledJobRegistration(
-            app_key="some_user_app",
-            instance_index=0,
-            job_name="my_job",
-            handler_method="some_user_app.my_job",
-            trigger_type=None,
-            trigger_label="once",
-            trigger_detail=None,
-            args_json="[]",
-            kwargs_json="{}",
-            source_location="test.py:1",
-            registration_source=None,
-            source_tier="framework",
-        )
 
 
 # ---------------------------------------------------------------------------

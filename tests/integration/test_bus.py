@@ -430,38 +430,22 @@ async def test_attribute_change_handles_globs(
 
 
 async def test_listener_registration_spawns_background_task(hassette_with_bus: "Hassette") -> None:
-    """Listener registration spawns a background task to persist the listener via executor.
-
-    The Bus parent must have app_key set so the listener has a non-empty app_key
-    and triggers DB registration (empty app_key skips registration).
-    """
+    """All listeners spawn a background task to persist via executor (#547)."""
     hassette = hassette_with_bus
-
-    # Set app_key on the Bus's parent so the listener triggers DB registration
     bus = hassette._bus
     assert bus is not None
-    bus.parent.app_key = "test_app"  # pyright: ignore[reportOptionalMemberAccess]
-    bus.parent.index = 0  # pyright: ignore[reportOptionalMemberAccess]
-    try:
 
-        def handler(event: Event) -> None:
-            pass
+    def handler(event: Event) -> None:
+        pass
 
-        subscription = bus.on_state_change("sensor.eager_test", handler=handler)
-        listener = subscription.listener
+    subscription = bus.on_state_change("sensor.eager_test", handler=handler)
+    listener = subscription.listener
 
-        # Allow the add_listener registration task to complete
-        await asyncio.sleep(0.05)
+    await asyncio.sleep(0.05)
 
-        # The mock executor's register_listener should have been called
-        hassette._bus_service._executor.register_listener.assert_called()
-        # db_id should be set by the background task (mock returns a distinct positive int per call)
-        assert listener.db_id is not None
-        assert listener.db_id > 0
-    finally:
-        # Clean up: reset app_key and index so other tests using this module-scoped fixture aren't affected
-        bus.parent.app_key = ""  # pyright: ignore[reportOptionalMemberAccess]
-        bus.parent.index = 0  # pyright: ignore[reportOptionalMemberAccess]
+    hassette._bus_service._executor.register_listener.assert_called()
+    assert listener.db_id is not None
+    assert listener.db_id > 0
 
 
 async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hassette") -> None:
@@ -537,10 +521,10 @@ async def test_dispatch_calls_executor(hassette_with_bus: "Hassette") -> None:
 
 
 async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_bus: "Hassette") -> None:
-    """All listeners (including those with no app_key and db_id=None) route through CommandExecutor.
+    """All listeners (including those with no app_key) route through CommandExecutor.
 
-    The unified dispatch path calls executor.execute(InvokeHandler(...)) for every listener,
-    producing an orphan record (listener_id=None) when the listener has not yet been registered.
+    Since the registration gate was removed (#547), all listeners are DB-registered
+    regardless of app_key, so listener_id is set.
     """
     from hassette.core.commands import InvokeHandler
     from hassette.events.base import Event
@@ -551,7 +535,6 @@ async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_b
     def handler(_event: Event) -> None:
         hassette.task_bucket.post_to_loop(event_handled.set)
 
-    # Internal bus (no app_key) — listener gets db_id=None
     hassette._bus.on(topic="custom.internal_test", handler=handler)
 
     executor = hassette._bus_service._executor
@@ -562,11 +545,10 @@ async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_b
 
     await asyncio.wait_for(event_handled.wait(), timeout=1.0)
 
-    # Executor MUST be called even for non-app listeners — unified dispatch path
     executor.execute.assert_called()
     cmd = executor.execute.call_args_list[-1].args[0]
     assert isinstance(cmd, InvokeHandler)
-    assert cmd.listener_id is None  # orphan record — not yet registered
+    assert cmd.listener_id is not None
 
 
 async def test_dispatch_handler_exception_routed_through_executor(hassette_with_bus: "Hassette") -> None:
@@ -620,13 +602,6 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
 
     hassette._bus.on(topic="custom.debounce_test", handler=handler, debounce=0.1)
 
-    # Wait for listener registration, then set db_id to make it app-owned
-    await asyncio.sleep(0.05)
-    all_listeners = await hassette._bus_service.router.get_topic_listeners("custom.debounce_test")
-    for listener in all_listeners:
-        if listener.db_id is None:
-            listener.mark_registered(42)
-
     executor = hassette._bus_service._executor
     executor.execute.reset_mock()
 
@@ -644,7 +619,7 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
     )
     cmd = executor.execute.call_args.args[0]
     assert isinstance(cmd, InvokeHandler)
-    assert cmd.listener_id == 42
+    assert cmd.listener_id is not None
 
 
 async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bus: "Hassette") -> None:
@@ -664,13 +639,6 @@ async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bu
 
     hassette._bus.on(topic="custom.throttle_test", handler=handler, throttle=5.0)
 
-    # Wait for listener registration, then set db_id to make it app-owned
-    await asyncio.sleep(0.05)
-    all_listeners = await hassette._bus_service.router.get_topic_listeners("custom.throttle_test")
-    for listener in all_listeners:
-        if listener.db_id is None:
-            listener.mark_registered(77)
-
     executor = hassette._bus_service._executor
     executor.execute.reset_mock()
 
@@ -687,7 +655,7 @@ async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bu
     )
     cmd = executor.execute.call_args.args[0]
     assert isinstance(cmd, InvokeHandler)
-    assert cmd.listener_id == 77
+    assert cmd.listener_id is not None
 
 
 # ---------------------------------------------------------------------------
@@ -915,6 +883,8 @@ async def test_cancel_before_add_task_completes_app_key_path(hassette_with_bus: 
     mock_parent.app_key = "test_app"
     mock_parent.index = 0
     mock_parent.unique_name = "test_app.0"
+    mock_parent.source_tier = "app"
+    mock_parent.class_name = "TestApp"
     original_parent = bus.parent
     bus.parent = mock_parent
 

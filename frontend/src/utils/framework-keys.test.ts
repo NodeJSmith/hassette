@@ -47,6 +47,12 @@ describe("frameworkDisplayLabel", () => {
     expect(frameworkDisplayLabel("__hassette__.core")).toBe("Core");
   });
 
+  it("handles CamelCase component names", () => {
+    expect(frameworkDisplayLabel("__hassette__.ServiceWatcher")).toBe("Service Watcher");
+    expect(frameworkDisplayLabel("__hassette__.AppHandler")).toBe("App Handler");
+    expect(frameworkDisplayLabel("__hassette__.SessionManager")).toBe("Session Manager");
+  });
+
   it("title-cases bare key to 'Framework'", () => {
     expect(frameworkDisplayLabel("__hassette__")).toBe("Framework");
   });

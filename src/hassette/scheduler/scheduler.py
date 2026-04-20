@@ -99,6 +99,9 @@ class Scheduler(Resource):
 
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
+        assert self.parent is not None, (
+            "Scheduler requires a parent Resource for telemetry identity (app_key/source_tier)"
+        )
         self.scheduler_service = self.hassette._scheduler_service
         assert self.scheduler_service is not None, "Scheduler service not initialized"
         self._jobs_by_name = {}
@@ -332,8 +335,12 @@ class Scheduler(Resource):
                 "Use hassette.scheduler.triggers (After, Once, Every, Daily, Cron)"
             )
 
-        app_key = getattr(self.parent, "app_key", "") if self.parent else ""
-        instance_index = getattr(self.parent, "index", 0) if self.parent else 0
+        parent = self.parent
+        assert parent is not None
+        app_key = parent.app_key
+        instance_index = parent.index
+        source_tier = parent.source_tier
+        assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
 
         # Capture source while user code is still on the stack (before async spawn boundary)
         source_location, registration_source = capture_registration_source()
@@ -356,6 +363,7 @@ class Scheduler(Resource):
             instance_index=instance_index,
             source_location=source_location,
             registration_source=registration_source or "",
+            source_tier=source_tier,
         )
         return self.add_job(job, if_exists=if_exists)
 
