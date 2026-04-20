@@ -94,6 +94,7 @@ from hassette.types import ComparisonCondition, Topic
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.func_utils import callable_short_name
+from hassette.utils.glob_utils import GLOB_CHARS
 from hassette.utils.source_capture import capture_registration_source
 
 from .listeners import Listener, Subscription
@@ -222,6 +223,9 @@ class Bus(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         name: str | None = None,
+        immediate: bool = False,
+        duration: float | None = None,
+        entity_id: str | None = None,
     ) -> Subscription:
         """Subscribe to an event topic with optional filtering and modifiers.
 
@@ -268,6 +272,9 @@ class Bus(Resource):
             instance_index=instance_index,
             name=name,
             source_tier=source_tier,
+            immediate=immediate,
+            duration=duration,
+            entity_id=entity_id,
         )
 
         # Capture source while user code is still on the stack (before async spawn boundary)
@@ -291,6 +298,9 @@ class Bus(Resource):
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
         log_params: Mapping[str, Any] | None = None,
+        immediate: bool = False,
+        duration: float | None = None,
+        entity_id: str | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Common subscription tail: log, normalize where, delegate to on()."""
@@ -312,7 +322,16 @@ class Bus(Resource):
         if where is not None:
             preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
 
-        return self.on(topic=topic, handler=handler, where=preds, kwargs=kwargs, **opts)
+        return self.on(
+            topic=topic,
+            handler=handler,
+            where=preds,
+            kwargs=kwargs,
+            immediate=immediate,
+            duration=duration,
+            entity_id=entity_id,
+            **opts,
+        )
 
     @staticmethod
     def _normalize_service_where(
@@ -346,6 +365,8 @@ class Bus(Resource):
         changed_to: "ChangeType" = NOT_PROVIDED,
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        immediate: bool = False,
+        duration: float | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to state changes for a specific entity.
@@ -365,6 +386,12 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
+        if immediate and any(c in entity_id for c in GLOB_CHARS):
+            raise ValueError(
+                f"'immediate=True' is not supported with glob patterns. "
+                f"entity_id={entity_id!r} contains glob characters."
+            )
+
         preds: list[Predicate] = [P.EntityMatches(entity_id)]
         if changed:
             if changed is True:
@@ -386,6 +413,9 @@ class Bus(Resource):
             where=where,
             kwargs=kwargs,
             log_params={"changed": changed, "changed_from": changed_from, "changed_to": changed_to, "where": where},
+            immediate=immediate,
+            duration=duration,
+            entity_id=entity_id,
             **opts,
         )
 
@@ -400,6 +430,8 @@ class Bus(Resource):
         changed_to: "ChangeType" = NOT_PROVIDED,
         where: "Predicate | Sequence[Predicate] | None" = None,
         kwargs: Mapping[str, Any] | None = None,
+        immediate: bool = False,
+        duration: float | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to state change events for a specific entity's attribute.
@@ -419,6 +451,12 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
+
+        if immediate and any(c in entity_id for c in GLOB_CHARS):
+            raise ValueError(
+                f"'immediate=True' is not supported with glob patterns. "
+                f"entity_id={entity_id!r} contains glob characters."
+            )
 
         preds: list[Predicate] = [P.EntityMatches(entity_id)]
 
@@ -455,6 +493,9 @@ class Bus(Resource):
             where=where,
             kwargs=kwargs,
             log_params={"changed_from": changed_from, "changed_to": changed_to, "where": where},
+            immediate=immediate,
+            duration=duration,
+            entity_id=entity_id,
             **opts,
         )
 

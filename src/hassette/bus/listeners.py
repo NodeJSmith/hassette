@@ -113,6 +113,15 @@ class Listener:
     source_tier: SourceTier = "app"
     """Whether this listener originates from a user app or the framework itself."""
 
+    immediate: bool = False
+    """If True, fire the handler immediately with the current entity state on registration."""
+
+    duration: float | None = None
+    """Duration in seconds the entity must remain in the matching state before the handler fires."""
+
+    entity_id: str | None = None
+    """Entity ID for this listener. Set by on_state_change/on_attribute_change at registration time."""
+
     _cancelled: bool = field(default=False, init=False, repr=False)
     """Set by cancel() to signal that a pending add_listener task should skip route insertion.
     Prevents orphaned listeners when Subscription.cancel() races with the async add task (#451)."""
@@ -215,6 +224,7 @@ class Listener:
         throttle: float | None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
+        duration: float | None = None,
     ) -> None:
         if debounce is not None and debounce <= 0:
             raise ValueError("'debounce' must be a positive number")
@@ -228,6 +238,12 @@ class Listener:
             raise ValueError("timeout must be a positive number")
         if timeout_disabled and timeout is not None:
             raise ValueError("Cannot specify both 'timeout' and 'timeout_disabled=True'")
+        if duration is not None and duration <= 0:
+            raise ValueError("'duration' must be a positive number")
+        if duration is not None and debounce is not None:
+            raise ValueError("Cannot combine 'duration' with 'debounce'")
+        if duration is not None and throttle is not None:
+            raise ValueError("Cannot combine 'duration' with 'throttle'")
 
     @classmethod
     def create(
@@ -249,9 +265,17 @@ class Listener:
         instance_index: int = 0,
         name: str | None = None,
         source_tier: SourceTier = "app",
+        immediate: bool = False,
+        duration: float | None = None,
+        entity_id: str | None = None,
     ) -> "Listener":
         cls._validate_options(
-            once=once, debounce=debounce, throttle=throttle, timeout=timeout, timeout_disabled=timeout_disabled
+            once=once,
+            debounce=debounce,
+            throttle=throttle,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
+            duration=duration,
         )
 
         pred = normalize_where(where)
@@ -285,6 +309,9 @@ class Listener:
             handler_short_name=short_name,
             name=name,
             source_tier=source_tier,
+            immediate=immediate,
+            duration=duration,
+            entity_id=entity_id,
         )
 
         # One-time construction-phase init — _rate_limiter is set here (inside create()),

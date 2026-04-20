@@ -142,6 +142,9 @@ class BusService(Service):
             registration_source=registration_source,
             name=listener.name,
             source_tier=listener.source_tier,
+            immediate=listener.immediate,
+            duration=listener.duration,
+            entity_id=listener.entity_id,
         )
         if listener.once:
             try:
