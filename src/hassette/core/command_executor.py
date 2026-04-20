@@ -253,12 +253,15 @@ class CommandExecutor(Service):
                 entity_id = cmd.job.job_id
                 label = f"job_id={cmd.job.job_id}, job_db_id={cmd.job_db_id}"
 
-        # Lazy eviction of stale entries
-        stale_ids = [
-            k for k, ts in self._timeout_warn_timestamps.items() if now - ts > self._TIMEOUT_WARN_SUPPRESS_SECS
-        ]
-        for k in stale_ids:
-            del self._timeout_warn_timestamps[k]
+        # Lazy eviction of stale entries; cap at 1000 to bound memory under sustained unavailability
+        if len(self._timeout_warn_timestamps) > 1000:
+            self._timeout_warn_timestamps.clear()
+        else:
+            stale_ids = [
+                k for k, ts in self._timeout_warn_timestamps.items() if now - ts > self._TIMEOUT_WARN_SUPPRESS_SECS
+            ]
+            for k in stale_ids:
+                del self._timeout_warn_timestamps[k]
 
         # Rate-limit check
         last_ts = self._timeout_warn_timestamps.get(entity_id)
@@ -652,6 +655,7 @@ class CommandExecutor(Service):
                     exc,
                 )
                 try:
+                    await asyncio.sleep(0)  # yield event loop before retry to avoid starving fresh records
                     self._write_queue.put_nowait(
                         RetryableBatch(
                             invocations=list(invocations),
