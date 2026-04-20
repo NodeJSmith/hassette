@@ -4,7 +4,8 @@ import threading
 import typing
 import weakref
 from collections.abc import Awaitable, Callable, Coroutine
-from concurrent.futures import Future, TimeoutError
+from concurrent.futures import Future
+from concurrent.futures import TimeoutError as CfTimeoutError
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette import context as ctx
@@ -192,6 +193,8 @@ class TaskBucket(Resource):
         async def _sync_fn(*args: P.args, **kwargs: P.kwargs) -> R:
             try:
                 return await self.run_in_thread(cast("Callable[P, R]", fn), *args, **kwargs)
+            except TimeoutError:
+                raise
             except Exception:
                 # optional: you can re-raise without cancelling; no task to cancel anymore
                 self.logger.exception("Error in sync function '%s'", getattr(fn, "__name__", repr(fn)))
@@ -224,7 +227,7 @@ class TaskBucket(Resource):
         try:
             fut = asyncio.run_coroutine_threadsafe(fn, self.hassette.loop)
             return fut.result(timeout=timeout_seconds)
-        except TimeoutError:
+        except CfTimeoutError:
             self.logger.exception("Sync function '%s' timed out", fn.__name__)
             raise
         except Exception:

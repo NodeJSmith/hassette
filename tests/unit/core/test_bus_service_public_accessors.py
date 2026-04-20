@@ -15,12 +15,12 @@ without adding any extra logic.
 
 import asyncio
 import inspect
-from collections import defaultdict
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from hassette.core.bus_service import BusService
+from hassette.core.registration_tracker import RegistrationTracker
 from hassette.types.types import FRAMEWORK_APP_KEY, FRAMEWORK_APP_KEY_PREFIX
 
 # ---------------------------------------------------------------------------
@@ -207,7 +207,7 @@ def test_register_framework_listener_constructs_correct_app_key(bus_service: Bus
         name="test.handler",
     )
     expected_key = f"{FRAMEWORK_APP_KEY_PREFIX}service_watcher"
-    assert expected_key in bus_service._pending_registration_tasks
+    assert expected_key in bus_service._reg_tracker._tasks
 
 
 # ---------------------------------------------------------------------------
@@ -224,11 +224,11 @@ async def test_drain_framework_registrations_drains_only_framework_keys(bus_serv
         drained.append(key)
 
     # Inject mixed task lists
-    bus_service._pending_registration_tasks = defaultdict(list)
-    bus_service._pending_registration_tasks["my_app"] = []
-    bus_service._pending_registration_tasks[FRAMEWORK_APP_KEY] = []
-    bus_service._pending_registration_tasks[f"{FRAMEWORK_APP_KEY_PREFIX}service_watcher"] = []
-    bus_service._pending_registration_tasks[f"{FRAMEWORK_APP_KEY_PREFIX}core"] = []
+    bus_service._reg_tracker = RegistrationTracker()
+    bus_service._reg_tracker._tasks["my_app"] = []
+    bus_service._reg_tracker._tasks[FRAMEWORK_APP_KEY] = []
+    bus_service._reg_tracker._tasks[f"{FRAMEWORK_APP_KEY_PREFIX}service_watcher"] = []
+    bus_service._reg_tracker._tasks[f"{FRAMEWORK_APP_KEY_PREFIX}core"] = []
 
     # Patch await_registrations_complete to track calls without actually running tasks
     async def recording_await(app_key: str) -> None:
@@ -256,13 +256,13 @@ async def test_drain_framework_registrations_uses_list_snapshot(bus_service: Bus
     drained: list[str] = []
     framework_key = f"{FRAMEWORK_APP_KEY_PREFIX}core"
 
-    bus_service._pending_registration_tasks = defaultdict(list)
-    bus_service._pending_registration_tasks[framework_key] = []
+    bus_service._reg_tracker = RegistrationTracker()
+    bus_service._reg_tracker._tasks[framework_key] = []
 
     async def recording_await(app_key: str) -> None:
         drained.append(app_key)
         # Simulate concurrent mutation during iteration
-        bus_service._pending_registration_tasks[f"{FRAMEWORK_APP_KEY_PREFIX}new_key"] = []
+        bus_service._reg_tracker._tasks[f"{FRAMEWORK_APP_KEY_PREFIX}new_key"] = []
 
     bus_service.await_registrations_complete = recording_await  # pyright: ignore[reportAttributeAccessIssue]
 

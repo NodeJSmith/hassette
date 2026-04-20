@@ -131,6 +131,52 @@ These settings control how long Hassette waits for various operations before giv
 | `websocket_total_timeout_seconds` | integer | `30` | Total time for WebSocket operations to complete. |
 | `websocket_heartbeat_interval_seconds` | integer | `30` | Interval for WebSocket keepalive pings. |
 
+### Timeouts
+
+Hassette enforces execution timeouts on scheduled jobs and event handlers to prevent runaway tasks from blocking the system. Two global config fields control the defaults:
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `scheduler_job_timeout_seconds` | float or null | `600.0` | Default timeout in seconds for scheduled job execution. `null` disables the default timeout globally. |
+| `event_handler_timeout_seconds` | float or null | `600.0` | Default timeout in seconds for event handler execution. `null` disables the default timeout globally. |
+
+#### Per-item overrides
+
+Individual jobs and listeners can override the global default using two parameters available on all scheduling and subscription methods:
+
+| Parameter | Effect |
+|-----------|--------|
+| `timeout=None` | Use the global default from config. |
+| `timeout=30.0` | Override with an explicit timeout (30 seconds in this example). |
+| `timeout_disabled=True` | Disable timeout enforcement entirely for this item, regardless of the global default. |
+
+When a job or handler exceeds its timeout, Hassette raises `TimeoutError` to cancel the execution and records it as `timed_out` in the telemetry database.
+
+#### Disabling timeouts globally
+
+Setting either config field to `null` disables timeout enforcement for all jobs or handlers that do not set an explicit per-item `timeout`. A startup WARNING is emitted when this is detected:
+
+```
+WARNING — scheduler_job_timeout_seconds is None — execution timeout enforcement is disabled globally — framework components are unprotected
+```
+
+#### Limitations
+
+**`TimeoutError` swallowing**: If a handler or job catches `TimeoutError` (or the broader `BaseException` / `Exception`) internally, the timeout mechanism cannot cancel it. The framework records the timeout in telemetry, but the handler continues running. Avoid catching `TimeoutError` unless you have a specific reason to handle it.
+
+**Sync handlers**: Synchronous handlers wrapped by Hassette run in a thread executor. The timeout applies to the awaitable wrapper, not the underlying thread. If the sync function blocks on I/O or a long computation, cancelling the awaitable does not interrupt the thread — the thread runs to completion while the framework moves on. Use async handlers for operations that need reliable timeout cancellation.
+
+```toml
+[hassette]
+# Reduce the default timeout to 30 seconds
+scheduler_job_timeout_seconds = 30.0
+event_handler_timeout_seconds = 30.0
+
+# Or disable globally (not recommended for production)
+# scheduler_job_timeout_seconds = null
+# event_handler_timeout_seconds = null
+```
+
 ## Scheduler Settings
 
 | Setting | Type | Default | Description |

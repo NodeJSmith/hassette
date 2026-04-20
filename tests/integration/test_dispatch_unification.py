@@ -118,6 +118,7 @@ async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> Non
         topic="hass.event.test",
         listener_id=42,
         source_tier="app",
+        effective_timeout=None,
     )
 
     await executor.execute(cmd)
@@ -140,6 +141,7 @@ async def test_pre_registration_listener_produces_orphan_record(executor: Comman
         topic="hass.event.test",
         listener_id=None,
         source_tier="app",
+        effective_timeout=None,
     )
 
     await executor.execute(cmd)
@@ -211,6 +213,7 @@ async def test_framework_listener_produces_telemetry(executor: CommandExecutor) 
         topic="hassette.event.service_status",
         listener_id=99,
         source_tier="framework",
+        effective_timeout=None,
     )
 
     await executor.execute(cmd)
@@ -478,6 +481,7 @@ async def test_all_jobs_produce_telemetry(executor: CommandExecutor) -> None:
         callable=_callable,
         job_db_id=55,
         source_tier="app",
+        effective_timeout=None,
     )
 
     await executor.execute(cmd)
@@ -504,6 +508,7 @@ async def test_pre_registration_job_produces_orphan_record(executor: CommandExec
         callable=_callable,
         job_db_id=None,
         source_tier="app",
+        effective_timeout=None,
     )
 
     await executor.execute(cmd)

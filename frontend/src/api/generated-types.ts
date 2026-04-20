@@ -877,6 +877,9 @@ export interface components {
         /**
          * JobSummary
          * @description Per-job summary returned by ``get_job_summary()``.
+         *
+         *     ``failed`` counts only ``'error'`` status; ``timed_out`` is tracked separately.
+         *     Invariant: ``successful + failed + timed_out == total_executions``.
          */
         JobSummary: {
             /** Job Id */
@@ -918,6 +921,11 @@ export interface components {
             successful: number;
             /** Failed */
             failed: number;
+            /**
+             * Timed Out
+             * @default 0
+             */
+            timed_out: number;
             /** Last Executed At */
             last_executed_at: number | null;
             /** Total Duration Ms */

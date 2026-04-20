@@ -2,6 +2,7 @@ import { signal } from "@preact/signals";
 import { useRef } from "preact/hooks";
 import type { JobExecutionData } from "../../api/endpoints";
 import { formatDuration, formatTimestamp } from "../../utils/format";
+import { executionStatusVariant } from "../../utils/status";
 import { ErrorCell } from "./error-cell";
 
 const INITIAL_ROWS = 5;
@@ -44,7 +45,7 @@ export function JobExecutions({ executions, jobId }: Props) {
             const isExpanded = expandedTracebacks.value.has(i);
             return [
               <tr key={i}>
-                <td><span class={`ht-badge ht-badge--sm ht-badge--${ex.status === "success" ? "success" : "danger"}`}>{ex.status}</span></td>
+                <td><span class={`ht-badge ht-badge--sm ht-badge--${executionStatusVariant(ex.status)}`}>{ex.status}</span></td>
                 <td class="ht-text-mono ht-text-xs">{formatTimestamp(ex.execution_start_ts)}</td>
                 <td>{formatDuration(ex.duration_ms)}</td>
                 <td class="ht-text-secondary ht-text-sm">

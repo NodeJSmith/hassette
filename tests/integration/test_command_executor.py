@@ -14,6 +14,7 @@ from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.scheduler.classes import JobExecutionRecord, ScheduledJob
+from hassette.utils.execution import ExecutionResult
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -136,7 +137,9 @@ async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
     listener = _make_mock_listener()
     listener.invoke.side_effect = asyncio.CancelledError()
 
-    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app")
+    cmd = InvokeHandler(
+        listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
+    )
 
     with pytest.raises(asyncio.CancelledError):
         await executor.execute(cmd)
@@ -157,7 +160,9 @@ async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
     listener = _make_mock_listener()
     listener.invoke.side_effect = DependencyError("missing dep")
 
-    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app")
+    cmd = InvokeHandler(
+        listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
+    )
 
     # Should not raise
     await executor.execute(cmd)
@@ -181,7 +186,9 @@ async def test_hassette_error_swallowed(executor: CommandExecutor) -> None:
     listener = _make_mock_listener()
     listener.invoke.side_effect = HassetteError("framework error")
 
-    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app")
+    cmd = InvokeHandler(
+        listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
+    )
 
     await executor.execute(cmd)
 
@@ -200,7 +207,9 @@ async def test_unexpected_error_swallowed(executor: CommandExecutor) -> None:
     listener = _make_mock_listener()
     listener.invoke.side_effect = ValueError("oops")
 
-    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app")
+    cmd = InvokeHandler(
+        listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
+    )
 
     await executor.execute(cmd)
 
@@ -221,7 +230,9 @@ async def test_success_record_queued(executor: CommandExecutor) -> None:
     listener = _make_mock_listener()
     listener.invoke.return_value = None
 
-    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app")
+    cmd = InvokeHandler(
+        listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
+    )
 
     await executor.execute(cmd)
 
@@ -234,6 +245,116 @@ async def test_success_record_queued(executor: CommandExecutor) -> None:
     assert record.error_message is None
     assert record.error_traceback is None
     assert record.duration_ms >= 0
+
+
+# ---------------------------------------------------------------------------
+# Timeout enforcement tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_execute_timeout_fires(executor: CommandExecutor) -> None:
+    """Handler exceeding timeout produces 'timed_out' record."""
+
+    async def slow_handler(_event):
+        await asyncio.sleep(10)
+
+    listener = _make_mock_listener()
+    listener.invoke = slow_handler
+
+    cmd = InvokeHandler(
+        listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=0.05
+    )
+
+    await executor.execute(cmd)
+
+    assert not executor._write_queue.empty()
+    record = executor._write_queue.get_nowait()
+    assert isinstance(record, HandlerInvocationRecord)
+    assert record.status == "timed_out"
+
+
+@pytest.mark.asyncio
+async def test_execute_timeout_none_is_noop(executor: CommandExecutor) -> None:
+    """effective_timeout=None does not enforce timeout."""
+    listener = _make_mock_listener()
+    listener.invoke.return_value = None
+
+    cmd = InvokeHandler(
+        listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
+    )
+
+    await executor.execute(cmd)
+
+    assert not executor._write_queue.empty()
+    record = executor._write_queue.get_nowait()
+    assert isinstance(record, HandlerInvocationRecord)
+    assert record.status == "success"
+
+
+@pytest.mark.asyncio
+async def test_timeout_warning_rate_limited(executor: CommandExecutor) -> None:
+    """Multiple rapid timeouts produce at most one WARNING per 60s window."""
+
+    async def slow_handler(_event):
+        await asyncio.sleep(10)
+
+    listener = _make_mock_listener()
+    listener.invoke = slow_handler
+
+    warnings_logged: list[str] = []
+    original_warning = executor.logger.warning
+
+    def capture_warning(msg, *args):
+        warnings_logged.append(msg % args if args else msg)
+
+    executor.logger.warning = capture_warning  # pyright: ignore[reportAttributeAccessIssue]
+
+    # Fire 3 timeouts with the same listener_id
+    for _ in range(3):
+        cmd = InvokeHandler(
+            listener=listener,
+            event=MagicMock(),
+            topic="test",
+            listener_id=1,
+            source_tier="app",
+            effective_timeout=0.01,
+        )
+        await executor.execute(cmd)
+
+    executor.logger.warning = original_warning  # pyright: ignore[reportAttributeAccessIssue]
+
+    # Only one timeout warning should have been logged (rate-limited by listener_id)
+    timeout_warnings = [w for w in warnings_logged if "timed out" in w.lower() or "timeout" in w.lower()]
+    assert len(timeout_warnings) == 1, f"Expected 1 timeout warning, got {len(timeout_warnings)}: {timeout_warnings}"
+
+
+@pytest.mark.asyncio
+async def test_timeout_warning_lazy_eviction(executor: CommandExecutor) -> None:
+    """Stale entries are evicted during rate-limit check."""
+
+    async def slow_handler(_event):
+        await asyncio.sleep(10)
+
+    listener = _make_mock_listener()
+    listener.invoke = slow_handler
+
+    # Manually seed a stale entry (>60s ago)
+    executor._timeout_warn_timestamps = {1: time.monotonic() - 120.0}  # pyright: ignore[reportAttributeAccessIssue]
+
+    # Fire a timeout for a different listener_id
+    cmd = InvokeHandler(
+        listener=listener,
+        event=MagicMock(),
+        topic="test",
+        listener_id=2,
+        source_tier="app",
+        effective_timeout=0.01,
+    )
+    await executor.execute(cmd)
+
+    # Stale entry for listener_id=1 should have been evicted
+    assert 1 not in executor._timeout_warn_timestamps
 
 
 # ---------------------------------------------------------------------------
@@ -324,7 +445,7 @@ async def test_execute_job_success_record_queued(executor: CommandExecutor) -> N
     job = _make_mock_job()
     callable_mock = AsyncMock(return_value=None)
 
-    cmd = ExecuteJob(job=job, callable=callable_mock, job_db_id=42, source_tier="app")
+    cmd = ExecuteJob(job=job, callable=callable_mock, job_db_id=42, source_tier="app", effective_timeout=None)
     await executor.execute(cmd)
 
     assert not executor._write_queue.empty()
@@ -341,7 +462,7 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
     job = _make_mock_job()
     callable_mock = AsyncMock(side_effect=RuntimeError("job failed"))
 
-    cmd = ExecuteJob(job=job, callable=callable_mock, job_db_id=42, source_tier="app")
+    cmd = ExecuteJob(job=job, callable=callable_mock, job_db_id=42, source_tier="app", effective_timeout=None)
     await executor.execute(cmd)
 
     assert not executor._write_queue.empty()
@@ -371,14 +492,13 @@ def test_build_record_uses_session_id_directly(mock_hassette: MagicMock) -> None
     mock_hassette.session_id = 99
 
     listener = _make_mock_listener()
-    from hassette.utils.execution import ExecutionResult
 
-    cmd = InvokeHandler(listener=listener, event=MagicMock(), topic="test", listener_id=5, source_tier="app")
+    cmd = InvokeHandler(
+        listener=listener, event=MagicMock(), topic="test", listener_id=5, source_tier="app", effective_timeout=None
+    )
     result = ExecutionResult()
     result.status = "success"
     result.duration_ms = 1.0
-
-    import time
 
     record = exc._build_record(cmd, result, time.time())
     assert isinstance(record, HandlerInvocationRecord)

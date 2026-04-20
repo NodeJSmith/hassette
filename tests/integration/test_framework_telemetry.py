@@ -164,6 +164,7 @@ async def test_command_executor_records_source_tier_on_error(mock_hassette_with_
         topic="test.topic",
         listener_id=1,
         source_tier="framework",
+        effective_timeout=None,
     )
 
     # Execute the command
@@ -259,6 +260,7 @@ async def test_queue_persistence_via_drain_and_persist(mock_hassette_with_db: Ma
         topic="test",
         listener_id=listener_id,
         source_tier="app",
+        effective_timeout=None,
     )
     await executor.execute(cmd)
 
@@ -307,6 +309,7 @@ async def test_pre_registration_orphan_persisted_with_null_listener_id(mock_hass
         topic="test",
         listener_id=None,  # Not yet registered
         source_tier="app",
+        effective_timeout=None,
     )
     await executor.execute(cmd)
 
@@ -438,6 +441,7 @@ async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: Magi
             topic="test",
             listener_id=i + 1,
             source_tier="app",
+            effective_timeout=None,
         )
         await executor.execute(cmd)
 
@@ -451,6 +455,7 @@ async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: Magi
         topic="test",
         listener_id=999,
         source_tier="app",
+        effective_timeout=None,
     )
     await executor.execute(cmd)
 

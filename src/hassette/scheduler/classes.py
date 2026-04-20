@@ -182,6 +182,14 @@ class ScheduledJob:
     ``ScheduledJob`` for the actual dispatch time after jitter is applied.
     """
 
+    timeout: float | None = field(default=None, compare=False)
+    """Per-job timeout in seconds. ``None`` means use the global default
+    (``config.scheduler_job_timeout_seconds``). A positive ``float`` overrides the default.
+    Validated at construction: must be positive when set."""
+
+    timeout_disabled: bool = field(default=False, compare=False)
+    """When ``True``, timeout enforcement is disabled for this job regardless of the global default."""
+
     name: str = field(default="", compare=False)
     """Optional name for the job for easier identification."""
 
@@ -225,6 +233,11 @@ class ScheduledJob:
         return f"ScheduledJob(name={self.name!r}, owner_id={self.owner_id})"
 
     def __post_init__(self):
+        if self.timeout is not None and (isinstance(self.timeout, bool) or self.timeout <= 0):
+            raise ValueError("timeout must be a positive number")
+        if self.timeout_disabled and self.timeout is not None:
+            raise ValueError("Cannot specify both 'timeout' and 'timeout_disabled=True'")
+
         self.set_next_run(self.next_run)
 
         if not self.name:
@@ -266,9 +279,39 @@ class ScheduledJob:
             self.job == other.job
             and triggers_match
             and self.group == other.group
+            and self.jitter == other.jitter
+            and self.timeout == other.timeout
+            and self.timeout_disabled == other.timeout_disabled
             and self.args == other.args
             and self.kwargs == other.kwargs
         )
+
+    def diff_fields(self, other: "ScheduledJob") -> list[str]:
+        """Return a list of configuration field names that differ between two jobs.
+
+        Compares the same fields as ``matches()`` — callable, trigger, group,
+        jitter, timeout, timeout_disabled, args, kwargs.
+        """
+        changed: list[str] = []
+        if self.job != other.job:
+            changed.append("job")
+        self_tid = self.trigger.trigger_id() if self.trigger is not None else None
+        other_tid = other.trigger.trigger_id() if other.trigger is not None else None
+        if self_tid != other_tid:
+            changed.append("trigger")
+        if self.group != other.group:
+            changed.append("group")
+        if self.jitter != other.jitter:
+            changed.append("jitter")
+        if self.timeout != other.timeout:
+            changed.append("timeout")
+        if self.timeout_disabled != other.timeout_disabled:
+            changed.append("timeout_disabled")
+        if self.args != other.args:
+            changed.append("args")
+        if self.kwargs != other.kwargs:
+            changed.append("kwargs")
+        return changed
 
     def cancel(self) -> None:
         """Cancel the job by delegating to the owning Scheduler.
@@ -314,7 +357,7 @@ class JobExecutionRecord:
     """Unix timestamp (epoch seconds) when execution began."""
 
     duration_ms: float
-    status: str  # "success", "error", "cancelled"
+    status: str  # "success", "error", "cancelled", "timed_out"
     source_tier: SourceTier = "app"
     """Whether this execution originates from a user app or the framework itself."""
 

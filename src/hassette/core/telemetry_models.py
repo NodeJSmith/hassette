@@ -49,7 +49,11 @@ class AppHealthSummary(BaseModel):
 
 
 class ListenerSummary(BaseModel):
-    """Per-listener summary returned by ``get_listener_summary()``."""
+    """Per-listener summary returned by ``get_listener_summary()``.
+
+    ``failed`` counts only ``'error'`` status; ``timed_out`` is tracked separately.
+    Invariant: ``successful + failed + cancelled + timed_out == total_invocations``.
+    """
 
     listener_id: int
     app_key: str
@@ -70,6 +74,7 @@ class ListenerSummary(BaseModel):
     failed: int
     di_failures: int
     cancelled: int
+    timed_out: int = 0
     total_duration_ms: float
     avg_duration_ms: float
     min_duration_ms: float
@@ -92,7 +97,11 @@ class HandlerInvocation(BaseModel):
 
 
 class JobSummary(BaseModel):
-    """Per-job summary returned by ``get_job_summary()``."""
+    """Per-job summary returned by ``get_job_summary()``.
+
+    ``failed`` counts only ``'error'`` status; ``timed_out`` is tracked separately.
+    Invariant: ``successful + failed + timed_out == total_executions``.
+    """
 
     job_id: int
     app_key: str
@@ -110,6 +119,7 @@ class JobSummary(BaseModel):
     total_executions: int
     successful: int
     failed: int
+    timed_out: int = 0
     last_executed_at: float | None
     total_duration_ms: float
     avg_duration_ms: float

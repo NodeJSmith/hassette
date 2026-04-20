@@ -31,6 +31,13 @@ class InvokeHandler:
     Required (no default) to prevent silent miscategorization.
     """
 
+    effective_timeout: float | None
+    """Per-execution timeout in seconds, or None for no timeout.
+
+    Required (no default) to prevent silent omission at construction sites.
+    ``None`` means no deadline is enforced (``asyncio.timeout(None)`` is a no-op).
+    """
+
 
 @dataclass(frozen=True)
 class ExecuteJob:
@@ -49,4 +56,11 @@ class ExecuteJob:
     """Whether this execution originates from a user app or the framework itself.
 
     Required (no default) to prevent silent miscategorization.
+    """
+
+    effective_timeout: float | None
+    """Per-execution timeout in seconds, or None for no timeout.
+
+    Required (no default) to prevent silent omission at construction sites.
+    ``None`` means no deadline is enforced (``asyncio.timeout(None)`` is a no-op).
     """

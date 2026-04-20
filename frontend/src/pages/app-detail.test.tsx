@@ -143,6 +143,7 @@ describe("AppDetailPage", () => {
       fire_at: null,
       jitter: null,
       cancelled: false,
+      timed_out: 0,
       ...overrides,
     };
   }

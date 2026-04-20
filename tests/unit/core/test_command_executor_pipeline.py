@@ -386,6 +386,7 @@ def test_build_record_reads_source_tier():
         topic="test/topic",
         listener_id=5,
         source_tier="framework",
+        effective_timeout=None,
     )
     result = MagicMock()
     result.duration_ms = 1.0
@@ -416,6 +417,7 @@ def test_build_record_reads_is_di_failure():
         topic="test/topic",
         listener_id=5,
         source_tier="app",
+        effective_timeout=None,
     )
     result = MagicMock()
     result.duration_ms = 1.0

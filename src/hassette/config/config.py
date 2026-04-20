@@ -202,6 +202,26 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     scheduler_behind_schedule_threshold_seconds: int = Field(default=5)
     """Threshold in seconds before a 'behind schedule' warning is logged for a job."""
 
+    scheduler_job_timeout_seconds: float | None = Field(default=600.0)
+    """Default timeout in seconds for scheduled job execution. ``None`` disables the default timeout.
+    Individual jobs can override via ``timeout=`` or ``timeout_disabled=True``."""
+
+    event_handler_timeout_seconds: float | None = Field(default=600.0)
+    """Default timeout in seconds for event handler execution. ``None`` disables the default timeout.
+    Individual listeners can override via ``timeout=`` or ``timeout_disabled=True``."""
+
+    @field_validator("scheduler_job_timeout_seconds", "event_handler_timeout_seconds", mode="before")
+    @classmethod
+    def validate_timeout_seconds(cls, value: Any) -> float | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            raise ValueError("timeout must be None or a positive number")
+        val = float(value)
+        if val <= 0:
+            raise ValueError("timeout must be None or a positive number")
+        return val
+
     run_sync_timeout_seconds: int = Field(default=6)
     """Default timeout for synchronous function calls."""
 

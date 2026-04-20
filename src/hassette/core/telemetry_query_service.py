@@ -140,6 +140,7 @@ class TelemetryQueryService(Resource):
                 SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS failed,
                 SUM(CASE WHEN hi.is_di_failure = 1 THEN 1 ELSE 0 END) AS di_failures,
                 SUM(CASE WHEN hi.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
+                SUM(CASE WHEN hi.status = 'timed_out' THEN 1 ELSE 0 END) AS timed_out,
                 COALESCE(SUM(hi.duration_ms), 0.0) AS total_duration_ms,
                 COALESCE(AVG(hi.duration_ms), 0.0) AS avg_duration_ms,
                 COALESCE(MIN(hi.duration_ms), 0.0) AS min_duration_ms,
@@ -151,7 +152,7 @@ class TelemetryQueryService(Resource):
             LEFT JOIN handler_invocations hi ON {join_condition}
             LEFT JOIN handler_invocations last_err ON last_err.id = (
                 SELECT id FROM handler_invocations
-                WHERE listener_id = l.id AND status = 'error' {last_err_filter}
+                WHERE listener_id = l.id AND status IN ('error', 'timed_out') {last_err_filter}
                 ORDER BY execution_start_ts DESC LIMIT 1
             )
             WHERE l.app_key = ? AND l.instance_index = ?
@@ -207,6 +208,7 @@ class TelemetryQueryService(Resource):
                 COUNT(je.rowid) AS total_executions,
                 SUM(CASE WHEN je.status = 'success' THEN 1 ELSE 0 END) AS successful,
                 SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS failed,
+                SUM(CASE WHEN je.status = 'timed_out' THEN 1 ELSE 0 END) AS timed_out,
                 MAX(je.execution_start_ts) AS last_executed_at,
                 COALESCE(SUM(je.duration_ms), 0.0) AS total_duration_ms,
                 COALESCE(AVG(je.duration_ms), 0.0) AS avg_duration_ms
@@ -279,7 +281,7 @@ class TelemetryQueryService(Resource):
                 SELECT
                     l.app_key,
                     COUNT(hi.rowid) AS total_invocations,
-                    SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
+                    SUM(CASE WHEN hi.status IN ('error', 'timed_out') THEN 1 ELSE 0 END) AS total_errors,
                     COALESCE(AVG(hi.duration_ms), 0.0) AS avg_duration_ms,
                     MAX(hi.execution_start_ts) AS last_listener_activity_ts
                 FROM listeners l
@@ -293,7 +295,7 @@ class TelemetryQueryService(Resource):
                 SELECT
                     sj.app_key,
                     COUNT(je.rowid) AS total_executions,
-                    SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_job_errors,
+                    SUM(CASE WHEN je.status IN ('error', 'timed_out') THEN 1 ELSE 0 END) AS total_job_errors,
                     MAX(je.execution_start_ts) AS last_job_activity_ts
                 FROM scheduled_jobs sj
                 LEFT JOIN job_executions je ON je.job_id = sj.id
@@ -309,7 +311,7 @@ class TelemetryQueryService(Resource):
                 SELECT
                     l.app_key,
                     COUNT(hi.rowid) AS total_invocations,
-                    SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
+                    SUM(CASE WHEN hi.status IN ('error', 'timed_out') THEN 1 ELSE 0 END) AS total_errors,
                     COALESCE(AVG(hi.duration_ms), 0.0) AS avg_duration_ms,
                     MAX(hi.execution_start_ts) AS last_listener_activity_ts
                 FROM listeners l
@@ -322,7 +324,7 @@ class TelemetryQueryService(Resource):
                 SELECT
                     sj.app_key,
                     COUNT(je.rowid) AS total_executions,
-                    SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_job_errors,
+                    SUM(CASE WHEN je.status IN ('error', 'timed_out') THEN 1 ELSE 0 END) AS total_job_errors,
                     MAX(je.execution_start_ts) AS last_job_activity_ts
                 FROM scheduled_jobs sj
                 LEFT JOIN job_executions je ON je.job_id = sj.id
@@ -430,7 +432,7 @@ class TelemetryQueryService(Resource):
                     {total_listeners_subq} AS total_listeners,
                     COUNT(DISTINCT hi.listener_id) AS invoked_listeners,
                     COUNT(hi.rowid) AS total_invocations,
-                    SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
+                    SUM(CASE WHEN hi.status IN ('error', 'timed_out') THEN 1 ELSE 0 END) AS total_errors,
                     SUM(CASE WHEN hi.is_di_failure = 1 THEN 1 ELSE 0 END) AS total_di_failures,
                     AVG(hi.duration_ms) AS avg_duration_ms
                 FROM handler_invocations hi
@@ -441,7 +443,7 @@ class TelemetryQueryService(Resource):
                     {total_jobs_subq} AS total_jobs,
                     COUNT(DISTINCT je.job_id) AS executed_jobs,
                     COUNT(je.rowid) AS total_executions,
-                    SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
+                    SUM(CASE WHEN je.status IN ('error', 'timed_out') THEN 1 ELSE 0 END) AS total_errors,
                     COALESCE(AVG(je.duration_ms), 0.0) AS avg_duration_ms
                 FROM job_executions je
                 WHERE je.session_id = ? {tier_je_clause}
@@ -454,7 +456,7 @@ class TelemetryQueryService(Resource):
                     {total_listeners_subq} AS total_listeners,
                     COUNT(DISTINCT hi.listener_id) AS invoked_listeners,
                     COUNT(hi.rowid) AS total_invocations,
-                    SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
+                    SUM(CASE WHEN hi.status IN ('error', 'timed_out') THEN 1 ELSE 0 END) AS total_errors,
                     SUM(CASE WHEN hi.is_di_failure = 1 THEN 1 ELSE 0 END) AS total_di_failures,
                     AVG(hi.duration_ms) AS avg_duration_ms
                 FROM handler_invocations hi
@@ -465,7 +467,7 @@ class TelemetryQueryService(Resource):
                     {total_jobs_subq} AS total_jobs,
                     COUNT(DISTINCT je.job_id) AS executed_jobs,
                     COUNT(je.rowid) AS total_executions,
-                    SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
+                    SUM(CASE WHEN je.status IN ('error', 'timed_out') THEN 1 ELSE 0 END) AS total_errors,
                     COALESCE(AVG(je.duration_ms), 0.0) AS avg_duration_ms
                 FROM job_executions je
                 WHERE 1=1 {tier_je_clause}
@@ -473,10 +475,15 @@ class TelemetryQueryService(Resource):
             listener_params = [*tier_hi_params]
             job_params = [*tier_je_params]
 
-        async with self._db.execute(listener_query, listener_params) as cursor:
-            listener_row = await cursor.fetchone()
-        async with self._db.execute(job_query, job_params) as cursor:
-            job_row = await cursor.fetchone()
+        # BEGIN DEFERRED pins the WAL read snapshot so both queries see consistent state.
+        try:
+            await self._db.execute("BEGIN DEFERRED")
+            async with self._db.execute(listener_query, listener_params) as cursor:
+                listener_row = await cursor.fetchone()
+            async with self._db.execute(job_query, job_params) as cursor:
+                job_row = await cursor.fetchone()
+        finally:
+            await self._db.execute("ROLLBACK")
 
         listener_data = _row_to_dict(listener_row) if listener_row else {}
         job_data = _row_to_dict(job_row) if job_row else {}
@@ -565,12 +572,12 @@ class TelemetryQueryService(Resource):
 
         handler_query = f"""
             SELECT COUNT(*) FROM handler_invocations hi
-            WHERE hi.status = 'error' AND hi.execution_start_ts > ?
+            WHERE hi.status IN ('error', 'timed_out') AND hi.execution_start_ts > ?
                 {session_filter_hi} {tier_hi_clause}
         """
         job_query = f"""
             SELECT COUNT(*) FROM job_executions je
-            WHERE je.status = 'error' AND je.execution_start_ts > ?
+            WHERE je.status IN ('error', 'timed_out') AND je.execution_start_ts > ?
                 {session_filter_je} {tier_je_clause}
         """
 
@@ -635,7 +642,7 @@ class TelemetryQueryService(Resource):
                 hi.error_traceback
             FROM handler_invocations hi
             LEFT JOIN listeners l ON l.id = hi.listener_id
-            WHERE hi.status = 'error'
+            WHERE hi.status IN ('error', 'timed_out')
                 AND hi.execution_start_ts > ?
                 {session_filter_hi}
                 {tier_hi_clause}
@@ -657,7 +664,7 @@ class TelemetryQueryService(Resource):
                 je.error_traceback
             FROM job_executions je
             LEFT JOIN scheduled_jobs sj ON sj.id = je.job_id
-            WHERE je.status = 'error'
+            WHERE je.status IN ('error', 'timed_out')
                 AND je.execution_start_ts > ?
                 {session_filter_je}
                 {tier_je_clause}

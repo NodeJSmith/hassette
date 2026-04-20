@@ -44,3 +44,12 @@ export function errorRateToVariant(cls: string): StatusVariant {
   console.warn(`Unknown error rate class: "${cls}"`);
   return "neutral";
 }
+
+/** Map a job/handler execution status to a StatusVariant.
+ * "success" → "success", "timed_out" → "warning", everything else → "danger".
+ */
+export function executionStatusVariant(status: string): StatusVariant {
+  if (status === "success") return "success";
+  if (status === "timed_out") return "warning";
+  return "danger";
+}
