@@ -10,7 +10,8 @@ from uuid import uuid4
 from fair_async_rlock import FairAsyncRLock
 
 import hassette.utils.date_utils as _date_utils
-from hassette.bus.listeners import Listener
+from hassette.bus.duration_timer import DurationTimer
+from hassette.bus.listeners import Listener, Subscription
 from hassette.core.commands import InvokeHandler
 from hassette.core.registration import ListenerRegistration
 from hassette.core.registration_tracker import RegistrationTracker
@@ -104,11 +105,106 @@ class BusService(Service):
 
         Registration tasks are tracked per ``app_key`` so
         ``await_registrations_complete()`` can drain them before reconciliation.
+
+        For duration listeners, wires the ``_duration_timer`` if not already set
+        by injecting the ``_create_cancel_listener`` factory as the cancel-sub
+        callback.  This ensures each duration listener has a live ``DurationTimer``
+        regardless of how the listener was created (Bus.on, test harness, etc.).
         """
+        if listener.duration is not None and listener._duration_timer is None and listener.entity_id:
+
+            def make_cancel_sub() -> Subscription:
+                return self._create_cancel_listener(listener)
+
+            listener._duration_timer = DurationTimer(
+                task_bucket=self.task_bucket,
+                duration=listener.duration,
+                predicates=listener.predicate,
+                entity_id=listener.entity_id,
+                owner_id=listener.owner_id,
+                create_cancel_sub=make_cancel_sub,
+            )
+
         app_key = listener.app_key or listener.owner_id
         task = self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_listener")
         self._reg_tracker.prune_and_track(app_key, task)
         return task
+
+    def _create_cancel_listener(self, main_listener: "Listener") -> Subscription:
+        """Create and register a cancellation listener for a duration timer.
+
+        The cancellation listener monitors the same entity as ``main_listener``
+        and calls ``DurationTimer._on_cancel_event()`` on each incoming
+        ``state_changed`` event.  It:
+
+        - Uses ``source_tier="framework"`` (filtered from user-facing counts).
+        - Uses the same ``owner_id`` as the main listener (cleaned up together).
+        - Bypasses DB registration (no ``ListenerRegistration`` row).
+        - Is added directly to the Router (no task_bucket.spawn).
+
+        Args:
+            main_listener: The duration listener whose timer this subscription guards.
+
+        Returns:
+            A ``Subscription`` whose ``cancel()`` removes the listener from Router.
+        """
+        assert main_listener.entity_id is not None, "duration listener must have entity_id"
+        assert main_listener._duration_timer is not None, "duration listener must have _duration_timer"
+
+        duration_timer = main_listener._duration_timer
+
+        def cancel_handler(event: "Event[Any]") -> None:
+            # Re-evaluate with old_state=None so that "did it change?" predicates
+            # (StateDidChange, AttrDidChange) do not falsely cancel on attribute-only
+            # refreshes.  The semantics we want: "is the entity STILL in the target
+            # state?" — not "did it change TO the target state?".
+            #
+            # With old_state=None:
+            #   - StateDidChange → True (None != any_value), so only StateTo decides.
+            #   - AttrDidChange → True (old_state=None special-cases to True), so only
+            #     AttrTo / other value predicates decide.
+            if isinstance(event, RawStateChangeEvent) and event.payload.data.old_state is not None:
+                stripped_event = RawStateChangeEvent(
+                    topic=event.topic,
+                    payload=HassPayload(
+                        event_type=event.payload.event_type,
+                        data=RawStateChangePayload(
+                            entity_id=event.payload.data.entity_id,
+                            old_state=None,
+                            new_state=event.payload.data.new_state,
+                        ),
+                        origin=event.payload.origin,
+                        time_fired=event.payload.time_fired,
+                        context=event.payload.context,
+                    ),
+                )
+                duration_timer._on_cancel_event(stripped_event)
+            else:
+                duration_timer._on_cancel_event(event)
+
+        cancel_listener = Listener.create(
+            task_bucket=self.task_bucket,
+            owner_id=main_listener.owner_id,
+            topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{main_listener.entity_id}",
+            handler=cancel_handler,
+            source_tier="framework",
+        )
+
+        # Add directly to Router — bypasses DB registration.
+        # Use task_bucket.spawn so the add_route coroutine runs on the event loop.
+        # The cancel sub is usable immediately (before route insertion completes) because
+        # cancel() calls sub.cancel() which marks the listener as cancelled first.
+
+        async def _add_cancel_route() -> None:
+            await self.router.add_route(cancel_listener.topic, cancel_listener)
+
+        self.task_bucket.spawn(_add_cancel_route(), name="bus:add_cancel_listener")
+
+        def unsubscribe() -> None:
+            cancel_listener.cancel()
+            self._remove_listener_by_id(cancel_listener.topic, cancel_listener.listener_id)
+
+        return Subscription(cancel_listener, unsubscribe)
 
     async def drain_framework_registrations(self) -> None:
         """Drain all pending framework registration tasks.
@@ -411,6 +507,9 @@ class BusService(Service):
               prohibited by ``Listener.create()`` validation.  If that prohibition
               is ever relaxed, the ``finally`` must guard against ``CancelledError``
               to avoid removing a listener whose debounced handler hasn't fired yet.
+            - For duration listeners the ``finally`` block skips ``once`` removal.
+              Removal is delegated unconditionally to the DurationTimer callback
+              after ``listener.dispatch()`` returns there.
 
         Concurrency model:
             Multiple spawned tasks may enter this method concurrently for the same
@@ -426,6 +525,69 @@ class BusService(Service):
 
         if listener.once and listener.rate_limiter:
             raise RuntimeError("once + rate_limiting is prohibited; see Listener.create() validation")
+
+        # Duration path: start timer instead of dispatching immediately.
+        if listener.duration is not None and listener._duration_timer is not None:
+            entity_id = listener.entity_id or ""
+
+            async def on_duration_fire() -> None:
+                """Called by DurationTimer after the full hold period elapses."""
+                # Re-read current state from StateProxy (in-memory, no HTTP).
+                state_proxy = self.hassette._state_proxy
+                current_state = state_proxy.states.get(entity_id) if state_proxy else None
+
+                if current_state is None:
+                    self.logger.debug(
+                        "duration_fire: entity %s not found in StateProxy, dropping fire",
+                        entity_id,
+                    )
+                    if listener.once:
+                        self.remove_listener(listener)
+                    return
+
+                # Re-build synthetic event from current state for predicate re-evaluation.
+                recheck_event = RawStateChangeEvent(
+                    topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
+                    payload=HassPayload(
+                        event_type="state_changed",
+                        data=RawStateChangePayload(
+                            entity_id=entity_id,
+                            old_state=None,
+                            new_state=current_state,
+                        ),
+                        origin="LOCAL",
+                        time_fired=_date_utils.now(),
+                        context=HassContext(id=str(uuid4()), parent_id=None, user_id=None),
+                    ),
+                )
+
+                # Re-evaluate predicates against current state.
+                if not listener.matches(recheck_event):
+                    self.logger.debug(
+                        "duration_fire: entity %s predicate no longer matches, dropping fire",
+                        entity_id,
+                    )
+                    if listener.once:
+                        self.remove_listener(listener)
+                    return
+
+                self.logger.debug(
+                    "duration_fire: entity %s held state for %.2fs, dispatching handler",
+                    entity_id,
+                    listener.duration,
+                )
+                # Delegate once-guard to listener.dispatch() — it handles _fired atomically.
+                try:
+                    await listener.dispatch(invoke_fn)
+                finally:
+                    # Unconditional once removal — matches non-duration once behavior.
+                    if listener.once:
+                        self.remove_listener(listener)
+
+            listener._duration_timer.start(event, on_duration_fire)
+            return
+
+        # Non-duration path (unchanged behavior).
         try:
             await listener.dispatch(invoke_fn)
         finally:

@@ -94,11 +94,21 @@ class DurationTimer:
         subscription is created if the current one has been consumed or is None,
         ensuring each timer cycle has an active cancellation path.
 
+        Clears ``_cancelled`` so that a previously-cancelled timer can be restarted
+        when the entity re-enters the target state.  The flag is only set transiently
+        during a cancel cycle to guard an in-flight ``delayed_fire`` coroutine; once
+        ``start()`` is called again, the new task replaces the old cycle entirely.
+
         Args:
             triggering_event: The event that triggered this timer start (passed to
                 the cancellation handler if it fires before the timer elapses).
             on_fire: Async zero-arg callable invoked when the timer elapses.
         """
+        # Clear the cancelled guard so this new cycle runs normally.
+        # The guard's purpose is to prevent an in-flight delayed_fire from firing
+        # after cancel(); once we start a fresh cycle, that concern no longer applies.
+        self._cancelled = False
+
         # Cancel previous task if still running.
         if self._task and not self._task.done():
             self._task.cancel()
