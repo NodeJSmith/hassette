@@ -398,9 +398,7 @@ class BusService(Service):
                                 self.remove_listener(listener)
 
                     self._duration_timers_active += 1
-                    listener._duration_timer.start(
-                        synthetic_event, on_duration_fire_immediate, override_duration=remaining
-                    )
+                    listener._duration_timer.start(on_duration_fire_immediate, override_duration=remaining)
                 return
 
             try:
@@ -645,7 +643,7 @@ class BusService(Service):
                         self.remove_listener(listener)
 
             self._duration_timers_active += 1
-            listener._duration_timer.start(event, on_duration_fire)
+            listener._duration_timer.start(on_duration_fire)
             return
 
         # Non-duration path (unchanged behavior).

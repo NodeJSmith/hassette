@@ -75,7 +75,7 @@ async def test_start_spawns_task_and_fires_after_delay() -> None:
     async def on_fire() -> None:
         fired.set()
 
-    timer.start(triggering_event=_make_event(), on_fire=on_fire)
+    timer.start(on_fire=on_fire)
 
     # Timer should be active immediately after start
     assert timer.is_active
@@ -93,7 +93,7 @@ async def test_cancel_prevents_fire() -> None:
     async def on_fire() -> None:
         fired.set()
 
-    timer.start(triggering_event=_make_event(), on_fire=on_fire)
+    timer.start(on_fire=on_fire)
     assert timer.is_active
 
     timer.cancel()
@@ -110,7 +110,7 @@ async def test_cancel_is_idempotent() -> None:
     async def on_fire() -> None:
         pass
 
-    timer.start(triggering_event=_make_event(), on_fire=on_fire)
+    timer.start(on_fire=on_fire)
 
     # Should not raise
     timer.cancel()
@@ -126,12 +126,12 @@ async def test_start_cancels_previous_task() -> None:
         nonlocal fire_count
         fire_count += 1
 
-    timer.start(triggering_event=_make_event(), on_fire=on_fire)
+    timer.start(on_fire=on_fire)
     first_task = timer._task
     assert first_task is not None
 
     # Start again — should cancel the first task
-    timer.start(triggering_event=_make_event(), on_fire=on_fire)
+    timer.start(on_fire=on_fire)
     second_task = timer._task
     assert second_task is not first_task
 
@@ -169,7 +169,7 @@ async def test_start_recreates_cancel_subscription() -> None:
         pass
 
     # First start — should create cancel_sub_1
-    timer.start(triggering_event=_make_event(), on_fire=on_fire)
+    timer.start(on_fire=on_fire)
     assert timer._cancel_sub is cancel_sub_1
 
     # Cancel the timer — clears _cancel_sub
@@ -180,7 +180,7 @@ async def test_start_recreates_cancel_subscription() -> None:
     timer._cancelled = False
 
     # Second start — _cancel_sub is None so should create cancel_sub_2
-    timer.start(triggering_event=_make_event(), on_fire=on_fire)
+    timer.start(on_fire=on_fire)
     assert timer._cancel_sub is cancel_sub_2
 
     assert create_cancel_sub.call_count == 2
@@ -197,7 +197,7 @@ async def test_is_active_reflects_pending_task() -> None:
     # Before start: not active
     assert not timer.is_active
 
-    timer.start(triggering_event=_make_event(), on_fire=on_fire)
+    timer.start(on_fire=on_fire)
     # After start: active
     assert timer.is_active
 
@@ -214,7 +214,7 @@ async def test_is_active_false_after_cancel() -> None:
     async def on_fire() -> None:
         pass
 
-    timer.start(triggering_event=_make_event(), on_fire=on_fire)
+    timer.start(on_fire=on_fire)
     assert timer.is_active
 
     timer.cancel()
@@ -234,7 +234,7 @@ async def test_evaluate_cancel_event_matching_does_not_cancel() -> None:
     async def on_fire() -> None:
         pass
 
-    timer.start(triggering_event=_make_event(), on_fire=on_fire)
+    timer.start(on_fire=on_fire)
     assert timer.is_active
 
     # Trigger the cancellation handler with a matching event
@@ -256,7 +256,7 @@ async def test_evaluate_cancel_event_non_matching_cancels() -> None:
     async def on_fire() -> None:
         pass
 
-    timer.start(triggering_event=_make_event(), on_fire=on_fire)
+    timer.start(on_fire=on_fire)
     assert timer.is_active
 
     # Trigger the cancellation handler with a non-matching event
@@ -274,7 +274,7 @@ async def test_evaluate_cancel_event_none_predicate_does_not_cancel() -> None:
     async def on_fire() -> None:
         pass
 
-    timer.start(triggering_event=_make_event(), on_fire=on_fire)
+    timer.start(on_fire=on_fire)
     assert timer.is_active
 
     # evaluate_cancel_event with None predicates should not cancel
@@ -299,7 +299,7 @@ async def test_cancel_removes_cancellation_listener_synchronously() -> None:
     async def on_fire() -> None:
         pass
 
-    timer.start(triggering_event=_make_event(), on_fire=on_fire)
+    timer.start(on_fire=on_fire)
 
     # Reset spawn call count after start()
     task_bucket_mock.spawn.reset_mock()
@@ -322,7 +322,7 @@ async def test_cancel_sets_cancelled_flag_first() -> None:
     async def on_fire() -> None:
         pass
 
-    timer.start(triggering_event=_make_event(), on_fire=on_fire)
+    timer.start(on_fire=on_fire)
 
     # Patch cancel_sub.cancel to capture state at call time
     cancelled_when_sub_cancelled: list[bool] = []

@@ -4,10 +4,10 @@ These columns track whether a listener uses the immediate-fire feature,
 how long the entity must hold state before firing (duration), and which
 entity the listener monitors (entity_id).
 
-All three columns are nullable with defaults for backward compatibility:
-- immediate: INTEGER DEFAULT 0 (False)
-- duration: REAL DEFAULT NULL
-- entity_id: TEXT DEFAULT NULL
+Column defaults for backward compatibility:
+- immediate: INTEGER NOT NULL DEFAULT 0 (False)
+- duration: REAL DEFAULT NULL (nullable)
+- entity_id: TEXT DEFAULT NULL (nullable)
 
 SQLite supports ALTER TABLE ADD COLUMN for nullable columns with defaults,
 so table recreation is not required here.

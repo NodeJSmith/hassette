@@ -97,8 +97,9 @@ class Listener:
     (spawns tasks, holds event loop references) — not a simple scalar like ``_fired``."""
 
     _duration_timer: "DurationTimer | None" = field(default=None, init=False, repr=False)
-    """Duration timer for state-hold listeners. Private — constructed in :meth:`create` when
-    ``duration`` is set, and cancelled in :meth:`cancel` alongside ``_rate_limiter``."""
+    """Duration timer for state-hold listeners. Private — attached during listener
+    registration when ``duration`` is set, and cancelled in :meth:`cancel` alongside
+    ``_rate_limiter``."""
 
     handler_name: str = ""
     """Human-readable name for the handler, computed once at creation time."""

@@ -29,8 +29,8 @@ class DurationTimer:
     """Manages a single delayed-fire task with predicate-based cancellation.
 
     Follows the ``RateLimiter`` pattern: owns a single ``asyncio.Task``, provides
-    ``start()`` / ``cancel()`` / ``is_active``, and is created once per ``Listener``
-    in ``Listener.create()``.
+    ``start()`` / ``cancel()`` / ``is_active``, and is created once per listener
+    by ``BusService.add_listener()``.
 
     The cancellation subscription monitors the same entity and re-evaluates the
     main listener's predicates on each new event.  If the predicates no longer match
@@ -93,7 +93,6 @@ class DurationTimer:
 
     def start(
         self,
-        triggering_event: "Event[Any]",
         on_fire: "Callable[[], Awaitable[None]]",
         override_duration: float | None = None,
     ) -> None:
@@ -109,23 +108,19 @@ class DurationTimer:
         ``start()`` is called again, the new task replaces the old cycle entirely.
 
         Args:
-            triggering_event: The event that triggered this timer start (passed to
-                the cancellation handler if it fires before the timer elapses).
             on_fire: Async zero-arg callable invoked when the timer elapses.
             override_duration: If provided, sleep for this many seconds instead of
                 ``self.duration``.  Used by the immediate-fire elapsed-time path to
                 start the timer for the remaining hold time rather than the full
                 duration.
         """
-        # Clear the cancelled guard so this new cycle runs normally.
-        # The guard's purpose is to prevent an in-flight delayed_fire from firing
-        # after cancel(); once we start a fresh cycle, that concern no longer applies.
-        self._cancelled = False
-
-        # Cancel previous task if still running.
+        # Cancel any previous cycle via the normal cancellation path so the
+        # on_cancel callback fires and bookkeeping stays consistent on restart.
         if self._task and not self._task.done():
-            self._task.cancel()
-            self._task = None
+            self.cancel()
+
+        # Clear the cancelled guard so this new cycle runs normally.
+        self._cancelled = False
 
         # Re-create the cancellation subscription if it has been consumed or is absent.
         if self._cancel_sub is None:

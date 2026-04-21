@@ -91,14 +91,14 @@ export function HandlerRow({ listener }: Props) {
                 <span class="ht-tag ht-tag--neutral" title="Entity ID">{listener.entity_id}</span>
               )}
               {!!listener.immediate && <span class="ht-tag ht-tag--neutral">immediate</span>}
-              {listener.duration !== null && (
+              {!!listener.duration && (
                 <span class="ht-tag ht-tag--neutral" title="Duration hold">duration: {listener.duration}s</span>
               )}
               {!!listener.once && <span class="ht-tag ht-tag--neutral">once</span>}
-              {listener.debounce !== null && (
+              {!!listener.debounce && (
                 <span class="ht-tag ht-tag--neutral" title="Debounce">debounce: {listener.debounce}s</span>
               )}
-              {listener.throttle !== null && (
+              {!!listener.throttle && (
                 <span class="ht-tag ht-tag--neutral" title="Throttle">throttle: {listener.throttle}s</span>
               )}
             </div>
