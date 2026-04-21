@@ -85,6 +85,24 @@ export function HandlerRow({ listener }: Props) {
       </div>
       {expanded.value && (
         <div class="ht-item-detail" id={`handler-${listener.listener_id}-detail`}>
+          {(listener.immediate || listener.duration || listener.entity_id || listener.once || listener.debounce || listener.throttle) && (
+            <div class="ht-tag-row" data-testid="listener-options">
+              {listener.entity_id && (
+                <span class="ht-tag ht-tag--neutral" title="Entity ID">{listener.entity_id}</span>
+              )}
+              {!!listener.immediate && <span class="ht-tag ht-tag--neutral">immediate</span>}
+              {!!listener.duration && (
+                <span class="ht-tag ht-tag--neutral" title="Duration hold">duration: {listener.duration}s</span>
+              )}
+              {!!listener.once && <span class="ht-tag ht-tag--neutral">once</span>}
+              {!!listener.debounce && (
+                <span class="ht-tag ht-tag--neutral" title="Debounce">debounce: {listener.debounce}s</span>
+              )}
+              {!!listener.throttle && (
+                <span class="ht-tag ht-tag--neutral" title="Throttle">throttle: {listener.throttle}s</span>
+              )}
+            </div>
+          )}
           {(listener.source_location || listener.registration_source) && (
             <div class="ht-source-display" data-testid="source-display">
               {listener.source_location && (

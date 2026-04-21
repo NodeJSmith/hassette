@@ -73,8 +73,9 @@ class TelemetryRepository:
                     app_key, instance_index, handler_method, topic,
                     debounce, throttle, once, priority,
                     predicate_description, human_description,
-                    source_location, registration_source, name, source_tier
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_location, registration_source, name, source_tier,
+                    immediate, duration, entity_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """,
                 (
@@ -92,6 +93,9 @@ class TelemetryRepository:
                     registration.registration_source,
                     registration.name,
                     registration.source_tier,
+                    1 if registration.immediate else 0,
+                    registration.duration,
+                    registration.entity_id,
                 ),
             )
         else:
@@ -103,8 +107,9 @@ class TelemetryRepository:
                     app_key, instance_index, handler_method, topic,
                     debounce, throttle, once, priority,
                     predicate_description, human_description,
-                    source_location, registration_source, name, source_tier
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_location, registration_source, name, source_tier,
+                    immediate, duration, entity_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(app_key, instance_index, handler_method, topic, COALESCE(name, human_description, ''))
                 WHERE once = 0
                 DO UPDATE SET
@@ -115,6 +120,9 @@ class TelemetryRepository:
                     source_location = excluded.source_location,
                     registration_source = excluded.registration_source,
                     source_tier = excluded.source_tier,
+                    immediate = excluded.immediate,
+                    duration = excluded.duration,
+                    entity_id = excluded.entity_id,
                     retired_at = NULL
                 RETURNING id
                 """,
@@ -133,6 +141,9 @@ class TelemetryRepository:
                     registration.registration_source,
                     registration.name,
                     registration.source_tier,
+                    1 if registration.immediate else 0,
+                    registration.duration,
+                    registration.entity_id,
                 ),
             )
 

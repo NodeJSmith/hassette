@@ -58,6 +58,35 @@ You can rate-limit your handlers directly in the subscription call to handle noi
 
 Both `debounce` and `throttle` must be positive; zero or negative values raise `ValueError` at registration. Specifying both `debounce` and `throttle` together also raises `ValueError` — only one rate-limiting strategy may be active at a time. Combining `once=True` with either also raises `ValueError`.
 
+## Immediate Fire
+
+Pass `immediate=True` to fire your handler right at registration time if the entity already matches your predicates. The handler receives a synthetic event with `old_state=None` and `new_state=<current state>`. Without `immediate=True`, the handler only fires on the next change.
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/bus_immediate_fire.py:immediate_fire"
+```
+
+`immediate=True` composes with `once=True`: the immediate fire counts as the single invocation, so the subscription is automatically cancelled afterward if the entity already matches. It also composes with `debounce` and `throttle` — the immediate fire passes through rate limiting the same way a live event does.
+
+!!! warning "Glob patterns not supported"
+    `immediate=True` cannot be combined with glob entity patterns (for example, `"light.*"`). Hassette cannot determine which entity to read state from when the pattern matches multiple entities. A `ValueError` is raised at registration.
+
+## Duration Hold
+
+Pass `duration=N` (seconds) to delay your handler until the entity has remained in the matching state for N continuous seconds. If the entity leaves the matching state before the duration elapses, the timer is cancelled and the handler does not fire.
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/bus_duration_hold.py:duration_hold"
+```
+
+`duration` composes with `once=True`: the handler fires at most once after the duration gate passes. It also composes with `immediate=True` for restart resilience: when the app starts and the entity is already in the target state, Hassette consults `last_changed` to compute how long it has already been there. If that elapsed time exceeds `duration`, the handler fires immediately. If not, a timer starts for the remaining time.
+
+**Validation rules:**
+
+- `duration` must be a positive number; zero or negative raises `ValueError`.
+- `duration` cannot be combined with `debounce` or `throttle` — raises `ValueError`. Use duration for the "held for N seconds" pattern; use debounce for the "settled after N seconds of silence" pattern. They are different behaviors that cannot be composed.
+- Glob entity patterns are not supported with `duration` — raises `ValueError`.
+
 ## Timeouts
 
 All subscription methods (`on`, `on_state_change`, `on_attribute_change`, `on_call_service`, `on_component_loaded`) accept `timeout` and `timeout_disabled` parameters to control per-listener execution timeouts.

@@ -914,3 +914,75 @@ async def test_cancel_before_add_task_completes_app_key_path(hassette_with_bus: 
     finally:
         router.add_route = original_add_route  # pyright: ignore[reportAttributeAccessIssue]
         bus.parent = original_parent
+
+
+# ---------------------------------------------------------------------------
+# immediate/duration/entity_id parameter tests (WP01)
+# ---------------------------------------------------------------------------
+
+
+async def test_on_state_change_accepts_immediate_param(bus: "Bus") -> None:
+    """on_state_change(immediate=True) registers successfully and sets field on listener."""
+
+    def handler(event: Event) -> None:
+        pass
+
+    subscription = bus.on_state_change("light.kitchen", handler=handler, immediate=True)
+    assert subscription.listener.immediate is True
+    assert subscription.listener.entity_id == "light.kitchen"
+
+
+async def test_on_state_change_accepts_duration_param(bus: "Bus") -> None:
+    """on_state_change(duration=5.0) registers successfully and sets field on listener."""
+
+    def handler(event: Event) -> None:
+        pass
+
+    subscription = bus.on_state_change("light.kitchen", handler=handler, duration=5.0)
+    assert subscription.listener.duration == 5.0
+    assert subscription.listener.entity_id == "light.kitchen"
+
+
+async def test_on_state_change_rejects_glob_with_immediate(bus: "Bus") -> None:
+    """on_state_change raises ValueError if entity_id contains glob chars and immediate=True."""
+
+    def handler(event: Event) -> None:
+        pass
+
+    with pytest.raises(ValueError, match="immediate"):
+        bus.on_state_change("light.*", handler=handler, immediate=True)
+
+    with pytest.raises(ValueError, match="immediate"):
+        bus.on_state_change("light.kitchen?", handler=handler, immediate=True)
+
+
+async def test_on_attribute_change_accepts_immediate_param(bus: "Bus") -> None:
+    """on_attribute_change(immediate=True) registers successfully and sets field on listener."""
+
+    def handler(event: Event) -> None:
+        pass
+
+    subscription = bus.on_attribute_change("light.kitchen", "brightness", handler=handler, immediate=True)
+    assert subscription.listener.immediate is True
+    assert subscription.listener.entity_id == "light.kitchen"
+
+
+async def test_on_attribute_change_accepts_duration_param(bus: "Bus") -> None:
+    """on_attribute_change(duration=5.0) registers successfully and sets field on listener."""
+
+    def handler(event: Event) -> None:
+        pass
+
+    subscription = bus.on_attribute_change("light.kitchen", "brightness", handler=handler, duration=5.0)
+    assert subscription.listener.duration == 5.0
+    assert subscription.listener.entity_id == "light.kitchen"
+
+
+async def test_on_attribute_change_rejects_glob_with_immediate(bus: "Bus") -> None:
+    """on_attribute_change raises ValueError if entity_id contains glob chars and immediate=True."""
+
+    def handler(event: Event) -> None:
+        pass
+
+    with pytest.raises(ValueError, match="immediate"):
+        bus.on_attribute_change("light.*", "brightness", handler=handler, immediate=True)

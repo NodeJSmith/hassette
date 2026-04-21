@@ -2632,6 +2632,33 @@
             ],
             "title": "Source Tier",
             "default": "app"
+          },
+          "immediate": {
+            "type": "integer",
+            "title": "Immediate",
+            "default": 0
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
           }
         },
         "type": "object",

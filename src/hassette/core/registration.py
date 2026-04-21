@@ -51,6 +51,15 @@ class ListenerRegistration:
     source_tier: SourceTier = "app"
     """Whether this listener originates from a user app or the framework itself."""
 
+    immediate: bool = False
+    """Whether the listener fires immediately with the current entity state on registration."""
+
+    duration: float | None = None
+    """Duration in seconds the entity must remain in the matching state before the handler fires."""
+
+    entity_id: str | None = None
+    """The entity this listener monitors, if applicable."""
+
 
 @dataclass(frozen=True)
 class ScheduledJobRegistration:

@@ -16,6 +16,7 @@ if typing.TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from hassette import TaskBucket
+    from hassette.bus.duration_timer import DurationTimer
     from hassette.events.base import Event
     from hassette.types import AsyncHandlerType, HandlerType, Predicate
 
@@ -95,6 +96,11 @@ class Listener:
     and :meth:`cancel` for lifecycle management.  Contains an active runtime component
     (spawns tasks, holds event loop references) — not a simple scalar like ``_fired``."""
 
+    _duration_timer: "DurationTimer | None" = field(default=None, init=False, repr=False)
+    """Duration timer for state-hold listeners. Private — attached during listener
+    registration when ``duration`` is set, and cancelled in :meth:`cancel` alongside
+    ``_rate_limiter``."""
+
     handler_name: str = ""
     """Human-readable name for the handler, computed once at creation time."""
 
@@ -112,6 +118,27 @@ class Listener:
 
     source_tier: SourceTier = "app"
     """Whether this listener originates from a user app or the framework itself."""
+
+    immediate: bool = False
+    """If True, fire the handler immediately with the current entity state on registration."""
+
+    duration: float | None = None
+    """Duration in seconds the entity must remain in the matching state before the handler fires."""
+
+    entity_id: str | None = None
+    """Entity ID for this listener. Set by on_state_change/on_attribute_change at registration time."""
+
+    hold_predicate: "Predicate | None" = None
+    """State-value predicates only (excludes transition predicates like StateFrom, StateDidChange).
+    Used by DurationTimer for cancel evaluation and fire-time recheck.  None when duration is not set."""
+
+    is_attribute_listener: bool = False
+    """True when this listener was registered via on_attribute_change.
+
+    Used by the immediate+duration elapsed-time path: attribute listeners always start
+    from zero elapsed time because HA's last_changed reflects primary state changes, not
+    attribute changes.  See the design doc for the documented known limitation.
+    """
 
     _cancelled: bool = field(default=False, init=False, repr=False)
     """Set by cancel() to signal that a pending add_listener task should skip route insertion.
@@ -189,6 +216,8 @@ class Listener:
         self._cancelled = True
         if self._rate_limiter:
             self._rate_limiter.cancel()
+        if self._duration_timer:
+            self._duration_timer.cancel()
 
     def matches(self, ev: "Event[Any]") -> bool:
         """Check if the event matches the listener's predicate."""
@@ -215,6 +244,7 @@ class Listener:
         throttle: float | None,
         timeout: float | None = None,
         timeout_disabled: bool = False,
+        duration: float | None = None,
     ) -> None:
         if debounce is not None and debounce <= 0:
             raise ValueError("'debounce' must be a positive number")
@@ -228,6 +258,12 @@ class Listener:
             raise ValueError("timeout must be a positive number")
         if timeout_disabled and timeout is not None:
             raise ValueError("Cannot specify both 'timeout' and 'timeout_disabled=True'")
+        if duration is not None and duration <= 0:
+            raise ValueError("'duration' must be a positive number")
+        if duration is not None and debounce is not None:
+            raise ValueError("Cannot combine 'duration' with 'debounce'")
+        if duration is not None and throttle is not None:
+            raise ValueError("Cannot combine 'duration' with 'throttle'")
 
     @classmethod
     def create(
@@ -249,10 +285,24 @@ class Listener:
         instance_index: int = 0,
         name: str | None = None,
         source_tier: SourceTier = "app",
+        immediate: bool = False,
+        duration: float | None = None,
+        entity_id: str | None = None,
+        is_attribute_listener: bool = False,
+        hold_predicate: "Predicate | None" = None,
     ) -> "Listener":
         cls._validate_options(
-            once=once, debounce=debounce, throttle=throttle, timeout=timeout, timeout_disabled=timeout_disabled
+            once=once,
+            debounce=debounce,
+            throttle=throttle,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
+            duration=duration,
         )
+        if duration is not None and not entity_id:
+            raise ValueError("'duration' requires an entity_id — use on_state_change() or on_attribute_change()")
+        if immediate and not entity_id:
+            raise ValueError("'immediate' requires an entity_id — use on_state_change() or on_attribute_change()")
 
         pred = normalize_where(where)
         signature = get_typed_signature(handler)
@@ -285,6 +335,11 @@ class Listener:
             handler_short_name=short_name,
             name=name,
             source_tier=source_tier,
+            immediate=immediate,
+            duration=duration,
+            entity_id=entity_id,
+            hold_predicate=hold_predicate,
+            is_attribute_listener=is_attribute_listener,
         )
 
         # One-time construction-phase init — _rate_limiter is set here (inside create()),

@@ -193,6 +193,24 @@ def test_attr_did_change_false_when_unchanged() -> None:
     assert predicate(event) is False
 
 
+def test_attr_did_change_returns_true_when_old_state_none() -> None:
+    """AttrDidChange treats old_state=None as a match for bootstrap/immediate-fire events.
+
+    When immediate=True fires at registration time, the synthetic event has old_state=None.
+    AttrDidChange must return True in this case so that attribute-change listeners
+    participate in immediate-fire correctly.
+    """
+    predicate = P.AttrDidChange("brightness")
+    # Simulate a synthetic immediate-fire event with old_state=None
+    event = create_state_change_event(
+        entity_id="light.office",
+        old_value=None,  # None → old_state is None in the event
+        new_value="on",
+        new_attrs={"brightness": 200},
+    )
+    assert predicate(event) is True
+
+
 # Entity/Domain/Service matching predicates
 def test_entity_matches_supports_globs() -> None:
     """Test that EntityMatches predicate supports glob pattern matching."""
