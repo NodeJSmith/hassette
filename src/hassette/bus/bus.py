@@ -226,6 +226,7 @@ class Bus(Resource):
         immediate: bool = False,
         duration: float | None = None,
         entity_id: str | None = None,
+        is_attribute_listener: bool = False,
     ) -> Subscription:
         """Subscribe to an event topic with optional filtering and modifiers.
 
@@ -275,6 +276,7 @@ class Bus(Resource):
             immediate=immediate,
             duration=duration,
             entity_id=entity_id,
+            is_attribute_listener=is_attribute_listener,
         )
 
         # Capture source while user code is still on the stack (before async spawn boundary)
@@ -301,6 +303,7 @@ class Bus(Resource):
         immediate: bool = False,
         duration: float | None = None,
         entity_id: str | None = None,
+        is_attribute_listener: bool = False,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Common subscription tail: log, normalize where, delegate to on()."""
@@ -330,6 +333,7 @@ class Bus(Resource):
             immediate=immediate,
             duration=duration,
             entity_id=entity_id,
+            is_attribute_listener=is_attribute_listener,
             **opts,
         )
 
@@ -496,6 +500,7 @@ class Bus(Resource):
             immediate=immediate,
             duration=duration,
             entity_id=entity_id,
+            is_attribute_listener=True,
             **opts,
         )
 

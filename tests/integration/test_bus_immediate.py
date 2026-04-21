@@ -280,3 +280,219 @@ async def test_immediate_changed_false_fires_for_any_existing_entity(imm_harness
     # Handler fired with state="unavailable" — no state restriction
     assert received[0].payload.data.new_state is not None
     assert received[0].payload.data.new_state["state"] == "unavailable"
+
+
+# ---------------------------------------------------------------------------
+# immediate + duration combo tests (WP05)
+# ---------------------------------------------------------------------------
+
+
+async def test_immediate_duration_fires_when_elapsed_exceeds(imm_harness: tuple["Hassette", "Bus"]) -> None:
+    """Entity held for 10s, duration=5 → fires immediately (elapsed >= duration)."""
+
+    from whenever import ZonedDateTime
+
+    hassette, bus = imm_harness
+
+    # Seed state with last_changed 10 seconds ago
+    past = ZonedDateTime.now_in_system_tz().subtract(seconds=10)
+    await hassette._state_proxy._test_seed_state(
+        "switch.boiler",
+        make_state_dict("switch.boiler", "on", last_changed=past.format_iso()),
+    )
+
+    received: list[RawStateChangeEvent] = []
+    fired = asyncio.Event()
+
+    async def handler(event: RawStateChangeEvent) -> None:
+        received.append(event)
+        hassette.task_bucket.post_to_loop(fired.set)
+
+    bus.on_state_change(
+        "switch.boiler",
+        handler=handler,
+        changed=False,
+        immediate=True,
+        duration=5.0,
+    )
+
+    # Elapsed (10s) >= duration (5s) → should fire immediately
+    await asyncio.wait_for(fired.wait(), timeout=2.0)
+
+    assert len(received) == 1
+
+
+async def test_immediate_duration_starts_timer_for_remaining(imm_harness: tuple["Hassette", "Bus"]) -> None:
+    """Entity held for 3s, duration=5 → timer fires after remaining 2s (plus margin)."""
+    from whenever import ZonedDateTime
+
+    hassette, bus = imm_harness
+
+    # Seed state with last_changed 3 seconds ago
+    past = ZonedDateTime.now_in_system_tz().subtract(seconds=3)
+    await hassette._state_proxy._test_seed_state(
+        "switch.fan",
+        make_state_dict("switch.fan", "on", last_changed=past.format_iso()),
+    )
+
+    received: list[RawStateChangeEvent] = []
+    fired = asyncio.Event()
+
+    async def handler(event: RawStateChangeEvent) -> None:
+        received.append(event)
+        hassette.task_bucket.post_to_loop(fired.set)
+
+    bus.on_state_change(
+        "switch.fan",
+        handler=handler,
+        changed=False,
+        immediate=True,
+        duration=5.0,
+    )
+
+    # Should NOT fire immediately (only 3s elapsed out of 5s required)
+    await asyncio.sleep(0.1)
+    assert len(received) == 0, "Should not have fired immediately — only 3s elapsed of 5s"
+
+    # Should fire after remaining ~2s (plus margin)
+    await asyncio.wait_for(fired.wait(), timeout=4.0)
+    assert len(received) == 1
+
+
+async def test_immediate_duration_last_changed_none(imm_harness: tuple["Hassette", "Bus"]) -> None:
+    """last_changed missing from state dict → elapsed=0, full timer starts (does NOT fire immediately)."""
+    hassette, bus = imm_harness
+
+    state = make_state_dict("switch.pump", "on")
+    # Override last_changed to None to simulate missing timestamp
+    state["last_changed"] = None  # pyright: ignore[reportArgumentType]
+    await hassette._state_proxy._test_seed_state("switch.pump", state)
+
+    received: list[RawStateChangeEvent] = []
+
+    async def handler(event: RawStateChangeEvent) -> None:
+        received.append(event)
+
+    bus.on_state_change(
+        "switch.pump",
+        handler=handler,
+        changed=False,
+        immediate=True,
+        duration=60.0,  # long enough that we won't wait for it
+    )
+
+    # Should NOT fire immediately — full 60s timer starts
+    await asyncio.sleep(0.1)
+    await wait_for(lambda: len(hassette._bus.task_bucket) <= 2, desc="timer task registered")
+    assert len(received) == 0, "Should not fire when last_changed is None (elapsed=0)"
+
+
+async def test_immediate_duration_negative_elapsed_clamped(imm_harness: tuple["Hassette", "Bus"]) -> None:
+    """Clock skew produces last_changed in the future → elapsed clamped to 0, full timer starts."""
+    from whenever import ZonedDateTime
+
+    hassette, bus = imm_harness
+
+    # Seed state with last_changed 10 seconds in the FUTURE (clock skew)
+    future = ZonedDateTime.now_in_system_tz().add(seconds=10)
+    await hassette._state_proxy._test_seed_state(
+        "switch.heater",
+        make_state_dict("switch.heater", "on", last_changed=future.format_iso()),
+    )
+
+    received: list[RawStateChangeEvent] = []
+
+    async def handler(event: RawStateChangeEvent) -> None:
+        received.append(event)
+
+    bus.on_state_change(
+        "switch.heater",
+        handler=handler,
+        changed=False,
+        immediate=True,
+        duration=5.0,
+    )
+
+    # Negative elapsed → clamped to 0 → full 5s timer starts → should NOT fire immediately
+    await asyncio.sleep(0.1)
+    assert len(received) == 0, "Negative elapsed should be clamped to 0, not fire immediately"
+
+
+async def test_immediate_duration_attribute_change_always_zero(imm_harness: tuple["Hassette", "Bus"]) -> None:
+    """on_attribute_change + immediate + duration always starts from zero, even if last_changed is old."""
+    from whenever import ZonedDateTime
+
+    hassette, bus = imm_harness
+
+    # Seed state with last_changed 30 seconds ago — would normally fire immediately
+    past = ZonedDateTime.now_in_system_tz().subtract(seconds=30)
+    await hassette._state_proxy._test_seed_state(
+        "light.lamp",
+        make_state_dict("light.lamp", "on", attributes={"brightness": 200}, last_changed=past.format_iso()),
+    )
+
+    received: list[RawStateChangeEvent] = []
+
+    async def handler(event: RawStateChangeEvent) -> None:
+        received.append(event)
+
+    bus.on_attribute_change(
+        "light.lamp",
+        "brightness",
+        handler=handler,
+        immediate=True,
+        duration=10.0,  # long duration so we never wait for it
+    )
+
+    # Even though last_changed is 30s ago (> duration 10s), attribute change listener
+    # always uses elapsed=0 → does NOT fire immediately
+    await asyncio.sleep(0.1)
+    assert len(received) == 0, (
+        "on_attribute_change with immediate+duration should always start from zero, not fire immediately"
+    )
+
+
+async def test_immediate_duration_once_fires_exactly_once(imm_harness: tuple["Hassette", "Bus"]) -> None:
+    """immediate + duration + once=True: immediate fire consumes the listener; no subsequent fires."""
+    from whenever import ZonedDateTime
+
+    hassette, bus = imm_harness
+
+    # Seed state with last_changed 10s ago (duration=5 → fires immediately)
+    past = ZonedDateTime.now_in_system_tz().subtract(seconds=10)
+    await hassette._state_proxy._test_seed_state(
+        "switch.oven",
+        make_state_dict("switch.oven", "on", last_changed=past.format_iso()),
+    )
+
+    call_count = 0
+    fired = asyncio.Event()
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        nonlocal call_count
+        call_count += 1
+        hassette.task_bucket.post_to_loop(fired.set)
+
+    bus.on_state_change(
+        "switch.oven",
+        handler=handler,
+        changed=False,
+        immediate=True,
+        duration=5.0,
+        once=True,
+    )
+
+    # Should fire immediately (elapsed 10s >= duration 5s)
+    await asyncio.wait_for(fired.wait(), timeout=2.0)
+    assert call_count == 1
+
+    # Send a live state change — listener should be consumed (once=True)
+    from hassette.test_utils.helpers import create_state_change_event
+
+    live_event = create_state_change_event(entity_id="switch.oven", old_value="on", new_value="off")
+    await hassette.send_event(live_event.topic, live_event)
+
+    await asyncio.sleep(0.1)
+    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="tasks drain")
+
+    assert call_count == 1, f"once=True should fire exactly once, fired {call_count} times"

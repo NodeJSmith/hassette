@@ -87,6 +87,7 @@ class DurationTimer:
         self,
         triggering_event: "Event[Any]",
         on_fire: "Callable[[], Awaitable[None]]",
+        override_duration: float | None = None,
     ) -> None:
         """Start (or restart) the duration timer.
 
@@ -103,6 +104,10 @@ class DurationTimer:
             triggering_event: The event that triggered this timer start (passed to
                 the cancellation handler if it fires before the timer elapses).
             on_fire: Async zero-arg callable invoked when the timer elapses.
+            override_duration: If provided, sleep for this many seconds instead of
+                ``self.duration``.  Used by the immediate-fire elapsed-time path to
+                start the timer for the remaining hold time rather than the full
+                duration.
         """
         # Clear the cancelled guard so this new cycle runs normally.
         # The guard's purpose is to prevent an in-flight delayed_fire from firing
@@ -118,9 +123,11 @@ class DurationTimer:
         if self._cancel_sub is None:
             self._cancel_sub = self._create_cancel_sub()
 
+        sleep_duration = override_duration if override_duration is not None else self.duration
+
         async def delayed_fire() -> None:
             try:
-                await asyncio.sleep(self.duration)
+                await asyncio.sleep(sleep_duration)
             except asyncio.CancelledError:
                 # Cancellation is expected — either start() replaced us or cancel() ran.
                 return

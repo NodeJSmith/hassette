@@ -340,6 +340,82 @@ class BusService(Service):
                 return
 
             invoke_fn = self._make_tracked_invoke_fn(synthetic_event.topic, synthetic_event, listener)
+
+            # When duration is set, compute how long the entity has already been in
+            # this state and start a timer for the remaining time (or fire immediately
+            # if elapsed >= duration).
+            #
+            # For on_attribute_change listeners, always start from zero elapsed — HA's
+            # last_changed reflects primary state changes, not attribute changes.
+            if listener.duration is not None and listener._duration_timer is not None:
+                elapsed = 0.0
+                if not listener.is_attribute_listener:
+                    last_changed_raw = current_state.get("last_changed")
+                    if isinstance(last_changed_raw, str):
+                        last_changed = _date_utils.convert_datetime_str_to_system_tz(last_changed_raw)
+                        if last_changed is not None:
+                            now_dt = _date_utils.now()
+                            raw_elapsed = (now_dt - last_changed).in_seconds()
+                            elapsed = max(0.0, min(raw_elapsed, listener.duration))
+
+                if elapsed >= listener.duration:
+                    # Entity has been in this state long enough — fire immediately.
+                    # Route through listener.dispatch() for once-guard atomicity.
+                    try:
+                        await listener.dispatch(invoke_fn)
+                    finally:
+                        if listener.once:
+                            self.remove_listener(listener)
+                else:
+                    # Start the duration timer for the remaining hold time.
+                    remaining = listener.duration - elapsed
+                    self.logger.debug(
+                        "immediate_fire: entity %s elapsed=%.2fs, starting duration timer for remaining=%.2fs",
+                        entity_id,
+                        elapsed,
+                        remaining,
+                    )
+
+                    async def on_duration_fire_immediate() -> None:
+                        """Called by DurationTimer after the remaining hold period elapses."""
+                        state_proxy = self.hassette._state_proxy
+                        current = state_proxy.states.get(entity_id) if state_proxy else None
+                        if current is None:
+                            if listener.once:
+                                self.remove_listener(listener)
+                            return
+
+                        recheck_event = RawStateChangeEvent(
+                            topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
+                            payload=HassPayload(
+                                event_type="state_changed",
+                                data=RawStateChangePayload(
+                                    entity_id=entity_id,
+                                    old_state=None,
+                                    new_state=current,
+                                ),
+                                origin="LOCAL",
+                                time_fired=_date_utils.now(),
+                                context=HassContext(id=str(uuid4()), parent_id=None, user_id=None),
+                            ),
+                        )
+                        if not listener.matches(recheck_event):
+                            if listener.once:
+                                self.remove_listener(listener)
+                            return
+
+                        recheck_invoke_fn = self._make_tracked_invoke_fn(recheck_event.topic, recheck_event, listener)
+                        try:
+                            await listener.dispatch(recheck_invoke_fn)
+                        finally:
+                            if listener.once:
+                                self.remove_listener(listener)
+
+                    listener._duration_timer.start(
+                        synthetic_event, on_duration_fire_immediate, override_duration=remaining
+                    )
+                return
+
             try:
                 await listener.dispatch(invoke_fn)
             finally:

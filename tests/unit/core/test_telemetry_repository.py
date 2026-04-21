@@ -45,7 +45,10 @@ CREATE TABLE listeners (
     registration_source   TEXT,
     name                  TEXT,
     source_tier           TEXT    NOT NULL DEFAULT 'app' CHECK (source_tier IN ('app', 'framework')),
-    retired_at            REAL
+    retired_at            REAL,
+    immediate             INTEGER NOT NULL DEFAULT 0,
+    duration              REAL,
+    entity_id             TEXT
 );
 
 CREATE UNIQUE INDEX idx_listeners_natural

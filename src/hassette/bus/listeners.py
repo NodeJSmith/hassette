@@ -127,6 +127,14 @@ class Listener:
     entity_id: str | None = None
     """Entity ID for this listener. Set by on_state_change/on_attribute_change at registration time."""
 
+    is_attribute_listener: bool = False
+    """True when this listener was registered via on_attribute_change.
+
+    Used by the immediate+duration elapsed-time path: attribute listeners always start
+    from zero elapsed time because HA's last_changed reflects primary state changes, not
+    attribute changes.  See the design doc for the documented known limitation.
+    """
+
     _cancelled: bool = field(default=False, init=False, repr=False)
     """Set by cancel() to signal that a pending add_listener task should skip route insertion.
     Prevents orphaned listeners when Subscription.cancel() races with the async add task (#451)."""
@@ -275,6 +283,7 @@ class Listener:
         immediate: bool = False,
         duration: float | None = None,
         entity_id: str | None = None,
+        is_attribute_listener: bool = False,
         create_cancel_sub: "Callable[[], Subscription] | None" = None,
     ) -> "Listener":
         cls._validate_options(
@@ -320,6 +329,7 @@ class Listener:
             immediate=immediate,
             duration=duration,
             entity_id=entity_id,
+            is_attribute_listener=is_attribute_listener,
         )
 
         # One-time construction-phase init — _rate_limiter is set here (inside create()),
