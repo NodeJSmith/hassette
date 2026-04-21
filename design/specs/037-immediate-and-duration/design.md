@@ -1,7 +1,7 @@
 # Design: Immediate Bootstrap and State Duration
 
 **Date:** 2026-04-20
-**Status:** approved
+**Status:** archived
 **Issues:** #65, #66
 **Research:** design/research/2026-04-20-state-duration-immediate-fire/research.md
 
