@@ -341,12 +341,11 @@ class StateDidChange:
 class AttrDidChange:
     """Checks if a specific attribute changed in a RawStateChangeEvent.
 
-    When ``old_state`` is None (bootstrap / synthetic immediate-fire event),
-    the attribute is treated as having changed — attribute present equals
-    "considered changed" for startup purposes.  This preserves backward
-    compatibility: real events always have an ``old_state`` dict (or the
-    event is filtered out upstream), so the None branch is only reachable
-    via the synthetic immediate-fire path.
+    When ``old_state`` is None, the attribute is treated as having changed
+    if it is present on ``new_state``.  This applies to synthetic
+    immediate-fire/bootstrap events, the cancel handler's old_state stripping
+    in DurationTimer, and real state-change events where there is no prior
+    state yet (first observation / first-time state set).
     """
 
     attr_name: str
