@@ -5,15 +5,21 @@ from collections.abc import Awaitable, Callable
 from fnmatch import fnmatch
 from functools import cached_property
 from typing import Any
+from uuid import uuid4
 
 from fair_async_rlock import FairAsyncRLock
 
+import hassette.utils.date_utils as _date_utils
 from hassette.bus.listeners import Listener
 from hassette.core.commands import InvokeHandler
 from hassette.core.registration import ListenerRegistration
 from hassette.core.registration_tracker import RegistrationTracker
 from hassette.events import Event, HassPayload
+from hassette.events.base import HassContext
+from hassette.events.hass.hass import RawStateChangeEvent, RawStateChangePayload
+from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.base import Resource, Service
+from hassette.types import Topic
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
@@ -121,6 +127,11 @@ class BusService(Service):
         before registration finishes). For regular listeners, the route is added
         first so events are received immediately; ``db_id`` is set once DB
         registration completes, and invocations before then produce orphan records.
+
+        When ``listener.immediate`` is True, spawns a separate task after route
+        insertion and DB registration to fire the handler with the current entity
+        state.  This is decoupled from registration to prevent serialization of
+        N startup state reads.
         """
         source_location = listener.source_location
         registration_source: str | None = listener.registration_source or None
@@ -168,6 +179,96 @@ class BusService(Service):
                     listener.owner_id,
                     listener.topic,
                 )
+
+        if listener.immediate and listener.entity_id:
+            self.task_bucket.spawn(
+                self._immediate_fire_task(listener),
+                name="bus:immediate_fire",
+            )
+
+    async def _immediate_fire_task(self, listener: Listener) -> None:
+        """Fire a handler immediately with the current entity state.
+
+        Called as a separate spawned task (not inline) after route insertion and
+        DB registration complete.  Reads the current entity state from StateProxy
+        via direct dict access — no retries, no HTTP, no exception path.
+
+        This implements the ``immediate=True`` semantics: if the entity already
+        exists in the cache at registration time the handler fires once with a
+        synthetic ``RawStateChangeEvent`` whose ``old_state`` is None.
+
+        Error contract:
+            - If the entity is not found → return silently, log at DEBUG.
+            - ``ResourceNotReadyError`` (should not occur; StateProxy is ready before
+              apps' ``on_initialize`` runs) → log at ERROR as a sequencing violation.
+            - Any other exception → log at WARNING; immediate fire becomes a no-op.
+        """
+        entity_id = listener.entity_id
+        if not entity_id:
+            return
+
+        try:
+            state_proxy = self.hassette._state_proxy
+            if state_proxy is None:
+                self.logger.debug(
+                    "immediate_fire: StateProxy not available for entity %s, skipping",
+                    entity_id,
+                )
+                return
+
+            # Direct dict access — lock-free, no retry, no ResourceNotReadyError path.
+            current_state = state_proxy.states.get(entity_id)
+            if current_state is None:
+                self.logger.debug(
+                    "immediate_fire: entity %s not found in StateProxy, skipping",
+                    entity_id,
+                )
+                return
+
+            synthetic_event = RawStateChangeEvent(
+                topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
+                payload=HassPayload(
+                    event_type="state_changed",
+                    data=RawStateChangePayload(
+                        entity_id=entity_id,
+                        old_state=None,
+                        new_state=current_state,
+                    ),
+                    origin="LOCAL",
+                    time_fired=_date_utils.now(),
+                    context=HassContext(id=str(uuid4()), parent_id=None, user_id=None),
+                ),
+            )
+
+            if not listener.matches(synthetic_event):
+                return
+
+            invoke_fn = self._make_tracked_invoke_fn(synthetic_event.topic, synthetic_event, listener)
+            try:
+                await listener.dispatch(invoke_fn)
+            finally:
+                if listener.once:
+                    self.remove_listener(listener)
+
+        except ResourceNotReadyError as exc:
+            self.logger.error(
+                "immediate_fire: ResourceNotReadyError for entity %s — "
+                "StateProxy is not ready at registration time; this is a sequencing invariant violation. "
+                "Listener owner=%s topic=%s",
+                entity_id,
+                listener.owner_id,
+                listener.topic,
+                exc_info=exc,
+            )
+        except Exception as exc:
+            self.logger.warning(
+                "immediate_fire: unexpected error for entity %s, "
+                "immediate fire will not occur. Listener owner=%s topic=%s",
+                entity_id,
+                listener.owner_id,
+                listener.topic,
+                exc_info=exc,
+            )
 
     def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Remove a listener from the bus.

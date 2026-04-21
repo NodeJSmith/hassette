@@ -339,11 +339,21 @@ class StateDidChange:
 
 @dataclass(frozen=True)
 class AttrDidChange:
-    """Checks if a specific attribute changed in a RawStateChangeEvent."""
+    """Checks if a specific attribute changed in a RawStateChangeEvent.
+
+    When ``old_state`` is None (bootstrap / synthetic immediate-fire event),
+    the attribute is treated as having changed — attribute present equals
+    "considered changed" for startup purposes.  This preserves backward
+    compatibility: real events always have an ``old_state`` dict (or the
+    event is filtered out upstream), so the None branch is only reachable
+    via the synthetic immediate-fire path.
+    """
 
     attr_name: str
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        if value.payload.data.old_state is None:
+            return True
         return DidChange(get_attr_old_new(self.attr_name))(value)
 
     def summarize(self) -> str:
