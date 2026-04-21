@@ -69,6 +69,9 @@ class ListenerSummary(BaseModel):
     source_location: str
     registration_source: str | None
     source_tier: SourceTier = "app"
+    immediate: int = 0
+    duration: float | None = None
+    entity_id: str | None = None
     total_invocations: int
     successful: int
     failed: int

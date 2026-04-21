@@ -10,6 +10,9 @@ import asyncio
 import typing
 from logging import getLogger
 
+from hassette.events import HassPayload
+from hassette.events.hass.hass import RawStateChangeEvent, RawStateChangePayload
+
 if typing.TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
     from typing import Any
@@ -52,6 +55,7 @@ class DurationTimer:
         entity_id: str,
         owner_id: str,
         create_cancel_sub: "Callable[[], Subscription]",
+        on_cancel: "Callable[[], None] | None" = None,
     ) -> None:
         """Initialize the DurationTimer.
 
@@ -66,6 +70,8 @@ class DurationTimer:
                 cancellation subscription.  Called in ``start()`` whenever the
                 existing sub has been consumed or is None.  In unit tests, pass a
                 mock that returns a ``MagicMock()`` acting as a ``Subscription``.
+            on_cancel: Optional callback invoked when an active timer is cancelled
+                (not fired).  Used by BusService to decrement the active timer counter.
         """
         self.task_bucket = task_bucket
         self.duration = duration
@@ -73,10 +79,12 @@ class DurationTimer:
         self.entity_id = entity_id
         self.owner_id = owner_id
         self._create_cancel_sub = create_cancel_sub
+        self._on_cancel = on_cancel
 
         self._task: asyncio.Task[None] | None = None
         self._cancel_sub: Subscription | None = None
         self._cancelled = False
+        self._started = False
 
     @property
     def is_active(self) -> bool:
@@ -136,12 +144,14 @@ class DurationTimer:
                 return
             # Clear the task reference before firing — is_active returns False from here.
             self._task = None
+            self._started = False
             # Cancel the cancellation subscription — entity is now in confirmed state.
             if self._cancel_sub is not None:
                 self._cancel_sub.cancel()
                 self._cancel_sub = None
             await on_fire()
 
+        self._started = True
         self._task = self.task_bucket.spawn(delayed_fire(), name="bus:duration_timer")
 
     def cancel(self) -> None:
@@ -154,9 +164,14 @@ class DurationTimer:
         The cancellation subscription is removed synchronously (no
         ``task_bucket.spawn()``) to avoid shutdown-ordering dependencies.
 
-        Terminal operation — the DurationTimer must not be reused after this call.
+        ``start()`` clears ``_cancelled`` to enable timer restart when the entity
+        re-enters the target state.  After ``Listener.cancel()``, no further
+        ``start()`` calls should occur — ``_dispatch()`` guards this with an
+        ``is_cancelled`` check.
         """
         self._cancelled = True  # idempotency guard — MUST be first
+
+        was_active = self._started and self._task is not None and not self._task.done()
 
         if self._task and not self._task.done():
             self._task.cancel()
@@ -166,13 +181,23 @@ class DurationTimer:
             self._cancel_sub.cancel()
             self._cancel_sub = None
 
-    def _on_cancel_event(self, event: "Event[Any]") -> None:
-        """Handle an entity state-change event from the cancellation subscription.
+        if was_active and self._on_cancel is not None:
+            self._on_cancel()
+        self._started = False
 
-        Re-evaluates the main listener's predicates against the new event.  If the
-        predicates no longer match, the entity has left the target state and the
-        timer is cancelled.  If they still match, the entity remains in the target
-        state and the timer continues.
+    def evaluate_cancel_event(self, event: "Event[Any]") -> None:
+        """Evaluate whether a state-change event should cancel the timer.
+
+        Re-evaluates the main listener's hold predicates (state-value predicates
+        only, excluding transition predicates like ``StateFrom``, ``StateDidChange``)
+        against the new event.  If the predicates no longer match, the entity has
+        left the target state and the timer is cancelled.
+
+        For ``RawStateChangeEvent`` with a non-None ``old_state``, strips
+        ``old_state`` to None before evaluation so that transition predicates
+        (if any leak through) and "did it change?" predicates do not falsely cancel.
+        The semantics: "is the entity STILL in the target state?" — not "did it
+        change TO the target state?".
 
         Args:
             event: The new state-change event for the monitored entity.
@@ -180,8 +205,24 @@ class DurationTimer:
         if self._cancelled:
             return
 
-        if self.predicates is not None and not self.predicates(event):
-            # Entity left the target state — cancel the timer.
+        eval_event = event
+        if isinstance(event, RawStateChangeEvent) and event.payload.data.old_state is not None:
+            eval_event = RawStateChangeEvent(
+                topic=event.topic,
+                payload=HassPayload(
+                    event_type=event.payload.event_type,
+                    data=RawStateChangePayload(
+                        entity_id=event.payload.data.entity_id,
+                        old_state=None,
+                        new_state=event.payload.data.new_state,
+                    ),
+                    origin=event.payload.origin,
+                    time_fired=event.payload.time_fired,
+                    context=event.payload.context,
+                ),
+            )
+
+        if self.predicates is not None and not self.predicates(eval_event):
             LOGGER.debug(
                 "DurationTimer: predicates no longer match for entity=%s, cancelling timer",
                 self.entity_id,

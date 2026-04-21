@@ -1757,6 +1757,13 @@ strong {
   border: 1px solid var(--ht-border);
 }
 
+.ht-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ht-sp-1);
+  margin-bottom: var(--ht-sp-2);
+}
+
 .ht-log-app-tag {
   margin-right: var(--ht-sp-1);
   max-width: 100px;

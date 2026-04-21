@@ -352,6 +352,9 @@ class AttrDidChange:
     attr_name: str
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
+        # old_state=None arises in two paths: (1) synthetic immediate-fire events
+        # and (2) the cancel handler's old_state stripping in DurationTimer.
+        # Both need "attribute present = changed" semantics.
         if value.payload.data.old_state is None:
             return True
         return DidChange(get_attr_old_new(self.attr_name))(value)

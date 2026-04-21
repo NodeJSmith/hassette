@@ -1036,6 +1036,15 @@ export interface components {
              * @enum {string}
              */
             source_tier: "app" | "framework";
+            /**
+             * Immediate
+             * @default 0
+             */
+            immediate: number;
+            /** Duration */
+            duration?: number | null;
+            /** Entity Id */
+            entity_id?: string | null;
         };
         /** LogEntryResponse */
         LogEntryResponse: {

@@ -16,6 +16,7 @@ Revision ID: 006
 Revises: 005
 """
 
+import sqlalchemy as sa
 from alembic import op
 
 revision = "006"
@@ -25,9 +26,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TABLE listeners ADD COLUMN immediate INTEGER NOT NULL DEFAULT 0")
-    op.execute("ALTER TABLE listeners ADD COLUMN duration REAL")
-    op.execute("ALTER TABLE listeners ADD COLUMN entity_id TEXT")
+    op.add_column("listeners", sa.Column("immediate", sa.Integer(), nullable=False, server_default="0"))
+    op.add_column("listeners", sa.Column("duration", sa.Float(), nullable=True))
+    op.add_column("listeners", sa.Column("entity_id", sa.Text(), nullable=True))
 
 
 def downgrade() -> None:

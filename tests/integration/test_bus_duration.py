@@ -468,3 +468,71 @@ async def test_duration_attribute_change_cancel_only_on_predicate_fail(
     # Timer should still fire
     await asyncio.wait_for(fired.wait(), timeout=DURATION + 0.5)
     assert len(received) == 1
+
+
+async def test_duration_handler_receives_original_triggering_event(dur_harness: tuple["Hassette", "Bus"]) -> None:
+    """FR4: handler receives the original triggering event, not a synthetic recheck event."""
+    hassette, bus = dur_harness
+
+    received: list[RawStateChangeEvent] = []
+    fired = asyncio.Event()
+
+    async def handler(event: RawStateChangeEvent) -> None:
+        received.append(event)
+        hassette.task_bucket.post_to_loop(fired.set)
+
+    bus.on_state_change("light.kitchen", changed_to="on", handler=handler, duration=DURATION)
+
+    await send_state_change(hassette, "light.kitchen", "off", "on")
+    await seed(hassette, "light.kitchen", "on")
+
+    await asyncio.wait_for(fired.wait(), timeout=DURATION + 0.5)
+
+    assert len(received) == 1
+    ev = received[0]
+    assert ev.payload.data.old_state is not None, "FR4: handler should receive original event with old_state"
+    assert ev.payload.data.old_state["state"] == "off"
+    assert ev.payload.data.new_state is not None
+    assert ev.payload.data.new_state["state"] == "on"
+
+
+async def test_changed_from_with_duration_fires(dur_harness: tuple["Hassette", "Bus"]) -> None:
+    """changed_from + duration: timer fires when entity holds target state (hold-predicate split)."""
+    hassette, bus = dur_harness
+
+    received: list[RawStateChangeEvent] = []
+    fired = asyncio.Event()
+
+    async def handler(event: RawStateChangeEvent) -> None:
+        received.append(event)
+        hassette.task_bucket.post_to_loop(fired.set)
+
+    bus.on_state_change("door.front", changed_from="closed", changed_to="open", handler=handler, duration=DURATION)
+
+    await send_state_change(hassette, "door.front", "closed", "open")
+    await seed(hassette, "door.front", "open")
+
+    await asyncio.wait_for(fired.wait(), timeout=DURATION + 0.5)
+    assert len(received) == 1
+
+
+async def test_changed_from_with_duration_cancels_on_revert(dur_harness: tuple["Hassette", "Bus"]) -> None:
+    """changed_from + duration: timer cancelled when entity reverts before duration elapses."""
+    hassette, bus = dur_harness
+
+    received: list[RawStateChangeEvent] = []
+
+    async def handler(event: RawStateChangeEvent) -> None:
+        received.append(event)
+
+    bus.on_state_change("door.front", changed_from="closed", changed_to="open", handler=handler, duration=DURATION)
+
+    await send_state_change(hassette, "door.front", "closed", "open")
+    await seed(hassette, "door.front", "open")
+
+    # Revert before duration elapses
+    await send_state_change(hassette, "door.front", "open", "closed")
+    await seed(hassette, "door.front", "closed")
+
+    await asyncio.sleep(DURATION + 0.05)
+    assert len(received) == 0

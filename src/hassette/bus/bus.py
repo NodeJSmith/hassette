@@ -94,7 +94,7 @@ from hassette.types import ComparisonCondition, Topic
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.func_utils import callable_short_name
-from hassette.utils.glob_utils import GLOB_CHARS
+from hassette.utils.glob_utils import is_glob
 from hassette.utils.source_capture import capture_registration_source
 
 from .listeners import Listener, Subscription
@@ -227,6 +227,7 @@ class Bus(Resource):
         duration: float | None = None,
         entity_id: str | None = None,
         is_attribute_listener: bool = False,
+        hold_preds: list["Predicate"] | None = None,
     ) -> Subscription:
         """Subscribe to an event topic with optional filtering and modifiers.
 
@@ -255,6 +256,8 @@ class Bus(Resource):
         source_tier = parent.source_tier
         assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
 
+        hold_predicate = P.AllOf.ensure_iterable(hold_preds) if hold_preds else None
+
         listener = Listener.create(
             task_bucket=self.task_bucket,
             owner_id=self.owner_id,
@@ -277,6 +280,7 @@ class Bus(Resource):
             duration=duration,
             entity_id=entity_id,
             is_attribute_listener=is_attribute_listener,
+            hold_predicate=hold_predicate,
         )
 
         # Capture source while user code is still on the stack (before async spawn boundary)
@@ -304,6 +308,7 @@ class Bus(Resource):
         duration: float | None = None,
         entity_id: str | None = None,
         is_attribute_listener: bool = False,
+        hold_preds: list["Predicate"] | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Common subscription tail: log, normalize where, delegate to on()."""
@@ -323,7 +328,10 @@ class Bus(Resource):
             )
 
         if where is not None:
-            preds.append(where if callable(where) else P.AllOf.ensure_iterable(where))
+            normalized_where = where if callable(where) else P.AllOf.ensure_iterable(where)
+            preds.append(normalized_where)
+            if hold_preds is not None:
+                hold_preds.append(normalized_where)
 
         return self.on(
             topic=topic,
@@ -334,6 +342,7 @@ class Bus(Resource):
             duration=duration,
             entity_id=entity_id,
             is_attribute_listener=is_attribute_listener,
+            hold_preds=hold_preds,
             **opts,
         )
 
@@ -390,13 +399,19 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        if immediate and any(c in entity_id for c in GLOB_CHARS):
+        if immediate and is_glob(entity_id):
             raise ValueError(
                 f"'immediate=True' is not supported with glob patterns. "
                 f"entity_id={entity_id!r} contains glob characters."
             )
+        if duration is not None and is_glob(entity_id):
+            raise ValueError(
+                f"'duration' is not supported with glob patterns. entity_id={entity_id!r} contains glob characters."
+            )
 
         preds: list[Predicate] = [P.EntityMatches(entity_id)]
+        hold_preds: list[Predicate] = [P.EntityMatches(entity_id)]
+
         if changed:
             if changed is True:
                 preds.append(P.StateDidChange())
@@ -408,6 +423,7 @@ class Bus(Resource):
 
         if changed_to is not NOT_PROVIDED:
             preds.append(P.StateTo(condition=changed_to))
+            hold_preds.append(P.StateTo(condition=changed_to))
 
         return self._subscribe(
             method_name=f"entity '{entity_id}'",
@@ -420,6 +436,7 @@ class Bus(Resource):
             immediate=immediate,
             duration=duration,
             entity_id=entity_id,
+            hold_preds=hold_preds if duration is not None else None,
             **opts,
         )
 
@@ -456,13 +473,18 @@ class Bus(Resource):
             A subscription object that can be used to manage the listener.
         """
 
-        if immediate and any(c in entity_id for c in GLOB_CHARS):
+        if immediate and is_glob(entity_id):
             raise ValueError(
                 f"'immediate=True' is not supported with glob patterns. "
                 f"entity_id={entity_id!r} contains glob characters."
             )
+        if duration is not None and is_glob(entity_id):
+            raise ValueError(
+                f"'duration' is not supported with glob patterns. entity_id={entity_id!r} contains glob characters."
+            )
 
         preds: list[Predicate] = [P.EntityMatches(entity_id)]
+        hold_preds: list[Predicate] = [P.EntityMatches(entity_id)]
 
         # if not changed then we are going to fire every time the entity has a StateChanged event
         # regardless of what changed - not sure if that is desired behavior or not, but it is consistent with the main
@@ -488,6 +510,7 @@ class Bus(Resource):
 
         if changed_to is not NOT_PROVIDED:
             preds.append(P.AttrTo(attr, condition=changed_to))
+            hold_preds.append(P.AttrTo(attr, condition=changed_to))
 
         return self._subscribe(
             method_name=f"entity '{entity_id}' attribute '{attr}'",
@@ -500,6 +523,7 @@ class Bus(Resource):
             immediate=immediate,
             duration=duration,
             entity_id=entity_id,
+            hold_preds=hold_preds if duration is not None else None,
             is_attribute_listener=True,
             **opts,
         )

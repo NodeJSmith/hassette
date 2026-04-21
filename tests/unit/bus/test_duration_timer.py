@@ -7,8 +7,8 @@ Tests cover:
 - start() cancels any previous pending task
 - start() recreates the cancellation subscription when it's None
 - is_active reflects pending state correctly
-- _on_cancel_event with matching predicates does NOT cancel the timer
-- _on_cancel_event with non-matching predicates cancels the timer
+- evaluate_cancel_event with matching predicates does NOT cancel the timer
+- evaluate_cancel_event with non-matching predicates cancels the timer
 - cancel() removes the cancellation subscription synchronously (no task_bucket.spawn)
 """
 
@@ -226,7 +226,7 @@ async def test_is_active_false_after_cancel() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_on_cancel_event_matching_does_not_cancel() -> None:
+async def test_evaluate_cancel_event_matching_does_not_cancel() -> None:
     """Event that still matches predicates does not cancel the timer."""
     predicate = MagicMock(return_value=True)  # always matches
     timer, _, _ = _make_timer(duration=0.5, predicates=predicate)
@@ -238,7 +238,7 @@ async def test_on_cancel_event_matching_does_not_cancel() -> None:
     assert timer.is_active
 
     # Trigger the cancellation handler with a matching event
-    timer._on_cancel_event(_make_event())
+    timer.evaluate_cancel_event(_make_event())
 
     # Timer should still be active — predicate matched, no cancel
     assert timer.is_active
@@ -248,7 +248,7 @@ async def test_on_cancel_event_matching_does_not_cancel() -> None:
     timer.cancel()
 
 
-async def test_on_cancel_event_non_matching_cancels() -> None:
+async def test_evaluate_cancel_event_non_matching_cancels() -> None:
     """Event that fails predicates cancels the timer."""
     predicate = MagicMock(return_value=False)  # never matches
     timer, _, _cancel_sub = _make_timer(duration=0.5, predicates=predicate)
@@ -260,14 +260,14 @@ async def test_on_cancel_event_non_matching_cancels() -> None:
     assert timer.is_active
 
     # Trigger the cancellation handler with a non-matching event
-    timer._on_cancel_event(_make_event())
+    timer.evaluate_cancel_event(_make_event())
 
     # Timer should be cancelled
     assert timer._cancelled
     assert not timer.is_active
 
 
-async def test_on_cancel_event_none_predicate_does_not_cancel() -> None:
+async def test_evaluate_cancel_event_none_predicate_does_not_cancel() -> None:
     """When predicates is None, cancellation events are ignored (no predicate = always match)."""
     timer, _, _ = _make_timer(duration=0.5, predicates=None)
 
@@ -277,8 +277,8 @@ async def test_on_cancel_event_none_predicate_does_not_cancel() -> None:
     timer.start(triggering_event=_make_event(), on_fire=on_fire)
     assert timer.is_active
 
-    # _on_cancel_event with None predicates should not cancel
-    timer._on_cancel_event(_make_event())
+    # evaluate_cancel_event with None predicates should not cancel
+    timer.evaluate_cancel_event(_make_event())
 
     assert timer.is_active
     assert not timer._cancelled
@@ -344,15 +344,12 @@ async def test_cancel_sets_cancelled_flag_first() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_listener_create_builds_duration_timer_when_duration_set() -> None:
-    """Listener.create(duration=5.0, create_cancel_sub=...) sets _duration_timer."""
+def test_listener_create_does_not_build_duration_timer() -> None:
+    """Listener.create() does not construct DurationTimer — BusService.add_listener() does."""
     from hassette.bus.listeners import Listener
 
     task_bucket = MagicMock()
     task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-
-    cancel_sub = MagicMock()
-    create_cancel_sub = MagicMock(return_value=cancel_sub)
 
     listener = Listener.create(
         task_bucket=task_bucket,
@@ -361,13 +358,11 @@ def test_listener_create_builds_duration_timer_when_duration_set() -> None:
         handler=lambda: None,
         duration=5.0,
         entity_id="light.kitchen",
-        create_cancel_sub=create_cancel_sub,
     )
 
-    assert listener._duration_timer is not None
-    assert isinstance(listener._duration_timer, DurationTimer)
-    assert listener._duration_timer.duration == 5.0
-    assert listener._duration_timer.entity_id == "light.kitchen"
+    assert listener._duration_timer is None
+    assert listener.duration == 5.0
+    assert listener.entity_id == "light.kitchen"
 
 
 def test_listener_create_no_duration_timer_when_no_duration() -> None:
@@ -388,14 +383,11 @@ def test_listener_create_no_duration_timer_when_no_duration() -> None:
 
 
 def test_listener_cancel_cancels_duration_timer() -> None:
-    """Listener.cancel() calls DurationTimer.cancel() when set."""
+    """Listener.cancel() calls DurationTimer.cancel() when _duration_timer is set."""
     from hassette.bus.listeners import Listener
 
     task_bucket = MagicMock()
     task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-
-    cancel_sub = MagicMock()
-    create_cancel_sub = MagicMock(return_value=cancel_sub)
 
     listener = Listener.create(
         task_bucket=task_bucket,
@@ -404,15 +396,21 @@ def test_listener_cancel_cancels_duration_timer() -> None:
         handler=lambda: None,
         duration=5.0,
         entity_id="light.kitchen",
-        create_cancel_sub=create_cancel_sub,
+    )
+
+    # Simulate what BusService.add_listener() does
+    listener._duration_timer = DurationTimer(
+        task_bucket=task_bucket,
+        duration=5.0,
+        predicates=None,
+        entity_id="light.kitchen",
+        owner_id="test_owner",
+        create_cancel_sub=MagicMock(return_value=MagicMock()),
     )
 
     duration_timer = listener._duration_timer
-    assert duration_timer is not None
-
-    # Spy on the duration timer's cancel method
-    original_cancel = duration_timer.cancel
     cancel_calls = []
+    original_cancel = duration_timer.cancel
 
     def spy_cancel():
         cancel_calls.append(True)

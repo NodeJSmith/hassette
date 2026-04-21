@@ -36,7 +36,7 @@ def _make_listener(
 class TestListenerImmediateField:
     def test_listener_create_with_immediate_true(self) -> None:
         """Listener.create(immediate=True) stores immediate=True."""
-        listener = _make_listener(immediate=True)
+        listener = _make_listener(immediate=True, entity_id="light.kitchen")
         assert listener.immediate is True
 
     def test_listener_create_default_immediate_false(self) -> None:
@@ -48,7 +48,7 @@ class TestListenerImmediateField:
 class TestListenerDurationField:
     def test_listener_create_with_duration(self) -> None:
         """Listener.create(duration=5.0) stores duration=5.0."""
-        listener = _make_listener(duration=5.0)
+        listener = _make_listener(duration=5.0, entity_id="light.kitchen")
         assert listener.duration == 5.0
 
     def test_listener_create_default_duration_none(self) -> None:
@@ -92,6 +92,6 @@ class TestListenerDurationValidation:
 
     def test_validate_once_plus_duration_allowed(self) -> None:
         """once=True combined with duration is allowed (no ValueError)."""
-        listener = _make_listener(once=True, duration=5.0)
+        listener = _make_listener(once=True, duration=5.0, entity_id="light.kitchen")
         assert listener.once is True
         assert listener.duration == 5.0

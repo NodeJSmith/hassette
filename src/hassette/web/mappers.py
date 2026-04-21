@@ -155,4 +155,7 @@ def to_listener_with_summary(ls: ListenerSummary) -> ListenerWithSummary:
         source_location=ls.source_location,
         registration_source=ls.registration_source,
         handler_summary=format_handler_summary(ls),
+        immediate=ls.immediate,
+        duration=ls.duration,
+        entity_id=ls.entity_id,
     )

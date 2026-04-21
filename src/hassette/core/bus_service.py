@@ -31,6 +31,7 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.command_executor import CommandExecutor
     from hassette.events import EventPayload
+    from hassette.events.hass.raw import HassStateDict
 
 
 class BusService(Service):
@@ -68,6 +69,7 @@ class BusService(Service):
         self._dispatch_pending: int = 0
         self._dispatch_idle_event: asyncio.Event = asyncio.Event()
         self._dispatch_idle_event.set()  # starts idle
+        self._duration_timers_active: int = 0
         self._setup_exclusion_filters()
 
     @property
@@ -106,23 +108,28 @@ class BusService(Service):
         Registration tasks are tracked per ``app_key`` so
         ``await_registrations_complete()`` can drain them before reconciliation.
 
-        For duration listeners, wires the ``_duration_timer`` if not already set
-        by injecting the ``_create_cancel_listener`` factory as the cancel-sub
-        callback.  This ensures each duration listener has a live ``DurationTimer``
-        regardless of how the listener was created (Bus.on, test harness, etc.).
+        For duration listeners, wires the ``_duration_timer`` as the single
+        authority — ``Listener.create()`` does not construct it.  Uses
+        ``listener.hold_predicate`` (state-value predicates only) for cancel
+        evaluation, falling back to ``listener.predicate`` if hold predicates
+        were not provided.
         """
-        if listener.duration is not None and listener._duration_timer is None and listener.entity_id:
+        if listener.duration is not None and listener.entity_id:
 
             def make_cancel_sub() -> Subscription:
                 return self._create_cancel_listener(listener)
 
+            def on_timer_cancel() -> None:
+                self._duration_timers_active -= 1
+
             listener._duration_timer = DurationTimer(
                 task_bucket=self.task_bucket,
                 duration=listener.duration,
-                predicates=listener.predicate,
+                predicates=listener.hold_predicate or listener.predicate,
                 entity_id=listener.entity_id,
                 owner_id=listener.owner_id,
                 create_cancel_sub=make_cancel_sub,
+                on_cancel=on_timer_cancel,
             )
 
         app_key = listener.app_key or listener.owner_id
@@ -134,13 +141,19 @@ class BusService(Service):
         """Create and register a cancellation listener for a duration timer.
 
         The cancellation listener monitors the same entity as ``main_listener``
-        and calls ``DurationTimer._on_cancel_event()`` on each incoming
-        ``state_changed`` event.  It:
+        and calls ``DurationTimer.evaluate_cancel_event()`` on each incoming
+        ``state_changed`` event.  The old_state stripping and predicate
+        re-evaluation are handled inside ``evaluate_cancel_event()``.
 
+        Route insertion is spawned as a task and tracked so that
+        ``await_dispatch_idle()`` waits for it.  The fire-time recheck in
+        ``on_duration_fire`` is the definitive correctness gate for the
+        one-event-loop-iteration window before route insertion completes.
+
+        Properties:
         - Uses ``source_tier="framework"`` (filtered from user-facing counts).
         - Uses the same ``owner_id`` as the main listener (cleaned up together).
         - Bypasses DB registration (no ``ListenerRegistration`` row).
-        - Is added directly to the Router (no task_bucket.spawn).
 
         Args:
             main_listener: The duration listener whose timer this subscription guards.
@@ -153,34 +166,8 @@ class BusService(Service):
 
         duration_timer = main_listener._duration_timer
 
-        def cancel_handler(event: "Event[Any]") -> None:
-            # Re-evaluate with old_state=None so that "did it change?" predicates
-            # (StateDidChange, AttrDidChange) do not falsely cancel on attribute-only
-            # refreshes.  The semantics we want: "is the entity STILL in the target
-            # state?" — not "did it change TO the target state?".
-            #
-            # With old_state=None:
-            #   - StateDidChange → True (None != any_value), so only StateTo decides.
-            #   - AttrDidChange → True (old_state=None special-cases to True), so only
-            #     AttrTo / other value predicates decide.
-            if isinstance(event, RawStateChangeEvent) and event.payload.data.old_state is not None:
-                stripped_event = RawStateChangeEvent(
-                    topic=event.topic,
-                    payload=HassPayload(
-                        event_type=event.payload.event_type,
-                        data=RawStateChangePayload(
-                            entity_id=event.payload.data.entity_id,
-                            old_state=None,
-                            new_state=event.payload.data.new_state,
-                        ),
-                        origin=event.payload.origin,
-                        time_fired=event.payload.time_fired,
-                        context=event.payload.context,
-                    ),
-                )
-                duration_timer._on_cancel_event(stripped_event)
-            else:
-                duration_timer._on_cancel_event(event)
+        async def cancel_handler(event: "Event[Any]") -> None:
+            duration_timer.evaluate_cancel_event(event)
 
         cancel_listener = Listener.create(
             task_bucket=self.task_bucket,
@@ -190,15 +177,13 @@ class BusService(Service):
             source_tier="framework",
         )
 
-        # Add directly to Router — bypasses DB registration.
-        # Use task_bucket.spawn so the add_route coroutine runs on the event loop.
-        # The cancel sub is usable immediately (before route insertion completes) because
-        # cancel() calls sub.cancel() which marks the listener as cancelled first.
-
         async def _add_cancel_route() -> None:
             await self.router.add_route(cancel_listener.topic, cancel_listener)
 
-        self.task_bucket.spawn(_add_cancel_route(), name="bus:add_cancel_listener")
+        self._dispatch_pending += 1
+        self._dispatch_idle_event.clear()
+        task = self.task_bucket.spawn(_add_cancel_route(), name="bus:add_cancel_listener")
+        task.add_done_callback(self._on_dispatch_done)
 
         def unsubscribe() -> None:
             cancel_listener.cancel()
@@ -277,10 +262,40 @@ class BusService(Service):
                 )
 
         if listener.immediate and listener.entity_id:
-            self.task_bucket.spawn(
+            self._dispatch_pending += 1
+            self._dispatch_idle_event.clear()
+            task = self.task_bucket.spawn(
                 self._immediate_fire_task(listener),
                 name="bus:immediate_fire",
             )
+            task.add_done_callback(self._on_dispatch_done)
+
+    def _make_synthetic_state_event(self, entity_id: str, current_state: "HassStateDict") -> RawStateChangeEvent:
+        """Build a synthetic RawStateChangeEvent with old_state=None."""
+        return RawStateChangeEvent(
+            topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
+            payload=HassPayload(
+                event_type="state_changed",
+                data=RawStateChangePayload(
+                    entity_id=entity_id,
+                    old_state=None,
+                    new_state=current_state,
+                ),
+                origin="LOCAL",
+                time_fired=_date_utils.now(),
+                context=HassContext(id=str(uuid4()), parent_id=None, user_id=None),
+            ),
+        )
+
+    def _hold_matches(self, listener: Listener, event: "Event[Any]") -> bool:
+        """Check hold predicates (state-value only) against an event.
+
+        Falls back to ``listener.matches()`` when no hold predicate is set.
+        """
+        hold_pred = listener.hold_predicate
+        if hold_pred is None:
+            return listener.matches(event)
+        return hold_pred(event)
 
     async def _immediate_fire_task(self, listener: Listener) -> None:
         """Fire a handler immediately with the current entity state.
@@ -301,6 +316,12 @@ class BusService(Service):
         """
         entity_id = listener.entity_id
         if not entity_id:
+            self.logger.error(
+                "immediate_fire: listener has no entity_id — construction invariant violated. "
+                "Listener owner=%s topic=%s",
+                listener.owner_id,
+                listener.topic,
+            )
             return
 
         try:
@@ -312,7 +333,6 @@ class BusService(Service):
                 )
                 return
 
-            # Direct dict access — lock-free, no retry, no ResourceNotReadyError path.
             current_state = state_proxy.states.get(entity_id)
             if current_state is None:
                 self.logger.debug(
@@ -321,32 +341,16 @@ class BusService(Service):
                 )
                 return
 
-            synthetic_event = RawStateChangeEvent(
-                topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
-                payload=HassPayload(
-                    event_type="state_changed",
-                    data=RawStateChangePayload(
-                        entity_id=entity_id,
-                        old_state=None,
-                        new_state=current_state,
-                    ),
-                    origin="LOCAL",
-                    time_fired=_date_utils.now(),
-                    context=HassContext(id=str(uuid4()), parent_id=None, user_id=None),
-                ),
-            )
+            synthetic_event = self._make_synthetic_state_event(entity_id, current_state)
 
             if not listener.matches(synthetic_event):
                 return
 
+            # FR4: handler receives the original triggering event (the synthetic event
+            # built from current state at registration time).  The recheck at fire time
+            # validates current state but does not change what event the handler receives.
             invoke_fn = self._make_tracked_invoke_fn(synthetic_event.topic, synthetic_event, listener)
 
-            # When duration is set, compute how long the entity has already been in
-            # this state and start a timer for the remaining time (or fire immediately
-            # if elapsed >= duration).
-            #
-            # For on_attribute_change listeners, always start from zero elapsed — HA's
-            # last_changed reflects primary state changes, not attribute changes.
             if listener.duration is not None and listener._duration_timer is not None:
                 elapsed = 0.0
                 if not listener.is_attribute_listener:
@@ -359,15 +363,12 @@ class BusService(Service):
                             elapsed = max(0.0, min(raw_elapsed, listener.duration))
 
                 if elapsed >= listener.duration:
-                    # Entity has been in this state long enough — fire immediately.
-                    # Route through listener.dispatch() for once-guard atomicity.
                     try:
                         await listener.dispatch(invoke_fn)
                     finally:
                         if listener.once:
                             self.remove_listener(listener)
                 else:
-                    # Start the duration timer for the remaining hold time.
                     remaining = listener.duration - elapsed
                     self.logger.debug(
                         "immediate_fire: entity %s elapsed=%.2fs, starting duration timer for remaining=%.2fs",
@@ -377,40 +378,26 @@ class BusService(Service):
                     )
 
                     async def on_duration_fire_immediate() -> None:
-                        """Called by DurationTimer after the remaining hold period elapses."""
-                        state_proxy = self.hassette._state_proxy
-                        current = state_proxy.states.get(entity_id) if state_proxy else None
+                        self._duration_timers_active -= 1
+                        current = self._read_entity_state(entity_id)
                         if current is None:
                             if listener.once:
                                 self.remove_listener(listener)
                             return
 
-                        recheck_event = RawStateChangeEvent(
-                            topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
-                            payload=HassPayload(
-                                event_type="state_changed",
-                                data=RawStateChangePayload(
-                                    entity_id=entity_id,
-                                    old_state=None,
-                                    new_state=current,
-                                ),
-                                origin="LOCAL",
-                                time_fired=_date_utils.now(),
-                                context=HassContext(id=str(uuid4()), parent_id=None, user_id=None),
-                            ),
-                        )
-                        if not listener.matches(recheck_event):
+                        recheck_event = self._make_synthetic_state_event(entity_id, current)
+                        if not self._hold_matches(listener, recheck_event):
                             if listener.once:
                                 self.remove_listener(listener)
                             return
 
-                        recheck_invoke_fn = self._make_tracked_invoke_fn(recheck_event.topic, recheck_event, listener)
                         try:
-                            await listener.dispatch(recheck_invoke_fn)
+                            await listener.dispatch(invoke_fn)
                         finally:
                             if listener.once:
                                 self.remove_listener(listener)
 
+                    self._duration_timers_active += 1
                     listener._duration_timer.start(
                         synthetic_event, on_duration_fire_immediate, override_duration=remaining
                     )
@@ -568,6 +555,16 @@ class BusService(Service):
             topic,  # hass.event.state_changed
         ]
 
+    def _read_entity_state(self, entity_id: str) -> "HassStateDict | None":
+        """Read entity state from StateProxy (in-memory, no HTTP)."""
+        state_proxy = self.hassette._state_proxy
+        return state_proxy.states.get(entity_id) if state_proxy else None
+
+    @property
+    def duration_timers_active(self) -> int:
+        """Number of currently active duration timers."""
+        return self._duration_timers_active
+
     async def _dispatch(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
         """Dispatch an event to a specific listener.
 
@@ -594,72 +591,60 @@ class BusService(Service):
             docstring for the atomicity argument.  The same single-threaded scheduling
             applies to the throttle check in ``RateLimiter._throttled_call``.
         """
-        # New closure per dispatch: debounce always fires with the latest event's closure.
-        # RateLimiter._debounced_call replaces (cancel-then-create) the previous task each
-        # time, so the handler sees the event from the most recent dispatch call.
+        # FR4: invoke_fn captures the original triggering event.  Duration timer
+        # callbacks re-verify current state via hold predicates but dispatch via
+        # this invoke_fn — the handler receives the event that started the timer.
         invoke_fn = self._make_tracked_invoke_fn(topic, event, listener)
 
         if listener.once and listener.rate_limiter:
             raise RuntimeError("once + rate_limiting is prohibited; see Listener.create() validation")
 
-        # Duration path: start timer instead of dispatching immediately.
         if listener.duration is not None and listener._duration_timer is not None:
-            entity_id = listener.entity_id or ""
+            if listener.is_cancelled:
+                return
+
+            entity_id = listener.entity_id
+            if not entity_id:
+                self.logger.error(
+                    "duration_fire: listener has no entity_id — construction invariant violated. "
+                    "Listener owner=%s topic=%s",
+                    listener.owner_id,
+                    listener.topic,
+                )
+                return
 
             async def on_duration_fire() -> None:
                 """Called by DurationTimer after the full hold period elapses."""
-                # Re-read current state from StateProxy (in-memory, no HTTP).
-                state_proxy = self.hassette._state_proxy
-                current_state = state_proxy.states.get(entity_id) if state_proxy else None
-
-                if current_state is None:
-                    self.logger.debug(
-                        "duration_fire: entity %s not found in StateProxy, dropping fire",
-                        entity_id,
-                    )
-                    if listener.once:
-                        self.remove_listener(listener)
-                    return
-
-                # Re-build synthetic event from current state for predicate re-evaluation.
-                recheck_event = RawStateChangeEvent(
-                    topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
-                    payload=HassPayload(
-                        event_type="state_changed",
-                        data=RawStateChangePayload(
-                            entity_id=entity_id,
-                            old_state=None,
-                            new_state=current_state,
-                        ),
-                        origin="LOCAL",
-                        time_fired=_date_utils.now(),
-                        context=HassContext(id=str(uuid4()), parent_id=None, user_id=None),
-                    ),
-                )
-
-                # Re-evaluate predicates against current state.
-                if not listener.matches(recheck_event):
-                    self.logger.debug(
-                        "duration_fire: entity %s predicate no longer matches, dropping fire",
-                        entity_id,
-                    )
-                    if listener.once:
-                        self.remove_listener(listener)
-                    return
-
-                self.logger.debug(
-                    "duration_fire: entity %s held state for %.2fs, dispatching handler",
-                    entity_id,
-                    listener.duration,
-                )
-                # Delegate once-guard to listener.dispatch() — it handles _fired atomically.
                 try:
+                    current_state = self._read_entity_state(entity_id)
+                    if current_state is None:
+                        self.logger.debug(
+                            "duration_fire: entity %s not found in StateProxy, dropping fire",
+                            entity_id,
+                        )
+                        return
+
+                    recheck_event = self._make_synthetic_state_event(entity_id, current_state)
+
+                    if not self._hold_matches(listener, recheck_event):
+                        self.logger.debug(
+                            "duration_fire: entity %s predicate no longer matches, dropping fire",
+                            entity_id,
+                        )
+                        return
+
+                    self.logger.debug(
+                        "duration_fire: entity %s held state for %.2fs, dispatching handler",
+                        entity_id,
+                        listener.duration,
+                    )
                     await listener.dispatch(invoke_fn)
                 finally:
-                    # Unconditional once removal — matches non-duration once behavior.
+                    self._duration_timers_active -= 1
                     if listener.once:
                         self.remove_listener(listener)
 
+            self._duration_timers_active += 1
             listener._duration_timer.start(event, on_duration_fire)
             return
 
@@ -753,9 +738,12 @@ class BusService(Service):
         dispatches were triggered by in-flight events.
 
         Note:
-            This drains tasks spawned by ``BusService.dispatch()`` only. Handler
-            tasks that spawn secondary work via the app's own ``task_bucket`` are
-            not tracked here.
+            This drains tasks spawned by ``BusService.dispatch()`` and
+            ``_immediate_fire_task``.  Duration timer callbacks are NOT tracked
+            here — they fire asynchronously via ``task_bucket.spawn()`` inside
+            ``DurationTimer``.  Use ``duration_timers_active`` to check for
+            pending duration fires.  Handler tasks that spawn secondary work
+            via the app's own ``task_bucket`` are also not tracked here.
 
         Args:
             timeout: Maximum seconds to wait for dispatch tasks to complete.
@@ -796,6 +784,11 @@ class BusService(Service):
             self.mark_ready(reason="Stream opened")
             async for event_name, event_data in self.stream:
                 if self.shutdown_event.is_set():
+                    if self._duration_timers_active > 0:
+                        self.logger.info(
+                            "Shutdown: %d active duration timer(s) will be cancelled",
+                            self._duration_timers_active,
+                        )
                     self.logger.debug("Hassette is shutting down, exiting bus loop")
                     self.mark_not_ready(reason="Hassette is shutting down")
                     break

@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from logging import Logger, getLogger
 from typing import Any, cast
 
-from hassette.bus.duration_timer import DurationTimer
 from hassette.bus.injection import ParameterInjector
 from hassette.bus.rate_limiter import RateLimiter
 from hassette.event_handling.predicates import normalize_where
@@ -17,6 +16,7 @@ if typing.TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from hassette import TaskBucket
+    from hassette.bus.duration_timer import DurationTimer
     from hassette.events.base import Event
     from hassette.types import AsyncHandlerType, HandlerType, Predicate
 
@@ -96,7 +96,7 @@ class Listener:
     and :meth:`cancel` for lifecycle management.  Contains an active runtime component
     (spawns tasks, holds event loop references) — not a simple scalar like ``_fired``."""
 
-    _duration_timer: DurationTimer | None = field(default=None, init=False, repr=False)
+    _duration_timer: "DurationTimer | None" = field(default=None, init=False, repr=False)
     """Duration timer for state-hold listeners. Private — constructed in :meth:`create` when
     ``duration`` is set, and cancelled in :meth:`cancel` alongside ``_rate_limiter``."""
 
@@ -126,6 +126,10 @@ class Listener:
 
     entity_id: str | None = None
     """Entity ID for this listener. Set by on_state_change/on_attribute_change at registration time."""
+
+    hold_predicate: "Predicate | None" = None
+    """State-value predicates only (excludes transition predicates like StateFrom, StateDidChange).
+    Used by DurationTimer for cancel evaluation and fire-time recheck.  None when duration is not set."""
 
     is_attribute_listener: bool = False
     """True when this listener was registered via on_attribute_change.
@@ -284,7 +288,7 @@ class Listener:
         duration: float | None = None,
         entity_id: str | None = None,
         is_attribute_listener: bool = False,
-        create_cancel_sub: "Callable[[], Subscription] | None" = None,
+        hold_predicate: "Predicate | None" = None,
     ) -> "Listener":
         cls._validate_options(
             once=once,
@@ -294,6 +298,10 @@ class Listener:
             timeout_disabled=timeout_disabled,
             duration=duration,
         )
+        if duration is not None and not entity_id:
+            raise ValueError("'duration' requires an entity_id — use on_state_change() or on_attribute_change()")
+        if immediate and not entity_id:
+            raise ValueError("'immediate' requires an entity_id — use on_state_change() or on_attribute_change()")
 
         pred = normalize_where(where)
         signature = get_typed_signature(handler)
@@ -329,6 +337,7 @@ class Listener:
             immediate=immediate,
             duration=duration,
             entity_id=entity_id,
+            hold_predicate=hold_predicate,
             is_attribute_listener=is_attribute_listener,
         )
 
@@ -340,20 +349,6 @@ class Listener:
                 debounce=debounce,
                 throttle=throttle,
                 handler_name=handler_name,
-            )
-
-        # Construct DurationTimer when duration is set and a cancel-sub factory was provided.
-        # The factory is injected by BusService during integration wiring (WP04); unit tests
-        # pass a mock.  When create_cancel_sub is None (e.g., listeners created before WP04
-        # wiring), _duration_timer remains None and duration is handled separately.
-        if duration is not None and create_cancel_sub is not None:
-            listener._duration_timer = DurationTimer(
-                task_bucket=task_bucket,
-                duration=duration,
-                predicates=pred,
-                entity_id=entity_id or "",
-                owner_id=owner_id,
-                create_cancel_sub=create_cancel_sub,
             )
 
         return listener

@@ -240,6 +240,9 @@ class ListenerWithSummary(BaseModel):
     registration_source: str | None = None
     handler_summary: str = ""
     source_tier: SourceTier = "app"
+    immediate: int = 0
+    duration: float | None = None
+    entity_id: str | None = None
 
 
 class DashboardKpisResponse(BaseModel):
