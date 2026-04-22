@@ -145,6 +145,16 @@ class Listener:
     """Optional per-listener error handler. Stored as the raw callable for reliable identity comparison.
     Normalization via make_async_adapter happens at invocation time (WP04)."""
 
+    _app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None" = field(
+        default=None, init=False, repr=False
+    )
+    """Callable that returns the current app-level error handler from the owning Bus at dispatch time.
+
+    Set by Bus.on() as a closure capturing Bus._error_handler lazily. Defaults to None for listeners
+    created outside of a Bus context (e.g., framework listeners, test harness). When set, it is called
+    at InvokeHandler construction time to populate app_level_error_handler on the command.
+    """
+
     _cancelled: bool = field(default=False, init=False, repr=False)
     """Set by cancel() to signal that a pending add_listener task should skip route insertion.
     Prevents orphaned listeners when Subscription.cancel() races with the async add task (#451)."""
