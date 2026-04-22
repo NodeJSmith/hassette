@@ -157,7 +157,7 @@ class MyApp(App[AppConfig]):
             "Job '%s' failed: %s\n%s",
             ctx.job_name,
             ctx.exception,
-            ctx.traceback or "",
+            ctx.traceback,
         )
 
     async def check_sensors(self) -> None:
@@ -189,7 +189,7 @@ class MyApp(App[AppConfig]):
 | Field | Type | Description |
 |-------|------|-------------|
 | `exception` | `BaseException` | The raised exception |
-| `traceback` | `str \| None` | Full formatted traceback, or `None` for known error types |
+| `traceback` | `str` | Full formatted traceback |
 | `job_name` | `str` | Human-readable job identity |
 | `job_group` | `str \| None` | Group name if the job was registered with `group=` |
 | `args` | `tuple[Any, ...]` | Positional arguments the job was scheduled with |

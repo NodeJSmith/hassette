@@ -206,8 +206,8 @@ class TestBusErrorHandlerInvocation:
 
         assert called == []
 
-    async def test_error_handler_not_invoked_on_timeout(self) -> None:
-        """TimeoutError does not invoke the error handler (result.exc is None)."""
+    async def test_error_handler_invoked_on_timeout(self) -> None:
+        """TimeoutError invokes the error handler (result.exc is populated)."""
         executor = _make_executor()
         called = []
 
@@ -215,17 +215,14 @@ class TestBusErrorHandlerInvocation:
             called.append(ctx)
 
         listener = _make_listener(error_handler=error_handler)
-
-        async def slow() -> None:
-            raise TimeoutError("timed out")
-
         listener.invoke = AsyncMock(side_effect=TimeoutError("timed out"))
         cmd = _make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
         await _drain_tasks(executor)
 
-        assert called == []
+        assert len(called) == 1
+        assert isinstance(called[0].exception, TimeoutError)
 
     async def test_per_registration_handler_wins_over_app_level(self) -> None:
         """Per-registration error_handler takes priority over app_level_error_handler."""

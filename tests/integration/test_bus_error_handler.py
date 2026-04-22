@@ -180,3 +180,38 @@ async def test_on_error_registered_after_listeners_still_works(hassette_with_bus
     assert len(error_contexts) == 1
     assert isinstance(error_contexts[0].exception, AttributeError)
     assert "late registration test" in str(error_contexts[0].exception)
+
+
+async def test_on_error_after_multiple_listeners_applies_to_all(hassette_with_bus: "Hassette") -> None:
+    """on_error() registered after multiple listeners applies to all of them (lazy resolution)."""
+    hassette = hassette_with_bus
+    bus = hassette._bus
+
+    error_contexts: list[BusErrorContext] = []
+    both_ran = asyncio.Event()
+
+    async def bad_handler_a(_event: Event) -> None:
+        raise ValueError("listener A failed")
+
+    async def bad_handler_b(_event: Event) -> None:
+        raise TypeError("listener B failed")
+
+    bus.on(topic="test.multi_late.a", handler=bad_handler_a)
+    bus.on(topic="test.multi_late.b", handler=bad_handler_b)
+
+    async def on_error(ctx: BusErrorContext) -> None:
+        error_contexts.append(ctx)
+        if len(error_contexts) >= 2:
+            hassette.task_bucket.post_to_loop(both_ran.set)
+
+    bus.on_error(on_error)
+
+    event = create_state_change_event(entity_id="sensor.test", old_value="off", new_value="on")
+    await hassette.send_event("test.multi_late.a", event)
+    await hassette.send_event("test.multi_late.b", event)
+
+    await asyncio.wait_for(both_ran.wait(), timeout=2.0)
+
+    assert len(error_contexts) == 2
+    exception_types = {type(ctx.exception) for ctx in error_contexts}
+    assert exception_types == {ValueError, TypeError}

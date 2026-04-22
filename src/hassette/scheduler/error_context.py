@@ -10,7 +10,7 @@ class SchedulerErrorContext:
 
     Attributes:
         exception: The exception that was raised by the job.
-        traceback: Formatted traceback string, or None if suppressed (e.g. for known errors).
+        traceback: Formatted traceback string.
         job_name: The name of the job function that raised the exception.
         job_group: The group the job belongs to, or None if ungrouped.
         args: Positional arguments the job was scheduled with.
@@ -18,7 +18,7 @@ class SchedulerErrorContext:
     """
 
     exception: BaseException
-    traceback: str | None
+    traceback: str
     job_name: str
     job_group: str | None
     args: tuple[Any, ...]

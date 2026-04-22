@@ -57,16 +57,14 @@ def _make_job(
 class TestSchedulerServiceCarriesAppLevelHandler:
     @pytest.mark.asyncio
     async def test_dispatch_carries_app_level_handler(self) -> None:
-        """When job._scheduler has an _error_handler, it is set on ExecuteJob."""
+        """When job has an _app_error_handler_resolver, its result is set on ExecuteJob."""
         svc = _make_scheduler_service()
 
         async def app_handler(ctx) -> None:
             pass
 
-        scheduler = MagicMock()
-        scheduler._error_handler = app_handler
-
-        job = _make_job(scheduler=scheduler)
+        job = _make_job(scheduler=MagicMock())
+        job._app_error_handler_resolver = lambda: app_handler
         await svc.run_job(job)
 
         cmd = svc._executor.execute.call_args[0][0]
@@ -74,14 +72,12 @@ class TestSchedulerServiceCarriesAppLevelHandler:
         assert cmd.app_level_error_handler is app_handler
 
     @pytest.mark.asyncio
-    async def test_dispatch_no_handler_when_scheduler_has_none(self) -> None:
-        """When Scheduler._error_handler is None, app_level_error_handler is None."""
+    async def test_dispatch_no_handler_when_resolver_returns_none(self) -> None:
+        """When resolver returns None, app_level_error_handler is None."""
         svc = _make_scheduler_service()
 
-        scheduler = MagicMock()
-        scheduler._error_handler = None
-
-        job = _make_job(scheduler=scheduler)
+        job = _make_job(scheduler=MagicMock())
+        job._app_error_handler_resolver = lambda: None
         await svc.run_job(job)
 
         cmd = svc._executor.execute.call_args[0][0]
@@ -89,11 +85,12 @@ class TestSchedulerServiceCarriesAppLevelHandler:
         assert cmd.app_level_error_handler is None
 
     @pytest.mark.asyncio
-    async def test_dispatch_no_handler_when_no_scheduler_backref(self) -> None:
-        """When job._scheduler is None (no back-reference), app_level_error_handler is None."""
+    async def test_dispatch_no_handler_when_no_resolver(self) -> None:
+        """When job has no _app_error_handler_resolver, app_level_error_handler is None."""
         svc = _make_scheduler_service()
 
         job = _make_job(scheduler=None)
+        job._app_error_handler_resolver = None
         await svc.run_job(job)
 
         cmd = svc._executor.execute.call_args[0][0]

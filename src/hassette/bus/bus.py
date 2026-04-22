@@ -164,12 +164,17 @@ class Bus(Resource):
     def on_error(self, handler: "BusErrorHandlerType") -> None:
         """Register an app-level error handler for this bus.
 
-        The handler is called when any listener on this bus raises an exception and
-        the listener does not have its own per-registration error handler.
+        The handler is called when any listener on this bus raises an exception
+        (including ``TimeoutError``) and the listener does not have its own
+        per-registration error handler.
 
         This is an app-level fallback — it is resolved at dispatch time, not at listener
         registration time. A later call to ``on_error()`` replaces any previously registered
         handler.
+
+        Note: error handlers are spawned as fire-and-forget tasks. Handlers spawned near
+        app shutdown may be cancelled before they complete. Do not rely on error handlers
+        for delivery-critical alerting during system teardown.
 
         Args:
             handler: A sync or async callable that accepts a :class:`~hassette.bus.error_context.BusErrorContext`.

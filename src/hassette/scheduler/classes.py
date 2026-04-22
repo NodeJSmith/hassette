@@ -12,6 +12,8 @@ import hassette.utils.date_utils as date_utils
 from hassette.types.types import SourceTier
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Callable
+
     from hassette.scheduler.scheduler import Scheduler
     from hassette.types import JobCallable, TriggerProtocol
     from hassette.types.types import SchedulerErrorHandlerType
@@ -226,6 +228,15 @@ class ScheduledJob:
 
     _scheduler: "Scheduler | None" = field(default=None, repr=False, compare=False)
     """Back-reference to the Scheduler that owns this job. Set by Scheduler.add_job()."""
+
+    _app_error_handler_resolver: "Callable[[], SchedulerErrorHandlerType | None] | None" = field(
+        default=None, init=False, repr=False
+    )
+    """Closure that resolves the app-level error handler at dispatch time.
+
+    Set by Scheduler.add_job() to ``lambda: self._error_handler``. This avoids
+    reading ``job._scheduler._error_handler`` at dispatch time, which couples the
+    dispatch path to the Scheduler's internal state."""
 
     _dequeued: bool = field(default=False, repr=False, compare=False)
     """True after the job has been synchronously removed from the heap via dequeue_job()."""

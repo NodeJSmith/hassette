@@ -374,7 +374,7 @@ class HassetteHarness:
                     await cmd.listener.invoke(cmd.event)
                 except asyncio.CancelledError:
                     raise
-                except BaseException as _exc:
+                except Exception as _exc:
                     exc = _exc
 
                 if exc is not None:
@@ -389,9 +389,21 @@ class HassetteHarness:
                             listener_name=repr(cmd.listener),
                             event=cmd.event,
                         )
-                        result = error_handler(ctx)
-                        if asyncio.iscoroutine(result):
-                            await result
+                        # Wrap error handler invocation so handler crashes don't
+                        # propagate as dispatch failures.
+                        # NOTE: the harness does NOT test timeout enforcement,
+                        # task spawn isolation, or failure counter — those are
+                        # covered by integration tests via real CommandExecutor.
+                        try:
+                            result = error_handler(ctx)
+                            if asyncio.iscoroutine(result):
+                                await result
+                        except Exception:
+                            logging.getLogger("hassette.test_utils.harness").warning(
+                                "Bus error handler raised during harness dispatch (topic=%s)",
+                                cmd.topic,
+                                exc_info=True,
+                            )
 
         _listener_id_counter = itertools.count(1)
 
@@ -417,7 +429,7 @@ class HassetteHarness:
                     await cmd.callable()
                 except asyncio.CancelledError:
                     raise
-                except BaseException as _exc:
+                except Exception as _exc:
                     exc = _exc
 
                 if exc is not None:
@@ -431,11 +443,23 @@ class HassetteHarness:
                             job_name=cmd.job.name,
                             job_group=cmd.job.group,
                             args=cmd.job.args,
-                            kwargs=cmd.job.kwargs,
+                            kwargs=dict(cmd.job.kwargs),
                         )
-                        result = error_handler(ctx)
-                        if asyncio.iscoroutine(result):
-                            await result
+                        # Wrap error handler invocation so handler crashes don't
+                        # propagate as dispatch failures.
+                        # NOTE: the harness does NOT test timeout enforcement,
+                        # task spawn isolation, or failure counter — those are
+                        # covered by integration tests via real CommandExecutor.
+                        try:
+                            result = error_handler(ctx)
+                            if asyncio.iscoroutine(result):
+                                await result
+                        except Exception:
+                            logging.getLogger("hassette.test_utils.harness").warning(
+                                "Scheduler error handler raised during harness dispatch (job=%s)",
+                                cmd.job.name,
+                                exc_info=True,
+                            )
 
         _job_id_counter = itertools.count(1)
 

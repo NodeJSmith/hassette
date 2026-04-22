@@ -232,8 +232,8 @@ async def test_cancelled_error_not_routed_to_handler(executor: CommandExecutor) 
     assert not handler_called.is_set(), "Error handler must not be called for CancelledError"
 
 
-async def test_timeout_error_not_routed_to_handler(executor: CommandExecutor) -> None:
-    """TimeoutError is swallowed by _execute() and never routed to the user error handler."""
+async def test_timeout_error_routed_to_handler(executor: CommandExecutor) -> None:
+    """TimeoutError is captured and routed to the user error handler."""
     listener = _make_mock_listener()
 
     async def slow_handler(_event) -> None:
@@ -242,8 +242,10 @@ async def test_timeout_error_not_routed_to_handler(executor: CommandExecutor) ->
     listener.invoke = slow_handler
 
     handler_called = asyncio.Event()
+    received_ctx: list[BusErrorContext] = []
 
-    async def error_handler(_ctx: BusErrorContext) -> None:
+    async def error_handler(ctx: BusErrorContext) -> None:
+        received_ctx.append(ctx)
         handler_called.set()
 
     cmd = InvokeHandler(
@@ -258,9 +260,9 @@ async def test_timeout_error_not_routed_to_handler(executor: CommandExecutor) ->
 
     await executor.execute(cmd)
 
-    # Give any (incorrect) handler invocation time to run
-    await asyncio.sleep(0.1)
-    assert not handler_called.is_set(), "Error handler must not be called for TimeoutError"
+    await asyncio.wait_for(handler_called.wait(), timeout=2.0)
+    assert len(received_ctx) == 1
+    assert isinstance(received_ctx[0].exception, TimeoutError)
 
     # Write queue should have a timed_out record
     assert not executor._write_queue.empty()

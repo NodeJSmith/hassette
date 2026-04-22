@@ -372,7 +372,9 @@ class SchedulerService(Service):
         # job._scheduler is the Scheduler that owns this job (set by Scheduler.add_job()).
         # Reading _scheduler._error_handler here reflects any on_error() updates made after
         # job registration, satisfying the dispatch-time resolution contract.
-        app_level_error_handler = job._scheduler._error_handler if job._scheduler is not None else None
+        app_level_error_handler = (
+            job._app_error_handler_resolver() if job._app_error_handler_resolver is not None else None
+        )
 
         cmd = ExecuteJob(
             job=job,

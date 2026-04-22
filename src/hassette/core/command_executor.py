@@ -396,7 +396,7 @@ class CommandExecutor(Service):
 
         result = await self._execute(lambda: cmd.listener.invoke(cmd.event), cmd, _log_error)
 
-        if result.is_error and result.exc is not None:
+        if (result.is_error or result.is_timed_out) and result.exc is not None:
             # Resolution order: per-registration handler first; app-level fallback second.
             error_handler = cmd.listener.error_handler or cmd.app_level_error_handler
             if error_handler is not None:
@@ -407,6 +407,8 @@ class CommandExecutor(Service):
                     listener_name=repr(cmd.listener),
                     event=cmd.event,
                 )
+                # FIXME: no per-listener rate-limit on error handler spawns — high-frequency
+                # failures can accumulate unbounded concurrent tasks. See issue for tracking.
                 self.task_bucket.spawn(
                     self._invoke_bus_error_handler(error_handler, ctx),
                     name="executor:bus_error_handler",
@@ -429,7 +431,7 @@ class CommandExecutor(Service):
 
         result = await self._execute(cmd.callable, cmd, _log_error)
 
-        if result.is_error and result.exc is not None:
+        if (result.is_error or result.is_timed_out) and result.exc is not None:
             # Resolution order: per-registration handler first; app-level fallback second.
             error_handler = cmd.job.error_handler or cmd.app_level_error_handler
             if error_handler is not None:
@@ -439,8 +441,9 @@ class CommandExecutor(Service):
                     job_name=cmd.job.name,
                     job_group=cmd.job.group,
                     args=cmd.job.args,
-                    kwargs=cmd.job.kwargs,
+                    kwargs=dict(cmd.job.kwargs),
                 )
+                # FIXME: no per-job rate-limit on error handler spawns — see bus comment above.
                 self.task_bucket.spawn(
                     self._invoke_scheduler_error_handler(error_handler, ctx),
                     name="executor:scheduler_error_handler",
@@ -470,6 +473,8 @@ class CommandExecutor(Service):
             async with asyncio.timeout(timeout):
                 await async_handler(ctx)
         except TimeoutError:
+            if timeout is None:
+                raise
             self._error_handler_failures += 1
             self.logger.warning(
                 "Bus error handler timed out after %.1fs (topic=%s, listener=%s)",
@@ -509,6 +514,8 @@ class CommandExecutor(Service):
             async with asyncio.timeout(timeout):
                 await async_handler(ctx)
         except TimeoutError:
+            if timeout is None:
+                raise
             self._error_handler_failures += 1
             self.logger.warning(
                 "Scheduler error handler timed out after %.1fs (job=%s)",

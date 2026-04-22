@@ -168,13 +168,13 @@ class TestExecutionResultExc:
 
         assert result.exc is None
 
-    async def test_execution_result_exc_none_on_timeout(self) -> None:
-        """exc is None when execution times out — TimeoutError has its own branch."""
+    async def test_execution_result_exc_populated_on_timeout(self) -> None:
+        """exc is populated when execution times out — TimeoutError is captured for error handlers."""
         with pytest.raises(TimeoutError):
             async with track_execution() as result:
                 raise TimeoutError("timed out")
 
-        assert result.exc is None
+        assert isinstance(result.exc, TimeoutError)
 
 
 class TestTrackExecutionTracebackCap:

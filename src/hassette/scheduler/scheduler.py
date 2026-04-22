@@ -138,12 +138,17 @@ class Scheduler(Resource):
     def on_error(self, handler: "SchedulerErrorHandlerType") -> None:
         """Register an app-level error handler for this scheduler.
 
-        The handler is called when any job on this scheduler raises an exception and
-        the job does not have its own per-registration error handler.
+        The handler is called when any job on this scheduler raises an exception
+        (including ``TimeoutError``) and the job does not have its own
+        per-registration error handler.
 
         This is an app-level fallback — it is resolved at dispatch time, not at job
         registration time. A later call to ``on_error()`` replaces any previously
         registered handler.
+
+        Note: error handlers are spawned as fire-and-forget tasks. Handlers spawned near
+        app shutdown may be cancelled before they complete. Do not rely on error handlers
+        for delivery-critical alerting during system teardown.
 
         Args:
             handler: A sync or async callable that accepts a
@@ -202,6 +207,7 @@ class Scheduler(Resource):
             self._jobs_by_group[job.group].add(job)
 
         job._scheduler = self
+        job._app_error_handler_resolver = lambda: self._error_handler
         self.scheduler_service.add_job(job)
 
         return job

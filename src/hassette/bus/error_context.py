@@ -12,7 +12,10 @@ class BusErrorContext:
     """Context passed to bus error handlers when a listener raises an exception.
 
     Attributes:
-        exception: The exception that was raised by the listener.
+        exception: The exception that was raised by the listener. Retains its
+            ``__traceback__`` chain — use ``traceback`` (the string field) for display.
+            The live traceback pins originating stack frame locals until this context
+            is garbage-collected (bounded by ``error_handler_timeout_seconds``).
         traceback: Formatted traceback string. Always a non-empty string — the
             design explicitly requires always-populated tracebacks in the user-facing
             context, unlike the framework's own log suppression which may suppress them.
