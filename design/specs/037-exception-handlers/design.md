@@ -68,7 +68,7 @@ Users need the ability to react to failures: send a notification when a critical
 7. Error handlers may be sync or async callables
 8. If an error handler raises an exception, the framework must catch it, log it at ERROR level, and continue — no cascading
 9. The framework must continue logging errors at its current level regardless of whether a user error handler is registered
-10. Only general exceptions are routed to user handlers — task cancellations and timeouts are excluded and continue to be handled by the framework's existing contract
+10. Exceptions are routed to user handlers except for `CancelledError`, which continues to be handled by the framework's existing contract; timeout-related failures are routed to user handlers (challenge F2)
 11. The app-level error handler is resolved at invocation time, not captured at registration time — calling `on_error()` at any point applies the handler to all listeners/jobs that lack a per-registration handler, regardless of registration order
 12. The error context for scheduler jobs must include the job identity but not the trigger input (scheduler jobs are time-triggered, not data-triggered)
 13. Error handler invocation must be bounded by a configurable timeout (default: 5 seconds) to prevent hung handlers from blocking the system
@@ -123,7 +123,7 @@ Two frozen dataclasses in new files:
 
 **`src/hassette/scheduler/error_context.py`** — `SchedulerErrorContext`:
 - `exception: BaseException` — the raised exception
-- `traceback: str | None` — formatted traceback string
+- `traceback: str` — formatted traceback string (always populated)
 - `job_name: str` — human-readable job identity
 - `job_group: str | None` — the job's group name if any
 - `args: tuple[Any, ...]` — the job's registration-time positional arguments from `job.args` (typically empty for parameterless automation jobs; populated when using `run_every(func, minutes=5, args=(sensor_id,))`)
