@@ -460,8 +460,8 @@ class CommandExecutor(Service):
         so that sync handlers run in the thread pool and async handlers are awaited directly.
         Wraps invocation in asyncio.timeout to prevent runaway handlers from blocking indefinitely.
 
-        On handler exception: logs at ERROR and increments _error_handler_failures.
-        On handler timeout: logs at WARNING and increments _error_handler_failures.
+        On handler exception or handler-raised TimeoutError: logs at ERROR and increments _error_handler_failures.
+        On framework-triggered timeout: logs at WARNING and increments _error_handler_failures.
 
         Args:
             handler: The raw error handler callable (sync or async).
@@ -506,8 +506,8 @@ class CommandExecutor(Service):
         so that sync handlers run in the thread pool and async handlers are awaited directly.
         Wraps invocation in asyncio.timeout to prevent runaway handlers from blocking indefinitely.
 
-        On handler exception: logs at ERROR and increments _error_handler_failures.
-        On handler timeout: logs at WARNING and increments _error_handler_failures.
+        On handler exception or handler-raised TimeoutError: logs at ERROR and increments _error_handler_failures.
+        On framework-triggered timeout: logs at WARNING and increments _error_handler_failures.
 
         Args:
             handler: The raw error handler callable (sync or async).
