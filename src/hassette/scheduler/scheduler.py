@@ -79,6 +79,7 @@ from .triggers import After, Cron, Daily, Every, Once
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.types import JobCallable
+    from hassette.types.types import SchedulerErrorHandlerType
 
 
 class Scheduler(Resource):
@@ -106,6 +107,7 @@ class Scheduler(Resource):
         assert self.scheduler_service is not None, "Scheduler service not initialized"
         self._jobs_by_name = {}
         self._jobs_by_group: dict[str, set[ScheduledJob]] = {}
+        self._error_handler: SchedulerErrorHandlerType | None = None
 
         # Register removal callback so exhausted one-shot jobs are removed from _jobs_by_group
         # automatically when SchedulerService removes them after firing.
@@ -126,11 +128,28 @@ class Scheduler(Resource):
                     del self._jobs_by_group[job.group]
 
     async def on_initialize(self) -> None:
+        self._error_handler = None
         self.mark_ready(reason="Scheduler initialized")
 
     async def on_shutdown(self) -> None:
         await self._remove_all_jobs()
         self.scheduler_service.deregister_removal_callback(self.owner_id)
+
+    def on_error(self, handler: "SchedulerErrorHandlerType") -> None:
+        """Register an app-level error handler for this scheduler.
+
+        The handler is called when any job on this scheduler raises an exception and
+        the job does not have its own per-registration error handler.
+
+        This is an app-level fallback — it is resolved at dispatch time, not at job
+        registration time. A later call to ``on_error()`` replaces any previously
+        registered handler.
+
+        Args:
+            handler: A sync or async callable that accepts a
+                :class:`~hassette.scheduler.error_context.SchedulerErrorContext`.
+        """
+        self._error_handler = handler
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -294,6 +313,7 @@ class Scheduler(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -317,6 +337,10 @@ class Scheduler(Resource):
                 A positive ``float`` overrides the default.
             timeout_disabled: When ``True``, timeout enforcement is disabled for this
                 job regardless of the global default.
+            on_error: Optional per-job error handler. When set, this handler is
+                invoked if the job raises an exception (excluding ``CancelledError``
+                and ``TimeoutError``). Overrides the app-level handler set via
+                ``on_error()``.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.
@@ -359,6 +383,7 @@ class Scheduler(Resource):
             timeout_disabled=timeout_disabled,
             args=tuple(args) if args else (),
             kwargs=dict(kwargs) if kwargs else {},
+            error_handler=on_error,
             app_key=app_key,
             instance_index=instance_index,
             source_location=source_location,
@@ -377,6 +402,7 @@ class Scheduler(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -409,6 +435,7 @@ class Scheduler(Resource):
             jitter=jitter,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
+            on_error=on_error,
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
@@ -425,6 +452,7 @@ class Scheduler(Resource):
         timeout_disabled: bool = False,
         if_past: Literal["tomorrow", "error"] = "tomorrow",
         *,
+        on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -462,6 +490,7 @@ class Scheduler(Resource):
             jitter=jitter,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
+            on_error=on_error,
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
@@ -479,6 +508,7 @@ class Scheduler(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -513,6 +543,7 @@ class Scheduler(Resource):
             jitter=jitter,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
+            on_error=on_error,
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
@@ -528,6 +559,7 @@ class Scheduler(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -562,6 +594,7 @@ class Scheduler(Resource):
             jitter=jitter,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
+            on_error=on_error,
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
@@ -577,6 +610,7 @@ class Scheduler(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -611,6 +645,7 @@ class Scheduler(Resource):
             jitter=jitter,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
+            on_error=on_error,
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
@@ -626,6 +661,7 @@ class Scheduler(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -661,6 +697,7 @@ class Scheduler(Resource):
             jitter=jitter,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
+            on_error=on_error,
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,
@@ -676,6 +713,7 @@ class Scheduler(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         *,
+        on_error: "SchedulerErrorHandlerType | None" = None,
         if_exists: Literal["error", "skip"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
@@ -715,6 +753,7 @@ class Scheduler(Resource):
             jitter=jitter,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
+            on_error=on_error,
             if_exists=if_exists,
             args=args,
             kwargs=kwargs,

@@ -14,6 +14,7 @@ from hassette.types.types import SourceTier
 if typing.TYPE_CHECKING:
     from hassette.scheduler.scheduler import Scheduler
     from hassette.types import JobCallable, TriggerProtocol
+    from hassette.types.types import SchedulerErrorHandlerType
 
 
 LOGGER = getLogger(__name__)
@@ -199,6 +200,15 @@ class ScheduledJob:
     kwargs: dict[str, Any] = field(default_factory=dict, compare=False)
     """Keyword arguments to pass to the job callable."""
 
+    error_handler: "SchedulerErrorHandlerType | None" = field(default=None, compare=False)
+    """Optional error handler for this job.
+
+    When set, this handler is invoked if the job raises an exception (excluding
+    ``CancelledError`` and ``TimeoutError``). Stored as-is for identity comparison
+    in ``matches()``. ``compare=False`` prevents ``Callable | None`` from corrupting
+    the ``@dataclass(order=True)`` heap ordering.
+    """
+
     job_id: int = field(default_factory=next_id, init=False, compare=False)
     """Unique identifier for the job instance."""
 
@@ -284,6 +294,7 @@ class ScheduledJob:
             and self.timeout_disabled == other.timeout_disabled
             and self.args == other.args
             and self.kwargs == other.kwargs
+            and self.error_handler is other.error_handler
         )
 
     def diff_fields(self, other: "ScheduledJob") -> list[str]:
@@ -311,6 +322,8 @@ class ScheduledJob:
             changed.append("args")
         if self.kwargs != other.kwargs:
             changed.append("kwargs")
+        if self.error_handler is not other.error_handler:
+            changed.append("error_handler")
         return changed
 
     def cancel(self) -> None:
