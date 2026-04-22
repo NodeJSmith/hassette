@@ -1,6 +1,6 @@
-"""Unit tests for Listener immediate, duration, and entity_id fields (WP01)."""
+"""Unit tests for Listener immediate, duration, entity_id, and error_handler fields."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -15,6 +15,7 @@ def _make_listener(
     once: bool = False,
     debounce: float | None = None,
     throttle: float | None = None,
+    error_handler=None,
 ) -> Listener:
     """Create a Listener via create() with the given parameters."""
     task_bucket = MagicMock()
@@ -30,6 +31,7 @@ def _make_listener(
         once=once,
         debounce=debounce,
         throttle=throttle,
+        error_handler=error_handler,
     )
 
 
@@ -95,3 +97,22 @@ class TestListenerDurationValidation:
         listener = _make_listener(once=True, duration=5.0, entity_id="light.kitchen")
         assert listener.once is True
         assert listener.duration == 5.0
+
+
+class TestListenerErrorHandlerField:
+    def test_listener_create_with_error_handler(self) -> None:
+        """Listener.create() with error_handler= stores it on the resulting Listener."""
+        mock_error_handler = AsyncMock()
+        listener = _make_listener(error_handler=mock_error_handler)
+        assert listener.error_handler is mock_error_handler
+
+    def test_listener_create_without_error_handler_defaults_none(self) -> None:
+        """Listener.create() without error_handler= sets error_handler=None."""
+        listener = _make_listener()
+        assert listener.error_handler is None
+
+    def test_listener_error_handler_stored_as_raw_callable(self) -> None:
+        """The error_handler stored is the raw callable, not a normalized wrapper."""
+        mock_error_handler = AsyncMock()
+        listener = _make_listener(error_handler=mock_error_handler)
+        assert listener.error_handler is mock_error_handler

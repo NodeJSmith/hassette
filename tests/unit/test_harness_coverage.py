@@ -15,9 +15,15 @@ def test_all_bus_subscriptions_have_simulate_counterparts():
     # Get on_* methods defined directly on Resource (lifecycle hooks, not subscriptions)
     resource_methods = {name for name in Resource.__dict__ if name.startswith("on_")}
 
+    # Methods on Bus that are not event subscriptions (no simulate counterpart needed)
+    non_subscription_methods = {"on_error"}
+
     # Get on_* methods defined directly on Bus, excluding those inherited from Resource
+    # and non-subscription methods like on_error (handler registration, not event subscription)
     bus_methods = {
-        name.removeprefix("on_") for name in Bus.__dict__ if name.startswith("on_") and name not in resource_methods
+        name.removeprefix("on_")
+        for name in Bus.__dict__
+        if name.startswith("on_") and name not in resource_methods and name not in non_subscription_methods
     }
 
     # Get simulate_* methods available on AppTestHarness (including inherited from SimulationMixin)

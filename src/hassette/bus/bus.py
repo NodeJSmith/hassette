@@ -105,6 +105,7 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.bus_service import BusService
     from hassette.types import ChangeType, HandlerType, Predicate
+    from hassette.types.types import BusErrorHandlerType
 
 
 class Options(TypedDict, total=False):
@@ -128,6 +129,9 @@ class Options(TypedDict, total=False):
     """Optional stable name for the listener. Used as the natural key escape hatch to disambiguate
     registrations that would otherwise share the same natural key."""
 
+    on_error: "BusErrorHandlerType | None"
+    """Optional error handler for this listener. Called when the listener's handler raises an exception."""
+
 
 class Bus(Resource):
     """Individual event bus instance for a specific owner (e.g., App or Service)."""
@@ -145,15 +149,32 @@ class Bus(Resource):
         self._registered_keys: set[tuple[str, int, str, str, str]] = set()
 
         assert self.bus_service is not None, "Bus service not initialized"
+        self._error_handler: BusErrorHandlerType | None = None
 
     async def on_initialize(self) -> None:
         # Clear before any on() calls so partial-init failures don't leave stale keys.
         self._registered_keys.clear()
+        self._error_handler = None
         self.mark_ready(reason="Bus initialized")
 
     async def on_shutdown(self) -> None:
         """Cleanup all listeners owned by this bus's owner on shutdown."""
         await self.remove_all_listeners()
+
+    def on_error(self, handler: "BusErrorHandlerType") -> None:
+        """Register an app-level error handler for this bus.
+
+        The handler is called when any listener on this bus raises an exception and
+        the listener does not have its own per-registration error handler.
+
+        This is an app-level fallback — it is resolved at dispatch time, not at listener
+        registration time. A later call to ``on_error()`` replaces any previously registered
+        handler.
+
+        Args:
+            handler: A sync or async callable that accepts a :class:`~hassette.bus.error_context.BusErrorContext`.
+        """
+        self._error_handler = handler
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -228,6 +249,7 @@ class Bus(Resource):
         entity_id: str | None = None,
         is_attribute_listener: bool = False,
         hold_preds: list["Predicate"] | None = None,
+        on_error: "BusErrorHandlerType | None" = None,
     ) -> Subscription:
         """Subscribe to an event topic with optional filtering and modifiers.
 
@@ -281,6 +303,7 @@ class Bus(Resource):
             entity_id=entity_id,
             is_attribute_listener=is_attribute_listener,
             hold_predicate=hold_predicate,
+            error_handler=on_error,
         )
 
         # Capture source while user code is still on the stack (before async spawn boundary)

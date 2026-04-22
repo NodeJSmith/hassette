@@ -19,6 +19,7 @@ if typing.TYPE_CHECKING:
     from hassette.bus.duration_timer import DurationTimer
     from hassette.events.base import Event
     from hassette.types import AsyncHandlerType, HandlerType, Predicate
+    from hassette.types.types import BusErrorHandlerType
 
 LOGGER = getLogger(__name__)
 
@@ -139,6 +140,10 @@ class Listener:
     from zero elapsed time because HA's last_changed reflects primary state changes, not
     attribute changes.  See the design doc for the documented known limitation.
     """
+
+    error_handler: "BusErrorHandlerType | None" = None
+    """Optional per-listener error handler. Stored as the raw callable for reliable identity comparison.
+    Normalization via make_async_adapter happens at invocation time (WP04)."""
 
     _cancelled: bool = field(default=False, init=False, repr=False)
     """Set by cancel() to signal that a pending add_listener task should skip route insertion.
@@ -290,6 +295,7 @@ class Listener:
         entity_id: str | None = None,
         is_attribute_listener: bool = False,
         hold_predicate: "Predicate | None" = None,
+        error_handler: "BusErrorHandlerType | None" = None,
     ) -> "Listener":
         cls._validate_options(
             once=once,
@@ -335,11 +341,13 @@ class Listener:
             handler_short_name=short_name,
             name=name,
             source_tier=source_tier,
+<<<<<<< HEAD
             immediate=immediate,
             duration=duration,
             entity_id=entity_id,
             hold_predicate=hold_predicate,
             is_attribute_listener=is_attribute_listener,
+            error_handler=error_handler,
         )
 
         # One-time construction-phase init — _rate_limiter is set here (inside create()),
