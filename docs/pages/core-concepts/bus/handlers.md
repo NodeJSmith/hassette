@@ -82,6 +82,77 @@ You can extract multiple pieces of data in a single handler:
 --8<-- "pages/core-concepts/bus/snippets/handlers_multiple_dependencies.py"
 ```
 
+## Error Handling
+
+When a listener raises an exception, Hassette logs the error and records it for telemetry. You can also register an error handler to receive a typed [`BusErrorContext`][hassette.bus.error_context.BusErrorContext] with full exception details.
+
+There are two levels of error handlers:
+
+- **App-level**: `bus.on_error(handler)` — applies to all listeners on this bus that don't have a per-registration handler.
+- **Per-registration**: `on_error=` option on any `bus.on_state_change()`, `bus.on()`, etc. — takes precedence over the app-level handler.
+
+Both levels can be sync or async.
+
+!!! warning "Register early — the reload gap"
+    The app-level handler is resolved at dispatch time, not at listener registration time. This means calling `bus.on_error()` after listeners are registered is valid and the handler will still fire. However, if a listener fires during app startup (before `on_error()` is called), the handler won't be invoked for that event. To avoid this gap, **register `on_error()` as the first statement in `on_initialize()`**.
+
+### App-level error handler
+
+```python
+from hassette.bus.error_context import BusErrorContext
+
+class MyApp(App[AppConfig]):
+    async def on_initialize(self):
+        # Register first to avoid the reload gap
+        self.bus.on_error(self.on_bus_error)
+
+        self.bus.on_state_change("light.kitchen", handler=self.on_light_change)
+
+    async def on_bus_error(self, ctx: BusErrorContext) -> None:
+        self.logger.error(
+            "Handler failed for topic=%s: %s\n%s",
+            ctx.topic,
+            ctx.exception,
+            ctx.traceback,
+        )
+
+    async def on_light_change(self, event) -> None:
+        raise ValueError("something went wrong")
+```
+
+### Per-registration error handler
+
+```python
+from hassette.bus.error_context import BusErrorContext
+
+class MyApp(App[AppConfig]):
+    async def on_initialize(self):
+        self.bus.on_state_change(
+            "sensor.temperature",
+            handler=self.on_temp_change,
+            on_error=self.on_temp_error,
+        )
+
+    async def on_temp_error(self, ctx: BusErrorContext) -> None:
+        self.logger.warning("Temperature handler failed: %s", ctx.exception)
+
+    async def on_temp_change(self, event) -> None:
+        raise RuntimeError("temp sensor error")
+```
+
+### What `BusErrorContext` contains
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `exception` | `BaseException` | The raised exception |
+| `traceback` | `str` | Full formatted traceback — always present |
+| `topic` | `str` | The event topic the listener was registered on |
+| `listener_name` | `str` | Human-readable listener identity |
+| `event` | `Event[Any]` | The event being processed when the exception occurred |
+
+!!! note "Error handler failures"
+    If the error handler itself raises or times out, the failure is logged at ERROR/WARNING and counted in the executor's error handler failure counter. The original listener's telemetry record is unaffected.
+
 ## See Also
 
 - [Filtering & Predicates](filtering.md) - Filter which events trigger your handlers

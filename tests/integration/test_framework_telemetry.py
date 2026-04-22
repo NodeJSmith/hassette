@@ -6,6 +6,7 @@ and drop counter behavior.
 """
 
 import asyncio
+import threading
 import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -51,6 +52,7 @@ async def mock_hassette_with_db(tmp_path: Path) -> MagicMock:
     hassette.config.telemetry_write_queue_max = 1000
     hassette.config.db_write_queue_max = 2000
     hassette.ready_event = asyncio.Event()
+    hassette._loop_thread_id = threading.get_ident()
 
     db_service = DatabaseService(hassette, parent=hassette)
     await db_service.on_initialize()
@@ -153,6 +155,7 @@ async def test_command_executor_records_source_tier_on_error(mock_hassette_with_
     # Create a listener invocation that fails
     listener = MagicMock()
     listener.invoke = AsyncMock(side_effect=ValueError("handler error"))
+    listener.error_handler = None
 
     from hassette.core.commands import InvokeHandler
 
@@ -249,6 +252,7 @@ async def test_queue_persistence_via_drain_and_persist(mock_hassette_with_db: Ma
     # Queue an invocation record
     listener = MagicMock()
     listener.invoke = AsyncMock()
+    listener.error_handler = None
 
     from hassette.core.commands import InvokeHandler
 
@@ -298,6 +302,7 @@ async def test_pre_registration_orphan_persisted_with_null_listener_id(mock_hass
     # Queue an invocation record with listener_id=None (pre-registration)
     listener = MagicMock()
     listener.invoke = AsyncMock()
+    listener.error_handler = None
 
     from hassette.core.commands import InvokeHandler
 
@@ -429,6 +434,7 @@ async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: Magi
     # Enqueue records until queue is full
     listener = MagicMock()
     listener.invoke = AsyncMock()
+    listener.error_handler = None
 
     from hassette.core.commands import InvokeHandler
 

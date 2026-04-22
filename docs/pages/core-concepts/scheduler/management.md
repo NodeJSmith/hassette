@@ -126,6 +126,78 @@ Once `cancel()` is called, the job is immediately removed from the scheduler que
 - Check units: `run_every(seconds=5)` is 5 seconds, not minutes. Use `run_every(minutes=5)` for a 5-minute interval.
 - Check cron expressions: `run_cron("5 * * * *")` is "at minute 5 of every hour", not "every 5 minutes". Use `run_cron("*/5 * * * *")` for every-5-minutes.
 
+## Error Handling
+
+When a scheduled job raises an exception, Hassette logs the error and records it for telemetry. The job continues to run on its normal schedule — it is not cancelled. You can also register an error handler to receive a typed [`SchedulerErrorContext`][hassette.scheduler.error_context.SchedulerErrorContext] with full exception details.
+
+There are two levels of error handlers:
+
+- **App-level**: `scheduler.on_error(handler)` — applies to all jobs on this scheduler that don't have a per-registration handler.
+- **Per-registration**: `on_error=` parameter on any scheduling method — takes precedence over the app-level handler.
+
+Both levels can be sync or async.
+
+!!! warning "Register early — the reload gap"
+    The app-level handler is resolved at dispatch time, not at job registration time. To avoid a window where a job fires before `on_error()` is called, **register `on_error()` as the first statement in `on_initialize()`**.
+
+### App-level error handler
+
+```python
+from hassette.scheduler.error_context import SchedulerErrorContext
+
+class MyApp(App[AppConfig]):
+    async def on_initialize(self):
+        # Register first to avoid the reload gap
+        self.scheduler.on_error(self.on_job_error)
+
+        self.scheduler.run_every(self.check_sensors, minutes=5)
+
+    async def on_job_error(self, ctx: SchedulerErrorContext) -> None:
+        self.logger.error(
+            "Job '%s' failed: %s\n%s",
+            ctx.job_name,
+            ctx.exception,
+            ctx.traceback or "",
+        )
+
+    async def check_sensors(self) -> None:
+        raise ValueError("sensor unavailable")
+```
+
+### Per-registration error handler
+
+```python
+from hassette.scheduler.error_context import SchedulerErrorContext
+
+class MyApp(App[AppConfig]):
+    async def on_initialize(self):
+        self.scheduler.run_every(
+            self.sync_data,
+            minutes=10,
+            on_error=self.on_sync_error,
+        )
+
+    async def on_sync_error(self, ctx: SchedulerErrorContext) -> None:
+        self.logger.warning("Sync failed: %s", ctx.exception)
+
+    async def sync_data(self) -> None:
+        raise RuntimeError("sync error")
+```
+
+### What `SchedulerErrorContext` contains
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `exception` | `BaseException` | The raised exception |
+| `traceback` | `str \| None` | Full formatted traceback, or `None` for known error types |
+| `job_name` | `str` | Human-readable job identity |
+| `job_group` | `str \| None` | Group name if the job was registered with `group=` |
+| `args` | `tuple[Any, ...]` | Positional arguments the job was scheduled with |
+| `kwargs` | `dict[str, Any]` | Keyword arguments the job was scheduled with |
+
+!!! note "Error handler failures"
+    If the error handler itself raises or times out, the failure is logged at ERROR/WARNING and counted in the executor's error handler failure counter. The original job's telemetry record is unaffected.
+
 ## See Also
 
 - [Scheduling Methods](methods.md) - All available scheduling methods
