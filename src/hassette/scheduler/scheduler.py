@@ -344,9 +344,9 @@ class Scheduler(Resource):
             timeout_disabled: When ``True``, timeout enforcement is disabled for this
                 job regardless of the global default.
             on_error: Optional per-job error handler. When set, this handler is
-                invoked if the job raises an exception (excluding ``CancelledError``
-                and ``TimeoutError``). Overrides the app-level handler set via
-                ``on_error()``.
+                invoked if the job raises an exception (including ``TimeoutError``,
+                but excluding ``CancelledError``). Overrides the app-level handler
+                set via ``on_error()``.
             if_exists: Behavior when a job with the same name already exists.
                 See :meth:`add_job` for details.
             args: Positional arguments to pass to the callable when it executes.

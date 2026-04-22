@@ -205,8 +205,8 @@ class ScheduledJob:
     error_handler: "SchedulerErrorHandlerType | None" = field(default=None, compare=False)
     """Optional error handler for this job.
 
-    When set, this handler is invoked if the job raises an exception (excluding
-    ``CancelledError`` and ``TimeoutError``). Stored as-is for identity comparison
+    When set, this handler is invoked if the job raises an exception (including
+    ``TimeoutError``, but excluding ``CancelledError``). Stored as-is for identity comparison
     in ``matches()``. ``compare=False`` prevents ``Callable | None`` from corrupting
     the ``@dataclass(order=True)`` heap ordering.
     """

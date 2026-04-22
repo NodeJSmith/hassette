@@ -420,8 +420,6 @@ class HassetteHarness:
         self.hassette._bus = self.hassette.add_child(Bus)
 
     async def _start_scheduler(self) -> None:
-        from unittest.mock import AsyncMock
-
         async def _stub_execute(cmd: Any) -> None:
             if isinstance(cmd, ExecuteJob):
                 exc: BaseException | None = None

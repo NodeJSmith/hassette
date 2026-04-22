@@ -97,7 +97,7 @@ Users need the ability to react to failures: send a notification when a critical
 - [ ] Both sync and async error handlers are supported
 - [ ] An error handler that raises is caught, logged at ERROR, and does not cascade
 - [ ] Framework ERROR logging continues when user error handlers are registered
-- [ ] Task cancellations and timeouts are not routed to user error handlers
+- [ ] Task cancellations are not routed to user error handlers; timeouts **are** routed (challenge F2)
 - [ ] Error handler invocation is bounded by a configurable timeout (`error_handler_timeout_seconds`, default 5s); on timeout, a WARNING is logged
 - [ ] Error handlers run in a separate task from the original callback's dispatch task
 - [ ] All existing tests pass with no behavior changes
@@ -131,7 +131,7 @@ Two frozen dataclasses in new files:
 
 ### ExecutionResult Change
 
-Add `exc: BaseException | None = None` field to `ExecutionResult` in `src/hassette/utils/execution.py`. In `track_execution()`, assign `result.exc = exc` **before** the `raise` statement in the `except Exception as exc:` branch only. Do not populate for `CancelledError` (which has no `as exc` binding) or `TimeoutError` — FR10 excludes both from user handlers, and the `result.is_error` guard in `_execute_handler`/`_execute_job` already filters correctly. This must happen before re-raise because `_execute()` swallows the re-raised exception at line 231 — after that point, the exception object is only available via `result.exc`. Error handlers are invoked only when `result.is_error and result.exc is not None`.
+Add `exc: BaseException | None = None` field to `ExecutionResult` in `src/hassette/utils/execution.py`. In `track_execution()`, assign `result.exc = exc` **before** the `raise` statement in both the `except Exception as exc:` and `except TimeoutError as exc:` branches. Do not populate for `CancelledError` (which has no `as exc` binding). This must happen before re-raise because `_execute()` swallows the re-raised exception at line 231 — after that point, the exception object is only available via `result.exc`. Error handlers are invoked when `(result.is_error or result.is_timed_out) and result.exc is not None`.
 
 ### Error Handler Types
 
@@ -212,7 +212,7 @@ Viable but inconsistent with hassette's imperative registration pattern. All oth
 - **Unit tests**: `Listener` and `ScheduledJob` field propagation (error_handler stored correctly, precedence logic between per-registration and app-level)
 - **Integration tests — HassetteHarness** (precedence and routing): Extend `HassetteHarness` bus and scheduler stubs to check `listener.error_handler` / `job.error_handler` after a failed invocation and invoke it, mirroring the real executor's dispatch logic. Tests: per-registration vs. app-level precedence, multiple listeners with different handlers, no handler registered (existing behavior unchanged).
 - **Integration tests — CommandExecutor** (execution path correctness): Test error handler invocation through the real `CommandExecutor` with a mocked `TelemetryRepository`. Tests: handler raises and error handler called with correct context object fields, framework log still emitted, error handler itself raises (caught and logged), error handler timeout behavior.
-- **Edge case tests**: CancelledError and TimeoutError not routed to user handler. App reload clears and re-registers handlers correctly.
+- **Edge case tests**: CancelledError not routed to user handler; TimeoutError routed to user handler (challenge F2). App reload clears and re-registers handlers correctly.
 
 ## Documentation Updates
 
