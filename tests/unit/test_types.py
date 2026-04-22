@@ -1,5 +1,6 @@
 """Unit tests for framework key helpers in hassette.types.types."""
 
+from hassette.types import BusErrorHandlerType, SchedulerErrorHandlerType  # noqa: F401 — import test
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, framework_display_name, is_framework_key
 
 

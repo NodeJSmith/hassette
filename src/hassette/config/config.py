@@ -210,7 +210,13 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Default timeout in seconds for event handler execution. ``None`` disables the default timeout.
     Individual listeners can override via ``timeout=`` or ``timeout_disabled=True``."""
 
-    @field_validator("scheduler_job_timeout_seconds", "event_handler_timeout_seconds", mode="before")
+    error_handler_timeout_seconds: float | None = Field(default=5.0)
+    """Default timeout in seconds for error handler execution. ``None`` disables the default timeout.
+    Applied when the framework invokes user-provided bus or scheduler error handlers."""
+
+    @field_validator(
+        "scheduler_job_timeout_seconds", "event_handler_timeout_seconds", "error_handler_timeout_seconds", mode="before"
+    )
     @classmethod
     def validate_timeout_seconds(cls, value: Any) -> float | None:
         if value is None:

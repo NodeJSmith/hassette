@@ -535,6 +535,40 @@ class TestAuthHeaders:
         assert config.truncated_token == "abcdef...hijklm"
 
 
+class TestErrorHandlerTimeoutSeconds:
+    """Tests for the error_handler_timeout_seconds config field."""
+
+    def test_error_handler_timeout_default(self) -> None:
+        """error_handler_timeout_seconds defaults to 5.0."""
+        config = _LogLevelTestConfig()
+        assert config.error_handler_timeout_seconds == 5.0
+
+    def test_error_handler_timeout_accepts_none(self) -> None:
+        """error_handler_timeout_seconds accepts None to disable the timeout."""
+        config = _LogLevelTestConfig(error_handler_timeout_seconds=None)
+        assert config.error_handler_timeout_seconds is None
+
+    def test_error_handler_timeout_accepts_positive_float(self) -> None:
+        """error_handler_timeout_seconds accepts a positive float."""
+        config = _LogLevelTestConfig(error_handler_timeout_seconds=10.0)
+        assert config.error_handler_timeout_seconds == 10.0
+
+    def test_error_handler_timeout_rejects_zero(self) -> None:
+        """error_handler_timeout_seconds rejects zero (must be positive)."""
+        with pytest.raises(Exception, match="timeout must be"):
+            _LogLevelTestConfig(error_handler_timeout_seconds=0.0)
+
+    def test_error_handler_timeout_rejects_negative(self) -> None:
+        """error_handler_timeout_seconds rejects negative values."""
+        with pytest.raises(Exception, match="timeout must be"):
+            _LogLevelTestConfig(error_handler_timeout_seconds=-1.0)
+
+    def test_error_handler_timeout_rejects_bool(self) -> None:
+        """error_handler_timeout_seconds rejects booleans (same as other timeout validators)."""
+        with pytest.raises(Exception, match="timeout must be"):
+            _LogLevelTestConfig(error_handler_timeout_seconds=True)
+
+
 def test_bundled_toml_files_have_no_log_level_entries():
     """Regression guard: bundled TOML defaults must not contain *_log_level keys.
 

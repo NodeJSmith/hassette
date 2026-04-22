@@ -142,6 +142,41 @@ class TestTrackExecution:
         assert "RuntimeError" in result.error_traceback
 
 
+class TestExecutionResultExc:
+    async def test_execution_result_exc_populated_on_exception(self) -> None:
+        """exc is set to the raised exception in the except Exception branch."""
+        exc = ValueError("fail")
+
+        with pytest.raises(ValueError, match="fail"):
+            async with track_execution() as result:
+                raise exc
+
+        assert result.exc is exc
+
+    async def test_execution_result_exc_none_on_success(self) -> None:
+        """exc is None when execution completes successfully."""
+        async with track_execution() as result:
+            pass
+
+        assert result.exc is None
+
+    async def test_execution_result_exc_none_on_cancelled(self) -> None:
+        """exc is None when execution is cancelled — CancelledError is not an Exception."""
+        with pytest.raises(asyncio.CancelledError):
+            async with track_execution() as result:
+                raise asyncio.CancelledError()
+
+        assert result.exc is None
+
+    async def test_execution_result_exc_none_on_timeout(self) -> None:
+        """exc is None when execution times out — TimeoutError has its own branch."""
+        with pytest.raises(TimeoutError):
+            async with track_execution() as result:
+                raise TimeoutError("timed out")
+
+        assert result.exc is None
+
+
 class TestTrackExecutionTracebackCap:
     """Verify traceback truncation at 8 KB."""
 

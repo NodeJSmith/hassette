@@ -8,9 +8,11 @@ from whenever import Time, TimeDelta, ZonedDateTime
 
 if TYPE_CHECKING:
     from hassette.app.app_config import AppConfig
+    from hassette.bus.error_context import BusErrorContext
     from hassette.const.misc import FalseySentinel
     from hassette.events.base import Event, EventPayload
     from hassette.models.states.base import BaseState
+    from hassette.scheduler.error_context import SchedulerErrorContext
 
 
 LOG_LEVEL_TYPE = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -181,6 +183,23 @@ JobCallable: TypeAlias = Callable[..., Awaitable[None]] | Callable[..., Any]
 
 ScheduleStartType: TypeAlias = ZonedDateTime | Time | time | TimeDelta | int | float | None
 """Type representing a value that can be used to specify a start time."""
+
+
+BusErrorHandlerType: TypeAlias = "Callable[[BusErrorContext], Awaitable[None]] | Callable[[BusErrorContext], None]"
+"""Type alias for bus error handler callables.
+
+A bus error handler is either an async callable or a sync callable that accepts a
+:class:`~hassette.bus.error_context.BusErrorContext` and returns ``None``.
+"""
+
+SchedulerErrorHandlerType: TypeAlias = (
+    "Callable[[SchedulerErrorContext], Awaitable[None]] | Callable[[SchedulerErrorContext], None]"
+)
+"""Type alias for scheduler error handler callables.
+
+A scheduler error handler is either an async callable or a sync callable that accepts a
+:class:`~hassette.scheduler.error_context.SchedulerErrorContext` and returns ``None``.
+"""
 
 
 class RawAppDict(TypedDict, total=False):

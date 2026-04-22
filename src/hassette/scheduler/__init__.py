@@ -10,6 +10,7 @@ at specific times, intervals, or based on cron expressions.
 from hassette.types import TriggerProtocol
 
 from .classes import ScheduledJob
+from .error_context import SchedulerErrorContext
 from .scheduler import Scheduler
 from .triggers import After, Cron, Daily, Every, Once
 
@@ -21,5 +22,6 @@ __all__ = [
     "Once",
     "ScheduledJob",
     "Scheduler",
+    "SchedulerErrorContext",
     "TriggerProtocol",
 ]
