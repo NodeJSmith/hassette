@@ -473,15 +473,20 @@ class CommandExecutor(Service):
             async with asyncio.timeout(timeout):
                 await async_handler(ctx)
         except TimeoutError:
-            if timeout is None:
-                raise
             self._error_handler_failures += 1
-            self.logger.warning(
-                "Bus error handler timed out after %.1fs (topic=%s, listener=%s)",
-                timeout,
-                ctx.topic,
-                ctx.listener_name,
-            )
+            if timeout is None:
+                self.logger.exception(
+                    "Bus error handler raised TimeoutError (topic=%s, listener=%s)",
+                    ctx.topic,
+                    ctx.listener_name,
+                )
+            else:
+                self.logger.warning(
+                    "Bus error handler timed out after %.1fs (topic=%s, listener=%s)",
+                    timeout,
+                    ctx.topic,
+                    ctx.listener_name,
+                )
         except Exception:
             self._error_handler_failures += 1
             self.logger.exception(
@@ -514,14 +519,18 @@ class CommandExecutor(Service):
             async with asyncio.timeout(timeout):
                 await async_handler(ctx)
         except TimeoutError:
-            if timeout is None:
-                raise
             self._error_handler_failures += 1
-            self.logger.warning(
-                "Scheduler error handler timed out after %.1fs (job=%s)",
-                timeout,
-                ctx.job_name,
-            )
+            if timeout is None:
+                self.logger.exception(
+                    "Scheduler error handler raised TimeoutError (job=%s)",
+                    ctx.job_name,
+                )
+            else:
+                self.logger.warning(
+                    "Scheduler error handler timed out after %.1fs (job=%s)",
+                    timeout,
+                    ctx.job_name,
+                )
         except Exception:
             self._error_handler_failures += 1
             self.logger.exception(

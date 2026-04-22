@@ -57,16 +57,18 @@ class TestSchedulerErrorContextConstruction:
         assert ctx.kwargs == {"timeout": 30, "retry": False}
         assert ctx.job_group == "my_group"
 
-    def test_scheduler_error_context_traceback_optional(self) -> None:
-        """traceback can be None for SchedulerErrorContext (unlike BusErrorContext)."""
+    def test_scheduler_error_context_traceback_always_populated(self) -> None:
+        """traceback is always a non-empty string (type is str, not str | None)."""
         exc = ValueError("test")
+        tb_str = "Traceback (most recent call last):\n  ...\nValueError: test"
 
         ctx = SchedulerErrorContext(
             exception=exc,
-            traceback=None,
+            traceback=tb_str,
             job_name="job",
             job_group=None,
             args=(),
             kwargs={},
         )
-        assert ctx.traceback is None
+        assert ctx.traceback == tb_str
+        assert isinstance(ctx.traceback, str)
