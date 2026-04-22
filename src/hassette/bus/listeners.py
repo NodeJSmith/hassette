@@ -351,7 +351,6 @@ class Listener:
             handler_short_name=short_name,
             name=name,
             source_tier=source_tier,
-<<<<<<< HEAD
             immediate=immediate,
             duration=duration,
             entity_id=entity_id,
