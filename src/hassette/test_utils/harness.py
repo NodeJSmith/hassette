@@ -404,6 +404,12 @@ class HassetteHarness:
                                 cmd.topic,
                                 exc_info=True,
                             )
+                    else:
+                        logging.getLogger("hassette.test_utils.harness").error(
+                            "Handler raised with no error handler registered (topic=%s): %s",
+                            cmd.topic,
+                            exc,
+                        )
 
         _listener_id_counter = itertools.count(1)
 
@@ -458,6 +464,12 @@ class HassetteHarness:
                                 cmd.job.name,
                                 exc_info=True,
                             )
+                    else:
+                        logging.getLogger("hassette.test_utils.harness").error(
+                            "Job raised with no error handler registered (job=%s): %s",
+                            cmd.job.name,
+                            exc,
+                        )
 
         _job_id_counter = itertools.count(1)
 
