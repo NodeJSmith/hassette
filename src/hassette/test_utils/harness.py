@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import inspect
 import itertools
 import logging
 import threading
@@ -391,7 +392,7 @@ class HassetteHarness:
                     # covered by integration tests via real CommandExecutor.
                     try:
                         result = error_handler(ctx)
-                        if asyncio.iscoroutine(result):
+                        if inspect.isawaitable(result):
                             await result
                     except Exception:
                         logging.getLogger("hassette.test_utils.harness").warning(
@@ -440,7 +441,7 @@ class HassetteHarness:
                     # covered by integration tests via real CommandExecutor.
                     try:
                         result = error_handler(ctx)
-                        if asyncio.iscoroutine(result):
+                        if inspect.isawaitable(result):
                             await result
                     except Exception:
                         logging.getLogger("hassette.test_utils.harness").warning(

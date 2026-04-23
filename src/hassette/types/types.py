@@ -185,7 +185,7 @@ ScheduleStartType: TypeAlias = ZonedDateTime | Time | time | TimeDelta | int | f
 """Type representing a value that can be used to specify a start time."""
 
 
-BusErrorHandlerType: TypeAlias = "Callable[[BusErrorContext], Awaitable[None]] | Callable[[BusErrorContext], None]"
+BusErrorHandlerType: TypeAlias = Callable[["BusErrorContext"], Awaitable[None]] | Callable[["BusErrorContext"], None]
 """Type alias for bus error handler callables.
 
 A bus error handler is either an async callable or a sync callable that accepts a
@@ -193,7 +193,7 @@ A bus error handler is either an async callable or a sync callable that accepts 
 """
 
 SchedulerErrorHandlerType: TypeAlias = (
-    "Callable[[SchedulerErrorContext], Awaitable[None]] | Callable[[SchedulerErrorContext], None]"
+    Callable[["SchedulerErrorContext"], Awaitable[None]] | Callable[["SchedulerErrorContext"], None]
 )
 """Type alias for scheduler error handler callables.
 
