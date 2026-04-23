@@ -12,8 +12,11 @@ import hassette.utils.date_utils as date_utils
 from hassette.types.types import SourceTier
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Callable
+
     from hassette.scheduler.scheduler import Scheduler
     from hassette.types import JobCallable, TriggerProtocol
+    from hassette.types.types import SchedulerErrorHandlerType
 
 
 LOGGER = getLogger(__name__)
@@ -199,6 +202,15 @@ class ScheduledJob:
     kwargs: dict[str, Any] = field(default_factory=dict, compare=False)
     """Keyword arguments to pass to the job callable."""
 
+    error_handler: "SchedulerErrorHandlerType | None" = field(default=None, compare=False)
+    """Optional error handler for this job.
+
+    When set, this handler is invoked if the job raises an exception (including
+    ``TimeoutError``, but excluding ``CancelledError``). Stored as-is for identity comparison
+    in ``matches()``. ``compare=False`` prevents ``Callable | None`` from corrupting
+    the ``@dataclass(order=True)`` heap ordering.
+    """
+
     job_id: int = field(default_factory=next_id, init=False, compare=False)
     """Unique identifier for the job instance."""
 
@@ -216,6 +228,15 @@ class ScheduledJob:
 
     _scheduler: "Scheduler | None" = field(default=None, repr=False, compare=False)
     """Back-reference to the Scheduler that owns this job. Set by Scheduler.add_job()."""
+
+    _app_error_handler_resolver: "Callable[[], SchedulerErrorHandlerType | None] | None" = field(
+        default=None, init=False, repr=False
+    )
+    """Closure that resolves the app-level error handler at dispatch time.
+
+    Set by Scheduler.add_job() to ``lambda: self._error_handler``. This avoids
+    reading ``job._scheduler._error_handler`` at dispatch time, which couples the
+    dispatch path to the Scheduler's internal state."""
 
     _dequeued: bool = field(default=False, repr=False, compare=False)
     """True after the job has been synchronously removed from the heap via dequeue_job()."""
@@ -284,6 +305,7 @@ class ScheduledJob:
             and self.timeout_disabled == other.timeout_disabled
             and self.args == other.args
             and self.kwargs == other.kwargs
+            and self.error_handler is other.error_handler
         )
 
     def diff_fields(self, other: "ScheduledJob") -> list[str]:
@@ -311,7 +333,13 @@ class ScheduledJob:
             changed.append("args")
         if self.kwargs != other.kwargs:
             changed.append("kwargs")
+        if self.error_handler is not other.error_handler:
+            changed.append("error_handler")
         return changed
+
+    def set_app_error_handler_resolver(self, resolver: "Callable[[], SchedulerErrorHandlerType | None]") -> None:
+        """Set the closure that resolves the app-level error handler at dispatch time."""
+        self._app_error_handler_resolver = resolver
 
     def cancel(self) -> None:
         """Cancel the job by delegating to the owning Scheduler.

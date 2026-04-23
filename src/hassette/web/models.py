@@ -314,6 +314,7 @@ class TelemetryStatusResponse(BaseModel):
     dropped_exhausted: int = 0
     dropped_no_session: int = 0
     dropped_shutdown: int = 0
+    error_handler_failures: int = 0
 
 
 class ActionResponse(BaseModel):

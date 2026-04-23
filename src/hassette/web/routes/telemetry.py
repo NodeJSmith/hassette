@@ -89,12 +89,18 @@ async def telemetry_status(
     except (AttributeError, RuntimeError):
         overflow, exhausted, no_session, shutdown = 0, 0, 0, 0
 
+    try:
+        error_handler_failures = hassette.get_error_handler_failures()
+    except (AttributeError, RuntimeError):
+        error_handler_failures = 0
+
     return TelemetryStatusResponse(
         degraded=False,
         dropped_overflow=overflow,
         dropped_exhausted=exhausted,
         dropped_no_session=no_session,
         dropped_shutdown=shutdown,
+        error_handler_failures=error_handler_failures,
     )
 
 

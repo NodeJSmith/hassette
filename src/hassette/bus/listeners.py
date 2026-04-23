@@ -19,6 +19,7 @@ if typing.TYPE_CHECKING:
     from hassette.bus.duration_timer import DurationTimer
     from hassette.events.base import Event
     from hassette.types import AsyncHandlerType, HandlerType, Predicate
+    from hassette.types.types import BusErrorHandlerType
 
 LOGGER = getLogger(__name__)
 
@@ -140,6 +141,19 @@ class Listener:
     attribute changes.  See the design doc for the documented known limitation.
     """
 
+    error_handler: "BusErrorHandlerType | None" = None
+    """Optional per-listener error handler. Stored as the raw callable for reliable identity comparison.
+    Normalization via make_async_adapter happens at invocation time (WP04)."""
+
+    _app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None" = field(
+        default=None, init=False, repr=False
+    )
+    """Closure that resolves the app-level error handler at dispatch time.
+
+    Set via :meth:`set_app_error_handler_resolver` by Bus.on(). Defaults to None for listeners
+    created outside of a Bus context (e.g., framework listeners, test harness).
+    """
+
     _cancelled: bool = field(default=False, init=False, repr=False)
     """Set by cancel() to signal that a pending add_listener task should skip route insertion.
     Prevents orphaned listeners when Subscription.cancel() races with the async add task (#451)."""
@@ -199,6 +213,10 @@ class Listener:
             await self._rate_limiter.call(invoke_fn)
         else:
             await invoke_fn()
+
+    def set_app_error_handler_resolver(self, resolver: "Callable[[], BusErrorHandlerType | None]") -> None:
+        """Set the closure that resolves the app-level error handler at dispatch time."""
+        self._app_error_handler_resolver = resolver
 
     def cancel(self) -> None:
         """Cancel the listener: set the cancelled flag and stop any pending rate limiter tasks.
@@ -290,6 +308,7 @@ class Listener:
         entity_id: str | None = None,
         is_attribute_listener: bool = False,
         hold_predicate: "Predicate | None" = None,
+        error_handler: "BusErrorHandlerType | None" = None,
     ) -> "Listener":
         cls._validate_options(
             once=once,
@@ -340,6 +359,7 @@ class Listener:
             entity_id=entity_id,
             hold_predicate=hold_predicate,
             is_attribute_listener=is_attribute_listener,
+            error_handler=error_handler,
         )
 
         # One-time construction-phase init — _rate_limiter is set here (inside create()),

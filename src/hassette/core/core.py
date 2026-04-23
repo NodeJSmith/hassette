@@ -205,6 +205,10 @@ class Hassette(Resource):
         """
         return self._command_executor.get_drop_counters()
 
+    def get_error_handler_failures(self) -> int:
+        """Return the count of user error handler invocations that raised or timed out."""
+        return self._command_executor.get_error_handler_failures()
+
     @property
     def database_service(self) -> DatabaseService:
         """DatabaseService instance for SQLite telemetry storage."""

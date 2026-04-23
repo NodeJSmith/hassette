@@ -368,12 +368,19 @@ class SchedulerService(Service):
         else:
             effective_timeout = self.hassette.config.scheduler_job_timeout_seconds
 
+        # Resolve the app-level error handler at dispatch time via the closure set by
+        # Scheduler.add_job(). This avoids coupling the dispatch path to Scheduler internals.
+        app_level_error_handler = (
+            job._app_error_handler_resolver() if job._app_error_handler_resolver is not None else None
+        )
+
         cmd = ExecuteJob(
             job=job,
             callable=_bound_callable,
             job_db_id=job.db_id,
             source_tier=job.source_tier,
             effective_timeout=effective_timeout,
+            app_level_error_handler=app_level_error_handler,
         )
         await self._executor.execute(cmd)
 

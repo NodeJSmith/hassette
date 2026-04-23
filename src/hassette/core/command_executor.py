@@ -5,17 +5,21 @@ import contextlib
 import dataclasses
 import sqlite3
 import time
+import traceback
 import typing
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
+from hassette.bus.error_context import BusErrorContext
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_repository import TelemetryRepository
+from hassette.error_context import ErrorContext
 from hassette.exceptions import DependencyError, HassetteError
 from hassette.resources.base import Resource, Service
 from hassette.scheduler.classes import JobExecutionRecord
+from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.execution import ExecutionResult, track_execution
 
@@ -71,6 +75,9 @@ class CommandExecutor(Service):
     _dropped_shutdown: int
     """Count of records dropped during shutdown flush (DB unavailable)."""
 
+    _error_handler_failures: int
+    """Count of user-registered error handler invocations that raised an exception or timed out."""
+
     _last_capacity_warn_ts: float
     """Monotonic timestamp of the last 75%-capacity warning (rate-limiting)."""
 
@@ -93,6 +100,7 @@ class CommandExecutor(Service):
         self._dropped_exhausted = 0
         self._dropped_no_session = 0
         self._dropped_shutdown = 0
+        self._error_handler_failures = 0
         self._last_capacity_warn_ts = 0.0
         self._timeout_warn_timestamps = {}
 
@@ -163,6 +171,17 @@ class CommandExecutor(Service):
             - shutdown_count: records dropped during shutdown flush.
         """
         return (self._dropped_overflow, self._dropped_exhausted, self._dropped_no_session, self._dropped_shutdown)
+
+    def get_error_handler_failures(self) -> int:
+        """Return the count of user error handler invocations that raised or timed out.
+
+        Incremented each time a user-registered error handler (bus or scheduler)
+        raises an exception or times out during invocation.
+
+        Returns:
+            The cumulative error handler failure count for this session.
+        """
+        return self._error_handler_failures
 
     # ------------------------------------------------------------------
     # Execution
@@ -363,6 +382,9 @@ class CommandExecutor(Service):
         """Execute a listener handler invocation and queue the result record.
 
         Exception contract (tier-aware — see ``_execute()`` docstring for details).
+        After _execute() returns, if the result is an error with an exception captured,
+        the per-registration or app-level error handler (if any) is invoked in a
+        separate spawned task to avoid starvation of the dispatch slot.
         """
 
         def _log_error(result: ExecutionResult) -> None:
@@ -373,12 +395,33 @@ class CommandExecutor(Service):
                     "Handler error (topic=%s, handler=%r)\n%s", cmd.topic, cmd.listener, result.error_traceback
                 )
 
-        await self._execute(lambda: cmd.listener.invoke(cmd.event), cmd, _log_error)
+        result = await self._execute(lambda: cmd.listener.invoke(cmd.event), cmd, _log_error)
+
+        if (result.is_error or result.is_timed_out) and result.exc is not None:
+            # Resolution order: per-registration handler first; app-level fallback second.
+            error_handler = cmd.listener.error_handler or cmd.app_level_error_handler
+            if error_handler is not None:
+                ctx = BusErrorContext(
+                    exception=result.exc,
+                    traceback="".join(traceback.format_exception(result.exc)),
+                    topic=cmd.topic,
+                    listener_name=repr(cmd.listener),
+                    event=cmd.event,
+                )
+                # FIXME(#573): no per-listener rate-limit on error handler spawns — high-frequency
+                # failures can accumulate unbounded concurrent tasks.
+                self.task_bucket.spawn(
+                    self._invoke_error_handler(error_handler, ctx),
+                    name="executor:bus_error_handler",
+                )
 
     async def _execute_job(self, cmd: ExecuteJob) -> None:
         """Execute a scheduled job and queue the result record.
 
         Exception contract (tier-aware — see ``_execute()`` docstring for details).
+        After _execute() returns, if the result is an error with an exception captured,
+        the per-registration or app-level error handler (if any) is invoked in a
+        separate spawned task to avoid starvation of the dispatch slot.
         """
 
         def _log_error(result: ExecutionResult) -> None:
@@ -387,7 +430,59 @@ class CommandExecutor(Service):
             else:
                 self.logger.error("Job error (job_db_id=%s)\n%s", cmd.job_db_id, result.error_traceback)
 
-        await self._execute(cmd.callable, cmd, _log_error)
+        result = await self._execute(cmd.callable, cmd, _log_error)
+
+        if (result.is_error or result.is_timed_out) and result.exc is not None:
+            # Resolution order: per-registration handler first; app-level fallback second.
+            error_handler = cmd.job.error_handler or cmd.app_level_error_handler
+            if error_handler is not None:
+                ctx = SchedulerErrorContext(
+                    exception=result.exc,
+                    traceback="".join(traceback.format_exception(result.exc)),
+                    job_name=cmd.job.name,
+                    job_group=cmd.job.group,
+                    args=cmd.job.args,
+                    kwargs=dict(cmd.job.kwargs),
+                )
+                # FIXME(#573): no per-job rate-limit on error handler spawns.
+                self.task_bucket.spawn(
+                    self._invoke_error_handler(error_handler, ctx),
+                    name="executor:scheduler_error_handler",
+                )
+
+    async def _invoke_error_handler(
+        self,
+        handler: "Callable",
+        ctx: ErrorContext,
+    ) -> None:
+        """Invoke a user-registered error handler in a separate spawned task.
+
+        Normalizes the handler via make_async_adapter at invocation time (not at registration time)
+        so that sync handlers run in the thread pool and async handlers are awaited directly.
+        Wraps invocation in asyncio.timeout to prevent runaway handlers from blocking indefinitely.
+
+        On handler exception or handler-raised TimeoutError: logs at ERROR and increments _error_handler_failures.
+        On framework-triggered timeout: logs at WARNING and increments _error_handler_failures.
+
+        Args:
+            handler: The raw error handler callable (sync or async).
+            ctx: The error context (BusErrorContext or SchedulerErrorContext) to pass to the handler.
+        """
+        async_handler = self.task_bucket.make_async_adapter(handler)
+        timeout = self.hassette.config.error_handler_timeout_seconds
+        label = ctx.log_label
+        try:
+            async with asyncio.timeout(timeout):
+                await async_handler(ctx)
+        except TimeoutError:
+            self._error_handler_failures += 1
+            if timeout is None:
+                self.logger.exception("Error handler raised TimeoutError (%s)", label)
+            else:
+                self.logger.warning("Error handler timed out after %.1fs (%s)", timeout, label)
+        except Exception:
+            self._error_handler_failures += 1
+            self.logger.exception("Error handler raised an exception (%s)", label)
 
     # ------------------------------------------------------------------
     # Registration

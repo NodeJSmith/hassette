@@ -1,6 +1,7 @@
 """Integration tests for CommandExecutor with real SQLite database."""
 
 import asyncio
+import threading
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -39,6 +40,7 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.telemetry_write_queue_max = 1000
     hassette.config.db_write_queue_max = 2000
     hassette.ready_event = asyncio.Event()
+    hassette._loop_thread_id = threading.get_ident()
     return hassette
 
 
@@ -117,12 +119,14 @@ def _make_mock_listener() -> MagicMock:
     """Return a mock Listener whose invoke() is an awaitable coroutine."""
     listener = MagicMock()
     listener.invoke = AsyncMock()
+    listener.error_handler = None
     return listener
 
 
 def _make_mock_job() -> MagicMock:
     """Return a mock ScheduledJob."""
     job = MagicMock(spec=ScheduledJob)
+    job.error_handler = None
     return job
 
 

@@ -127,6 +127,12 @@ export function createAppState() {
     droppedShutdown: signal(0),
 
     /**
+     * Count of user error handler invocations that raised or timed out.
+     * Updated by the telemetry health poller from /api/telemetry/status.
+     */
+    errorHandlerFailures: signal(0),
+
+    /**
      * Request the server to update the minimum log level for WS log streaming.
      * Wired by useWebSocket once the socket is ready; no-op before that.
      */

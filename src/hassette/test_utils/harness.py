@@ -1,8 +1,10 @@
 import asyncio
 import contextlib
+import inspect
 import itertools
 import logging
 import threading
+import traceback
 import typing
 from collections.abc import Callable, Generator
 from typing import Any, cast
@@ -14,11 +16,13 @@ from yarl import URL
 from hassette import HassetteConfig, context
 from hassette.api import Api
 from hassette.bus import Bus
+from hassette.bus.error_context import BusErrorContext
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry
 from hassette.core.api_resource import ApiResource
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
+from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
@@ -27,6 +31,7 @@ from hassette.core.websocket_service import WebsocketService
 from hassette.events import Event
 from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
+from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.test_utils.test_server import SimpleTestServer
@@ -361,13 +366,40 @@ class HassetteHarness:
     # --- Component starters ---
 
     async def _start_bus(self) -> None:
-        from hassette.core.commands import InvokeHandler
-
         self.hassette._event_stream_service = self.hassette.add_child(EventStreamService)
 
         async def _stub_execute(cmd: Any) -> None:
             if isinstance(cmd, InvokeHandler):
-                await cmd.listener.invoke(cmd.event)
+                error_handler = cmd.listener.error_handler or cmd.app_level_error_handler
+                if error_handler is None:
+                    await cmd.listener.invoke(cmd.event)
+                    return
+
+                try:
+                    await cmd.listener.invoke(cmd.event)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    ctx = BusErrorContext(
+                        exception=exc,
+                        traceback="".join(traceback.format_exception(exc)),
+                        topic=cmd.topic,
+                        listener_name=repr(cmd.listener),
+                        event=cmd.event,
+                    )
+                    # NOTE: the harness does NOT test timeout enforcement,
+                    # task spawn isolation, or failure counter — those are
+                    # covered by integration tests via real CommandExecutor.
+                    try:
+                        result = error_handler(ctx)
+                        if inspect.isawaitable(result):
+                            await result
+                    except Exception:
+                        logging.getLogger("hassette.test_utils.harness").warning(
+                            "Bus error handler raised during harness dispatch (topic=%s)",
+                            cmd.topic,
+                            exc_info=True,
+                        )
 
         _listener_id_counter = itertools.count(1)
 
@@ -384,13 +416,39 @@ class HassetteHarness:
         self.hassette._bus = self.hassette.add_child(Bus)
 
     async def _start_scheduler(self) -> None:
-        from unittest.mock import AsyncMock
-
-        from hassette.core.commands import ExecuteJob
-
         async def _stub_execute(cmd: Any) -> None:
             if isinstance(cmd, ExecuteJob):
-                await cmd.callable()
+                error_handler = cmd.job.error_handler or cmd.app_level_error_handler
+                if error_handler is None:
+                    await cmd.callable()
+                    return
+
+                try:
+                    await cmd.callable()
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    ctx = SchedulerErrorContext(
+                        exception=exc,
+                        traceback="".join(traceback.format_exception(exc)),
+                        job_name=cmd.job.name,
+                        job_group=cmd.job.group,
+                        args=cmd.job.args,
+                        kwargs=dict(cmd.job.kwargs),
+                    )
+                    # NOTE: the harness does NOT test timeout enforcement,
+                    # task spawn isolation, or failure counter — those are
+                    # covered by integration tests via real CommandExecutor.
+                    try:
+                        result = error_handler(ctx)
+                        if inspect.isawaitable(result):
+                            await result
+                    except Exception:
+                        logging.getLogger("hassette.test_utils.harness").warning(
+                            "Scheduler error handler raised during harness dispatch (job=%s)",
+                            cmd.job.name,
+                            exc_info=True,
+                        )
 
         _job_id_counter = itertools.count(1)
 

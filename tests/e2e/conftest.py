@@ -1,9 +1,12 @@
 """Fixtures for Playwright-based e2e tests of the Hassette Web UI."""
 
 import logging
+import shutil
 import socket
+import subprocess
 import threading
 import time
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -767,8 +770,28 @@ def _log_handler():
     return handler
 
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_SPA_INDEX = _REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
+
+
 @pytest.fixture(scope="session")
-def _fastapi_app(mock_hassette, runtime_query_service, _log_handler):  # noqa: ARG001
+def _ensure_spa_built():
+    """Build the frontend SPA if the build output is missing."""
+    if _SPA_INDEX.exists():
+        return
+    frontend_dir = _REPO_ROOT / "frontend"
+    if not (frontend_dir / "package.json").exists():
+        pytest.skip("frontend/ directory not found — cannot build SPA for e2e tests")
+    if not shutil.which("npm"):
+        pytest.skip("npm not found — cannot build SPA for e2e tests")
+    subprocess.run(["npm", "ci", "--prefix", str(frontend_dir)], check=True)
+    subprocess.run(["npm", "run", "build", "--prefix", str(frontend_dir)], check=True)
+    if not _SPA_INDEX.exists():
+        pytest.fail("Frontend build completed but spa/index.html not found")
+
+
+@pytest.fixture(scope="session")
+def _fastapi_app(mock_hassette, runtime_query_service, _log_handler, _ensure_spa_built):  # noqa: ARG001
     """Create the FastAPI app instance."""
 
     with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=_log_handler):

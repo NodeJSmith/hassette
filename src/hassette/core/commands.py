@@ -1,5 +1,6 @@
 """Command dataclasses for the command executor."""
 
+import typing
 from dataclasses import dataclass
 from typing import Any
 
@@ -7,6 +8,9 @@ from hassette.bus.listeners import Listener
 from hassette.events.base import Event
 from hassette.scheduler.classes import ScheduledJob
 from hassette.types import AsyncHandlerType, SourceTier
+
+if typing.TYPE_CHECKING:
+    from hassette.types.types import BusErrorHandlerType, SchedulerErrorHandlerType
 
 
 @dataclass(frozen=True)
@@ -38,6 +42,13 @@ class InvokeHandler:
     ``None`` means no deadline is enforced (``asyncio.timeout(None)`` is a no-op).
     """
 
+    app_level_error_handler: "BusErrorHandlerType | None" = None
+    """App-level error handler resolved at dispatch time from Bus._error_handler.
+
+    Populated by BusService._make_tracked_invoke_fn() as a fallback when the listener
+    has no per-registration error handler. None when the Bus has no app-level handler set.
+    """
+
 
 @dataclass(frozen=True)
 class ExecuteJob:
@@ -63,4 +74,11 @@ class ExecuteJob:
 
     Required (no default) to prevent silent omission at construction sites.
     ``None`` means no deadline is enforced (``asyncio.timeout(None)`` is a no-op).
+    """
+
+    app_level_error_handler: "SchedulerErrorHandlerType | None" = None
+    """App-level error handler resolved at dispatch time from Scheduler._error_handler.
+
+    Populated by SchedulerService.run_job() as a fallback when the job has no
+    per-registration error handler. None when the Scheduler has no app-level handler set.
     """

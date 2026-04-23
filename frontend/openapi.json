@@ -2899,6 +2899,11 @@
             "type": "integer",
             "title": "Dropped Shutdown",
             "default": 0
+          },
+          "error_handler_failures": {
+            "type": "integer",
+            "title": "Error Handler Failures",
+            "default": 0
           }
         },
         "type": "object",

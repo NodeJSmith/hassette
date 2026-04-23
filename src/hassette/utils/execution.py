@@ -30,6 +30,10 @@ class ExecutionResult:
     is_di_failure: bool = False
     """True when the execution failed due to a DependencyError (or subclass)."""
 
+    exc: BaseException | None = None
+    """The exception raised during execution, or None if the execution succeeded or was cancelled.
+    Populated for both ``Exception`` and ``TimeoutError`` — not for ``CancelledError``."""
+
     @property
     def is_success(self) -> bool:
         return self.status == "success"
@@ -86,12 +90,14 @@ async def track_execution(
         result.status = "timed_out"
         result.error_type = "TimeoutError"
         result.error_message = str(exc) if str(exc) else "execution timed out"
+        result.exc = exc
         raise
     except Exception as exc:
         result.status = "error"
         result.error_message = str(exc)
         result.error_type = type(exc).__name__
         result.is_di_failure = isinstance(exc, DependencyError)
+        result.exc = exc
         if known_errors and isinstance(exc, known_errors):
             result.error_traceback = None
         else:

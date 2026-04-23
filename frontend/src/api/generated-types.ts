@@ -1149,6 +1149,11 @@ export interface components {
              * @default 0
              */
             dropped_shutdown: number;
+            /**
+             * Error Handler Failures
+             * @default 0
+             */
+            error_handler_failures: number;
         };
         /** ValidationError */
         ValidationError: {

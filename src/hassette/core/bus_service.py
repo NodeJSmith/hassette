@@ -678,6 +678,13 @@ class BusService(Service):
             else:
                 effective_timeout = self.hassette.config.event_handler_timeout_seconds
 
+            # Resolve the app-level error handler at dispatch time from the owning Bus.
+            # The resolver is a closure set by Bus.on() that reads Bus._error_handler lazily,
+            # so this always reflects the current handler at the moment of dispatch.
+            app_level_error_handler = (
+                listener._app_error_handler_resolver() if listener._app_error_handler_resolver is not None else None
+            )
+
             cmd = InvokeHandler(
                 listener=listener,
                 event=event,
@@ -685,6 +692,7 @@ class BusService(Service):
                 listener_id=listener.db_id,
                 source_tier=listener.source_tier,
                 effective_timeout=effective_timeout,
+                app_level_error_handler=app_level_error_handler,
             )
             await self._executor.execute(cmd)
 
