@@ -1,5 +1,6 @@
 """TelemetryQueryService: historical telemetry queries backed by DatabaseService."""
 
+import contextlib
 from typing import TYPE_CHECKING, Any, assert_never
 
 import aiosqlite
@@ -351,7 +352,8 @@ class TelemetryQueryService(Resource):
             async with self._db.execute(job_act_query, job_act_params) as cursor:
                 job_act_rows = await cursor.fetchall()
         finally:
-            await self._db.execute("ROLLBACK")
+            with contextlib.suppress(aiosqlite.OperationalError):
+                await self._db.execute("ROLLBACK")
 
         # Build per-app data from each query
         listener_reg: dict[str, dict[str, Any]] = {}
@@ -486,7 +488,8 @@ class TelemetryQueryService(Resource):
             async with self._db.execute(job_query, job_params) as cursor:
                 job_row = await cursor.fetchone()
         finally:
-            await self._db.execute("ROLLBACK")
+            with contextlib.suppress(aiosqlite.OperationalError):
+                await self._db.execute("ROLLBACK")
 
         listener_data = _row_to_dict(listener_row) if listener_row else {}
         job_data = _row_to_dict(job_row) if job_row else {}

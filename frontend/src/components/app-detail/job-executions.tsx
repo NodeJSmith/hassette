@@ -1,6 +1,7 @@
 import { signal } from "@preact/signals";
 import { useRef } from "preact/hooks";
 import type { JobExecutionData } from "../../api/endpoints";
+import { ShowMoreButton } from "../shared/show-more-button";
 import { formatDuration, formatTimestamp } from "../../utils/format";
 import { executionStatusVariant } from "../../utils/status";
 import { ErrorCell } from "./error-cell";
@@ -68,15 +69,7 @@ export function JobExecutions({ executions, jobId }: Props) {
           })}
         </tbody>
       </table>
-      {hasMore && (
-        <button
-          type="button"
-          class="ht-btn ht-btn--xs ht-btn--ghost ht-show-more"
-          onClick={() => { showAll.value = !showAll.value; }}
-        >
-          {showAll.value ? "Show less" : `Show all ${executions.length}`}
-        </button>
-      )}
+      {hasMore && <ShowMoreButton showAll={showAll} totalCount={executions.length} />}
     </>
   );
 }

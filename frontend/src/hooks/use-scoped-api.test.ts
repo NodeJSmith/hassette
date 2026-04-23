@@ -149,6 +149,67 @@ describe("useScopedApi", () => {
     expect(fetcher).toHaveBeenCalledTimes(0);
   });
 
+  it("signal references are stable across waitingForSession → hasSession transition", async () => {
+    const state = createAppState();
+    state.sessionId.value = null;
+    state.sessionScope.value = "current";
+
+    const fetcher = vi.fn().mockResolvedValue("scoped-data");
+
+    const { result } = renderHook(() => useScopedApi(fetcher), {
+      wrapper: createWrapper(state),
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    const dataRef = result.current.data;
+    const loadingRef = result.current.loading;
+    const errorRef = result.current.error;
+
+    expect(loadingRef.value).toBe(true);
+    expect(dataRef.value).toBeNull();
+
+    // Session arrives
+    act(() => {
+      state.sessionId.value = 5;
+    });
+
+    await vi.waitFor(() => {
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+
+    // Same signal object references — components subscribed to these still see updates
+    expect(result.current.data).toBe(dataRef);
+    expect(result.current.loading).toBe(loadingRef);
+    expect(result.current.error).toBe(errorRef);
+
+    expect(result.current.data.value).toBe("scoped-data");
+    expect(result.current.loading.value).toBe(false);
+  });
+
+  it("does not fetch on reconnect while waiting for session", async () => {
+    const state = createAppState();
+    state.sessionId.value = null;
+    state.sessionScope.value = "current";
+
+    const fetcher = vi.fn().mockResolvedValue("should-not-reach");
+
+    renderHook(() => useScopedApi(fetcher), {
+      wrapper: createWrapper(state),
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetcher).toHaveBeenCalledTimes(0);
+
+    // Simulate reconnect while still waiting
+    act(() => {
+      state.reconnectVersion.value = 1;
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetcher).toHaveBeenCalledTimes(0);
+  });
+
   it("preserves lazy mode", async () => {
     const state = createAppState();
     state.sessionId.value = 5;

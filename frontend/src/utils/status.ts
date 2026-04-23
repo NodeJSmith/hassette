@@ -53,3 +53,17 @@ export function executionStatusVariant(status: string): StatusVariant {
   if (status === "timed_out") return "warning";
   return "danger";
 }
+
+const LOG_LEVEL_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, StatusVariant>([
+  ["DEBUG", "neutral"],
+  ["INFO", "success"],
+  ["WARNING", "warning"],
+  ["ERROR", "danger"],
+  ["CRITICAL", "danger"],
+]);
+
+/** Map a log level string to a StatusVariant. Unknown values return "neutral" silently
+ * (no console.warn — unlike sibling functions, custom log levels from the wire are expected). */
+export function levelToVariant(level: string): StatusVariant {
+  return LOG_LEVEL_MAP.get(level) ?? "neutral";
+}

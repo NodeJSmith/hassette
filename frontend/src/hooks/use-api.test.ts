@@ -80,6 +80,144 @@ describe("useApi reconnect awareness", () => {
   });
 });
 
+describe("useApi enabled option", () => {
+  it("does not fetch when enabled is false", async () => {
+    const state = createAppState();
+    const fetcher = vi.fn().mockResolvedValue("data");
+
+    const { result } = renderHook(() => useApi(fetcher, [], { enabled: false }), {
+      wrapper: createWrapper(state),
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(fetcher).toHaveBeenCalledTimes(0);
+    expect(result.current.loading.value).toBe(true);
+    expect(result.current.data.value).toBeNull();
+  });
+
+  it("fetches when enabled transitions from false to true", async () => {
+    const state = createAppState();
+    const fetcher = vi.fn().mockResolvedValue("data");
+    let enabled = false;
+
+    const { result, rerender } = renderHook(() => useApi(fetcher, [enabled], { enabled }), {
+      wrapper: createWrapper(state),
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetcher).toHaveBeenCalledTimes(0);
+
+    enabled = true;
+    rerender();
+
+    await vi.waitFor(() => {
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+    expect(result.current.data.value).toBe("data");
+    expect(result.current.loading.value).toBe(false);
+  });
+
+  it("blocks reconnect refetch when disabled", async () => {
+    const state = createAppState();
+    const fetcher = vi.fn().mockResolvedValue("data");
+
+    renderHook(() => useApi(fetcher, [], { enabled: false }), {
+      wrapper: createWrapper(state),
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetcher).toHaveBeenCalledTimes(0);
+
+    act(() => {
+      state.reconnectVersion.value = 1;
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetcher).toHaveBeenCalledTimes(0);
+  });
+
+  it("refetches on true → false → true cycle", async () => {
+    const state = createAppState();
+    let callCount = 0;
+    const fetcher = vi.fn().mockImplementation(() => Promise.resolve(`data-${++callCount}`));
+    let enabled = true;
+    let dep = 1;
+
+    const { result, rerender } = renderHook(() => useApi(fetcher, [dep], { enabled }), {
+      wrapper: createWrapper(state),
+    });
+
+    await vi.waitFor(() => {
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+    expect(result.current.data.value).toBe("data-1");
+
+    // Disable
+    enabled = false;
+    dep = 2;
+    rerender();
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(result.current.loading.value).toBe(true);
+
+    // Re-enable
+    enabled = true;
+    dep = 3;
+    rerender();
+
+    await vi.waitFor(() => {
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    });
+    expect(result.current.data.value).toBe("data-2");
+    expect(result.current.loading.value).toBe(false);
+  });
+
+  it("fetches when enabled transitions false → true with stable deps", async () => {
+    const state = createAppState();
+    const fetcher = vi.fn().mockResolvedValue("data");
+    let enabled = false;
+
+    const { result, rerender } = renderHook(
+      () => useApi(fetcher, [], { enabled }),
+      { wrapper: createWrapper(state) },
+    );
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetcher).toHaveBeenCalledTimes(0);
+
+    enabled = true;
+    rerender();
+
+    await vi.waitFor(() => {
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+    expect(result.current.data.value).toBe("data");
+  });
+
+  it("returns stable signal references across enabled transitions", async () => {
+    const state = createAppState();
+    const fetcher = vi.fn().mockResolvedValue("data");
+    let enabled = false;
+
+    const { result, rerender } = renderHook(() => useApi(fetcher, [enabled], { enabled }), {
+      wrapper: createWrapper(state),
+    });
+
+    const dataRef = result.current.data;
+    const loadingRef = result.current.loading;
+    const errorRef = result.current.error;
+
+    enabled = true;
+    rerender();
+
+    expect(result.current.data).toBe(dataRef);
+    expect(result.current.loading).toBe(loadingRef);
+    expect(result.current.error).toBe(errorRef);
+  });
+});
+
 describe("useApi lazy mode", () => {
   it("does not fetch on mount when lazy is true", async () => {
     const state = createAppState();

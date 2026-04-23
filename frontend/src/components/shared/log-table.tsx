@@ -3,8 +3,10 @@ import { useEffect, useRef, useCallback } from "preact/hooks";
 import type { LogEntry } from "../../api/endpoints";
 import { getRecentLogs } from "../../api/endpoints";
 import { useMediaQuery, BREAKPOINT_MOBILE, BREAKPOINT_TABLET } from "../../hooks/use-media-query";
+import { useSubscribe } from "../../hooks/use-subscribe";
 import { useAppState } from "../../state/context";
 import { formatTimestamp, formatRelativeTime, pluralize } from "../../utils/format";
+import { levelToVariant } from "../../utils/status";
 
 const LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] as const;
 
@@ -72,9 +74,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   const isTablet = useMediaQuery(BREAKPOINT_TABLET);
   const showSourceColumn = !isTablet;
   const { logs, updateLogSubscription, reconnectVersion, tick } = useAppState();
-
-  // Subscribe to tick signal so relative timestamps re-render every 30s on mobile
-  if (isMobile) void tick.value;
+  useSubscribe(isMobile && tick, logs.version);
   const minLevel = useRef(signal("INFO")).current; // default = INFO (matches WS subscription)
   const appFilter = useRef(signal("")).current; // "" = All Apps
   const search = useRef(signal("")).current;
@@ -95,9 +95,6 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
       })
       .catch(() => { /* API error — initial entries stay empty, WS will still stream */ });
   }, [appKey, rv]);
-
-  // Read version to subscribe to WS updates
-  void logs.version.value;
 
   // Combine initial entries + ring buffer entries, deduplicating by seq watermark
   const wsEntries = logs.toArray().filter((e) => {
@@ -341,7 +338,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
               const rows = [
               <tr key={rowKey} data-level={entry.level}>
                 <td>
-                  <span class={`ht-badge ht-badge--sm ht-badge--${entry.level === "ERROR" || entry.level === "CRITICAL" ? "danger" : entry.level === "WARNING" ? "warning" : entry.level === "DEBUG" ? "neutral" : "success"}`}>
+                  <span class={`ht-badge ht-badge--sm ht-badge--${levelToVariant(entry.level)}`}>
                     {isMobile ? (LEVEL_ABBREV[entry.level] ?? entry.level) : entry.level}
                   </span>
                 </td>

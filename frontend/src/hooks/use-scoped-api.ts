@@ -12,7 +12,6 @@
  * a refetch by including their values in the deps array.
  */
 
-import { signal } from "@preact/signals";
 import { useRef } from "preact/hooks";
 import { useApi, type UseApiOptions, type UseApiResult } from "./use-api";
 import { useAppState } from "../state/context";
@@ -64,20 +63,9 @@ export function useScopedApi<T>(
   // detects changes and triggers refetches.
   const allDeps = [scope, sid, ...extraDeps];
 
-  const result = useApi(
-    () => fetcherRef.current(waitingForSession ? null : effective),
+  return useApi(
+    () => fetcherRef.current(effective ?? null),
     allDeps,
-    { ...apiOptions, lazy: waitingForSession || apiOptions.lazy },
+    { ...apiOptions, enabled: !waitingForSession },
   );
-
-  // When waiting for session, override signals to show loading state
-  if (waitingForSession) {
-    const loadingData = useRef(signal<T | null>(null)).current;
-    const loadingFlag = useRef(signal(true)).current;
-    const loadingError = useRef(signal<string | null>(null)).current;
-    const noop = async () => {};
-    return { data: loadingData, loading: loadingFlag, error: loadingError, refetch: noop };
-  }
-
-  return result;
 }
