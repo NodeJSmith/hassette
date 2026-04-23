@@ -21,6 +21,8 @@ function depsChanged(prev: unknown[], next: unknown[]): boolean {
 export interface UseApiOptions {
   /** When true, skip the initial fetch on mount. Call `refetch()` manually to load data. */
   lazy?: boolean;
+  /** When false, suppress all fetches and hold loading=true. Fetching begins when enabled becomes true. */
+  enabled?: boolean;
 }
 
 /**
@@ -34,6 +36,10 @@ export interface UseApiOptions {
  * expand-on-click patterns where the API call should wait until the
  * user interacts.
  *
+ * Pass `{ enabled: false }` to suppress all fetching and hold
+ * `loading=true` until `enabled` transitions to `true` — useful when
+ * a required dependency (e.g., a session ID) is not yet available.
+ *
  * Automatically refetches on WebSocket reconnection via the shared
  * `reconnectVersion` signal. Must be used within AppStateContext.Provider.
  */
@@ -42,10 +48,10 @@ export function useApi<T>(
   deps: unknown[] = [],
   options: UseApiOptions = {},
 ): UseApiResult<T> {
-  const { lazy = false } = options;
+  const { lazy = false, enabled = true } = options;
 
   const data = useRef(signal<T | null>(null)).current;
-  const loading = useRef(signal(!lazy)).current;
+  const loading = useRef(signal(enabled ? !lazy : true)).current;
   const error = useRef(signal<string | null>(null)).current;
 
   const fetcherRef = useRef(fetcher);
@@ -55,10 +61,12 @@ export function useApi<T>(
   /** Tracks whether at least one fetch has been initiated (for reconnect guard). */
   const hasFetchedRef = useRef(false);
   const lazyRef = useRef(lazy);
+  const enabledRef = useRef(enabled);
 
   const refetch = useRef(async () => {
+    if (!enabledRef.current) return;
     hasFetchedRef.current = true;
-    lazyRef.current = false; // After first fetch, allow deps-driven refetches
+    lazyRef.current = false;
     const id = ++requestIdRef.current;
     loading.value = true;
     error.value = null;
@@ -77,22 +85,35 @@ export function useApi<T>(
       }
     }
   }).current;
+
   const prevDeps = useRef(deps);
   const depsVersion = useRef(0);
+  const prevEnabled = useRef(enabled);
 
-  // Synchronously reset signals and invalidate in-flight requests when deps change
-  if (depsChanged(prevDeps.current, deps)) {
+  const depsDidChange = depsChanged(prevDeps.current, deps);
+  const enabledDidChange = prevEnabled.current !== enabled;
+
+  if (depsDidChange || enabledDidChange) {
     prevDeps.current = deps;
-    depsVersion.current++;
-    requestIdRef.current++;
-    data.value = null;
-    loading.value = !lazyRef.current; // Don't set loading if lazy and never fetched
-    error.value = null;
+    prevEnabled.current = enabled;
+    enabledRef.current = enabled;
+
+    if (enabled) {
+      depsVersion.current++;
+      requestIdRef.current++;
+      data.value = null;
+      loading.value = !lazyRef.current;
+      error.value = null;
+    } else {
+      requestIdRef.current++;
+      loading.value = true;
+    }
   }
 
   const version = depsVersion.current;
 
   useEffect(() => {
+    if (!enabledRef.current) return;
     if (lazyRef.current) return;
     void refetch();
   }, [refetch, version]);
@@ -104,7 +125,7 @@ export function useApi<T>(
   useSignalEffect(() => {
     const v = reconnectVersion.value;
     if (v > 0 && v !== mountReconnectVersion.current) {
-      // For lazy instances, only reconnect-refetch if at least one fetch has happened
+      if (!enabledRef.current) return;
       if (lazyRef.current && !hasFetchedRef.current) return;
       void refetch();
     }
