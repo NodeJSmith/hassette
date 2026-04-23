@@ -1,7 +1,7 @@
 # Design: Exception Handlers for Event and Scheduler Callbacks
 
 **Date:** 2026-04-21
-**Status:** approved
+**Status:** archived
 **Research:** design/research/2026-04-21-exception-handler-callbacks/research.md
 
 ## Problem
