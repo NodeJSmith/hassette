@@ -275,7 +275,7 @@ async def test_timeout_error_routed_to_handler(executor: CommandExecutor) -> Non
 # ---------------------------------------------------------------------------
 
 
-async def test_error_handler_timeout_fires_after_5s(executor: CommandExecutor) -> None:
+async def test_error_handler_timeout_logs_warning(executor: CommandExecutor) -> None:
     """Error handler that sleeps > timeout logs WARNING and increments counter."""
     # Set a short timeout for testing
     executor.hassette.config.error_handler_timeout_seconds = 0.1

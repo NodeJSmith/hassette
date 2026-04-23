@@ -1,6 +1,7 @@
 """Fixtures for Playwright-based e2e tests of the Hassette Web UI."""
 
 import logging
+import shutil
 import socket
 import subprocess
 import threading
@@ -781,6 +782,8 @@ def _ensure_spa_built():
     frontend_dir = _REPO_ROOT / "frontend"
     if not (frontend_dir / "package.json").exists():
         pytest.skip("frontend/ directory not found — cannot build SPA for e2e tests")
+    if not shutil.which("npm"):
+        pytest.skip("npm not found — cannot build SPA for e2e tests")
     subprocess.run(["npm", "ci", "--prefix", str(frontend_dir)], check=True)
     subprocess.run(["npm", "run", "build", "--prefix", str(frontend_dir)], check=True)
     if not _SPA_INDEX.exists():
