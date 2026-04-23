@@ -1,13 +1,9 @@
 import type { Signal } from "@preact/signals";
 import type { AppManifest } from "../../api/endpoints";
+import type { AppStatusEntry } from "../../state/create-app-state";
 import { StatusBadge } from "../shared/status-badge";
 import { ActionButtons } from "./action-buttons";
 import { pluralize } from "../../utils/format";
-
-interface AppStatusEntry {
-  status: string;
-  index: number;
-}
 
 interface Props {
   manifests: AppManifest[];
@@ -58,8 +54,7 @@ export function ManifestCardList({ manifests, expanded, toggleExpand, appStatus 
                 )}
               </div>
             </div>
-            {/* TODO: handler/job counts — requires backend to expose handler_count/job_count
-               on AppManifestResponse (currently only on DashboardAppGridEntry). See design spec. */}
+            {/* TODO(#482): handler/job counts — blocked on AppManifestResponse adding these fields */}
             <div class="ht-manifest-card__actions">
               <ActionButtons appKey={m.app_key} status={status} />
             </div>
