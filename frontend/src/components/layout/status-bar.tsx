@@ -3,8 +3,16 @@ import { setStoredValue } from "../../utils/local-storage";
 import { SessionScopeToggle } from "./session-scope-toggle";
 
 export function StatusBar() {
-  const { connection, theme, telemetryDegraded, droppedOverflow, droppedExhausted, droppedNoSession, droppedShutdown } =
-    useAppState();
+  const {
+    connection,
+    theme,
+    telemetryDegraded,
+    droppedOverflow,
+    droppedExhausted,
+    droppedNoSession,
+    droppedShutdown,
+    errorHandlerFailures,
+  } = useAppState();
   const status = connection.value;
   const isDegraded = telemetryDegraded.value;
   const overflow = droppedOverflow.value ?? 0;
@@ -12,6 +20,7 @@ export function StatusBar() {
   const noSession = droppedNoSession.value ?? 0;
   const shutdown = droppedShutdown.value ?? 0;
   const droppedTotal = overflow + exhausted + noSession + shutdown;
+  const ehFailures = errorHandlerFailures.value ?? 0;
 
   const toggleTheme = () => {
     const next = theme.value === "dark" ? "light" : "dark";
@@ -53,6 +62,17 @@ export function StatusBar() {
         >
           <span class="ht-pulse-dot degraded" />
           <span class="ht-text-xs">{droppedTotal} dropped</span>
+        </span>
+      )}
+      {ehFailures > 0 && (
+        <span
+          class="ht-ws-indicator is-degraded"
+          aria-label={`${ehFailures} error handler failure${ehFailures !== 1 ? "s" : ""}`}
+          title={`${ehFailures} user error handler invocation${ehFailures !== 1 ? "s" : ""} raised or timed out`}
+          data-testid="error-handler-failures-indicator"
+        >
+          <span class="ht-pulse-dot degraded" />
+          <span class="ht-text-xs">{ehFailures} handler err{ehFailures !== 1 ? "s" : ""}</span>
         </span>
       )}
       <SessionScopeToggle />

@@ -24,7 +24,7 @@ describe("useTelemetryHealth", () => {
     vi.useFakeTimers();
     mockLocation = "/";
     mockedGetTelemetryStatus.mockReset();
-    mockedGetTelemetryStatus.mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0 });
+    mockedGetTelemetryStatus.mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0, error_handler_failures: 0 });
   });
 
   afterEach(() => {
@@ -88,7 +88,7 @@ describe("useTelemetryHealth", () => {
 
   it("sets degraded true when endpoint reports degradation", async () => {
     const state = createAppState();
-    mockedGetTelemetryStatus.mockResolvedValue({ degraded: true, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0 });
+    mockedGetTelemetryStatus.mockResolvedValue({ degraded: true, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0, error_handler_failures: 0 });
 
     renderHook(() => useTelemetryHealth(state));
 
@@ -150,8 +150,8 @@ describe("useTelemetryHealth", () => {
     // First call fails, second succeeds, third succeeds
     mockedGetTelemetryStatus
       .mockRejectedValueOnce(new Error("fail"))
-      .mockResolvedValueOnce({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0 })
-      .mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0 });
+      .mockResolvedValueOnce({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0, error_handler_failures: 0 })
+      .mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0, error_handler_failures: 0 });
 
     renderHook(() => useTelemetryHealth(state));
 
@@ -184,7 +184,7 @@ describe("useTelemetryHealth", () => {
     // Fail initially to trigger backoff
     mockedGetTelemetryStatus
       .mockRejectedValueOnce(new Error("fail"))
-      .mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0 });
+      .mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0, error_handler_failures: 0 });
 
     const { rerender } = renderHook(() => useTelemetryHealth(state));
 
@@ -255,6 +255,7 @@ describe("useTelemetryHealth", () => {
       dropped_exhausted: 3,
       dropped_no_session: 2,
       dropped_shutdown: 1,
+      error_handler_failures: 7,
     });
 
     renderHook(() => useTelemetryHealth(state));
@@ -266,5 +267,6 @@ describe("useTelemetryHealth", () => {
     expect(state.droppedExhausted.value).toBe(3);
     expect(state.droppedNoSession.value).toBe(2);
     expect(state.droppedShutdown.value).toBe(1);
+    expect(state.errorHandlerFailures.value).toBe(7);
   });
 });
