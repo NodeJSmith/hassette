@@ -316,11 +316,7 @@ class Bus(Resource):
         listener.source_location = source_location
         listener.registration_source = registration_source or ""
 
-        # Wire the app-level error handler resolver: a closure that reads the current
-        # Bus._error_handler lazily at dispatch time (not at listener registration time).
-        # This satisfies the dispatch-time resolution contract: a later call to on_error()
-        # is reflected in all subsequent InvokeHandler commands for listeners owned by this Bus.
-        listener._app_error_handler_resolver = lambda: self._error_handler
+        listener.set_app_error_handler_resolver(lambda: self._error_handler)
 
         def unsubscribe() -> None:
             self.remove_listener(listener)

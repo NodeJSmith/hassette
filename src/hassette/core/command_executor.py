@@ -15,6 +15,7 @@ from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_repository import TelemetryRepository
+from hassette.error_context import ErrorContext
 from hassette.exceptions import DependencyError, HassetteError
 from hassette.resources.base import Resource, Service
 from hassette.scheduler.classes import JobExecutionRecord
@@ -407,10 +408,10 @@ class CommandExecutor(Service):
                     listener_name=repr(cmd.listener),
                     event=cmd.event,
                 )
-                # FIXME: no per-listener rate-limit on error handler spawns — high-frequency
-                # failures can accumulate unbounded concurrent tasks. See issue for tracking.
+                # FIXME(#573): no per-listener rate-limit on error handler spawns — high-frequency
+                # failures can accumulate unbounded concurrent tasks.
                 self.task_bucket.spawn(
-                    self._invoke_bus_error_handler(error_handler, ctx),
+                    self._invoke_error_handler(error_handler, ctx),
                     name="executor:bus_error_handler",
                 )
 
@@ -443,18 +444,18 @@ class CommandExecutor(Service):
                     args=cmd.job.args,
                     kwargs=dict(cmd.job.kwargs),
                 )
-                # FIXME: no per-job rate-limit on error handler spawns — see bus comment above.
+                # FIXME(#573): no per-job rate-limit on error handler spawns.
                 self.task_bucket.spawn(
-                    self._invoke_scheduler_error_handler(error_handler, ctx),
+                    self._invoke_error_handler(error_handler, ctx),
                     name="executor:scheduler_error_handler",
                 )
 
-    async def _invoke_bus_error_handler(
+    async def _invoke_error_handler(
         self,
         handler: "Callable",
-        ctx: BusErrorContext,
+        ctx: ErrorContext,
     ) -> None:
-        """Invoke a bus error handler in a separate spawned task.
+        """Invoke a user-registered error handler in a separate spawned task.
 
         Normalizes the handler via make_async_adapter at invocation time (not at registration time)
         so that sync handlers run in the thread pool and async handlers are awaited directly.
@@ -465,78 +466,23 @@ class CommandExecutor(Service):
 
         Args:
             handler: The raw error handler callable (sync or async).
-            ctx: The BusErrorContext to pass to the handler.
+            ctx: The error context (BusErrorContext or SchedulerErrorContext) to pass to the handler.
         """
         async_handler = self.task_bucket.make_async_adapter(handler)
         timeout = self.hassette.config.error_handler_timeout_seconds
+        label = ctx.log_label
         try:
             async with asyncio.timeout(timeout):
                 await async_handler(ctx)
         except TimeoutError:
             self._error_handler_failures += 1
             if timeout is None:
-                self.logger.exception(
-                    "Bus error handler raised TimeoutError (topic=%s, listener=%s)",
-                    ctx.topic,
-                    ctx.listener_name,
-                )
+                self.logger.exception("Error handler raised TimeoutError (%s)", label)
             else:
-                self.logger.warning(
-                    "Bus error handler timed out after %.1fs (topic=%s, listener=%s)",
-                    timeout,
-                    ctx.topic,
-                    ctx.listener_name,
-                )
+                self.logger.warning("Error handler timed out after %.1fs (%s)", timeout, label)
         except Exception:
             self._error_handler_failures += 1
-            self.logger.exception(
-                "Bus error handler raised an exception (topic=%s, listener=%s)",
-                ctx.topic,
-                ctx.listener_name,
-            )
-
-    async def _invoke_scheduler_error_handler(
-        self,
-        handler: "Callable",
-        ctx: SchedulerErrorContext,
-    ) -> None:
-        """Invoke a scheduler error handler in a separate spawned task.
-
-        Normalizes the handler via make_async_adapter at invocation time (not at registration time)
-        so that sync handlers run in the thread pool and async handlers are awaited directly.
-        Wraps invocation in asyncio.timeout to prevent runaway handlers from blocking indefinitely.
-
-        On handler exception or handler-raised TimeoutError: logs at ERROR and increments _error_handler_failures.
-        On framework-triggered timeout: logs at WARNING and increments _error_handler_failures.
-
-        Args:
-            handler: The raw error handler callable (sync or async).
-            ctx: The SchedulerErrorContext to pass to the handler.
-        """
-        async_handler = self.task_bucket.make_async_adapter(handler)
-        timeout = self.hassette.config.error_handler_timeout_seconds
-        try:
-            async with asyncio.timeout(timeout):
-                await async_handler(ctx)
-        except TimeoutError:
-            self._error_handler_failures += 1
-            if timeout is None:
-                self.logger.exception(
-                    "Scheduler error handler raised TimeoutError (job=%s)",
-                    ctx.job_name,
-                )
-            else:
-                self.logger.warning(
-                    "Scheduler error handler timed out after %.1fs (job=%s)",
-                    timeout,
-                    ctx.job_name,
-                )
-        except Exception:
-            self._error_handler_failures += 1
-            self.logger.exception(
-                "Scheduler error handler raised an exception (job=%s)",
-                ctx.job_name,
-            )
+            self.logger.exception("Error handler raised an exception (%s)", label)
 
     # ------------------------------------------------------------------
     # Registration

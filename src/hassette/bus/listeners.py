@@ -148,11 +148,10 @@ class Listener:
     _app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None" = field(
         default=None, init=False, repr=False
     )
-    """Callable that returns the current app-level error handler from the owning Bus at dispatch time.
+    """Closure that resolves the app-level error handler at dispatch time.
 
-    Set by Bus.on() as a closure capturing Bus._error_handler lazily. Defaults to None for listeners
-    created outside of a Bus context (e.g., framework listeners, test harness). When set, it is called
-    at InvokeHandler construction time to populate app_level_error_handler on the command.
+    Set via :meth:`set_app_error_handler_resolver` by Bus.on(). Defaults to None for listeners
+    created outside of a Bus context (e.g., framework listeners, test harness).
     """
 
     _cancelled: bool = field(default=False, init=False, repr=False)
@@ -214,6 +213,10 @@ class Listener:
             await self._rate_limiter.call(invoke_fn)
         else:
             await invoke_fn()
+
+    def set_app_error_handler_resolver(self, resolver: "Callable[[], BusErrorHandlerType | None]") -> None:
+        """Set the closure that resolves the app-level error handler at dispatch time."""
+        self._app_error_handler_resolver = resolver
 
     def cancel(self) -> None:
         """Cancel the listener: set the cancelled flag and stop any pending rate limiter tasks.

@@ -337,6 +337,10 @@ class ScheduledJob:
             changed.append("error_handler")
         return changed
 
+    def set_app_error_handler_resolver(self, resolver: "Callable[[], SchedulerErrorHandlerType | None]") -> None:
+        """Set the closure that resolves the app-level error handler at dispatch time."""
+        self._app_error_handler_resolver = resolver
+
     def cancel(self) -> None:
         """Cancel the job by delegating to the owning Scheduler.
 

@@ -210,7 +210,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Default timeout in seconds for event handler execution. ``None`` disables the default timeout.
     Individual listeners can override via ``timeout=`` or ``timeout_disabled=True``."""
 
-    # FIXME: this is a global setting with no per-handler override — see tracking issue.
+    # FIXME(#574): this is a global setting with no per-handler override.
     error_handler_timeout_seconds: float | None = Field(default=5.0)
     """Default timeout in seconds for error handler execution. ``None`` disables the default timeout.
     Applied when the framework invokes user-provided bus or scheduler error handlers.

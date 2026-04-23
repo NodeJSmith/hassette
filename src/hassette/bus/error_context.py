@@ -3,12 +3,14 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from hassette.error_context import ErrorContext
+
 if TYPE_CHECKING:
     from hassette.events.base import Event
 
 
 @dataclass(frozen=True)
-class BusErrorContext:
+class BusErrorContext(ErrorContext):
     """Context passed to bus error handlers when a listener raises an exception.
 
     Attributes:
@@ -24,8 +26,10 @@ class BusErrorContext:
         event: The event that was being processed when the exception occurred.
     """
 
-    exception: BaseException
-    traceback: str
     topic: str
     listener_name: str
     event: "Event[Any]"
+
+    @property
+    def log_label(self) -> str:
+        return f"topic={self.topic}, listener={self.listener_name}"

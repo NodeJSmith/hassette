@@ -3,9 +3,11 @@
 from dataclasses import dataclass
 from typing import Any
 
+from hassette.error_context import ErrorContext
+
 
 @dataclass(frozen=True)
-class SchedulerErrorContext:
+class SchedulerErrorContext(ErrorContext):
     """Context passed to scheduler error handlers when a job raises an exception.
 
     Attributes:
@@ -17,9 +19,11 @@ class SchedulerErrorContext:
         kwargs: Keyword arguments the job was scheduled with.
     """
 
-    exception: BaseException
-    traceback: str
     job_name: str
     job_group: str | None
     args: tuple[Any, ...]
     kwargs: dict[str, Any]
+
+    @property
+    def log_label(self) -> str:
+        return f"job={self.job_name}"

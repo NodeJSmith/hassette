@@ -7,7 +7,7 @@ import pytest
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.events.base import Event
-from hassette.test_utils import create_state_change_event, wait_for
+from hassette.test_utils import create_call_service_event, create_state_change_event, wait_for
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -215,3 +215,31 @@ async def test_on_error_after_multiple_listeners_applies_to_all(hassette_with_bu
     assert len(error_contexts) == 2
     exception_types = {type(ctx.exception) for ctx in error_contexts}
     assert exception_types == {ValueError, TypeError}
+
+
+async def test_on_call_service_error_handler(hassette_with_bus: "Hassette") -> None:
+    """on_call_service with on_error= routes handler exceptions to the error handler."""
+    hassette = hassette_with_bus
+    bus = hassette._bus
+
+    error_contexts: list[BusErrorContext] = []
+    handler_ran = asyncio.Event()
+
+    async def on_error(ctx: BusErrorContext) -> None:
+        error_contexts.append(ctx)
+        hassette.task_bucket.post_to_loop(handler_ran.set)
+
+    async def bad_handler(_event: Event) -> None:
+        raise ValueError("service handler failed")
+
+    bus.on_call_service(domain="light", service="turn_on", handler=bad_handler, on_error=on_error)
+
+    event = create_call_service_event(domain="light", service="turn_on")
+    await hassette.send_event(event.topic, event)
+
+    await asyncio.wait_for(handler_ran.wait(), timeout=2.0)
+
+    assert len(error_contexts) == 1
+    assert isinstance(error_contexts[0].exception, ValueError)
+    assert str(error_contexts[0].exception) == "service handler failed"
+    assert error_contexts[0].topic == "hass.event.call_service"

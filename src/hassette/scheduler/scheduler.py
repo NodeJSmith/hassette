@@ -207,7 +207,7 @@ class Scheduler(Resource):
             self._jobs_by_group[job.group].add(job)
 
         job._scheduler = self
-        job._app_error_handler_resolver = lambda: self._error_handler
+        job.set_app_error_handler_resolver(lambda: self._error_handler)
         self.scheduler_service.add_job(job)
 
         return job
