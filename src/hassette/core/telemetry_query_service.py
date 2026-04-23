@@ -352,7 +352,7 @@ class TelemetryQueryService(Resource):
             async with self._db.execute(job_act_query, job_act_params) as cursor:
                 job_act_rows = await cursor.fetchall()
         finally:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(aiosqlite.OperationalError):
                 await self._db.execute("ROLLBACK")
 
         # Build per-app data from each query
@@ -488,7 +488,7 @@ class TelemetryQueryService(Resource):
             async with self._db.execute(job_query, job_params) as cursor:
                 job_row = await cursor.fetchone()
         finally:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(aiosqlite.OperationalError):
                 await self._db.execute("ROLLBACK")
 
         listener_data = _row_to_dict(listener_row) if listener_row else {}

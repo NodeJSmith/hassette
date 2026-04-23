@@ -1,7 +1,7 @@
 import type { ReadonlySignal } from "@preact/signals";
 
 /**
- * Subscribe to the given signals so the calling component re-renders when any change.
+ * Subscribe to the given signals so the calling component re-renders whenever they change.
  * Preact signals auto-track reads of `.value` during render — this forces a subscription
  * even when the value itself is not used in the return value.
  *
