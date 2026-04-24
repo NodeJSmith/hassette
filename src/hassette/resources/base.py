@@ -86,7 +86,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
     depends_on: ClassVar[list[type["Resource"]]] = []
-    """Declared runtime dependencies. Auto-waited inside initialize() before lifecycle hooks fire."""
+    """Resource types that must be ready before this resource initializes."""
 
     source_tier: ClassVar[SourceTier] = "framework"
     """Telemetry classification inherited by Bus/Scheduler children for DB registration.

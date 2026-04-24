@@ -79,6 +79,92 @@ graph TB
 
 Learn more about writing apps in the [apps](apps/index.md) section.
 
+## Service Dependency Graph
+
+Every internal Hassette service declares which other services it needs to be ready before it can initialize. This declaration drives both startup ordering and shutdown ordering — automatically, without any explicit sequencing code in the services themselves.
+
+### How `depends_on` works
+
+Each service class carries a `depends_on` ClassVar that lists the resource types it depends on:
+
+```python
+from typing import ClassVar
+from hassette.resources.base import Resource, Service
+from hassette.core.database_service import DatabaseService
+
+
+class CommandExecutor(Service):
+    depends_on: ClassVar[list[type[Resource]]] = [DatabaseService]
+```
+
+At startup, Hassette validates the full dependency graph and computes a topological initialization order. When a service initializes, it automatically waits for every service in its `depends_on` list to become ready before any of its own lifecycle hooks (`on_initialize`, etc.) run. You do not need to call `wait_for_ready()` yourself — the framework handles it.
+
+`depends_on` is scoped to Hassette's direct children — the top-level services registered with the `Hassette` instance. It is not used for child resources inside a service.
+
+!!! note "Coordinator gate vs. service dependency"
+    `Hassette.ready_event` is a separate mechanism from `depends_on`. It signals that the coordinator itself is ready (set after all services have started). Services like `BusService`, `SchedulerService`, and `FileWatcherService` wait on it before processing user-visible work. Do not confuse this coordinator gate with `depends_on`, which expresses readiness ordering between individual services.
+
+### Initialization and shutdown order
+
+Services start concurrently, but each service's initialization blocks on its declared dependencies. The net effect is that dependencies initialize first.
+
+Shutdown proceeds in the reverse of the initialization order. A service shuts down before the services it depends on. For example, `AppHandler` shuts down before `StateProxy`, and `StateProxy` shuts down before `WebsocketService`.
+
+### Cycle detection
+
+Hassette validates the dependency graph at construction time. If a cycle exists — for example, service A declares `depends_on = [B]` and B declares `depends_on = [A]` — startup raises a `ValueError` with the full cycle path before any service starts:
+
+```
+ValueError: Cycle detected: CommandExecutor → DatabaseService → CommandExecutor
+```
+
+Fix cycles by restructuring the dependency so one service no longer needs the other to be ready first.
+
+### Framework dependency graph
+
+The built-in services have the following declared dependencies:
+
+```mermaid
+graph TD
+    DB[DatabaseService]
+    WS[WebsocketService]
+    CMD[CommandExecutor]
+    API[ApiResource]
+    BUS[BusService]
+    SCHED[SchedulerService]
+    SP[StateProxy]
+    AH[AppHandler]
+    RQS[RuntimeQueryService]
+    TQS[TelemetryQueryService]
+    WEB[WebApiService]
+    SW[ServiceWatcher]
+
+    CMD --> DB
+    API --> WS
+    SP --> WS
+    SP --> API
+    SP --> BUS
+    SP --> SCHED
+    AH --> WS
+    AH --> API
+    AH --> BUS
+    AH --> SCHED
+    AH --> SP
+    RQS --> BUS
+    RQS --> SP
+    RQS --> AH
+    TQS --> DB
+    WEB --> RQS
+    SW --> BUS
+```
+
+An arrow from A to B means "A depends on B" — B must be ready before A initializes.
+
+`DatabaseService`, `WebsocketService`, `BusService`, and `SchedulerService` have no declared dependencies and initialize first. `AppHandler` is the deepest node in the graph and initializes last among the core services.
+
+!!! note "EventStreamService"
+    `EventStreamService` has a constructor-time dependency: it passes a receive stream to `BusService` at Hassette construction time, before any service initializes. This structural ordering is enforced by child registration order rather than `depends_on`, which only expresses runtime readiness dependencies.
+
 ## See Also
 
 - [Apps](apps/index.md) – how apps fit into the overall architecture.
