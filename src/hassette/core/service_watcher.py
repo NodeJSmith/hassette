@@ -1,7 +1,9 @@
 import asyncio
 import typing
+from typing import ClassVar
 
 from hassette.bus import Bus
+from hassette.core.bus_service import BusService
 from hassette.event_handling import predicates as P
 from hassette.event_handling.accessors import get_path
 from hassette.events import HassetteServiceEvent
@@ -17,6 +19,8 @@ if typing.TYPE_CHECKING:
 
 class ServiceWatcher(Resource):
     """Watches for service events and handles them."""
+
+    depends_on: ClassVar[list[type[Resource]]] = [BusService]
 
     bus: Bus
     """Event bus for inter-service communication."""

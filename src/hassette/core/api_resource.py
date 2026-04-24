@@ -3,7 +3,7 @@ import typing
 from asyncio import CancelledError
 from contextlib import AsyncExitStack
 from logging import getLogger
-from typing import Any
+from typing import Any, ClassVar
 
 import aiohttp
 from tenacity import (
@@ -16,6 +16,7 @@ from tenacity import (
 )
 from whenever import Date, PlainDateTime, ZonedDateTime
 
+from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import (
     ConnectionClosedError,
     EntityNotFoundError,
@@ -45,6 +46,8 @@ RETRYABLE = (aiohttp.ClientError, ResourceNotReadyError)
 
 
 class ApiResource(Resource):
+    depends_on: ClassVar[list[type[Resource]]] = [WebsocketService]
+
     _stack: AsyncExitStack
     """Async context stack for managing resources."""
 
@@ -59,12 +62,13 @@ class ApiResource(Resource):
     async def on_initialize(self):
         """
         Start the API service.
+
+        WebsocketService is guaranteed ready by depends_on auto-wait.
         """
         await self._stack.__aenter__()
         self._session = await self._stack.enter_async_context(
             aiohttp.ClientSession(headers=self._headers, base_url=self._rest_url)
         )
-        await self.hassette.wait_for_ready(self.hassette._websocket_service)
         self.mark_ready(reason="API session initialized")
 
     async def on_shutdown(self) -> None:

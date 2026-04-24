@@ -6,11 +6,17 @@ AppLifecycleService (a Resource child).
 
 import typing
 from logging import getLogger
+from typing import ClassVar
 
 from hassette.bus import Bus
+from hassette.core.api_resource import ApiResource
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry, AppStatusSnapshot
+from hassette.core.bus_service import BusService
+from hassette.core.scheduler_service import SchedulerService
+from hassette.core.state_proxy import StateProxy
+from hassette.core.websocket_service import WebsocketService
 from hassette.resources.base import Resource
 from hassette.types import Topic
 from hassette.types.types import LOG_LEVEL_TYPE
@@ -29,6 +35,14 @@ class AppHandler(Resource):
     - AppRegistry: State tracking and queries
     - AppLifecycleService: Lifecycle orchestration, change detection, factory
     """
+
+    depends_on: ClassVar[list[type[Resource]]] = [
+        WebsocketService,
+        ApiResource,
+        BusService,
+        SchedulerService,
+        StateProxy,
+    ]
 
     # TODO: handle stopping/starting individual app instances, instead of all apps of a class/key
     # no need to restart app index 2 if only app index 0 changed, etc.
@@ -76,7 +90,11 @@ class AppHandler(Resource):
     # --- Lifecycle hooks ---
 
     async def on_initialize(self) -> None:
-        """Set up file-watcher subscription, wait for websocket, and signal readiness."""
+        """Set up file-watcher subscription and signal readiness.
+
+        All declared dependencies (WebsocketService, ApiResource, BusService,
+        SchedulerService, StateProxy) are guaranteed ready by depends_on auto-wait.
+        """
         if self.hassette.config.dev_mode or self.hassette.config.allow_reload_in_prod:
             if self.hassette.config.allow_reload_in_prod:
                 self.logger.warning("Allowing app reloads in production mode due to config")
@@ -89,28 +107,16 @@ class AppHandler(Resource):
         else:
             self.logger.debug("Not watching for app changes, dev_mode is disabled")
 
-        await self.hassette.wait_for_ready(self.hassette._websocket_service)
         self.mark_ready(reason="initialized")
 
     async def after_initialize(self) -> None:
-        """Wait for all Hassette services, then spawn app bootstrap.
+        """Spawn app bootstrap.
 
-        bootstrap_apps runs in AppHandler's task_bucket; individual app
-        initializations are spawned into AppLifecycleService's task_bucket
+        All declared dependencies are guaranteed ready by depends_on auto-wait before
+        on_initialize() runs. bootstrap_apps runs in AppHandler's task_bucket; individual
+        app initializations are spawned into AppLifecycleService's task_bucket
         (child Resource, shut down before parent).
         """
-        if not await self.hassette.wait_for_ready(
-            [
-                self.hassette._websocket_service,
-                self.hassette._api_service,
-                self.hassette._bus_service,
-                self.hassette._scheduler_service,
-                self.hassette._state_proxy,
-            ]
-        ):
-            self.logger.warning("Dependencies never became ready; skipping app startup")
-            return
-
         self.logger.debug("Scheduling app initialization")
         self.task_bucket.spawn(self.lifecycle.bootstrap_apps())
 

@@ -250,9 +250,8 @@ class AppLifecycleService(Resource):
     async def bootstrap_apps(self) -> None:
         """Initialize all configured and enabled apps, called at AppHandler startup.
 
-        Service readiness is checked by the caller (AppHandler.after_initialize)
-        before this method is invoked. This method assumes all dependencies are
-        already ready.
+        All declared dependencies are guaranteed ready by AppHandler's depends_on
+        auto-wait before this method is invoked.
         """
         if not self.registry.manifests:
             self.logger.debug("No apps configured, skipping initialization")

@@ -3,10 +3,11 @@
 import asyncio
 import contextlib
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, assert_never
+from typing import TYPE_CHECKING, Any, ClassVar, assert_never
 
 import aiosqlite
 
+from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_models import (
     AppHealthSummary,
     GlobalSummary,
@@ -194,6 +195,8 @@ class TelemetryQueryService(Resource):
     Methods are async and must be awaited.
     """
 
+    depends_on: ClassVar[list[type[Resource]]] = [DatabaseService]
+
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self._snapshot_lock = asyncio.Lock()
@@ -206,7 +209,8 @@ class TelemetryQueryService(Resource):
         if not self.hassette.config.run_web_api:
             self.mark_ready(reason="Web API disabled")
             return
-        await self.hassette.wait_for_ready([self.hassette.database_service])
+
+        # DatabaseService is guaranteed ready by depends_on auto-wait.
 
         async with self._db.execute("PRAGMA journal_mode") as cursor:
             row = await cursor.fetchone()

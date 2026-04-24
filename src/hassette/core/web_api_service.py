@@ -2,20 +2,23 @@
 
 import asyncio
 import typing
+from typing import ClassVar
 
 import uvicorn
 
-from hassette.resources.base import Service
+from hassette.core.runtime_query_service import RuntimeQueryService
+from hassette.resources.base import Resource, Service
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.web.app import create_fastapi_app
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
-    from hassette.resources.base import Resource
 
 
 class WebApiService(Service):
     """Runs the FastAPI/uvicorn server for the web API and healthcheck."""
+
+    depends_on: ClassVar[list[type[Resource]]] = [RuntimeQueryService]
 
     host: str
     port: int
@@ -31,19 +34,13 @@ class WebApiService(Service):
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         return self.hassette.config.web_api_log_level
 
-    async def before_initialize(self) -> None:
-        self.logger.debug("Waiting for Hassette ready event")
-        await self.hassette.ready_event.wait()
-
     async def on_initialize(self) -> None:
         if not self.hassette.config.run_web_api:
             self.logger.warning("Web API service disabled by configuration")
             self.mark_ready(reason="Web API disabled")
             return
 
-        # Wait for RuntimeQueryService to be ready
-        await self.hassette.wait_for_ready([self.hassette._runtime_query_service])
-
+        # RuntimeQueryService is guaranteed ready by depends_on auto-wait.
         self.mark_ready(reason="Web API service initialized")
 
     async def serve(self) -> None:

@@ -5,10 +5,12 @@ import contextlib
 import json
 import time
 from collections import deque
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from hassette.bus import Bus
+from hassette.core.app_handler import AppHandler
 from hassette.core.app_registry import AppFullSnapshot, AppStatusSnapshot
+from hassette.core.bus_service import BusService
 from hassette.core.domain_models import (
     AppStatusChangedData,
     ConnectivityData,
@@ -16,6 +18,7 @@ from hassette.core.domain_models import (
     StateChangedData,
     SystemStatus,
 )
+from hassette.core.state_proxy import StateProxy
 from hassette.events import Event, RawStateChangeEvent
 from hassette.logging_ import LogEntry, get_log_capture_handler
 from hassette.resources.base import Resource
@@ -36,6 +39,8 @@ class RuntimeQueryService(Resource):
     Reads from in-memory sources: AppHandler, event buffer, log buffer, WS clients.
     All reads are instant — no database I/O.
     """
+
+    depends_on: ClassVar[list[type[Resource]]] = [BusService, StateProxy, AppHandler]
 
     bus: Bus
     _event_buffer: deque[dict]
@@ -65,14 +70,7 @@ class RuntimeQueryService(Resource):
             self.mark_ready(reason="Web API disabled")
             return
 
-        # Wait for dependencies
-        await self.hassette.wait_for_ready(
-            [
-                self.hassette.bus_service,
-                self.hassette.state_proxy,
-                self.hassette.app_handler,
-            ]
-        )
+        # BusService, StateProxy, and AppHandler are guaranteed ready by depends_on auto-wait.
 
         # Subscribe to bus events
         self._subscriptions.append(
