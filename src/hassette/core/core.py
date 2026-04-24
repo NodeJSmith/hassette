@@ -138,7 +138,7 @@ class Hassette(Resource):
                         f"but no matching child type found in Hassette"
                     )
 
-        # Validate: no cycles; store result for WP05 shutdown ordering.
+        # Validate: no cycles; store result for shutdown ordering (_ordered_children_for_shutdown).
         self._init_order: list[type[Resource]] = topological_sort(all_types)
 
         # Log the dependency graph — only services with non-empty depends_on (root nodes add noise).

@@ -160,7 +160,7 @@ graph TD
 
 An arrow from A to B means "A depends on B" — B must be ready before A initializes.
 
-`DatabaseService`, `WebsocketService`, `BusService`, and `SchedulerService` have no declared dependencies and initialize first. `AppHandler` is the deepest node in the graph and initializes last among the core services.
+`DatabaseService`, `WebsocketService`, `BusService`, and `SchedulerService` have no declared dependencies and initialize first. `WebApiService` is the deepest node in the graph (via `RuntimeQueryService` → `AppHandler` → `StateProxy`).
 
 !!! note "EventStreamService"
     `EventStreamService` has a constructor-time dependency: it passes a receive stream to `BusService` at Hassette construction time, before any service initializes. This structural ordering is enforced by child registration order rather than `depends_on`, which only expresses runtime readiness dependencies.
