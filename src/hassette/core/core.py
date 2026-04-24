@@ -19,7 +19,7 @@ from hassette.resources.base import Resource, Service
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import ResourceStatus, StartupPhase
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.service_utils import wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
@@ -124,6 +124,17 @@ class Hassette(Resource):
         self.api = self.add_child(Api)
         self.state_registry = STATE_REGISTRY
         self.type_registry = TYPE_REGISTRY
+
+        self._phase_services: dict[StartupPhase, list[Resource]] = {
+            StartupPhase.DATABASE: [self._database_service],
+            StartupPhase.SERVICES: [c for c in self.children if c is not self._database_service],
+        }
+        _all = [s for services in self._phase_services.values() for s in services]
+        _duplicates = {s for s in _all if _all.count(s) > 1}
+        if _duplicates:
+            raise RuntimeError(f"Startup phase map has duplicates — children in multiple phases: {_duplicates}")
+        if set(_all) != set(self.children):
+            raise RuntimeError(f"Startup phase map incomplete — unassigned: {set(self.children) - set(_all)}")
 
         self.logger.info("All components registered...", stacklevel=2)
 
@@ -385,13 +396,13 @@ class Hassette(Resource):
 
     def _start_database(self) -> None:
         """Start only the DatabaseService (phase 1 of startup)."""
-        self._database_service.start()
+        for service in self._phase_services[StartupPhase.DATABASE]:
+            service.start()
 
     def _start_remaining_resources(self) -> None:
         """Start all children except DatabaseService (phase 2 of startup)."""
-        for service in self.children:
-            if service is not self._database_service:
-                service.start()
+        for service in self._phase_services[StartupPhase.SERVICES]:
+            service.start()
 
     async def on_shutdown(self) -> None:
         """Shut down CommandExecutor before DatabaseService.

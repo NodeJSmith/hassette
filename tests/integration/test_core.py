@@ -25,6 +25,7 @@ from hassette.core.web_api_service import WebApiService
 from hassette.core.websocket_service import WebsocketService
 from hassette.scheduler import Scheduler
 from hassette.test_utils import wait_for
+from hassette.types.enums import StartupPhase
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
@@ -321,3 +322,42 @@ async def test_concurrent_crash_and_finalize_are_serialized(hassette_instance: H
     # Now finalize should have completed
     assert submit_calls == ["submit"], f"Finalize should have called submit after crash released: {submit_calls}"
     assert call_order == ["crash_acquired", "crash_released"]
+
+
+def test_startup_phase_database_contains_only_database_service(hassette_instance: Hassette) -> None:
+    """DATABASE phase maps to exactly the database service."""
+    assert hassette_instance._phase_services[StartupPhase.DATABASE] == [hassette_instance._database_service]
+
+
+def test_startup_phase_services_contains_all_non_database_children(hassette_instance: Hassette) -> None:
+    """SERVICES phase contains every child except the database service."""
+    expected = [c for c in hassette_instance.children if c is not hassette_instance._database_service]
+    assert hassette_instance._phase_services[StartupPhase.SERVICES] == expected
+
+
+def test_start_database_starts_only_phase_members(hassette_instance: Hassette) -> None:
+    """_start_database() starts only DATABASE-phase services."""
+    for child in hassette_instance.children:
+        child.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
+
+    hassette_instance._start_database()
+
+    for svc in hassette_instance._phase_services[StartupPhase.DATABASE]:
+        svc.start.assert_called_once()
+
+    for svc in hassette_instance._phase_services[StartupPhase.SERVICES]:
+        svc.start.assert_not_called()
+
+
+def test_start_remaining_resources_starts_only_services_phase(hassette_instance: Hassette) -> None:
+    """_start_remaining_resources() starts only SERVICES-phase members."""
+    for child in hassette_instance.children:
+        child.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
+
+    hassette_instance._start_remaining_resources()
+
+    for svc in hassette_instance._phase_services[StartupPhase.SERVICES]:
+        svc.start.assert_called_once()
+
+    for svc in hassette_instance._phase_services[StartupPhase.DATABASE]:
+        svc.start.assert_not_called()

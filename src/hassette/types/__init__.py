@@ -1,4 +1,4 @@
-from .enums import ResourceRole, ResourceStatus, Topic
+from .enums import ResourceRole, ResourceStatus, StartupPhase, Topic
 from .types import (
     FRAMEWORK_APP_KEY,
     FRAMEWORK_APP_KEY_PREFIX,
@@ -43,6 +43,7 @@ __all__ = [
     "ScheduleStartType",
     "SchedulerErrorHandlerType",
     "SourceTier",
+    "StartupPhase",
     "StateT",
     "StateValueT",
     "SyncHandler",
