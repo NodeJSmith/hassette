@@ -21,7 +21,7 @@ from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.types.enums import ResourceStatus
 from hassette.utils.app_utils import run_apps_pre_check
-from hassette.utils.service_utils import topological_levels, topological_sort, wait_for_ready
+from hassette.utils.service_utils import topological_levels, topological_sort, validate_dependency_graph, wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 from .api_resource import ApiResource
@@ -72,6 +72,9 @@ class Hassette(Resource):
     @property
     def unique_name(self) -> str:
         return "Hassette"
+
+    def _should_skip_dependency_check(self) -> bool:
+        return False
 
     def __init__(self, config: HassetteConfig) -> None:
         self.config = config
@@ -135,14 +138,7 @@ class Hassette(Resource):
         if duplicates:
             raise ValueError(f"Duplicate child types in Hassette: {duplicates}")
 
-        # Validate: every depends_on reference must exist among registered children.
-        for child_type in all_types:
-            for dep_type in child_type.depends_on:
-                if not any(issubclass(t, dep_type) for t in all_types):
-                    raise ValueError(
-                        f"{child_type.__name__} declares depends_on=[{dep_type.__name__}] "
-                        f"but no matching child type found in Hassette"
-                    )
+        validate_dependency_graph(all_types)
 
         # Validate: no cycles; compute dependency levels for wave-based startup/shutdown.
         self._init_order: list[type[Resource]] = topological_sort(all_types)
@@ -426,7 +422,7 @@ class Hassette(Resource):
         Dependents (leaf services) shut down first, their dependencies last.
         Within each wave, services shut down concurrently via gather.
         """
-        timeout = self.hassette.config.resource_shutdown_timeout_seconds
+        timeout = self.config.resource_shutdown_timeout_seconds
         type_to_instance = {type(c): c for c in self.children}
 
         for wave_types in reversed(self._init_waves):

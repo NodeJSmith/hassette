@@ -50,7 +50,7 @@ def _make_hassette_mock(
         hassette.shutdown_event.set()
 
     # harness bypass flag
-    hassette._skip_dependency_check = skip_dependency_check
+    hassette._should_skip_dependency_check = Mock(return_value=skip_dependency_check)
 
     return hassette
 
@@ -263,13 +263,13 @@ async def test_depends_on_timeout_calls_handle_failed() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 9: _skip_dependency_check bypasses all logic
+# Test 9: _should_skip_dependency_check bypasses all logic
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_skip_dependency_check_bypasses() -> None:
-    """When hassette._skip_dependency_check is True, _auto_wait_dependencies returns immediately."""
+    """When hassette._should_skip_dependency_check() returns True, _auto_wait_dependencies returns immediately."""
     hassette = _make_hassette_mock(
         children=[],  # no children — would raise if not skipped
         skip_dependency_check=True,

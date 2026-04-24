@@ -280,8 +280,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """
         if not self.depends_on:
             return
-        # Checked before children lookup — harness mock objects fail isinstance checks.
-        if getattr(self.hassette, "_skip_dependency_check", False):
+        if self.hassette._should_skip_dependency_check():
             return
 
         # F3: App subclasses inherit depends_on but it's not yet supported (#581).
@@ -345,21 +344,23 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             child._force_terminal()
 
     async def _shutdown_children(self) -> bool:
-        """Propagate shutdown to children. Returns True if all completed cleanly."""
+        """Propagate shutdown to children. Returns True if all completed within timeout and without errors."""
         timeout = self.hassette.config.resource_shutdown_timeout_seconds
         children = self._ordered_children_for_shutdown()
         if not children:
             return True
         try:
             async with asyncio.timeout(timeout):
+                all_clean = True
                 results = await asyncio.gather(
                     *[child.shutdown() for child in children],
                     return_exceptions=True,
                 )
                 for child, result in zip(children, results, strict=True):
                     if isinstance(result, Exception):
+                        all_clean = False
                         self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
-            return True
+            return all_clean
         except TimeoutError:
             self.logger.error("Timed out waiting for children to shut down after %ss", timeout)
             for child in children:

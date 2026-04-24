@@ -73,6 +73,9 @@ async def shutdown_resource(res: Resource) -> None:
 class _HassetteMock(Resource):
     task_bucket: TaskBucket
 
+    def _should_skip_dependency_check(self) -> bool:
+        return True
+
     def __init__(self, *, config: HassetteConfig) -> None:
         self.config = config
         super().__init__(cast("Hassette", self))
@@ -99,7 +102,6 @@ class _HassetteMock(Resource):
         self.state_registry: StateRegistry | None = None
         self.type_registry: TypeRegistry | None = None
         self._test_mode: bool = False
-        self._skip_dependency_check: bool = True
 
     @property
     def command_executor(self) -> Any:

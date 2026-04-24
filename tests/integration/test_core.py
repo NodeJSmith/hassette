@@ -24,7 +24,7 @@ from hassette.core.websocket_service import WebsocketService
 from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
 from hassette.test_utils import wait_for
-from hassette.utils.service_utils import topological_sort
+from hassette.utils.service_utils import topological_sort, validate_dependency_graph
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
@@ -358,14 +358,5 @@ def test_graph_validation_catches_missing_type() -> None:
 
         depends_on: ClassVar[list[type[Resource]]] = [_GhostDep]
 
-    def _validate_deps(types: list[type[Resource]]) -> None:
-        for child_type in types:
-            for dep_type in child_type.depends_on:
-                if not any(issubclass(t, dep_type) for t in types):
-                    raise ValueError(
-                        f"{child_type.__name__} declares depends_on=[{dep_type.__name__}] "
-                        f"but no matching child type found in Hassette"
-                    )
-
     with pytest.raises(ValueError, match="_GhostDep"):
-        _validate_deps([_StubService])
+        validate_dependency_graph([_StubService])

@@ -102,7 +102,7 @@ At startup, Hassette validates the full dependency graph and computes a topologi
 `depends_on` is scoped to Hassette's direct children — the top-level services registered with the `Hassette` instance. It is not used for child resources inside a service.
 
 !!! note "Coordinator gate vs. service dependency"
-    `Hassette.ready_event` is a separate mechanism from `depends_on`. It signals that the coordinator itself is ready (set after all services have started). Services like `BusService`, `SchedulerService`, and `FileWatcherService` wait on it before processing user-visible work. Do not confuse this coordinator gate with `depends_on`, which expresses readiness ordering between individual services.
+    `Hassette.ready_event` is a separate mechanism from `depends_on`. It signals that the coordinator is ready to begin starting services, but does not guarantee that every service has finished starting. Services like `BusService`, `SchedulerService`, and `FileWatcherService` wait on it before processing user-visible work. Do not confuse this coordinator gate with `depends_on`, which expresses readiness ordering between individual services.
 
 ### Initialization and shutdown order
 

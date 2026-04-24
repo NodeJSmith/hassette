@@ -40,13 +40,13 @@ def topological_sort(types: "list[type[Resource]]") -> "list[type[Resource]]":
     type_set: set[type] = set(types)
 
     def _resolve_deps(raw_deps: list[type]) -> list[type]:
-        """Resolve declared deps to concrete types in type_set using issubclass."""
+        """Resolve declared deps to concrete types in input order using issubclass."""
         resolved: list[type] = []
         for d in raw_deps:
             if d in type_set:
                 resolved.append(d)
             else:
-                resolved.extend(t for t in type_set if issubclass(t, d))
+                resolved.extend(t for t in types if issubclass(t, d))
         return resolved
 
     color: dict[type, _Color] = {t: _Color.WHITE for t in types}
@@ -95,6 +95,22 @@ def topological_sort(types: "list[type[Resource]]") -> "list[type[Resource]]":
     return result
 
 
+def validate_dependency_graph(types: "list[type[Resource]]") -> None:
+    """Validate that every ``depends_on`` reference resolves to a type in *types*.
+
+    Raises:
+        ValueError: If a declared dependency has no matching type (via issubclass).
+    """
+    type_set: set[type] = set(types)
+    for child_type in types:
+        for dep_type in getattr(child_type, "depends_on", []):
+            if not any(issubclass(t, dep_type) for t in type_set):
+                raise ValueError(
+                    f"{child_type.__name__} declares depends_on=[{dep_type.__name__}] "
+                    f"but no matching child type found in Hassette"
+                )
+
+
 def topological_levels(types: "list[type[Resource]]") -> "list[list[type[Resource]]]":
     """Group *types* into dependency levels for wave-based startup/shutdown.
 
@@ -129,7 +145,7 @@ def topological_levels(types: "list[type[Resource]]") -> "list[list[type[Resourc
     def _resolve(d: type) -> list[type]:
         if d in type_set:
             return [d]
-        return [t for t in type_set if issubclass(t, d)]
+        return [t for t in sorted_types if issubclass(t, d)]
 
     level_of: dict[type, int] = {}
     for t in sorted_types:
