@@ -205,7 +205,6 @@ def _make_job_registration(*, job_name: str = "test_job", group: str | None = No
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_register_listener_inserts_and_returns_id(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -229,7 +228,6 @@ async def test_register_listener_inserts_and_returns_id(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_register_job_inserts_and_returns_id(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -248,7 +246,6 @@ async def test_register_job_inserts_and_returns_id(
     assert row["job_name"] == "test_job"
 
 
-@pytest.mark.asyncio
 async def test_register_job_persists_group(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -263,7 +260,6 @@ async def test_register_job_persists_group(
     assert row[0] == "morning", f"Expected group='morning', got {row[0]!r}"
 
 
-@pytest.mark.asyncio
 async def test_register_job_persists_null_group(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -278,7 +274,6 @@ async def test_register_job_persists_null_group(
     assert row[0] is None, f"Expected group=None, got {row[0]!r}"
 
 
-@pytest.mark.asyncio
 async def test_mark_job_cancelled_sets_cancelled_at(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -310,7 +305,6 @@ async def test_mark_job_cancelled_sets_cancelled_at(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_reconcile_deletes_stale_without_history(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -331,7 +325,6 @@ async def test_reconcile_deletes_stale_without_history(
     assert row[0] == 0, "Stale job without history should be deleted"
 
 
-@pytest.mark.asyncio
 async def test_reconcile_retires_stale_with_history(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -368,7 +361,6 @@ async def test_reconcile_retires_stale_with_history(
     assert row[0] is not None, "Stale job with history should have retired_at set"
 
 
-@pytest.mark.asyncio
 async def test_reconcile_preserves_live_listeners(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -404,7 +396,6 @@ async def test_reconcile_preserves_live_listeners(
     assert row[0] == 0, "Stale listener without history should be deleted"
 
 
-@pytest.mark.asyncio
 @pytest.mark.usefixtures("session_id")
 async def test_reconcile_deletes_once_true_previous_session(
     repo: TelemetryRepository,
@@ -446,7 +437,6 @@ async def test_reconcile_deletes_once_true_previous_session(
     assert row[0] == 0, "once=True listener from previous session should be deleted"
 
 
-@pytest.mark.asyncio
 async def test_reconcile_preserves_once_true_with_current_invocations(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -485,7 +475,6 @@ async def test_reconcile_preserves_once_true_with_current_invocations(
     assert row[0] == 1, "once=True listener with current-session invocations should be preserved"
 
 
-@pytest.mark.asyncio
 async def test_reconcile_empty_ids_no_crash(
     repo: TelemetryRepository,
 ) -> None:
@@ -494,7 +483,6 @@ async def test_reconcile_empty_ids_no_crash(
     await repo.reconcile_registrations("test_app", [], [])
 
 
-@pytest.mark.asyncio
 async def test_reconcile_resets_retired_at_on_reupsert(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -535,7 +523,6 @@ async def test_reconcile_resets_retired_at_on_reupsert(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_upsert_same_natural_key_returns_same_id(
     repo: TelemetryRepository,
 ) -> None:
@@ -546,7 +533,6 @@ async def test_upsert_same_natural_key_returns_same_id(
     assert id1 == id2
 
 
-@pytest.mark.asyncio
 async def test_upsert_different_natural_key_returns_new_id(
     repo: TelemetryRepository,
 ) -> None:
@@ -556,7 +542,6 @@ async def test_upsert_different_natural_key_returns_new_id(
     assert id1 != id2
 
 
-@pytest.mark.asyncio
 async def test_upsert_updates_mutable_fields(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -588,7 +573,6 @@ async def test_upsert_updates_mutable_fields(
     assert row[0] == 5.0
 
 
-@pytest.mark.asyncio
 async def test_once_true_always_inserts(
     repo: TelemetryRepository,
 ) -> None:
@@ -612,7 +596,6 @@ async def test_once_true_always_inserts(
     assert id1 != id2
 
 
-@pytest.mark.asyncio
 async def test_upsert_does_not_update_human_description(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -658,7 +641,6 @@ async def test_upsert_does_not_update_human_description(
     assert row[0] == "entity light.kitchen"
 
 
-@pytest.mark.asyncio
 async def test_upsert_with_name_overrides_key(
     repo: TelemetryRepository,
 ) -> None:
@@ -703,7 +685,6 @@ async def test_upsert_with_name_overrides_key(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_persist_batch_inserts_handler_invocations(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -748,7 +729,6 @@ async def test_persist_batch_inserts_handler_invocations(
     assert rows[1]["status"] == "error"
 
 
-@pytest.mark.asyncio
 async def test_persist_batch_inserts_job_executions(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -780,7 +760,6 @@ async def test_persist_batch_inserts_job_executions(
     assert rows[0]["job_id"] == job_id
 
 
-@pytest.mark.asyncio
 async def test_persist_batch_handles_empty_lists(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -802,7 +781,6 @@ async def test_persist_batch_handles_empty_lists(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_schema_has_name_column(db: aiosqlite.Connection) -> None:
     """Migration 006: listeners table includes the name column."""
     cursor = await db.execute("PRAGMA table_info(listeners)")
@@ -811,7 +789,6 @@ async def test_schema_has_name_column(db: aiosqlite.Connection) -> None:
     assert "name" in column_names
 
 
-@pytest.mark.asyncio
 async def test_schema_has_retired_at_column(db: aiosqlite.Connection) -> None:
     """Migration 006: both listeners and scheduled_jobs have a retired_at column."""
     cursor = await db.execute("PRAGMA table_info(listeners)")
@@ -825,7 +802,6 @@ async def test_schema_has_retired_at_column(db: aiosqlite.Connection) -> None:
     assert "retired_at" in job_columns
 
 
-@pytest.mark.asyncio
 async def test_unique_index_enforced(db: aiosqlite.Connection) -> None:
     """Migration 006: two non-once listeners with same natural key raises IntegrityError."""
     sql = """
@@ -840,7 +816,6 @@ async def test_unique_index_enforced(db: aiosqlite.Connection) -> None:
         await db.execute(sql)
 
 
-@pytest.mark.asyncio
 async def test_partial_index_allows_once_duplicates(db: aiosqlite.Connection) -> None:
     """Migration 006: two once=1 listeners with same natural key succeeds (partial index)."""
     sql = """
@@ -857,7 +832,6 @@ async def test_partial_index_allows_once_duplicates(db: aiosqlite.Connection) ->
     assert row[0] == 2
 
 
-@pytest.mark.asyncio
 async def test_active_views_exist(db: aiosqlite.Connection) -> None:
     """Migration 006: SELECT * FROM active_listeners and active_scheduled_jobs succeeds."""
     cursor = await db.execute("SELECT * FROM active_listeners")
@@ -874,7 +848,6 @@ async def test_active_views_exist(db: aiosqlite.Connection) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_reconcile_deletes_stale_job_not_in_live_set(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -895,7 +868,6 @@ async def test_reconcile_deletes_stale_job_not_in_live_set(
     assert row[0] == 0, "Stale job without history should be deleted (non-empty live_job_ids branch)"
 
 
-@pytest.mark.asyncio
 async def test_reconcile_retires_stale_job_with_history_non_empty_live_set(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -927,7 +899,6 @@ async def test_reconcile_retires_stale_job_with_history_non_empty_live_set(
     assert row[0] is None, "Live job should not be retired"
 
 
-@pytest.mark.asyncio
 async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -978,7 +949,6 @@ async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
     assert row[0] == 1, "Live listener should be preserved"
 
 
-@pytest.mark.asyncio
 async def test_reconcile_rollback_on_exception(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -1009,7 +979,6 @@ async def test_reconcile_rollback_on_exception(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_persist_batch_with_fk_fallback_success_path(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -1050,7 +1019,6 @@ async def test_persist_batch_with_fk_fallback_success_path(
     assert row[0] == job_id
 
 
-@pytest.mark.asyncio
 async def test_persist_batch_with_fk_fallback_nulls_listener_fk_on_violation(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -1079,7 +1047,6 @@ async def test_persist_batch_with_fk_fallback_nulls_listener_fk_on_violation(
     assert row[0] is None, "listener_id should be nulled after FK violation"
 
 
-@pytest.mark.asyncio
 async def test_persist_batch_with_fk_fallback_nulls_job_fk_on_violation(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -1106,7 +1073,6 @@ async def test_persist_batch_with_fk_fallback_nulls_job_fk_on_violation(
     assert row[0] is None, "job_id should be nulled after FK violation"
 
 
-@pytest.mark.asyncio
 async def test_persist_batch_with_fk_fallback_drops_row_on_second_failure(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -1133,7 +1099,7 @@ async def test_persist_batch_with_fk_fallback_drops_row_on_second_failure(
             if call_count == 1:
                 raise sqlite3.IntegrityError("FOREIGN KEY constraint failed")
             if call_count == 2:
-                raise Exception("simulated hard failure on null-FK retry")
+                raise sqlite3.IntegrityError("NOT NULL constraint failed on null-FK retry")
         if params is not None:
             return await original_execute(sql, params)
         return await original_execute(sql)
@@ -1144,7 +1110,6 @@ async def test_persist_batch_with_fk_fallback_drops_row_on_second_failure(
     assert dropped == 1, "Row that fails even with null FK should be counted as dropped"
 
 
-@pytest.mark.asyncio
 async def test_persist_batch_with_fk_fallback_drops_job_row_on_second_failure(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -1170,7 +1135,7 @@ async def test_persist_batch_with_fk_fallback_drops_job_row_on_second_failure(
             if call_count == 1:
                 raise sqlite3.IntegrityError("FOREIGN KEY constraint failed")
             if call_count == 2:
-                raise Exception("simulated hard failure on null-FK retry")
+                raise sqlite3.IntegrityError("NOT NULL constraint failed on null-FK retry")
         if params is not None:
             return await original_execute(sql, params)
         return await original_execute(sql)
@@ -1181,7 +1146,6 @@ async def test_persist_batch_with_fk_fallback_drops_job_row_on_second_failure(
     assert dropped == 1, "Job row that fails even with null FK should be counted as dropped"
 
 
-@pytest.mark.asyncio
 async def test_persist_batch_with_fk_fallback_empty_lists(
     repo: TelemetryRepository,
 ) -> None:
@@ -1190,7 +1154,6 @@ async def test_persist_batch_with_fk_fallback_empty_lists(
     assert dropped == 0
 
 
-@pytest.mark.asyncio
 async def test_persist_batch_with_fk_fallback_rollback_on_exception(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -1227,7 +1190,6 @@ async def test_persist_batch_with_fk_fallback_rollback_on_exception(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_persist_batch_rollback_on_exception(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,

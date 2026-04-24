@@ -2,7 +2,7 @@
 
 Tests three targeted changes to core framework classes:
 1. context.set_global_hassette() returns Token[Hassette] | None
-2. App._api_factory ClassVar controls which Api subclass is created
+2. App api_factory constructor parameter controls which Api subclass is created
 3. StateProxy._test_seed_state() acquires write lock and inserts state
 """
 
@@ -139,19 +139,15 @@ class TestSetGlobalHassetteReturnsToken:
 
 
 # ---------------------------------------------------------------------------
-# Tests: App._api_factory injection point
+# Tests: App api_factory constructor parameter
 # ---------------------------------------------------------------------------
 
 
 class TestAppApiFactory:
-    """App._api_factory ClassVar controls which resource class is used for api."""
-
-    def test_default_factory_is_none(self) -> None:
-        """App._api_factory class attribute is None by default."""
-        assert App._api_factory is None
+    """App api_factory constructor parameter controls which resource class is used for api."""
 
     def test_default_uses_api_class(self) -> None:
-        """When _api_factory is None, App.__init__ creates an Api instance."""
+        """When api_factory is not passed, App.__init__ creates an Api instance."""
 
         class _TestConfig(AppConfig):
             model_config: ClassVar[dict[str, str]] = {"env_prefix": "test_wp01_default_"}
@@ -163,7 +159,6 @@ class TestAppApiFactory:
         hassette = _make_mock_hassette()
         config = _TestConfig(instance_name="test")
 
-        # Must patch add_child to avoid actually starting resources
         original_add_child = Resource.add_child
 
         created_classes: list[type] = []
@@ -178,7 +173,7 @@ class TestAppApiFactory:
         assert Api in created_classes, f"Expected Api to be created, got: {created_classes}"
 
     def test_custom_factory_is_used(self) -> None:
-        """When _api_factory is set, App.__init__ uses it instead of Api."""
+        """When api_factory is passed, App.__init__ uses it instead of Api."""
 
         class _TestConfig(AppConfig):
             model_config: ClassVar[dict[str, str]] = {"env_prefix": "test_wp01_custom_"}
@@ -192,7 +187,6 @@ class TestAppApiFactory:
         class _TestApp(App[_TestConfig]):
             app_config_cls = _TestConfig
             app_manifest = Mock()  # pyright: ignore[reportAttributeAccessIssue]
-            _api_factory = _FakeApi
 
         hassette = _make_mock_hassette()
         config = _TestConfig(instance_name="test")
@@ -205,10 +199,10 @@ class TestAppApiFactory:
             return original_add_child(self, cls, *args, **kwargs)
 
         with patch.object(Resource, "add_child", spy_add_child):
-            app = _TestApp(hassette, app_config=config, index=0)
+            app = _TestApp(hassette, app_config=config, index=0, api_factory=_FakeApi)
 
         assert _FakeApi in created_classes, f"Expected _FakeApi, got: {created_classes}"
-        assert Api not in created_classes, "Api should not be created when _api_factory is set"
+        assert Api not in created_classes, "Api should not be created when api_factory is passed"
         assert isinstance(app.api, _FakeApi)
 
 
@@ -233,7 +227,6 @@ class TestStateProxySeedState:
         proxy.hassette = hassette_mock  # pyright: ignore[reportAttributeAccessIssue]
         return proxy
 
-    @pytest.mark.asyncio
     async def test_seed_state_writes_to_cache(self) -> None:
         """_test_seed_state inserts the state dict into self.states."""
         proxy = self._make_state_proxy()
@@ -252,7 +245,6 @@ class TestStateProxySeedState:
         assert "light.kitchen" in proxy.states  # pyright: ignore[reportAttributeAccessIssue]
         assert proxy.states["light.kitchen"] is state_dict  # pyright: ignore[reportAttributeAccessIssue]
 
-    @pytest.mark.asyncio
     async def test_seed_state_overwrites_existing(self) -> None:
         """_test_seed_state replaces any existing entry for the entity."""
         proxy = self._make_state_proxy()
@@ -265,7 +257,6 @@ class TestStateProxySeedState:
 
         assert proxy.states["light.kitchen"] is new_dict  # pyright: ignore[reportAttributeAccessIssue]
 
-    @pytest.mark.asyncio
     async def test_seed_state_acquires_lock(self) -> None:
         """_test_seed_state acquires the write lock before writing."""
         proxy = self._make_state_proxy()
@@ -292,7 +283,6 @@ class TestStateProxySeedState:
 
         assert lock_acquired, "_test_seed_state must acquire the write lock"
 
-    @pytest.mark.asyncio
     async def test_seed_state_does_not_call_mark_ready(self) -> None:
         """_test_seed_state must NOT call mark_ready() — lifecycle is separate from seeding."""
         proxy = self._make_state_proxy()
@@ -311,7 +301,6 @@ class TestStateProxySeedState:
 
         assert not mark_ready_called, "_test_seed_state must not call mark_ready()"
 
-    @pytest.mark.asyncio
     async def test_seed_state_rejects_non_test_mode(self) -> None:
         """_test_seed_state raises RuntimeError when hassette._test_mode is not set."""
         proxy = self._make_state_proxy(test_mode=False)

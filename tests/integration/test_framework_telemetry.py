@@ -80,7 +80,6 @@ async def mock_hassette_with_db(tmp_path: Path) -> MagicMock:
 # ============================================================================
 
 
-@pytest.mark.asyncio
 async def test_framework_listener_registers_with_source_tier(harness_config: HassetteConfig) -> None:
     """Framework listener via Bus.on() on a framework Resource → source_tier='framework' in DB."""
     async with HassetteHarness(harness_config).with_bus() as harness:
@@ -103,7 +102,6 @@ async def test_framework_listener_registers_with_source_tier(harness_config: Has
         assert listener.app_key.startswith("__hassette__.")
 
 
-@pytest.mark.asyncio
 async def test_framework_job_registers_with_db(mock_hassette_with_db: MagicMock) -> None:
     """Framework job registration creates DB record with source_tier='framework'."""
     hassette = mock_hassette_with_db
@@ -145,7 +143,6 @@ async def test_framework_job_registers_with_db(mock_hassette_with_db: MagicMock)
     assert source_tier == "framework"
 
 
-@pytest.mark.asyncio
 async def test_command_executor_records_source_tier_on_error(mock_hassette_with_db: MagicMock) -> None:
     """Framework listener error → invocation record with source_tier='framework'."""
     hassette = mock_hassette_with_db
@@ -180,7 +177,6 @@ async def test_command_executor_records_source_tier_on_error(mock_hassette_with_
     assert record.error_type == "ValueError"
 
 
-@pytest.mark.asyncio
 async def test_command_executor_job_registration_with_source_tier(mock_hassette_with_db: MagicMock) -> None:
     """Framework job registration stores source_tier='framework' in DB."""
     hassette = mock_hassette_with_db
@@ -222,7 +218,6 @@ async def test_command_executor_job_registration_with_source_tier(mock_hassette_
 # ============================================================================
 
 
-@pytest.mark.asyncio
 async def test_queue_persistence_via_drain_and_persist(mock_hassette_with_db: MagicMock) -> None:
     """Records queued → _drain_and_persist() → persisted to DB."""
     hassette = mock_hassette_with_db
@@ -290,7 +285,6 @@ async def test_queue_persistence_via_drain_and_persist(mock_hassette_with_db: Ma
 # ============================================================================
 
 
-@pytest.mark.asyncio
 async def test_pre_registration_orphan_persisted_with_null_listener_id(mock_hassette_with_db: MagicMock) -> None:
     """Handler invocation before DB registration → listener_id=None in DB."""
     hassette = mock_hassette_with_db
@@ -336,7 +330,6 @@ async def test_pre_registration_orphan_persisted_with_null_listener_id(mock_hass
 # ============================================================================
 
 
-@pytest.mark.asyncio
 async def test_reconciliation_excludes_framework_app_key(mock_hassette_with_db: MagicMock) -> None:
     """Reconciliation with non-framework app_key → __hassette__ rows unaffected."""
     hassette = mock_hassette_with_db
@@ -406,7 +399,6 @@ async def test_reconciliation_excludes_framework_app_key(mock_hassette_with_db: 
 # ============================================================================
 
 
-@pytest.mark.asyncio
 async def test_telemetry_query_service_exists(harness_config: HassetteConfig) -> None:
     """TelemetryQueryService can be instantiated (filtering tested in DB tests)."""
     async with HassetteHarness(harness_config).with_bus() as harness:
@@ -423,7 +415,6 @@ async def test_telemetry_query_service_exists(harness_config: HassetteConfig) ->
 # ============================================================================
 
 
-@pytest.mark.asyncio
 async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: MagicMock) -> None:
     """Write queue full → dropped records incremented (AC-13)."""
     hassette = mock_hassette_with_db
@@ -468,7 +459,6 @@ async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: Magi
     assert dropped_overflow > 0
 
 
-@pytest.mark.asyncio
 async def test_get_drop_counters_returns_tuple(mock_hassette_with_db: MagicMock) -> None:
     """get_drop_counters() returns (overflow, exhausted, no_session, shutdown) counters."""
     hassette = mock_hassette_with_db
@@ -487,7 +477,6 @@ async def test_get_drop_counters_returns_tuple(mock_hassette_with_db: MagicMock)
     assert shutdown == 0
 
 
-@pytest.mark.asyncio
 async def test_sentinel_filtering_listener_id_zero(mock_hassette_with_db: MagicMock) -> None:
     """Sentinel filtering: listener_id=0 dropped (regression check)."""
     hassette = mock_hassette_with_db
@@ -515,7 +504,6 @@ async def test_sentinel_filtering_listener_id_zero(mock_hassette_with_db: MagicM
     assert rows_list[0][0] == 0  # No records persisted
 
 
-@pytest.mark.asyncio
 async def test_sentinel_filtering_session_id_zero(mock_hassette_with_db: MagicMock) -> None:
     """Sentinel filtering: session_id=0 dropped (regression check)."""
     hassette = mock_hassette_with_db

@@ -218,6 +218,16 @@ class StateRegistry:
         """
         return (key for key in self._registry)
 
+    @classmethod
+    def snapshot(cls) -> dict[StateKey, type["BaseState"]]:
+        """Return a shallow copy of the current registry state."""
+        return dict(cls._registry)
+
+    @classmethod
+    def restore(cls, snapshot: dict[StateKey, type["BaseState"]]) -> None:
+        """Replace the registry with a previously captured snapshot."""
+        cls._registry = snapshot
+
 
 def convert_state_dict_to_model(value: typing.Any, model: type["BaseState"]) -> "BaseState":
     """Convert a raw Home Assistant state dict to a typed state model.

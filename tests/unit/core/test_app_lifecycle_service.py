@@ -360,14 +360,21 @@ class TestShutdownInstance:
         mock_app_instance.shutdown.assert_called_once()
 
     async def test_catches_exceptions(
-        self, lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock, caplog: pytest.LogCaptureFixture
+        self, lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock, mock_hassette: MagicMock
     ) -> None:
-        """Logs error but doesn't raise on failure."""
+        """Doesn't raise on shutdown failure; emits FAILED state event."""
         mock_app_instance.shutdown.side_effect = RuntimeError("Shutdown failed")
 
         await lifecycle_service.shutdown_instance(mock_app_instance)
 
-        assert "Failed to stop app" in caplog.text
+        calls = mock_hassette.send_event.call_args_list
+        failed_calls = [
+            call
+            for call in calls
+            if call[0][0] == Topic.HASSETTE_EVENT_APP_STATE_CHANGED
+            and call[0][1].payload.data.status == ResourceStatus.FAILED
+        ]
+        assert len(failed_calls) == 1
 
     async def test_emits_stopped_event(
         self, lifecycle_service: AppLifecycleService, mock_app_instance: AsyncMock, mock_hassette: MagicMock
@@ -648,14 +655,13 @@ class TestStopApp:
         self,
         lifecycle_service: AppLifecycleService,
         mock_registry: MagicMock,
-        caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """Logs warning when app is not found in registry."""
+        """Returns early without shutting down any instances when app is not found."""
         mock_registry.unregister_app = Mock(return_value=None)
 
         await lifecycle_service.stop_app("missing_app")
 
-        assert "Cannot stop app missing_app, not found" in caplog.text
+        mock_registry.unregister_app.assert_called_once_with("missing_app")
 
 
 class TestReloadApp:
@@ -866,7 +872,6 @@ class TestReconcileAppRegistrations:
         mock_hassette.command_executor.reconcile_registrations = AsyncMock(side_effect=RuntimeError("DB full"))
 
         instances = {0: mock_app_instance}
-        import logging
 
         with caplog.at_level(logging.WARNING, logger="hassette"):
             await lifecycle_service._reconcile_app_registrations("test_app", instances)

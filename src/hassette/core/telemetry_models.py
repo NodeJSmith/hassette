@@ -25,19 +25,21 @@ class AppHealthSummary(BaseModel):
     job_count: int
     total_invocations: int
     total_errors: int
+    total_timed_out: int = 0
     total_executions: int
     total_job_errors: int
+    total_job_timed_out: int = 0
     avg_duration_ms: float
     last_activity_ts: float | None
 
     @property
     def error_rate(self) -> float:
-        """Combined handler + job error rate as a percentage (0.0-100.0)."""
+        """Combined handler + job failure rate as a percentage (0.0-100.0)."""
         total = self.total_invocations + self.total_executions
         if total == 0:
             return 0.0
-        errors = self.total_errors + self.total_job_errors
-        return errors / total * 100
+        failures = self.total_errors + self.total_timed_out + self.total_job_errors + self.total_job_timed_out
+        return failures / total * 100
 
     @property
     def success_rate(self) -> float:
@@ -157,6 +159,7 @@ class ListenerGlobalStats(BaseModel):
     invoked_listeners: int
     total_invocations: int
     total_errors: int
+    total_timed_out: int = 0
     total_di_failures: int
     avg_duration_ms: float | None
 
@@ -168,6 +171,7 @@ class JobGlobalStats(BaseModel):
     executed_jobs: int
     total_executions: int
     total_errors: int
+    total_timed_out: int = 0
     avg_duration_ms: float = 0.0
 
 

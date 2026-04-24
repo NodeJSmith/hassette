@@ -142,7 +142,6 @@ def test_is_dispatch_idle_is_authoritative_over_pending_count(bus_service: BusSe
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_drain_framework_registrations_drains_only_framework_keys(bus_service: BusService) -> None:
     """drain_framework_registrations() awaits only keys matching is_framework_key()."""
     drained: list[str] = []
@@ -166,7 +165,6 @@ async def test_drain_framework_registrations_drains_only_framework_keys(bus_serv
     assert f"{FRAMEWORK_APP_KEY_PREFIX}core" in drained
 
 
-@pytest.mark.asyncio
 async def test_drain_framework_registrations_uses_list_snapshot(bus_service: BusService) -> None:
     """drain_framework_registrations() snapshots keys before iterating to avoid RuntimeError."""
     drained: list[str] = []
@@ -183,3 +181,44 @@ async def test_drain_framework_registrations_uses_list_snapshot(bus_service: Bus
 
     await bus_service.drain_framework_registrations()
     assert framework_key in drained
+
+
+# ---------------------------------------------------------------------------
+# _on_dispatch_done underflow guard
+# ---------------------------------------------------------------------------
+
+
+def test_on_dispatch_done_warns_on_underflow(bus_service: BusService) -> None:
+    """_on_dispatch_done clamps to 0 and sets idle when counter is already zero."""
+    bus_service._dispatch_pending = 0
+    bus_service._dispatch_idle_event.clear()
+
+    task = MagicMock(spec=asyncio.Task)
+    bus_service._on_dispatch_done(task)
+
+    assert bus_service._dispatch_pending == 0
+    assert bus_service._dispatch_idle_event.is_set()
+
+
+def test_on_dispatch_done_normal_decrement(bus_service: BusService) -> None:
+    """_on_dispatch_done decrements normally when counter is positive."""
+    bus_service._dispatch_pending = 3
+    bus_service._dispatch_idle_event.clear()
+
+    task = MagicMock(spec=asyncio.Task)
+    bus_service._on_dispatch_done(task)
+
+    assert bus_service._dispatch_pending == 2
+    assert not bus_service._dispatch_idle_event.is_set()
+
+
+def test_on_dispatch_done_sets_idle_at_zero(bus_service: BusService) -> None:
+    """_on_dispatch_done sets idle event when counter reaches zero."""
+    bus_service._dispatch_pending = 1
+    bus_service._dispatch_idle_event.clear()
+
+    task = MagicMock(spec=asyncio.Task)
+    bus_service._on_dispatch_done(task)
+
+    assert bus_service._dispatch_pending == 0
+    assert bus_service._dispatch_idle_event.is_set()

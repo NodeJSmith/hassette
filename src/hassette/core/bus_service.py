@@ -84,9 +84,13 @@ class BusService(Service):
 
     def _on_dispatch_done(self, _task: asyncio.Task[Any]) -> None:
         """Callback for dispatch task completion — decrements pending counter."""
-        self._dispatch_pending -= 1
         if self._dispatch_pending <= 0:
-            self._dispatch_pending = 0  # guard against underflow
+            self.logger.warning("_dispatch_pending underflow detected (was %d); resetting to 0", self._dispatch_pending)
+            self._dispatch_pending = 0
+            self._dispatch_idle_event.set()
+            return
+        self._dispatch_pending -= 1
+        if self._dispatch_pending == 0:
             self._dispatch_idle_event.set()
 
     def _log_task_result(self, task: asyncio.Task[Any]) -> None:

@@ -22,6 +22,17 @@ export type TelemetryStatus = components["schemas"]["TelemetryStatusResponse"];
 export type LogEntry = components["schemas"]["LogEntryResponse"];
 export type SessionListEntry = components["schemas"]["SessionRecord"];
 
+// ---- Query string helpers ----
+
+function buildUrl(path: string, params: Record<string, string | number | null | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [key, val] of Object.entries(params)) {
+    if (val !== null && val !== undefined) search.set(key, String(val));
+  }
+  const qs = search.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
 // ---- App management ----
 
 export const getManifests = () => apiFetch<ManifestListResponse>("/apps/manifests");
@@ -32,49 +43,42 @@ export const reloadApp = (appKey: string) => apiPost<{ status: string }>(`/apps/
 
 // ---- Telemetry ----
 
-/** Append `&session_id=N` (or `?session_id=N`) to a URL when sessionId is provided. */
-function withSession(url: string, sessionId?: number | null): string {
-  if (sessionId === null || sessionId === undefined) return url;
-  const sep = url.includes("?") ? "&" : "?";
-  return `${url}${sep}session_id=${sessionId}`;
-}
-
 export const getAppHealth = (appKey: string, instanceIndex = 0, sessionId?: number | null) =>
-  apiFetch<AppHealthData>(withSession(`/telemetry/app/${appKey}/health?instance_index=${instanceIndex}`, sessionId));
+  apiFetch<AppHealthData>(buildUrl(`/telemetry/app/${appKey}/health`, { instance_index: instanceIndex, session_id: sessionId }));
 
 export const getAppListeners = (appKey: string, instanceIndex = 0, sessionId?: number | null) =>
-  apiFetch<ListenerData[]>(withSession(`/telemetry/app/${appKey}/listeners?instance_index=${instanceIndex}`, sessionId));
+  apiFetch<ListenerData[]>(buildUrl(`/telemetry/app/${appKey}/listeners`, { instance_index: instanceIndex, session_id: sessionId }));
 
 export const getAppJobs = (appKey: string, instanceIndex = 0, sessionId?: number | null) =>
-  apiFetch<JobData[]>(withSession(`/telemetry/app/${appKey}/jobs?instance_index=${instanceIndex}`, sessionId));
+  apiFetch<JobData[]>(buildUrl(`/telemetry/app/${appKey}/jobs`, { instance_index: instanceIndex, session_id: sessionId }));
 
 export const getHandlerInvocations = (listenerId: number, limit = 50, sessionId?: number | null) =>
-  apiFetch<HandlerInvocationData[]>(withSession(`/telemetry/handler/${listenerId}/invocations?limit=${limit}`, sessionId));
+  apiFetch<HandlerInvocationData[]>(buildUrl(`/telemetry/handler/${listenerId}/invocations`, { limit, session_id: sessionId }));
 
 export const getJobExecutions = (jobId: number, limit = 50, sessionId?: number | null) =>
-  apiFetch<JobExecutionData[]>(withSession(`/telemetry/job/${jobId}/executions?limit=${limit}`, sessionId));
+  apiFetch<JobExecutionData[]>(buildUrl(`/telemetry/job/${jobId}/executions`, { limit, session_id: sessionId }));
 
 export type SourceTier = "app" | "framework" | "all";
 
-export const getDashboardKpis = (sessionId?: number | null, sourceTier?: SourceTier) => {
-  let url = withSession("/telemetry/dashboard/kpis", sessionId);
-  if (sourceTier && sourceTier !== "all") url += (url.includes("?") ? "&" : "?") + `source_tier=${sourceTier}`;
-  return apiFetch<DashboardKpis>(url);
-};
+export const getDashboardKpis = (sessionId?: number | null, sourceTier?: SourceTier) =>
+  apiFetch<DashboardKpis>(buildUrl("/telemetry/dashboard/kpis", {
+    session_id: sessionId,
+    source_tier: sourceTier && sourceTier !== "all" ? sourceTier : undefined,
+  }));
 
 export const getDashboardAppGrid = (sessionId?: number | null) =>
-  apiFetch<{ apps: DashboardAppGridEntry[] }>(withSession("/telemetry/dashboard/app-grid", sessionId));
+  apiFetch<{ apps: DashboardAppGridEntry[] }>(buildUrl("/telemetry/dashboard/app-grid", { session_id: sessionId }));
 
 export type FrameworkSummary = components["schemas"]["FrameworkSummaryResponse"];
 
 export const getFrameworkSummary = (sessionId?: number | null) =>
-  apiFetch<FrameworkSummary>(withSession("/telemetry/dashboard/framework-summary", sessionId));
+  apiFetch<FrameworkSummary>(buildUrl("/telemetry/dashboard/framework-summary", { session_id: sessionId }));
 
-export const getDashboardErrors = (sessionId?: number | null, sourceTier?: SourceTier) => {
-  let url = withSession("/telemetry/dashboard/errors", sessionId);
-  if (sourceTier && sourceTier !== "all") url += (url.includes("?") ? "&" : "?") + `source_tier=${sourceTier}`;
-  return apiFetch<{ errors: DashboardErrorEntry[] }>(url);
-};
+export const getDashboardErrors = (sessionId?: number | null, sourceTier?: SourceTier) =>
+  apiFetch<{ errors: DashboardErrorEntry[] }>(buildUrl("/telemetry/dashboard/errors", {
+    session_id: sessionId,
+    source_tier: sourceTier && sourceTier !== "all" ? sourceTier : undefined,
+  }));
 
 export const getTelemetryStatus = (signal?: AbortSignal) =>
   apiFetch<TelemetryStatus>("/telemetry/status", signal ? { signal } : undefined);
@@ -82,15 +86,13 @@ export const getTelemetryStatus = (signal?: AbortSignal) =>
 // ---- Sessions ----
 
 export const getSessionList = (limit = 50) =>
-  apiFetch<SessionListEntry[]>(`/telemetry/sessions?limit=${limit}`);
+  apiFetch<SessionListEntry[]>(buildUrl("/telemetry/sessions", { limit }));
 
 // ---- Logs ----
 
-export const getRecentLogs = (params?: { level?: string; app_key?: string; limit?: number }) => {
-  const search = new URLSearchParams();
-  if (params?.level) search.set("level", params.level);
-  if (params?.app_key) search.set("app_key", params.app_key);
-  if (params?.limit) search.set("limit", String(params.limit));
-  const qs = search.toString();
-  return apiFetch<LogEntry[]>(`/logs/recent${qs ? `?${qs}` : ""}`);
-};
+export const getRecentLogs = (params?: { level?: string; app_key?: string; limit?: number }) =>
+  apiFetch<LogEntry[]>(buildUrl("/logs/recent", {
+    level: params?.level,
+    app_key: params?.app_key,
+    limit: params?.limit,
+  }));

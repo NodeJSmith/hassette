@@ -108,7 +108,6 @@ def _make_mock_listener(*, listener_id: int = 1, db_id: int | None = None, sourc
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> None:
     """All listeners produce HandlerInvocationRecord when fired, even when db_id is set."""
     listener = _make_mock_listener(db_id=42, source_tier="app")
@@ -131,7 +130,6 @@ async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> Non
     assert record.source_tier == "app"
 
 
-@pytest.mark.asyncio
 async def test_pre_registration_listener_produces_orphan_record(executor: CommandExecutor) -> None:
     """Pre-registration listeners (db_id=None at fire time) produce records with listener_id=None."""
     listener = _make_mock_listener(db_id=None, source_tier="app")
@@ -158,7 +156,6 @@ async def test_pre_registration_listener_produces_orphan_record(executor: Comman
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_framework_listener_registration(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
@@ -203,7 +200,6 @@ async def test_framework_listener_registration(
     assert row[2] == "hassette.test.framework_listener"
 
 
-@pytest.mark.asyncio
 async def test_framework_listener_produces_telemetry(executor: CommandExecutor) -> None:
     """Framework listeners produce execution records with source_tier='framework'."""
     listener = _make_mock_listener(db_id=99, source_tier="framework")
@@ -231,7 +227,6 @@ async def test_framework_listener_produces_telemetry(executor: CommandExecutor) 
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_reconciliation_guard_rejects_hassette(
     initialized_db: tuple[DatabaseService, int],
 ) -> None:
@@ -280,7 +275,6 @@ async def test_reconciliation_guard_rejects_hassette(
     assert surviving_row is not None, "Framework listener was deleted by reconcile_registrations — guard failed"
 
 
-@pytest.mark.asyncio
 async def test_reconciliation_preserves_framework_actors(
     initialized_db: tuple[DatabaseService, int],
 ) -> None:
@@ -350,7 +344,6 @@ async def test_reconciliation_preserves_framework_actors(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_once_true_deferred_cleanup(
     initialized_db: tuple[DatabaseService, int],
 ) -> None:
@@ -467,7 +460,6 @@ async def test_once_true_deferred_cleanup(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_all_jobs_produce_telemetry(executor: CommandExecutor) -> None:
     """All scheduled jobs produce JobExecutionRecord when fired, even with db_id set."""
     job = MagicMock()
@@ -494,7 +486,6 @@ async def test_all_jobs_produce_telemetry(executor: CommandExecutor) -> None:
     assert record.source_tier == "app"
 
 
-@pytest.mark.asyncio
 async def test_pre_registration_job_produces_orphan_record(executor: CommandExecutor) -> None:
     """Jobs with db_id=None at fire time produce records with job_id=None."""
     job = MagicMock()

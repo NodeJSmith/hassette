@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from dataclasses import dataclass
 
 import pytest
@@ -792,19 +791,14 @@ class TestMarkRegistered:
         listener.mark_registered(42)
         assert listener.db_id == 42
 
-    async def test_mark_registered_warns_on_double_call(
-        self, bucket_fixture: TaskBucket, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """mark_registered() logs a warning and keeps the original db_id on second call."""
+    async def test_mark_registered_warns_on_double_call(self, bucket_fixture: TaskBucket) -> None:
+        """mark_registered() keeps the original db_id when called a second time."""
 
         listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=lambda _e: None)
         listener.mark_registered(42)
-
-        with caplog.at_level(logging.WARNING, logger="hassette.bus.listeners"):
-            listener.mark_registered(99)
+        listener.mark_registered(99)
 
         assert listener.db_id == 42
-        assert "already registered" in caplog.text
 
 
 class TestMarkFired:

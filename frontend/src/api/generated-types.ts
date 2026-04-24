@@ -692,10 +692,20 @@ export interface components {
             total_invocations: number;
             /** Total Errors */
             total_errors: number;
+            /**
+             * Total Timed Out
+             * @default 0
+             */
+            total_timed_out: number;
             /** Total Executions */
             total_executions: number;
             /** Total Job Errors */
             total_job_errors: number;
+            /**
+             * Total Job Timed Out
+             * @default 0
+             */
+            total_job_timed_out: number;
             /** Avg Duration Ms */
             avg_duration_ms: number;
             /** Last Activity Ts */
@@ -738,8 +748,12 @@ export interface components {
             total_executions: number;
             /** Total Errors */
             total_errors: number;
+            /** Total Timed Out */
+            total_timed_out: number;
             /** Total Job Errors */
             total_job_errors: number;
+            /** Total Job Timed Out */
+            total_job_timed_out: number;
             /** Avg Handler Duration Ms */
             avg_handler_duration_ms: number;
             /** Avg Job Duration Ms */
@@ -754,6 +768,10 @@ export interface components {
         /**
          * FrameworkSummaryResponse
          * @description Framework KPI counts for the System Health badge.
+         *
+         *     Note: total_errors and total_job_errors include timed_out status.
+         *     get_error_counts() returns combined counts; splitting would require
+         *     a separate query path.
          */
         FrameworkSummaryResponse: {
             /** Total Errors */

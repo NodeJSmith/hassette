@@ -83,7 +83,6 @@ def test_on_error_replaces_previous_handler(bus: "Bus") -> None:
     assert bus._error_handler is not first_handler
 
 
-@pytest.mark.asyncio
 async def test_on_error_reset_on_initialize(bus: "Bus") -> None:
     """_error_handler is reset to None when on_initialize() is called."""
     mock_handler = AsyncMock()

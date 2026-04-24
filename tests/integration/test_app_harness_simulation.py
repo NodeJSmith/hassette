@@ -47,7 +47,6 @@ class SimTestApp(App[SimConfig]):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_freeze_time_patches_now():
     """freeze_time patches hassette's now() to return the frozen time."""
     frozen = Instant.from_utc(2026, 4, 7, 6, 0)
@@ -58,7 +57,6 @@ async def test_freeze_time_patches_now():
         assert result == expected, f"Expected {expected}, got {result}"
 
 
-@pytest.mark.asyncio
 async def test_freeze_time_idempotent():
     """freeze_time can be called multiple times; second call replaces the first."""
     frozen1 = Instant.from_utc(2026, 4, 7, 6, 0)
@@ -71,7 +69,6 @@ async def test_freeze_time_idempotent():
         assert result == expected
 
 
-@pytest.mark.asyncio
 async def test_advance_time_without_freeze_raises():
     """advance_time raises RuntimeError if freeze_time has not been called."""
     async with AppTestHarness(SimTestApp, config={}) as harness:
@@ -79,7 +76,6 @@ async def test_advance_time_without_freeze_raises():
             harness.advance_time(seconds=60)
 
 
-@pytest.mark.asyncio
 async def test_advance_time_moves_clock():
     """After freeze_time + advance_time, now() returns the advanced time."""
     frozen = Instant.from_utc(2026, 4, 7, 6, 0)
@@ -91,7 +87,6 @@ async def test_advance_time_moves_clock():
         assert result == expected
 
 
-@pytest.mark.asyncio
 async def test_advance_time_hours_and_minutes():
     """advance_time accepts hours and minutes parameters."""
     frozen = Instant.from_utc(2026, 4, 7, 6, 0)
@@ -103,7 +98,6 @@ async def test_advance_time_hours_and_minutes():
         assert result == expected
 
 
-@pytest.mark.asyncio
 async def test_trigger_due_jobs_fires_scheduled():
     """Freeze at 6:00, advance to 7:00, trigger — daily job fires."""
     # The app registers run_daily at 7:00 during on_initialize.
@@ -130,7 +124,6 @@ async def test_trigger_due_jobs_fires_scheduled():
         harness.api_recorder.assert_called("call_service", entity_id="cover.blinds")
 
 
-@pytest.mark.asyncio
 async def test_trigger_due_jobs_returns_count():
     """trigger_due_jobs returns the number of jobs fired."""
     async with AppTestHarness(SimTestApp, config={}) as harness:
@@ -143,7 +136,6 @@ async def test_trigger_due_jobs_returns_count():
         assert count == 1
 
 
-@pytest.mark.asyncio
 async def test_trigger_due_jobs_snapshot_prevents_infinite_loop():
     """trigger_due_jobs fires a repeating job exactly once per call, not infinitely."""
     async with AppTestHarness(SimTestApp, config={}) as harness:
@@ -159,7 +151,6 @@ async def test_trigger_due_jobs_snapshot_prevents_infinite_loop():
         assert count == 1
 
 
-@pytest.mark.asyncio
 async def test_trigger_due_jobs_no_due_jobs_returns_zero():
     """trigger_due_jobs returns 0 when no jobs are due at the frozen time."""
     frozen_past = Instant.from_utc(2000, 1, 1, 0, 0)  # very far in the past
@@ -169,7 +160,6 @@ async def test_trigger_due_jobs_no_due_jobs_returns_zero():
         assert count == 0
 
 
-@pytest.mark.asyncio
 async def test_freeze_time_cleanup_on_exit():
     """After exiting AppTestHarness, now() returns real time (not frozen)."""
     frozen = Instant.from_utc(2000, 1, 1, 0, 0)
@@ -183,7 +173,6 @@ async def test_freeze_time_cleanup_on_exit():
     assert real_now != frozen_time, f"now() is still returning frozen time after harness exit: {real_now}"
 
 
-@pytest.mark.asyncio
 async def test_freeze_time_accepts_zoned_datetime():
     """freeze_time accepts a ZonedDateTime directly (not just Instant)."""
     zdt = ZonedDateTime.from_system_tz(2026, 4, 7, 6, 0)
@@ -200,7 +189,6 @@ class SimTestApp2(App[SimConfig]):
         pass
 
 
-@pytest.mark.asyncio
 async def test_freeze_time_concurrent_lock_raises():
     """A second harness calling freeze_time while the first holds the lock raises RuntimeError."""
     from hassette.test_utils.app_harness import _FREEZE_TIME_LOCK

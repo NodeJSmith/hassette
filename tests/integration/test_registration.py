@@ -147,7 +147,6 @@ def _stub_task_bucket() -> MagicMock:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_listener_registration_persists_correct_app_key(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
@@ -181,7 +180,6 @@ async def test_listener_registration_persists_correct_app_key(
     assert row[1] == 2, f"Expected instance_index=2, got {row[1]}"
 
 
-@pytest.mark.asyncio
 async def test_job_registration_persists_correct_app_key(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
@@ -326,7 +324,6 @@ def test_job_with_app_key_triggers_registration(mock_hassette: MagicMock) -> Non
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_group_persisted_at_registration(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],

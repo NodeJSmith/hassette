@@ -1719,6 +1719,11 @@
             "type": "integer",
             "title": "Total Errors"
           },
+          "total_timed_out": {
+            "type": "integer",
+            "title": "Total Timed Out",
+            "default": 0
+          },
           "total_executions": {
             "type": "integer",
             "title": "Total Executions"
@@ -1726,6 +1731,11 @@
           "total_job_errors": {
             "type": "integer",
             "title": "Total Job Errors"
+          },
+          "total_job_timed_out": {
+            "type": "integer",
+            "title": "Total Job Timed Out",
+            "default": 0
           },
           "avg_duration_ms": {
             "type": "number",
@@ -1838,9 +1848,17 @@
             "type": "integer",
             "title": "Total Errors"
           },
+          "total_timed_out": {
+            "type": "integer",
+            "title": "Total Timed Out"
+          },
           "total_job_errors": {
             "type": "integer",
             "title": "Total Job Errors"
+          },
+          "total_job_timed_out": {
+            "type": "integer",
+            "title": "Total Job Timed Out"
           },
           "avg_handler_duration_ms": {
             "type": "number",
@@ -1877,7 +1895,9 @@
           "total_invocations",
           "total_executions",
           "total_errors",
+          "total_timed_out",
           "total_job_errors",
+          "total_job_timed_out",
           "avg_handler_duration_ms",
           "avg_job_duration_ms",
           "error_rate",
@@ -1903,7 +1923,7 @@
           "total_job_errors"
         ],
         "title": "FrameworkSummaryResponse",
-        "description": "Framework KPI counts for the System Health badge."
+        "description": "Framework KPI counts for the System Health badge.\n\nNote: total_errors and total_job_errors include timed_out status.\nget_error_counts() returns combined counts; splitting would require\na separate query path."
       },
       "HTTPValidationError": {
         "properties": {

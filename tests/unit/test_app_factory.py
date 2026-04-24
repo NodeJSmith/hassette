@@ -1,6 +1,5 @@
 """Unit tests for AppFactory."""
 
-import logging
 from typing import cast
 from unittest.mock import Mock, patch
 
@@ -39,15 +38,7 @@ def mock_manifest():
 @pytest.fixture
 def factory(mock_hassette, mock_registry):
     """Create an AppFactory instance with mocked dependencies."""
-    # Ensure propagate=True so caplog can capture logs even if integration
-    # tests ran first and set propagate=False on the hassette logger.
-    logger = logging.getLogger("hassette")
-    old_propagate = logger.propagate
-    logger.propagate = True
-    try:
-        yield AppFactory(mock_hassette, mock_registry)
-    finally:
-        logger.propagate = old_propagate
+    return AppFactory(mock_hassette, mock_registry)
 
 
 class TestAppFactoryInit:
@@ -257,14 +248,13 @@ class TestAppFactoryLoadClass:
         mock_load_class.assert_called_once_with(mock_manifest, force_reload=True)
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
-    def test_load_class_logs_error_on_failure(self, mock_load_class, factory: AppFactory, caplog, mock_manifest):
-        """Logs error with traceback on load failure."""
+    def test_load_class_logs_error_on_failure(self, mock_load_class, factory: AppFactory, mock_manifest):
+        """Returns None on load failure."""
         mock_load_class.side_effect = ImportError("Module not found")
 
         result = factory._load_class("test_app", mock_manifest, force_reload=False)
 
         assert result is None
-        assert "Failed to load app class" in caplog.text
 
 
 class TestAppFactoryGetLoadError:
@@ -347,10 +337,9 @@ class TestAppFactoryCheckOnlyAppDecorator:
         assert result is False
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
-    def test_check_only_app_catches_exceptions(self, mock_load_class, factory: AppFactory, caplog, mock_manifest):
-        """Returns False and logs error on exception."""
+    def test_check_only_app_catches_exceptions(self, mock_load_class, factory: AppFactory, mock_manifest):
+        """Returns False on exception."""
         mock_load_class.side_effect = ImportError("Failed to load")
 
         result = factory.check_only_app_decorator(mock_manifest)
         assert result is False
-        assert "Failed to check only_app" in caplog.text

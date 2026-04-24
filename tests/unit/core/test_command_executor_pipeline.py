@@ -15,8 +15,6 @@ import sqlite3
 import time
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.command_executor import CommandExecutor, RetryableBatch
 from hassette.core.commands import InvokeHandler
@@ -99,7 +97,6 @@ def _init_executor(queue_max: int = 10) -> CommandExecutor:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_bounded_queue_drops_on_full():
     """Filling a queue beyond maxsize triggers QueueFull; _dropped_overflow is incremented."""
     executor = _init_executor(queue_max=3)
@@ -127,7 +124,6 @@ async def test_bounded_queue_drops_on_full():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_retryable_batch_expanded_in_drain():
     """RetryableBatch enqueued in write_queue expands into the current batch on drain."""
     executor = _init_executor()
@@ -162,7 +158,6 @@ async def test_retryable_batch_expanded_in_drain():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_sentinel_guard_drops_id_zero():
     """Records with listener_id=0 are dropped with a REGRESSION log, not persisted."""
     executor = _init_executor()
@@ -194,7 +189,6 @@ async def test_sentinel_guard_drops_id_zero():
     assert not persist_batch_called
 
 
-@pytest.mark.asyncio
 async def test_sentinel_guard_allows_id_none():
     """Records with listener_id=None are NOT dropped — they represent pre-reg orphans."""
     executor = _init_executor()
@@ -233,7 +227,6 @@ async def test_sentinel_guard_allows_id_none():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_operational_error_triggers_retry():
     """OperationalError from persist_batch causes re-enqueue as RetryableBatch."""
     executor = _init_executor()
@@ -267,7 +260,6 @@ async def test_operational_error_triggers_retry():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_max_retries_drops_batch():
     """RetryableBatch with retry_count=3 is dropped and _dropped_exhausted is incremented."""
     executor = _init_executor()
@@ -304,7 +296,6 @@ async def test_max_retries_drops_batch():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_data_error_drops_immediately():
     """DataError from persist_batch → drop immediately + REGRESSION log, no re-enqueue."""
     executor = _init_executor()
@@ -336,7 +327,6 @@ async def test_data_error_drops_immediately():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_integrity_error_row_by_row_fallback():
     """IntegrityError triggers FK fallback via persist_batch_with_fk_fallback; dropped count tracked."""
     executor = _init_executor()
@@ -438,7 +428,6 @@ def test_build_record_reads_is_di_failure():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_flush_queue_handles_db_closed():
     """_flush_queue does not raise when DB submit raises RuntimeError (DB closed at shutdown)."""
     executor = _init_executor()
@@ -470,7 +459,6 @@ async def test_flush_queue_handles_db_closed():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_persist_batch_includes_source_tier():
     """TelemetryRepository.persist_batch INSERT includes source_tier column."""
     import aiosqlite
