@@ -129,10 +129,12 @@ class Hassette(Resource):
             StartupPhase.DATABASE: [self._database_service],
             StartupPhase.SERVICES: [c for c in self.children if c is not self._database_service],
         }
-        _assigned = {s for services in self._phase_services.values() for s in services}
-        _unassigned = set(self.children) - _assigned
-        if _unassigned:
-            raise RuntimeError(f"Startup phase map incomplete — unassigned: {_unassigned}")
+        _all = [s for services in self._phase_services.values() for s in services]
+        _duplicates = {s for s in _all if _all.count(s) > 1}
+        if _duplicates:
+            raise RuntimeError(f"Startup phase map has duplicates — children in multiple phases: {_duplicates}")
+        if set(_all) != set(self.children):
+            raise RuntimeError(f"Startup phase map incomplete — unassigned: {set(self.children) - set(_all)}")
 
         self.logger.info("All components registered...", stacklevel=2)
 
