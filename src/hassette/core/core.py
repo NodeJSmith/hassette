@@ -19,9 +19,9 @@ from hassette.resources.base import Resource, Service
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
-from hassette.types.enums import ResourceStatus, StartupPhase
+from hassette.types.enums import ResourceStatus
 from hassette.utils.app_utils import run_apps_pre_check
-from hassette.utils.service_utils import wait_for_ready
+from hassette.utils.service_utils import topological_levels, topological_sort, validate_dependency_graph, wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 from .api_resource import ApiResource
@@ -72,6 +72,9 @@ class Hassette(Resource):
     @property
     def unique_name(self) -> str:
         return "Hassette"
+
+    def _should_skip_dependency_check(self) -> bool:
+        return False
 
     def __init__(self, config: HassetteConfig) -> None:
         self.config = config
@@ -125,16 +128,28 @@ class Hassette(Resource):
         self.state_registry = STATE_REGISTRY
         self.type_registry = TYPE_REGISTRY
 
-        self._phase_services: dict[StartupPhase, list[Resource]] = {
-            StartupPhase.DATABASE: [self._database_service],
-            StartupPhase.SERVICES: [c for c in self.children if c is not self._database_service],
-        }
-        _all = [s for services in self._phase_services.values() for s in services]
-        _duplicates = {s for s in _all if _all.count(s) > 1}
-        if _duplicates:
-            raise RuntimeError(f"Startup phase map has duplicates — children in multiple phases: {_duplicates}")
-        if set(_all) != set(self.children):
-            raise RuntimeError(f"Startup phase map incomplete — unassigned: {set(self.children) - set(_all)}")
+        # Validate dependency graph and compute initialization order.
+        # Preserve insertion order (deterministic); deduplicate via dict.fromkeys.
+        all_types = list(dict.fromkeys(type(c) for c in self.children))
+
+        # Validate: each child type appears exactly once (wave-based shutdown maps type→instance).
+        type_counts = {t: sum(1 for c in self.children if type(c) is t) for t in all_types}
+        duplicates = {t.__name__: n for t, n in type_counts.items() if n > 1}
+        if duplicates:
+            raise ValueError(f"Duplicate child types in Hassette: {duplicates}")
+
+        validate_dependency_graph(all_types)
+
+        # Validate: no cycles; compute dependency levels for wave-based startup/shutdown.
+        self._init_order: list[type[Resource]] = topological_sort(all_types)
+        self._init_waves: list[list[type[Resource]]] = topological_levels(all_types)
+
+        # Log the dependency graph — only services with non-empty depends_on (root nodes add noise).
+        dep_lines = [
+            f"  {t.__name__} -> [{', '.join(d.__name__ for d in t.depends_on)}]" for t in all_types if t.depends_on
+        ]
+        if dep_lines:
+            self.logger.info("Resource dependency graph:\n%s", "\n".join(dep_lines))
 
         self.logger.info("All components registered...", stacklevel=2)
 
@@ -300,7 +315,7 @@ class Hassette(Resource):
         Returns:
             True if all resources are ready, False if shutdown is requested.
         """
-        timeout = timeout or self.config.startup_timeout_seconds
+        timeout = timeout if timeout is not None else self.config.startup_timeout_seconds
 
         return await wait_for_ready(resources, timeout=timeout, shutdown_event=self.shutdown_event)
 
@@ -331,7 +346,7 @@ class Hassette(Resource):
 
         # Phase 1: Start database and create session before anything else.
         # This guarantees a valid session_id exists before any handler can fire.
-        self._start_database()
+        self._database_service.start()
 
         try:
             await self.wait_for_ready([self.database_service], timeout=self.config.startup_timeout_seconds)
@@ -342,21 +357,28 @@ class Hassette(Resource):
             await self.shutdown()
             return
 
-        # Phase 2: Start all remaining services now that the session exists.
-        self._start_remaining_resources()
-
+        # Phase 2: Start remaining children wave-by-wave.  Each wave's deps
+        # are guaranteed ready before the wave begins, so _auto_wait_dependencies
+        # returns immediately (kept as defense-in-depth for restarts).
         self.logger.info("Waiting for resources to initialize...")
-
         self.ready_event.set()
+        type_to_instance = {type(c): c for c in self.children}
+        already_started: set[int] = {id(self._database_service)}
 
-        started = await self.wait_for_ready(list(self.children), timeout=self.config.startup_timeout_seconds)
-
-        if not started:
-            not_ready_resources = [r.class_name for r in self.children if not r.is_ready()]
-            self.logger.error("The following resources failed to start: %s", ", ".join(not_ready_resources))
-            self.logger.error("Not all resources started successfully, shutting down")
-            await self.shutdown()
-            return
+        for wave_types in self._init_waves:
+            wave = [type_to_instance[t] for t in wave_types if t in type_to_instance]
+            wave = [c for c in wave if id(c) not in already_started]
+            if not wave:
+                continue
+            for child in wave:
+                child.start()
+            started = await self.wait_for_ready(wave, timeout=self.config.startup_timeout_seconds)
+            if not started:
+                not_ready = [r.class_name for r in wave if not r.is_ready()]
+                self.logger.error("The following resources failed to start: %s", ", ".join(not_ready))
+                self.logger.error("Not all resources started successfully, shutting down")
+                await self.shutdown()
+                return
 
         try:
             await asyncio.wait_for(
@@ -394,29 +416,39 @@ class Hassette(Resource):
 
         self.logger.info("Hassette stopped.")
 
-    def _start_database(self) -> None:
-        """Start only the DatabaseService (phase 1 of startup)."""
-        for service in self._phase_services[StartupPhase.DATABASE]:
-            service.start()
+    async def _shutdown_children(self) -> bool:
+        """Wave-based shutdown: gather each dependency level sequentially.
 
-    def _start_remaining_resources(self) -> None:
-        """Start all children except DatabaseService (phase 2 of startup)."""
-        for service in self._phase_services[StartupPhase.SERVICES]:
-            service.start()
-
-    async def on_shutdown(self) -> None:
-        """Shut down CommandExecutor before DatabaseService.
-
-        CommandExecutor._flush_queue() calls database_service.submit(), so it must
-        complete before DatabaseService tears down its write queue. The base class
-        shuts all children concurrently, which races these two. We sequence
-        CommandExecutor first here, then let _finalize_shutdown handle the rest
-        (CommandExecutor.shutdown() is idempotent — the second call is a no-op).
+        Dependents (leaf services) shut down first, their dependencies last.
+        Within each wave, services shut down concurrently via gather.
         """
-        try:
-            await self._command_executor.shutdown()
-        except Exception:
-            self.logger.exception("CommandExecutor shutdown failed during sequenced pre-shutdown")
+        timeout = self.config.resource_shutdown_timeout_seconds
+        type_to_instance = {type(c): c for c in self.children}
+
+        for wave_types in reversed(self._init_waves):
+            wave = [type_to_instance[t] for t in wave_types if t in type_to_instance]
+            if not wave:
+                continue
+            self.logger.debug("Shutting down wave: [%s]", ", ".join(c.class_name for c in wave))
+            try:
+                async with asyncio.timeout(timeout):
+                    results = await asyncio.gather(
+                        *[child.shutdown() for child in wave],
+                        return_exceptions=True,
+                    )
+                    for child, result in zip(wave, results, strict=True):
+                        if isinstance(result, Exception):
+                            self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
+            except TimeoutError:
+                self.logger.error(
+                    "Shutdown wave [%s] timed out after %ss — forcing remaining children",
+                    ", ".join(c.class_name for c in wave),
+                    timeout,
+                )
+                for child in wave:
+                    child._force_terminal()
+                return False
+        return True
 
     async def _on_children_stopped(self) -> None:
         """Emit Hassette's own STOPPED event, then close event streams.

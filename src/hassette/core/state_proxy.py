@@ -1,11 +1,15 @@
 from collections.abc import Generator
 from logging import getLogger
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from fair_async_rlock import FairAsyncRLock
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 
 from hassette.bus import Bus
+from hassette.core.api_resource import ApiResource
+from hassette.core.bus_service import BusService
+from hassette.core.scheduler_service import SchedulerService
+from hassette.core.websocket_service import WebsocketService
 from hassette.events import RawStateChangeEvent
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.base import Resource
@@ -23,6 +27,8 @@ LOGGER = getLogger(__name__)
 
 
 class StateProxy(Resource):
+    depends_on: ClassVar[list[type[Resource]]] = [WebsocketService, ApiResource, BusService, SchedulerService]
+
     states: dict[str, "HassStateDict"]
     lock: FairAsyncRLock
     bus: Bus
@@ -47,20 +53,10 @@ class StateProxy(Resource):
     async def on_initialize(self) -> None:
         """Initialize the state proxy.
 
-        Waits for WebSocket and API services to be ready, then performs initial state sync
-        and subscribes to state change and registry events with high priority.
+        WebsocketService, ApiResource, BusService, and SchedulerService are guaranteed
+        ready by depends_on auto-wait. Performs initial state sync and subscribes to
+        state change and registry events with high priority.
         """
-        # Wait for dependencies
-        self.logger.debug("Waiting for dependencies to be ready")
-        await self.hassette.wait_for_ready(
-            [
-                self.hassette._websocket_service,
-                self.hassette._api_service,
-                self.hassette._bus_service,
-                self.hassette._scheduler_service,
-            ]
-        )
-
         self.logger.debug("Dependencies ready, performing initial state sync")
 
         self.subscribe_to_events()

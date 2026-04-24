@@ -166,7 +166,7 @@ class TestCloseStreamsAfterChildrenStopped:
             await bus.initialize()
 
     async def test_finalize_shutdown_calls_hook_after_children(self) -> None:
-        """Verify _finalize_shutdown() code structure: _on_children_stopped is called after children gather.
+        """Verify _finalize_shutdown() code structure: _shutdown_children is called before _on_children_stopped.
 
         This is a structural test verifying the ordering contract in Resource._finalize_shutdown().
         """
@@ -175,11 +175,10 @@ class TestCloseStreamsAfterChildrenStopped:
         from hassette.resources.base import Resource
 
         source = inspect.getsource(Resource._finalize_shutdown)
-        # In the source, child.shutdown() gather must appear before _on_children_stopped
-        gather_pos = source.find("child.shutdown()")
+        children_pos = source.find("_shutdown_children")
         hook_pos = source.find("_on_children_stopped")
-        assert gather_pos > 0, "_finalize_shutdown should contain child.shutdown() gather"
+        assert children_pos > 0, "_finalize_shutdown should call _shutdown_children"
         assert hook_pos > 0, "_finalize_shutdown should contain _on_children_stopped call"
-        assert gather_pos < hook_pos, (
-            "child.shutdown() gather should appear before _on_children_stopped in _finalize_shutdown"
+        assert children_pos < hook_pos, (
+            "_shutdown_children should appear before _on_children_stopped in _finalize_shutdown"
         )

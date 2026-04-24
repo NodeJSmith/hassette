@@ -9,10 +9,12 @@ import traceback
 import typing
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from typing import ClassVar
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.commands import ExecuteJob, InvokeHandler
+from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.error_context import ErrorContext
@@ -50,12 +52,14 @@ class CommandExecutor(Service):
     """Executes handler invocations and scheduled jobs, persisting execution records to SQLite.
 
     Lifecycle:
-        on_initialize(): waits for DatabaseService to be ready.
+        depends_on: DatabaseService (auto-waited before lifecycle hooks).
         serve(): drains the write queue in batches until shutdown, then flushes remaining records.
 
     Records are queued immediately after each execution and persisted in batches by serve().
     On shutdown, _flush_queue() persists any remaining records before returning.
     """
+
+    depends_on: ClassVar[list[type[Resource]]] = [DatabaseService]
 
     _write_queue: asyncio.Queue[HandlerInvocationRecord | JobExecutionRecord | RetryableBatch]
     """Bounded queue of execution records pending DB persistence."""
@@ -112,10 +116,6 @@ class CommandExecutor(Service):
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
-
-    async def on_initialize(self) -> None:
-        """Wait for DatabaseService to be ready."""
-        await self.hassette.wait_for_ready([self.hassette.database_service])
 
     async def serve(self) -> None:
         """Drain the write queue in batches until shutdown, then flush remaining records."""

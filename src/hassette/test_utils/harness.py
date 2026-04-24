@@ -26,6 +26,7 @@ from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
+from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.state_proxy import StateProxy
 from hassette.core.websocket_service import WebsocketService
 from hassette.events import Event
@@ -71,6 +72,9 @@ async def shutdown_resource(res: Resource) -> None:
 
 class _HassetteMock(Resource):
     task_bucket: TaskBucket
+
+    def _should_skip_dependency_check(self) -> bool:
+        return True
 
     def __init__(self, *, config: HassetteConfig) -> None:
         self.config = config
@@ -173,9 +177,10 @@ _DEPENDENCIES: dict[str, set[str]] = {
     "scheduler": set(),
     "file_watcher": set(),
     "api_mock": set(),
-    "app_handler": {"bus", "state_proxy"},
-    "state_proxy": {"bus"},
+    "app_handler": {"bus", "scheduler", "state_proxy"},
+    "state_proxy": {"bus", "scheduler"},
     "state_registry": set(),
+    "service_watcher": {"bus"},
 }
 
 _CONFLICTS: list[tuple[str, str]] = []
@@ -188,7 +193,27 @@ _STARTUP_ORDER: list[str] = [
     "app_handler",
     "state_proxy",
     "state_registry",
+    "service_watcher",
 ]
+
+# Maps harness component names to the corresponding real framework service class.
+# Used by the harness consistency test to verify _DEPENDENCIES stays in sync with
+# real service depends_on declarations.
+#
+# Omitted entries:
+#   "api_mock"     — harness-specific: wraps ApiResource with URL/header patches and
+#                    a local HTTP mock server; there is no single real class equivalent.
+#   "file_watcher" — FileWatcherService has no depends_on (empty list), so consistency
+#                    checks would be vacuous.  Omitting avoids false-positive drift.
+#   "state_registry" — StateRegistry is not a Resource subclass; it is a plain dataclass
+#                      registry with no depends_on concept.
+_COMPONENT_CLASS_MAP: dict[str, type[Resource]] = {
+    "bus": BusService,
+    "scheduler": SchedulerService,
+    "app_handler": AppHandler,
+    "state_proxy": StateProxy,
+    "service_watcher": ServiceWatcher,
+}
 
 
 class HassetteHarness:

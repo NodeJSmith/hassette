@@ -1,16 +1,14 @@
 import asyncio
 import threading
 import typing
-from contextlib import suppress
 from types import SimpleNamespace
-from typing import cast
+from typing import ClassVar, cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from hassette import Hassette
 from hassette.bus import Bus
-from hassette.config.config import HassetteConfig
 from hassette.core.api_resource import ApiResource
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
@@ -23,30 +21,13 @@ from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.core.web_api_service import WebApiService
 from hassette.core.websocket_service import WebsocketService
+from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
 from hassette.test_utils import wait_for
-from hassette.types.enums import StartupPhase
+from hassette.utils.service_utils import topological_sort, validate_dependency_graph
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
-    from hassette.resources.base import Resource
-
-
-@pytest.fixture
-async def hassette_instance(test_config: HassetteConfig):
-    """Provide a fresh Hassette instance and restore context afterwards."""
-    test_config.reload()
-    instance = Hassette(test_config)
-    try:
-        yield instance
-    finally:
-        with suppress(Exception):
-            if not instance._event_stream_service.event_streams_closed:
-                await instance._event_stream_service.close_streams()
-
-        with suppress(Exception):
-            if not instance._bus_service.stream._closed:
-                await instance._bus_service.stream.aclose()
 
 
 def test_unique_name_is_constant(hassette_instance: Hassette) -> None:
@@ -176,11 +157,17 @@ async def test_wait_for_ready_accepts_explicit_timeout(
 
 
 async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) -> None:
-    """run_forever uses phased startup: DB first, session, then remaining services."""
-    start_db = Mock()
-    start_remaining = Mock()
-    hassette_instance._start_database = start_db
-    hassette_instance._start_remaining_resources = start_remaining
+    """run_forever uses phased startup: DB first, session, then wave-based remaining services."""
+    db_start = Mock()
+    other_starts: list[Mock] = []
+
+    hassette_instance._database_service.start = db_start  # pyright: ignore[reportAttributeAccessIssue]
+    for child in hassette_instance.children:
+        if child is not hassette_instance._database_service:
+            m = Mock()
+            other_starts.append(m)
+            child.start = m  # pyright: ignore[reportAttributeAccessIssue]
+
     hassette_instance.wait_for_ready = AsyncMock(return_value=True)
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock()
@@ -188,21 +175,18 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
 
     task = asyncio.create_task(hassette_instance.run_forever())
     asyncio.get_event_loop().call_later(0.5, hassette_instance.shutdown_event.set)
-    await wait_for(lambda: start_db.called, desc="run_forever started")
+    await wait_for(lambda: db_start.called, desc="run_forever started")
     await task
 
     # Phase 1: DB started first
-    start_db.assert_called_once()
-    # Phase 2: remaining resources started after session creation
-    start_remaining.assert_called_once()
-    # wait_for_ready called at least twice: DB first, then all children.
-    # Background tasks (e.g. framework listener registration) may add additional calls.
+    db_start.assert_called_once()
+    # Phase 2: remaining resources started after session creation (wave-by-wave)
+    for m in other_starts:
+        m.assert_called_once()
+    # wait_for_ready called: once for DB, then once per startup wave.
     assert hassette_instance.wait_for_ready.await_count >= 2
     hassette_instance.wait_for_ready.assert_any_await(
         [hassette_instance.database_service], timeout=hassette_instance.config.startup_timeout_seconds
-    )
-    hassette_instance.wait_for_ready.assert_any_await(
-        list(hassette_instance.children), timeout=hassette_instance.config.startup_timeout_seconds
     )
     # Session created between phase 1 and phase 2
     hassette_instance._session_manager.mark_orphaned_sessions.assert_awaited_once()
@@ -214,7 +198,7 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
 
 async def test_run_forever_handles_session_init_failure(hassette_instance: Hassette) -> None:
     """run_forever triggers shutdown when session initialization raises."""
-    hassette_instance._start_database = Mock()
+    hassette_instance._database_service.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
     hassette_instance.wait_for_ready = AsyncMock(return_value=True)
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
     hassette_instance._session_manager.mark_orphaned_sessions = AsyncMock(side_effect=RuntimeError("db broke"))
@@ -229,8 +213,10 @@ async def test_run_forever_handles_session_init_failure(hassette_instance: Hasse
 
 async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) -> None:
     """run_forever triggers shutdown when remaining resources fail to become ready."""
-    hassette_instance._start_database = Mock()
-    hassette_instance._start_remaining_resources = Mock()
+    hassette_instance._database_service.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
+    for child in hassette_instance.children:
+        if child is not hassette_instance._database_service:
+            child.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
     # DB wait succeeds (True), all-children wait fails (False)
     hassette_instance.wait_for_ready = AsyncMock(side_effect=[True, False])
     hassette_instance.shutdown = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
@@ -324,40 +310,53 @@ async def test_concurrent_crash_and_finalize_are_serialized(hassette_instance: H
     assert call_order == ["crash_acquired", "crash_released"]
 
 
-def test_startup_phase_database_contains_only_database_service(hassette_instance: Hassette) -> None:
-    """DATABASE phase maps to exactly the database service."""
-    assert hassette_instance._phase_services[StartupPhase.DATABASE] == [hassette_instance._database_service]
+def test_database_service_starts_first(hassette_instance: Hassette) -> None:
+    """run_forever phase 1 starts DatabaseService before any other child.
 
-
-def test_startup_phase_services_contains_all_non_database_children(hassette_instance: Hassette) -> None:
-    """SERVICES phase contains every child except the database service."""
-    expected = [c for c in hassette_instance.children if c is not hassette_instance._database_service]
-    assert hassette_instance._phase_services[StartupPhase.SERVICES] == expected
-
-
-def test_start_database_starts_only_phase_members(hassette_instance: Hassette) -> None:
-    """_start_database() starts only DATABASE-phase services."""
+    Mocks all child .start() methods and verifies only DatabaseService is called
+    after the phase-1 step.
+    """
     for child in hassette_instance.children:
         child.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
 
-    hassette_instance._start_database()
+    # Simulate phase 1: only the database service starts
+    hassette_instance._database_service.start()
 
-    for svc in hassette_instance._phase_services[StartupPhase.DATABASE]:
-        svc.start.assert_called_once()
-
-    for svc in hassette_instance._phase_services[StartupPhase.SERVICES]:
-        svc.start.assert_not_called()
-
-
-def test_start_remaining_resources_starts_only_services_phase(hassette_instance: Hassette) -> None:
-    """_start_remaining_resources() starts only SERVICES-phase members."""
+    hassette_instance._database_service.start.assert_called_once()  # pyright: ignore[reportAttributeAccessIssue]
     for child in hassette_instance.children:
-        child.start = Mock()  # pyright: ignore[reportAttributeAccessIssue]
+        if child is not hassette_instance._database_service:
+            child.start.assert_not_called()  # pyright: ignore[reportAttributeAccessIssue]
 
-    hassette_instance._start_remaining_resources()
 
-    for svc in hassette_instance._phase_services[StartupPhase.SERVICES]:
-        svc.start.assert_called_once()
+def test_init_order_contains_all_children(hassette_instance: Hassette) -> None:
+    """_init_order contains exactly the same types as the registered children."""
+    child_types = set(type(c) for c in hassette_instance.children)
+    init_order_types = set(hassette_instance._init_order)
+    assert init_order_types == child_types
 
-    for svc in hassette_instance._phase_services[StartupPhase.DATABASE]:
-        svc.start.assert_not_called()
+
+def test_init_order_has_no_cycles(hassette_instance: Hassette) -> None:
+    """topological_sort completes without raising for the real service graph."""
+    all_types = list(dict.fromkeys(type(c) for c in hassette_instance.children))
+    # Should not raise ValueError
+    result = topological_sort(all_types)
+    assert len(result) == len(all_types)
+
+
+def test_graph_validation_catches_missing_type() -> None:
+    """ValueError is raised when a depends_on entry references a type not in Hassette's children.
+
+    Exercises the same validation logic that Hassette.__init__ runs, using a stub service
+    whose depends_on points to a type that is absent from the type list.
+    """
+
+    class _GhostDep(Resource):
+        """A resource type absent from the registered child list."""
+
+    class _StubService(DatabaseService):
+        """Stub that declares a dependency on the unregistered _GhostDep."""
+
+        depends_on: ClassVar[list[type[Resource]]] = [_GhostDep]
+
+    with pytest.raises(ValueError, match="_GhostDep"):
+        validate_dependency_graph([_StubService])

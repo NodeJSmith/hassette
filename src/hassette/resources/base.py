@@ -85,6 +85,9 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     role: ClassVar[ResourceRole] = ResourceRole.RESOURCE
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
+    depends_on: ClassVar[list[type["Resource"]]] = []
+    """Resource types that must be ready before this resource initializes."""
+
     source_tier: ClassVar[SourceTier] = "framework"
     """Telemetry classification inherited by Bus/Scheduler children for DB registration.
 
@@ -120,6 +123,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     def __init_subclass__(cls) -> None:
         cls.class_name = cls.__name__
+        if "depends_on" not in cls.__dict__:
+            cls.depends_on = list(cls.depends_on)
 
     def __init__(
         self, hassette: "Hassette", task_bucket: "TaskBucket | None" = None, parent: "Resource | None" = None
@@ -260,6 +265,61 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """Return children in shutdown order (reverse insertion)."""
         return list(reversed(self.children))
 
+    async def _auto_wait_dependencies(self) -> None:
+        """Wait for all declared depends_on types to become ready before lifecycle hooks fire.
+
+        Early-returns when:
+        - ``depends_on`` is empty (no declared deps)
+        - ``hassette._skip_dependency_check`` is True (test harness bypass)
+
+        Raises:
+            RuntimeError: If no matching child is found for a declared dep type, or if
+                ``hassette.wait_for_ready`` returns False without a concurrent shutdown signal.
+
+        On shutdown during wait, calls ``mark_not_ready()`` and returns without raising.
+        """
+        if not self.depends_on:
+            return
+        if self.hassette._should_skip_dependency_check():
+            return
+
+        # F3: App subclasses inherit depends_on but it's not yet supported (#581).
+        if self.role == ResourceRole.APP:
+            raise RuntimeError(
+                f"{self.class_name} declares depends_on but App-level depends_on "
+                f"is not yet supported. See https://github.com/NodeJSmith/hassette/issues/581"
+            )
+
+        # Deduplicates by instance identity (id), not by type — necessary because
+        # a single child instance may satisfy multiple dep_type entries (e.g.,
+        # depends_on = [Service, DatabaseService] where DatabaseService matches both).
+        seen: set[int] = set()
+        deps: list[Resource] = []
+        for dep_type in self.depends_on:
+            matches = [c for c in self.hassette.children if isinstance(c, dep_type)]
+            if not matches:
+                raise RuntimeError(
+                    f"{self.class_name} declares depends_on=[{dep_type.__name__}] "
+                    f"but no matching child found in Hassette"
+                )
+            for m in matches:
+                if id(m) not in seen:
+                    seen.add(id(m))
+                    deps.append(m)
+
+        dep_names = ", ".join(d.class_name for d in deps)
+        self.logger.info("Waiting for dependencies: [%s]", dep_names)
+
+        ready = await self.hassette.wait_for_ready(deps)
+        if not ready:
+            if self.hassette.shutdown_event.is_set():
+                self.mark_not_ready("shutdown during dependency wait")
+                return
+            status_report = ", ".join(f"{d.class_name}({d.status.value})" for d in deps)
+            raise RuntimeError(f"{self.class_name} timed out waiting for dependencies: {status_report}")
+
+        self.logger.debug("Dependencies satisfied: [%s]", dep_names)
+
     def _force_terminal(self) -> None:
         """Recursively force this resource and all descendants to STOPPED terminal state.
 
@@ -268,8 +328,9 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         Note: this does NOT call on_shutdown() hooks, so bus subscriptions and scheduler
         jobs owned by force-terminated resources are not cleaned up. This is intentional —
-        calling hooks risks re-entrancy with the child's own finally block. In practice,
-        force-terminal only fires on timeout paths where process exit is imminent.
+        calling hooks risks re-entrancy with the child's own finally block. Stale
+        subscriptions may remain active against STOPPED resources; this is an accepted
+        gap because force-terminal is nearly always followed by process exit.
         """
         if self._shutdown_completed:
             return
@@ -282,6 +343,30 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         for child in self.children:
             child._force_terminal()
 
+    async def _shutdown_children(self) -> bool:
+        """Propagate shutdown to children. Returns True if all completed within timeout and without errors."""
+        timeout = self.hassette.config.resource_shutdown_timeout_seconds
+        children = self._ordered_children_for_shutdown()
+        if not children:
+            return True
+        try:
+            async with asyncio.timeout(timeout):
+                all_clean = True
+                results = await asyncio.gather(
+                    *[child.shutdown() for child in children],
+                    return_exceptions=True,
+                )
+                for child, result in zip(children, results, strict=True):
+                    if isinstance(result, Exception):
+                        all_clean = False
+                        self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
+            return all_clean
+        except TimeoutError:
+            self.logger.error("Timed out waiting for children to shut down after %ss", timeout)
+            for child in children:
+                child._force_terminal()
+            return False
+
     async def _finalize_shutdown(self) -> None:
         """Common shutdown cleanup: cancel tasks, propagate to children, emit stopped event."""
         timeout = self.hassette.config.resource_shutdown_timeout_seconds
@@ -293,25 +378,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         except Exception as e:
             self.logger.exception("Error during cleanup: %s %s", type(e).__name__, e)
 
-        # Propagate shutdown to children — submitted in reverse insertion order,
-        # but executed concurrently via gather (completion order is not guaranteed).
-        children = self._ordered_children_for_shutdown()
-        children_timed_out = False
-        if children:
-            try:
-                async with asyncio.timeout(timeout):
-                    results = await asyncio.gather(
-                        *[child.shutdown() for child in children],
-                        return_exceptions=True,
-                    )
-                    for child, result in zip(children, results, strict=True):
-                        if isinstance(result, Exception):
-                            self.logger.error("Child %s shutdown failed: %s", child.unique_name, result)
-            except TimeoutError:
-                children_timed_out = True
-                self.logger.error("Timed out waiting for children to shut down after %ss", timeout)
-                for child in children:
-                    child._force_terminal()
+        children_clean = await self._shutdown_children()
 
         self._shutdown_completed = True
 
@@ -324,9 +391,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 self.logger.warning("%s shutting down with _initializing=True — this indicates a bug", self.unique_name)
             self._initializing = False
 
-        # Hook runs only on clean shutdown — not after timeout, where children
-        # are force-patched and may still have running tasks.
-        if not children_timed_out:
+        if children_clean:
             await self._on_children_stopped()
 
         if not self.hassette.event_streams_closed:
@@ -358,6 +423,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """Initialize the instance by calling the lifecycle hooks in order.
 
         NOTE: keep flag resets and child propagation in sync with Service.initialize().
+        NOTE: _auto_wait_dependencies() runs before hooks — keep in sync with Service.initialize().
         """
         self._shutdown_completed = False
         self.shutdown_event.clear()
@@ -370,6 +436,14 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         await self.handle_starting()
 
         try:
+            try:
+                await self._auto_wait_dependencies()
+            except Exception as exc:
+                await self.handle_failed(exc)
+                raise
+            if self.hassette.shutdown_event.is_set():
+                self.mark_not_ready("shutdown requested during dependency wait")
+                return
             await self._run_hooks([self.before_initialize, self.on_initialize, self.after_initialize])
             for child in self.children:
                 if child.status not in (ResourceStatus.STARTING, ResourceStatus.RUNNING):
@@ -499,6 +573,7 @@ class Service(Resource):
         start until child initialization completes.
 
         Keep flag resets and child propagation in sync with Resource.initialize().
+        NOTE: _auto_wait_dependencies() runs before hooks — keep in sync with Resource.initialize().
         """
         self._shutdown_completed = False
         self.shutdown_event.clear()
@@ -509,6 +584,14 @@ class Service(Resource):
         self.logger.debug("Initializing %s: %s", self.role, self.unique_name)
         await self.handle_starting()
         try:
+            try:
+                await self._auto_wait_dependencies()
+            except Exception as exc:
+                await self.handle_failed(exc)
+                raise
+            if self.hassette.shutdown_event.is_set():
+                self.mark_not_ready("shutdown requested during dependency wait")
+                return
             await self._run_hooks([self.before_initialize, self.on_initialize])
             self._serve_task = self.task_bucket.spawn(self._serve_wrapper(), name=f"service:serve:{self.class_name}")
             await self._run_hooks([self.after_initialize])

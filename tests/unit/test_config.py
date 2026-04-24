@@ -397,6 +397,22 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(monke
 # Service log level inheritance tests
 # ---------------------------------------------------------------------------
 
+
+@pytest.fixture
+def _clean_log_level_env(monkeypatch):
+    """Remove any leaked hassette log-level env vars so tests see true defaults.
+
+    Under xdist, tests that call load_dotenv() (e.g. via run_hassette_startup_tasks)
+    inject values from tests/data/config/.env into os.environ. Those values persist
+    across tests on the same worker. This fixture deletes them before the test runs;
+    monkeypatch restores the original env on teardown.
+    """
+    for key in list(os.environ):
+        if key.lower().startswith("hassette__") and "log_level" in key.lower():
+            monkeypatch.delenv(key, raising=False)
+    return
+
+
 SERVICE_LOG_LEVEL_FIELDS = (
     "database_service_log_level",
     "bus_service_log_level",
@@ -431,6 +447,7 @@ class _LogLevelTestConfig(HassetteConfig):
     run_app_precheck: bool = False
 
 
+@pytest.mark.usefixtures("_clean_log_level_env")
 def test_service_log_levels_inherit_global_debug(monkeypatch):
     """Setting HASSETTE__LOG_LEVEL=DEBUG propagates to all 13 service log level fields."""
     monkeypatch.setenv("HASSETTE__LOG_LEVEL", "DEBUG")
@@ -443,6 +460,7 @@ def test_service_log_levels_inherit_global_debug(monkeypatch):
         assert actual == "DEBUG", f"Expected {field}='DEBUG', got {actual!r}"
 
 
+@pytest.mark.usefixtures("_clean_log_level_env")
 def test_service_log_levels_default_to_info_when_global_unset():
     """With no log_level override all 13 service log level fields default to INFO."""
     config = _LogLevelTestConfig()
@@ -453,6 +471,7 @@ def test_service_log_levels_default_to_info_when_global_unset():
         assert actual == "INFO", f"Expected {field}='INFO', got {actual!r}"
 
 
+@pytest.mark.usefixtures("_clean_log_level_env")
 def test_service_specific_override_takes_precedence(monkeypatch):
     """A service-specific env var wins over the global log_level."""
     monkeypatch.setenv("HASSETTE__LOG_LEVEL", "DEBUG")
