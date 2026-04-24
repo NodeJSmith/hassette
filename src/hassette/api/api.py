@@ -368,9 +368,8 @@ class Api(Resource):
         Returns:
             A list of states as dictionaries.
         """
-        val: list[HassStateDict] = await self.ws_send_and_wait(type="get_states")  # pyright: ignore[reportAssignmentType]
-        assert isinstance(val, list), "Expected a list of states"
-        return val
+        val = await self.ws_send_and_wait(type="get_states")
+        return _expect_list(val, "get_states")
 
     async def get_states(self) -> list["BaseState"]:
         """Get all entities in Home Assistant, converted to their appropriate state types.
@@ -424,8 +423,7 @@ class Api(Resource):
             The configuration data.
         """
         val = await self.ws_send_and_wait(type="get_config")
-        assert isinstance(val, dict), "Expected a dictionary of configuration data"
-        return val
+        return _expect_dict(val, "get_config")
 
     async def get_services(self) -> dict[str, Any]:
         """Get the available services in Home Assistant.
@@ -434,8 +432,7 @@ class Api(Resource):
             The services data.
         """
         val = await self.ws_send_and_wait(type="get_services")
-        assert isinstance(val, dict), "Expected a dictionary of services"
-        return val
+        return _expect_dict(val, "get_services")
 
     async def get_panels(self) -> dict[str, Any]:
         """Get the available panels in Home Assistant.
@@ -444,8 +441,7 @@ class Api(Resource):
             The panels data.
         """
         val = await self.ws_send_and_wait(type="get_panels")
-        assert isinstance(val, dict), "Expected a dictionary of panels"
-        return val
+        return _expect_dict(val, "get_panels")
 
     async def fire_event(
         self,

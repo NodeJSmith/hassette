@@ -64,7 +64,6 @@ class RequiredFieldApp(App[RequiredFieldConfig]):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_basic_lifecycle():
     """AppTestHarness starts and stops cleanly; harness.app is a SensorApp in RUNNING state."""
     async with AppTestHarness(SensorApp, config={}) as harness:
@@ -72,14 +71,12 @@ async def test_basic_lifecycle():
         assert harness.app.status == ResourceStatus.RUNNING
 
 
-@pytest.mark.asyncio
 async def test_api_recorder_is_recording_api():
     """harness.api_recorder is a RecordingApi instance."""
     async with AppTestHarness(SensorApp, config={}) as harness:
         assert isinstance(harness.api_recorder, RecordingApi)
 
 
-@pytest.mark.asyncio
 async def test_bus_scheduler_states_exposed():
     """harness.bus, harness.scheduler, harness.states are the app's actual resources."""
     async with AppTestHarness(SensorApp, config={}) as harness:
@@ -88,7 +85,6 @@ async def test_bus_scheduler_states_exposed():
         assert harness.states is harness.app.states
 
 
-@pytest.mark.asyncio
 async def test_bad_config_raises_app_configuration_error():
     """Passing an invalid config raises AppConfigurationError with the app class name."""
     # RequiredFieldApp needs "required_field" — passing nothing should fail
@@ -102,7 +98,6 @@ async def test_bad_config_raises_app_configuration_error():
     assert error.original_error is not None
 
 
-@pytest.mark.asyncio
 async def test_config_hermetic_ignores_env(monkeypatch: pytest.MonkeyPatch):
     """Env vars are not picked up by hermetic validation."""
     # Even if TEST_ENTITY env var is set, the hermetic factory should ignore it
@@ -113,7 +108,6 @@ async def test_config_hermetic_ignores_env(monkeypatch: pytest.MonkeyPatch):
         assert harness.app.app_config.test_entity == "sensor.test"
 
 
-@pytest.mark.asyncio
 async def test_cleanup_on_aenter_failure():
     """If __aenter__ fails partway through, exit stack unwinds (no leaked ContextVar state)."""
     # Capture the ContextVar state before
@@ -136,7 +130,6 @@ async def test_cleanup_on_aenter_failure():
     assert after is before, f"ContextVar leaked: before={before!r}, after={after!r}"
 
 
-@pytest.mark.asyncio
 async def test_sequential_tests_dont_collide():
     """Two sequential async with blocks do not raise 'already set' ContextVar errors."""
     async with AppTestHarness(SensorApp, config={}) as harness1:
@@ -147,7 +140,6 @@ async def test_sequential_tests_dont_collide():
         assert harness2.app is not None
 
 
-@pytest.mark.asyncio
 async def test_manifest_restored_after_exit():
     """SensorApp.app_manifest is restored (or removed) to its original value after exit."""
     original = getattr(SensorApp, "app_manifest", AppTestHarness._UNSET)
@@ -161,22 +153,12 @@ async def test_manifest_restored_after_exit():
     assert restored is original
 
 
-@pytest.mark.asyncio
-async def test_api_factory_restored_after_exit():
-    """SensorApp._api_factory is None after exit (restored to original value)."""
-    # Before entry, _api_factory should be None (the class default)
-    original_factory = SensorApp._api_factory
-    assert original_factory is None
-
-    async with AppTestHarness(SensorApp, config={}):
-        # Inside, _api_factory is RecordingApi
-        assert SensorApp._api_factory is RecordingApi
-
-    # After exit, restored to None
-    assert SensorApp._api_factory is None
+async def test_recording_api_injected_via_constructor():
+    """AppTestHarness injects RecordingApi via api_factory constructor parameter."""
+    async with AppTestHarness(SensorApp, config={}) as harness:
+        assert isinstance(harness.app.api, RecordingApi)
 
 
-@pytest.mark.asyncio
 async def test_auto_tmpdir_created_and_cleaned():
     """Without tmp_path, a tmpdir is auto-created and removed after exit."""
     captured_data_dir: list[Path] = []
@@ -194,7 +176,6 @@ async def test_auto_tmpdir_created_and_cleaned():
     assert not data_dir.exists(), f"tmpdir {data_dir} was not cleaned up"
 
 
-@pytest.mark.asyncio
 async def test_simulate_state_change_triggers_handler():
     """simulate_state_change fires the bus handler and it completes before the call returns."""
     async with AppTestHarness(SensorApp, config={}) as harness:
@@ -205,7 +186,6 @@ async def test_simulate_state_change_triggers_handler():
         assert len(harness.app.handler_calls) == 1
 
 
-@pytest.mark.asyncio
 async def test_api_recorder_records_calls():
     """When the app calls self.api.turn_on(), api_recorder captures the call."""
 
@@ -229,7 +209,6 @@ async def test_api_recorder_records_calls():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_set_state_seeds_proxy():
     """set_state populates the StateProxy so states.get() returns the value."""
     async with AppTestHarness(SensorApp, config={}) as harness:
@@ -240,7 +219,6 @@ async def test_set_state_seeds_proxy():
         assert state.entity_id == "light.kitchen"
 
 
-@pytest.mark.asyncio
 async def test_set_state_does_not_fire_events():
     """set_state is silent — no bus events, no handler invocations."""
     async with AppTestHarness(SensorApp, config={}) as harness:
@@ -250,7 +228,6 @@ async def test_set_state_does_not_fire_events():
         assert harness.app.handler_calls == [], "set_state should not fire bus events"
 
 
-@pytest.mark.asyncio
 async def test_set_states_multiple():
     """set_states seeds multiple entities at once."""
     async with AppTestHarness(SensorApp, config={}) as harness:
@@ -272,7 +249,6 @@ async def test_set_states_multiple():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_simulate_state_change_drains_handlers():
     """simulate_state_change returns only after the handler has fully completed."""
 
@@ -292,7 +268,6 @@ async def test_simulate_state_change_drains_handlers():
         assert harness.app.handler_finished, "Handler should have completed before simulate returned"
 
 
-@pytest.mark.asyncio
 async def test_simulate_call_service():
     """simulate_call_service sends a call_service event through the bus without error."""
     async with AppTestHarness(SensorApp, config={}) as harness:
@@ -305,7 +280,6 @@ async def test_simulate_call_service():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_simulate_attribute_change_uses_explicit_state():
     """When state= is passed, simulate_attribute_change uses it instead of proxy lookup.
 
@@ -339,7 +313,6 @@ async def test_simulate_attribute_change_uses_explicit_state():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_simulate_state_change_typed_di_state_new():
     """Handler with D.StateNew[BinarySensorState] receives a valid typed model."""
     received: list[states.BinarySensorState] = []
@@ -360,7 +333,6 @@ async def test_simulate_state_change_typed_di_state_new():
     assert received[0].entity_id == "binary_sensor.test"
 
 
-@pytest.mark.asyncio
 async def test_simulate_state_change_typed_di_state_old():
     """Handler with D.StateOld[BinarySensorState] receives a valid typed model."""
     received: list[states.BinarySensorState] = []
@@ -381,7 +353,6 @@ async def test_simulate_state_change_typed_di_state_old():
     assert received[0].entity_id == "binary_sensor.test"
 
 
-@pytest.mark.asyncio
 async def test_simulate_state_change_none_old_value():
     """old_value=None produces None old_state dict; D.MaybeStateOld returns None."""
     received_old: list[Any] = []
@@ -400,7 +371,6 @@ async def test_simulate_state_change_none_old_value():
     assert received_old[0] is None
 
 
-@pytest.mark.asyncio
 async def test_simulate_state_change_none_new_value():
     """new_value=None produces None new_state dict (entity removed)."""
     received: list[RawStateChangeEvent] = []
@@ -419,7 +389,6 @@ async def test_simulate_state_change_none_new_value():
     assert received[0].payload.data.new_state is None
 
 
-@pytest.mark.asyncio
 async def test_simulate_call_service_typed_di_domain():
     """Handler with D.Domain receives the correct domain string."""
     received_domains: list[str] = []
@@ -438,7 +407,6 @@ async def test_simulate_call_service_typed_di_domain():
     assert received_domains[0] == "light"
 
 
-@pytest.mark.asyncio
 async def test_simulate_call_service_is_real_call_service_event():
     """simulate_call_service produces a real CallServiceEvent (not SimpleNamespace)."""
     received_events: list[Any] = []
@@ -461,7 +429,6 @@ async def test_simulate_call_service_is_real_call_service_event():
     assert event.payload.data.service_data == {"brightness": 255}
 
 
-@pytest.mark.asyncio
 async def test_simulate_attribute_change_typed_di():
     """Handler with D.StateNew[SensorState] works through the attribute change delegation path."""
     received: list[states.SensorState] = []
@@ -487,7 +454,6 @@ async def test_simulate_attribute_change_typed_di():
     assert received[0].entity_id == "sensor.test"
 
 
-@pytest.mark.asyncio
 async def test_simulate_attribute_change_without_set_state():
     """simulate_attribute_change uses 'unknown' as state when entity is not seeded."""
     received_old: list[Any] = []
@@ -524,7 +490,6 @@ async def test_simulate_attribute_change_without_set_state():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_simulate_component_loaded():
     """simulate_component_loaded fires on_component_loaded handler."""
     calls: list[Any] = []
@@ -542,7 +507,6 @@ async def test_simulate_component_loaded():
     assert len(calls) == 1
 
 
-@pytest.mark.asyncio
 async def test_simulate_service_registered():
     """simulate_service_registered fires on_service_registered handler."""
     calls: list[Any] = []
@@ -565,7 +529,6 @@ async def test_simulate_service_registered():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_simulate_hassette_service_status():
     """simulate_hassette_service_status fires on_hassette_service_status handler."""
     from hassette.events.hassette import HassetteServiceEvent
@@ -586,7 +549,6 @@ async def test_simulate_hassette_service_status():
         assert len(my_events) == 1
 
 
-@pytest.mark.asyncio
 async def test_simulate_hassette_service_failed():
     """simulate_hassette_service_failed fires on_hassette_service_failed handler."""
     calls: list[Any] = []
@@ -604,7 +566,6 @@ async def test_simulate_hassette_service_failed():
     assert len(calls) == 1
 
 
-@pytest.mark.asyncio
 async def test_simulate_hassette_service_crashed():
     """simulate_hassette_service_crashed fires on_hassette_service_crashed handler."""
     calls: list[Any] = []
@@ -622,7 +583,6 @@ async def test_simulate_hassette_service_crashed():
     assert len(calls) == 1
 
 
-@pytest.mark.asyncio
 async def test_simulate_hassette_service_started():
     """simulate_hassette_service_started fires on_hassette_service_started handler."""
     from hassette.events.hassette import HassetteServiceEvent
@@ -648,7 +608,6 @@ async def test_simulate_hassette_service_started():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_simulate_websocket_connected():
     """simulate_websocket_connected fires on_websocket_connected handler."""
     calls: list[Any] = []
@@ -666,7 +625,6 @@ async def test_simulate_websocket_connected():
     assert len(calls) == 1
 
 
-@pytest.mark.asyncio
 async def test_simulate_websocket_disconnected():
     """simulate_websocket_disconnected fires on_websocket_disconnected handler."""
     calls: list[Any] = []
@@ -689,7 +647,6 @@ async def test_simulate_websocket_disconnected():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_simulate_app_state_changed():
     """simulate_app_state_changed fires on_app_state_changed handler."""
     from hassette.events.hassette import HassetteAppStateEvent
@@ -710,7 +667,6 @@ async def test_simulate_app_state_changed():
         assert len(stopping_events) == 1
 
 
-@pytest.mark.asyncio
 async def test_simulate_app_running():
     """simulate_app_running fires on_app_running handler."""
     from hassette.events.hassette import HassetteAppStateEvent
@@ -733,7 +689,6 @@ async def test_simulate_app_running():
         assert len(my_events) >= 1
 
 
-@pytest.mark.asyncio
 async def test_simulate_app_stopping():
     """simulate_app_stopping fires on_app_stopping handler."""
     calls: list[Any] = []
@@ -756,7 +711,6 @@ async def test_simulate_app_stopping():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_simulate_homeassistant_restart():
     """simulate_homeassistant_restart fires on_homeassistant_restart handler."""
     calls: list[Any] = []
@@ -774,7 +728,6 @@ async def test_simulate_homeassistant_restart():
     assert len(calls) == 1
 
 
-@pytest.mark.asyncio
 async def test_simulate_homeassistant_start():
     """simulate_homeassistant_start fires on_homeassistant_start handler."""
     calls: list[Any] = []
@@ -792,7 +745,6 @@ async def test_simulate_homeassistant_start():
     assert len(calls) == 1
 
 
-@pytest.mark.asyncio
 async def test_simulate_homeassistant_stop():
     """simulate_homeassistant_stop fires on_homeassistant_stop handler."""
     calls: list[Any] = []
@@ -815,7 +767,6 @@ async def test_simulate_homeassistant_stop():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_simulate_hassette_service_status_typed_di():
     """Handler asserts event.payload.data.status and resource_name match expected values."""
     from hassette.events.hassette import HassetteServiceEvent
@@ -838,7 +789,6 @@ async def test_simulate_hassette_service_status_typed_di():
         assert test_events[0].payload.data.resource_name == "SyntheticTestService"
 
 
-@pytest.mark.asyncio
 async def test_simulate_app_state_changed_typed_di():
     """Handler asserts event.payload.data.app_key matches harness app key."""
     from hassette.events.hassette import HassetteAppStateEvent

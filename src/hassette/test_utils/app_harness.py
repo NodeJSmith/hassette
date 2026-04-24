@@ -56,7 +56,7 @@ from hassette.types.enums import ResourceStatus
 LOGGER = logging.getLogger(__name__)
 
 # Per-class asyncio.Lock to prevent concurrent harnesses for the same App class
-# from corrupting class-level _api_factory / app_manifest (Finding 2).
+# from corrupting class-level app_manifest (Finding 2).
 _CLASS_LOCKS: weakref.WeakKeyDictionary[type, asyncio.Lock] = weakref.WeakKeyDictionary()
 
 
@@ -207,7 +207,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
             harness.states   # StateManager
 
     Note:
-        Mutates class-level attributes (app_manifest, _api_factory) with save/restore.
+        Mutates class-level attributes (app_manifest) with save/restore.
         Safe for sequential tests and xdist workers. NOT safe for concurrent use within
         the same process for the same App class.
     """
@@ -335,17 +335,12 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         self._app_cls.app_manifest = manifest
         exit_stack.callback(self._restore_manifest, original_manifest)
 
-        # Step 11: Set _api_factory on class with save/restore
-        # Use __dict__ to check the class's own dict, not MRO — matches _restore_api_factory's delattr logic
-        original_api_factory = self._app_cls.__dict__.get("_api_factory", self._UNSET)
-        self._app_cls._api_factory = RecordingApi  # pyright: ignore[reportAttributeAccessIssue]
-        exit_stack.callback(self._restore_api_factory, original_api_factory)
-
-        # Step 12: Instantiate the app
+        # Step 11: Instantiate the app with RecordingApi injected via constructor
         app = self._app_cls(
             hassette=harness.hassette,  # pyright: ignore[reportArgumentType]
             app_config=validated_config,
             index=0,
+            api_factory=RecordingApi,
         )
 
         # Add app as child of hassette mock
@@ -400,21 +395,6 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         else:
             self._app_cls.app_manifest = original
 
-    def _restore_api_factory(self, original: Any) -> None:
-        """Restore app_cls._api_factory to its original value."""
-        if original is self._UNSET:
-            with contextlib.suppress(AttributeError):
-                del self._app_cls._api_factory  # pyright: ignore[reportAttributeAccessIssue]
-            # Verify deletion succeeded — del on an inherited attribute is a no-op.
-            # Force to the declared default (None) if still present.
-            if "_api_factory" in self._app_cls.__dict__:
-                self._app_cls._api_factory = None  # pyright: ignore[reportAttributeAccessIssue]
-                LOGGER.warning(
-                    "_restore_api_factory: del failed for %s, forced _api_factory to None", self._app_cls.__name__
-                )
-        else:
-            self._app_cls._api_factory = original  # pyright: ignore[reportAttributeAccessIssue]
-
     async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         """Delegate teardown to the AsyncExitStack (LIFO order)."""
         if self._exit_stack is not None:
@@ -449,7 +429,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         if not isinstance(api, RecordingApi):
             raise RuntimeError(
                 f"Expected app.api to be a RecordingApi but got {type(api).__name__}. "
-                "Ensure _api_factory was set before app instantiation."
+                "Ensure api_factory=RecordingApi was passed at app construction."
             )
         return api
 

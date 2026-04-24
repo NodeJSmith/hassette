@@ -120,10 +120,10 @@ async def sessions(
 def _health_status_from_summary(summary: AppHealthSummary) -> str:
     """Derive a health status label from an app health summary."""
     total = summary.total_invocations + summary.total_executions
-    errors = summary.total_errors + summary.total_job_errors
+    failures = summary.total_errors + summary.total_timed_out + summary.total_job_errors + summary.total_job_timed_out
     if total == 0:
         return "unknown"
-    success_rate = ((total - errors) / total) * 100
+    success_rate = ((total - failures) / total) * 100
     return classify_health_bar(success_rate)
 
 
@@ -132,8 +132,8 @@ def _error_rate_from_summary(summary: AppHealthSummary) -> float:
     total = summary.total_invocations + summary.total_executions
     if total == 0:
         return 0.0
-    errors = summary.total_errors + summary.total_job_errors
-    return (errors / total) * 100
+    failures = summary.total_errors + summary.total_timed_out + summary.total_job_errors + summary.total_job_timed_out
+    return (failures / total) * 100
 
 
 @router.get("/app/{app_key}/health", response_model=AppHealthResponse)
@@ -348,7 +348,9 @@ async def dashboard_kpis(
             total_invocations=0,
             total_executions=0,
             total_errors=0,
+            total_timed_out=0,
             total_job_errors=0,
+            total_job_timed_out=0,
             avg_handler_duration_ms=0.0,
             avg_job_duration_ms=0.0,
             error_rate=0.0,
@@ -357,8 +359,13 @@ async def dashboard_kpis(
         )
 
     total = summary.listeners.total_invocations + summary.jobs.total_executions
-    errors = summary.listeners.total_errors + summary.jobs.total_errors
-    error_rate = (errors / total * 100) if total > 0 else 0.0
+    failures = (
+        summary.listeners.total_errors
+        + summary.listeners.total_timed_out
+        + summary.jobs.total_errors
+        + summary.jobs.total_timed_out
+    )
+    error_rate = (failures / total * 100) if total > 0 else 0.0
 
     status = runtime.get_system_status()
 
@@ -368,7 +375,9 @@ async def dashboard_kpis(
         total_invocations=summary.listeners.total_invocations,
         total_executions=summary.jobs.total_executions,
         total_errors=summary.listeners.total_errors,
+        total_timed_out=summary.listeners.total_timed_out,
         total_job_errors=summary.jobs.total_errors,
+        total_job_timed_out=summary.jobs.total_timed_out,
         avg_handler_duration_ms=summary.listeners.avg_duration_ms or 0.0,
         avg_job_duration_ms=summary.jobs.avg_duration_ms or 0.0,
         error_rate=error_rate,
@@ -420,8 +429,10 @@ async def dashboard_app_grid(
                 job_count=health.job_count,
                 total_invocations=health.total_invocations,
                 total_errors=health.total_errors,
+                total_timed_out=health.total_timed_out,
                 total_executions=health.total_executions,
                 total_job_errors=health.total_job_errors,
+                total_job_timed_out=health.total_job_timed_out,
                 avg_duration_ms=health.avg_duration_ms,
                 last_activity_ts=health.last_activity_ts,
                 health_status=_health_status_from_summary(health),

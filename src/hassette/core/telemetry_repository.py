@@ -11,6 +11,8 @@ from hassette.scheduler.classes import JobExecutionRecord
 from hassette.types.types import is_framework_key
 
 if typing.TYPE_CHECKING:
+    import aiosqlite
+
     from hassette.core.database_service import DatabaseService
 
 
@@ -21,6 +23,180 @@ def _is_fk_violation(exc: sqlite3.IntegrityError) -> bool:
     IntegrityError subtypes (CHECK, NOT NULL, UNIQUE) use different messages.
     """
     return "FOREIGN KEY" in str(exc).upper()
+
+
+def _listener_params(registration: ListenerRegistration, once: bool) -> dict:
+    """Build the named-parameter dict for a listeners INSERT.
+
+    Args:
+        registration: The listener registration data.
+        once: Value to store in the ``once`` column (0 or 1).
+
+    Returns:
+        A dict of named parameters ready for ``db.execute()``.
+    """
+    return {
+        "app_key": registration.app_key,
+        "instance_index": registration.instance_index,
+        "handler_method": registration.handler_method,
+        "topic": registration.topic,
+        "debounce": registration.debounce,
+        "throttle": registration.throttle,
+        "once": 1 if once else 0,
+        "priority": registration.priority,
+        "predicate_description": registration.predicate_description,
+        "human_description": registration.human_description,
+        "source_location": registration.source_location,
+        "registration_source": registration.registration_source,
+        "name": registration.name,
+        "source_tier": registration.source_tier,
+        "immediate": 1 if registration.immediate else 0,
+        "duration": registration.duration,
+        "entity_id": registration.entity_id,
+    }
+
+
+async def _insert_row_with_fk_fallback(
+    db: "aiosqlite.Connection",
+    table: str,
+    columns: str,
+    values_clause: str,
+    record_params: dict,
+    fk_field: str,
+    logger: logging.Logger,
+) -> int:
+    """Try to INSERT one row; on FK violation, null the FK field and retry.
+
+    This implements the try-FK-null-retry pattern used by
+    ``persist_batch_with_fk_fallback`` for both handler_invocations and
+    job_executions rows.
+
+    Args:
+        db: An open aiosqlite connection.
+        table: Target table name (e.g. ``"handler_invocations"``).
+        columns: Column list string for the INSERT.
+        values_clause: Values clause string matching ``columns``.
+        record_params: Named-parameter dict for the initial INSERT attempt.
+        fk_field: The FK column name to null on violation (e.g. ``"listener_id"``).
+        logger: Logger instance for warning/error messages.
+
+    Returns:
+        1 if the row was dropped (failed even after nulling FK), 0 on success.
+    """
+    sql = f"INSERT INTO {table} ({columns}) VALUES ({values_clause})"
+    try:
+        await db.execute(sql, record_params)
+        return 0
+    except sqlite3.IntegrityError as exc:
+        if not _is_fk_violation(exc):
+            logger.error(
+                "Non-FK IntegrityError on %s row (%s=%s) — dropping: %s",
+                table,
+                fk_field,
+                record_params.get(fk_field),
+                exc,
+            )
+            return 1
+        logger.warning(
+            "FK violation on %s row (%s=%s) — nulling FK and retrying",
+            table,
+            fk_field,
+            record_params.get(fk_field),
+        )
+        nulled_params = {**record_params, fk_field: None}
+        try:
+            await db.execute(sql, nulled_params)
+            return 0
+        except Exception as retry_exc:
+            logger.error(
+                "Failed to persist %s row even with null FK — dropping: %s",
+                table,
+                retry_exc,
+            )
+            return 1
+
+
+def _build_delete_query(
+    table: str,
+    app_key: str,
+    live_ids: list[int],
+    history_table: str,
+    history_fk: str,
+    extra_where: str = "",
+) -> tuple[str, dict]:
+    """Build a DELETE query that removes rows not in ``live_ids`` without history.
+
+    Args:
+        table: Table to delete from (e.g. ``"listeners"``).
+        app_key: The app key to scope the DELETE.
+        live_ids: IDs to exclude from deletion.
+        history_table: Related history table (e.g. ``"handler_invocations"``).
+        history_fk: FK column in the history table (e.g. ``"listener_id"``).
+        extra_where: Optional additional WHERE fragment (leading ``AND`` included).
+
+    Returns:
+        A ``(sql, params)`` tuple.
+    """
+    params: dict = {"app_key": app_key}
+    if live_ids:
+        placeholders = ", ".join(f":id_{i}" for i in range(len(live_ids)))
+        params.update({f"id_{i}": v for i, v in enumerate(live_ids)})
+        not_in_clause = f"AND id NOT IN ({placeholders})"
+    else:
+        not_in_clause = ""
+
+    sql = f"""
+        DELETE FROM {table}
+        WHERE app_key = :app_key{extra_where}
+          {not_in_clause}
+          AND NOT EXISTS (
+              SELECT 1 FROM {history_table} WHERE {history_fk} = {table}.id
+          )
+    """
+    return sql, params
+
+
+def _build_retire_query(
+    table: str,
+    app_key: str,
+    live_ids: list[int],
+    history_table: str,
+    history_fk: str,
+    now: float,
+    extra_where: str = "",
+) -> tuple[str, dict]:
+    """Build an UPDATE query that sets ``retired_at`` for rows not in ``live_ids`` with history.
+
+    Args:
+        table: Table to update (e.g. ``"listeners"``).
+        app_key: The app key to scope the UPDATE.
+        live_ids: IDs to exclude from retirement.
+        history_table: Related history table (e.g. ``"handler_invocations"``).
+        history_fk: FK column in the history table (e.g. ``"listener_id"``).
+        now: Epoch timestamp for ``retired_at``.
+        extra_where: Optional additional WHERE fragment (leading ``AND`` included).
+
+    Returns:
+        A ``(sql, params)`` tuple.
+    """
+    params: dict = {"app_key": app_key, "now": now}
+    if live_ids:
+        placeholders = ", ".join(f":id_{i}" for i in range(len(live_ids)))
+        params.update({f"id_{i}": v for i, v in enumerate(live_ids)})
+        not_in_clause = f"AND id NOT IN ({placeholders})"
+    else:
+        not_in_clause = ""
+
+    sql = f"""
+        UPDATE {table} SET retired_at = :now
+        WHERE app_key = :app_key{extra_where}
+          {not_in_clause}
+          AND retired_at IS NULL
+          AND EXISTS (
+              SELECT 1 FROM {history_table} WHERE {history_fk} = {table}.id
+          )
+    """
+    return sql, params
 
 
 _TIER_APP: str = "app"
@@ -75,28 +251,16 @@ class TelemetryRepository:
                     predicate_description, human_description,
                     source_location, registration_source, name, source_tier,
                     immediate, duration, entity_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (
+                    :app_key, :instance_index, :handler_method, :topic,
+                    :debounce, :throttle, :once, :priority,
+                    :predicate_description, :human_description,
+                    :source_location, :registration_source, :name, :source_tier,
+                    :immediate, :duration, :entity_id
+                )
                 RETURNING id
                 """,
-                (
-                    registration.app_key,
-                    registration.instance_index,
-                    registration.handler_method,
-                    registration.topic,
-                    registration.debounce,
-                    registration.throttle,
-                    1,
-                    registration.priority,
-                    registration.predicate_description,
-                    registration.human_description,
-                    registration.source_location,
-                    registration.registration_source,
-                    registration.name,
-                    registration.source_tier,
-                    1 if registration.immediate else 0,
-                    registration.duration,
-                    registration.entity_id,
-                ),
+                _listener_params(registration, once=True),
             )
         else:
             # once=False listeners: upsert — return existing ID on conflict so FK
@@ -109,7 +273,13 @@ class TelemetryRepository:
                     predicate_description, human_description,
                     source_location, registration_source, name, source_tier,
                     immediate, duration, entity_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (
+                    :app_key, :instance_index, :handler_method, :topic,
+                    :debounce, :throttle, :once, :priority,
+                    :predicate_description, :human_description,
+                    :source_location, :registration_source, :name, :source_tier,
+                    :immediate, :duration, :entity_id
+                )
                 ON CONFLICT(app_key, instance_index, handler_method, topic, COALESCE(name, human_description, ''))
                 WHERE once = 0
                 DO UPDATE SET
@@ -126,25 +296,7 @@ class TelemetryRepository:
                     retired_at = NULL
                 RETURNING id
                 """,
-                (
-                    registration.app_key,
-                    registration.instance_index,
-                    registration.handler_method,
-                    registration.topic,
-                    registration.debounce,
-                    registration.throttle,
-                    0,
-                    registration.priority,
-                    registration.predicate_description,
-                    registration.human_description,
-                    registration.source_location,
-                    registration.registration_source,
-                    registration.name,
-                    registration.source_tier,
-                    1 if registration.immediate else 0,
-                    registration.duration,
-                    registration.entity_id,
-                ),
+                _listener_params(registration, once=False),
             )
 
         row = await cursor.fetchone()
@@ -181,7 +333,15 @@ class TelemetryRepository:
                 args_json, kwargs_json,
                 source_location, registration_source, source_tier,
                 "group"
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (
+                :app_key, :instance_index, :job_name, :handler_method,
+                :trigger_type,
+                :trigger_label, :trigger_detail,
+                :repeat,
+                :args_json, :kwargs_json,
+                :source_location, :registration_source, :source_tier,
+                :group
+            )
             ON CONFLICT(app_key, instance_index, job_name)
             DO UPDATE SET
                 handler_method = excluded.handler_method,
@@ -199,22 +359,22 @@ class TelemetryRepository:
                 cancelled_at = NULL  -- re-registration clears cancellation
             RETURNING id
             """,
-            (
-                registration.app_key,
-                registration.instance_index,
-                registration.job_name,
-                registration.handler_method,
-                registration.trigger_type,
-                registration.trigger_label,
-                registration.trigger_detail,
-                0,  # repeat is always 0 for new-style jobs; triggers handle recurrence
-                registration.args_json,
-                registration.kwargs_json,
-                registration.source_location,
-                registration.registration_source,
-                registration.source_tier,
-                registration.group,
-            ),
+            {
+                "app_key": registration.app_key,
+                "instance_index": registration.instance_index,
+                "job_name": registration.job_name,
+                "handler_method": registration.handler_method,
+                "trigger_type": registration.trigger_type,
+                "trigger_label": registration.trigger_label,
+                "trigger_detail": registration.trigger_detail,
+                "repeat": 0,  # repeat is always 0 for new-style jobs; triggers handle recurrence
+                "args_json": registration.args_json,
+                "kwargs_json": registration.kwargs_json,
+                "source_location": registration.source_location,
+                "registration_source": registration.registration_source,
+                "source_tier": registration.source_tier,
+                "group": registration.group,
+            },
         )
         row = await cursor.fetchone()
         await db.commit()
@@ -233,8 +393,8 @@ class TelemetryRepository:
         """
         db = self._db_service.db
         await db.execute(
-            "UPDATE scheduled_jobs SET cancelled_at = ? WHERE id = ?",
-            (time.time(), db_id),
+            "UPDATE scheduled_jobs SET cancelled_at = :cancelled_at WHERE id = :id",
+            {"cancelled_at": time.time(), "id": db_id},
         )
         await db.commit()
 
@@ -280,89 +440,50 @@ class TelemetryRepository:
             await db.execute("BEGIN")
 
             # --- Non-once listeners without history: delete ---
-            if live_listener_ids:
-                placeholders = ",".join("?" * len(live_listener_ids))
-                await db.execute(
-                    f"""
-                    DELETE FROM listeners
-                    WHERE app_key = ? AND once = 0
-                      AND id NOT IN ({placeholders})
-                      AND NOT EXISTS (
-                          SELECT 1 FROM handler_invocations WHERE listener_id = listeners.id
-                      )
-                    """,
-                    (app_key, *live_listener_ids),
-                )
-            else:
-                await db.execute(
-                    """
-                    DELETE FROM listeners
-                    WHERE app_key = ? AND once = 0
-                      AND NOT EXISTS (
-                          SELECT 1 FROM handler_invocations WHERE listener_id = listeners.id
-                      )
-                    """,
-                    (app_key,),
-                )
+            sql, params = _build_delete_query(
+                "listeners",
+                app_key,
+                live_listener_ids,
+                "handler_invocations",
+                "listener_id",
+                extra_where=" AND once = 0",
+            )
+            await db.execute(sql, params)
 
             # --- Non-once listeners with history: retire ---
-            if live_listener_ids:
-                placeholders = ",".join("?" * len(live_listener_ids))
-                await db.execute(
-                    f"""
-                    UPDATE listeners SET retired_at = ?
-                    WHERE app_key = ? AND once = 0
-                      AND id NOT IN ({placeholders})
-                      AND retired_at IS NULL
-                      AND EXISTS (
-                          SELECT 1 FROM handler_invocations WHERE listener_id = listeners.id
-                      )
-                    """,
-                    (now, app_key, *live_listener_ids),
-                )
-            else:
-                await db.execute(
-                    """
-                    UPDATE listeners SET retired_at = ?
-                    WHERE app_key = ? AND once = 0
-                      AND retired_at IS NULL
-                      AND EXISTS (
-                          SELECT 1 FROM handler_invocations WHERE listener_id = listeners.id
-                      )
-                    """,
-                    (now, app_key),
-                )
+            sql, params = _build_retire_query(
+                "listeners",
+                app_key,
+                live_listener_ids,
+                "handler_invocations",
+                "listener_id",
+                now,
+                extra_where=" AND once = 0",
+            )
+            await db.execute(sql, params)
 
             # --- once=True listeners: delete from previous sessions ---
             if session_id is not None:
+                params_once: dict = {"app_key": app_key, "source_tier": _TIER_APP, "session_id": session_id}
                 if live_listener_ids:
-                    placeholders = ",".join("?" * len(live_listener_ids))
-                    await db.execute(
-                        f"""
-                        DELETE FROM listeners
-                        WHERE app_key = ? AND once = 1
-                          AND source_tier = ?
-                          AND id NOT IN ({placeholders})
-                          AND NOT EXISTS (
-                              SELECT 1 FROM handler_invocations
-                              WHERE listener_id = listeners.id AND session_id = ?
-                          )
-                        """,
-                        (app_key, _TIER_APP, *live_listener_ids, session_id),
-                    )
+                    placeholders = ", ".join(f":id_{i}" for i in range(len(live_listener_ids)))
+                    params_once.update({f"id_{i}": v for i, v in enumerate(live_listener_ids)})
+                    not_in_clause = f"AND id NOT IN ({placeholders})"
                 else:
-                    await db.execute(
-                        """
-                        DELETE FROM listeners
-                        WHERE app_key = ? AND once = 1
-                          AND source_tier = ?
-                          AND NOT EXISTS (
-                              SELECT 1 FROM handler_invocations
-                              WHERE listener_id = listeners.id AND session_id = ?
-                          )
-                        """,
-                        (app_key, _TIER_APP, session_id),
-                    )
+                    not_in_clause = ""
+                await db.execute(
+                    f"""
+                    DELETE FROM listeners
+                    WHERE app_key = :app_key AND once = 1
+                      AND source_tier = :source_tier
+                      {not_in_clause}
+                      AND NOT EXISTS (
+                          SELECT 1 FROM handler_invocations
+                          WHERE listener_id = listeners.id AND session_id = :session_id
+                      )
+                    """,
+                    params_once,
+                )
             else:
                 # session_id is unavailable (DB write queue backpressure at startup).
                 # Skip once=True deletion entirely — any row that fired before reconciliation
@@ -375,56 +496,25 @@ class TelemetryRepository:
                 )
 
             # --- Non-once jobs without history: delete ---
-            if live_job_ids:
-                placeholders = ",".join("?" * len(live_job_ids))
-                await db.execute(
-                    f"""
-                    DELETE FROM scheduled_jobs
-                    WHERE app_key = ? AND id NOT IN ({placeholders})
-                      AND NOT EXISTS (
-                          SELECT 1 FROM job_executions WHERE job_id = scheduled_jobs.id
-                      )
-                    """,
-                    (app_key, *live_job_ids),
-                )
-            else:
-                await db.execute(
-                    """
-                    DELETE FROM scheduled_jobs
-                    WHERE app_key = ?
-                      AND NOT EXISTS (
-                          SELECT 1 FROM job_executions WHERE job_id = scheduled_jobs.id
-                      )
-                    """,
-                    (app_key,),
-                )
+            sql, params = _build_delete_query(
+                "scheduled_jobs",
+                app_key,
+                live_job_ids,
+                "job_executions",
+                "job_id",
+            )
+            await db.execute(sql, params)
 
             # --- Non-once jobs with history: retire ---
-            if live_job_ids:
-                placeholders = ",".join("?" * len(live_job_ids))
-                await db.execute(
-                    f"""
-                    UPDATE scheduled_jobs SET retired_at = ?
-                    WHERE app_key = ? AND id NOT IN ({placeholders})
-                      AND retired_at IS NULL
-                      AND EXISTS (
-                          SELECT 1 FROM job_executions WHERE job_id = scheduled_jobs.id
-                      )
-                    """,
-                    (now, app_key, *live_job_ids),
-                )
-            else:
-                await db.execute(
-                    """
-                    UPDATE scheduled_jobs SET retired_at = ?
-                    WHERE app_key = ?
-                      AND retired_at IS NULL
-                      AND EXISTS (
-                          SELECT 1 FROM job_executions WHERE job_id = scheduled_jobs.id
-                      )
-                    """,
-                    (now, app_key),
-                )
+            sql, params = _build_retire_query(
+                "scheduled_jobs",
+                app_key,
+                live_job_ids,
+                "job_executions",
+                "job_id",
+                now,
+            )
+            await db.execute(sql, params)
 
             await db.commit()
         except Exception:
@@ -454,120 +544,63 @@ class TelemetryRepository:
         dropped = 0
         logger = logging.getLogger(__name__)
 
+        inv_cols = (
+            "listener_id, session_id, execution_start_ts, "
+            "duration_ms, status, source_tier, is_di_failure, "
+            "error_type, error_message, error_traceback"
+        )
+        inv_vals = (
+            ":listener_id, :session_id, :execution_start_ts, "
+            ":duration_ms, :status, :source_tier, :is_di_failure, "
+            ":error_type, :error_message, :error_traceback"
+        )
+        job_cols = (
+            "job_id, session_id, execution_start_ts, "
+            "duration_ms, status, source_tier, is_di_failure, "
+            "error_type, error_message, error_traceback"
+        )
+        job_vals = (
+            ":job_id, :session_id, :execution_start_ts, "
+            ":duration_ms, :status, :source_tier, :is_di_failure, "
+            ":error_type, :error_message, :error_traceback"
+        )
+
         try:
             await db.execute("BEGIN")
-            # Try each invocation individually, nulling FK on violation
+
             for record in invocations:
-                try:
-                    await db.execute(
-                        """
-                        INSERT INTO handler_invocations (
-                            listener_id, session_id, execution_start_ts,
-                            duration_ms, status, source_tier, is_di_failure,
-                            error_type, error_message, error_traceback
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            record.listener_id,
-                            record.session_id,
-                            record.execution_start_ts,
-                            record.duration_ms,
-                            record.status,
-                            record.source_tier,
-                            1 if record.is_di_failure else 0,
-                            record.error_type,
-                            record.error_message,
-                            record.error_traceback,
-                        ),
-                    )
-                except sqlite3.IntegrityError as exc:
-                    if not _is_fk_violation(exc):
-                        raise  # CHECK/NOT NULL/UNIQUE — not recoverable by nulling FK
-                    logger.warning(
-                        "FK violation on handler_invocations row (listener_id=%s) — nulling FK and retrying",
-                        record.listener_id,
-                    )
-                    try:
-                        await db.execute(
-                            """
-                            INSERT INTO handler_invocations (
-                                listener_id, session_id, execution_start_ts,
-                                duration_ms, status, source_tier, is_di_failure,
-                                error_type, error_message, error_traceback
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                            (
-                                None,
-                                record.session_id,
-                                record.execution_start_ts,
-                                record.duration_ms,
-                                record.status,
-                                record.source_tier,
-                                1 if record.is_di_failure else 0,
-                                record.error_type,
-                                record.error_message,
-                                record.error_traceback,
-                            ),
-                        )
-                    except Exception as exc:
-                        dropped += 1
-                        logger.error("Failed to persist handler_invocations row even with null FK — dropping: %s", exc)
+                params = {
+                    "listener_id": record.listener_id,
+                    "session_id": record.session_id,
+                    "execution_start_ts": record.execution_start_ts,
+                    "duration_ms": record.duration_ms,
+                    "status": record.status,
+                    "source_tier": record.source_tier,
+                    "is_di_failure": 1 if record.is_di_failure else 0,
+                    "error_type": record.error_type,
+                    "error_message": record.error_message,
+                    "error_traceback": record.error_traceback,
+                }
+                dropped += await _insert_row_with_fk_fallback(
+                    db, "handler_invocations", inv_cols, inv_vals, params, "listener_id", logger
+                )
 
             for record in job_executions:
-                try:
-                    await db.execute(
-                        """
-                        INSERT INTO job_executions (
-                            job_id, session_id, execution_start_ts,
-                            duration_ms, status, source_tier, is_di_failure,
-                            error_type, error_message, error_traceback
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            record.job_id,
-                            record.session_id,
-                            record.execution_start_ts,
-                            record.duration_ms,
-                            record.status,
-                            record.source_tier,
-                            1 if record.is_di_failure else 0,
-                            record.error_type,
-                            record.error_message,
-                            record.error_traceback,
-                        ),
-                    )
-                except sqlite3.IntegrityError as exc:
-                    if not _is_fk_violation(exc):
-                        raise  # CHECK/NOT NULL/UNIQUE — not recoverable by nulling FK
-                    logger.warning(
-                        "FK violation on job_executions row (job_id=%s) — nulling FK and retrying",
-                        record.job_id,
-                    )
-                    try:
-                        await db.execute(
-                            """
-                            INSERT INTO job_executions (
-                                job_id, session_id, execution_start_ts,
-                                duration_ms, status, source_tier, is_di_failure,
-                                error_type, error_message, error_traceback
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                            (
-                                None,
-                                record.session_id,
-                                record.execution_start_ts,
-                                record.duration_ms,
-                                record.status,
-                                record.source_tier,
-                                1 if record.is_di_failure else 0,
-                                record.error_type,
-                                record.error_message,
-                                record.error_traceback,
-                            ),
-                        )
-                    except Exception as exc:
-                        dropped += 1
-                        logger.error("Failed to persist job_executions row even with null FK — dropping: %s", exc)
+                params = {
+                    "job_id": record.job_id,
+                    "session_id": record.session_id,
+                    "execution_start_ts": record.execution_start_ts,
+                    "duration_ms": record.duration_ms,
+                    "status": record.status,
+                    "source_tier": record.source_tier,
+                    "is_di_failure": 1 if record.is_di_failure else 0,
+                    "error_type": record.error_type,
+                    "error_message": record.error_message,
+                    "error_traceback": record.error_traceback,
+                }
+                dropped += await _insert_row_with_fk_fallback(
+                    db, "job_executions", job_cols, job_vals, params, "job_id", logger
+                )
 
             await db.commit()
         except Exception:
@@ -605,21 +638,25 @@ class TelemetryRepository:
                         listener_id, session_id, execution_start_ts,
                         duration_ms, status, source_tier, is_di_failure,
                         error_type, error_message, error_traceback
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (
+                        :listener_id, :session_id, :execution_start_ts,
+                        :duration_ms, :status, :source_tier, :is_di_failure,
+                        :error_type, :error_message, :error_traceback
+                    )
                     """,
                     [
-                        (
-                            r.listener_id,
-                            r.session_id,
-                            r.execution_start_ts,
-                            r.duration_ms,
-                            r.status,
-                            r.source_tier,
-                            1 if r.is_di_failure else 0,
-                            r.error_type,
-                            r.error_message,
-                            r.error_traceback,
-                        )
+                        {
+                            "listener_id": r.listener_id,
+                            "session_id": r.session_id,
+                            "execution_start_ts": r.execution_start_ts,
+                            "duration_ms": r.duration_ms,
+                            "status": r.status,
+                            "source_tier": r.source_tier,
+                            "is_di_failure": 1 if r.is_di_failure else 0,
+                            "error_type": r.error_type,
+                            "error_message": r.error_message,
+                            "error_traceback": r.error_traceback,
+                        }
                         for r in invocations
                     ],
                 )
@@ -631,21 +668,25 @@ class TelemetryRepository:
                         job_id, session_id, execution_start_ts,
                         duration_ms, status, source_tier, is_di_failure,
                         error_type, error_message, error_traceback
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (
+                        :job_id, :session_id, :execution_start_ts,
+                        :duration_ms, :status, :source_tier, :is_di_failure,
+                        :error_type, :error_message, :error_traceback
+                    )
                     """,
                     [
-                        (
-                            r.job_id,
-                            r.session_id,
-                            r.execution_start_ts,
-                            r.duration_ms,
-                            r.status,
-                            r.source_tier,
-                            1 if r.is_di_failure else 0,
-                            r.error_type,
-                            r.error_message,
-                            r.error_traceback,
-                        )
+                        {
+                            "job_id": r.job_id,
+                            "session_id": r.session_id,
+                            "execution_start_ts": r.execution_start_ts,
+                            "duration_ms": r.duration_ms,
+                            "status": r.status,
+                            "source_tier": r.source_tier,
+                            "is_di_failure": 1 if r.is_di_failure else 0,
+                            "error_type": r.error_type,
+                            "error_message": r.error_message,
+                            "error_traceback": r.error_traceback,
+                        }
                         for r in job_executions
                     ],
                 )

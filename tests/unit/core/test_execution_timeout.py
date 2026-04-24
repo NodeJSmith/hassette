@@ -80,7 +80,6 @@ class TestEffectiveTimeoutField:
 class TestTrackExecutionTimeout:
     """track_execution sets status='timed_out' on TimeoutError and re-raises."""
 
-    @pytest.mark.asyncio
     async def test_track_execution_sets_timed_out_status(self) -> None:
         """TimeoutError sets status='timed_out' and propagates."""
         with pytest.raises(TimeoutError):

@@ -16,6 +16,6 @@ router = APIRouter(tags=["services"])
 async def get_services(api: ApiDep) -> dict[str, Any]:
     try:
         return await api.get_services()
-    except Exception as exc:
+    except (OSError, ConnectionError, TimeoutError, TypeError, RuntimeError) as exc:
         LOGGER.warning("Failed to fetch services from HA", exc_info=True)
         raise HTTPException(status_code=502, detail="Failed to fetch services from Home Assistant") from exc

@@ -2,8 +2,6 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 import hassette.utils.date_utils as date_utils
 from hassette.core.commands import ExecuteJob
 from hassette.core.scheduler_service import SchedulerService
@@ -55,7 +53,6 @@ def _make_job(
 
 
 class TestSchedulerServiceCarriesAppLevelHandler:
-    @pytest.mark.asyncio
     async def test_dispatch_carries_app_level_handler(self) -> None:
         """When job has an _app_error_handler_resolver, its result is set on ExecuteJob."""
         svc = _make_scheduler_service()
@@ -71,7 +68,6 @@ class TestSchedulerServiceCarriesAppLevelHandler:
         assert isinstance(cmd, ExecuteJob)
         assert cmd.app_level_error_handler is app_handler
 
-    @pytest.mark.asyncio
     async def test_dispatch_no_handler_when_resolver_returns_none(self) -> None:
         """When resolver returns None, app_level_error_handler is None."""
         svc = _make_scheduler_service()
@@ -84,7 +80,6 @@ class TestSchedulerServiceCarriesAppLevelHandler:
         assert isinstance(cmd, ExecuteJob)
         assert cmd.app_level_error_handler is None
 
-    @pytest.mark.asyncio
     async def test_dispatch_no_handler_when_no_resolver(self) -> None:
         """When job has no _app_error_handler_resolver, app_level_error_handler is None."""
         svc = _make_scheduler_service()

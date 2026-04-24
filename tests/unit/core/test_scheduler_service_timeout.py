@@ -3,8 +3,6 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 import hassette.utils.date_utils as date_utils
 from hassette.core.commands import ExecuteJob
 from hassette.core.registration_tracker import RegistrationTracker
@@ -61,7 +59,6 @@ def _make_job(
 
 
 class TestRunJobResolvesEffectiveTimeout:
-    @pytest.mark.asyncio
     async def test_run_job_resolves_effective_timeout_from_job(self) -> None:
         """job.timeout=5 takes precedence over config default."""
         svc = _make_scheduler_service(config_timeout=600.0)
@@ -73,7 +70,6 @@ class TestRunJobResolvesEffectiveTimeout:
         assert isinstance(cmd, ExecuteJob)
         assert cmd.effective_timeout == 5.0
 
-    @pytest.mark.asyncio
     async def test_run_job_resolves_effective_timeout_from_config(self) -> None:
         """job.timeout=None falls through to config default."""
         svc = _make_scheduler_service(config_timeout=600.0)
@@ -85,7 +81,6 @@ class TestRunJobResolvesEffectiveTimeout:
         assert isinstance(cmd, ExecuteJob)
         assert cmd.effective_timeout == 600.0
 
-    @pytest.mark.asyncio
     async def test_run_job_resolves_timeout_disabled(self) -> None:
         """job.timeout_disabled=True sets effective_timeout=None."""
         svc = _make_scheduler_service(config_timeout=600.0)
@@ -97,7 +92,6 @@ class TestRunJobResolvesEffectiveTimeout:
         assert isinstance(cmd, ExecuteJob)
         assert cmd.effective_timeout is None
 
-    @pytest.mark.asyncio
     async def test_run_job_does_not_raise_on_timeout(self) -> None:
         """Timeout is absorbed by the executor — run_job() returns normally.
 

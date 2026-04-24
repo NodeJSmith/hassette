@@ -8,7 +8,6 @@ import pytest
 from hassette.task_bucket.task_bucket import TaskBucket
 
 
-@pytest.mark.asyncio
 async def test_sync_fn_timeout_error_propagates_cleanly() -> None:
     """TimeoutError in sync handler propagates without being caught by the except Exception block."""
     hassette = MagicMock()

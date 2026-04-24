@@ -86,7 +86,6 @@ def _make_recording_api() -> RecordingApi:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_seed_helper_then_list_returns_seeded_record():
     api = _make_recording_api()
     record = InputBooleanRecord(id="vacation_mode", name="Vacation Mode")
@@ -113,7 +112,6 @@ def test_seed_helper_rejects_unknown_type():
 
 # Actually test seed_helper via AppTestHarness — but to keep unit tests simple,
 # test the ValueError path by calling the dict directly
-@pytest.mark.asyncio
 async def test_seed_helper_type_map_covers_all_imports():
     """Smoke-test that _RECORD_TYPE_TO_DOMAIN has all 8 expected record types."""
     from hassette.models.helpers import (
@@ -144,7 +142,6 @@ async def test_seed_helper_type_map_covers_all_imports():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_create_input_boolean_adds_to_list():
     api = _make_recording_api()
     record = await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
@@ -154,14 +151,12 @@ async def test_create_input_boolean_adds_to_list():
     assert result[0].name == "vacation_mode"
 
 
-@pytest.mark.asyncio
 async def test_create_input_boolean_slugifies_name():
     api = _make_recording_api()
     record = await api.create_input_boolean(CreateInputBooleanParams(name="Vacation Mode"))
     assert record.id == "vacation_mode"
 
 
-@pytest.mark.asyncio
 async def test_create_input_boolean_auto_suffixes_collision():
     api = _make_recording_api()
     first = await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
@@ -179,7 +174,6 @@ async def test_create_input_boolean_auto_suffixes_collision():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_update_input_boolean_raises_on_missing_id():
     api = _make_recording_api()
 
@@ -190,7 +184,6 @@ async def test_update_input_boolean_raises_on_missing_id():
     assert "input_boolean" in str(exc_info.value)
 
 
-@pytest.mark.asyncio
 async def test_update_input_boolean_mutates_seed():
     api = _make_recording_api()
     record = await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
@@ -209,7 +202,6 @@ async def test_update_input_boolean_mutates_seed():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_delete_input_boolean_raises_on_missing_id():
     api = _make_recording_api()
 
@@ -219,7 +211,6 @@ async def test_delete_input_boolean_raises_on_missing_id():
     assert exc_info.value.code == "not_found"
 
 
-@pytest.mark.asyncio
 async def test_delete_input_boolean_removes_from_list():
     api = _make_recording_api()
     record = await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
@@ -234,7 +225,6 @@ async def test_delete_input_boolean_removes_from_list():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_reset_clears_helper_definitions():
     api = _make_recording_api()
     # Seed across multiple domains
@@ -255,7 +245,6 @@ async def test_reset_clears_helper_definitions():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_create_records_api_call():
     api = _make_recording_api()
     await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
@@ -271,7 +260,6 @@ async def test_create_records_api_call():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_counter_action_records_api_call_increment():
     api = _make_recording_api()
     await api.increment_counter("counter.foo")
@@ -282,7 +270,6 @@ async def test_counter_action_records_api_call_increment():
     assert call.kwargs["entity_id"] == "counter.foo"
 
 
-@pytest.mark.asyncio
 async def test_counter_action_records_api_call_decrement():
     api = _make_recording_api()
     await api.decrement_counter("counter.bar")
@@ -292,7 +279,6 @@ async def test_counter_action_records_api_call_decrement():
     assert call.kwargs["entity_id"] == "counter.bar"
 
 
-@pytest.mark.asyncio
 async def test_counter_action_records_api_call_reset():
     api = _make_recording_api()
     await api.reset_counter("counter.baz")
@@ -327,7 +313,6 @@ def test_slugify_helper_name_fallback_for_empty_slug():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_list_returns_isolated_copies():
     """Mutating records returned by list_* must not affect the stored state."""
     api = _make_recording_api()
@@ -340,7 +325,6 @@ async def test_list_returns_isolated_copies():
     assert refetched.name == "Original"
 
 
-@pytest.mark.asyncio
 async def test_list_isolation_preserves_nested_collections():
     """InputSelectRecord.options must be deep-copied on list/create returns.
 
@@ -374,7 +358,6 @@ async def test_list_isolation_preserves_nested_collections():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_seed_helper_rejects_duplicate_id():
     """seed_helper raises ValueError when seeding a duplicate id in the same domain."""
     async with AppTestHarness(_HarnessApp, config={}) as harness:
@@ -387,7 +370,6 @@ async def test_seed_helper_rejects_duplicate_id():
             _seed_duplicate()
 
 
-@pytest.mark.asyncio
 async def test_harness_seed_helper_rejects_unknown_record_type():
     """seed_helper raises ValueError (not KeyError) when given an unregistered BaseModel."""
 
@@ -409,7 +391,6 @@ async def test_harness_seed_helper_rejects_unknown_record_type():
     assert "InputBooleanRecord" in message
 
 
-@pytest.mark.asyncio
 async def test_seed_helper_isolates_caller_mutations():
     """seed_helper deep-copies the record so later caller-side mutations don't leak."""
     from hassette.models.helpers import InputSelectRecord

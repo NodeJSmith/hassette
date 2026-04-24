@@ -52,10 +52,6 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     _import_exception: ClassVar[Exception | None] = None
     """Exception raised during import, if any. This prevents having all apps in a module fail due to one exception."""
 
-    _api_factory: ClassVar[type[Resource] | None] = None
-    """Internal: factory for the Api resource. When set, App.__init__ uses this instead of Api.
-    Used by AppTestHarness to inject RecordingApi. Not a user-facing API."""
-
     role: ClassVar[ResourceRole] = ResourceRole.APP
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
@@ -90,15 +86,20 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     """Index of this app instance, used for unique naming."""
 
     def __init__(
-        self, hassette: "Hassette", *, app_config: AppConfigT, index: int, parent: Resource | None = None
+        self,
+        hassette: "Hassette",
+        *,
+        app_config: AppConfigT,
+        index: int,
+        api_factory: type[Resource] | None = None,
+        parent: Resource | None = None,
     ) -> None:
         # app_config and index must be set before super().__init__ because
         # unique_name (used by the logger) depends on app_config
         self.app_config = app_config
         self.index = index
         super().__init__(hassette, parent=parent)
-        factory = type(self)._api_factory or Api
-        self.api = cast("Api", self.add_child(factory))
+        self.api = cast("Api", self.add_child(api_factory or Api))
         self.scheduler = self.add_child(Scheduler)
         self.bus = self.add_child(Bus, priority=0)
         self.states = self.add_child(StateManager)

@@ -3,8 +3,6 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from hassette.bus.listeners import Listener
 from hassette.core.bus_service import BusService
 from hassette.core.commands import InvokeHandler
@@ -58,7 +56,6 @@ def _make_event() -> Event:
 
 
 class TestDispatchCarriesAppLevelHandler:
-    @pytest.mark.asyncio
     async def test_dispatch_carries_app_level_handler(self) -> None:
         """When the listener's resolver returns a handler, it is set on InvokeHandler."""
         svc = _make_bus_service()
@@ -76,7 +73,6 @@ class TestDispatchCarriesAppLevelHandler:
         assert isinstance(cmd, InvokeHandler)
         assert cmd.app_level_error_handler is app_handler
 
-    @pytest.mark.asyncio
     async def test_dispatch_no_handler_when_none_set(self) -> None:
         """When the listener has no resolver, app_level_error_handler is None."""
         svc = _make_bus_service()
@@ -92,7 +88,6 @@ class TestDispatchCarriesAppLevelHandler:
         assert isinstance(cmd, InvokeHandler)
         assert cmd.app_level_error_handler is None
 
-    @pytest.mark.asyncio
     async def test_dispatch_no_handler_when_resolver_returns_none(self) -> None:
         """When resolver returns None (Bus._error_handler not set), field is None."""
         svc = _make_bus_service()
@@ -107,7 +102,6 @@ class TestDispatchCarriesAppLevelHandler:
         assert isinstance(cmd, InvokeHandler)
         assert cmd.app_level_error_handler is None
 
-    @pytest.mark.asyncio
     async def test_dispatch_resolves_handler_at_dispatch_time(self) -> None:
         """Resolver is called at dispatch time: updates to Bus._error_handler are reflected."""
         svc = _make_bus_service()

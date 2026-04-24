@@ -135,7 +135,6 @@ def _make_mock_job() -> MagicMock:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
     """CancelledError must be re-raised after queueing a 'cancelled' record."""
     listener = _make_mock_listener()
@@ -156,7 +155,6 @@ async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
     assert record.listener_id == 1
 
 
-@pytest.mark.asyncio
 async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
     """DependencyError must be swallowed (not re-raised) and logged as error."""
     from hassette.exceptions import DependencyError
@@ -182,7 +180,6 @@ async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
     assert record.error_traceback is None
 
 
-@pytest.mark.asyncio
 async def test_hassette_error_swallowed(executor: CommandExecutor) -> None:
     """HassetteError must be swallowed and logged without traceback."""
     from hassette.exceptions import HassetteError
@@ -205,7 +202,6 @@ async def test_hassette_error_swallowed(executor: CommandExecutor) -> None:
     assert record.error_traceback is None
 
 
-@pytest.mark.asyncio
 async def test_unexpected_error_swallowed(executor: CommandExecutor) -> None:
     """Generic Exception must be swallowed and include traceback."""
     listener = _make_mock_listener()
@@ -228,7 +224,6 @@ async def test_unexpected_error_swallowed(executor: CommandExecutor) -> None:
     assert "ValueError" in record.error_traceback
 
 
-@pytest.mark.asyncio
 async def test_success_record_queued(executor: CommandExecutor) -> None:
     """Successful invocation must queue a 'success' record."""
     listener = _make_mock_listener()
@@ -256,7 +251,6 @@ async def test_success_record_queued(executor: CommandExecutor) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_execute_timeout_fires(executor: CommandExecutor) -> None:
     """Handler exceeding timeout produces 'timed_out' record."""
 
@@ -278,7 +272,6 @@ async def test_execute_timeout_fires(executor: CommandExecutor) -> None:
     assert record.status == "timed_out"
 
 
-@pytest.mark.asyncio
 async def test_execute_timeout_none_is_noop(executor: CommandExecutor) -> None:
     """effective_timeout=None does not enforce timeout."""
     listener = _make_mock_listener()
@@ -296,7 +289,6 @@ async def test_execute_timeout_none_is_noop(executor: CommandExecutor) -> None:
     assert record.status == "success"
 
 
-@pytest.mark.asyncio
 async def test_timeout_warning_rate_limited(executor: CommandExecutor) -> None:
     """Multiple rapid timeouts produce at most one WARNING per 60s window."""
 
@@ -333,7 +325,6 @@ async def test_timeout_warning_rate_limited(executor: CommandExecutor) -> None:
     assert len(timeout_warnings) == 1, f"Expected 1 timeout warning, got {len(timeout_warnings)}: {timeout_warnings}"
 
 
-@pytest.mark.asyncio
 async def test_timeout_warning_lazy_eviction(executor: CommandExecutor) -> None:
     """Stale entries are evicted during rate-limit check."""
 
@@ -366,7 +357,6 @@ async def test_timeout_warning_lazy_eviction(executor: CommandExecutor) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """Records placed in the write queue appear in handler_invocations after drain."""
     db_service, session_id = initialized_db
@@ -403,7 +393,6 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
     assert rows[0][2] == session_id
 
 
-@pytest.mark.asyncio
 async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """_flush_queue() persists remaining records before returning."""
     db_service, session_id = initialized_db
@@ -443,7 +432,6 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_execute_job_success_record_queued(executor: CommandExecutor) -> None:
     """Successful job execution queues a JobExecutionRecord with status='success'."""
     job = _make_mock_job()
@@ -460,7 +448,6 @@ async def test_execute_job_success_record_queued(executor: CommandExecutor) -> N
     assert record.duration_ms >= 0
 
 
-@pytest.mark.asyncio
 async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
     """Job error is swallowed and queues a JobExecutionRecord with status='error'."""
     job = _make_mock_job()
@@ -510,7 +497,6 @@ def test_build_record_uses_session_id_directly(mock_hassette: MagicMock) -> None
     assert record.listener_id == 5
 
 
-@pytest.mark.asyncio
 async def test_persist_batch_drops_presession_records(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
@@ -559,7 +545,6 @@ async def test_persist_batch_drops_presession_records(
     assert rows[0][0] == session_id
 
 
-@pytest.mark.asyncio
 async def test_register_listener_blocks_until_database_ready(
     mock_hassette: MagicMock,
     initialized_db: tuple[DatabaseService, int],
@@ -591,7 +576,6 @@ async def test_register_listener_blocks_until_database_ready(
     assert listener_id > 0
 
 
-@pytest.mark.asyncio
 async def test_register_job_blocks_until_database_ready(
     mock_hassette: MagicMock,
     initialized_db: tuple[DatabaseService, int],
@@ -622,7 +606,6 @@ async def test_register_job_blocks_until_database_ready(
     assert job_id > 0
 
 
-@pytest.mark.asyncio
 async def test_concurrent_registrations_do_not_raise(
     mock_hassette: MagicMock,
     tmp_path: Path,
@@ -675,7 +658,6 @@ async def test_concurrent_registrations_do_not_raise(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_fk_preserved_across_restart(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
@@ -719,7 +701,6 @@ async def test_fk_preserved_across_restart(
     assert rows[0][0] == listener_id
 
 
-@pytest.mark.asyncio
 async def test_reconciliation_ordering(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],

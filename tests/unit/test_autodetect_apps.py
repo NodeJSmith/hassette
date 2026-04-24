@@ -513,12 +513,8 @@ class TestValidateApps:
         assert expected_path in known_paths, f"Expected known_paths to include {expected_path}, got {known_paths}"
 
     @patch("hassette.config.config.autodetect_apps")
-    def test_validate_apps_skips_conflicting_autodetected(self, mock_autodetect, caplog, tmp_path: Path):
+    def test_validate_apps_skips_conflicting_autodetected(self, mock_autodetect, tmp_path: Path):
         """Test that validate_apps skips auto-detected apps that conflict with manual ones."""
-        import logging
-
-        caplog.set_level(logging.INFO, logger="hassette.config.config")
-
         app_dir = tmp_path / "test_apps"
         app_dir.mkdir(parents=True, exist_ok=True)
 

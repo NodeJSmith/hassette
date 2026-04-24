@@ -263,6 +263,16 @@ class TypeRegistry:
         items.sort(key=lambda x: (x[0].__name__, x[1].__name__))
         return items
 
+    @classmethod
+    def snapshot(cls) -> dict[tuple[type[Any], type[Any]], TypeConverterEntry[Any, Any]]:
+        """Return a shallow copy of the current conversion map."""
+        return dict(cls.conversion_map)
+
+    @classmethod
+    def restore(cls, snapshot: dict[tuple[type[Any], type[Any]], TypeConverterEntry[Any, Any]]) -> None:
+        """Replace the conversion map with a previously captured snapshot."""
+        cls.conversion_map = snapshot
+
 
 ## Value Converters ##
 

@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from hassette.core.core import Hassette
 
 
@@ -28,7 +26,6 @@ def _make_hassette_stub(
 class TestStartupWarningWhenJobTimeoutNone:
     """WARNING logged for scheduler_job_timeout_seconds=None."""
 
-    @pytest.mark.asyncio
     async def test_startup_warning_when_job_timeout_none(self) -> None:
         h = _make_hassette_stub(scheduler_job_timeout=None, event_handler_timeout=600.0)
 
@@ -43,7 +40,6 @@ class TestStartupWarningWhenJobTimeoutNone:
 class TestStartupWarningWhenHandlerTimeoutNone:
     """WARNING logged for event_handler_timeout_seconds=None."""
 
-    @pytest.mark.asyncio
     async def test_startup_warning_when_handler_timeout_none(self) -> None:
         h = _make_hassette_stub(scheduler_job_timeout=600.0, event_handler_timeout=None)
 
@@ -58,7 +54,6 @@ class TestStartupWarningWhenHandlerTimeoutNone:
 class TestNoWarningWhenTimeoutsConfigured:
     """No WARNING when both have values."""
 
-    @pytest.mark.asyncio
     async def test_no_warning_when_timeouts_configured(self) -> None:
         h = _make_hassette_stub(scheduler_job_timeout=600.0, event_handler_timeout=600.0)
 
@@ -70,7 +65,6 @@ class TestNoWarningWhenTimeoutsConfigured:
 class TestWarningFiresOncePerStartup:
     """WARNING fires once during on_initialize, not repeated."""
 
-    @pytest.mark.asyncio
     async def test_warning_fires_once_per_startup(self) -> None:
         """Verify on_initialize emits exactly one warning per disabled field."""
         h = _make_hassette_stub(scheduler_job_timeout=None, event_handler_timeout=None)

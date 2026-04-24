@@ -3,8 +3,6 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from hassette.bus.listeners import Listener
 from hassette.core.bus_service import BusService
 from hassette.core.commands import InvokeHandler
@@ -65,7 +63,6 @@ def _make_event() -> Event:
 
 
 class TestDispatchResolvesEffectiveTimeout:
-    @pytest.mark.asyncio
     async def test_dispatch_resolves_effective_timeout_from_listener(self) -> None:
         """listener.timeout=5 -> effective_timeout=5."""
         svc = _make_bus_service(config_timeout=600.0)
@@ -79,7 +76,6 @@ class TestDispatchResolvesEffectiveTimeout:
         assert isinstance(cmd, InvokeHandler)
         assert cmd.effective_timeout == 5.0
 
-    @pytest.mark.asyncio
     async def test_dispatch_resolves_effective_timeout_from_config(self) -> None:
         """listener.timeout=None -> uses config default."""
         svc = _make_bus_service(config_timeout=600.0)
@@ -93,7 +89,6 @@ class TestDispatchResolvesEffectiveTimeout:
         assert isinstance(cmd, InvokeHandler)
         assert cmd.effective_timeout == 600.0
 
-    @pytest.mark.asyncio
     async def test_dispatch_resolves_timeout_disabled(self) -> None:
         """listener.timeout_disabled=True -> effective_timeout=None."""
         svc = _make_bus_service(config_timeout=600.0)
@@ -107,7 +102,6 @@ class TestDispatchResolvesEffectiveTimeout:
         assert isinstance(cmd, InvokeHandler)
         assert cmd.effective_timeout is None
 
-    @pytest.mark.asyncio
     async def test_once_listener_removed_after_dispatch(self) -> None:
         """once=True handler is removed from the bus after dispatch regardless of execution outcome."""
         svc = _make_bus_service(config_timeout=600.0)

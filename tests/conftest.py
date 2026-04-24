@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import tracemalloc
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -8,6 +7,8 @@ import pytest
 import tomli_w
 
 from hassette import Hassette, HassetteConfig
+from hassette.conversion.state_registry import StateRegistry
+from hassette.conversion.type_registry import TypeRegistry
 from hassette.task_bucket import TaskBucket
 
 tracemalloc.start()
@@ -193,10 +194,14 @@ def my_app_class() -> type:
     return MyApp
 
 
-@pytest.fixture
-def caplog_info(caplog: pytest.LogCaptureFixture) -> pytest.LogCaptureFixture:
-    caplog.set_level(logging.INFO)
-    return caplog
+@pytest.fixture(autouse=True)
+def _isolate_registries():
+    """Snapshot and restore StateRegistry and TypeRegistry to prevent cross-test pollution."""
+    state_snap = StateRegistry.snapshot()
+    type_snap = TypeRegistry.snapshot()
+    yield
+    StateRegistry.restore(state_snap)
+    TypeRegistry.restore(type_snap)
 
 
 @pytest.fixture

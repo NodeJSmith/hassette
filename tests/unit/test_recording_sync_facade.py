@@ -80,7 +80,6 @@ def _make_recording_api(states: dict | None = None) -> RecordingApi:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_recording_api_sync_is_recording_sync_facade():
     """RecordingApi.sync must be a _RecordingSyncFacade instance (not a Mock)."""
     api = _make_recording_api()
@@ -92,7 +91,6 @@ async def test_recording_api_sync_is_recording_sync_facade():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_sync_turn_on_records_with_correct_shape():
     """sync.turn_on records ApiCall with correct method, args, and kwargs."""
     api = _make_recording_api()
@@ -104,7 +102,6 @@ async def test_sync_turn_on_records_with_correct_shape():
     assert call.kwargs == {"entity_id": "light.kitchen", "domain": "homeassistant"}
 
 
-@pytest.mark.asyncio
 async def test_sync_turn_on_coerces_strenum():
     """sync.turn_on coerces StrEnum entity_id to plain str in recorded kwargs."""
 
@@ -119,7 +116,6 @@ async def test_sync_turn_on_coerces_strenum():
     assert entity_id == "light.kitchen"
 
 
-@pytest.mark.asyncio
 async def test_sync_turn_on_passes_extra_data():
     """sync.turn_on passes extra kwargs through to recorded ApiCall.kwargs."""
     api = _make_recording_api()
@@ -135,7 +131,6 @@ async def test_sync_turn_on_passes_extra_data():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_sync_turn_off_records_with_correct_shape():
     """sync.turn_off records ApiCall with correct method, args, and kwargs."""
     api = _make_recording_api()
@@ -152,7 +147,6 @@ async def test_sync_turn_off_records_with_correct_shape():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_sync_toggle_service_records_with_correct_shape():
     """sync.toggle_service records ApiCall with correct method, args, and kwargs."""
     api = _make_recording_api()
@@ -169,7 +163,6 @@ async def test_sync_toggle_service_records_with_correct_shape():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_sync_call_service_records_with_correct_shape():
     """sync.call_service records ApiCall with full kwargs dict."""
     api = _make_recording_api()
@@ -186,7 +179,6 @@ async def test_sync_call_service_records_with_correct_shape():
     }
 
 
-@pytest.mark.asyncio
 async def test_sync_call_service_returns_service_response_when_requested():
     """sync.call_service returns ServiceResponse with null context when return_response=True."""
     api = _make_recording_api()
@@ -194,7 +186,6 @@ async def test_sync_call_service_returns_service_response_when_requested():
     assert isinstance(result, ServiceResponse)
 
 
-@pytest.mark.asyncio
 async def test_sync_call_service_returns_none_by_default():
     """sync.call_service returns None when return_response=False (default)."""
     api = _make_recording_api()
@@ -207,7 +198,6 @@ async def test_sync_call_service_returns_none_by_default():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_sync_set_state_records_and_returns_empty_dict():
     """sync.set_state records ApiCall and returns an empty dict."""
     api = _make_recording_api()
@@ -225,7 +215,6 @@ async def test_sync_set_state_records_and_returns_empty_dict():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_sync_fire_event_records_and_returns_empty_dict():
     """sync.fire_event records ApiCall and returns an empty dict."""
     api = _make_recording_api()
@@ -243,7 +232,6 @@ async def test_sync_fire_event_records_and_returns_empty_dict():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_sync_and_async_share_calls_list():
     """Async and sync write calls append to the same api.calls list."""
     api = _make_recording_api()
@@ -259,7 +247,6 @@ async def test_sync_and_async_share_calls_list():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_sync_get_state_delegates_to_state_proxy():
     """sync.get_state returns the typed state for a seeded entity."""
     state_dict = make_state_dict(entity_id="light.kitchen", state="on", attributes={"brightness": 200})
@@ -269,7 +256,6 @@ async def test_sync_get_state_delegates_to_state_proxy():
     assert result.value == "on"
 
 
-@pytest.mark.asyncio
 async def test_sync_get_state_raises_for_unseeded():
     """sync.get_state raises EntityNotFoundError for unseeded entities."""
     api = _make_recording_api(states={})
@@ -282,7 +268,6 @@ async def test_sync_get_state_raises_for_unseeded():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_sync_get_states_returns_all_seeded_entities():
     """sync.get_states returns typed states for all seeded entities."""
     state_a = make_state_dict(entity_id="light.a", state="on")
@@ -304,7 +289,6 @@ async def test_sync_get_states_returns_all_seeded_entities():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_sync_entity_exists_returns_bool():
     """sync.entity_exists returns True for seeded entities and False otherwise."""
     state_dict = make_state_dict(entity_id="light.kitchen", state="on")
@@ -318,7 +302,6 @@ async def test_sync_entity_exists_returns_bool():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_sync_get_state_or_none_returns_none_for_unseeded():
     """sync.get_state_or_none returns None (not an exception) for unseeded entities."""
     api = _make_recording_api(states={})
@@ -331,16 +314,8 @@ async def test_sync_get_state_or_none_returns_none_for_unseeded():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_sync_getattr_raises_notimplementederror_with_default_message_for_unknown_method():
-    """Accessing an unknown public method on sync raises NotImplementedError via __getattr__ with seed-state message.
-
-    Marked ``@pytest.mark.asyncio`` explicitly (rather than relying on the global
-    ``asyncio_mode = "auto"`` setting) so the test survives a future switch to
-    ``asyncio_mode = "strict"``. The function is ``async`` because
-    ``_make_hassette_stub()`` calls ``asyncio.get_running_loop()`` during
-    construction, which requires an active event loop.
-    """
+    """Accessing an unknown public method on sync raises NotImplementedError via __getattr__ with seed-state message."""
     api = _make_recording_api()
     with pytest.raises(NotImplementedError) as exc_info:
         api.sync.some_unknown_method()
@@ -352,7 +327,6 @@ async def test_sync_getattr_raises_notimplementederror_with_default_message_for_
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_sync_call_service_target_dict_is_shallow_copied():
     """sync.call_service records a copy of target; mutating the original does not change the recording."""
     api = _make_recording_api()
@@ -366,16 +340,8 @@ async def test_sync_call_service_target_dict_is_shallow_copied():
     )
 
 
-@pytest.mark.asyncio
 async def test_sync_private_attributes_raise_attribute_error():
-    """Accessing a private attribute on sync raises AttributeError, not NotImplementedError.
-
-    Marked ``@pytest.mark.asyncio`` explicitly (rather than relying on the global
-    ``asyncio_mode = "auto"`` setting) so the test survives a future switch to
-    ``asyncio_mode = "strict"``. The function is ``async`` because
-    ``_make_hassette_stub()`` calls ``asyncio.get_running_loop()`` during
-    construction, which requires an active event loop.
-    """
+    """Accessing a private attribute on sync raises AttributeError, not NotImplementedError."""
     api = _make_recording_api()
     with pytest.raises(AttributeError):
         _ = api.sync._something_private
@@ -386,7 +352,6 @@ async def test_sync_private_attributes_raise_attribute_error():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_sync_get_state_value_raises_not_implemented():
     """sync.get_state_value raises NotImplementedError with tailored message."""
     api = _make_recording_api()
@@ -395,7 +360,6 @@ async def test_sync_get_state_value_raises_not_implemented():
     assert str(exc_info.value) == _STUB_MSG_STATE_CONVERSION.format(name="get_state_value")
 
 
-@pytest.mark.asyncio
 async def test_sync_get_state_value_typed_raises_not_implemented():
     """sync.get_state_value_typed raises NotImplementedError with tailored message."""
     api = _make_recording_api()
@@ -404,7 +368,6 @@ async def test_sync_get_state_value_typed_raises_not_implemented():
     assert str(exc_info.value) == _STUB_MSG_STATE_CONVERSION.format(name="get_state_value_typed")
 
 
-@pytest.mark.asyncio
 async def test_sync_get_attribute_raises_not_implemented():
     """sync.get_attribute raises NotImplementedError with tailored message."""
     api = _make_recording_api()
@@ -418,7 +381,6 @@ async def test_sync_get_attribute_raises_not_implemented():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_body_copied_methods_are_sync():
     """Every body-copied method on _RecordingSyncFacade must return a plain value, not a coroutine.
 

@@ -253,7 +253,9 @@ class DashboardKpisResponse(BaseModel):
     total_invocations: int
     total_executions: int
     total_errors: int
+    total_timed_out: int
     total_job_errors: int
+    total_job_timed_out: int
     avg_handler_duration_ms: float
     avg_job_duration_ms: float
     error_rate: float
@@ -275,8 +277,10 @@ class DashboardAppGridEntry(BaseModel):
     job_count: int
     total_invocations: int
     total_errors: int
+    total_timed_out: int = 0
     total_executions: int
     total_job_errors: int
+    total_job_timed_out: int = 0
     avg_duration_ms: float
     last_activity_ts: float | None
     health_status: str
@@ -297,7 +301,12 @@ class DashboardErrorsResponse(BaseModel):
 
 
 class FrameworkSummaryResponse(BaseModel):
-    """Framework KPI counts for the System Health badge."""
+    """Framework KPI counts for the System Health badge.
+
+    Note: total_errors and total_job_errors include timed_out status.
+    get_error_counts() returns combined counts; splitting would require
+    a separate query path.
+    """
 
     total_errors: int
     total_job_errors: int

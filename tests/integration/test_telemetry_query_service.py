@@ -80,6 +80,7 @@ def svc(mock_hassette: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQ
     service = TelemetryQueryService.__new__(TelemetryQueryService)
     service.hassette = mock_hassette
     service.logger = MagicMock()
+    service._snapshot_lock = asyncio.Lock()
     return service
 
 
@@ -1378,7 +1379,7 @@ class TestSourceTierClause:
 
         fragment, params = _source_tier_clause("app", "custom_alias")
         assert "custom_alias.source_tier" in fragment
-        assert params == ["app"]
+        assert params == {"source_tier": "app"}
 
     def test_framework_tier_returns_filter_fragment(self) -> None:
         """_source_tier_clause('framework', ...) returns an AND clause with 'framework' param."""
@@ -1386,7 +1387,7 @@ class TestSourceTierClause:
 
         fragment, params = _source_tier_clause("framework", "l")
         assert "source_tier" in fragment
-        assert params == ["framework"]
+        assert params == {"source_tier": "framework"}
 
     def test_all_tier_returns_empty(self) -> None:
         """_source_tier_clause('all', ...) returns an empty fragment and empty params."""
@@ -1394,7 +1395,7 @@ class TestSourceTierClause:
 
         fragment, params = _source_tier_clause("all", "hi")
         assert fragment == ""
-        assert params == []
+        assert params == {}
 
     def test_app_tier_returns_filter_fragment(self) -> None:
         """_source_tier_clause('app', ...) returns an AND clause with 'app' param."""
@@ -1402,7 +1403,7 @@ class TestSourceTierClause:
 
         fragment, params = _source_tier_clause("app", "je")
         assert "source_tier" in fragment
-        assert params == ["app"]
+        assert params == {"source_tier": "app"}
 
     def test_all_valid_aliases_accepted(self) -> None:
         """All four valid aliases are accepted without raising."""

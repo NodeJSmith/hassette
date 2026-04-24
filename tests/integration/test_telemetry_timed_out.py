@@ -63,6 +63,7 @@ def svc(mock_hassette: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQ
     service = TelemetryQueryService.__new__(TelemetryQueryService)
     service.hassette = mock_hassette
     service.logger = MagicMock()
+    service._snapshot_lock = asyncio.Lock()
     return service
 
 
@@ -187,12 +188,12 @@ class TestJobSummaryTimedOut:
 
 
 class TestGlobalSummaryTimedOut:
-    async def test_global_summary_includes_timed_out_in_errors(
+    async def test_global_summary_separates_timed_out_from_errors(
         self,
         svc: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """Verify timed_out counts towards total_errors in global summary."""
+        """Verify timed_out is counted separately from errors in global summary."""
         db_svc, session_id = db
         lid = await _insert_listener(db_svc)
         jid = await _insert_job(db_svc)
@@ -203,9 +204,10 @@ class TestGlobalSummaryTimedOut:
         await _insert_execution(db_svc, jid, session_id, status="timed_out")
 
         summary = await svc.get_global_summary()
-        # timed_out is counted as an error in global summary
-        assert summary.listeners.total_errors == 1
-        assert summary.jobs.total_errors == 2
+        assert summary.listeners.total_errors == 0
+        assert summary.listeners.total_timed_out == 1
+        assert summary.jobs.total_errors == 1
+        assert summary.jobs.total_timed_out == 1
 
 
 class TestErrorRateIncludesTimedOut:
