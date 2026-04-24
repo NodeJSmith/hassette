@@ -408,19 +408,15 @@ class Hassette(Resource):
 
         self.logger.info("Hassette stopped.")
 
-    async def on_shutdown(self) -> None:
-        """Shut down CommandExecutor before DatabaseService.
+    def _ordered_children_for_shutdown(self) -> list[Resource]:
+        """Return children in reverse topological order for shutdown.
 
-        CommandExecutor._flush_queue() calls database_service.submit(), so it must
-        complete before DatabaseService tears down its write queue. The base class
-        shuts all children concurrently, which races these two. We sequence
-        CommandExecutor first here, then let _finalize_shutdown handle the rest
-        (CommandExecutor.shutdown() is idempotent — the second call is a no-op).
+        Services that depend on others shut down first; services depended upon
+        (e.g. DatabaseService) shut down last. Uses the _init_order computed at
+        __init__ time, reversed.
         """
-        try:
-            await self._command_executor.shutdown()
-        except Exception:
-            self.logger.exception("CommandExecutor shutdown failed during sequenced pre-shutdown")
+        type_to_instance = {type(c): c for c in self.children}
+        return [type_to_instance[t] for t in reversed(self._init_order) if t in type_to_instance]
 
     async def _on_children_stopped(self) -> None:
         """Emit Hassette's own STOPPED event, then close event streams.

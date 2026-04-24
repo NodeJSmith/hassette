@@ -1,7 +1,6 @@
 import asyncio
 import threading
 import typing
-from contextlib import suppress
 from types import SimpleNamespace
 from typing import ClassVar, cast
 from unittest.mock import AsyncMock, Mock
@@ -10,7 +9,6 @@ import pytest
 
 from hassette import Hassette
 from hassette.bus import Bus
-from hassette.config.config import HassetteConfig
 from hassette.core.api_resource import ApiResource
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
@@ -30,23 +28,6 @@ from hassette.utils.service_utils import topological_sort
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
-
-
-@pytest.fixture
-async def hassette_instance(test_config: HassetteConfig):
-    """Provide a fresh Hassette instance and restore context afterwards."""
-    test_config.reload()
-    instance = Hassette(test_config)
-    try:
-        yield instance
-    finally:
-        with suppress(Exception):
-            if not instance._event_stream_service.event_streams_closed:
-                await instance._event_stream_service.close_streams()
-
-        with suppress(Exception):
-            if not instance._bus_service.stream._closed:
-                await instance._bus_service.stream.aclose()
 
 
 def test_unique_name_is_constant(hassette_instance: Hassette) -> None:

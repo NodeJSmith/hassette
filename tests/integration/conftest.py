@@ -1,10 +1,32 @@
 """Shared fixtures for integration tests."""
 
+from contextlib import suppress
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from hassette import Hassette
+from hassette.config.config import HassetteConfig
 from hassette.test_utils.web_mocks import create_mock_runtime_query_service
 from hassette.web.app import create_fastapi_app
+
+
+@pytest.fixture
+async def hassette_instance(test_config: HassetteConfig):
+    """Provide a fresh Hassette instance and restore context afterwards."""
+    test_config.reload()
+    instance = Hassette(test_config)
+    try:
+        yield instance
+    finally:
+        with suppress(Exception):
+            if not instance._event_stream_service.event_streams_closed:
+                await instance._event_stream_service.close_streams()
+
+        with suppress(Exception):
+            if not instance._bus_service.stream._closed:
+                await instance._bus_service.stream.aclose()
+
 
 _BUS_FIXTURES = frozenset(
     {
