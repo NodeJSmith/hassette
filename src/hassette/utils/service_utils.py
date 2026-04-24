@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import typing
 from enum import Enum, auto
 
@@ -38,6 +39,16 @@ def topological_sort(types: "list[type[Resource]]") -> "list[type[Resource]]":
     # Restrict dependency resolution to the provided types.
     type_set: set[type] = set(types)
 
+    def _resolve_deps(raw_deps: list[type]) -> list[type]:
+        """Resolve declared deps to concrete types in type_set using issubclass."""
+        resolved: list[type] = []
+        for d in raw_deps:
+            if d in type_set:
+                resolved.append(d)
+            else:
+                resolved.extend(t for t in type_set if issubclass(t, d))
+        return resolved
+
     color: dict[type, _Color] = {t: _Color.WHITE for t in types}
     result: list[type] = []
 
@@ -54,8 +65,7 @@ def topological_sort(types: "list[type[Resource]]") -> "list[type[Resource]]":
 
         color[start] = _Color.GRAY
         path.append(start)
-        raw_deps = getattr(start, "depends_on", [])
-        dep_iters.append((start, iter([d for d in raw_deps if d in type_set])))
+        dep_iters.append((start, iter(_resolve_deps(getattr(start, "depends_on", [])))))
 
         while dep_iters:
             node, deps = dep_iters[-1]
@@ -80,10 +90,61 @@ def topological_sort(types: "list[type[Resource]]") -> "list[type[Resource]]":
             if color.get(dep, _Color.BLACK) is _Color.WHITE:
                 color[dep] = _Color.GRAY
                 path.append(dep)
-                raw_dep_deps = getattr(dep, "depends_on", [])
-                dep_iters.append((dep, iter([d for d in raw_dep_deps if d in type_set])))
+                dep_iters.append((dep, iter(_resolve_deps(getattr(dep, "depends_on", [])))))
 
     return result
+
+
+def topological_levels(types: "list[type[Resource]]") -> "list[list[type[Resource]]]":
+    """Group *types* into dependency levels for wave-based startup/shutdown.
+
+    Level 0 contains types with no dependencies (or whose deps are not in the
+    input set).  Level N contains types whose deps are all in levels 0..N-1.
+
+    Within each level, insertion order from *types* is preserved so that
+    deterministic startup/shutdown ordering is maintained for peers with no
+    ordering constraint.
+
+    Delegates to :func:`topological_sort` for cycle detection.  Callers
+    should validate the graph with ``topological_sort`` first (this function
+    re-validates as a defensive measure).
+
+    Args:
+        types: Resource types to partition.
+
+    Returns:
+        A list of lists where each inner list is a wave of types that can
+        run concurrently.  Waves must execute sequentially (level 0 first
+        for startup, last for shutdown).
+
+    Raises:
+        ValueError: If a cycle is detected (propagated from ``topological_sort``).
+    """
+    if not types:
+        return []
+
+    sorted_types = topological_sort(types)
+    type_set: set[type] = set(types)
+
+    def _resolve(d: type) -> list[type]:
+        if d in type_set:
+            return [d]
+        return [t for t in type_set if issubclass(t, d)]
+
+    level_of: dict[type, int] = {}
+    for t in sorted_types:
+        deps_in_set = [r for d in getattr(t, "depends_on", []) for r in _resolve(d)]
+        if not deps_in_set:
+            level_of[t] = 0
+        else:
+            level_of[t] = max(level_of[d] for d in deps_in_set) + 1
+
+    max_level = max(level_of.values()) if level_of else 0
+    levels: list[list[type]] = [[] for _ in range(max_level + 1)]
+    for t in sorted_types:
+        levels[level_of[t]].append(t)
+
+    return levels
 
 
 async def wait_for_ready(
@@ -136,6 +197,10 @@ async def wait_for_ready(
             return_when=asyncio.FIRST_COMPLETED,
         )
         if shutdown_task in done:
+            if wait_task in done:
+                logging.getLogger("hassette").warning(
+                    "Dependencies became ready simultaneously with shutdown — startup aborted"
+                )
             return False
         if wait_task in done:
             return wait_task.result()

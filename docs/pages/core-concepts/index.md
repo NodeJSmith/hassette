@@ -106,9 +106,9 @@ At startup, Hassette validates the full dependency graph and computes a topologi
 
 ### Initialization and shutdown order
 
-Services start concurrently, but each service's initialization blocks on its declared dependencies. The net effect is that dependencies initialize first.
+Both startup and shutdown use **wave-based ordering**. The dependency graph is partitioned into levels: level 0 has services with no dependencies, level 1 has services that depend only on level 0, and so on. Each wave starts (or shuts down) concurrently via `asyncio.gather`, but waves execute sequentially — so all dependencies are guaranteed ready before their dependents begin.
 
-Shutdown proceeds in the reverse of the initialization order. A service shuts down before the services it depends on. For example, `AppHandler` shuts down before `StateProxy`, and `StateProxy` shuts down before `WebsocketService`.
+Shutdown proceeds in reverse wave order. Services that depend on others shut down first; services depended upon (like `DatabaseService`) shut down last. For example, `AppHandler` shuts down before `StateProxy`, and `StateProxy` shuts down before `WebsocketService`.
 
 ### Cycle detection
 

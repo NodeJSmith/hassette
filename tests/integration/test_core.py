@@ -157,7 +157,7 @@ async def test_wait_for_ready_accepts_explicit_timeout(
 
 
 async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) -> None:
-    """run_forever uses phased startup: DB first, session, then remaining services."""
+    """run_forever uses phased startup: DB first, session, then wave-based remaining services."""
     db_start = Mock()
     other_starts: list[Mock] = []
 
@@ -180,17 +180,13 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
 
     # Phase 1: DB started first
     db_start.assert_called_once()
-    # Phase 2: remaining resources started after session creation
+    # Phase 2: remaining resources started after session creation (wave-by-wave)
     for m in other_starts:
         m.assert_called_once()
-    # wait_for_ready called at least twice: DB first, then all children.
-    # Background tasks (e.g. framework listener registration) may add additional calls.
+    # wait_for_ready called: once for DB, then once per startup wave.
     assert hassette_instance.wait_for_ready.await_count >= 2
     hassette_instance.wait_for_ready.assert_any_await(
         [hassette_instance.database_service], timeout=hassette_instance.config.startup_timeout_seconds
-    )
-    hassette_instance.wait_for_ready.assert_any_await(
-        list(hassette_instance.children), timeout=hassette_instance.config.startup_timeout_seconds
     )
     # Session created between phase 1 and phase 2
     hassette_instance._session_manager.mark_orphaned_sessions.assert_awaited_once()

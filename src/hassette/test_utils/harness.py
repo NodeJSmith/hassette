@@ -26,6 +26,7 @@ from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
+from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.state_proxy import StateProxy
 from hassette.core.websocket_service import WebsocketService
 from hassette.events import Event
@@ -174,9 +175,10 @@ _DEPENDENCIES: dict[str, set[str]] = {
     "scheduler": set(),
     "file_watcher": set(),
     "api_mock": set(),
-    "app_handler": {"bus", "state_proxy"},
-    "state_proxy": {"bus"},
+    "app_handler": {"bus", "scheduler", "state_proxy"},
+    "state_proxy": {"bus", "scheduler"},
     "state_registry": set(),
+    "service_watcher": {"bus"},
 }
 
 _CONFLICTS: list[tuple[str, str]] = []
@@ -189,6 +191,7 @@ _STARTUP_ORDER: list[str] = [
     "app_handler",
     "state_proxy",
     "state_registry",
+    "service_watcher",
 ]
 
 # Maps harness component names to the corresponding real framework service class.
@@ -207,6 +210,7 @@ _COMPONENT_CLASS_MAP: dict[str, type[Resource]] = {
     "scheduler": SchedulerService,
     "app_handler": AppHandler,
     "state_proxy": StateProxy,
+    "service_watcher": ServiceWatcher,
 }
 
 

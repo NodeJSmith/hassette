@@ -18,6 +18,7 @@ def _make_hassette_stub() -> AsyncMock:
     hassette.event_streams_closed = False
     hassette.ready_event = asyncio.Event()
     hassette.ready_event.set()
+    hassette.shutdown_event = asyncio.Event()
     hassette._loop_thread_id = threading.get_ident()
     hassette.loop = asyncio.get_running_loop()
     # register_removal_callback and deregister_removal_callback must be sync

@@ -36,6 +36,9 @@ class AppHandler(Resource):
     - AppLifecycleService: Lifecycle orchestration, change detection, factory
     """
 
+    # CommandExecutor is not listed: bootstrap_apps() fires registrations that
+    # flow through CommandExecutor, but CommandExecutor's internal wait_for_ready
+    # guards protect those calls.  AppHandler does not call CommandExecutor directly.
     depends_on: ClassVar[list[type[Resource]]] = [
         WebsocketService,
         ApiResource,

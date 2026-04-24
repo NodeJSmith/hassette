@@ -7,6 +7,7 @@ from typing import ClassVar
 import uvicorn
 
 from hassette.core.runtime_query_service import RuntimeQueryService
+from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.resources.base import Resource, Service
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.web.app import create_fastapi_app
@@ -18,7 +19,7 @@ if typing.TYPE_CHECKING:
 class WebApiService(Service):
     """Runs the FastAPI/uvicorn server for the web API and healthcheck."""
 
-    depends_on: ClassVar[list[type[Resource]]] = [RuntimeQueryService]
+    depends_on: ClassVar[list[type[Resource]]] = [RuntimeQueryService, TelemetryQueryService]
 
     host: str
     port: int

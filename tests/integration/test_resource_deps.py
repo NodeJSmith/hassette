@@ -7,30 +7,31 @@ from hassette import Hassette
 from hassette.resources.base import Resource
 
 
-async def test_shutdown_order_is_reverse_init_order(hassette_instance: Hassette) -> None:
-    """_ordered_children_for_shutdown returns instances in reverse _init_order type sequence."""
-    shutdown_order: list[Resource] = hassette_instance._ordered_children_for_shutdown()
-    init_order: list[type[Resource]] = hassette_instance._init_order
-
-    type_to_instance = {type(c): c for c in hassette_instance.children}
-    expected = [type_to_instance[t] for t in reversed(init_order) if t in type_to_instance]
-
-    assert shutdown_order == expected, (
-        f"Shutdown order types {[type(r).__name__ for r in shutdown_order]} "
-        f"do not match reverse init order {[type(r).__name__ for r in expected]}"
-    )
+async def test_init_waves_cover_all_children(hassette_instance: Hassette) -> None:
+    """_init_waves contains exactly the same types as the registered children."""
+    wave_types = {t for wave in hassette_instance._init_waves for t in wave}
+    child_types = {type(c) for c in hassette_instance.children}
+    assert wave_types == child_types, "Waves must include every registered child type"
 
 
-async def test_shutdown_order_covers_all_children(hassette_instance: Hassette) -> None:
-    """_ordered_children_for_shutdown covers exactly the same set as children."""
-    shutdown_order = hassette_instance._ordered_children_for_shutdown()
-    assert set(shutdown_order) == set(hassette_instance.children), "Shutdown order must include every registered child"
+async def test_init_waves_have_no_duplicates(hassette_instance: Hassette) -> None:
+    """Each type appears in exactly one wave."""
+    all_types = [t for wave in hassette_instance._init_waves for t in wave]
+    assert len(all_types) == len(set(all_types)), "Each type must appear in exactly one wave"
 
 
-async def test_shutdown_order_has_no_duplicates(hassette_instance: Hassette) -> None:
-    """_ordered_children_for_shutdown contains each child instance at most once."""
-    shutdown_order = hassette_instance._ordered_children_for_shutdown()
-    assert len(shutdown_order) == len({id(r) for r in shutdown_order}), "Shutdown order must not contain duplicates"
+async def test_init_waves_respect_dependency_ordering(hassette_instance: Hassette) -> None:
+    """Every depends_on type appears in an earlier wave than its dependent."""
+    type_set = {t for wave in hassette_instance._init_waves for t in wave}
+    wave_index = {t: i for i, wave in enumerate(hassette_instance._init_waves) for t in wave}
+
+    for t in type_set:
+        for dep in t.depends_on:
+            if dep in type_set:
+                assert wave_index[dep] < wave_index[t], (
+                    f"{t.__name__} (wave {wave_index[t]}) depends on {dep.__name__} "
+                    f"(wave {wave_index[dep]}), but dep is not in an earlier wave"
+                )
 
 
 # ---------------------------------------------------------------------------
