@@ -85,6 +85,9 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     role: ClassVar[ResourceRole] = ResourceRole.RESOURCE
     """Role of the resource, e.g. 'App', 'Service', etc."""
 
+    depends_on: ClassVar[list[type["Resource"]]] = []
+    """Declared runtime dependencies. Auto-waited inside initialize() before lifecycle hooks fire."""
+
     source_tier: ClassVar[SourceTier] = "framework"
     """Telemetry classification inherited by Bus/Scheduler children for DB registration.
 
@@ -260,6 +263,47 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """Return children in shutdown order (reverse insertion)."""
         return list(reversed(self.children))
 
+    async def _auto_wait_dependencies(self) -> None:
+        """Wait for all declared depends_on types to become ready before lifecycle hooks fire.
+
+        Early-returns when:
+        - ``depends_on`` is empty (no declared deps)
+        - ``hassette._skip_dependency_check`` is True (test harness bypass)
+
+        Raises:
+            RuntimeError: If no matching child is found for a declared dep type, or if
+                ``hassette.wait_for_ready`` returns False without a concurrent shutdown signal.
+
+        On shutdown during wait, calls ``mark_not_ready()`` and returns without raising.
+        """
+        if not self.depends_on:
+            return
+        # Checked before children lookup — harness mock objects fail isinstance checks.
+        if getattr(self.hassette, "_skip_dependency_check", False):
+            return
+
+        seen: set[int] = set()
+        deps: list[Resource] = []
+        for dep_type in self.depends_on:
+            matches = [c for c in self.hassette.children if isinstance(c, dep_type)]
+            if not matches:
+                raise RuntimeError(
+                    f"{self.class_name} declares depends_on=[{dep_type.__name__}] "
+                    f"but no matching child found in Hassette"
+                )
+            for m in matches:
+                if id(m) not in seen:
+                    seen.add(id(m))
+                    deps.append(m)
+
+        ready = await self.hassette.wait_for_ready(deps)
+        if not ready:
+            if self.hassette.shutdown_event.is_set():
+                self.mark_not_ready("shutdown during dependency wait")
+                return
+            not_ready = [d.class_name for d in deps if not d.is_ready()]
+            raise RuntimeError(f"{self.class_name} timed out waiting for dependencies: {', '.join(not_ready)}")
+
     def _force_terminal(self) -> None:
         """Recursively force this resource and all descendants to STOPPED terminal state.
 
@@ -358,6 +402,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """Initialize the instance by calling the lifecycle hooks in order.
 
         NOTE: keep flag resets and child propagation in sync with Service.initialize().
+        NOTE: _auto_wait_dependencies() runs before hooks — keep in sync with Service.initialize().
         """
         self._shutdown_completed = False
         self.shutdown_event.clear()
@@ -370,6 +415,11 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         await self.handle_starting()
 
         try:
+            try:
+                await self._auto_wait_dependencies()
+            except Exception as exc:
+                await self.handle_failed(exc)
+                raise
             await self._run_hooks([self.before_initialize, self.on_initialize, self.after_initialize])
             for child in self.children:
                 if child.status not in (ResourceStatus.STARTING, ResourceStatus.RUNNING):
@@ -499,6 +549,7 @@ class Service(Resource):
         start until child initialization completes.
 
         Keep flag resets and child propagation in sync with Resource.initialize().
+        NOTE: _auto_wait_dependencies() runs before hooks — keep in sync with Resource.initialize().
         """
         self._shutdown_completed = False
         self.shutdown_event.clear()
@@ -509,6 +560,11 @@ class Service(Resource):
         self.logger.debug("Initializing %s: %s", self.role, self.unique_name)
         await self.handle_starting()
         try:
+            try:
+                await self._auto_wait_dependencies()
+            except Exception as exc:
+                await self.handle_failed(exc)
+                raise
             await self._run_hooks([self.before_initialize, self.on_initialize])
             self._serve_task = self.task_bucket.spawn(self._serve_wrapper(), name=f"service:serve:{self.class_name}")
             await self._run_hooks([self.after_initialize])
