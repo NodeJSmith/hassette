@@ -107,7 +107,7 @@ async def _insert_row_with_fk_fallback(
         try:
             await db.execute(sql, nulled_params)
             return 0
-        except Exception as retry_exc:
+        except sqlite3.IntegrityError as retry_exc:
             logger.error(
                 "Failed to persist %s row even with null FK — dropping: %s",
                 table,

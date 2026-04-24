@@ -91,7 +91,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         *,
         app_config: AppConfigT,
         index: int,
-        api_factory: type[Resource] | None = None,
+        api_factory: "type[Api] | None" = None,
         parent: Resource | None = None,
     ) -> None:
         # app_config and index must be set before super().__init__ because
