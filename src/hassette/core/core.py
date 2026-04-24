@@ -19,9 +19,9 @@ from hassette.resources.base import Resource, Service
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
-from hassette.types.enums import ResourceStatus, StartupPhase
+from hassette.types.enums import ResourceStatus
 from hassette.utils.app_utils import run_apps_pre_check
-from hassette.utils.service_utils import wait_for_ready
+from hassette.utils.service_utils import topological_sort, wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 from .api_resource import ApiResource
@@ -125,16 +125,28 @@ class Hassette(Resource):
         self.state_registry = STATE_REGISTRY
         self.type_registry = TYPE_REGISTRY
 
-        self._phase_services: dict[StartupPhase, list[Resource]] = {
-            StartupPhase.DATABASE: [self._database_service],
-            StartupPhase.SERVICES: [c for c in self.children if c is not self._database_service],
-        }
-        _all = [s for services in self._phase_services.values() for s in services]
-        _duplicates = {s for s in _all if _all.count(s) > 1}
-        if _duplicates:
-            raise RuntimeError(f"Startup phase map has duplicates — children in multiple phases: {_duplicates}")
-        if set(_all) != set(self.children):
-            raise RuntimeError(f"Startup phase map incomplete — unassigned: {set(self.children) - set(_all)}")
+        # Validate dependency graph and compute initialization order.
+        # Preserve insertion order (deterministic); deduplicate via dict.fromkeys.
+        all_types = list(dict.fromkeys(type(c) for c in self.children))
+
+        # Validate: every depends_on reference must exist among registered children.
+        for child_type in all_types:
+            for dep_type in child_type.depends_on:
+                if not any(issubclass(t, dep_type) for t in all_types):
+                    raise ValueError(
+                        f"{child_type.__name__} declares depends_on=[{dep_type.__name__}] "
+                        f"but no matching child type found in Hassette"
+                    )
+
+        # Validate: no cycles; store result for WP05 shutdown ordering.
+        self._init_order: list[type[Resource]] = topological_sort(all_types)
+
+        # Log the dependency graph — only services with non-empty depends_on (root nodes add noise).
+        dep_lines = [
+            f"  {t.__name__} -> [{', '.join(d.__name__ for d in t.depends_on)}]" for t in all_types if t.depends_on
+        ]
+        if dep_lines:
+            self.logger.info("Resource dependency graph:\n%s", "\n".join(dep_lines))
 
         self.logger.info("All components registered...", stacklevel=2)
 
@@ -300,7 +312,7 @@ class Hassette(Resource):
         Returns:
             True if all resources are ready, False if shutdown is requested.
         """
-        timeout = timeout or self.config.startup_timeout_seconds
+        timeout = timeout if timeout is not None else self.config.startup_timeout_seconds
 
         return await wait_for_ready(resources, timeout=timeout, shutdown_event=self.shutdown_event)
 
@@ -331,7 +343,7 @@ class Hassette(Resource):
 
         # Phase 1: Start database and create session before anything else.
         # This guarantees a valid session_id exists before any handler can fire.
-        self._start_database()
+        self._database_service.start()
 
         try:
             await self.wait_for_ready([self.database_service], timeout=self.config.startup_timeout_seconds)
@@ -342,8 +354,10 @@ class Hassette(Resource):
             await self.shutdown()
             return
 
-        # Phase 2: Start all remaining services now that the session exists.
-        self._start_remaining_resources()
+        # Phase 2: Start all remaining children now that the session exists.
+        for child in self.children:
+            if child is not self._database_service:
+                child.start()
 
         self.logger.info("Waiting for resources to initialize...")
 
@@ -393,16 +407,6 @@ class Hassette(Resource):
             await self.shutdown()
 
         self.logger.info("Hassette stopped.")
-
-    def _start_database(self) -> None:
-        """Start only the DatabaseService (phase 1 of startup)."""
-        for service in self._phase_services[StartupPhase.DATABASE]:
-            service.start()
-
-    def _start_remaining_resources(self) -> None:
-        """Start all children except DatabaseService (phase 2 of startup)."""
-        for service in self._phase_services[StartupPhase.SERVICES]:
-            service.start()
 
     async def on_shutdown(self) -> None:
         """Shut down CommandExecutor before DatabaseService.
