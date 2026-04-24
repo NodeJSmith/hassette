@@ -191,6 +191,24 @@ _STARTUP_ORDER: list[str] = [
     "state_registry",
 ]
 
+# Maps harness component names to the corresponding real framework service class.
+# Used by the harness consistency test to verify _DEPENDENCIES stays in sync with
+# real service depends_on declarations.
+#
+# Omitted entries:
+#   "api_mock"     — harness-specific: wraps ApiResource with URL/header patches and
+#                    a local HTTP mock server; there is no single real class equivalent.
+#   "file_watcher" — FileWatcherService has no depends_on (empty list), so consistency
+#                    checks would be vacuous.  Omitting avoids false-positive drift.
+#   "state_registry" — StateRegistry is not a Resource subclass; it is a plain dataclass
+#                      registry with no depends_on concept.
+_COMPONENT_CLASS_MAP: dict[str, type[Resource]] = {
+    "bus": BusService,
+    "scheduler": SchedulerService,
+    "app_handler": AppHandler,
+    "state_proxy": StateProxy,
+}
+
 
 class HassetteHarness:
     """Test harness for Hassette with fluent configuration API.
