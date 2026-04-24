@@ -1,7 +1,7 @@
 # Design: Resource Dependency Declaration and Initialization Ordering
 
 **Date:** 2026-04-23
-**Status:** approved
+**Status:** archived
 **Issue:** #69
 
 ## Problem
