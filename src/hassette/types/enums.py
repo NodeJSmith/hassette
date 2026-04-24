@@ -107,3 +107,13 @@ class ResourceRole(StrEnum):
 
     UNKNOWN = "Unknown"
     """An unknown or unclassified resource."""
+
+
+class StartupPhase(StrEnum):
+    """Named phases for Hassette's startup sequence."""
+
+    DATABASE = auto()
+    """Database and session initialization — must complete before other services."""
+
+    SERVICES = auto()
+    """All remaining services started after the database phase."""
