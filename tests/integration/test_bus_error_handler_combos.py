@@ -147,6 +147,7 @@ async def test_duration_per_listener_error_handler_wins(combo_harness: tuple["Ha
     await seed(hassette, "light.kitchen", "on")
 
     await asyncio.wait_for(per_listener_ran.wait(), timeout=DURATION + 1.0)
+    # negative-assertion: no event-driven alternative
     await asyncio.sleep(0.05)
 
     assert len(per_listener_calls) == 1
@@ -210,7 +211,7 @@ async def test_duration_once_error_handler_and_removal(combo_harness: tuple["Has
     assert call_count == 1
     assert len(error_contexts) == 1
 
-    await asyncio.sleep(0.05)
+    await wait_for(lambda: not hassette._bus.task_bucket.pending_tasks(), desc="tasks drain")
 
     # Second trigger — listener should be gone (once contract upheld despite exception)
     await send_state_change(hassette, "light.kitchen", "on", "off")
@@ -291,6 +292,7 @@ async def test_immediate_per_listener_error_handler_wins(combo_harness: tuple["H
     )
 
     await asyncio.wait_for(per_listener_ran.wait(), timeout=2.0)
+    # negative-assertion: no event-driven alternative
     await asyncio.sleep(0.05)
 
     assert len(per_listener_calls) == 1
@@ -330,7 +332,6 @@ async def test_immediate_once_error_handler_and_removal(combo_harness: tuple["Ha
     # Live event — listener should be consumed
     live_event = create_state_change_event(entity_id="switch.outlet", old_value="on", new_value="off")
     await hassette.send_event(live_event.topic, live_event)
-    await asyncio.sleep(0.1)
     await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="tasks drain")
 
     assert call_count == 1, f"once=True handler fired {call_count} times despite error"
@@ -446,8 +447,8 @@ async def test_immediate_duration_remaining_timer_error_handler(
         duration=5.0,
     )
 
-    # Should NOT fire immediately (only 3s elapsed)
-    await asyncio.sleep(0.1)
+    # negative-assertion: no event-driven alternative
+    await asyncio.sleep(0.05)
     assert len(error_contexts) == 0
 
     # Should fire after remaining ~2s
@@ -496,6 +497,7 @@ async def test_immediate_duration_per_listener_error_handler(
     )
 
     await asyncio.wait_for(per_listener_ran.wait(), timeout=2.0)
+    # negative-assertion: no event-driven alternative
     await asyncio.sleep(0.05)
 
     assert len(per_listener_calls) == 1

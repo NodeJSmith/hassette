@@ -104,8 +104,6 @@ async def test_immediate_no_fire_when_state_does_not_match(imm_harness: tuple["H
 
     bus.on_state_change("light.kitchen", handler=handler, changed_to="on", immediate=True)
 
-    # Wait for any immediate-fire tasks to complete
-    await asyncio.sleep(0.1)
     await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="tasks drain")
 
     assert received == []
@@ -124,7 +122,6 @@ async def test_immediate_no_fire_entity_not_found(imm_harness: tuple["Hassette",
 
     bus.on_state_change("sensor.nonexistent", handler=handler, changed=False, immediate=True)
 
-    await asyncio.sleep(0.1)
     await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="tasks drain")
 
     assert received == []
@@ -189,7 +186,6 @@ async def test_immediate_with_once_consumes_invocation(imm_harness: tuple["Hasse
     live_event = create_state_change_event(entity_id="switch.outlet", old_value="on", new_value="off")
     await hassette.send_event(live_event.topic, live_event)
 
-    await asyncio.sleep(0.1)
     await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="tasks drain")
 
     assert call_count == 1, f"once=True handler should fire exactly once, fired {call_count} times"
@@ -350,8 +346,8 @@ async def test_immediate_duration_starts_timer_for_remaining(imm_harness: tuple[
         duration=5.0,
     )
 
-    # Should NOT fire immediately (only 3s elapsed out of 5s required)
-    await asyncio.sleep(0.1)
+    # negative-assertion: no event-driven alternative
+    await asyncio.sleep(0.05)
     assert len(received) == 0, "Should not have fired immediately — only 3s elapsed of 5s"
 
     # Should fire after remaining ~2s (plus margin)
@@ -382,7 +378,6 @@ async def test_immediate_duration_last_changed_none(imm_harness: tuple["Hassette
     )
 
     # Should NOT fire immediately — full 60s timer starts
-    await asyncio.sleep(0.1)
     await wait_for(lambda: len(hassette._bus.task_bucket) <= 2, desc="timer task registered")
     assert len(received) == 0, "Should not fire when last_changed is None (elapsed=0)"
 
@@ -413,8 +408,8 @@ async def test_immediate_duration_negative_elapsed_clamped(imm_harness: tuple["H
         duration=5.0,
     )
 
-    # Negative elapsed → clamped to 0 → full 5s timer starts → should NOT fire immediately
-    await asyncio.sleep(0.1)
+    # negative-assertion: no event-driven alternative
+    await asyncio.sleep(0.05)
     assert len(received) == 0, "Negative elapsed should be clamped to 0, not fire immediately"
 
 
@@ -444,9 +439,8 @@ async def test_immediate_duration_attribute_change_always_zero(imm_harness: tupl
         duration=10.0,  # long duration so we never wait for it
     )
 
-    # Even though last_changed is 30s ago (> duration 10s), attribute change listener
-    # always uses elapsed=0 → does NOT fire immediately
-    await asyncio.sleep(0.1)
+    # negative-assertion: no event-driven alternative
+    await asyncio.sleep(0.05)
     assert len(received) == 0, (
         "on_attribute_change with immediate+duration should always start from zero, not fire immediately"
     )
@@ -492,7 +486,6 @@ async def test_immediate_duration_once_fires_exactly_once(imm_harness: tuple["Ha
     live_event = create_state_change_event(entity_id="switch.oven", old_value="on", new_value="off")
     await hassette.send_event(live_event.topic, live_event)
 
-    await asyncio.sleep(0.1)
     await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="tasks drain")
 
     assert call_count == 1, f"once=True should fire exactly once, fired {call_count} times"

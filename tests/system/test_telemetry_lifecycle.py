@@ -13,6 +13,7 @@ import sqlite3
 import pytest
 
 from hassette.events import RawStateChangeEvent
+from hassette.test_utils import wait_for
 from tests.system.conftest import make_system_config, startup_context
 
 pytestmark = [pytest.mark.system, pytest.mark.filterwarnings("default::DeprecationWarning")]
@@ -43,15 +44,23 @@ async def test_handler_invocations_have_valid_session_id(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         session_id = hassette.session_id
         bus = hassette._bus
-        bus.on_state_change("light.kitchen_lights", handler=capture_event)
+        sub = bus.on_state_change("light.kitchen_lights", handler=capture_event)
+        await wait_for(lambda: sub.listener.db_id is not None, timeout=10.0, desc="listener registered")
         await hassette.api.call_service("light", "toggle", {"entity_id": "light.kitchen_lights"})
-        # Allow time for the state_changed event to propagate and the invocation record to be persisted
-        await asyncio.sleep(2.0)
+        await wait_for(lambda: len(received) >= 1, timeout=10.0, desc="state_changed event received")
 
-        async with hassette.database_service.db.execute(
-            "SELECT COUNT(*), MIN(session_id), MAX(session_id) FROM handler_invocations WHERE session_id IS NOT NULL"
-        ) as cursor:
-            row = await cursor.fetchone()
+        deadline = asyncio.get_running_loop().time() + 10.0
+        row = None
+        while asyncio.get_running_loop().time() < deadline:
+            query = (
+                "SELECT COUNT(*), MIN(session_id), MAX(session_id)"
+                " FROM handler_invocations WHERE session_id IS NOT NULL"
+            )
+            async with hassette.database_service.db.execute(query) as cursor:
+                row = await cursor.fetchone()
+            if row and row[0] > 0:
+                break
+            await asyncio.sleep(0.1)
 
     assert row is not None
     total_count, min_session_id, max_session_id = row[0], row[1], row[2]
@@ -182,30 +191,35 @@ async def test_get_drop_counters_returns_four_tuple_of_zeros(ha_container, tmp_p
 
 
 async def test_handler_invocations_source_tier_matches_listener(ha_container, tmp_path):
-    """Framework listener invocations have source_tier='framework'; app invocations have source_tier='app'.
+    """Framework listener invocations have source_tier='framework' after startup.
 
-    Toggles a light to produce an app-tier invocation (registered via Bus.on_state_change),
-    then verifies framework invocations are also present (from startup registration).
+    Registers a handler on the Hassette bus (framework tier) and toggles a light
+    to produce invocations, then verifies all records carry source_tier='framework'.
     """
     config = make_system_config(ha_container, tmp_path)
+    received: list[object] = []
 
-    async def noop_handler(event: RawStateChangeEvent) -> None:
-        pass
+    async def capture_handler(event: RawStateChangeEvent) -> None:
+        received.append(event)
 
     async with startup_context(config) as hassette:
         bus = hassette._bus
-        bus.on_state_change("light.kitchen_lights", handler=noop_handler)
+        sub = bus.on_state_change("light.kitchen_lights", handler=capture_handler)
+        await wait_for(lambda: sub.listener.db_id is not None, timeout=10.0, desc="listener registered")
         await hassette.api.call_service("light", "toggle", {"entity_id": "light.kitchen_lights"})
-        await asyncio.sleep(2.0)
+        await wait_for(lambda: len(received) >= 1, timeout=10.0, desc="state_changed event received")
 
-        async with hassette.database_service.db.execute(
-            "SELECT source_tier, COUNT(*) as cnt FROM handler_invocations GROUP BY source_tier"
-        ) as cursor:
-            rows = await cursor.fetchall()
+        deadline = asyncio.get_running_loop().time() + 10.0
+        tier_counts: dict[str, int] = {}
+        while asyncio.get_running_loop().time() < deadline:
+            async with hassette.database_service.db.execute(
+                "SELECT source_tier, COUNT(*) as cnt FROM handler_invocations GROUP BY source_tier"
+            ) as cursor:
+                rows = await cursor.fetchall()
+            tier_counts = {row[0]: row[1] for row in rows}
+            if tier_counts.get("framework", 0) > 0:
+                break
+            await asyncio.sleep(0.1)
 
-    tier_counts = {row[0]: row[1] for row in rows}
-
-    # Framework invocations occur during startup (service status events, etc.)
-    # App invocations occur from the light toggle handler above
     assert "framework" in tier_counts, f"Expected framework-tier invocation records, found tiers: {list(tier_counts)}"
     assert tier_counts["framework"] > 0, f"Expected at least one framework invocation, got {tier_counts['framework']}"

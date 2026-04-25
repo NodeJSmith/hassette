@@ -16,6 +16,7 @@ import asyncio
 from unittest.mock import MagicMock
 
 from hassette.bus.duration_timer import DurationTimer
+from hassette.test_utils import wait_for
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -95,11 +96,12 @@ async def test_cancel_prevents_fire() -> None:
 
     timer.start(on_fire=on_fire)
     assert timer.is_active
+    task = timer._task
+    assert task is not None
 
     timer.cancel()
 
-    # Allow event loop to process cancellation
-    await asyncio.sleep(0.05)
+    await wait_for(lambda: task.done(), timeout=2.0, desc="timer task cancelled")
     assert not fired.is_set()
 
 
@@ -135,10 +137,7 @@ async def test_start_cancels_previous_task() -> None:
     second_task = timer._task
     assert second_task is not first_task
 
-    # Let tasks settle
-    await asyncio.sleep(0.05)
-
-    # First task should be cancelled
+    await wait_for(lambda: first_task.cancelled(), desc="first timer task cancelled")
     assert first_task.cancelled()
 
 

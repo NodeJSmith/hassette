@@ -9,7 +9,7 @@ from hassette.events import Event
 from hassette.exceptions import DependencyResolutionError
 from hassette.models import states
 from hassette.task_bucket import TaskBucket
-from hassette.test_utils import make_full_state_change_event, make_light_state_dict, make_state_dict
+from hassette.test_utils import make_full_state_change_event, make_light_state_dict, make_state_dict, wait_for
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,8 +99,7 @@ class TestDebounceLogic:
         await asyncio.sleep(0)
         assert calls == [], "No calls should be made immediately due to debounce"
 
-        await asyncio.sleep(0.2)
-        assert calls == ["third"], "Only the last event should be processed after debounce"
+        await wait_for(lambda: calls == ["third"], desc="debounce fired")
 
     async def test_debounce_with_no_args(self, bucket_fixture: TaskBucket):
         """Test debounce with a no-arg handler."""
@@ -117,8 +116,7 @@ class TestDebounceLogic:
         await limiter.call(handler)
         await limiter.call(handler)
 
-        await asyncio.sleep(0.2)
-        assert calls == ["called"], "Handler should be called only once after debounce"
+        await wait_for(lambda: calls == ["called"], desc="debounce fired")
 
     async def test_debounce_cancels_previous_calls(self, bucket_fixture: TaskBucket):
         """Test that new debounce calls cancel previous pending calls."""
@@ -135,18 +133,19 @@ class TestDebounceLogic:
         limiter = RateLimiter(bucket_fixture, debounce=0.2)
 
         await limiter.call(make_handler("first"))
+        # timing: mid-debounce assertion — must be within the 0.2s window
         await asyncio.sleep(0.1)
         assert limiter._debounce_task is not None, "Debounce task should be created"
         assert not limiter._debounce_task.done(), "Debounce task should still be pending"
 
         await limiter.call(make_handler("second"))
+        # timing: mid-debounce assertion — must be within the 0.2s window
         await asyncio.sleep(0.1)
         assert not limiter._debounce_task.done(), "Debounce task should still be pending"
 
         await limiter.call(make_handler("third"))
 
-        await asyncio.sleep(0.3)
-        assert calls == ["third"], "Only the last call should be processed after debounce"
+        await wait_for(lambda: calls == ["third"], desc="debounce fired")
         # After completion, done_callback clears the reference to release captured payloads
         assert limiter._debounce_task is None, "Debounce task reference should be cleared after completion"
 
@@ -168,8 +167,7 @@ class TestDebounceLogic:
         task = limiter._debounce_task
         assert task is not None
 
-        # Wait for debounce to fire and handler to run
-        await asyncio.sleep(0.05)
+        await wait_for(lambda: task.done(), desc="debounce task completed")
 
         # The task should show as cancelled (CancelledError propagated out of delayed_call)
         assert task.done()
@@ -201,9 +199,7 @@ class TestDebounceLogic:
         # First task should be cancelled silently (no crash)
         assert first_task.cancelled() or first_task.done()
 
-        # Wait for second debounce to fire
-        await asyncio.sleep(0.15)
-        assert calls == ["second"]
+        await wait_for(lambda: calls == ["second"], desc="debounce fired")
 
 
 class TestRateLimiterCancel:
@@ -225,6 +221,7 @@ class TestRateLimiterCancel:
         limiter.cancel()
         assert limiter._debounce_task is None
 
+        # negative-assertion: no event-driven alternative
         await asyncio.sleep(0.6)
         assert calls == [], "Handler should not fire after cancel"
 
@@ -246,8 +243,7 @@ class TestRateLimiterCancel:
 
         limiter = RateLimiter(bucket_fixture, debounce=0.01)
         await limiter.call(handler)
-        await asyncio.sleep(0.05)
-        assert calls == ["fired"]
+        await wait_for(lambda: calls == ["fired"], desc="debounce fired")
 
         limiter.cancel()  # Should not raise; task already done
 
@@ -276,6 +272,7 @@ class TestThrottleLogic:
         await limiter.call(make_handler("third"))
         assert calls == ["first"], "Subsequent calls should be ignored"
 
+        # timing: advance past throttle window before next call
         await asyncio.sleep(0.15)
 
         await limiter.call(make_handler("fourth"))
@@ -302,6 +299,7 @@ class TestThrottleLogic:
         assert calls == ["called"]
 
         label = "called after throttle"
+        # timing: advance past throttle window before next call
         await asyncio.sleep(0.15)
         await limiter.call(handler)
         assert calls == ["called", "called after throttle"]
@@ -394,8 +392,7 @@ class TestListenerIntegration:
         await rl.call(invoke_fn2)
         await rl.call(invoke_fn3)
 
-        await asyncio.sleep(0.2)
-        assert calls == ["3"], "Only the last event should be processed after debounce"
+        await wait_for(lambda: calls == ["3"], desc="debounce fired")
 
     async def test_listener_with_throttle(self, bucket_fixture: TaskBucket):
         """Test Listener with throttle via rate limiter (as BusService._dispatch would)."""
@@ -428,6 +425,7 @@ class TestListenerIntegration:
         await rl.call(make_invoke(events[2]))
         assert calls == ["1"], "First call should be executed immediately"
 
+        # timing: advance past throttle window before next call
         await asyncio.sleep(0.15)
         await rl.call(make_invoke(events[3]))
         assert calls == ["1", "4"], "Second call should execute after throttle period"
@@ -506,8 +504,7 @@ class TestListenerDispatchAndCancel:
 
             await listener.dispatch(invoke_fn)
 
-        await asyncio.sleep(0.2)
-        assert calls == ["3"], "Only the last event should fire after debounce"
+        await wait_for(lambda: calls == ["3"], desc="debounce fired")
 
     async def test_dispatch_with_throttle_drops_extras(self, bucket_fixture: TaskBucket):
         """dispatch() with throttle allows first call, drops subsequent within window."""

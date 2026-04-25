@@ -15,6 +15,7 @@ from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.database_service import DatabaseService
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.error_context import SchedulerErrorContext
+from hassette.test_utils import wait_for
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -198,8 +199,7 @@ async def test_double_failure_logged_and_counted(executor: CommandExecutor) -> N
     await executor.execute(cmd)
 
     await asyncio.wait_for(handler_ran.wait(), timeout=2.0)
-    # Give the spawned task a moment to complete after raising
-    await asyncio.sleep(0.05)
+    await wait_for(lambda: executor.get_error_handler_failures() >= 1, desc="error handler failure recorded")
 
     assert executor.get_error_handler_failures() >= 1
 
@@ -227,7 +227,7 @@ async def test_cancelled_error_not_routed_to_handler(executor: CommandExecutor) 
     with pytest.raises(asyncio.CancelledError):
         await executor.execute(cmd)
 
-    # Give any (incorrect) handler invocation time to run
+    # negative-assertion: no event-driven alternative
     await asyncio.sleep(0.05)
     assert not handler_called.is_set(), "Error handler must not be called for CancelledError"
 

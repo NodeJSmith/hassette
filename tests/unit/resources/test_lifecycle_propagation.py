@@ -41,6 +41,7 @@ from hassette.core.scheduler_service import _ScheduledJobQueue
 from hassette.resources.base import FinalMeta, Resource, Service
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
+from hassette.test_utils import wait_for
 from hassette.types.enums import ResourceStatus
 from hassette.utils.date_utils import now
 
@@ -333,8 +334,7 @@ async def test_service_inherits_shutdown_propagation():
     await child_a.initialize()
     await child_b.initialize()
 
-    # Let the serve task start
-    await asyncio.sleep(0.01)
+    await wait_for(lambda: parent_svc.status == ResourceStatus.RUNNING, desc="parent service RUNNING")
 
     await parent_svc.shutdown()
 
@@ -522,8 +522,7 @@ async def test_service_init_propagation_after_serve_spawn():
     child = parent_svc.add_child(ServiceInitTrackingChild)
 
     await parent_svc.initialize()
-    # Let serve task start
-    await asyncio.sleep(0.01)
+    await wait_for(lambda: parent_svc.status == ResourceStatus.RUNNING, desc="parent service RUNNING")
 
     assert child.parent_serve_task_exists is True, "Child should see serve task during init"
 
@@ -758,8 +757,7 @@ async def test_service_force_terminal_cancels_serve_task():
     svc = StubService(hassette)
 
     await svc.initialize()
-    # Let the serve task start
-    await asyncio.sleep(0.01)
+    await wait_for(lambda: svc.status == ResourceStatus.RUNNING, desc="service RUNNING")
 
     assert svc._serve_task is not None
     assert not svc._serve_task.done()

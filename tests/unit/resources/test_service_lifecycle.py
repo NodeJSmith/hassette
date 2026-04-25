@@ -7,6 +7,8 @@ import pytest
 
 from hassette.exceptions import CannotOverrideFinalError
 from hassette.resources.base import FinalMeta, Service
+from hassette.test_utils import wait_for
+from hassette.types.enums import ResourceStatus
 
 from .conftest import _make_hassette_stub
 
@@ -78,8 +80,7 @@ async def test_serve_task_spawned_even_when_on_initialize_overridden():
     svc.order = []  # pyright: ignore[reportAttributeAccessIssue]
 
     await svc.initialize()
-    # Let the serve task start
-    await asyncio.sleep(0.05)
+    await wait_for(lambda: svc.status == ResourceStatus.RUNNING, desc="service RUNNING")
 
     assert svc.init_called, "on_initialize should have been called"
     assert svc._serve_task is not None, "serve task should have been spawned"
@@ -95,7 +96,7 @@ async def test_serve_task_cancelled_even_when_on_shutdown_overridden():
     svc = ServiceWithCustomHooks(hassette)
 
     await svc.initialize()
-    await asyncio.sleep(0.05)
+    await wait_for(lambda: svc.status == ResourceStatus.RUNNING, desc="service RUNNING")
     assert svc._serve_task is not None
     assert not svc._serve_task.done()
 
@@ -112,7 +113,7 @@ async def test_on_initialize_runs_before_serve_task_spawned():
     svc.order = []
 
     await svc.initialize()
-    await asyncio.sleep(0.05)
+    await wait_for(lambda: "serve_started" in svc.order, desc="serve task started")
 
     # on_initialize must come before serve_started
     assert "on_initialize" in svc.order
@@ -131,7 +132,7 @@ async def test_serve_task_cancelled_before_on_shutdown():
     svc.order = []
 
     await svc.initialize()
-    await asyncio.sleep(0.05)
+    await wait_for(lambda: svc.status == ResourceStatus.RUNNING, desc="service RUNNING")
 
     svc.order.clear()  # reset to only track shutdown ordering
     await svc.shutdown()
@@ -180,7 +181,7 @@ async def test_simple_service_completes_full_lifecycle():
     svc = SimpleService(hassette)
 
     await svc.initialize()
-    await asyncio.sleep(0.05)
+    await wait_for(lambda: svc.status == ResourceStatus.RUNNING, desc="service RUNNING")
 
     assert svc._serve_task is not None
     assert not svc._serve_task.done()

@@ -25,7 +25,7 @@ async def test_event_emitted_on_file_change(hassette_with_file_watcher: "Hassett
 
     hassette_instance._bus.on(topic=Topic.HASSETTE_EVENT_FILE_WATCHER, handler=handler)
 
-    # Allow watcher to settle before touching files.
+    # timing: watcher bootstrap needs real time to settle inotify state
     await asyncio.sleep(0.2)
 
     updated_files: list[Any] = []
