@@ -254,6 +254,8 @@ class Hassette(Resource):
     @property
     def command_executor(self) -> CommandExecutor:
         """CommandExecutor for telemetry recording."""
+        if self._command_executor is None:
+            raise RuntimeError("wire_services() has not been called")
         return self._command_executor
 
     def get_drop_counters(self) -> tuple[int, int, int, int]:
@@ -266,57 +268,72 @@ class Hassette(Resource):
             - no_session_count: records dropped because session_id was unavailable.
             - shutdown_count: records dropped during shutdown flush.
         """
-        return self._command_executor.get_drop_counters()
+        return self.command_executor().get_drop_counters()
 
     def get_error_handler_failures(self) -> int:
         """Return the count of user error handler invocations that raised or timed out."""
-        return self._command_executor.get_error_handler_failures()
+        return self.command_executor().get_error_handler_failures()
 
     @property
     def database_service(self) -> DatabaseService:
         """DatabaseService instance for SQLite telemetry storage."""
+        if self._database_service is None:
+            raise RuntimeError("wire_services() has not been called")
         return self._database_service
 
     @property
     def runtime_query_service(self) -> RuntimeQueryService:
         """RuntimeQueryService instance for live in-memory state queries."""
+        if self._runtime_query_service is None:
+            raise RuntimeError("wire_services() has not been called")
         return self._runtime_query_service
 
     @property
     def telemetry_query_service(self) -> TelemetryQueryService:
         """TelemetryQueryService instance for historical DB-backed telemetry queries."""
+        if self._telemetry_query_service is None:
+            raise RuntimeError("wire_services() has not been called")
         return self._telemetry_query_service
 
     @property
     def app_handler(self) -> AppHandler:
         """AppHandler instance for app lifecycle management."""
+        if self._app_handler is None:
+            raise RuntimeError("wire_services() has not been called")
         return self._app_handler
 
     @property
     def websocket_service(self) -> WebsocketService:
         """WebsocketService instance for HA WebSocket connection."""
+        if self._websocket_service is None:
+            raise RuntimeError("wire_services() has not been called")
         return self._websocket_service
 
     @property
     def bus_service(self) -> BusService:
         """BusService instance for event bus management."""
+        if self._bus_service is None:
+            raise RuntimeError("wire_services() has not been called")
         return self._bus_service
 
     @property
     def state_proxy(self) -> StateProxy:
         """StateProxy instance for entity state caching."""
+        if self._state_proxy is None:
+            raise RuntimeError("wire_services() has not been called")
         return self._state_proxy
 
     @property
     def scheduler_service(self) -> SchedulerService:
         """SchedulerService instance for job scheduling."""
+        if self._scheduler_service is None:
+            raise RuntimeError("wire_services() has not been called")
         return self._scheduler_service
 
     @property
     def apps(self) -> dict[str, dict[int, App[AppConfig]]]:
         """Get the currently loaded apps."""
-        # note: return type left deliberately empty to allow underlying call to define it
-        return self._app_handler.apps
+        return self.app_handler.apps
 
     def get_app(self, app_name: str, index: int = 0) -> App[AppConfig] | None:
         """Get a specific app instance if running.

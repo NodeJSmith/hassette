@@ -161,7 +161,7 @@ def preserve_config(config: HassetteConfig) -> Generator[None, None, None]:
 # ---------------------------------------------------------------------------
 
 
-def topological_sort(graph: dict[str, set[str]]) -> list[str]:
+def sort_harness_graph(graph: dict[str, set[str]]) -> list[str]:
     """Return node names from *graph* in valid initialization order (deps before dependents).
 
     Uses iterative DFS with three-color (_white/_gray/_black) marking.  Only nodes
@@ -234,7 +234,7 @@ _DEPENDENCIES: dict[str, set[str]] = {
 }
 
 # Startup order derived from the dependency graph — no manual maintenance required.
-_STARTUP_ORDER: list[str] = topological_sort(_DEPENDENCIES)
+_STARTUP_ORDER: list[str] = sort_harness_graph(_DEPENDENCIES)
 
 # Maps harness component names to the corresponding real framework service class.
 # Used by the harness consistency test to verify _DEPENDENCIES stays in sync with
