@@ -57,8 +57,12 @@ async def wait_for(
 
 
 async def shutdown_resource(res: Resource) -> None:
-    with contextlib.suppress(Exception):
+    logger = logging.getLogger("hassette.test_utils.harness")
+    try:
         await res.shutdown()
+    except Exception:
+        logger.warning("Error shutting down resource %r", res, exc_info=True)
+        raise
 
 
 class _HassetteMock(Resource):
@@ -286,8 +290,11 @@ class HassetteHarness:
         self.api_mock: SimpleTestServer | None = None
         self.api_base_url = URL.build(scheme="http", host="127.0.0.1", port=self.unused_tcp_port, path="/api/")
 
+        self._previous_task_factory: typing.Any = None
+        self._hassette_ctx_token: typing.Any = None  # Token[Hassette] | None
+
         if not skip_global_set:
-            context.set_global_hassette(cast("Hassette", self.hassette))
+            self._hassette_ctx_token = context.set_global_hassette(cast("Hassette", self.hassette))
         self.config.set_validated_app_manifests()
 
     # --- Builder methods (return self for chaining) ---
@@ -359,6 +366,7 @@ class HassetteHarness:
         self._resolve_dependencies()
 
         self.hassette._loop = asyncio.get_running_loop()
+        self._previous_task_factory = self.hassette._loop.get_task_factory()
         self.hassette._loop_thread_id = threading.get_ident()
         self.hassette.task_bucket = TaskBucket(cast("Hassette", self.hassette), parent=self.hassette)  # pyright: ignore[reportArgumentType]
         self.hassette._loop.set_task_factory(make_task_factory(self.hassette.task_bucket))  # pyright: ignore[reportArgumentType]
@@ -395,36 +403,57 @@ class HassetteHarness:
             resource.start()
 
         self.hassette.ready_event.set()
-        await wait_for_ready(
-            [x for x in self.hassette.children], timeout=1, shutdown_event=self.hassette.shutdown_event
+        ready = await wait_for_ready(
+            [x for x in self.hassette.children], timeout=5, shutdown_event=self.hassette.shutdown_event
         )
+        if not ready:
+            not_ready = [r for r in self.hassette.children if not getattr(r, "is_ready", lambda: True)()]
+            names = [type(r).__name__ for r in not_ready] or ["unknown"]
+            raise TimeoutError(f"HassetteHarness: components did not become ready within 5s: {names}")
 
         return self
 
     async def stop(self) -> None:
         self.hassette.shutdown_event.set()
 
-        try:
-            for resource in self.hassette.children:
+        # Attempt shutdown for ALL resources; collect exceptions rather than stopping on first failure.
+        shutdown_errors: list[Exception] = []
+        for resource in self.hassette.children:
+            try:
                 await shutdown_resource(resource)
-                await asyncio.sleep(0)
-        except Exception:
-            self.logger.exception("Error shutting down resources")
+            except Exception as exc:
+                shutdown_errors.append(exc)
 
         # Close event streams after all children have stopped — children send
         # STOPPED status events during shutdown, so streams must stay open until then.
-        if self.hassette._event_stream_service and not self.hassette._event_stream_service.event_streams_closed:
-            await self.hassette._event_stream_service.close_streams()
+        try:
+            if self.hassette._event_stream_service and not self.hassette._event_stream_service.event_streams_closed:
+                await self.hassette._event_stream_service.close_streams()
+        except Exception as exc:
+            shutdown_errors.append(exc)
 
+        try:
+            await self._exit_stack.aclose()
+        except Exception as exc:
+            shutdown_errors.append(exc)
+
+        if self.hassette._loop is not None:
+            self.hassette._loop.set_task_factory(self._previous_task_factory)
+        self.hassette._loop = None
+        self.hassette._loop_thread_id = None
+
+        if self._hassette_ctx_token is not None:
+            context.HASSETTE_INSTANCE.reset(self._hassette_ctx_token)
+
+        # Assert clean AFTER all other cleanup so assertion errors are not masked.
         try:
             if self.api_mock is not None:
                 self.api_mock.assert_clean()
-        except Exception:
-            self.logger.exception("Error checking API mock")
+        except AssertionError as exc:
+            shutdown_errors.append(exc)
 
-        await self._exit_stack.aclose()
-
-        self.hassette._loop = None
+        if shutdown_errors:
+            raise ExceptionGroup("errors during harness teardown", shutdown_errors)
 
     # --- Component starters ---
 

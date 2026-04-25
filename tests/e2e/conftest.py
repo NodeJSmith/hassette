@@ -799,7 +799,8 @@ def _fastapi_app(mock_hassette, runtime_query_service, _log_handler, _ensure_spa
     # Patch persistently so runtime calls also find the handler
     patcher = patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=_log_handler)
     patcher.start()
-    return app
+    yield app
+    patcher.stop()
 
 
 def _get_free_port() -> int:
@@ -820,14 +821,16 @@ def live_server(_fastapi_app):
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
 
-    # Poll until the server is accepting connections
+    # Poll until the server is accepting connections.
+    # socket.create_connection(..., timeout=0.5) already blocks for up to 0.5s per
+    # attempt, so no additional sleep is needed between retries.
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=0.5):
                 break
         except OSError:
-            time.sleep(0.1)
+            pass
     else:
         raise RuntimeError(f"Live server did not start within 10s on port {port}")
 
@@ -835,6 +838,8 @@ def live_server(_fastapi_app):
 
     server.should_exit = True
     thread.join(timeout=5)
+    if thread.is_alive():
+        raise RuntimeError("Live server did not stop within 5s")
 
 
 @pytest.fixture(scope="session")
