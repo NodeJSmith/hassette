@@ -7,6 +7,7 @@ Run with:
     pytest -m system -v
 """
 
+import asyncio
 import sqlite3
 
 import pytest
@@ -46,16 +47,19 @@ async def test_handler_invocations_have_valid_session_id(ha_container, tmp_path)
         bus.on_state_change("light.kitchen_lights", handler=capture_event)
         await hassette.api.call_service("light", "toggle", {"entity_id": "light.kitchen_lights"})
         await wait_for(lambda: len(received) >= 1, timeout=10.0, desc="state_changed event received")
-        await wait_for(
-            lambda: hassette._command_executor._write_queue.empty(),
-            timeout=10.0,
-            desc="DB write queue flushed",
-        )
 
-        async with hassette.database_service.db.execute(
-            "SELECT COUNT(*), MIN(session_id), MAX(session_id) FROM handler_invocations WHERE session_id IS NOT NULL"
-        ) as cursor:
-            row = await cursor.fetchone()
+        deadline = asyncio.get_running_loop().time() + 10.0
+        row = None
+        while asyncio.get_running_loop().time() < deadline:
+            query = (
+                "SELECT COUNT(*), MIN(session_id), MAX(session_id)"
+                " FROM handler_invocations WHERE session_id IS NOT NULL"
+            )
+            async with hassette.database_service.db.execute(query) as cursor:
+                row = await cursor.fetchone()
+            if row and row[0] > 0:
+                break
+            await asyncio.sleep(0.1)
 
     assert row is not None
     total_count, min_session_id, max_session_id = row[0], row[1], row[2]
@@ -202,20 +206,23 @@ async def test_handler_invocations_source_tier_matches_listener(ha_container, tm
         bus.on_state_change("light.kitchen_lights", handler=capture_handler)
         await hassette.api.call_service("light", "toggle", {"entity_id": "light.kitchen_lights"})
         await wait_for(lambda: len(received) >= 1, timeout=10.0, desc="state_changed event received")
-        await wait_for(
-            lambda: hassette._command_executor._write_queue.empty(),
-            timeout=10.0,
-            desc="DB write queue flushed",
-        )
 
-        async with hassette.database_service.db.execute(
-            "SELECT source_tier, COUNT(*) as cnt FROM handler_invocations GROUP BY source_tier"
-        ) as cursor:
-            rows = await cursor.fetchall()
-
-    tier_counts = {row[0]: row[1] for row in rows}
+        deadline = asyncio.get_running_loop().time() + 10.0
+        rows: list[tuple[str, int]] = []
+        tier_counts: dict[str, int] = {}
+        while asyncio.get_running_loop().time() < deadline:
+            async with hassette.database_service.db.execute(
+                "SELECT source_tier, COUNT(*) as cnt FROM handler_invocations GROUP BY source_tier"
+            ) as cursor:
+                rows = await cursor.fetchall()
+            tier_counts = {row[0]: row[1] for row in rows}
+            if tier_counts.get("framework", 0) > 0 and tier_counts.get("app", 0) > 0:
+                break
+            await asyncio.sleep(0.1)
 
     # Framework invocations occur during startup (service status events, etc.)
     # App invocations occur from the light toggle handler above
     assert "framework" in tier_counts, f"Expected framework-tier invocation records, found tiers: {list(tier_counts)}"
     assert tier_counts["framework"] > 0, f"Expected at least one framework invocation, got {tier_counts['framework']}"
+    assert "app" in tier_counts, f"Expected app-tier invocation records, found tiers: {list(tier_counts)}"
+    assert tier_counts["app"] > 0, f"Expected at least one app invocation, got {tier_counts.get('app', 0)}"

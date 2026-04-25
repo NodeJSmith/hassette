@@ -96,11 +96,12 @@ async def test_cancel_prevents_fire() -> None:
 
     timer.start(on_fire=on_fire)
     assert timer.is_active
+    task = timer._task
+    assert task is not None
 
     timer.cancel()
 
-    # negative-assertion: no event-driven alternative
-    await asyncio.sleep(0.05)
+    await wait_for(lambda: task.done(), timeout=2.0, desc="timer task cancelled")
     assert not fired.is_set()
 
 
