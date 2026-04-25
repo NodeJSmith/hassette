@@ -44,6 +44,37 @@ if typing.TYPE_CHECKING:
     from hassette.events import HassStateDict
 
 
+# ---------------------------------------------------------------------------
+# Timeout constants — centralised here so rationale is documented in one place
+# ---------------------------------------------------------------------------
+#
+# Do not use raw floats in harness code — reference these constants instead so
+# any future re-tuning is a single-site edit.
+
+
+class TIMEOUTS:
+    """Centralised timeout constants for the test harness.
+
+    All values are in seconds. Rationale for each value is documented below.
+    Changing a value here propagates everywhere the constant is used.
+    """
+
+    # How long HassetteHarness.start() waits for all children to become ready.
+    # 5 s gives enough headroom for slow CI machines without masking real hangs.
+    WAIT_FOR_READY: float = 5.0
+
+    # How long seed_state() waits to acquire the StateProxy write lock.
+    # Under test conditions the lock should never be contended for long; 5 s is
+    # a generous upper bound that catches genuine deadlocks without false-positive
+    # failures on slow machines.
+    STATE_SEED_LOCK: float = 5.0
+
+    # How long HassetteHarness.stop() allows for a resource to shut down cleanly.
+    # Resources should shut down near-instantly in tests; 5 s covers pathological
+    # cases (e.g., a resource waiting on a background task before cancelling).
+    SHUTDOWN: float = 5.0
+
+
 async def wait_for(
     predicate: Callable[[], bool], *, timeout: float = 3.0, interval: float = 0.02, desc: str = "condition"
 ) -> None:
@@ -125,14 +156,24 @@ class _HassetteMock(Resource):
         return self._loop
 
     async def wait_for_ready(self, resources: "list[Resource] | Resource", timeout: float | None = None) -> bool:
-        """Immediately return True.
+        """Immediately return True (no-op stub).
 
         In the test harness, services call ``self.hassette.wait_for_ready()``
         during ``on_initialize()``.  The harness controls the lifecycle
         explicitly (``HassetteHarness.start()`` waits on real children via
         the utility function), so dependency waits inside individual services
-        should be no-ops.  The old polling implementation returned True
-        accidentally (Mock.is_ready() is truthy); this makes it explicit.
+        must be no-ops — allowing them to block would deadlock the startup
+        sequence.
+
+        The old polling implementation returned True accidentally
+        (``Mock.is_ready()`` is truthy); this makes the intent explicit.
+
+        Note: This no-op stub is NOT the right tool for testing startup
+        races (e.g., "what happens when a dependency is not yet ready?").
+        For startup race tests, use ``asyncio.Event`` as a gate and inject a
+        custom ``wait_for_ready`` side-effect. See ``CLAUDE.md`` → "Bug
+        Investigation Workflow" for the recommended pattern using
+        ``AsyncMock(side_effect=lambda _: gate.wait())``.
         """
         return True
 
@@ -367,11 +408,13 @@ class HassetteHarness:
         proxy = self.state_proxy
         lock = proxy.lock
         try:
-            await asyncio.wait_for(lock.acquire(), timeout=5.0)
+            await asyncio.wait_for(lock.acquire(), timeout=TIMEOUTS.STATE_SEED_LOCK)
         except TimeoutError as exc:
-            raise TimeoutError(
-                f"seed_state: could not acquire StateProxy lock within 5s for entity {entity_id!r}"
-            ) from exc
+            msg = (
+                f"seed_state: could not acquire StateProxy lock "
+                f"within {TIMEOUTS.STATE_SEED_LOCK}s for entity {entity_id!r}"
+            )
+            raise TimeoutError(msg) from exc
         try:
             proxy.states[entity_id] = state_dict
         finally:
@@ -485,12 +528,16 @@ class HassetteHarness:
 
         self.hassette.ready_event.set()
         ready = await wait_for_ready(
-            [x for x in self.hassette.children], timeout=5, shutdown_event=self.hassette.shutdown_event
+            [x for x in self.hassette.children],
+            timeout=TIMEOUTS.WAIT_FOR_READY,
+            shutdown_event=self.hassette.shutdown_event,
         )
         if not ready:
             not_ready = [r for r in self.hassette.children if not getattr(r, "is_ready", lambda: True)()]
             names = [type(r).__name__ for r in not_ready] or ["unknown"]
-            raise TimeoutError(f"HassetteHarness: components did not become ready within 5s: {names}")
+            raise TimeoutError(
+                f"HassetteHarness: components did not become ready within {TIMEOUTS.WAIT_FOR_READY}s: {names}"
+            )
 
         return self
 

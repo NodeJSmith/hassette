@@ -45,11 +45,10 @@ from hassette.config.classes import AppManifest
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.test_utils.config import make_test_config
-from hassette.test_utils.harness import HassetteHarness, wait_for
+from hassette.test_utils.harness import TIMEOUTS, HassetteHarness, wait_for
 from hassette.test_utils.helpers import make_state_dict
 from hassette.test_utils.recording_api import _RECORD_TYPE_TO_DOMAIN, RecordingApi
 from hassette.test_utils.simulation import SimulationMixin
-from hassette.test_utils.time_control import _FREEZE_TIME_LOCK as _FREEZE_TIME_LOCK
 from hassette.test_utils.time_control import TimeControlMixin
 from hassette.types.enums import ResourceStatus
 
@@ -367,7 +366,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         await wait_for(
             lambda: app.status == ResourceStatus.RUNNING,
             desc=f"{app.class_name} RUNNING",
-            timeout=5.0,
+            timeout=TIMEOUTS.WAIT_FOR_READY,
         )
 
     @staticmethod
@@ -499,7 +498,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
                 or if a record with the same id is already seeded.
         """
         try:
-            domain = _RECORD_TYPE_TO_DOMAIN[type(record)]
+            domain, _deep_copy = _RECORD_TYPE_TO_DOMAIN[type(record)]
         except KeyError as e:
             raise ValueError(
                 f"Unknown helper record type: {type(record).__name__}. "

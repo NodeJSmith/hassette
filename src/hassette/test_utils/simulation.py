@@ -574,6 +574,23 @@ class SimulationMixin:
                         # All quiescent; surface any collected exceptions.
                         if collected_exceptions:
                             raise DrainError(collected_exceptions)
+                        # Warn if bus-level tasks are still pending. These live in
+                        # bus_service.task_bucket and are NOT drained by this method —
+                        # only app.task_bucket tasks are visible. Bus-level tasks arise
+                        # from listeners registered directly at the Bus level (outside an
+                        # App), including debounce/throttle callbacks. If this warning
+                        # fires unexpectedly, route the listener through App-level
+                        # registration (self.bus.on_state_change inside an App) to make
+                        # it visible to the drain.
+                        bus_pending = bus_service.task_bucket.pending_tasks()
+                        if bus_pending:
+                            LOGGER.warning(
+                                "_drain_task_bucket: drain is quiescent for app.task_bucket, "
+                                "but %d bus-level task(s) are still pending and were NOT drained: %s. "
+                                "Register listeners through App.bus to include them in the drain.",
+                                len(bus_pending),
+                                [t.get_name() for t in bus_pending],
+                            )
                         return
                 # else: loop back for another pass
         finally:

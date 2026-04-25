@@ -190,20 +190,20 @@ class SimTestApp2(App[SimConfig]):
 
 
 async def test_freeze_time_concurrent_lock_raises():
-    """A second harness calling freeze_time while the first holds the lock raises RuntimeError."""
-    from hassette.test_utils.app_harness import _FREEZE_TIME_LOCK
+    """A second harness calling freeze_time while the first holds the lock raises RuntimeError.
 
+    Uses a behavioral test: attempt a second freeze_time() inside an active freeze context
+    and assert it raises RuntimeError. This verifies the lock is held without inspecting
+    internal lock state directly.
+    """
     frozen = Instant.from_utc(2026, 4, 7, 6, 0)
 
     async with AppTestHarness(SimTestApp, config={}) as harness1:
         harness1.freeze_time(frozen)
-        # Lock should be held by harness1
-        assert _FREEZE_TIME_LOCK.locked()
 
-        # Use a different App class to avoid per-class asyncio.Lock deadlock
+        # Use a different App class to avoid per-class asyncio.Lock deadlock.
+        # Attempting a second freeze_time() while the first is active must raise RuntimeError
+        # because the global lock is held.
         async with AppTestHarness(SimTestApp2, config={}) as harness2:
             with pytest.raises(RuntimeError, match="freeze_time is already held"):
                 harness2.freeze_time(frozen)
-
-    # After both harnesses exit, lock should be released
-    assert not _FREEZE_TIME_LOCK.locked()

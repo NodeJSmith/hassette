@@ -555,3 +555,65 @@ async def test_get_entity_or_none_returns_none_for_missing_entity_with_model():
     result = await api.get_entity_or_none("sensor.unseeded", model=LightEntity)
 
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# WP06: assert_called_exact and assert_called_partial
+# ---------------------------------------------------------------------------
+
+
+async def test_assert_called_exact_match():
+    """assert_called_exact passes when the recorded kwargs match exactly."""
+    api = _make_recording_api()
+    api.calls.append(ApiCall(method="test_method", kwargs={"a": 1, "b": 2}))
+
+    # Exact match — passes.
+    api.assert_called_exact("test_method", a=1, b=2)
+
+
+async def test_assert_called_exact_mismatch_extra_key():
+    """assert_called_exact fails when the recorded call has extra keys beyond what was specified."""
+    api = _make_recording_api()
+    # turn_off records {"entity_id": ..., "domain": ...}
+    await api.turn_off("light.kitchen")
+
+    # Partial assertion passes (assert_called)
+    api.assert_called("turn_off", entity_id="light.kitchen")
+
+    # Exact assertion fails because "domain" is also present but not specified
+    with pytest.raises(AssertionError) as exc_info:
+        api.assert_called_exact("turn_off", entity_id="light.kitchen")
+    assert "none matched kwargs exactly" in str(exc_info.value)
+
+
+async def test_assert_called_exact_no_calls():
+    """assert_called_exact raises a clear AssertionError when the method was never called."""
+    api = _make_recording_api()
+
+    with pytest.raises(AssertionError, match="never called"):
+        api.assert_called_exact("call_service", domain="light")
+
+
+async def test_assert_called_exact_passes_full_kwargs():
+    """assert_called_exact passes when all recorded kwargs are provided exactly."""
+    api = _make_recording_api()
+    await api.turn_off("light.x")
+    # Recorded: {"entity_id": "light.x", "domain": "homeassistant"}
+    # Must specify all keys to pass exact match.
+    api.assert_called_exact("turn_off", entity_id="light.x", domain="homeassistant")
+
+
+async def test_assert_called_partial_is_alias():
+    """assert_called_partial behaves identically to assert_called (partial match semantics)."""
+    api = _make_recording_api()
+    await api.turn_off("light.kitchen")
+
+    # Both pass — partial match, extra "domain" key is ignored.
+    api.assert_called("turn_off", entity_id="light.kitchen")
+    api.assert_called_partial("turn_off", entity_id="light.kitchen")
+
+    # Both fail with the same error type when no match.
+    with pytest.raises(AssertionError):
+        api.assert_called("turn_off", entity_id="light.nonexistent")
+    with pytest.raises(AssertionError):
+        api.assert_called_partial("turn_off", entity_id="light.nonexistent")
