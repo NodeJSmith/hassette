@@ -26,7 +26,6 @@ from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
-from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.state_proxy import StateProxy
 from hassette.core.websocket_service import WebsocketService
 from hassette.events import Event
@@ -55,14 +54,6 @@ async def wait_for(
         if loop.time() >= deadline:
             raise TimeoutError(f"Timed out waiting for {desc}")
         await asyncio.sleep(interval)
-
-
-async def start_resource(res: Resource, *, desc: str) -> asyncio.Task[Any] | None:
-    res.start()
-    task: asyncio.Task[Any] | None = None
-    task = res.task
-    await wait_for(lambda: getattr(res, "status", None) == ResourceStatus.RUNNING, desc=f"{desc} RUNNING")
-    return task
 
 
 async def shutdown_resource(res: Resource) -> None:
@@ -172,6 +163,66 @@ def preserve_config(config: HassetteConfig) -> Generator[None, None, None]:
 # Dependency graph and startup ordering for HassetteHarness components
 # ---------------------------------------------------------------------------
 
+
+def _topological_sort(graph: dict[str, set[str]]) -> list[str]:
+    """Return node names from *graph* in valid initialization order (deps before dependents).
+
+    Uses iterative DFS with three-color (_white/_gray/_black) marking.  Only nodes
+    present as keys in *graph* are included in the output; dependency references
+    to nodes not in *graph* are silently ignored.
+
+    Args:
+        graph: Adjacency map of node name → set of dependency names.
+
+    Returns:
+        A list of all node names ordered so that every dependency appears before
+        the nodes that depend on it.
+
+    Raises:
+        ValueError: If a cycle is detected.
+    """
+    if not graph:
+        return []
+
+    _white, _gray, _black = 0, 1, 2
+    color: dict[str, int] = {node: _white for node in graph}
+    result: list[str] = []
+
+    for start in graph:
+        if color[start] != _white:
+            continue
+
+        stack: list[tuple[str, typing.Iterator[str]]] = []
+        path: list[str] = []
+
+        color[start] = _gray
+        path.append(start)
+        stack.append((start, iter(dep for dep in graph[start] if dep in graph)))
+
+        while stack:
+            node, deps = stack[-1]
+            try:
+                dep = next(deps)
+            except StopIteration:
+                stack.pop()
+                path.pop()
+                color[node] = _black
+                result.append(node)
+                continue
+
+            if color.get(dep, _black) == _gray:
+                cycle_start = path.index(dep)
+                cycle_path = [*path[cycle_start:], dep]
+                raise ValueError("Cycle detected: " + " → ".join(cycle_path))
+
+            if color.get(dep, _black) == _white:
+                color[dep] = _gray
+                path.append(dep)
+                stack.append((dep, iter(d for d in graph[dep] if d in graph)))
+
+    return result
+
+
 _DEPENDENCIES: dict[str, set[str]] = {
     "bus": set(),
     "scheduler": set(),
@@ -180,39 +231,35 @@ _DEPENDENCIES: dict[str, set[str]] = {
     "app_handler": {"bus", "scheduler", "state_proxy"},
     "state_proxy": {"bus", "scheduler"},
     "state_registry": set(),
-    "service_watcher": {"bus"},
+    # service_watcher removed: ServiceWatcher is a real framework service but has no
+    # harness starter — the harness does not instantiate it.  Removing it eliminates
+    # the ghost entry that caused _STARTUP_ORDER to include a component with no starter.
 }
 
 _CONFLICTS: list[tuple[str, str]] = []
 
-_STARTUP_ORDER: list[str] = [
-    "bus",
-    "scheduler",
-    "file_watcher",
-    "api_mock",
-    "app_handler",
-    "state_proxy",
-    "state_registry",
-    "service_watcher",
-]
+# Startup order derived from the dependency graph — no manual maintenance required.
+_STARTUP_ORDER: list[str] = _topological_sort(_DEPENDENCIES)
 
 # Maps harness component names to the corresponding real framework service class.
 # Used by the harness consistency test to verify _DEPENDENCIES stays in sync with
 # real service depends_on declarations.
 #
 # Omitted entries:
-#   "api_mock"     — harness-specific: wraps ApiResource with URL/header patches and
-#                    a local HTTP mock server; there is no single real class equivalent.
-#   "file_watcher" — FileWatcherService has no depends_on (empty list), so consistency
-#                    checks would be vacuous.  Omitting avoids false-positive drift.
+#   "api_mock"       — harness-specific: wraps ApiResource with URL/header patches and
+#                      a local HTTP mock server; there is no single real class equivalent.
+#   "file_watcher"   — FileWatcherService has no depends_on (empty list), so consistency
+#                      checks would be vacuous.  Omitting avoids false-positive drift.
 #   "state_registry" — StateRegistry is not a Resource subclass; it is a plain dataclass
 #                      registry with no depends_on concept.
+#   "service_watcher"— Removed: ServiceWatcher has no harness starter; including it in
+#                      this map without a matching _starters entry created a ghost entry
+#                      that made the structural test impossible to satisfy.
 _COMPONENT_CLASS_MAP: dict[str, type[Resource]] = {
     "bus": BusService,
     "scheduler": SchedulerService,
     "app_handler": AppHandler,
     "state_proxy": StateProxy,
-    "service_watcher": ServiceWatcher,
 }
 
 
@@ -235,8 +282,7 @@ class HassetteHarness:
 
         self.logger = logging.getLogger("hassette")
         self.hassette = _HassetteMock(config=self.config)
-        self._tasks: list[tuple[str, asyncio.Task[Any]]] = []
-        self._exit_stack = contextlib.AsyncExitStack()
+        self._exit_stack = contextlib.AsyncExitStack()  # canonical cleanup registry for background-task starters
         self.api_mock: SimpleTestServer | None = None
         self.api_base_url = URL.build(scheme="http", host="127.0.0.1", port=self.unused_tcp_port, path="/api/")
 
@@ -369,14 +415,6 @@ class HassetteHarness:
         # STOPPED status events during shutdown, so streams must stay open until then.
         if self.hassette._event_stream_service and not self.hassette._event_stream_service.event_streams_closed:
             await self.hassette._event_stream_service.close_streams()
-
-        try:
-            for _, task in reversed(self._tasks):
-                task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await task
-        except Exception:
-            self.logger.exception("Error cancelling tasks")
 
         try:
             if self.api_mock is not None:
