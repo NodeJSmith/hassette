@@ -545,9 +545,9 @@ class HassetteHarness:
     async def stop(self) -> None:
         self.hassette.shutdown_event.set()
 
-        # Attempt shutdown for ALL resources; collect exceptions rather than stopping on first failure.
+        # Shut down in reverse order so dependents stop before their dependencies.
         shutdown_errors: list[Exception] = []
-        for resource in self.hassette.children:
+        for resource in reversed(self.hassette.children):
             try:
                 await shutdown_resource(resource)
             except Exception as exc:

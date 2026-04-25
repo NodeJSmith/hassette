@@ -212,7 +212,7 @@ def live_server(_fastapi_app):
             with socket.create_connection(("127.0.0.1", port), timeout=0.5):
                 break
         except OSError:
-            pass
+            time.sleep(0.05)
     else:
         raise RuntimeError(f"Live server did not start within 10s on port {port}")
 
