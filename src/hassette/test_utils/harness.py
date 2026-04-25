@@ -408,7 +408,8 @@ class HassetteHarness:
         proxy = self.state_proxy
         lock = proxy.lock
         try:
-            await asyncio.wait_for(lock.acquire(), timeout=TIMEOUTS.STATE_SEED_LOCK)
+            async with asyncio.timeout(TIMEOUTS.STATE_SEED_LOCK):
+                await lock.acquire()
         except TimeoutError as exc:
             msg = (
                 f"seed_state: could not acquire StateProxy lock "
