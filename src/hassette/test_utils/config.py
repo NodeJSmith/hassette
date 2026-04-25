@@ -11,11 +11,10 @@ from pydantic_settings.sources import InitSettingsSource
 
 from hassette.config.config import HassetteConfig
 
-# Cached (hermetic_subclass, cell) pair — avoids creating a new class per
+# Cached (hermetic_subclass, init_kwargs_ref) pair — avoids creating a new class per
 # make_test_config call, which would accumulate permanently in __subclasses__()
 # and Pydantic's internal model cache.
-# The cell is a single-element list the closure reads from; updated before each
-# instantiation so no ClassVar shared state is needed.
+# Same closure-ref pattern as _get_hermetic_subclass in app_harness.py (per-AppConfig variant).
 _HermeticHassetteConfigPair: tuple[type[HassetteConfig], list[dict[str, Any]]] | None = None
 
 

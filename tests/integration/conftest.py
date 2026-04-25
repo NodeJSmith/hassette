@@ -53,7 +53,6 @@ async def cleanup_state_proxy_fixture(request: pytest.FixtureRequest):
         hassette = request.getfixturevalue("hassette_with_state_proxy")
         if hassette._state_proxy is not None:
             await reset_state_proxy(hassette._state_proxy)
-    return
 
 
 @pytest.fixture(autouse=True)
@@ -71,7 +70,6 @@ async def cleanup_bus_fixture(request: pytest.FixtureRequest):
         if hassette._bus is not None:
             await reset_bus(hassette._bus)
             break
-    return
 
 
 @pytest.fixture(autouse=True)
@@ -85,7 +83,6 @@ async def cleanup_scheduler_fixture(request: pytest.FixtureRequest):
         hassette = request.getfixturevalue("hassette_with_scheduler")
         if hassette._scheduler is not None:
             await reset_scheduler(hassette._scheduler)
-    return
 
 
 @pytest.fixture(autouse=True)
@@ -94,7 +91,6 @@ async def cleanup_mock_api_fixture(request: pytest.FixtureRequest):
     if "hassette_with_mock_api" in request.fixturenames:
         _, server = request.getfixturevalue("hassette_with_mock_api")
         reset_mock_api(server)
-    return
 
 
 @pytest.fixture

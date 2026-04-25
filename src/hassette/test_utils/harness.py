@@ -69,11 +69,6 @@ class TIMEOUTS:
     # failures on slow machines.
     STATE_SEED_LOCK: float = 5.0
 
-    # How long HassetteHarness.stop() allows for a resource to shut down cleanly.
-    # Resources should shut down near-instantly in tests; 5 s covers pathological
-    # cases (e.g., a resource waiting on a background task before cancelling).
-    SHUTDOWN: float = 5.0
-
 
 async def wait_for(
     predicate: Callable[[], bool], *, timeout: float = 3.0, interval: float = 0.02, desc: str = "condition"
@@ -281,8 +276,6 @@ _DEPENDENCIES: dict[str, set[str]] = {
     # the ghost entry that caused _STARTUP_ORDER to include a component with no starter.
 }
 
-_CONFLICTS: list[tuple[str, str]] = []
-
 # Startup order derived from the dependency graph — no manual maintenance required.
 _STARTUP_ORDER: list[str] = _topological_sort(_DEPENDENCIES)
 
@@ -451,15 +444,14 @@ class HassetteHarness:
         self._components.add("app_handler")
         return self
 
-    # --- Convenience query ---
-
-    def _has(self, component: str) -> bool:
+    def has_component(self, component: str) -> bool:
+        """Check whether a component was requested (directly or via dependency resolution)."""
         return component in self._components
 
     # --- Dependency resolution ---
 
     def _resolve_dependencies(self) -> None:
-        """Add implicit dependencies and validate conflicts."""
+        """Add implicit dependencies."""
         changed = True
         while changed:
             changed = False
@@ -469,10 +461,6 @@ class HassetteHarness:
                 if new_deps:
                     self._components |= new_deps
                     changed = True
-
-        for a, b in _CONFLICTS:
-            if a in self._components and b in self._components:
-                raise ValueError(f"Cannot use both {a} and {b}")
 
     # --- Lifecycle ---
 
@@ -497,7 +485,7 @@ class HassetteHarness:
 
         # Start components in dependency order
         for component in _STARTUP_ORDER:
-            if not self._has(component):
+            if not self.has_component(component):
                 continue
             starter = self._starters.get(component)
             if starter:
@@ -521,7 +509,7 @@ class HassetteHarness:
 
         self.hassette._states = self.hassette.add_child(StateManager)
 
-        if not self._has("bus"):
+        if not self.has_component("bus"):
             self.hassette.send_event = AsyncMock()
 
         for resource in self.hassette.children:
@@ -587,6 +575,7 @@ class HassetteHarness:
     # --- Component starters ---
 
     async def _start_bus(self) -> None:
+        # NOTE: _stub_execute mirrors _start_scheduler's version — keep both in sync.
         self.hassette._event_stream_service = self.hassette.add_child(EventStreamService)
 
         async def _stub_execute(cmd: Any) -> None:
@@ -637,6 +626,7 @@ class HassetteHarness:
         self.hassette._bus = self.hassette.add_child(Bus)
 
     async def _start_scheduler(self) -> None:
+        # NOTE: _stub_execute mirrors _start_bus's version — keep both in sync.
         async def _stub_execute(cmd: Any) -> None:
             if isinstance(cmd, ExecuteJob):
                 error_handler = cmd.job.error_handler or cmd.app_level_error_handler

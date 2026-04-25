@@ -96,9 +96,10 @@ _RECORD_TYPE_TO_DOMAIN: dict[type, tuple[str, bool]] = {
     TimerRecord: ("timer", False),
 }
 
-assert {domain for domain, _ in _RECORD_TYPE_TO_DOMAIN.values()} == _SUPPORTED_HELPER_DOMAINS, (
-    "_RECORD_TYPE_TO_DOMAIN and _SUPPORTED_HELPER_DOMAINS must enumerate the same set of helper domains"
-)
+if {domain for domain, _ in _RECORD_TYPE_TO_DOMAIN.values()} != _SUPPORTED_HELPER_DOMAINS:
+    raise ValueError(
+        "_RECORD_TYPE_TO_DOMAIN and _SUPPORTED_HELPER_DOMAINS must enumerate the same set of helper domains"
+    )
 
 
 def _slugify_helper_name(name: str | None) -> str:
@@ -629,22 +630,18 @@ class RecordingApi(Resource):
     async def get_state_raw(self, entity_id: str) -> dict:
         """Not implemented — raises NotImplementedError."""
         _not_implemented("get_state_raw")
-        raise RuntimeError("unreachable")  # for type checker
 
     async def get_states_raw(self) -> list[dict]:
         """Not implemented — raises NotImplementedError."""
         _not_implemented("get_states_raw")
-        raise RuntimeError("unreachable")
 
     async def get_history(self, entity_id: str, *args: Any, **kwargs: Any) -> list:
         """Not implemented — raises NotImplementedError."""
         _not_implemented("get_history")
-        raise RuntimeError("unreachable")
 
     async def render_template(self, template: str, variables: dict | None = None) -> str:
         """Not implemented — raises NotImplementedError."""
         _not_implemented("render_template")
-        raise RuntimeError("unreachable")
 
     async def ws_send_and_wait(self, **data: Any) -> Any:
         """Not implemented — raises NotImplementedError."""

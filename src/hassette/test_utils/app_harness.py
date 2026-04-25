@@ -92,11 +92,10 @@ class AppConfigurationError(Exception):
         super().__init__(f"AppConfigurationError for {app_cls.__name__}: {summary}")
 
 
-# Cache of (hermetic_subclass, cell) pairs keyed by app_config_cls — avoids
+# Cache of (hermetic_subclass, init_kwargs_ref) pairs keyed by app_config_cls — avoids
 # creating a new subclass per _make_hermetic_config call, which would accumulate
 # permanently in __subclasses__() and Pydantic's internal model cache.
-# The cell is a single-element list that the subclass closure reads from;
-# the caller sets cell[0] = config_dict before each instantiation.
+# Same closure-ref pattern as _get_hermetic_hassette_config_cls in config.py (singleton variant).
 _HERMETIC_CONFIG_CACHE: dict[type[AppConfig], tuple[type[AppConfig], list[dict[str, Any]]]] = {}
 
 
@@ -356,7 +355,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
 
         self._app = app
 
-        # Step 13: Register app shutdown first (late registration = early unwind)
+        # Step 12: Register app shutdown first (late registration = early unwind)
         # This ensures app shuts down before harness.stop() runs.
         # Wrapped to prevent shutdown exceptions from masking the original test failure.
         exit_stack.push_async_callback(self._safe_app_shutdown, app)

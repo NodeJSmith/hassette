@@ -95,7 +95,7 @@ class SimulationMixin:
         # Merge seeded attributes from StateProxy when not explicitly provided.
         if old_attrs is None or new_attrs is None:
             existing_attrs: dict[str, Any] = {}
-            if harness._has("state_proxy"):
+            if harness.has_component("state_proxy"):
                 raw = harness.state_proxy.states.get(entity_id)
                 if raw is not None:
                     existing_attrs = dict(raw.get("attributes", {}))
@@ -154,7 +154,7 @@ class SimulationMixin:
         existing_attrs: dict[str, Any] = {}
         proxy_state: str = "unknown"
 
-        if harness._has("state_proxy"):
+        if harness.has_component("state_proxy"):
             raw = harness.state_proxy.states.get(entity_id)
             if raw is not None:
                 proxy_state = raw["state"]

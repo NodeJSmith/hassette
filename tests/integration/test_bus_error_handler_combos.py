@@ -19,6 +19,7 @@ from hassette.events import RawStateChangeEvent
 from hassette.test_utils import make_state_dict, wait_for
 from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import create_state_change_event
+from tests.integration.bus_test_helpers import seed, send_state_change
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -54,29 +55,6 @@ async def combo_harness(test_config) -> AsyncIterator[tuple[HassetteHarness, "Ha
         yield harness, hassette, bus
     finally:
         await harness.stop()
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-async def seed(harness: HassetteHarness, entity_id: str, state_value: str) -> None:
-    await harness.seed_state(
-        entity_id,
-        make_state_dict(entity_id, state_value),
-    )
-
-
-async def send_state_change(
-    harness: HassetteHarness,
-    entity_id: str,
-    old_value: str,
-    new_value: str,
-) -> None:
-    event = create_state_change_event(entity_id=entity_id, old_value=old_value, new_value=new_value)
-    await harness.hassette.send_event(event.topic, event)
-    await harness.bus_service.await_dispatch_idle()
 
 
 # ---------------------------------------------------------------------------

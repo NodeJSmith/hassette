@@ -86,7 +86,6 @@ async def hassette_with_scheduler(
     test_config: "HassetteConfig",
 ) -> "AsyncIterator[Hassette]":
     async with hassette_harness(test_config).with_bus().with_scheduler() as harness:
-        assert harness.hassette._scheduler is not None
         yield cast("Hassette", harness.hassette)
 
 
@@ -96,9 +95,6 @@ async def hassette_with_file_watcher(
     test_config_with_apps,
 ) -> "AsyncIterator[Hassette]":
     async with hassette_harness(test_config_with_apps).with_bus().with_file_watcher().with_api_mock() as harness:
-        assert harness.hassette._file_watcher is not None
-        assert harness.hassette._bus_service is not None
-
         yield cast("Hassette", harness.hassette)
 
 
@@ -134,8 +130,6 @@ async def hassette_with_state_proxy(
     Tests should use the cleanup_state_proxy_fixture to reset state between tests.
     """
     async with hassette_harness(test_config).with_state_proxy().with_state_registry().with_scheduler() as harness:
-        assert harness.hassette._state_proxy is not None
-        assert harness.hassette.api is not None
         yield cast("Hassette", harness.hassette)
 
 
