@@ -7,8 +7,8 @@
 ```python
 from hassette.test_utils import HassetteHarness
 
-# Builder chains — bus is auto-added because state_proxy depends on it
-async with HassetteHarness(config).with_state_proxy().with_scheduler() as harness:
+# Builder chains — bus and scheduler are auto-added because state_proxy depends on both
+async with HassetteHarness(config).with_state_proxy() as harness:
     hassette = harness.hassette
 ```
 
@@ -19,10 +19,10 @@ async with HassetteHarness(config).with_state_proxy().with_scheduler() as harnes
 | `.with_bus()`            | Event bus + BusService               | —                    |
 | `.with_scheduler()`      | SchedulerService + Scheduler         | —                    |
 | `.with_api_mock()`       | Mock HTTP server + ApiResource + Api | —                    |
-| `.with_state_proxy()`    | StateProxy                           | `bus`                |
+| `.with_state_proxy()`    | StateProxy                           | `bus`, `scheduler`                |
 | `.with_state_registry()` | STATE_REGISTRY + TYPE_REGISTRY       | —                    |
 | `.with_file_watcher()`   | FileWatcherService                   | —                    |
-| `.with_app_handler()`    | AppHandler                           | `bus`, `state_proxy` |
+| `.with_app_handler()`    | AppHandler                           | `bus`, `scheduler`, `state_proxy` |
 
 ## Choosing a Mock Strategy
 

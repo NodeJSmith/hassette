@@ -14,7 +14,7 @@ from hassette.models import states
 from hassette.models.states import base
 
 if typing.TYPE_CHECKING:
-    from hassette import Hassette
+    from hassette.test_utils.harness import HassetteHarness
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,9 @@ def all_models():
     return all_classes
 
 
-def test_all_domains_registered(hassette_with_state_proxy: "Hassette", all_models: dict[str, type[states.BaseState]]):
+def test_all_domains_registered(
+    hassette_with_state_proxy: "HassetteHarness", all_models: dict[str, type[states.BaseState]]
+):
     """Test that all state models are registered in the state registry."""
 
     registered_domains = [x.domain for x in STATE_REGISTRY._registry]

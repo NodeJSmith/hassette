@@ -339,6 +339,14 @@ class HassetteHarness:
         return ah
 
     @property
+    def file_watcher(self) -> "FileWatcherService":
+        """The FileWatcherService instance managed by this harness."""
+        fw = self.hassette._file_watcher
+        if fw is None:
+            raise RuntimeError("FileWatcherService is not available — ensure with_file_watcher() was called")
+        return fw
+
+    @property
     def task_bucket(self) -> "TaskBucket":
         """The TaskBucket instance managed by this harness."""
         return self.hassette.task_bucket

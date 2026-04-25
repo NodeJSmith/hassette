@@ -15,7 +15,7 @@ if typing.TYPE_CHECKING:
 async def test_event_emitted_on_file_change(hassette_with_file_watcher: "HassetteHarness"):
     """File watcher emits an event when a tracked file changes."""
     hassette_instance = hassette_with_file_watcher
-    file_watcher_service = hassette_instance.hassette._file_watcher
+    file_watcher_service = hassette_instance.file_watcher
 
     file_event_received = asyncio.Event()
 
