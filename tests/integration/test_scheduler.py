@@ -11,6 +11,7 @@ from hassette.app.app_config import AppConfig
 from hassette.core.commands import ExecuteJob
 from hassette.scheduler import ScheduledJob
 from hassette.scheduler.triggers import Every
+from hassette.test_utils import wait_for
 from hassette.test_utils.app_harness import AppTestHarness
 from hassette.utils.date_utils import now
 from hassette.web.utils import resolve_trigger
@@ -150,7 +151,7 @@ async def test_job_registration_sets_db_id(hassette_with_scheduler: Hassette) ->
 
     scheduled_job = scheduler.run_in(target, delay=0.5)
 
-    await asyncio.sleep(0.1)
+    await wait_for(lambda: scheduled_job.db_id is not None, desc="job registered")
 
     assert scheduled_job.db_id is not None, "job.db_id should be set after registration"
     assert scheduled_job.db_id == db_id, f"Expected db_id={db_id}, got {scheduled_job.db_id}"

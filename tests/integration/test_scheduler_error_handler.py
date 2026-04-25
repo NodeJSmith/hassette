@@ -67,7 +67,7 @@ async def test_per_job_error_handler_wins(hassette_with_scheduler: "Hassette") -
 
     await asyncio.wait_for(per_job_ran.wait(), timeout=2.0)
 
-    # Brief window to confirm app-level was NOT called
+    # negative-assertion: no event-driven alternative
     await asyncio.sleep(0.05)
 
     assert len(per_job_calls) == 1, f"Expected 1 per-job call, got {len(per_job_calls)}"
@@ -90,7 +90,7 @@ async def test_no_handler_framework_default(hassette_with_scheduler: "Hassette")
 
     # Job ran (exception was raised) and harness didn't crash
     await asyncio.wait_for(ran.wait(), timeout=2.0)
-    # A brief yield lets any spawned tasks complete; harness must still be alive
+    # negative-assertion: no event-driven alternative
     await asyncio.sleep(0.05)
 
 

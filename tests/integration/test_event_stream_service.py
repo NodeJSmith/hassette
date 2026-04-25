@@ -77,6 +77,7 @@ async def test_custom_buffer_size() -> None:
             send_completed = True
 
         task = asyncio.create_task(try_send())
+        # negative-assertion: no event-driven alternative
         await asyncio.sleep(0.05)
         assert not send_completed, "Expected send to block on full buffer"
         task.cancel()

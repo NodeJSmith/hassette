@@ -441,7 +441,7 @@ async def test_listener_registration_spawns_background_task(hassette_with_bus: "
     subscription = bus.on_state_change("sensor.eager_test", handler=handler)
     listener = subscription.listener
 
-    await asyncio.sleep(0.05)
+    await wait_for(lambda: listener.db_id is not None, desc="listener registered")
 
     hassette._bus_service._executor.register_listener.assert_called()
     assert listener.db_id is not None
@@ -498,8 +498,7 @@ async def test_dispatch_calls_executor(hassette_with_bus: "Hassette") -> None:
     hassette._bus.on(topic="custom.exec_test", handler=handler)
 
     # Simulate an app-owned listener by setting db_id (internal listeners have db_id=None)
-    # Wait for the listener to be added to the router
-    await asyncio.sleep(0.05)
+    await wait_for(lambda: not hassette._bus.task_bucket.pending_tasks(), desc="registration task completed")
     all_listeners = await hassette._bus_service.router.get_topic_listeners("custom.exec_test")
     for listener in all_listeners:
         if listener.db_id is None:
@@ -576,8 +575,7 @@ async def test_dispatch_handler_exception_routed_through_executor(hassette_with_
     await hassette.send_event("custom.error_test", payload_event)
 
     await asyncio.wait_for(error_raised.wait(), timeout=1.0)
-    # Allow the exception to propagate through the dispatch path
-    await asyncio.sleep(0.05)
+    await wait_for(lambda: executor.execute.called, desc="executor called")
 
     # Executor MUST be called — it captures the error in the execution record
     executor.execute.assert_called()
@@ -611,7 +609,7 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
 
     # Wait for debounce to fire
     await asyncio.wait_for(event_handled.wait(), timeout=1.0)
-    await asyncio.sleep(0.05)  # Let tasks drain
+    await wait_for(lambda: not hassette._bus.task_bucket.pending_tasks(), desc="bus tasks drained")
 
     # Executor should have been called exactly once (debounce coalesced)
     assert executor.execute.call_count == 1, (
@@ -788,17 +786,17 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
 
     hassette._bus.on(topic="custom.cancel_debounce", handler=handler, debounce=0.5)
 
-    # Wait deterministically for listener registration and rate limiter attachment
+    # Poll until listener appears in the router (registration is async + DB-backed)
     listener = None
     rate_limiter = None
-    for _ in range(100):
+    deadline = asyncio.get_running_loop().time() + 3.0
+    while asyncio.get_running_loop().time() < deadline:
         all_listeners = await hassette._bus_service.router.get_topic_listeners("custom.cancel_debounce")
         if len(all_listeners) == 1 and all_listeners[0].rate_limiter is not None:
             listener = all_listeners[0]
             rate_limiter = listener.rate_limiter
             break
-        await asyncio.sleep(0.01)
-
+        await asyncio.sleep(0.02)
     assert listener is not None, "Listener for custom.cancel_debounce was not registered in time"
     assert isinstance(rate_limiter, RateLimiter)
 
@@ -855,7 +853,7 @@ async def test_cancel_before_add_task_completes_does_not_orphan_listener(hassett
 
         # Now release the gate — add task proceeds
         gate.set()
-        await asyncio.sleep(0.05)
+        await wait_for(lambda: not hassette._bus.task_bucket.pending_tasks(), desc="add task completed")
 
         # The listener must not be in the router
         listeners = await router.get_topic_listeners("custom.orphan_test")
@@ -905,7 +903,7 @@ async def test_cancel_before_add_task_completes_app_key_path(hassette_with_bus: 
         await asyncio.sleep(0)
 
         gate.set()
-        await asyncio.sleep(0.05)
+        await wait_for(lambda: not hassette._bus.task_bucket.pending_tasks(), desc="add task completed")
 
         listeners = await router.get_topic_listeners("custom.orphan_app_test")
         assert len(listeners) == 0, (

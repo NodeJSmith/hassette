@@ -7,12 +7,12 @@ Run with:
     pytest -m system -v
 """
 
-import asyncio
 import sqlite3
 
 import pytest
 
 from hassette.events import RawStateChangeEvent
+from hassette.test_utils import wait_for
 from tests.system.conftest import make_system_config, startup_context
 
 pytestmark = [pytest.mark.system, pytest.mark.filterwarnings("default::DeprecationWarning")]
@@ -45,8 +45,12 @@ async def test_handler_invocations_have_valid_session_id(ha_container, tmp_path)
         bus = hassette._bus
         bus.on_state_change("light.kitchen_lights", handler=capture_event)
         await hassette.api.call_service("light", "toggle", {"entity_id": "light.kitchen_lights"})
-        # Allow time for the state_changed event to propagate and the invocation record to be persisted
-        await asyncio.sleep(2.0)
+        await wait_for(lambda: len(received) >= 1, timeout=10.0, desc="state_changed event received")
+        await wait_for(
+            lambda: hassette._command_executor._write_queue.empty(),
+            timeout=10.0,
+            desc="DB write queue flushed",
+        )
 
         async with hassette.database_service.db.execute(
             "SELECT COUNT(*), MIN(session_id), MAX(session_id) FROM handler_invocations WHERE session_id IS NOT NULL"
@@ -188,15 +192,21 @@ async def test_handler_invocations_source_tier_matches_listener(ha_container, tm
     then verifies framework invocations are also present (from startup registration).
     """
     config = make_system_config(ha_container, tmp_path)
+    received: list[object] = []
 
-    async def noop_handler(event: RawStateChangeEvent) -> None:
-        pass
+    async def capture_handler(event: RawStateChangeEvent) -> None:
+        received.append(event)
 
     async with startup_context(config) as hassette:
         bus = hassette._bus
-        bus.on_state_change("light.kitchen_lights", handler=noop_handler)
+        bus.on_state_change("light.kitchen_lights", handler=capture_handler)
         await hassette.api.call_service("light", "toggle", {"entity_id": "light.kitchen_lights"})
-        await asyncio.sleep(2.0)
+        await wait_for(lambda: len(received) >= 1, timeout=10.0, desc="state_changed event received")
+        await wait_for(
+            lambda: hassette._command_executor._write_queue.empty(),
+            timeout=10.0,
+            desc="DB write queue flushed",
+        )
 
         async with hassette.database_service.db.execute(
             "SELECT source_tier, COUNT(*) as cnt FROM handler_invocations GROUP BY source_tier"
