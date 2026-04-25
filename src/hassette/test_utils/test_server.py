@@ -103,6 +103,14 @@ class SimpleTestServer:
 
         assert not errors, f"MockHaApi assertions failed: {errors}"
 
+    def reset(self) -> None:
+        """Clear queued expectations and the unexpected-request log.
+
+        Call between tests to reuse the same server instance without state pollution.
+        """
+        self._expectations.clear()
+        self._unexpected.clear()
+
     def dump_all(self):
         expectations = {astuple(k): [astuple(e) for e in v] for k, v in self._expectations.items()}
         expectations = {str(k): v for k, v in expectations.items() if v}

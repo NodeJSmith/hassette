@@ -207,8 +207,8 @@ class TimeControlMixin:
     async def trigger_due_jobs(self) -> int:
         """Fire all jobs that are due at the current (possibly frozen) time.
 
-        Delegates to :meth:`SchedulerService._test_trigger_due_jobs`, which
-        snapshots due jobs and dispatches them inline. Jobs re-enqueued during
+        Delegates to :meth:`SchedulerService.trigger_due_jobs`, which snapshots
+        due jobs and dispatches them inline. Jobs re-enqueued during
         dispatch (repeating jobs) are not included — only the initial snapshot
         is processed, preventing infinite loops when the clock is frozen.
 
@@ -229,8 +229,4 @@ class TimeControlMixin:
             RuntimeError: If the harness is not active.
         """
         harness = self._require_harness()
-        scheduler_service = harness.hassette._scheduler_service
-        if scheduler_service is None:
-            raise RuntimeError("SchedulerService is not available — ensure with_scheduler() was called")
-
-        return await scheduler_service._test_trigger_due_jobs()
+        return await harness.scheduler_service.trigger_due_jobs()

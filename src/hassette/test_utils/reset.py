@@ -65,11 +65,12 @@ async def reset_scheduler(scheduler: "Scheduler") -> None:
 def reset_mock_api(server: "SimpleTestServer") -> None:
     """Clear queued expectations and unexpected request log from the mock server.
 
+    Delegates to ``SimpleTestServer.reset()``.
+
     Args:
         server: The SimpleTestServer instance to reset.
     """
-    server._expectations.clear()
-    server._unexpected.clear()
+    server.reset()
 
 
 def _reset_resource_flags(resource: "Resource") -> None:

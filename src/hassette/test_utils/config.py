@@ -5,23 +5,32 @@ Exposes :func:`make_test_config` for end users who need a minimal
 """
 
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any
 
 from pydantic_settings.sources import InitSettingsSource
 
 from hassette.config.config import HassetteConfig
 
-# Cached hermetic subclass — avoids creating a new class per make_test_config
-# call, which would accumulate permanently in __subclasses__() and Pydantic's
-# internal model cache.
-_HermeticHassetteConfig: type[HassetteConfig] | None = None
+# Cached (hermetic_subclass, init_kwargs_ref) pair — avoids creating a new class per
+# make_test_config call, which would accumulate permanently in __subclasses__()
+# and Pydantic's internal model cache.
+# Same closure-ref pattern as _get_hermetic_subclass in app_harness.py (per-AppConfig variant).
+_HermeticHassetteConfigPair: tuple[type[HassetteConfig], list[dict[str, Any]]] | None = None
 
 
-def _get_hermetic_hassette_config_cls() -> type[HassetteConfig]:
-    """Return a cached hermetic subclass of HassetteConfig."""
-    global _HermeticHassetteConfig
-    if _HermeticHassetteConfig is not None:
-        return _HermeticHassetteConfig
+def _get_hermetic_hassette_config_cls() -> tuple[type[HassetteConfig], list[dict[str, Any]]]:
+    """Return a cached (hermetic subclass, cell) pair for HassetteConfig.
+
+    The cell is a mutable single-element list captured by the subclass closure.
+    Set ``cell[0] = merged`` before calling the subclass constructor to inject
+    a specific config dict — no ClassVar write needed.
+    """
+    global _HermeticHassetteConfigPair
+    if _HermeticHassetteConfigPair is not None:
+        return _HermeticHassetteConfigPair
+
+    # Mutable single-element container that the closure reads from.
+    cell: list[dict[str, Any]] = [{}]
 
     class _Cls(HassetteConfig):
         model_config = HassetteConfig.model_config.copy() | {
@@ -30,14 +39,12 @@ def _get_hermetic_hassette_config_cls() -> type[HassetteConfig]:
             "env_file": None,
         }
 
-        _hermetic_init_kwargs: ClassVar[dict[str, Any]] = {}
-
         @classmethod
         def settings_customise_sources(cls, settings_cls, **_kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
-            return (InitSettingsSource(settings_cls, init_kwargs=cls._hermetic_init_kwargs),)
+            return (InitSettingsSource(settings_cls, init_kwargs=cell[0]),)
 
-    _HermeticHassetteConfig = _Cls
-    return _Cls
+    _HermeticHassetteConfigPair = (_Cls, cell)
+    return _HermeticHassetteConfigPair
 
 
 def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfig:
@@ -84,6 +91,8 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
     }
     merged = {**defaults, **overrides}
 
-    cls = _get_hermetic_hassette_config_cls()
-    cls._hermetic_init_kwargs = merged  # pyright: ignore[reportAttributeAccessIssue]
+    cls, cell = _get_hermetic_hassette_config_cls()
+    # Update the cell before instantiation; no await between here and cls()
+    # so asyncio cooperative multitasking cannot interleave a concurrent caller.
+    cell[0] = merged
     return cls()

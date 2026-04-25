@@ -19,6 +19,7 @@ from hassette.events import RawStateChangeEvent
 from hassette.test_utils import make_state_dict, wait_for
 from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import create_state_change_event
+from tests.integration.bus_test_helpers import seed, send_state_change
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -33,7 +34,7 @@ DURATION = 0.05  # 50 ms — fast enough for tests
 
 
 @pytest.fixture
-async def combo_harness(test_config) -> AsyncIterator[tuple["Hassette", "Bus"]]:
+async def combo_harness(test_config) -> AsyncIterator[tuple[HassetteHarness, "Hassette", "Bus"]]:
     """Fresh harness with bus + state_proxy for each test."""
     harness = HassetteHarness(test_config, skip_global_set=False)
     harness.with_bus().with_scheduler().with_state_proxy().with_state_registry()
@@ -44,43 +45,16 @@ async def combo_harness(test_config) -> AsyncIterator[tuple["Hassette", "Bus"]]:
     harness.hassette.api = api_mock
 
     await harness.start()
-    harness.hassette._test_mode = True  # pyright: ignore[reportAttributeAccessIssue]
 
-    state_proxy = harness.hassette._state_proxy
-    assert state_proxy is not None
-    state_proxy.mark_ready(reason="combo_harness: mark ready for test")
+    harness.state_proxy.mark_ready(reason="combo_harness: mark ready for test")
 
     hassette = typing.cast("Hassette", harness.hassette)
-    bus = hassette._bus
-    assert bus is not None
+    bus = harness.bus
 
     try:
-        yield hassette, bus
+        yield harness, hassette, bus
     finally:
         await harness.stop()
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-async def seed(hassette: "Hassette", entity_id: str, state_value: str) -> None:
-    await hassette._state_proxy._test_seed_state(
-        entity_id,
-        make_state_dict(entity_id, state_value),
-    )
-
-
-async def send_state_change(
-    hassette: "Hassette",
-    entity_id: str,
-    old_value: str,
-    new_value: str,
-) -> None:
-    event = create_state_change_event(entity_id=entity_id, old_value=old_value, new_value=new_value)
-    await hassette.send_event(event.topic, event)
-    await hassette._bus_service.await_dispatch_idle()
 
 
 # ---------------------------------------------------------------------------
@@ -88,9 +62,9 @@ async def send_state_change(
 # ---------------------------------------------------------------------------
 
 
-async def test_duration_app_level_error_handler(combo_harness: tuple["Hassette", "Bus"]) -> None:
+async def test_duration_app_level_error_handler(combo_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Duration timer fires, handler raises → app-level on_error receives the error context."""
-    hassette, bus = combo_harness
+    harness, hassette, bus = combo_harness
 
     error_contexts: list[BusErrorContext] = []
     error_ran = asyncio.Event()
@@ -105,8 +79,8 @@ async def test_duration_app_level_error_handler(combo_harness: tuple["Hassette",
     bus.on_error(on_error)
     bus.on_state_change("light.kitchen", changed_to="on", handler=bad_handler, duration=DURATION)
 
-    await send_state_change(hassette, "light.kitchen", "off", "on")
-    await seed(hassette, "light.kitchen", "on")
+    await send_state_change(harness, "light.kitchen", "off", "on")
+    await seed(harness, "light.kitchen", "on")
 
     await asyncio.wait_for(error_ran.wait(), timeout=DURATION + 1.0)
 
@@ -116,9 +90,11 @@ async def test_duration_app_level_error_handler(combo_harness: tuple["Hassette",
     assert "bad_handler" in error_contexts[0].listener_name
 
 
-async def test_duration_per_listener_error_handler_wins(combo_harness: tuple["Hassette", "Bus"]) -> None:
+async def test_duration_per_listener_error_handler_wins(
+    combo_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+) -> None:
     """Duration fire + per-listener on_error takes precedence over app-level handler."""
-    hassette, bus = combo_harness
+    harness, hassette, bus = combo_harness
 
     app_level_calls: list[BusErrorContext] = []
     per_listener_calls: list[BusErrorContext] = []
@@ -143,8 +119,8 @@ async def test_duration_per_listener_error_handler_wins(combo_harness: tuple["Ha
         on_error=per_listener_handler,
     )
 
-    await send_state_change(hassette, "light.kitchen", "off", "on")
-    await seed(hassette, "light.kitchen", "on")
+    await send_state_change(harness, "light.kitchen", "off", "on")
+    await seed(harness, "light.kitchen", "on")
 
     await asyncio.wait_for(per_listener_ran.wait(), timeout=DURATION + 1.0)
     # negative-assertion: no event-driven alternative
@@ -155,9 +131,11 @@ async def test_duration_per_listener_error_handler_wins(combo_harness: tuple["Ha
     assert isinstance(per_listener_calls[0].exception, RuntimeError)
 
 
-async def test_duration_error_handler_receives_original_event(combo_harness: tuple["Hassette", "Bus"]) -> None:
+async def test_duration_error_handler_receives_original_event(
+    combo_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+) -> None:
     """Error context from a duration fire carries the original triggering event."""
-    hassette, bus = combo_harness
+    harness, hassette, bus = combo_harness
 
     error_contexts: list[BusErrorContext] = []
     error_ran = asyncio.Event()
@@ -172,8 +150,8 @@ async def test_duration_error_handler_receives_original_event(combo_harness: tup
     bus.on_error(on_error)
     bus.on_state_change("light.kitchen", changed_to="on", handler=bad_handler, duration=DURATION)
 
-    await send_state_change(hassette, "light.kitchen", "off", "on")
-    await seed(hassette, "light.kitchen", "on")
+    await send_state_change(harness, "light.kitchen", "off", "on")
+    await seed(harness, "light.kitchen", "on")
 
     await asyncio.wait_for(error_ran.wait(), timeout=DURATION + 1.0)
 
@@ -184,9 +162,11 @@ async def test_duration_error_handler_receives_original_event(combo_harness: tup
     assert ctx.event.payload.data.new_state["state"] == "on"
 
 
-async def test_duration_once_error_handler_and_removal(combo_harness: tuple["Hassette", "Bus"]) -> None:
+async def test_duration_once_error_handler_and_removal(
+    combo_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+) -> None:
     """once=True + duration + on_error: handler raises, error handler fires, listener still removed."""
-    hassette, bus = combo_harness
+    harness, hassette, bus = combo_harness
 
     error_contexts: list[BusErrorContext] = []
     error_ran = asyncio.Event()
@@ -204,20 +184,20 @@ async def test_duration_once_error_handler_and_removal(combo_harness: tuple["Has
     bus.on_error(on_error)
     bus.on_state_change("light.kitchen", changed_to="on", handler=bad_handler, duration=DURATION, once=True)
 
-    await send_state_change(hassette, "light.kitchen", "off", "on")
-    await seed(hassette, "light.kitchen", "on")
+    await send_state_change(harness, "light.kitchen", "off", "on")
+    await seed(harness, "light.kitchen", "on")
 
     await asyncio.wait_for(error_ran.wait(), timeout=DURATION + 1.0)
     assert call_count == 1
     assert len(error_contexts) == 1
 
-    await wait_for(lambda: not hassette._bus.task_bucket.pending_tasks(), desc="tasks drain")
+    await wait_for(lambda: not bus.task_bucket.pending_tasks(), desc="tasks drain")
 
     # Second trigger — listener should be gone (once contract upheld despite exception)
-    await send_state_change(hassette, "light.kitchen", "on", "off")
-    await seed(hassette, "light.kitchen", "off")
-    await send_state_change(hassette, "light.kitchen", "off", "on")
-    await seed(hassette, "light.kitchen", "on")
+    await send_state_change(harness, "light.kitchen", "on", "off")
+    await seed(harness, "light.kitchen", "off")
+    await send_state_change(harness, "light.kitchen", "off", "on")
+    await seed(harness, "light.kitchen", "on")
     await asyncio.sleep(DURATION + 0.1)
 
     assert call_count == 1, f"once=True handler fired {call_count} times despite error"
@@ -229,14 +209,11 @@ async def test_duration_once_error_handler_and_removal(combo_harness: tuple["Has
 # ---------------------------------------------------------------------------
 
 
-async def test_immediate_app_level_error_handler(combo_harness: tuple["Hassette", "Bus"]) -> None:
+async def test_immediate_app_level_error_handler(combo_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Immediate fire handler raises → app-level on_error receives the error context."""
-    hassette, bus = combo_harness
+    harness, hassette, bus = combo_harness
 
-    await hassette._state_proxy._test_seed_state(
-        "light.kitchen",
-        make_state_dict("light.kitchen", "on"),
-    )
+    await harness.seed_state("light.kitchen", make_state_dict("light.kitchen", "on"))
 
     error_contexts: list[BusErrorContext] = []
     error_ran = asyncio.Event()
@@ -259,14 +236,13 @@ async def test_immediate_app_level_error_handler(combo_harness: tuple["Hassette"
     assert "bad_handler" in error_contexts[0].listener_name
 
 
-async def test_immediate_per_listener_error_handler_wins(combo_harness: tuple["Hassette", "Bus"]) -> None:
+async def test_immediate_per_listener_error_handler_wins(
+    combo_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+) -> None:
     """Immediate fire + per-listener on_error takes precedence over app-level handler."""
-    hassette, bus = combo_harness
+    harness, hassette, bus = combo_harness
 
-    await hassette._state_proxy._test_seed_state(
-        "switch.outlet",
-        make_state_dict("switch.outlet", "on"),
-    )
+    await harness.seed_state("switch.outlet", make_state_dict("switch.outlet", "on"))
 
     app_level_calls: list[BusErrorContext] = []
     per_listener_calls: list[BusErrorContext] = []
@@ -300,14 +276,13 @@ async def test_immediate_per_listener_error_handler_wins(combo_harness: tuple["H
     assert isinstance(per_listener_calls[0].exception, RuntimeError)
 
 
-async def test_immediate_once_error_handler_and_removal(combo_harness: tuple["Hassette", "Bus"]) -> None:
+async def test_immediate_once_error_handler_and_removal(
+    combo_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+) -> None:
     """immediate + once=True + on_error: handler raises, error handler fires, listener consumed."""
-    hassette, bus = combo_harness
+    harness, hassette, bus = combo_harness
 
-    await hassette._state_proxy._test_seed_state(
-        "switch.outlet",
-        make_state_dict("switch.outlet", "on"),
-    )
+    await harness.seed_state("switch.outlet", make_state_dict("switch.outlet", "on"))
 
     error_contexts: list[BusErrorContext] = []
     error_ran = asyncio.Event()
@@ -332,19 +307,18 @@ async def test_immediate_once_error_handler_and_removal(combo_harness: tuple["Ha
     # Live event — listener should be consumed
     live_event = create_state_change_event(entity_id="switch.outlet", old_value="on", new_value="off")
     await hassette.send_event(live_event.topic, live_event)
-    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="tasks drain")
+    await wait_for(lambda: len(bus.task_bucket) == 0, desc="tasks drain")
 
     assert call_count == 1, f"once=True handler fired {call_count} times despite error"
 
 
-async def test_immediate_error_handler_receives_synthetic_event(combo_harness: tuple["Hassette", "Bus"]) -> None:
+async def test_immediate_error_handler_receives_synthetic_event(
+    combo_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+) -> None:
     """Error context from an immediate fire carries the synthetic event (old_state=None)."""
-    hassette, bus = combo_harness
+    harness, hassette, bus = combo_harness
 
-    await hassette._state_proxy._test_seed_state(
-        "sensor.temp",
-        make_state_dict("sensor.temp", "25.5"),
-    )
+    await harness.seed_state("sensor.temp", make_state_dict("sensor.temp", "25.5"))
 
     error_contexts: list[BusErrorContext] = []
     error_ran = asyncio.Event()
@@ -375,15 +349,15 @@ async def test_immediate_error_handler_receives_synthetic_event(combo_harness: t
 
 
 async def test_immediate_duration_elapsed_exceeds_error_handler(
-    combo_harness: tuple["Hassette", "Bus"],
+    combo_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """immediate + duration (elapsed >= duration) + on_error: fires immediately, error handler called."""
     from whenever import ZonedDateTime
 
-    hassette, bus = combo_harness
+    harness, hassette, bus = combo_harness
 
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=10)
-    await hassette._state_proxy._test_seed_state(
+    await harness.seed_state(
         "switch.boiler",
         make_state_dict("switch.boiler", "on", last_changed=past.format_iso()),
     )
@@ -415,15 +389,15 @@ async def test_immediate_duration_elapsed_exceeds_error_handler(
 
 
 async def test_immediate_duration_remaining_timer_error_handler(
-    combo_harness: tuple["Hassette", "Bus"],
+    combo_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """immediate + duration (elapsed < duration) + on_error: timer fires after remaining, error handler called."""
     from whenever import ZonedDateTime
 
-    hassette, bus = combo_harness
+    harness, hassette, bus = combo_harness
 
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=3)
-    await hassette._state_proxy._test_seed_state(
+    await harness.seed_state(
         "switch.fan",
         make_state_dict("switch.fan", "on", last_changed=past.format_iso()),
     )
@@ -459,15 +433,15 @@ async def test_immediate_duration_remaining_timer_error_handler(
 
 
 async def test_immediate_duration_per_listener_error_handler(
-    combo_harness: tuple["Hassette", "Bus"],
+    combo_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Three-way combo with per-listener on_error: per-listener wins over app-level."""
     from whenever import ZonedDateTime
 
-    hassette, bus = combo_harness
+    harness, hassette, bus = combo_harness
 
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=10)
-    await hassette._state_proxy._test_seed_state(
+    await harness.seed_state(
         "switch.heater",
         make_state_dict("switch.heater", "on", last_changed=past.format_iso()),
     )

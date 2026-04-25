@@ -45,11 +45,10 @@ from hassette.config.classes import AppManifest
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.test_utils.config import make_test_config
-from hassette.test_utils.harness import HassetteHarness, wait_for
+from hassette.test_utils.harness import TIMEOUTS, HassetteHarness, wait_for
 from hassette.test_utils.helpers import make_state_dict
 from hassette.test_utils.recording_api import _RECORD_TYPE_TO_DOMAIN, RecordingApi
 from hassette.test_utils.simulation import SimulationMixin
-from hassette.test_utils.time_control import _FREEZE_TIME_LOCK as _FREEZE_TIME_LOCK
 from hassette.test_utils.time_control import TimeControlMixin
 from hassette.types.enums import ResourceStatus
 
@@ -93,32 +92,42 @@ class AppConfigurationError(Exception):
         super().__init__(f"AppConfigurationError for {app_cls.__name__}: {summary}")
 
 
-# Cache of hermetic subclasses keyed by app_config_cls — avoids creating a new
-# subclass per _make_hermetic_config call, which would accumulate permanently in
-# __subclasses__() and Pydantic's internal model cache.
-_HERMETIC_CONFIG_CACHE: dict[type[AppConfig], type[AppConfig]] = {}
+# Cache of (hermetic_subclass, init_kwargs_ref) pairs keyed by app_config_cls — avoids
+# creating a new subclass per _make_hermetic_config call, which would accumulate
+# permanently in __subclasses__() and Pydantic's internal model cache.
+# Same closure-ref pattern as _get_hermetic_hassette_config_cls in config.py (singleton variant).
+_HERMETIC_CONFIG_CACHE: dict[type[AppConfig], tuple[type[AppConfig], list[dict[str, Any]]]] = {}
 
 
-def _get_hermetic_subclass(app_config_cls: type[AppConfig]) -> type[AppConfig]:
-    """Return a cached hermetic subclass of app_config_cls.
+def _get_hermetic_subclass(app_config_cls: type[AppConfig]) -> tuple[type[AppConfig], list[dict[str, Any]]]:
+    """Return a cached hermetic subclass of app_config_cls and its config cell.
 
-    The subclass reads init_kwargs from a class variable ``_hermetic_init_kwargs``
-    set by the caller before instantiation. This avoids creating a new class per
-    call while still supporting per-call config dicts.
+    The subclass reads init_kwargs from a mutable single-element list (the
+    "cell") captured by the ``settings_customise_sources`` closure. The caller
+    updates ``cell[0]`` before instantiation — race-free because the cell is
+    private to the returned pair and asyncio's cooperative multitasking means
+    no ``await`` occurs between the update and the instantiation.
+
+    Returns:
+        A ``(hermetic_subclass, cell)`` tuple. ``cell`` is a list whose only
+        element is the current ``config_dict``. Set ``cell[0] = new_dict``
+        before calling ``hermetic_subclass()`` to control what is validated.
     """
     cached = _HERMETIC_CONFIG_CACHE.get(app_config_cls)
     if cached is not None:
         return cached
 
-    class _HermeticSettings(app_config_cls):  # pyright: ignore[reportGeneralTypeIssues]
-        _hermetic_init_kwargs: ClassVar[dict[str, Any]] = {}
+    # Mutable single-element container that the closure reads from.
+    cell: list[dict[str, Any]] = [{}]
 
+    class _HermeticSettings(app_config_cls):  # pyright: ignore[reportGeneralTypeIssues]
         @classmethod
         def settings_customise_sources(cls, settings_cls, **_kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
-            return (InitSettingsSource(settings_cls, init_kwargs=cls._hermetic_init_kwargs),)
+            return (InitSettingsSource(settings_cls, init_kwargs=cell[0]),)
 
-    _HERMETIC_CONFIG_CACHE[app_config_cls] = _HermeticSettings
-    return _HermeticSettings
+    result = (_HermeticSettings, cell)
+    _HERMETIC_CONFIG_CACHE[app_config_cls] = result
+    return result
 
 
 def _make_hermetic_config(
@@ -127,7 +136,9 @@ def _make_hermetic_config(
     """Validate config_dict against app_config_cls using only InitSettingsSource.
 
     Uses a cached hermetic subclass per app_config_cls to avoid accumulating
-    subclass entries in __subclasses__() across repeated calls.
+    subclass entries in __subclasses__() across repeated calls. The config_dict
+    is injected via a closure cell rather than a ClassVar — no shared mutable
+    state is visible outside this call.
 
     Args:
         app_cls: The App class (used in error messages).
@@ -140,8 +151,10 @@ def _make_hermetic_config(
     Raises:
         AppConfigurationError: If validation fails.
     """
-    hermetic_cls = _get_hermetic_subclass(app_config_cls)
-    hermetic_cls._hermetic_init_kwargs = config_dict  # pyright: ignore[reportAttributeAccessIssue]
+    hermetic_cls, cell = _get_hermetic_subclass(app_config_cls)
+    # Update the cell before instantiation; no await between here and hermetic_cls()
+    # so asyncio cooperative multitasking cannot interleave a concurrent caller.
+    cell[0] = config_dict
 
     try:
         return hermetic_cls()
@@ -290,10 +303,6 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         )
         self._harness = harness
 
-        # Step 4b: Mark hassette as being in test mode — enables _test_seed_state
-        # and other test-only methods that have runtime guards.
-        harness.hassette._test_mode = True  # pyright: ignore[reportAttributeAccessIssue]
-
         # Step 5: Pre-configure hassette.api mock before state proxy starts.
         # HassetteHarness.start() checks "if not self.hassette.api" before setting it,
         # so we set it here first with get_states_raw returning [] to prevent
@@ -318,10 +327,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         )
 
         # Step 8: Mark state proxy ready
-        state_proxy = harness.hassette._state_proxy
-        if state_proxy is None:
-            raise RuntimeError("StateProxy was not started — ensure with_state_proxy() is called")
-        state_proxy.mark_ready(reason="AppTestHarness: mark ready for test")
+        harness.state_proxy.mark_ready(reason="AppTestHarness: mark ready for test")
 
         # Step 9: Acquire per-class lock to prevent concurrent harnesses for the
         # same App class from corrupting class-level attributes (Finding 2).
@@ -349,7 +355,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
 
         self._app = app
 
-        # Step 13: Register app shutdown first (late registration = early unwind)
+        # Step 12: Register app shutdown first (late registration = early unwind)
         # This ensures app shuts down before harness.stop() runs.
         # Wrapped to prevent shutdown exceptions from masking the original test failure.
         exit_stack.push_async_callback(self._safe_app_shutdown, app)
@@ -359,7 +365,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         await wait_for(
             lambda: app.status == ResourceStatus.RUNNING,
             desc=f"{app.class_name} RUNNING",
-            timeout=5.0,
+            timeout=TIMEOUTS.WAIT_FOR_READY,
         )
 
     @staticmethod
@@ -448,7 +454,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         Uses make_state_dict() internally with a past sentinel timestamp
         (1970-01-01T00:00:00Z). Simulated events sent via ``simulate_state_change``
         bypass ``StateProxy``'s staleness guard entirely (they use
-        ``_test_seed_state``), so the epoch timestamp does not play a protective
+        ``harness.seed_state()``), so the epoch timestamp does not play a protective
         ordering role — it simply marks seeded state as obviously synthetic.
 
         Call ``set_state`` **before** ``simulate_state_change`` for the same entity.
@@ -461,10 +467,6 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
             state: The state value (e.g., "on", "off", "25.5").
             **attributes: Entity attribute key/value pairs.
         """
-        harness = self._require_harness()
-        state_proxy = harness.hassette._state_proxy
-        if state_proxy is None:
-            raise RuntimeError("StateProxy is not available — ensure with_state_proxy() was called")
         state_dict = cast(
             "HassStateDict",
             make_state_dict(
@@ -475,7 +477,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
                 "1970-01-01T00:00:00+00:00",
             ),
         )
-        await state_proxy._test_seed_state(entity_id, state_dict)
+        await self._require_harness().seed_state(entity_id, state_dict)
 
     def seed_helper(self, record: BaseModel) -> None:
         """Seed a stored helper config for tests that read helper CRUD.
@@ -495,7 +497,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
                 or if a record with the same id is already seeded.
         """
         try:
-            domain = _RECORD_TYPE_TO_DOMAIN[type(record)]
+            domain, _deep_copy = _RECORD_TYPE_TO_DOMAIN[type(record)]
         except KeyError as e:
             raise ValueError(
                 f"Unknown helper record type: {type(record).__name__}. "

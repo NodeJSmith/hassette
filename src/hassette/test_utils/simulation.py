@@ -94,10 +94,9 @@ class SimulationMixin:
 
         # Merge seeded attributes from StateProxy when not explicitly provided.
         if old_attrs is None or new_attrs is None:
-            state_proxy = harness.hassette._state_proxy
             existing_attrs: dict[str, Any] = {}
-            if state_proxy is not None:
-                raw = state_proxy.states.get(entity_id)
+            if harness.has_component("state_proxy"):
+                raw = harness.state_proxy.states.get(entity_id)
                 if raw is not None:
                     existing_attrs = dict(raw.get("attributes", {}))
             if old_attrs is None:
@@ -152,12 +151,11 @@ class SimulationMixin:
         # Read both state value and existing attributes from the proxy.
         # Lock-free read is safe: dict.get() is atomic in CPython, consistent
         # with StateProxy.get_state()'s documented lock-free read pattern.
-        state_proxy = harness.hassette._state_proxy
         existing_attrs: dict[str, Any] = {}
         proxy_state: str = "unknown"
 
-        if state_proxy is not None:
-            raw = state_proxy.states.get(entity_id)
+        if harness.has_component("state_proxy"):
+            raw = harness.state_proxy.states.get(entity_id)
             if raw is not None:
                 proxy_state = raw["state"]
                 existing_attrs = dict(raw.get("attributes", {}))
@@ -507,10 +505,7 @@ class SimulationMixin:
         """
         harness = self._require_harness()
 
-        bus_service = harness.hassette._bus_service
-        assert bus_service is not None, (
-            "BusService unexpectedly None at drain time — harness setup may have partially failed"
-        )
+        bus_service = harness.bus_service
 
         app = self._app
         assert app is not None, "drain called before app was initialized — is the harness active?"
@@ -579,10 +574,27 @@ class SimulationMixin:
                         # All quiescent; surface any collected exceptions.
                         if collected_exceptions:
                             raise DrainError(collected_exceptions)
+                        # Warn if bus-level tasks are still pending. These live in
+                        # bus_service.task_bucket and are NOT drained by this method —
+                        # only app.task_bucket tasks are visible. Bus-level tasks arise
+                        # from listeners registered directly at the Bus level (outside an
+                        # App), including debounce/throttle callbacks. If this warning
+                        # fires unexpectedly, route the listener through App-level
+                        # registration (self.bus.on_state_change inside an App) to make
+                        # it visible to the drain.
+                        bus_pending = bus_service.task_bucket.pending_tasks()
+                        if bus_pending:
+                            LOGGER.warning(
+                                "_drain_task_bucket: drain is quiescent for app.task_bucket, "
+                                "but %d bus-level task(s) are still pending and were NOT drained: %s. "
+                                "Register listeners through App.bus to include them in the drain.",
+                                len(bus_pending),
+                                [t.get_name() for t in bus_pending],
+                            )
                         return
                 # else: loop back for another pass
         finally:
-            app.task_bucket.uninstall_exception_recorder()
+            app.task_bucket.uninstall_exception_recorder(_recorder)
 
     def _raise_drain_timeout(
         self,

@@ -430,8 +430,8 @@ class SchedulerService(Service):
         )
         await self._enqueue_job(job)
 
-    async def _test_trigger_due_jobs(self) -> int:
-        """Fire all jobs due at the current time. For test harnesses only.
+    async def trigger_due_jobs(self) -> int:
+        """Fire all jobs due at the current time.
 
         Snapshots due jobs via a single ``pop_due_and_peek_next(date_utils.now())``
         call, then awaits each ``_dispatch_and_log(job)`` inline (not via
@@ -440,8 +440,8 @@ class SchedulerService(Service):
         processed, preventing infinite loops when the clock is frozen.
 
         This method bypasses the ``serve()`` loop's timing and wakeup logic.
-        It is intended for use with ``AppTestHarness.trigger_due_jobs()`` and
-        should not be called in production code.
+        Intended for controlled test dispatch via ``AppTestHarness.trigger_due_jobs()``
+        or ``HassetteHarness.scheduler_service.trigger_due_jobs()``.
 
         Returns:
             The number of jobs dispatched.

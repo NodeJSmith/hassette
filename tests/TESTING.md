@@ -139,14 +139,6 @@ Builds an `AppFullSnapshot` from a list of manifests with auto-computed status c
 
 Builds a mock listener metric with `.to_dict()` and direct attribute access.
 
-### `make_old_app_instance(**kwargs)` — `test_utils/web_helpers.py`
-
-Builds a `SimpleNamespace` app entry for old-style `AppHandler.get_status_snapshot()` snapshots. Includes `owner_id` (defaults to `None`).
-
-### `make_old_snapshot(running=None, failed=None, only_app=None)` — `test_utils/web_helpers.py`
-
-Builds an outer `SimpleNamespace` for `AppHandler.get_status_snapshot()`. Auto-computes counts. Defaults to one running app when both `running` and `failed` are `None`.
-
 ### `make_job(**kwargs)` — `test_utils/web_helpers.py`
 
 Builds a `SimpleNamespace` scheduler job with sensible defaults (job_id, name, owner, next_run, repeat, trigger).
@@ -163,3 +155,49 @@ Configures the mock registry to return a proper `AppFullSnapshot`.
 - **`runtime_query_service`** — shared across integration web test files; each file defines its own `mock_hassette`
 - **`app`** — FastAPI application instance
 - **`client`** — httpx `AsyncClient`
+
+## RecordingApi Assertion Methods
+
+`RecordingApi` (used via `harness.api_recorder`) provides three assertion methods for verifying calls. The default match is **partial** — prefer `assert_called_partial` when you want to make that intent explicit in test code.
+
+### `assert_called(method, **kwargs)` — partial match (default)
+
+Passes if at least one recorded call for `method` contains **all** specified `kwargs` with matching values. Extra kwargs in the recorded call are ignored.
+
+```python
+await api.turn_off("light.x")
+# Recorded: {"entity_id": "light.x", "domain": "homeassistant"}
+
+api.assert_called("turn_off", entity_id="light.x")          # passes — partial match
+api.assert_called("turn_off", entity_id="light.x", domain="homeassistant")  # also passes
+```
+
+### `assert_called_partial(method, **kwargs)` — partial match (explicit alias)
+
+Identical to `assert_called`. Use this name when you want to be explicit that partial matching is intentional — for example, when the recorded call has many kwargs but you only care about one.
+
+```python
+api.assert_called_partial("call_service", domain="light")    # partial — ignores other kwargs
+```
+
+### `assert_called_exact(method, **kwargs)` — exact match (no extra kwargs allowed)
+
+Passes only when the recorded call's `kwargs` dict is **exactly equal** to the provided `kwargs` — no extra keys are allowed. Use this when you need to verify that the method was called with *only* the specified arguments and nothing else.
+
+```python
+await api.turn_off("light.x")
+# Recorded: {"entity_id": "light.x", "domain": "homeassistant"}
+
+api.assert_called_exact("turn_off", entity_id="light.x")                    # FAILS — "domain" is extra
+api.assert_called_exact("turn_off", entity_id="light.x", domain="homeassistant")  # passes
+```
+
+### When to use each
+
+| Use case | Method |
+|---|---|
+| Verify a call happened with key arguments (ignore extras) | `assert_called` or `assert_called_partial` |
+| Make partial-match intent explicit in test code | `assert_called_partial` |
+| Verify no unexpected arguments were passed | `assert_called_exact` |
+
+**Default is partial.** If you use `assert_called("turn_on", entity_id="light.x")` and the call also recorded `brightness=200`, the assertion still passes. Use `assert_called_exact` if that extra argument should be flagged as unexpected.

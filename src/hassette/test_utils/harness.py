@@ -8,7 +8,7 @@ import traceback
 import typing
 from collections.abc import Callable, Generator
 from typing import Any, cast
-from unittest.mock import AsyncMock, Mock, PropertyMock, patch
+from unittest.mock import AsyncMock, Mock
 
 from aiohttp import web
 from yarl import URL
@@ -26,7 +26,6 @@ from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
-from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.state_proxy import StateProxy
 from hassette.core.websocket_service import WebsocketService
 from hassette.events import Event
@@ -42,6 +41,33 @@ from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.events import HassStateDict
+
+
+# ---------------------------------------------------------------------------
+# Timeout constants — centralised here so rationale is documented in one place
+# ---------------------------------------------------------------------------
+#
+# Do not use raw floats in harness code — reference these constants instead so
+# any future re-tuning is a single-site edit.
+
+
+class TIMEOUTS:
+    """Centralised timeout constants for the test harness.
+
+    All values are in seconds. Rationale for each value is documented below.
+    Changing a value here propagates everywhere the constant is used.
+    """
+
+    # How long HassetteHarness.start() waits for all children to become ready.
+    # 5 s gives enough headroom for slow CI machines without masking real hangs.
+    WAIT_FOR_READY: float = 5.0
+
+    # How long seed_state() waits to acquire the StateProxy write lock.
+    # Under test conditions the lock should never be contended for long; 5 s is
+    # a generous upper bound that catches genuine deadlocks without false-positive
+    # failures on slow machines.
+    STATE_SEED_LOCK: float = 5.0
 
 
 async def wait_for(
@@ -57,17 +83,8 @@ async def wait_for(
         await asyncio.sleep(interval)
 
 
-async def start_resource(res: Resource, *, desc: str) -> asyncio.Task[Any] | None:
-    res.start()
-    task: asyncio.Task[Any] | None = None
-    task = res.task
-    await wait_for(lambda: getattr(res, "status", None) == ResourceStatus.RUNNING, desc=f"{desc} RUNNING")
-    return task
-
-
 async def shutdown_resource(res: Resource) -> None:
-    with contextlib.suppress(Exception):
-        await res.shutdown()
+    await res.shutdown()
 
 
 class _HassetteMock(Resource):
@@ -101,7 +118,6 @@ class _HassetteMock(Resource):
         self._states: StateManager | None = None
         self.state_registry: StateRegistry | None = None
         self.type_registry: TypeRegistry | None = None
-        self._test_mode: bool = False
 
     @property
     def command_executor(self) -> Any:
@@ -130,14 +146,24 @@ class _HassetteMock(Resource):
         return self._loop
 
     async def wait_for_ready(self, resources: "list[Resource] | Resource", timeout: float | None = None) -> bool:
-        """Immediately return True.
+        """Immediately return True (no-op stub).
 
         In the test harness, services call ``self.hassette.wait_for_ready()``
         during ``on_initialize()``.  The harness controls the lifecycle
         explicitly (``HassetteHarness.start()`` waits on real children via
         the utility function), so dependency waits inside individual services
-        should be no-ops.  The old polling implementation returned True
-        accidentally (Mock.is_ready() is truthy); this makes it explicit.
+        must be no-ops — allowing them to block would deadlock the startup
+        sequence.
+
+        The old polling implementation returned True accidentally
+        (``Mock.is_ready()`` is truthy); this makes the intent explicit.
+
+        Note: This no-op stub is NOT the right tool for testing startup
+        races (e.g., "what happens when a dependency is not yet ready?").
+        For startup race tests, use ``asyncio.Event`` as a gate and inject a
+        custom ``wait_for_ready`` side-effect. See ``CLAUDE.md`` → "Bug
+        Investigation Workflow" for the recommended pattern using
+        ``AsyncMock(side_effect=lambda _: gate.wait())``.
         """
         return True
 
@@ -172,6 +198,66 @@ def preserve_config(config: HassetteConfig) -> Generator[None, None, None]:
 # Dependency graph and startup ordering for HassetteHarness components
 # ---------------------------------------------------------------------------
 
+
+def topological_sort(graph: dict[str, set[str]]) -> list[str]:
+    """Return node names from *graph* in valid initialization order (deps before dependents).
+
+    Uses iterative DFS with three-color (_white/_gray/_black) marking.  Only nodes
+    present as keys in *graph* are included in the output; dependency references
+    to nodes not in *graph* are silently ignored.
+
+    Args:
+        graph: Adjacency map of node name → set of dependency names.
+
+    Returns:
+        A list of all node names ordered so that every dependency appears before
+        the nodes that depend on it.
+
+    Raises:
+        ValueError: If a cycle is detected.
+    """
+    if not graph:
+        return []
+
+    _white, _gray, _black = 0, 1, 2
+    color: dict[str, int] = {node: _white for node in graph}
+    result: list[str] = []
+
+    for start in graph:
+        if color[start] != _white:
+            continue
+
+        stack: list[tuple[str, typing.Iterator[str]]] = []
+        path: list[str] = []
+
+        color[start] = _gray
+        path.append(start)
+        stack.append((start, iter(dep for dep in graph[start] if dep in graph)))
+
+        while stack:
+            node, deps = stack[-1]
+            try:
+                dep = next(deps)
+            except StopIteration:
+                stack.pop()
+                path.pop()
+                color[node] = _black
+                result.append(node)
+                continue
+
+            if color.get(dep, _black) == _gray:
+                cycle_start = path.index(dep)
+                cycle_path = [*path[cycle_start:], dep]
+                raise ValueError("Cycle detected: " + " → ".join(cycle_path))
+
+            if color.get(dep, _black) == _white:
+                color[dep] = _gray
+                path.append(dep)
+                stack.append((dep, iter(d for d in graph[dep] if d in graph)))
+
+    return result
+
+
 _DEPENDENCIES: dict[str, set[str]] = {
     "bus": set(),
     "scheduler": set(),
@@ -180,39 +266,33 @@ _DEPENDENCIES: dict[str, set[str]] = {
     "app_handler": {"bus", "scheduler", "state_proxy"},
     "state_proxy": {"bus", "scheduler"},
     "state_registry": set(),
-    "service_watcher": {"bus"},
+    # service_watcher removed: ServiceWatcher is a real framework service but has no
+    # harness starter — the harness does not instantiate it.  Removing it eliminates
+    # the ghost entry that caused _STARTUP_ORDER to include a component with no starter.
 }
 
-_CONFLICTS: list[tuple[str, str]] = []
-
-_STARTUP_ORDER: list[str] = [
-    "bus",
-    "scheduler",
-    "file_watcher",
-    "api_mock",
-    "app_handler",
-    "state_proxy",
-    "state_registry",
-    "service_watcher",
-]
+# Startup order derived from the dependency graph — no manual maintenance required.
+_STARTUP_ORDER: list[str] = topological_sort(_DEPENDENCIES)
 
 # Maps harness component names to the corresponding real framework service class.
 # Used by the harness consistency test to verify _DEPENDENCIES stays in sync with
 # real service depends_on declarations.
 #
 # Omitted entries:
-#   "api_mock"     — harness-specific: wraps ApiResource with URL/header patches and
-#                    a local HTTP mock server; there is no single real class equivalent.
-#   "file_watcher" — FileWatcherService has no depends_on (empty list), so consistency
-#                    checks would be vacuous.  Omitting avoids false-positive drift.
+#   "api_mock"       — harness-specific: wraps ApiResource with URL/header patches and
+#                      a local HTTP mock server; there is no single real class equivalent.
+#   "file_watcher"   — FileWatcherService has no depends_on (empty list), so consistency
+#                      checks would be vacuous.  Omitting avoids false-positive drift.
 #   "state_registry" — StateRegistry is not a Resource subclass; it is a plain dataclass
 #                      registry with no depends_on concept.
+#   "service_watcher"— Removed: ServiceWatcher has no harness starter; including it in
+#                      this map without a matching _starters entry created a ghost entry
+#                      that made the structural test impossible to satisfy.
 _COMPONENT_CLASS_MAP: dict[str, type[Resource]] = {
     "bus": BusService,
     "scheduler": SchedulerService,
     "app_handler": AppHandler,
     "state_proxy": StateProxy,
-    "service_watcher": ServiceWatcher,
 }
 
 
@@ -235,14 +315,99 @@ class HassetteHarness:
 
         self.logger = logging.getLogger("hassette")
         self.hassette = _HassetteMock(config=self.config)
-        self._tasks: list[tuple[str, asyncio.Task[Any]]] = []
-        self._exit_stack = contextlib.AsyncExitStack()
+        self._exit_stack = contextlib.AsyncExitStack()  # canonical cleanup registry for background-task starters
         self.api_mock: SimpleTestServer | None = None
         self.api_base_url = URL.build(scheme="http", host="127.0.0.1", port=self.unused_tcp_port, path="/api/")
 
+        self._previous_task_factory: typing.Any = None
+        self._hassette_ctx_token: typing.Any = None  # Token[Hassette] | None
+
         if not skip_global_set:
-            context.set_global_hassette(cast("Hassette", self.hassette))
+            self._hassette_ctx_token = context.set_global_hassette(cast("Hassette", self.hassette))
         self.config.set_validated_app_manifests()
+
+    # --- Public accessor properties ---
+
+    @property
+    def state_proxy(self) -> "StateProxy":
+        """The StateProxy instance managed by this harness."""
+        sp = self.hassette._state_proxy
+        if sp is None:
+            raise RuntimeError("StateProxy is not available — ensure with_state_proxy() was called")
+        return sp
+
+    @property
+    def bus_service(self) -> "BusService":
+        """The BusService instance managed by this harness."""
+        bs = self.hassette._bus_service
+        if bs is None:
+            raise RuntimeError("BusService is not available — ensure with_bus() was called")
+        return bs
+
+    @property
+    def scheduler_service(self) -> "SchedulerService":
+        """The SchedulerService instance managed by this harness."""
+        ss = self.hassette._scheduler_service
+        if ss is None:
+            raise RuntimeError("SchedulerService is not available — ensure with_scheduler() was called")
+        return ss
+
+    @property
+    def bus(self) -> "Bus":
+        """The Bus instance managed by this harness."""
+        b = self.hassette._bus
+        if b is None:
+            raise RuntimeError("Bus is not available — ensure with_bus() was called")
+        return b
+
+    @property
+    def scheduler(self) -> "Scheduler":
+        """The Scheduler instance managed by this harness."""
+        s = self.hassette._scheduler
+        if s is None:
+            raise RuntimeError("Scheduler is not available — ensure with_scheduler() was called")
+        return s
+
+    @property
+    def app_handler(self) -> "AppHandler":
+        """The AppHandler instance managed by this harness."""
+        ah = self.hassette._app_handler
+        if ah is None:
+            raise RuntimeError("AppHandler is not available — ensure with_app_handler() was called")
+        return ah
+
+    # --- State seeding helper ---
+
+    async def seed_state(self, entity_id: str, state_dict: "HassStateDict") -> None:
+        """Seed an entity's state directly into the StateProxy cache.
+
+        Acquires the write lock under asyncio.timeout with a timeout and inserts
+        state_dict under entity_id. Does not call mark_ready() — lifecycle management
+        is the harness's responsibility.
+
+        Args:
+            entity_id: The entity ID to seed (e.g., "light.kitchen").
+            state_dict: The raw state dictionary to insert.
+
+        Raises:
+            RuntimeError: If StateProxy is not available (with_state_proxy() not called).
+            TimeoutError: If the lock cannot be acquired within the timeout.
+        """
+        proxy = self.state_proxy
+        lock = proxy.lock
+        try:
+            async with asyncio.timeout(TIMEOUTS.STATE_SEED_LOCK):
+                await lock.acquire()
+        except TimeoutError as exc:
+            msg = (
+                f"seed_state: could not acquire StateProxy lock "
+                f"within {TIMEOUTS.STATE_SEED_LOCK}s for entity {entity_id!r}"
+            )
+            raise TimeoutError(msg) from exc
+        try:
+            proxy.states[entity_id] = state_dict
+        finally:
+            lock.release()
 
     # --- Builder methods (return self for chaining) ---
 
@@ -274,15 +439,14 @@ class HassetteHarness:
         self._components.add("app_handler")
         return self
 
-    # --- Convenience query ---
-
-    def _has(self, component: str) -> bool:
+    def has_component(self, component: str) -> bool:
+        """Check whether a component is active (includes transitive deps after start())."""
         return component in self._components
 
     # --- Dependency resolution ---
 
     def _resolve_dependencies(self) -> None:
-        """Add implicit dependencies and validate conflicts."""
+        """Add implicit dependencies."""
         changed = True
         while changed:
             changed = False
@@ -292,10 +456,6 @@ class HassetteHarness:
                 if new_deps:
                     self._components |= new_deps
                     changed = True
-
-        for a, b in _CONFLICTS:
-            if a in self._components and b in self._components:
-                raise ValueError(f"Cannot use both {a} and {b}")
 
     # --- Lifecycle ---
 
@@ -313,13 +473,14 @@ class HassetteHarness:
         self._resolve_dependencies()
 
         self.hassette._loop = asyncio.get_running_loop()
+        self._previous_task_factory = self.hassette._loop.get_task_factory()
         self.hassette._loop_thread_id = threading.get_ident()
         self.hassette.task_bucket = TaskBucket(cast("Hassette", self.hassette), parent=self.hassette)  # pyright: ignore[reportArgumentType]
         self.hassette._loop.set_task_factory(make_task_factory(self.hassette.task_bucket))  # pyright: ignore[reportArgumentType]
 
         # Start components in dependency order
         for component in _STARTUP_ORDER:
-            if not self._has(component):
+            if not self.has_component(component):
                 continue
             starter = self._starters.get(component)
             if starter:
@@ -339,58 +500,77 @@ class HassetteHarness:
         if not self.hassette.api:
             self.hassette.api = AsyncMock()
             self.hassette.api.sync = Mock()
+            self.hassette.api.get_states_raw = AsyncMock(return_value=[])
 
         self.hassette._states = self.hassette.add_child(StateManager)
 
-        if not self._has("bus"):
+        if not self.has_component("bus"):
             self.hassette.send_event = AsyncMock()
 
         for resource in self.hassette.children:
             resource.start()
 
         self.hassette.ready_event.set()
-        await wait_for_ready(
-            [x for x in self.hassette.children], timeout=1, shutdown_event=self.hassette.shutdown_event
+        ready = await wait_for_ready(
+            [x for x in self.hassette.children],
+            timeout=TIMEOUTS.WAIT_FOR_READY,
+            shutdown_event=self.hassette.shutdown_event,
         )
+        if not ready:
+            not_ready = [r for r in self.hassette.children if not getattr(r, "is_ready", lambda: True)()]
+            names = [type(r).__name__ for r in not_ready] or ["unknown"]
+            raise TimeoutError(
+                f"HassetteHarness: components did not become ready within {TIMEOUTS.WAIT_FOR_READY}s: {names}"
+            )
 
         return self
 
     async def stop(self) -> None:
         self.hassette.shutdown_event.set()
 
-        try:
-            for resource in self.hassette.children:
+        # Shut down in reverse order so dependents stop before their dependencies.
+        shutdown_errors: list[Exception] = []
+        for resource in reversed(self.hassette.children):
+            try:
                 await shutdown_resource(resource)
-                await asyncio.sleep(0)
-        except Exception:
-            self.logger.exception("Error shutting down resources")
+            except Exception as exc:
+                shutdown_errors.append(exc)
 
         # Close event streams after all children have stopped — children send
         # STOPPED status events during shutdown, so streams must stay open until then.
-        if self.hassette._event_stream_service and not self.hassette._event_stream_service.event_streams_closed:
-            await self.hassette._event_stream_service.close_streams()
+        try:
+            if self.hassette._event_stream_service and not self.hassette._event_stream_service.event_streams_closed:
+                await self.hassette._event_stream_service.close_streams()
+        except Exception as exc:
+            shutdown_errors.append(exc)
 
         try:
-            for _, task in reversed(self._tasks):
-                task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await task
-        except Exception:
-            self.logger.exception("Error cancelling tasks")
+            await self._exit_stack.aclose()
+        except Exception as exc:
+            shutdown_errors.append(exc)
 
+        if self.hassette._loop is not None:
+            self.hassette._loop.set_task_factory(self._previous_task_factory)
+        self.hassette._loop = None
+        self.hassette._loop_thread_id = None
+
+        if self._hassette_ctx_token is not None:
+            context.HASSETTE_INSTANCE.reset(self._hassette_ctx_token)
+
+        # Assert clean AFTER all other cleanup so assertion errors are not masked.
         try:
             if self.api_mock is not None:
                 self.api_mock.assert_clean()
-        except Exception:
-            self.logger.exception("Error checking API mock")
+        except AssertionError as exc:
+            shutdown_errors.append(exc)
 
-        await self._exit_stack.aclose()
-
-        self.hassette._loop = None
+        if shutdown_errors:
+            raise ExceptionGroup("errors during harness teardown", shutdown_errors)
 
     # --- Component starters ---
 
     async def _start_bus(self) -> None:
+        # NOTE: _stub_execute mirrors _start_scheduler's version — keep both in sync.
         self.hassette._event_stream_service = self.hassette.add_child(EventStreamService)
 
         async def _stub_execute(cmd: Any) -> None:
@@ -441,6 +621,7 @@ class HassetteHarness:
         self.hassette._bus = self.hassette.add_child(Bus)
 
     async def _start_scheduler(self) -> None:
+        # NOTE: _stub_execute mirrors _start_bus's version — keep both in sync.
         async def _stub_execute(cmd: Any) -> None:
             if isinstance(cmd, ExecuteJob):
                 error_handler = cmd.job.error_handler or cmd.app_level_error_handler
@@ -514,24 +695,15 @@ class HassetteHarness:
         await site.start()
         self._exit_stack.push_async_callback(site.stop)
 
-        rest_url_patch = patch(
-            "hassette.core.api_resource.ApiResource._rest_url",
-            new_callable=PropertyMock,
-            return_value=self.api_base_url,
-        )
-        headers_patch = patch(
-            "hassette.core.api_resource.ApiResource._headers",
-            new_callable=PropertyMock,
-            return_value={"Authorization": "Bearer test_token"},
-        )
-        self._exit_stack.enter_context(rest_url_patch)
-        self._exit_stack.enter_context(headers_patch)
-
         self.hassette._websocket_service = Mock(spec=WebsocketService)
         self.hassette._websocket_service.ready_event = asyncio.Event()
         self.hassette._websocket_service.ready_event.set()
 
-        self.hassette._api_service = self.hassette.add_child(ApiResource)
+        self.hassette._api_service = self.hassette.add_child(
+            ApiResource,
+            rest_url=str(self.api_base_url),
+            headers_factory=lambda: {"Authorization": "Bearer test_token"},
+        )
         self.hassette.api = self.hassette.add_child(Api)
 
         self.api_mock = mock_server

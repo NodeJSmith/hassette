@@ -1,6 +1,7 @@
 import contextlib
 import json
 import logging
+import os
 import random
 import typing
 from pathlib import Path
@@ -12,6 +13,8 @@ import pytest
 from hassette.events import Event, RawStateChangeEvent, create_event_from_hass
 
 from .harness import HassetteHarness
+
+LOGGER = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
@@ -83,7 +86,6 @@ async def hassette_with_scheduler(
     test_config: "HassetteConfig",
 ) -> "AsyncIterator[Hassette]":
     async with hassette_harness(test_config).with_bus().with_scheduler() as harness:
-        assert harness.hassette._scheduler is not None
         yield cast("Hassette", harness.hassette)
 
 
@@ -93,9 +95,6 @@ async def hassette_with_file_watcher(
     test_config_with_apps,
 ) -> "AsyncIterator[Hassette]":
     async with hassette_harness(test_config_with_apps).with_bus().with_file_watcher().with_api_mock() as harness:
-        assert harness.hassette._file_watcher is not None
-        assert harness.hassette._bus_service is not None
-
         yield cast("Hassette", harness.hassette)
 
 
@@ -104,8 +103,9 @@ async def hassette_with_app_handler(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config_with_apps,
 ) -> "AsyncIterator[Hassette]":
-    # TODO: see if we can get this to be module scoped - currently fails
-    # because there are config changes that persist between tests
+    # Cannot upgrade to module scope: TestApps tests mutate app_handler state
+    # (orphan/enable/reload cycles) that is not reverted between tests. Upgrading
+    # requires making those tests idempotent or adding per-test state reset.
     async with hassette_harness(test_config_with_apps).with_app_handler().with_scheduler() as harness:
         yield cast("Hassette", harness.hassette)
 
@@ -130,8 +130,6 @@ async def hassette_with_state_proxy(
     Tests should use the cleanup_state_proxy_fixture to reset state between tests.
     """
     async with hassette_harness(test_config).with_state_proxy().with_state_registry().with_scheduler() as harness:
-        assert harness.hassette._state_proxy is not None
-        assert harness.hassette.api is not None
         yield cast("Hassette", harness.hassette)
 
 
@@ -158,8 +156,11 @@ def state_change_events(test_events_path: Path) -> list[RawStateChangeEvent]:
                 if isinstance(event, RawStateChangeEvent):
                     events.append(event)
 
-    # randomize order
-    random.shuffle(events)
+    # randomize order with a seeded RNG for reproducibility
+    seed = int.from_bytes(os.urandom(8))
+    LOGGER.info("Event shuffle seed: %d", seed)
+    rng = random.Random(seed)
+    rng.shuffle(events)
 
     return events
 
@@ -203,8 +204,11 @@ def other_events(test_events_path: Path) -> list[Event]:
                 event = create_event_from_hass(envelope)
                 events.append(event)
 
-    # randomize order
-    random.shuffle(events)
+    # randomize order with a seeded RNG for reproducibility
+    seed = int.from_bytes(os.urandom(8))
+    LOGGER.info("Event shuffle seed: %d", seed)
+    rng = random.Random(seed)
+    rng.shuffle(events)
 
     return events
 
