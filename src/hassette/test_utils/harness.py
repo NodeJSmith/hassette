@@ -359,7 +359,7 @@ class HassetteHarness:
     @property
     def api(self) -> "Api":
         """The Api instance managed by this harness."""
-        a = self.hassette.api
+        a = self.hassette._api
         if a is None:
             raise RuntimeError("Api is not available — harness has not been started")
         return a
@@ -367,7 +367,7 @@ class HassetteHarness:
     @property
     def states(self) -> "StateManager":
         """The StateManager instance managed by this harness."""
-        s = self.hassette.states
+        s = self.hassette._states
         if s is None:
             raise RuntimeError("StateManager is not available — harness has not been started")
         return s
@@ -517,12 +517,12 @@ class HassetteHarness:
             self.hassette._websocket_service.ready_event = asyncio.Event()
             self.hassette._websocket_service.ready_event.set()
 
-        if not self.hassette.api:
-            self.hassette.api = AsyncMock()
-            self.hassette.api.sync = Mock()
-            self.hassette.api.get_states_raw = AsyncMock(return_value=[])
+        if not self.hassette._api:
+            self.hassette._api = AsyncMock()
+            self.hassette._api.sync = Mock()
+            self.hassette._api.get_states_raw = AsyncMock(return_value=[])
 
-        self.hassette.states = self.hassette.add_child(StateManager)
+        self.hassette._states = self.hassette.add_child(StateManager)
 
         if not self.has_component("bus"):
             self.hassette.send_event = AsyncMock()
@@ -730,7 +730,7 @@ class HassetteHarness:
             rest_url=str(self.api_base_url),
             headers_factory=lambda: {"Authorization": "Bearer test_token"},
         )
-        self.hassette.api = self.hassette.add_child(Api)
+        self.hassette._api = self.hassette.add_child(Api)
 
         self.api_mock = mock_server
 
@@ -738,8 +738,8 @@ class HassetteHarness:
         self.hassette._state_proxy = self.hassette.add_child(StateProxy)
 
     async def _start_state_registry(self) -> None:
-        self.hassette.state_registry = STATE_REGISTRY
-        self.hassette.type_registry = TYPE_REGISTRY
+        self.hassette._state_registry = STATE_REGISTRY
+        self.hassette._type_registry = TYPE_REGISTRY
 
     # Dispatch table: component name → starter method
     _starters: typing.ClassVar[dict[str, Callable[["HassetteHarness"], typing.Awaitable[None]]]] = {

@@ -144,11 +144,10 @@ class Bus(Resource):
     def __init__(self, hassette: "Hassette", *, priority: int = 0, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         assert self.parent is not None, "Bus requires a parent Resource for telemetry identity (app_key/source_tier)"
+        assert self.hassette._bus_service is not None, "Bus service not initialized"
         self.bus_service = self.hassette._bus_service
         self.priority = priority
         self._registered_keys: set[tuple[str, int, str, str, str]] = set()
-
-        assert self.bus_service is not None, "Bus service not initialized"
         self._error_handler: BusErrorHandlerType | None = None
 
     async def on_initialize(self) -> None:

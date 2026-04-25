@@ -57,17 +57,10 @@ class Hassette(Resource):
     event bus, app handler, and other core components.
     """
 
-    api: Api | None
-    """API service for handling HTTP requests. Set by wire_services()."""
-
-    states: StateManager | None
-    """States manager instance for accessing Home Assistant states. Set by wire_services()."""
-
-    state_registry: StateRegistry | None
-    """State registry for managing state class registrations and conversions. Set by wire_services()."""
-
-    type_registry: TypeRegistry | None
-    """Type registry for managing state value type conversions. Set by wire_services()."""
+    _api: Api | None
+    _states: StateManager | None
+    _state_registry: StateRegistry | None
+    _type_registry: TypeRegistry | None
 
     @property
     def unique_name(self) -> str:
@@ -107,10 +100,10 @@ class Hassette(Resource):
         self._scheduler: Scheduler | None = None
 
         # Public instance slots — populated by wire_services()
-        self.api: Api | None = None
-        self.states: StateManager | None = None
-        self.state_registry: StateRegistry | None = None
-        self.type_registry: TypeRegistry | None = None
+        self._api: Api | None = None
+        self._states: StateManager | None = None
+        self._state_registry: StateRegistry | None = None
+        self._type_registry: TypeRegistry | None = None
 
         # Dependency graph — populated by wire_services()
         self._init_order: list[type[Resource]] = []
@@ -188,10 +181,10 @@ class Hassette(Resource):
         self._scheduler = self.add_child(Scheduler)
 
         # public instances
-        self.states = self.add_child(StateManager)
-        self.api = self.add_child(Api)
-        self.state_registry = STATE_REGISTRY
-        self.type_registry = TYPE_REGISTRY
+        self._states = self.add_child(StateManager)
+        self._api = self.add_child(Api)
+        self._state_registry = STATE_REGISTRY
+        self._type_registry = TYPE_REGISTRY
 
         # Validate dependency graph and compute initialization order.
         # Preserve insertion order (deterministic); deduplicate via dict.fromkeys.
@@ -225,6 +218,8 @@ class Hassette(Resource):
         Raises:
             RuntimeError: If no session has been created.
         """
+        if self._session_manager is None:
+            raise RuntimeError("wire_services() has not been called")
         return self._session_manager.session_id
 
     @property
@@ -331,6 +326,34 @@ class Hassette(Resource):
         return self._scheduler_service
 
     @property
+    def api(self) -> Api:
+        """API service for handling HTTP requests."""
+        if self._api is None:
+            raise RuntimeError("wire_services() has not been called")
+        return self._api
+
+    @property
+    def states(self) -> StateManager:
+        """States manager instance for accessing Home Assistant states."""
+        if self._states is None:
+            raise RuntimeError("wire_services() has not been called")
+        return self._states
+
+    @property
+    def state_registry(self) -> StateRegistry:
+        """State registry for managing state class registrations and conversions."""
+        if self._state_registry is None:
+            raise RuntimeError("wire_services() has not been called")
+        return self._state_registry
+
+    @property
+    def type_registry(self) -> TypeRegistry:
+        """Type registry for managing state value type conversions."""
+        if self._type_registry is None:
+            raise RuntimeError("wire_services() has not been called")
+        return self._type_registry
+
+    @property
     def apps(self) -> dict[str, dict[int, App[AppConfig]]]:
         """Get the currently loaded apps."""
         return self.app_handler.apps
@@ -347,7 +370,7 @@ class Hassette(Resource):
         """
         # note: return type left deliberately empty to allow underlying call to define it
 
-        return self._app_handler.get(app_name, index)
+        return self.app_handler.get(app_name, index)
 
     @classmethod
     def get_instance(cls) -> "Hassette":
@@ -357,6 +380,8 @@ class Hassette(Resource):
 
     async def send_event(self, event_name: str, event: "Event[Any]") -> None:
         """Send an event to the event bus."""
+        if self._event_stream_service is None:
+            raise RuntimeError("wire_services() has not been called")
         await self._event_stream_service.send_event(event_name, event)
 
     async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: float | None = None) -> bool:
@@ -402,10 +427,12 @@ class Hassette(Resource):
 
         # Phase 1: Start database and create session before anything else.
         # This guarantees a valid session_id exists before any handler can fire.
-        self._database_service.start()
+        self.database_service.start()
 
         try:
             await self.wait_for_ready([self.database_service], timeout=self.config.startup_timeout_seconds)
+            if self._session_manager is None:
+                raise RuntimeError("wire_services() has not been called")
             await self._session_manager.mark_orphaned_sessions()
             await self._session_manager.create_session()
         except Exception:
@@ -419,7 +446,7 @@ class Hassette(Resource):
         self.logger.info("Waiting for resources to initialize...")
         self.ready_event.set()
         type_to_instance = {type(c): c for c in self.children}
-        already_started: set[int] = {id(self._database_service)}
+        already_started: set[int] = {id(self.database_service)}
 
         for wave_types in self._init_waves:
             wave = [type_to_instance[t] for t in wave_types if t in type_to_instance]
@@ -438,7 +465,7 @@ class Hassette(Resource):
 
         try:
             await asyncio.wait_for(
-                self._bus_service.drain_framework_registrations(),
+                self.bus_service.drain_framework_registrations(),
                 timeout=self.config.registration_await_timeout,
             )
         except TimeoutError:
@@ -451,6 +478,8 @@ class Hassette(Resource):
         # because: (a) CommandExecutor is ready, (b) session_id is set, and (c) the
         # NOT EXISTS(... session_id = ?) guard prevents deletion of any listener that
         # has current-session invocations still in the write queue.
+        if self._session_manager is None:
+            raise RuntimeError("wire_services() has not been called")
         await self._session_manager.cleanup_stale_once_listeners()
 
         # does not take into consideration if apps failed to load, but those errors would have been logged already

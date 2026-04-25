@@ -276,6 +276,7 @@ class Api(Resource):
 
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
+        assert self.hassette._api_service is not None
         self._api_service = self.hassette._api_service
         self.sync = self.add_child(ApiSyncFacade, api=self)
 
