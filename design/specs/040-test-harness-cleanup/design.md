@@ -1,7 +1,7 @@
 # Design: Test Harness Cleanup
 
 **Date:** 2026-04-25
-**Status:** approved
+**Status:** archived
 **Research:** /tmp/claude-mine-prior-art-a9olsU/brief.md
 **Issues:** #590, #591, #592
 
