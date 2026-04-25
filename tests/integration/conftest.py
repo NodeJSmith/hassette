@@ -17,6 +17,7 @@ async def hassette_instance(test_config: HassetteConfig):
     """Provide a fresh Hassette instance and restore context afterwards."""
     test_config.reload()
     instance = Hassette(test_config)
+    instance.wire_services()
     try:
         yield instance
     finally:

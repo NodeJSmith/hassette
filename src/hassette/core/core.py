@@ -57,17 +57,17 @@ class Hassette(Resource):
     event bus, app handler, and other core components.
     """
 
-    api: Api
-    """API service for handling HTTP requests."""
+    api: Api | None
+    """API service for handling HTTP requests. Set by wire_services()."""
 
-    states: StateManager
-    """States manager instance for accessing Home Assistant states."""
+    states: StateManager | None
+    """States manager instance for accessing Home Assistant states. Set by wire_services()."""
 
-    state_registry: StateRegistry
-    """State registry for managing state class registrations and conversions."""
+    state_registry: StateRegistry | None
+    """State registry for managing state class registrations and conversions. Set by wire_services()."""
 
-    type_registry: TypeRegistry
-    """Type registry for managing state value type conversions."""
+    type_registry: TypeRegistry | None
+    """Type registry for managing state value type conversions. Set by wire_services()."""
 
     @property
     def unique_name(self) -> str:
@@ -79,20 +79,84 @@ class Hassette(Resource):
     def __init__(self, config: HassetteConfig) -> None:
         self.config = config
 
-        self.unique_id = ""
         enable_logging(self.config.log_level, log_buffer_size=self.config.web_api_log_buffer_size)
 
         super().__init__(self, task_bucket=TaskBucket(self, parent=self), parent=self)
         self.logger.info("Starting Hassette...", stacklevel=2)
 
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._loop_thread_id: int | None = None
+
+        # Service slot declarations — populated by wire_services()
+        self._event_stream_service: EventStreamService | None = None
+        self._database_service: DatabaseService | None = None
+        self._command_executor: CommandExecutor | None = None
+        self._bus_service: BusService | None = None
+        self._scheduler_service: SchedulerService | None = None
+        self._session_manager: SessionManager | None = None
+        self._service_watcher: ServiceWatcher | None = None
+        self._websocket_service: WebsocketService | None = None
+        self._file_watcher: FileWatcherService | None = None
+        self._web_ui_watcher: WebUiWatcherService | None = None
+        self._app_handler: AppHandler | None = None
+        self._api_service: ApiResource | None = None
+        self._state_proxy: StateProxy | None = None
+        self._runtime_query_service: RuntimeQueryService | None = None
+        self._telemetry_query_service: TelemetryQueryService | None = None
+        self._web_api_service: WebApiService | None = None
+        self._bus: Bus | None = None
+        self._scheduler: Scheduler | None = None
+
+        # Public instance slots — populated by wire_services()
+        self.api: Api | None = None
+        self.states: StateManager | None = None
+        self.state_registry: StateRegistry | None = None
+        self.type_registry: TypeRegistry | None = None
+
+        # Dependency graph — populated by wire_services()
+        self._init_order: list[type[Resource]] = []
+        self._init_waves: list[list[type[Resource]]] = []
+
+    def startup_tasks(self) -> None:
+        """Perform one-time startup tasks.
+
+        These were originally on the `HassetteConfig` class but we do not want these called
+        when the config is reloaded, only on initial startup.
+        """
+        # one time startup tasks
+        if self.config.import_dot_env_files:
+            for env_file in self.config.env_files:
+                if env_file.exists():
+                    self.logger.debug("Loading environment variables from %s", env_file)
+                    load_dotenv(env_file)
+
+        self.config.set_validated_app_manifests()
+
+        active_apps = [app for app in self.config.app_manifests.values() if app.enabled]
+        self.logger.info("Found %d active apps", len(active_apps), stacklevel=3)
+
+        inactive_apps = [app for app in self.config.app_manifests.values() if not app.enabled]
+        self.logger.info("Found %d inactive apps", len(inactive_apps), stacklevel=3)
+
+        if self.config.run_app_precheck:
+            try:
+                run_apps_pre_check(self.config)
+            except AppPrecheckFailedError:
+                if not self.config.allow_startup_if_app_precheck_fails:
+                    self.logger.error("App precheck failed and startup is not allowed to continue. Raising exception.")
+                    raise
+                self.logger.warning("App precheck failed, but startup will continue due to configuration setting.")
+
+    def wire_services(self) -> None:
+        """Register context variables, wire all services, and validate the dependency graph.
+
+        Must be called after construction and before run_forever().
+        """
         # set context variables
         context.set_global_hassette(self)
         context.set_global_hassette_config(self.config)
 
-        self._startup_tasks()
-
-        self._loop: asyncio.AbstractEventLoop | None = None
-        self._loop_thread_id: int | None = None
+        self.startup_tasks()
 
         # private background services — EventStreamService FIRST (BusService needs receive_stream at construction)
         self._event_stream_service = self.add_child(EventStreamService)
@@ -141,8 +205,8 @@ class Hassette(Resource):
         validate_dependency_graph(all_types)
 
         # Validate: no cycles; compute dependency levels for wave-based startup/shutdown.
-        self._init_order: list[type[Resource]] = topological_sort(all_types)
-        self._init_waves: list[list[type[Resource]]] = topological_levels(all_types)
+        self._init_order = topological_sort(all_types)
+        self._init_waves = topological_levels(all_types)
 
         # Log the dependency graph — only services with non-empty depends_on (root nodes add noise).
         dep_lines = [
@@ -162,36 +226,6 @@ class Hassette(Resource):
         """
         return self._session_manager.session_id
 
-    def _startup_tasks(self) -> None:
-        """Perform one-time startup tasks.
-
-        These were originally on the `HassetteConfig` class but we do not want these called
-        when the config is reloaded, only on initial startup.
-        """
-        # one time startup tasks
-        if self.config.import_dot_env_files:
-            for env_file in self.config.env_files:
-                if env_file.exists():
-                    self.logger.debug("Loading environment variables from %s", env_file)
-                    load_dotenv(env_file)
-
-        self.config.set_validated_app_manifests()
-
-        active_apps = [app for app in self.config.app_manifests.values() if app.enabled]
-        self.logger.info("Found %d active apps", len(active_apps), stacklevel=3)
-
-        inactive_apps = [app for app in self.config.app_manifests.values() if not app.enabled]
-        self.logger.info("Found %d inactive apps", len(inactive_apps), stacklevel=3)
-
-        if self.config.run_app_precheck:
-            try:
-                run_apps_pre_check(self.config)
-            except AppPrecheckFailedError:
-                if not self.config.allow_startup_if_app_precheck_fails:
-                    self.logger.error("App precheck failed and startup is not allowed to continue. Raising exception.")
-                    raise
-                self.logger.warning("App precheck failed, but startup will continue due to configuration setting.")
-
     @property
     def ws_url(self) -> str:
         """Construct the WebSocket URL for Home Assistant."""
@@ -205,6 +239,8 @@ class Hassette(Resource):
     @property
     def event_streams_closed(self) -> bool:
         """Check if the event streams are closed."""
+        if self._event_stream_service is None:
+            return True
         return self._event_stream_service.event_streams_closed
 
     @property
@@ -335,6 +371,8 @@ class Hassette(Resource):
 
     async def run_forever(self) -> None:
         """Start Hassette and run until shutdown signal is received."""
+        if not self._init_waves:
+            raise RuntimeError("call wire_services() before run_forever()")
         self._loop = asyncio.get_running_loop()
         self._loop_thread_id = threading.get_ident()
         self.loop.set_debug(self.config.asyncio_debug_mode)
@@ -462,7 +500,8 @@ class Hassette(Resource):
         """
         await super()._on_children_stopped()
         await self.handle_stop()
-        await self._event_stream_service.close_streams()
+        if self._event_stream_service is not None:
+            await self._event_stream_service.close_streams()
 
     @final
     async def shutdown(self) -> None:
@@ -489,20 +528,26 @@ class Hassette(Resource):
             if not self.event_streams_closed:
                 with suppress(Exception):
                     await self.handle_stop()
-            with suppress(Exception):
-                await self._event_stream_service.close_streams()
+            if self._event_stream_service is not None:
+                with suppress(Exception):
+                    await self._event_stream_service.close_streams()
             self.status = ResourceStatus.STOPPED
             self.mark_not_ready("shutdown complete")
 
     async def before_shutdown(self) -> None:
         """Remove bus listeners and finalize session before child shutdown."""
         try:
-            await self._bus.remove_all_listeners()
+            if self._bus is not None:
+                await self._bus.remove_all_listeners()
         except Exception:
             self.logger.exception("Failed to remove bus listeners during shutdown")
         finally:
             try:
-                counters = self._command_executor.get_drop_counters()
+                if self._command_executor is not None:
+                    counters = self._command_executor.get_drop_counters()
+                else:
+                    counters = (0, 0, 0, 0)
             except Exception:
                 counters = (0, 0, 0, 0)
-            await self._session_manager.finalize_session(drop_counters=counters)
+            if self._session_manager is not None:
+                await self._session_manager.finalize_session(drop_counters=counters)

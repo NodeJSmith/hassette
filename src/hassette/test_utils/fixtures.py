@@ -5,11 +5,11 @@ import os
 import random
 import typing
 from pathlib import Path
-from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
 import pytest
 
+from hassette.core.core import Hassette
 from hassette.events import Event, RawStateChangeEvent, create_event_from_hass
 
 from .harness import HassetteHarness
@@ -19,7 +19,7 @@ LOGGER = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
 
-    from hassette import Api, Hassette, HassetteConfig
+    from hassette import Api, HassetteConfig
     from hassette.events.hass.raw import HassEventEnvelopeDict
     from hassette.test_utils.test_server import SimpleTestServer
 
@@ -236,12 +236,8 @@ def hass_state_dicts(state_change_events: list[RawStateChangeEvent]) -> list[dic
 
 
 def run_hassette_startup_tasks(config: "HassetteConfig") -> None:
-    """Run Hassette's one-time startup tasks without constructing the full Hassette instance.
+    """Run Hassette's one-time startup tasks without wiring services.
 
-    This avoids resource warnings from unclosed AnyIO streams during unit/integration tests.
+    Uses the public startup_tasks() method on a bare Hassette instance.
     """
-
-    from hassette.core.core import Hassette as HassetteCore
-
-    dummy = SimpleNamespace(config=config, logger=logging.getLogger("hassette.test.startup"))
-    HassetteCore._startup_tasks(dummy)  # pyright: ignore[reportArgumentType]
+    Hassette(config).startup_tasks()
