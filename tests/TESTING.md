@@ -109,12 +109,12 @@ A single `cleanup_harness` autouse fixture resets module-scoped harness state be
 ```python
 @pytest.fixture(autouse=True)
 async def cleanup_harness(request: pytest.FixtureRequest) -> None:
-    for name in _MODULE_SCOPED_HARNESS_FIXTURES & set(request.fixturenames):
+    for name in _HARNESS_FIXTURES & set(request.fixturenames):
         harness: HassetteHarness = request.getfixturevalue(name)
         await harness.reset()
 ```
 
-`_MODULE_SCOPED_HARNESS_FIXTURES` covers the 6 module-scoped harness fixtures:
+`_HARNESS_FIXTURES` covers the 6 module-scoped harness fixtures:
 `hassette_with_nothing`, `hassette_with_bus`, `hassette_with_scheduler`,
 `hassette_with_file_watcher`, `hassette_with_state_proxy`,
 `hassette_with_state_registry`.

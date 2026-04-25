@@ -82,7 +82,6 @@ class Hassette(Resource):
         enable_logging(self.config.log_level, log_buffer_size=self.config.web_api_log_buffer_size)
 
         super().__init__(self, task_bucket=TaskBucket(self, parent=self), parent=self)
-        self.logger.info("Starting Hassette...", stacklevel=2)
 
         self._loop: asyncio.AbstractEventLoop | None = None
         self._loop_thread_id: int | None = None
@@ -152,6 +151,8 @@ class Hassette(Resource):
 
         Must be called after construction and before run_forever().
         """
+        self.logger.info("Starting Hassette...")
+
         # set context variables
         context.set_global_hassette(self)
         context.set_global_hassette_config(self.config)
