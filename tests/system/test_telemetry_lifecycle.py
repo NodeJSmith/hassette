@@ -44,7 +44,8 @@ async def test_handler_invocations_have_valid_session_id(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         session_id = hassette.session_id
         bus = hassette._bus
-        bus.on_state_change("light.kitchen_lights", handler=capture_event)
+        sub = bus.on_state_change("light.kitchen_lights", handler=capture_event)
+        await wait_for(lambda: sub.listener.db_id is not None, timeout=10.0, desc="listener registered")
         await hassette.api.call_service("light", "toggle", {"entity_id": "light.kitchen_lights"})
         await wait_for(lambda: len(received) >= 1, timeout=10.0, desc="state_changed event received")
 
@@ -203,7 +204,8 @@ async def test_handler_invocations_source_tier_matches_listener(ha_container, tm
 
     async with startup_context(config) as hassette:
         bus = hassette._bus
-        bus.on_state_change("light.kitchen_lights", handler=capture_handler)
+        sub = bus.on_state_change("light.kitchen_lights", handler=capture_handler)
+        await wait_for(lambda: sub.listener.db_id is not None, timeout=10.0, desc="listener registered")
         await hassette.api.call_service("light", "toggle", {"entity_id": "light.kitchen_lights"})
         await wait_for(lambda: len(received) >= 1, timeout=10.0, desc="state_changed event received")
 

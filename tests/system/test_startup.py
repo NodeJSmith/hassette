@@ -77,7 +77,8 @@ async def test_no_sentinel_records_dropped(ha_container, tmp_path, caplog):
     with caplog.at_level(logging.WARNING, logger="hassette.CommandExecutor"):
         async with startup_context(config) as hassette:
             bus = hassette._bus
-            bus.on_state_change("light.kitchen_lights", handler=capture_event)
+            sub = bus.on_state_change("light.kitchen_lights", handler=capture_event)
+            await wait_for(lambda: sub.listener.db_id is not None, timeout=10.0, desc="listener registered")
             await hassette.api.call_service("light", "toggle", {"entity_id": "light.kitchen_lights"})
             await wait_for(lambda: len(received) >= 1, timeout=10.0, desc="state_changed event received")
 
