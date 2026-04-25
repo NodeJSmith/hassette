@@ -393,9 +393,9 @@ class HassetteHarness:
     async def seed_state(self, entity_id: str, state_dict: "HassStateDict") -> None:
         """Seed an entity's state directly into the StateProxy cache.
 
-        Acquires the write lock under asyncio.wait_for with a 5-second timeout and
-        inserts state_dict under entity_id. Does not call mark_ready() — lifecycle
-        management is the harness's responsibility.
+        Acquires the write lock under asyncio.timeout with a timeout and inserts
+        state_dict under entity_id. Does not call mark_ready() — lifecycle management
+        is the harness's responsibility.
 
         Args:
             entity_id: The entity ID to seed (e.g., "light.kitchen").
@@ -403,7 +403,7 @@ class HassetteHarness:
 
         Raises:
             RuntimeError: If StateProxy is not available (with_state_proxy() not called).
-            TimeoutError: If the lock cannot be acquired within 5 seconds.
+            TimeoutError: If the lock cannot be acquired within the timeout.
         """
         proxy = self.state_proxy
         lock = proxy.lock
