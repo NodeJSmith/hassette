@@ -4,7 +4,7 @@ Tests targeted changes to core framework classes:
 1. context.set_global_hassette() returns Token[Hassette] | None
 2. App api_factory constructor parameter controls which Api subclass is created
 3. HassetteHarness.seed_state() acquires write lock with timeout and inserts state
-4. TaskBucket exception recorder list — install/uninstall/LIFO semantics
+4. TaskBucket exception recorder list — install/uninstall semantics
 """
 
 import asyncio
@@ -458,7 +458,7 @@ def _make_task_bucket() -> TaskBucket:
 
 
 class TestTaskBucketExceptionRecorderList:
-    """TaskBucket supports multiple concurrent exception recorders (list, LIFO-safe)."""
+    """TaskBucket supports multiple concurrent exception recorders."""
 
     def test_install_single_recorder(self) -> None:
         """Installing one recorder results in it being in the list."""
@@ -501,8 +501,8 @@ class TestTaskBucketExceptionRecorderList:
 
         assert bucket._exception_recorders == []
 
-    def test_multiple_exception_recorders_lifo(self) -> None:
-        """LIFO install/uninstall: last-installed recorder is first removed."""
+    def test_multiple_exception_recorders_independent_removal(self) -> None:
+        """Recorders can be removed independently in any order."""
         bucket = _make_task_bucket()
         r1 = Mock()
         r2 = Mock()
@@ -510,7 +510,6 @@ class TestTaskBucketExceptionRecorderList:
         bucket.install_exception_recorder(r1)
         bucket.install_exception_recorder(r2)
 
-        # Uninstall r2 first (LIFO order)
         bucket.uninstall_exception_recorder(r2)
         assert r2 not in bucket._exception_recorders
         assert r1 in bucket._exception_recorders
