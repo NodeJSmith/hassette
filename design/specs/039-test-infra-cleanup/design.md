@@ -1,7 +1,7 @@
 # Design: Test Infrastructure Cleanup
 
 **Date:** 2026-04-24
-**Status:** approved
+**Status:** archived
 **Research:** Challenge findings at `/tmp/claude-mine-challenge-ja52QP/findings.md` (27 findings from 5-critic codebase audit); design challenge at `/tmp/claude-mine-define-challenge-ct32lt/findings.md` (26 findings from 6-critic design review); infrastructure survey of all conftest files and test_utils modules
 
 ## Problem
