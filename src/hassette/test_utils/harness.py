@@ -106,7 +106,7 @@ class _HarnessEventStreamService(EventStreamService):
         """No-op in test context — streams are closed by HassetteHarness.stop() instead."""
 
     async def _close_streams_now(self) -> None:
-        """Close streams unconditionally. Called by HassetteHarness.stop() at the end of teardown."""
+        """Close streams unconditionally — bypasses the no-op override above."""
         await super().close_streams()
 
 

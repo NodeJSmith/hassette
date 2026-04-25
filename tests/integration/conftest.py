@@ -9,10 +9,10 @@ from httpx import ASGITransport, AsyncClient
 from hassette import Hassette
 from hassette.config.config import HassetteConfig
 from hassette.test_utils.web_mocks import create_mock_runtime_query_service
+from hassette.web.app import create_fastapi_app
 
 if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
-from hassette.web.app import create_fastapi_app
 
 
 @pytest.fixture
@@ -41,6 +41,9 @@ _HARNESS_FIXTURES = frozenset(
         "hassette_with_file_watcher",
         "hassette_with_state_proxy",
         "hassette_with_state_registry",
+        # hassette_with_mock_api excluded: yields (Api, SimpleTestServer), not HassetteHarness.
+        # hassette_with_app_handler excluded: function-scoped, recreated fresh per test.
+        # hassette_with_app_handler_custom_config excluded: same reason.
     }
 )
 

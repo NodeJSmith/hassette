@@ -238,6 +238,8 @@ def hass_state_dicts(state_change_events: list[RawStateChangeEvent]) -> list[dic
 def run_hassette_startup_tasks(config: "HassetteConfig") -> None:
     """Run Hassette's one-time startup tasks without wiring services.
 
-    Uses the public startup_tasks() method on a bare Hassette instance.
+    Creates a bare Hassette (no I/O side effects — only field init and logging
+    setup) and calls startup_tasks(). The instance is intentionally discarded;
+    wire_services() is not called.
     """
     Hassette(config).startup_tasks()
