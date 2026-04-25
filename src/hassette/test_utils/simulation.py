@@ -582,7 +582,7 @@ class SimulationMixin:
                         return
                 # else: loop back for another pass
         finally:
-            app.task_bucket.uninstall_exception_recorder()
+            app.task_bucket.uninstall_exception_recorder(_recorder)
 
     def _raise_drain_timeout(
         self,

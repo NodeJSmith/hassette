@@ -4,8 +4,11 @@ Tests three targeted changes to core framework classes:
 1. context.set_global_hassette() returns Token[Hassette] | None
 2. App api_factory constructor parameter controls which Api subclass is created
 3. StateProxy._test_seed_state() acquires write lock and inserts state
+4. TaskBucket exception recorder list — install/uninstall/LIFO semantics
 """
 
+import asyncio
+import contextlib
 from contextvars import ContextVar, Token
 from typing import ClassVar
 from unittest.mock import Mock, patch
@@ -22,6 +25,7 @@ from hassette.context import (
 from hassette.context import set_global_hassette
 from hassette.core.state_proxy import StateProxy
 from hassette.resources.base import Resource
+from hassette.task_bucket.task_bucket import TaskBucket
 
 # ---------------------------------------------------------------------------
 # Fixtures and helpers
@@ -308,6 +312,232 @@ class TestStateProxySeedState:
 
         with pytest.raises(RuntimeError, match="must not be called outside of test context"):
             await proxy._test_seed_state("sensor.temp", state_dict)
+
+
+# ---------------------------------------------------------------------------
+# now() import invariant
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Tests: hermetic config closure
+# ---------------------------------------------------------------------------
+
+
+class TestHermeticConfigClosure:
+    """_make_hermetic_config() closure-based approach — race-free, cache-retained."""
+
+    def test_hermetic_config_produces_validated_instance(self) -> None:
+        """_make_hermetic_config returns a validated AppConfig instance for valid input."""
+        from hassette.app.app_config import AppConfig
+        from hassette.test_utils.app_harness import _make_hermetic_config
+
+        class _Cfg(AppConfig):
+            pass
+
+        class _App:
+            pass
+
+        result = _make_hermetic_config(_App, _Cfg, {"instance_name": "test"})
+        assert isinstance(result, _Cfg)
+        assert result.instance_name == "test"
+
+    def test_hermetic_config_raises_for_invalid(self) -> None:
+        """_make_hermetic_config raises AppConfigurationError when validation fails."""
+        from hassette.app.app_config import AppConfig
+        from hassette.test_utils.app_harness import AppConfigurationError, _make_hermetic_config
+
+        class _RequiredCfg(AppConfig):
+            must_be_present: str
+
+        class _App:
+            pass
+
+        with pytest.raises(AppConfigurationError) as exc_info:
+            _make_hermetic_config(_App, _RequiredCfg, {"instance_name": "test"})
+
+        assert exc_info.value.original_error is not None
+
+    def test_hermetic_cache_is_retained(self) -> None:
+        """_HERMETIC_CONFIG_CACHE returns the same subclass on repeated calls for the same config cls."""
+        from hassette.app.app_config import AppConfig
+        from hassette.test_utils.app_harness import _HERMETIC_CONFIG_CACHE, _make_hermetic_config
+
+        class _CacheCfg(AppConfig):
+            pass
+
+        class _App:
+            pass
+
+        # Clear cache entry for this class to start fresh
+        _HERMETIC_CONFIG_CACHE.pop(_CacheCfg, None)
+
+        _make_hermetic_config(_App, _CacheCfg, {"instance_name": "a"})
+        first_entry = _HERMETIC_CONFIG_CACHE.get(_CacheCfg)
+        assert first_entry is not None, "Cache must contain an entry after first call"
+
+        first_subclass = first_entry[0]
+
+        _make_hermetic_config(_App, _CacheCfg, {"instance_name": "b"})
+        second_entry = _HERMETIC_CONFIG_CACHE.get(_CacheCfg)
+        assert second_entry is not None
+
+        second_subclass = second_entry[0]
+
+        assert first_subclass is second_subclass, (
+            "Cache must return the same subclass on repeated calls to prevent subclass accumulation"
+        )
+
+    def test_hermetic_config_different_dicts_per_call(self) -> None:
+        """Repeated calls with different config dicts each produce the correct validated instance."""
+        from hassette.app.app_config import AppConfig
+        from hassette.test_utils.app_harness import _make_hermetic_config
+
+        class _MultiCfg(AppConfig):
+            instance_name: str = "default"
+
+        class _App:
+            pass
+
+        r1 = _make_hermetic_config(_App, _MultiCfg, {"instance_name": "first"})
+        r2 = _make_hermetic_config(_App, _MultiCfg, {"instance_name": "second"})
+
+        assert r1.instance_name == "first"
+        assert r2.instance_name == "second"
+
+
+# ---------------------------------------------------------------------------
+# Tests: TaskBucket exception recorder list
+# ---------------------------------------------------------------------------
+
+
+def _make_task_bucket() -> TaskBucket:
+    """Build a TaskBucket with a minimal Hassette mock — bypasses __init__ to avoid Resource wiring."""
+    import weakref
+
+    hassette = Mock()
+    hassette.config.task_cancellation_timeout_seconds = 5
+    hassette.config.task_bucket_log_level = "DEBUG"
+    hassette.config.log_level = "DEBUG"
+    hassette.config.dev_mode = False
+    hassette._loop_thread_id = None
+
+    bucket = TaskBucket.__new__(TaskBucket)
+    bucket._tasks = weakref.WeakSet()
+    bucket._exception_recorders = []
+    bucket.hassette = hassette
+    bucket.logger = Mock()
+    # _unique_name is read by the unique_name property; set directly to avoid parent lookup
+    bucket._unique_name = "test_bucket"
+    return bucket
+
+
+class TestTaskBucketExceptionRecorderList:
+    """TaskBucket supports multiple concurrent exception recorders (list, LIFO-safe)."""
+
+    def test_install_single_recorder(self) -> None:
+        """Installing one recorder results in it being in the list."""
+        bucket = _make_task_bucket()
+        recorder = Mock()
+
+        bucket.install_exception_recorder(recorder)
+
+        assert recorder in bucket._exception_recorders
+
+    def test_install_multiple_recorders(self) -> None:
+        """Multiple recorders can be installed; all appear in the list."""
+        bucket = _make_task_bucket()
+        r1 = Mock()
+        r2 = Mock()
+
+        bucket.install_exception_recorder(r1)
+        bucket.install_exception_recorder(r2)
+
+        assert r1 in bucket._exception_recorders
+        assert r2 in bucket._exception_recorders
+
+    def test_uninstall_removes_recorder(self) -> None:
+        """uninstall_exception_recorder removes the specified recorder."""
+        bucket = _make_task_bucket()
+        r1 = Mock()
+
+        bucket.install_exception_recorder(r1)
+        bucket.uninstall_exception_recorder(r1)
+
+        assert r1 not in bucket._exception_recorders
+
+    def test_uninstall_missing_recorder_noop(self) -> None:
+        """Uninstalling a recorder that was never installed is a no-op, not an error."""
+        bucket = _make_task_bucket()
+        r1 = Mock()  # never installed
+
+        # Should not raise
+        bucket.uninstall_exception_recorder(r1)
+
+        assert bucket._exception_recorders == []
+
+    def test_multiple_exception_recorders_lifo(self) -> None:
+        """LIFO install/uninstall: last-installed recorder is first removed."""
+        bucket = _make_task_bucket()
+        r1 = Mock()
+        r2 = Mock()
+
+        bucket.install_exception_recorder(r1)
+        bucket.install_exception_recorder(r2)
+
+        # Uninstall r2 first (LIFO order)
+        bucket.uninstall_exception_recorder(r2)
+        assert r2 not in bucket._exception_recorders
+        assert r1 in bucket._exception_recorders
+
+        # Then uninstall r1
+        bucket.uninstall_exception_recorder(r1)
+        assert bucket._exception_recorders == []
+
+    def test_uninstall_idempotent_after_already_uninstalled(self) -> None:
+        """Calling uninstall twice for the same recorder is idempotent."""
+        bucket = _make_task_bucket()
+        r1 = Mock()
+
+        bucket.install_exception_recorder(r1)
+        bucket.uninstall_exception_recorder(r1)
+        # Second uninstall must not raise
+        bucket.uninstall_exception_recorder(r1)
+
+        assert bucket._exception_recorders == []
+
+    async def test_all_recorders_called_on_task_exception(self) -> None:
+        """All installed recorders are called when a task raises an exception."""
+        calls_r1: list[tuple] = []
+        calls_r2: list[tuple] = []
+
+        def r1(task, exc):
+            calls_r1.append((task, exc))
+
+        def r2(task, exc):
+            calls_r2.append((task, exc))
+
+        bucket = _make_task_bucket()
+        bucket.install_exception_recorder(r1)
+        bucket.install_exception_recorder(r2)
+
+        err = ValueError("boom")
+
+        async def _boom():
+            raise err
+
+        task = asyncio.create_task(_boom())
+        bucket.add(task)
+
+        with contextlib.suppress(TimeoutError, ValueError, asyncio.CancelledError):
+            await asyncio.wait_for(asyncio.shield(task), timeout=1.0)
+
+        await asyncio.sleep(0)  # let done callbacks fire
+
+        assert len(calls_r1) == 1, "r1 must be called once"
+        assert len(calls_r2) == 1, "r2 must be called once"
+        assert calls_r1[0][1] is err
+        assert calls_r2[0][1] is err
 
 
 # ---------------------------------------------------------------------------

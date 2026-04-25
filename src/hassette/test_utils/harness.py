@@ -393,6 +393,7 @@ class HassetteHarness:
         if not self.hassette.api:
             self.hassette.api = AsyncMock()
             self.hassette.api.sync = Mock()
+            self.hassette.api.get_states_raw = AsyncMock(return_value=[])
 
         self.hassette._states = self.hassette.add_child(StateManager)
 

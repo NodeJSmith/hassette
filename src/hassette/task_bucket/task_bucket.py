@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import functools
 import threading
 import typing
@@ -37,13 +38,13 @@ class TaskBucket(Resource):
     _tasks: "weakref.WeakSet[asyncio.Task[Any]]"
     """Weak set of tasks tracked by this bucket."""
 
-    _exception_recorder: "ExceptionRecorderT | None"
-    """Optional recorder called on each non-CancelledError task exception."""
+    _exception_recorders: "list[ExceptionRecorderT]"
+    """List of recorders called for each non-CancelledError task exception."""
 
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         self._tasks = weakref.WeakSet()
-        self._exception_recorder = None
+        self._exception_recorders = []
         self.mark_ready(reason="TaskBucket initialized")
 
     @property
@@ -73,8 +74,7 @@ class TaskBucket(Resource):
                 return
             if exc:
                 self.logger.error("[%s] task %s crashed", self.unique_name, t.get_name(), exc_info=exc)
-                recorder = self._exception_recorder
-                if recorder is not None:
+                for recorder in list(self._exception_recorders):
                     try:
                         recorder(t, exc)
                     except Exception:
@@ -97,16 +97,27 @@ class TaskBucket(Resource):
         collect task exceptions regardless of whether the task completed during a
         ``asyncio.wait`` call or between iterations.
 
+        Multiple recorders may be installed; all are called in installation order
+        (FIFO) when an exception occurs.
+
         Args:
             recorder: Callable ``(task, exc) -> None`` invoked on each non-cancellation
-                exception. Only one recorder can be installed at a time; calling this a
-                second time replaces the previous recorder.
+                exception.
         """
-        self._exception_recorder = recorder
+        self._exception_recorders.append(recorder)
 
-    def uninstall_exception_recorder(self) -> None:
-        """Remove the installed exception recorder (no-op if none installed)."""
-        self._exception_recorder = None
+    def uninstall_exception_recorder(self, recorder: "ExceptionRecorderT") -> None:
+        """Remove a previously installed exception recorder.
+
+        Safe to call even if the recorder was never installed — it is a no-op in
+        that case. Removes the first occurrence; assumes each installed recorder
+        is a distinct callable.
+
+        Args:
+            recorder: The recorder callable to remove.
+        """
+        with contextlib.suppress(ValueError):
+            self._exception_recorders.remove(recorder)
 
     def spawn(self, coro: CoroLikeT[T], *, name: str | None = None) -> asyncio.Task[T]:
         """Convenience: create and track a new task."""

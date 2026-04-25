@@ -93,32 +93,43 @@ class AppConfigurationError(Exception):
         super().__init__(f"AppConfigurationError for {app_cls.__name__}: {summary}")
 
 
-# Cache of hermetic subclasses keyed by app_config_cls — avoids creating a new
-# subclass per _make_hermetic_config call, which would accumulate permanently in
-# __subclasses__() and Pydantic's internal model cache.
-_HERMETIC_CONFIG_CACHE: dict[type[AppConfig], type[AppConfig]] = {}
+# Cache of (hermetic_subclass, cell) pairs keyed by app_config_cls — avoids
+# creating a new subclass per _make_hermetic_config call, which would accumulate
+# permanently in __subclasses__() and Pydantic's internal model cache.
+# The cell is a single-element list that the subclass closure reads from;
+# the caller sets cell[0] = config_dict before each instantiation.
+_HERMETIC_CONFIG_CACHE: dict[type[AppConfig], tuple[type[AppConfig], list[dict[str, Any]]]] = {}
 
 
-def _get_hermetic_subclass(app_config_cls: type[AppConfig]) -> type[AppConfig]:
-    """Return a cached hermetic subclass of app_config_cls.
+def _get_hermetic_subclass(app_config_cls: type[AppConfig]) -> tuple[type[AppConfig], list[dict[str, Any]]]:
+    """Return a cached hermetic subclass of app_config_cls and its config cell.
 
-    The subclass reads init_kwargs from a class variable ``_hermetic_init_kwargs``
-    set by the caller before instantiation. This avoids creating a new class per
-    call while still supporting per-call config dicts.
+    The subclass reads init_kwargs from a mutable single-element list (the
+    "cell") captured by the ``settings_customise_sources`` closure. The caller
+    updates ``cell[0]`` before instantiation — race-free because the cell is
+    private to the returned pair and asyncio's cooperative multitasking means
+    no ``await`` occurs between the update and the instantiation.
+
+    Returns:
+        A ``(hermetic_subclass, cell)`` tuple. ``cell`` is a list whose only
+        element is the current ``config_dict``. Set ``cell[0] = new_dict``
+        before calling ``hermetic_subclass()`` to control what is validated.
     """
     cached = _HERMETIC_CONFIG_CACHE.get(app_config_cls)
     if cached is not None:
         return cached
 
-    class _HermeticSettings(app_config_cls):  # pyright: ignore[reportGeneralTypeIssues]
-        _hermetic_init_kwargs: ClassVar[dict[str, Any]] = {}
+    # Mutable single-element container that the closure reads from.
+    cell: list[dict[str, Any]] = [{}]
 
+    class _HermeticSettings(app_config_cls):  # pyright: ignore[reportGeneralTypeIssues]
         @classmethod
         def settings_customise_sources(cls, settings_cls, **_kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
-            return (InitSettingsSource(settings_cls, init_kwargs=cls._hermetic_init_kwargs),)
+            return (InitSettingsSource(settings_cls, init_kwargs=cell[0]),)
 
-    _HERMETIC_CONFIG_CACHE[app_config_cls] = _HermeticSettings
-    return _HermeticSettings
+    result = (_HermeticSettings, cell)
+    _HERMETIC_CONFIG_CACHE[app_config_cls] = result
+    return result
 
 
 def _make_hermetic_config(
@@ -127,7 +138,9 @@ def _make_hermetic_config(
     """Validate config_dict against app_config_cls using only InitSettingsSource.
 
     Uses a cached hermetic subclass per app_config_cls to avoid accumulating
-    subclass entries in __subclasses__() across repeated calls.
+    subclass entries in __subclasses__() across repeated calls. The config_dict
+    is injected via a closure cell rather than a ClassVar — no shared mutable
+    state is visible outside this call.
 
     Args:
         app_cls: The App class (used in error messages).
@@ -140,8 +153,10 @@ def _make_hermetic_config(
     Raises:
         AppConfigurationError: If validation fails.
     """
-    hermetic_cls = _get_hermetic_subclass(app_config_cls)
-    hermetic_cls._hermetic_init_kwargs = config_dict  # pyright: ignore[reportAttributeAccessIssue]
+    hermetic_cls, cell = _get_hermetic_subclass(app_config_cls)
+    # Update the cell before instantiation; no await between here and hermetic_cls()
+    # so asyncio cooperative multitasking cannot interleave a concurrent caller.
+    cell[0] = config_dict
 
     try:
         return hermetic_cls()
