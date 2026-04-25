@@ -136,8 +136,8 @@ def _generate_helper_id(existing_ids: set[str], name: str) -> str:
 class ApiProtocol(Protocol):
     """Protocol covering the public async interface of hassette.api.Api.
 
-    RecordingApi is verified to conform to this protocol at module import
-    time via the module-level ``_: ApiProtocol = cast(...)`` assertion.
+    RecordingApi conformance is verified by Pyright (structural) and
+    ``test_recording_api_protocol_parity.py`` (behavioral).
     """
 
     # WebSocket methods
@@ -1353,13 +1353,3 @@ class RecordingApi(Resource):
         """
         self.calls = []
         self.helper_definitions = {d: {} for d in _SUPPORTED_HELPER_DOMAINS}
-
-
-# ---------------------------------------------------------------------------
-# Annotation convention — cast() is a runtime no-op and Pyright does not
-# verify structural conformance through casts. This serves as documentation
-# that RecordingApi intends to satisfy ApiProtocol. Actual safety nets:
-# (1) __getattr__ raises NotImplementedError for uncovered methods.
-# (2) ApiProtocol covers the subset of Api methods that RecordingApi stubs.
-# ---------------------------------------------------------------------------
-_: ApiProtocol = cast("ApiProtocol", RecordingApi)

@@ -45,6 +45,9 @@ async def cleanup_state_proxy_fixture(request: pytest.FixtureRequest):
 
     This autouse fixture resets the state proxy BEFORE each test to ensure a clean state.
     It only resets if the test actually uses the hassette_with_state_proxy fixture.
+
+    Note: accesses hassette._state_proxy directly because these fixtures receive a raw
+    Hassette instance (not a HassetteHarness).  Out of scope for WP04 accessor migration.
     """
     if "hassette_with_state_proxy" in request.fixturenames:
         hassette = request.getfixturevalue("hassette_with_state_proxy")
@@ -59,6 +62,9 @@ async def cleanup_bus_fixture(request: pytest.FixtureRequest):
 
     Covers fixtures that include a Bus: hassette_with_bus, hassette_with_scheduler,
     hassette_with_file_watcher, and hassette_with_state_registry.
+
+    Note: accesses hassette._bus directly because these fixtures receive a raw Hassette
+    instance (not a HassetteHarness).  Out of scope for WP04 accessor migration.
     """
     for name in _BUS_FIXTURES & set(request.fixturenames):
         hassette = request.getfixturevalue(name)
@@ -70,7 +76,11 @@ async def cleanup_bus_fixture(request: pytest.FixtureRequest):
 
 @pytest.fixture(autouse=True)
 async def cleanup_scheduler_fixture(request: pytest.FixtureRequest):
-    """Automatically remove all scheduler jobs before each test."""
+    """Automatically remove all scheduler jobs before each test.
+
+    Note: accesses hassette._scheduler directly because these fixtures receive a raw
+    Hassette instance (not a HassetteHarness).  Out of scope for WP04 accessor migration.
+    """
     if "hassette_with_scheduler" in request.fixturenames:
         hassette = request.getfixturevalue("hassette_with_scheduler")
         if hassette._scheduler is not None:

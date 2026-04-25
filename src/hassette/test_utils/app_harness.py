@@ -305,10 +305,6 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         )
         self._harness = harness
 
-        # Step 4b: Mark hassette as being in test mode — enables _test_seed_state
-        # and other test-only methods that have runtime guards.
-        harness.hassette._test_mode = True  # pyright: ignore[reportAttributeAccessIssue]
-
         # Step 5: Pre-configure hassette.api mock before state proxy starts.
         # HassetteHarness.start() checks "if not self.hassette.api" before setting it,
         # so we set it here first with get_states_raw returning [] to prevent
@@ -333,10 +329,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         )
 
         # Step 8: Mark state proxy ready
-        state_proxy = harness.hassette._state_proxy
-        if state_proxy is None:
-            raise RuntimeError("StateProxy was not started — ensure with_state_proxy() is called")
-        state_proxy.mark_ready(reason="AppTestHarness: mark ready for test")
+        harness.state_proxy.mark_ready(reason="AppTestHarness: mark ready for test")
 
         # Step 9: Acquire per-class lock to prevent concurrent harnesses for the
         # same App class from corrupting class-level attributes (Finding 2).
@@ -463,7 +456,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         Uses make_state_dict() internally with a past sentinel timestamp
         (1970-01-01T00:00:00Z). Simulated events sent via ``simulate_state_change``
         bypass ``StateProxy``'s staleness guard entirely (they use
-        ``_test_seed_state``), so the epoch timestamp does not play a protective
+        ``harness.seed_state()``), so the epoch timestamp does not play a protective
         ordering role — it simply marks seeded state as obviously synthetic.
 
         Call ``set_state`` **before** ``simulate_state_change`` for the same entity.
@@ -476,10 +469,6 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
             state: The state value (e.g., "on", "off", "25.5").
             **attributes: Entity attribute key/value pairs.
         """
-        harness = self._require_harness()
-        state_proxy = harness.hassette._state_proxy
-        if state_proxy is None:
-            raise RuntimeError("StateProxy is not available — ensure with_state_proxy() was called")
         state_dict = cast(
             "HassStateDict",
             make_state_dict(
@@ -490,7 +479,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
                 "1970-01-01T00:00:00+00:00",
             ),
         )
-        await state_proxy._test_seed_state(entity_id, state_dict)
+        await self._require_harness().seed_state(entity_id, state_dict)
 
     def seed_helper(self, record: BaseModel) -> None:
         """Seed a stored helper config for tests that read helper CRUD.

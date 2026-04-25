@@ -1,9 +1,9 @@
 """Unit tests for framework injection points added for AppTestHarness.
 
-Tests three targeted changes to core framework classes:
+Tests targeted changes to core framework classes:
 1. context.set_global_hassette() returns Token[Hassette] | None
 2. App api_factory constructor parameter controls which Api subclass is created
-3. StateProxy._test_seed_state() acquires write lock and inserts state
+3. HassetteHarness.seed_state() acquires write lock with timeout and inserts state
 4. TaskBucket exception recorder list — install/uninstall/LIFO semantics
 """
 
@@ -26,6 +26,7 @@ from hassette.context import set_global_hassette
 from hassette.core.state_proxy import StateProxy
 from hassette.resources.base import Resource
 from hassette.task_bucket.task_bucket import TaskBucket
+from hassette.test_utils.harness import HassetteHarness
 
 # ---------------------------------------------------------------------------
 # Fixtures and helpers
@@ -211,29 +212,34 @@ class TestAppApiFactory:
 
 
 # ---------------------------------------------------------------------------
-# Tests: StateProxy._test_seed_state
+# Tests: HassetteHarness.seed_state
 # ---------------------------------------------------------------------------
 
 
-class TestStateProxySeedState:
-    """StateProxy._test_seed_state() writes to the state cache under the write lock."""
+class TestHarnessSeedState:
+    """HassetteHarness.seed_state() writes to the StateProxy cache under the lock."""
 
-    def _make_state_proxy(self, *, test_mode: bool = True) -> StateProxy:
-        """Build a StateProxy with a mock Hassette (no real initialization)."""
+    def _make_harness_with_proxy(self) -> tuple[HassetteHarness, StateProxy]:
+        """Build a HassetteHarness with a minimal StateProxy (no full lifecycle)."""
+        import tempfile
+
+        from hassette.test_utils.config import make_test_config
+
+        config = make_test_config(data_dir=tempfile.mkdtemp())
+        harness = HassetteHarness(config, skip_global_set=True)
+
+        # Install a minimal StateProxy directly on the mock hassette
         proxy = object.__new__(StateProxy)
-        # Initialize only the attributes we need (avoid calling __init__
-        # which would add_child resources and trigger full lifecycle)
         proxy.states = {}  # pyright: ignore[reportAttributeAccessIssue]
         proxy.lock = FairAsyncRLock()  # pyright: ignore[reportAttributeAccessIssue]
-        # _test_seed_state requires hassette._test_mode = True
-        hassette_mock = Mock()
-        hassette_mock._test_mode = test_mode
-        proxy.hassette = hassette_mock  # pyright: ignore[reportAttributeAccessIssue]
-        return proxy
+        proxy.hassette = harness.hassette  # pyright: ignore[reportAttributeAccessIssue]
+        harness.hassette._state_proxy = proxy
 
-    async def test_seed_state_writes_to_cache(self) -> None:
-        """_test_seed_state inserts the state dict into self.states."""
-        proxy = self._make_state_proxy()
+        return harness, proxy
+
+    async def test_harness_seed_state_writes_to_proxy(self) -> None:
+        """seed_state inserts the state dict into StateProxy.states."""
+        harness, proxy = self._make_harness_with_proxy()
 
         state_dict = {
             "entity_id": "light.kitchen",
@@ -244,26 +250,26 @@ class TestStateProxySeedState:
             "context": {"id": "test"},
         }
 
-        await proxy._test_seed_state("light.kitchen", state_dict)
+        await harness.seed_state("light.kitchen", state_dict)
 
         assert "light.kitchen" in proxy.states  # pyright: ignore[reportAttributeAccessIssue]
         assert proxy.states["light.kitchen"] is state_dict  # pyright: ignore[reportAttributeAccessIssue]
 
-    async def test_seed_state_overwrites_existing(self) -> None:
-        """_test_seed_state replaces any existing entry for the entity."""
-        proxy = self._make_state_proxy()
+    async def test_harness_seed_state_overwrites_existing(self) -> None:
+        """seed_state replaces any existing entry for the entity."""
+        harness, proxy = self._make_harness_with_proxy()
 
         old_dict = {"entity_id": "light.kitchen", "state": "off", "attributes": {}}
         new_dict = {"entity_id": "light.kitchen", "state": "on", "attributes": {}}
 
         proxy.states["light.kitchen"] = old_dict  # pyright: ignore[reportAttributeAccessIssue]
-        await proxy._test_seed_state("light.kitchen", new_dict)
+        await harness.seed_state("light.kitchen", new_dict)
 
         assert proxy.states["light.kitchen"] is new_dict  # pyright: ignore[reportAttributeAccessIssue]
 
-    async def test_seed_state_acquires_lock(self) -> None:
-        """_test_seed_state acquires the write lock before writing."""
-        proxy = self._make_state_proxy()
+    async def test_harness_seed_state_acquires_lock(self) -> None:
+        """seed_state acquires the write lock before writing."""
+        harness, proxy = self._make_harness_with_proxy()
 
         lock_acquired = False
         original_lock = proxy.lock  # pyright: ignore[reportAttributeAccessIssue]
@@ -271,27 +277,65 @@ class TestStateProxySeedState:
         class _SpyLock:
             """Wrapper that records whether the lock was acquired."""
 
-            async def __aenter__(self) -> "_SpyLock":
+            async def acquire(self) -> bool:
                 nonlocal lock_acquired
                 lock_acquired = True
-                await original_lock.__aenter__()
-                return self
+                return await original_lock.acquire()
 
-            async def __aexit__(self, *args) -> None:  # pyright: ignore[reportUnknownParameterType]
-                await original_lock.__aexit__(*args)
+            def release(self) -> None:
+                original_lock.release()
 
         proxy.lock = _SpyLock()  # pyright: ignore[reportAttributeAccessIssue]
 
         state_dict = {"entity_id": "sensor.temp", "state": "25", "attributes": {}}
-        await proxy._test_seed_state("sensor.temp", state_dict)
+        await harness.seed_state("sensor.temp", state_dict)
 
-        assert lock_acquired, "_test_seed_state must acquire the write lock"
+        assert lock_acquired, "seed_state must acquire the write lock"
 
-    async def test_seed_state_does_not_call_mark_ready(self) -> None:
-        """_test_seed_state must NOT call mark_ready() — lifecycle is separate from seeding."""
-        proxy = self._make_state_proxy()
+    async def test_harness_seed_state_timeout_on_locked_proxy(self) -> None:
+        """seed_state raises TimeoutError when lock cannot be acquired within timeout."""
+        harness, proxy = self._make_harness_with_proxy()
 
-        # Track calls to mark_ready (should not be called)
+        # Acquire the lock externally and hold it to simulate a deadlock scenario.
+        # Use an Event to gate when the lock is held, and another to release it.
+        lock_held = asyncio.Event()
+        release_gate = asyncio.Event()
+
+        async def _hold_lock() -> None:
+            async with proxy.lock:  # pyright: ignore[reportAttributeAccessIssue]
+                lock_held.set()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await release_gate.wait()
+
+        task = asyncio.create_task(_hold_lock())
+        await lock_held.wait()  # wait until lock is held
+
+        state_dict = {"entity_id": "sensor.temp", "state": "25", "attributes": {}}
+
+        try:
+            # Patch asyncio.wait_for in harness module to use a very short timeout
+            import unittest.mock as um
+
+            original_wait_for = asyncio.wait_for
+
+            async def _fast_wait_for(coro, timeout=None):  # noqa: ARG001  # pyright: ignore[reportUnknownParameterType]
+                return await original_wait_for(coro, timeout=0.05)
+
+            with (
+                um.patch("hassette.test_utils.harness.asyncio.wait_for", _fast_wait_for),
+                pytest.raises(TimeoutError, match="seed_state"),
+            ):
+                await harness.seed_state("sensor.temp", state_dict)
+        finally:
+            release_gate.set()
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await task
+
+    async def test_harness_seed_state_does_not_call_mark_ready(self) -> None:
+        """seed_state must NOT call mark_ready() — lifecycle is separate from seeding."""
+        harness, proxy = self._make_harness_with_proxy()
+
         mark_ready_called = False
 
         def _spy_mark_ready(**_kwargs: object) -> None:
@@ -301,17 +345,9 @@ class TestStateProxySeedState:
         proxy.mark_ready = _spy_mark_ready  # pyright: ignore[reportAttributeAccessIssue]
 
         state_dict = {"entity_id": "sensor.temp", "state": "25", "attributes": {}}
-        await proxy._test_seed_state("sensor.temp", state_dict)
+        await harness.seed_state("sensor.temp", state_dict)
 
-        assert not mark_ready_called, "_test_seed_state must not call mark_ready()"
-
-    async def test_seed_state_rejects_non_test_mode(self) -> None:
-        """_test_seed_state raises RuntimeError when hassette._test_mode is not set."""
-        proxy = self._make_state_proxy(test_mode=False)
-        state_dict = {"entity_id": "sensor.temp", "state": "25", "attributes": {}}
-
-        with pytest.raises(RuntimeError, match="must not be called outside of test context"):
-            await proxy._test_seed_state("sensor.temp", state_dict)
+        assert not mark_ready_called, "seed_state must not call mark_ready()"
 
 
 # ---------------------------------------------------------------------------

@@ -8,7 +8,7 @@ import traceback
 import typing
 from collections.abc import Callable, Generator
 from typing import Any, cast
-from unittest.mock import AsyncMock, Mock, PropertyMock, patch
+from unittest.mock import AsyncMock, Mock
 
 from aiohttp import web
 from yarl import URL
@@ -41,6 +41,7 @@ from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.events import HassStateDict
 
 
 async def wait_for(
@@ -96,7 +97,6 @@ class _HassetteMock(Resource):
         self._states: StateManager | None = None
         self.state_registry: StateRegistry | None = None
         self.type_registry: TypeRegistry | None = None
-        self._test_mode: bool = False
 
     @property
     def command_executor(self) -> Any:
@@ -296,6 +296,86 @@ class HassetteHarness:
         if not skip_global_set:
             self._hassette_ctx_token = context.set_global_hassette(cast("Hassette", self.hassette))
         self.config.set_validated_app_manifests()
+
+    # --- Public accessor properties ---
+
+    @property
+    def state_proxy(self) -> "StateProxy":
+        """The StateProxy instance managed by this harness."""
+        sp = self.hassette._state_proxy
+        if sp is None:
+            raise RuntimeError("StateProxy is not available — ensure with_state_proxy() was called")
+        return sp
+
+    @property
+    def bus_service(self) -> "BusService":
+        """The BusService instance managed by this harness."""
+        bs = self.hassette._bus_service
+        if bs is None:
+            raise RuntimeError("BusService is not available — ensure with_bus() was called")
+        return bs
+
+    @property
+    def scheduler_service(self) -> "SchedulerService":
+        """The SchedulerService instance managed by this harness."""
+        ss = self.hassette._scheduler_service
+        if ss is None:
+            raise RuntimeError("SchedulerService is not available — ensure with_scheduler() was called")
+        return ss
+
+    @property
+    def bus(self) -> "Bus":
+        """The Bus instance managed by this harness."""
+        b = self.hassette._bus
+        if b is None:
+            raise RuntimeError("Bus is not available — ensure with_bus() was called")
+        return b
+
+    @property
+    def scheduler(self) -> "Scheduler":
+        """The Scheduler instance managed by this harness."""
+        s = self.hassette._scheduler
+        if s is None:
+            raise RuntimeError("Scheduler is not available — ensure with_scheduler() was called")
+        return s
+
+    @property
+    def app_handler(self) -> "AppHandler":
+        """The AppHandler instance managed by this harness."""
+        ah = self.hassette._app_handler
+        if ah is None:
+            raise RuntimeError("AppHandler is not available — ensure with_app_handler() was called")
+        return ah
+
+    # --- State seeding helper ---
+
+    async def seed_state(self, entity_id: str, state_dict: "HassStateDict") -> None:
+        """Seed an entity's state directly into the StateProxy cache.
+
+        Acquires the write lock under asyncio.wait_for with a 5-second timeout and
+        inserts state_dict under entity_id. Does not call mark_ready() — lifecycle
+        management is the harness's responsibility.
+
+        Args:
+            entity_id: The entity ID to seed (e.g., "light.kitchen").
+            state_dict: The raw state dictionary to insert.
+
+        Raises:
+            RuntimeError: If StateProxy is not available (with_state_proxy() not called).
+            TimeoutError: If the lock cannot be acquired within 5 seconds.
+        """
+        proxy = self.state_proxy
+        lock = proxy.lock
+        try:
+            await asyncio.wait_for(lock.acquire(), timeout=5.0)
+        except TimeoutError as exc:
+            raise TimeoutError(
+                f"seed_state: could not acquire StateProxy lock within 5s for entity {entity_id!r}"
+            ) from exc
+        try:
+            proxy.states[entity_id] = state_dict
+        finally:
+            lock.release()
 
     # --- Builder methods (return self for chaining) ---
 
@@ -582,24 +662,15 @@ class HassetteHarness:
         await site.start()
         self._exit_stack.push_async_callback(site.stop)
 
-        rest_url_patch = patch(
-            "hassette.core.api_resource.ApiResource._rest_url",
-            new_callable=PropertyMock,
-            return_value=self.api_base_url,
-        )
-        headers_patch = patch(
-            "hassette.core.api_resource.ApiResource._headers",
-            new_callable=PropertyMock,
-            return_value={"Authorization": "Bearer test_token"},
-        )
-        self._exit_stack.enter_context(rest_url_patch)
-        self._exit_stack.enter_context(headers_patch)
-
         self.hassette._websocket_service = Mock(spec=WebsocketService)
         self.hassette._websocket_service.ready_event = asyncio.Event()
         self.hassette._websocket_service.ready_event.set()
 
-        self.hassette._api_service = self.hassette.add_child(ApiResource)
+        self.hassette._api_service = self.hassette.add_child(
+            ApiResource,
+            rest_url=str(self.api_base_url),
+            headers_factory=lambda: {"Authorization": "Bearer test_token"},
+        )
         self.hassette.api = self.hassette.add_child(Api)
 
         self.api_mock = mock_server

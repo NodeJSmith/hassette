@@ -94,10 +94,9 @@ class SimulationMixin:
 
         # Merge seeded attributes from StateProxy when not explicitly provided.
         if old_attrs is None or new_attrs is None:
-            state_proxy = harness.hassette._state_proxy
             existing_attrs: dict[str, Any] = {}
-            if state_proxy is not None:
-                raw = state_proxy.states.get(entity_id)
+            if harness._has("state_proxy"):
+                raw = harness.state_proxy.states.get(entity_id)
                 if raw is not None:
                     existing_attrs = dict(raw.get("attributes", {}))
             if old_attrs is None:
@@ -152,12 +151,11 @@ class SimulationMixin:
         # Read both state value and existing attributes from the proxy.
         # Lock-free read is safe: dict.get() is atomic in CPython, consistent
         # with StateProxy.get_state()'s documented lock-free read pattern.
-        state_proxy = harness.hassette._state_proxy
         existing_attrs: dict[str, Any] = {}
         proxy_state: str = "unknown"
 
-        if state_proxy is not None:
-            raw = state_proxy.states.get(entity_id)
+        if harness._has("state_proxy"):
+            raw = harness.state_proxy.states.get(entity_id)
             if raw is not None:
                 proxy_state = raw["state"]
                 existing_attrs = dict(raw.get("attributes", {}))
@@ -507,10 +505,7 @@ class SimulationMixin:
         """
         harness = self._require_harness()
 
-        bus_service = harness.hassette._bus_service
-        assert bus_service is not None, (
-            "BusService unexpectedly None at drain time — harness setup may have partially failed"
-        )
+        bus_service = harness.bus_service
 
         app = self._app
         assert app is not None, "drain called before app was initialized — is the harness active?"
