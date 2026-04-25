@@ -7,6 +7,7 @@ on:
 jobs:
     e2e:
         runs-on: ubuntu-latest
+        timeout-minutes: 10
 
         env:
             TZ: America/Chicago
