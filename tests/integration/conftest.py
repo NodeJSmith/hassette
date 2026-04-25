@@ -8,7 +8,6 @@ from httpx import ASGITransport, AsyncClient
 
 from hassette import Hassette
 from hassette.config.config import HassetteConfig
-from hassette.test_utils.reset import reset_bus, reset_mock_api, reset_scheduler, reset_state_proxy
 
 if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
@@ -34,58 +33,52 @@ async def hassette_instance(test_config: HassetteConfig):
                 await instance._bus_service.stream.aclose()
 
 
-_BUS_FIXTURES = frozenset(
+_HARNESS_FIXTURES = frozenset(
     {
+        "hassette_with_nothing",
         "hassette_with_bus",
         "hassette_with_scheduler",
         "hassette_with_file_watcher",
+        "hassette_with_state_proxy",
+        "hassette_with_state_registry",
+        "hassette_with_app_handler",
+        "hassette_with_app_handler_custom_config",
+    }
+)
+
+# Module-scoped subset of _HARNESS_FIXTURES that require cleanup between tests.
+# Function-scoped fixtures (hassette_with_app_handler, hassette_with_app_handler_custom_config)
+# are excluded: they are recreated fresh for each test and cannot be fetched via
+# request.getfixturevalue() from an async autouse fixture without triggering a nested
+# asyncio Runner conflict ("Runner.run() cannot be called from a running event loop").
+_MODULE_SCOPED_HARNESS_FIXTURES = frozenset(
+    {
+        "hassette_with_nothing",
+        "hassette_with_bus",
+        "hassette_with_scheduler",
+        "hassette_with_file_watcher",
+        "hassette_with_state_proxy",
         "hassette_with_state_registry",
     }
 )
 
 
 @pytest.fixture(autouse=True)
-async def cleanup_state_proxy_fixture(request: pytest.FixtureRequest):
-    """Automatically reset state proxy before each test when using hassette_with_state_proxy.
+async def cleanup_harness(request: pytest.FixtureRequest) -> None:
+    """Automatically reset all active harness components before each test.
 
-    This autouse fixture resets the state proxy BEFORE each test to ensure a clean state.
-    It only resets if the test actually uses the hassette_with_state_proxy fixture.
+    Iterates over all module-scoped harness fixtures that are active in the current
+    test and calls ``harness.reset()`` on each one. Each component is reset
+    independently — no ``break``, no conditional skipping based on what other
+    components are active.
+
+    Function-scoped harness fixtures (``hassette_with_app_handler``,
+    ``hassette_with_app_handler_custom_config``) are not included here: they are
+    recreated fresh for each test, so no cleanup is required.
     """
-    if "hassette_with_state_proxy" in request.fixturenames:
-        harness: HassetteHarness = request.getfixturevalue("hassette_with_state_proxy")
-        if harness.has_component("state_proxy"):
-            await reset_state_proxy(harness.state_proxy)
-
-
-@pytest.fixture(autouse=True)
-async def cleanup_bus_fixture(request: pytest.FixtureRequest):
-    """Automatically remove all bus listeners before each test.
-
-    Covers fixtures that include a Bus: hassette_with_bus, hassette_with_scheduler,
-    hassette_with_file_watcher, and hassette_with_state_registry.
-    """
-    for name in _BUS_FIXTURES & set(request.fixturenames):
+    for name in _MODULE_SCOPED_HARNESS_FIXTURES & set(request.fixturenames):
         harness: HassetteHarness = request.getfixturevalue(name)
-        if harness.has_component("bus"):
-            await reset_bus(harness.bus)
-            break
-
-
-@pytest.fixture(autouse=True)
-async def cleanup_scheduler_fixture(request: pytest.FixtureRequest):
-    """Automatically remove all scheduler jobs before each test."""
-    if "hassette_with_scheduler" in request.fixturenames:
-        harness: HassetteHarness = request.getfixturevalue("hassette_with_scheduler")
-        if harness.has_component("scheduler"):
-            await reset_scheduler(harness.scheduler)
-
-
-@pytest.fixture(autouse=True)
-async def cleanup_mock_api_fixture(request: pytest.FixtureRequest):
-    """Automatically clear mock API expectations before each test."""
-    if "hassette_with_mock_api" in request.fixturenames:
-        _, server = request.getfixturevalue("hassette_with_mock_api")
-        reset_mock_api(server)
+        await harness.reset()
 
 
 @pytest.fixture

@@ -34,6 +34,7 @@ from hassette.scheduler import Scheduler
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
+from hassette.test_utils.reset import reset_bus, reset_mock_api, reset_scheduler, reset_state_proxy
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.types.enums import ResourceStatus
 from hassette.utils.service_utils import wait_for_ready
@@ -366,6 +367,26 @@ class HassetteHarness:
     async def send_event(self, topic: str, event: "Event[Any]") -> None:
         """Delegate send_event to the underlying Hassette instance."""
         await self.hassette.send_event(topic, event)
+
+    async def reset(self) -> None:
+        """Reset all active components to a clean state for the next test.
+
+        Each component is reset independently — Bus and Scheduler are siblings of
+        StateProxy under the harness, not children of it. Resetting StateProxy does
+        not clear bus listeners or scheduler jobs; each must be reset explicitly.
+
+        Components are only reset when active (``has_component()`` guard or non-None
+        check). The cost is negligible per test — one ``remove_all_listeners()`` and
+        one ``_remove_all_jobs()`` call at most.
+        """
+        if self.has_component("state_proxy"):
+            await reset_state_proxy(self.state_proxy)
+        if self.has_component("bus"):
+            await reset_bus(self.bus)
+        if self.has_component("scheduler"):
+            await reset_scheduler(self.scheduler)
+        if self.api_mock is not None:
+            reset_mock_api(self.api_mock)
 
     # --- State seeding helper ---
 
