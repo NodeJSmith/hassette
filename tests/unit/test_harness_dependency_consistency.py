@@ -25,12 +25,12 @@ _REVERSE_CLASS_MAP: dict[type, str] = {v: k for k, v in _COMPONENT_CLASS_MAP.ite
 # ---------------------------------------------------------------------------
 
 
-def testtopological_sort_empty() -> None:
+def test_topological_sort_empty() -> None:
     """Empty graph returns empty list."""
     assert topological_sort({}) == []
 
 
-def testtopological_sort_linear() -> None:
+def test_topological_sort_linear() -> None:
     """Linear chain: a → b → c returns [a, b, c] order (deps before dependents)."""
     graph: dict[str, set[str]] = {
         "a": set(),
@@ -41,7 +41,7 @@ def testtopological_sort_linear() -> None:
     assert result.index("a") < result.index("b") < result.index("c")
 
 
-def testtopological_sort_diamond() -> None:
+def test_topological_sort_diamond() -> None:
     """Diamond: d depends on b and c, both depend on a."""
     graph: dict[str, set[str]] = {
         "a": set(),
@@ -56,7 +56,7 @@ def testtopological_sort_diamond() -> None:
     assert result.index("c") < result.index("d")
 
 
-def testtopological_sort_cycle_raises() -> None:
+def test_topological_sort_cycle_raises() -> None:
     """Cycle in graph raises ValueError."""
     graph: dict[str, set[str]] = {
         "a": {"b"},
