@@ -17,18 +17,18 @@ from hassette import HassetteConfig, context
 from hassette.api import Api
 from hassette.bus import Bus
 from hassette.bus.error_context import BusErrorContext
-from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry
+from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY
 from hassette.core.api_resource import ApiResource
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.commands import ExecuteJob, InvokeHandler
+from hassette.core.core import Hassette
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
 from hassette.core.websocket_service import WebsocketService
-from hassette.events import Event
 from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
 from hassette.scheduler.error_context import SchedulerErrorContext
@@ -37,11 +37,9 @@ from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.types.enums import ResourceStatus
 from hassette.utils.service_utils import wait_for_ready
-from hassette.utils.url_utils import build_rest_url, build_ws_url
 
 if typing.TYPE_CHECKING:
-    from hassette import Hassette
-    from hassette.events import HassStateDict
+    from hassette.events import Event, HassStateDict
 
 
 # ---------------------------------------------------------------------------
@@ -87,65 +85,43 @@ async def shutdown_resource(res: Resource) -> None:
     await res.shutdown()
 
 
-class _HassetteMock(Resource):
-    task_bucket: TaskBucket
+class _HarnessEventStreamService(EventStreamService):
+    """EventStreamService variant that suppresses close_streams() for test harness reuse.
+
+    Module-scoped fixtures share a single _TestableHassette across many tests.  Some
+    test scenarios (e.g., ServiceWatcher max-restart exceeded) trigger
+    ``hassette.shutdown()``, which normally closes the anyio memory streams inside
+    ``EventStreamService``.  Closed streams cannot be reopened, so subsequent tests
+    in the same module would receive ``ClosedResourceError`` on every ``send_event``
+    call.
+
+    By making ``close_streams()`` a no-op here, the streams remain open for the
+    lifetime of the harness.  Explicit stream teardown is handled by
+    ``HassetteHarness.stop()``, which calls ``_close_streams_now()`` directly —
+    the only code path that should close streams in test context.
+    """
+
+    async def close_streams(self) -> None:
+        """No-op in test context — streams are closed by HassetteHarness.stop() instead."""
+
+    async def _close_streams_now(self) -> None:
+        """Close streams unconditionally. Called by HassetteHarness.stop() at the end of teardown."""
+        await super().close_streams()
+
+
+class _TestableHassette(Hassette):
+    """Thin Hassette subclass for use in the test harness.
+
+    Overrides exactly two methods to make the harness lifecycle work:
+    - _should_skip_dependency_check: prevents startup from blocking on unmet deps.
+    - wait_for_ready: returns True immediately so services do not deadlock during
+      harness-controlled startup.
+    """
 
     def _should_skip_dependency_check(self) -> bool:
         return True
 
-    def __init__(self, *, config: HassetteConfig) -> None:
-        self.config = config
-        super().__init__(cast("Hassette", self))
-
-        self.ready_event = asyncio.Event()
-        self.shutdown_event = asyncio.Event()
-        self.children: list[Resource] = []
-        self._loop: asyncio.AbstractEventLoop | None = None
-        self._loop_thread_id: int | None = None
-        self._event_stream_service: EventStreamService | None = None
-
-        self._api_service: ApiResource | None = None
-        self.api: Api | None = None
-        self._bus_service: BusService | None = None
-        self._bus: Bus | None = None
-        self._scheduler_service: SchedulerService | None = None
-        self._scheduler: Scheduler | None = None
-        self._file_watcher: FileWatcherService | None = None
-        self._app_handler: AppHandler | None = None
-        self._command_executor: Any | None = None
-        self._websocket_service: WebsocketService | None = None
-        self._state_proxy: StateProxy | None = None
-        self._states: StateManager | None = None
-        self.state_registry: StateRegistry | None = None
-        self.type_registry: TypeRegistry | None = None
-
-    @property
-    def command_executor(self) -> Any:
-        """Mock command executor for telemetry recording."""
-        return self._command_executor
-
-    @property
-    def ws_url(self) -> str:
-        """Construct the WebSocket URL for Home Assistant."""
-        return build_ws_url(self.config)
-
-    @property
-    def rest_url(self) -> str:
-        """Construct the REST API URL for Home Assistant."""
-        return build_rest_url(self.config)
-
-    async def send_event(self, topic: str, event: Event[Any]) -> None:
-        if not self._event_stream_service:
-            raise RuntimeError("Bus is not enabled on this harness")
-        await self._event_stream_service.send_event(topic, event)
-
-    @property
-    def loop(self) -> asyncio.AbstractEventLoop:
-        if not self._loop:
-            raise RuntimeError("Event loop is not running")
-        return self._loop
-
-    async def wait_for_ready(self, resources: "list[Resource] | Resource", timeout: float | None = None) -> bool:
+    async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: float | None = None) -> bool:
         """Immediately return True (no-op stub).
 
         In the test harness, services call ``self.hassette.wait_for_ready()``
@@ -155,9 +131,6 @@ class _HassetteMock(Resource):
         must be no-ops — allowing them to block would deadlock the startup
         sequence.
 
-        The old polling implementation returned True accidentally
-        (``Mock.is_ready()`` is truthy); this makes the intent explicit.
-
         Note: This no-op stub is NOT the right tool for testing startup
         races (e.g., "what happens when a dependency is not yet ready?").
         For startup race tests, use ``asyncio.Event`` as a gate and inject a
@@ -166,18 +139,6 @@ class _HassetteMock(Resource):
         ``AsyncMock(side_effect=lambda _: gate.wait())``.
         """
         return True
-
-    def get_app(self, name: str, index: int = 0) -> Any:
-        if not self._app_handler:
-            raise RuntimeError("App handler is not enabled on this harness")
-        return self._app_handler.get(name, index=index)
-
-    @property
-    def event_streams_closed(self) -> bool:
-        """Check if the event streams are closed."""
-        if not self._event_stream_service:
-            return True
-        return self._event_stream_service.event_streams_closed
 
 
 @contextlib.contextmanager
@@ -310,11 +271,11 @@ class HassetteHarness:
         self.unused_tcp_port = unused_tcp_port
         self._components: set[str] = set()
 
-        # need this for caplog to work properly
-        logging.getLogger("hassette").propagate = True
-
         self.logger = logging.getLogger("hassette")
-        self.hassette = _HassetteMock(config=self.config)
+        # _TestableHassette.__init__ calls enable_logging() which sets propagate=False and clears handlers.
+        # We restore propagate=True afterwards so pytest's caplog fixture can capture hassette log records.
+        self.hassette = _TestableHassette(config=self.config)
+        logging.getLogger("hassette").propagate = True
         self._exit_stack = contextlib.AsyncExitStack()  # canonical cleanup registry for background-task starters
         self.api_mock: SimpleTestServer | None = None
         self.api_base_url = URL.build(scheme="http", host="127.0.0.1", port=self.unused_tcp_port, path="/api/")
@@ -323,7 +284,7 @@ class HassetteHarness:
         self._hassette_ctx_token: typing.Any = None  # Token[Hassette] | None
 
         if not skip_global_set:
-            self._hassette_ctx_token = context.set_global_hassette(cast("Hassette", self.hassette))
+            self._hassette_ctx_token = context.set_global_hassette(self.hassette)
         self.config.set_validated_app_manifests()
 
     # --- Public accessor properties ---
@@ -375,6 +336,36 @@ class HassetteHarness:
         if ah is None:
             raise RuntimeError("AppHandler is not available — ensure with_app_handler() was called")
         return ah
+
+    @property
+    def task_bucket(self) -> "TaskBucket":
+        """The TaskBucket instance managed by this harness."""
+        return self.hassette.task_bucket
+
+    @property
+    def shutdown_event(self) -> asyncio.Event:
+        """The shutdown asyncio.Event from the underlying Hassette instance."""
+        return self.hassette.shutdown_event
+
+    @property
+    def api(self) -> "Api":
+        """The Api instance managed by this harness."""
+        a = self.hassette.api
+        if a is None:
+            raise RuntimeError("Api is not available — harness has not been started")
+        return a
+
+    @property
+    def states(self) -> "StateManager":
+        """The StateManager instance managed by this harness."""
+        s = self.hassette.states
+        if s is None:
+            raise RuntimeError("StateManager is not available — harness has not been started")
+        return s
+
+    async def send_event(self, topic: str, event: "Event[Any]") -> None:
+        """Delegate send_event to the underlying Hassette instance."""
+        await self.hassette.send_event(topic, event)
 
     # --- State seeding helper ---
 
@@ -502,7 +493,7 @@ class HassetteHarness:
             self.hassette.api.sync = Mock()
             self.hassette.api.get_states_raw = AsyncMock(return_value=[])
 
-        self.hassette._states = self.hassette.add_child(StateManager)
+        self.hassette.states = self.hassette.add_child(StateManager)
 
         if not self.has_component("bus"):
             self.hassette.send_event = AsyncMock()
@@ -538,9 +529,12 @@ class HassetteHarness:
 
         # Close event streams after all children have stopped — children send
         # STOPPED status events during shutdown, so streams must stay open until then.
+        # Use _close_streams_now() to bypass the no-op override on _HarnessEventStreamService,
+        # which prevents test-initiated hassette.shutdown() calls from closing streams prematurely.
         try:
-            if self.hassette._event_stream_service and not self.hassette._event_stream_service.event_streams_closed:
-                await self.hassette._event_stream_service.close_streams()
+            ess = self.hassette._event_stream_service
+            if isinstance(ess, _HarnessEventStreamService) and not ess.event_streams_closed:
+                await ess._close_streams_now()
         except Exception as exc:
             shutdown_errors.append(exc)
 
@@ -571,7 +565,10 @@ class HassetteHarness:
 
     async def _start_bus(self) -> None:
         # NOTE: _stub_execute mirrors _start_scheduler's version — keep both in sync.
-        self.hassette._event_stream_service = self.hassette.add_child(EventStreamService)
+        # Use _HarnessEventStreamService so that test-initiated hassette.shutdown() calls
+        # (e.g., ServiceWatcher max-restart exceeded) do not close the anyio streams and
+        # break subsequent tests sharing this module-scoped fixture.
+        self.hassette._event_stream_service = self.hassette.add_child(_HarnessEventStreamService)
 
         async def _stub_execute(cmd: Any) -> None:
             if isinstance(cmd, InvokeHandler):
@@ -661,7 +658,7 @@ class HassetteHarness:
         async def _register_job_stub(*_args: Any, **_kwargs: Any) -> int:
             return next(_job_id_counter)
 
-        mock_executor = AsyncMock()
+        mock_executor = AsyncMock(spec=CommandExecutor)
         mock_executor.execute = AsyncMock(side_effect=_stub_execute)
         mock_executor.register_job = AsyncMock(side_effect=_register_job_stub)
         self.hassette._scheduler_service = self.hassette.add_child(SchedulerService, executor=mock_executor)
