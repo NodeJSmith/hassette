@@ -8,20 +8,20 @@ import pytest
 from hassette.scheduler.error_context import SchedulerErrorContext
 
 if TYPE_CHECKING:
-    from hassette import Hassette
     from hassette.scheduler import Scheduler
+    from hassette.test_utils.harness import HassetteHarness
 
 
 @pytest.fixture
-def scheduler(hassette_with_scheduler: "Hassette") -> "Scheduler":
+def scheduler(hassette_with_scheduler: "HassetteHarness") -> "Scheduler":
     """Return the Scheduler resource for the running Hassette harness."""
-    return hassette_with_scheduler._scheduler
+    return hassette_with_scheduler.scheduler
 
 
-async def test_app_level_error_handler_called_on_job_failure(hassette_with_scheduler: "Hassette") -> None:
+async def test_app_level_error_handler_called_on_job_failure(hassette_with_scheduler: "HassetteHarness") -> None:
     """App-level handler registered via scheduler.on_error() is called when a job raises."""
     hassette = hassette_with_scheduler
-    scheduler = hassette._scheduler
+    scheduler = hassette.scheduler
 
     error_contexts: list[SchedulerErrorContext] = []
     handler_ran = asyncio.Event()
@@ -43,10 +43,10 @@ async def test_app_level_error_handler_called_on_job_failure(hassette_with_sched
     assert str(error_contexts[0].exception) == "job failed"
 
 
-async def test_per_job_error_handler_wins(hassette_with_scheduler: "Hassette") -> None:
+async def test_per_job_error_handler_wins(hassette_with_scheduler: "HassetteHarness") -> None:
     """Per-registration on_error= on the job takes precedence over the app-level handler."""
     hassette = hassette_with_scheduler
-    scheduler = hassette._scheduler
+    scheduler = hassette.scheduler
 
     app_level_calls: list[SchedulerErrorContext] = []
     per_job_calls: list[SchedulerErrorContext] = []
@@ -75,10 +75,10 @@ async def test_per_job_error_handler_wins(hassette_with_scheduler: "Hassette") -
     assert isinstance(per_job_calls[0].exception, RuntimeError)
 
 
-async def test_no_handler_framework_default(hassette_with_scheduler: "Hassette") -> None:
+async def test_no_handler_framework_default(hassette_with_scheduler: "HassetteHarness") -> None:
     """When no error handler is registered, job failure does not crash the harness."""
     hassette = hassette_with_scheduler
-    scheduler = hassette._scheduler
+    scheduler = hassette.scheduler
 
     ran = asyncio.Event()
 
@@ -94,10 +94,10 @@ async def test_no_handler_framework_default(hassette_with_scheduler: "Hassette")
     await asyncio.sleep(0.05)
 
 
-async def test_error_context_contains_args_kwargs(hassette_with_scheduler: "Hassette") -> None:
+async def test_error_context_contains_args_kwargs(hassette_with_scheduler: "HassetteHarness") -> None:
     """SchedulerErrorContext carries the args and kwargs the job was scheduled with."""
     hassette = hassette_with_scheduler
-    scheduler = hassette._scheduler
+    scheduler = hassette.scheduler
 
     error_contexts: list[SchedulerErrorContext] = []
     handler_ran = asyncio.Event()

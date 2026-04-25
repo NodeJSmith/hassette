@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING
 import anyio
 import pytest
 
-from hassette import Hassette
 from hassette.test_utils import (
     create_app_manifest,
     emit_file_change_event,
@@ -21,6 +20,7 @@ from hassette.test_utils import (
     write_app_toml,
     write_test_app_with_decorator,
 )
+from hassette.test_utils.harness import HassetteHarness
 from hassette.types import ResourceStatus
 
 if TYPE_CHECKING:
@@ -28,19 +28,21 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def hassette_and_handler(hassette_with_app_handler_custom_config: Hassette) -> tuple[Hassette, "AppHandler"]:
-    """Extract Hassette + AppHandler pair from the custom-config fixture."""
-    return hassette_with_app_handler_custom_config, hassette_with_app_handler_custom_config._app_handler
+def hassette_and_handler(
+    hassette_with_app_handler_custom_config: HassetteHarness,
+) -> tuple[HassetteHarness, "AppHandler"]:
+    """Extract HassetteHarness + AppHandler pair from the custom-config fixture."""
+    return hassette_with_app_handler_custom_config, hassette_with_app_handler_custom_config.app_handler
 
 
 class TestBasicHotReload:
     """Basic hot reload functionality tests."""
 
-    hassette: Hassette
+    hassette: HassetteHarness
     app_handler: "AppHandler"
 
     @pytest.fixture(autouse=True)
-    def setup(self, hassette_and_handler: tuple[Hassette, "AppHandler"]):
+    def setup(self, hassette_and_handler: tuple[HassetteHarness, "AppHandler"]):
         self.hassette, self.app_handler = hassette_and_handler
 
     async def test_hot_reload_starts_newly_enabled_app(self):
@@ -52,7 +54,7 @@ class TestBasicHotReload:
         write_test_app_with_decorator(app_file=app1.full_path, class_name=app1.class_name)
 
         app_running_event = asyncio.Event()
-        wire_up_app_running_listener(self.hassette._bus, app_running_event, app1.app_key)
+        wire_up_app_running_listener(self.hassette.bus, app_running_event, app1.app_key)
 
         write_app_toml(toml_file, app_dir=app_dir, apps=[app1])
         await emit_file_change_event(self.hassette, {toml_file, app1.full_path})
@@ -60,8 +62,8 @@ class TestBasicHotReload:
         with anyio.fail_after(3):
             await app_running_event.wait()
 
-        snapshot = self.hassette._app_handler.registry.get_snapshot()
-        assert self.hassette._app_handler.registry.get(app1.app_key, 0) is not None, f"Registry snapshot: {snapshot}"
+        snapshot = self.hassette.app_handler.registry.get_snapshot()
+        assert self.hassette.app_handler.registry.get(app1.app_key, 0) is not None, f"Registry snapshot: {snapshot}"
 
     async def test_hot_reload_stops_newly_disabled_app(self):
         """Disable an enabled app via config change and verify it stops."""
@@ -73,7 +75,7 @@ class TestBasicHotReload:
         write_test_app_with_decorator(app_file=app1.full_path, class_name=app1.class_name)
 
         app_running = asyncio.Event()
-        wire_up_app_running_listener(self.hassette._bus, app_running, app1.app_key)
+        wire_up_app_running_listener(self.hassette.bus, app_running, app1.app_key)
 
         write_app_toml(toml_file, app_dir=app_dir, apps=[app1])
         await emit_file_change_event(self.hassette, {toml_file, app1.full_path})
@@ -86,7 +88,7 @@ class TestBasicHotReload:
 
         # Disable by removing from config
         app_stopped = asyncio.Event()
-        wire_up_app_state_listener(self.hassette._bus, app_stopped, app1.app_key, ResourceStatus.STOPPED)
+        wire_up_app_state_listener(self.hassette.bus, app_stopped, app1.app_key, ResourceStatus.STOPPED)
 
         write_app_toml(toml_file, app_dir=app_dir, apps=[])
         await emit_file_change_event(self.hassette, {toml_file})
@@ -110,7 +112,7 @@ class TestBasicHotReload:
         )
 
         app_running = asyncio.Event()
-        wire_up_app_running_listener(self.hassette._bus, app_running, app1.app_key)
+        wire_up_app_running_listener(self.hassette.bus, app_running, app1.app_key)
 
         write_app_toml(toml_file, app_dir=app_dir, apps=[app1])
         await emit_file_change_event(self.hassette, {toml_file, app1.full_path})
@@ -128,7 +130,7 @@ class TestBasicHotReload:
         )
 
         app_running2 = asyncio.Event()
-        wire_up_app_running_listener(self.hassette._bus, app_running2, app1.app_key)
+        wire_up_app_running_listener(self.hassette.bus, app_running2, app1.app_key)
 
         write_app_toml(toml_file, app_dir=app_dir, apps=[app1_updated])
         await emit_file_change_event(self.hassette, {toml_file})
@@ -149,7 +151,7 @@ class TestBasicHotReload:
         write_test_app_with_decorator(app_file=app1.full_path, class_name=app1.class_name)
 
         app_running = asyncio.Event()
-        wire_up_app_running_listener(self.hassette._bus, app_running, app1.app_key)
+        wire_up_app_running_listener(self.hassette.bus, app_running, app1.app_key)
 
         write_app_toml(toml_file, app_dir=app_dir, apps=[app1])
         await emit_file_change_event(self.hassette, {toml_file, app1.full_path})
@@ -167,7 +169,7 @@ class TestBasicHotReload:
         )
 
         app_running2 = asyncio.Event()
-        wire_up_app_running_listener(self.hassette._bus, app_running2, app1.app_key)
+        wire_up_app_running_listener(self.hassette.bus, app_running2, app1.app_key)
 
         await emit_file_change_event(self.hassette, {app1.full_path})
 
@@ -183,11 +185,11 @@ class TestBasicHotReload:
 class TestOnlyAppDecorator:
     """Tests for @only_app decorator hot reload behavior."""
 
-    hassette: Hassette
+    hassette: HassetteHarness
     app_handler: "AppHandler"
 
     @pytest.fixture(autouse=True)
-    def setup(self, hassette_and_handler: tuple[Hassette, "AppHandler"]):
+    def setup(self, hassette_and_handler: tuple[HassetteHarness, "AppHandler"]):
         self.hassette, self.app_handler = hassette_and_handler
 
     async def test_hot_reload_adds_only_app_decorator(self):
@@ -203,8 +205,8 @@ class TestOnlyAppDecorator:
 
         app1_running = asyncio.Event()
         app2_running = asyncio.Event()
-        wire_up_app_running_listener(self.hassette._bus, app1_running, app1.app_key)
-        wire_up_app_running_listener(self.hassette._bus, app2_running, app2.app_key)
+        wire_up_app_running_listener(self.hassette.bus, app1_running, app1.app_key)
+        wire_up_app_running_listener(self.hassette.bus, app2_running, app2.app_key)
 
         write_app_toml(toml_file, app_dir=app_dir, apps=[app1, app2])
         await emit_file_change_event(self.hassette, {toml_file, app1.full_path, app2.full_path})
@@ -222,7 +224,7 @@ class TestOnlyAppDecorator:
         write_test_app_with_decorator(app_file=app3.full_path, class_name=app3.class_name, has_only_app=True)
 
         app3_running = asyncio.Event()
-        wire_up_app_running_listener(self.hassette._bus, app3_running, app3.app_key)
+        wire_up_app_running_listener(self.hassette.bus, app3_running, app3.app_key)
 
         write_app_toml(toml_file, app_dir=app_dir, apps=[app1, app2, app3])
         await emit_file_change_event(self.hassette, {toml_file, app3.full_path})
@@ -251,7 +253,7 @@ class TestOnlyAppDecorator:
         write_test_app_with_decorator(app_file=normal.full_path, class_name=normal.class_name)
 
         only_running = asyncio.Event()
-        wire_up_app_running_listener(self.hassette._bus, only_running, only.app_key)
+        wire_up_app_running_listener(self.hassette.bus, only_running, only.app_key)
 
         write_app_toml(toml_file, app_dir=app_dir, apps=[only, normal])
         await emit_file_change_event(self.hassette, {toml_file, only.full_path, normal.full_path})
@@ -267,7 +269,7 @@ class TestOnlyAppDecorator:
         only_updated = create_app_manifest(suffix="persist", app_dir=app_dir, app_config={"test_value": "updated"})
 
         only_running2 = asyncio.Event()
-        wire_up_app_running_listener(self.hassette._bus, only_running2, only.app_key)
+        wire_up_app_running_listener(self.hassette.bus, only_running2, only.app_key)
 
         write_app_toml(toml_file, app_dir=app_dir, apps=[only_updated, normal])
         await emit_file_change_event(self.hassette, {toml_file})
@@ -293,7 +295,7 @@ class TestOnlyAppDecorator:
         write_test_app_with_decorator(app_file=blocked.full_path, class_name=blocked.class_name)
 
         only_running = asyncio.Event()
-        wire_up_app_running_listener(self.hassette._bus, only_running, only.app_key)
+        wire_up_app_running_listener(self.hassette.bus, only_running, only.app_key)
 
         write_app_toml(toml_file, app_dir=app_dir, apps=[only, blocked])
         await emit_file_change_event(self.hassette, {toml_file, only.full_path, blocked.full_path})
@@ -310,8 +312,8 @@ class TestOnlyAppDecorator:
 
         only_running2 = asyncio.Event()
         blocked_running = asyncio.Event()
-        wire_up_app_running_listener(self.hassette._bus, only_running2, only.app_key)
-        wire_up_app_running_listener(self.hassette._bus, blocked_running, blocked.app_key)
+        wire_up_app_running_listener(self.hassette.bus, only_running2, only.app_key)
+        wire_up_app_running_listener(self.hassette.bus, blocked_running, blocked.app_key)
 
         await emit_file_change_event(self.hassette, {only.full_path})
 

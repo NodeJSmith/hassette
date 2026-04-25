@@ -1,12 +1,15 @@
 """Integration tests for lifecycle propagation: single-pass shutdown, shutdown flag reset,
 and close_streams ordering."""
 
+import inspect
 from typing import TYPE_CHECKING
 
+from hassette.core.core import Hassette
+from hassette.resources.base import Resource
 from hassette.types.enums import ResourceStatus
 
 if TYPE_CHECKING:
-    from hassette import Hassette
+    from hassette.test_utils.harness import HassetteHarness
 
 
 class TestHassetteShutdownSinglePass:
@@ -16,7 +19,7 @@ class TestHassetteShutdownSinglePass:
     by _finalize_shutdown() with timeout enforcement.
     """
 
-    async def test_child_on_shutdown_called_once(self, hassette_with_bus: "Hassette") -> None:
+    async def test_child_on_shutdown_called_once(self, hassette_with_bus: "HassetteHarness") -> None:
         """Bus.on_shutdown() fires exactly once per shutdown — _shutdown_completed prevents double-call.
 
         Tests the child directly (not via hassette.shutdown()) because the module-scoped
@@ -24,7 +27,7 @@ class TestHassetteShutdownSinglePass:
         close permanently). Full parent→child propagation is covered by system tests.
         """
         hassette = hassette_with_bus
-        bus = hassette._bus
+        bus = hassette.bus
         assert bus is not None
 
         # Track calls to the bus's on_shutdown
@@ -44,10 +47,10 @@ class TestHassetteShutdownSinglePass:
         finally:
             bus.on_shutdown = original_on_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
-    async def test_shutdown_then_initialize_resets_flag(self, hassette_with_bus: "Hassette") -> None:
+    async def test_shutdown_then_initialize_resets_flag(self, hassette_with_bus: "HassetteHarness") -> None:
         """After shutdown + initialize, the resource can be shut down again."""
         hassette = hassette_with_bus
-        bus = hassette._bus
+        bus = hassette.bus
         assert bus is not None
 
         await bus.shutdown()
@@ -64,10 +67,10 @@ class TestHassetteShutdownSinglePass:
         # Restore for other tests
         await bus.initialize()
 
-    async def test_shutdown_completed_flag_blocks_repeated_hooks(self, hassette_with_bus: "Hassette") -> None:
+    async def test_shutdown_completed_flag_blocks_repeated_hooks(self, hassette_with_bus: "HassetteHarness") -> None:
         """The _shutdown_completed flag prevents on_shutdown from running a second time."""
         hassette = hassette_with_bus
-        bus = hassette._bus
+        bus = hassette.bus
         assert bus is not None
 
         # Ensure we start clean
@@ -104,10 +107,6 @@ class TestHassetteShutdownSinglePass:
         It may sequence specific children (e.g. CommandExecutor before DatabaseService)
         but must not iterate all children or use gather for shutdown.
         """
-        import inspect
-
-        from hassette.core.core import Hassette
-
         source = inspect.getsource(Hassette.on_shutdown)
         # Should not gather all child shutdowns (that's _finalize_shutdown)
         assert "gather" not in source, "on_shutdown should not gather child shutdowns"
@@ -121,16 +120,12 @@ class TestCloseStreamsAfterChildrenStopped:
 
     async def test_hassette_on_children_stopped_calls_close_streams(self) -> None:
         """Hassette._on_children_stopped() calls close_streams()."""
-        import inspect
-
-        from hassette.core.core import Hassette
-
         # Verify the real Hassette._on_children_stopped contains close_streams call
         source = inspect.getsource(Hassette._on_children_stopped)
         assert "close_streams" in source, "_on_children_stopped should call close_streams()"
         assert "super()" in source, "_on_children_stopped should call super()"
 
-    async def test_children_stopped_before_on_children_stopped_hook(self, hassette_with_bus: "Hassette") -> None:
+    async def test_children_stopped_before_on_children_stopped_hook(self, hassette_with_bus: "HassetteHarness") -> None:
         """In _finalize_shutdown(), children's handle_stop() fires before the _on_children_stopped hook.
 
         Instead of calling _finalize_shutdown() directly (which may hang on the test harness),
@@ -139,7 +134,7 @@ class TestCloseStreamsAfterChildrenStopped:
         verified by inspecting the _finalize_shutdown source code structure.
         """
         hassette = hassette_with_bus
-        bus = hassette._bus
+        bus = hassette.bus
         assert bus is not None
 
         # Verify the child emits a STOPPED event during shutdown
@@ -170,10 +165,6 @@ class TestCloseStreamsAfterChildrenStopped:
 
         This is a structural test verifying the ordering contract in Resource._finalize_shutdown().
         """
-        import inspect
-
-        from hassette.resources.base import Resource
-
         source = inspect.getsource(Resource._finalize_shutdown)
         children_pos = source.find("_shutdown_children")
         hook_pos = source.find("_on_children_stopped")

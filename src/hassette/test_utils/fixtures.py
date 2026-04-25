@@ -5,7 +5,7 @@ import os
 import random
 import typing
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -55,18 +55,18 @@ def hassette_harness(
 async def hassette_with_nothing(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",
-) -> "AsyncIterator[Hassette]":
+) -> "AsyncIterator[HassetteHarness]":
     async with hassette_harness(test_config) as harness:
-        yield cast("Hassette", harness.hassette)
+        yield harness
 
 
 @pytest.fixture(scope="module")
 async def hassette_with_bus(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",
-) -> "AsyncIterator[Hassette]":
+) -> "AsyncIterator[HassetteHarness]":
     async with hassette_harness(test_config).with_bus() as harness:
-        yield cast("Hassette", harness.hassette)
+        yield harness
 
 
 @pytest.fixture(scope="module")
@@ -84,62 +84,62 @@ async def hassette_with_mock_api(
 async def hassette_with_scheduler(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",
-) -> "AsyncIterator[Hassette]":
+) -> "AsyncIterator[HassetteHarness]":
     async with hassette_harness(test_config).with_bus().with_scheduler() as harness:
-        yield cast("Hassette", harness.hassette)
+        yield harness
 
 
 @pytest.fixture(scope="module")
 async def hassette_with_file_watcher(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config_with_apps,
-) -> "AsyncIterator[Hassette]":
+) -> "AsyncIterator[HassetteHarness]":
     async with hassette_harness(test_config_with_apps).with_bus().with_file_watcher().with_api_mock() as harness:
-        yield cast("Hassette", harness.hassette)
+        yield harness
 
 
 @pytest.fixture
 async def hassette_with_app_handler(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config_with_apps,
-) -> "AsyncIterator[Hassette]":
+) -> "AsyncIterator[HassetteHarness]":
     # Cannot upgrade to module scope: TestApps tests mutate app_handler state
     # (orphan/enable/reload cycles) that is not reverted between tests. Upgrading
     # requires making those tests idempotent or adding per-test state reset.
     async with hassette_harness(test_config_with_apps).with_app_handler().with_scheduler() as harness:
-        yield cast("Hassette", harness.hassette)
+        yield harness
 
 
 @pytest.fixture
 async def hassette_with_app_handler_custom_config(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config_with_temp_path: "HassetteConfig",
-) -> "AsyncIterator[Hassette]":
+) -> "AsyncIterator[HassetteHarness]":
     async with hassette_harness(test_config_with_temp_path).with_app_handler().with_scheduler() as harness:
-        yield cast("Hassette", harness.hassette)
+        yield harness
 
 
 @pytest.fixture(scope="module")
 async def hassette_with_state_proxy(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",
-) -> "AsyncIterator[Hassette]":
-    """Module-scoped Hassette fixture with state proxy.
+) -> "AsyncIterator[HassetteHarness]":
+    """Module-scoped HassetteHarness fixture with state proxy.
 
     Uses module scope for 5-10x performance improvement.
     Tests should use the cleanup_state_proxy_fixture to reset state between tests.
     """
     async with hassette_harness(test_config).with_state_proxy().with_state_registry().with_scheduler() as harness:
-        yield cast("Hassette", harness.hassette)
+        yield harness
 
 
 @pytest.fixture(scope="module")
 async def hassette_with_state_registry(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config: "HassetteConfig",
-) -> "AsyncIterator[Hassette]":
+) -> "AsyncIterator[HassetteHarness]":
     async with hassette_harness(test_config).with_bus().with_state_registry() as harness:
-        yield typing.cast("Hassette", harness.hassette)
+        yield harness
 
 
 @pytest.fixture(scope="session")

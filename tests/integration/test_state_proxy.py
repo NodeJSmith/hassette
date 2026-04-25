@@ -10,7 +10,6 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from hassette.core.core import Hassette
 from hassette.core.state_proxy import StateProxy
 from hassette.events import RawStateChangeEvent
 from hassette.exceptions import ResourceNotReadyError
@@ -24,22 +23,22 @@ from hassette.test_utils import (
 from hassette.types import Topic
 
 if TYPE_CHECKING:
-    from hassette import Hassette
+    from hassette.test_utils.harness import HassetteHarness
 
 
 class TestStateProxyInit:
     proxy: "StateProxy"
 
-    def setup_hassette(self, hassette: "Hassette") -> None:
+    def setup_hassette(self, hassette: "HassetteHarness") -> None:
         """Set up Hassette instance and extract StateProxy.
 
         Args:
-            hassette: The Hassette instance from fixture
+            hassette: The HassetteHarness instance from fixture
         """
         self.hassette = hassette
         self.api = hassette.api
-        self.bus = hassette._bus
-        self.proxy = hassette._state_proxy
+        self.bus = hassette.bus
+        self.proxy = hassette.state_proxy
 
     async def send_state_event(
         self,
@@ -54,24 +53,21 @@ class TestStateProxyInit:
             old_state_dict: Old state dictionary (or None)
             new_state_dict: New state dictionary (or None)
         """
-        from hassette.test_utils import make_full_state_change_event
-        from hassette.types import Topic
-
         event = make_full_state_change_event(entity_id, old_state_dict, new_state_dict)
         await self.hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
         await wait_for(
-            lambda: self.hassette._state_proxy.get_state(entity_id) is not None,
+            lambda: self.hassette.state_proxy.get_state(entity_id) is not None,
             desc=f"{entity_id} state arrived",
         )
 
-    async def test_waits_for_dependencies(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_waits_for_dependencies(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """State proxy waits for WebSocket, API, and Bus services before initializing."""
         self.setup_hassette(hassette_with_state_proxy)
 
         # Verify proxy is ready (which means all dependencies were awaited)
         assert self.proxy.is_ready()
 
-    async def test_performs_initial_sync(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_performs_initial_sync(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """State proxy performs initial sync during initialization."""
         self.setup_hassette(hassette_with_state_proxy)
 
@@ -80,14 +76,14 @@ class TestStateProxyInit:
         # Initially empty since mock returns empty list
         assert len(self.proxy.states) == 0, f"Expected 0 states, got {len(self.proxy.states)} ({self.proxy.states})"
 
-    async def test_marks_ready_after_sync(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_marks_ready_after_sync(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """State proxy marks itself ready after successful initial sync."""
         self.setup_hassette(hassette_with_state_proxy)
 
         assert self.proxy.is_ready()
         assert len(self.proxy.states) >= 0  # Could be 0 or more depending on mock
 
-    async def test_subscribes_to_events(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_subscribes_to_events(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """State proxy subscribes to state_changed and homeassistant_stop events."""
         self.setup_hassette(hassette_with_state_proxy)
 
@@ -96,7 +92,7 @@ class TestStateProxyInit:
         topic_set = {listener.topic for listener in listeners}
         assert Topic.HASS_EVENT_STATE_CHANGED in topic_set, "Should subscribe to state_changed"
 
-    async def test_raises_on_api_failure_during_init(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_raises_on_api_failure_during_init(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """State proxy raises exception if API fails during initial sync."""
 
         hassette = hassette_with_state_proxy
@@ -104,7 +100,7 @@ class TestStateProxyInit:
         with patch.object(hassette.api, "get_states_raw", new_callable=AsyncMock) as mock_get_states:
             mock_get_states.side_effect = Exception("API failure during init")
 
-            proxy = hassette._state_proxy
+            proxy = hassette.state_proxy
 
             with pytest.raises(Exception, match="API failure during init"):
                 await proxy.on_initialize()
@@ -184,10 +180,10 @@ class TestStateProxyGetState:
 class TestStateProxyStateChanged:
     """Tests for on_state_changed handler."""
 
-    async def test_adds_new_entity(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_adds_new_entity(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """on_state_changed adds new entity when old_state is None."""
         hassette = hassette_with_state_proxy
-        proxy = hassette._state_proxy
+        proxy = hassette.state_proxy
 
         # Create and send a state change event for a new entity
         light_dict = make_light_state_dict("light.new_light", "on", brightness=100)
@@ -205,9 +201,9 @@ class TestStateProxyStateChanged:
         assert isinstance(state, dict)
         assert state["entity_id"] == "light.new_light"
 
-    async def test_updates_existing_entity(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_updates_existing_entity(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """on_state_changed updates entity when both states present."""
-        proxy = hassette_with_state_proxy._state_proxy
+        proxy = hassette_with_state_proxy.state_proxy
 
         wait_for = asyncio.Event()
 
@@ -231,10 +227,10 @@ class TestStateProxyStateChanged:
         state = proxy.states["light.test"]
         assert state["attributes"]["brightness"] == 200
 
-    async def test_removes_entity_when_new_state_none(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_removes_entity_when_new_state_none(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """on_state_changed removes entity when new_state is None."""
         hassette = hassette_with_state_proxy
-        proxy = hassette._state_proxy
+        proxy = hassette.state_proxy
 
         wait_for = asyncio.Event()
 
@@ -254,10 +250,10 @@ class TestStateProxyStateChanged:
         # Verify entity was removed
         assert "light.test" not in proxy.states
 
-    async def test_handles_multiple_domain_types(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_handles_multiple_domain_types(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """on_state_changed stores all entities as BaseState"""
         hassette = hassette_with_state_proxy
-        proxy = hassette._state_proxy
+        proxy = hassette.state_proxy
 
         wait_for = asyncio.Event()
 
@@ -283,10 +279,10 @@ class TestStateProxyStateChanged:
         assert isinstance(proxy.states["sensor.temperature"], dict)
         assert isinstance(proxy.states["switch.test"], dict)
 
-    async def test_concurrent_state_changes_are_serialized(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_concurrent_state_changes_are_serialized(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """Multiple state_changed events are processed serially due to lock."""
         hassette = hassette_with_state_proxy
-        proxy = hassette._state_proxy
+        proxy = hassette.state_proxy
 
         wait_for = asyncio.Event()
 
@@ -344,10 +340,10 @@ class TestStateProxyWebsocketListeners:
         if orig_state:
             state_proxy.mark_ready(reason="Test complete")  # Restore ready state for other tests
 
-    async def test_subscribes_to_start_on_stop(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_subscribes_to_start_on_stop(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """on_disconnect clears cache but does not add new subscriptions (they're already registered)."""
 
-        proxy = hassette_with_state_proxy._state_proxy
+        proxy = hassette_with_state_proxy.state_proxy
 
         listeners = await proxy.bus.get_listeners()
 
@@ -388,9 +384,9 @@ class TestStateProxyWebsocketListeners:
         assert state_proxy.is_ready()
         assert len(state_proxy.states) >= 2
 
-    async def test_handles_resync_failure(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_handles_resync_failure(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """on_reconnect handles API failure gracefully."""
-        proxy = hassette_with_state_proxy._state_proxy
+        proxy = hassette_with_state_proxy.state_proxy
 
         with patch.object(hassette_with_state_proxy.api, "get_states_raw", new_callable=AsyncMock) as mock_get_states:
             mock_get_states.side_effect = Exception("API error during resync")
@@ -410,9 +406,9 @@ class TestStateProxyWebsocketListeners:
 class TestStateProxyShutdown:
     """Tests for shutdown behavior."""
 
-    async def test_removes_all_listeners(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_removes_all_listeners(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """Shutdown removes all bus listeners via propagation to child Bus."""
-        proxy = hassette_with_state_proxy._state_proxy
+        proxy = hassette_with_state_proxy.state_proxy
 
         listeners = await proxy.bus.get_listeners()
         assert len(listeners) > 0, "Should have listeners before shutdown"
@@ -452,9 +448,9 @@ class TestStateProxyShutdown:
 class TestStateProxyRestartRoundTrip:
     """Verify StateProxy shutdown + re-initialize restores subscriptions and state polling."""
 
-    async def test_shutdown_stops_children(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_shutdown_stops_children(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """After StateProxy shutdown, its Bus and Scheduler children are stopped."""
-        proxy = hassette_with_state_proxy._state_proxy
+        proxy = hassette_with_state_proxy.state_proxy
         assert proxy is not None
 
         # Verify children are ready before shutdown
@@ -476,10 +472,10 @@ class TestStateProxyRestartRoundTrip:
         assert proxy.bus.is_ready(), "Proxy Bus should be ready after re-initialize"
         assert proxy.scheduler.is_ready(), "Proxy Scheduler should be ready after re-initialize"
 
-    async def test_subscriptions_restored_after_restart(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_subscriptions_restored_after_restart(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """After shutdown + re-initialize, state change subscriptions work."""
         hassette = hassette_with_state_proxy
-        proxy = hassette._state_proxy
+        proxy = hassette.state_proxy
         assert proxy is not None
 
         # Shutdown clears everything
@@ -495,10 +491,10 @@ class TestStateProxyRestartRoundTrip:
         topic_set = {listener.topic for listener in listeners}
         assert Topic.HASS_EVENT_STATE_CHANGED in topic_set, "Should subscribe to state_changed after re-initialize"
 
-    async def test_state_events_processed_after_restart(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_state_events_processed_after_restart(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """After restart, the proxy processes new state change events."""
         hassette = hassette_with_state_proxy
-        proxy = hassette._state_proxy
+        proxy = hassette.state_proxy
         assert proxy is not None
 
         # Full restart cycle
@@ -539,10 +535,10 @@ class TestStateProxyConcurrency:
         assert all(r is not None for r in results)
         assert all(r["entity_id"] == "light.test" for r in results)
 
-    async def test_writes_are_serialized(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_writes_are_serialized(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """Write operations acquire lock and are serialized."""
         hassette = hassette_with_state_proxy
-        proxy = hassette._state_proxy
+        proxy = hassette.state_proxy
         max_brightness = 0
 
         # def handler(new_brightness: D.AttrNew("brightness")):
@@ -571,10 +567,10 @@ class TestStateProxyConcurrency:
         assert isinstance(state, dict)
         assert state["attributes"]["brightness"] == max_brightness
 
-    async def test_read_during_write_sees_consistent_state(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_read_during_write_sees_consistent_state(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """Reads during writes see a consistent state snapshot."""
         hassette = hassette_with_state_proxy
-        proxy = hassette._state_proxy
+        proxy = hassette.state_proxy
 
         # Add initial state
         proxy.states["light.test"] = make_light_state_dict("light.test", "on", brightness=100)
