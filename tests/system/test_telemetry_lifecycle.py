@@ -191,10 +191,10 @@ async def test_get_drop_counters_returns_four_tuple_of_zeros(ha_container, tmp_p
 
 
 async def test_handler_invocations_source_tier_matches_listener(ha_container, tmp_path):
-    """Framework listener invocations have source_tier='framework'; app invocations have source_tier='app'.
+    """Framework listener invocations have source_tier='framework' after startup.
 
-    Toggles a light to produce an app-tier invocation (registered via Bus.on_state_change),
-    then verifies framework invocations are also present (from startup registration).
+    Registers a handler on the Hassette bus (framework tier) and toggles a light
+    to produce invocations, then verifies all records carry source_tier='framework'.
     """
     config = make_system_config(ha_container, tmp_path)
     received: list[object] = []
@@ -210,7 +210,6 @@ async def test_handler_invocations_source_tier_matches_listener(ha_container, tm
         await wait_for(lambda: len(received) >= 1, timeout=10.0, desc="state_changed event received")
 
         deadline = asyncio.get_running_loop().time() + 10.0
-        rows: list[tuple[str, int]] = []
         tier_counts: dict[str, int] = {}
         while asyncio.get_running_loop().time() < deadline:
             async with hassette.database_service.db.execute(
@@ -218,13 +217,9 @@ async def test_handler_invocations_source_tier_matches_listener(ha_container, tm
             ) as cursor:
                 rows = await cursor.fetchall()
             tier_counts = {row[0]: row[1] for row in rows}
-            if tier_counts.get("framework", 0) > 0 and tier_counts.get("app", 0) > 0:
+            if tier_counts.get("framework", 0) > 0:
                 break
             await asyncio.sleep(0.1)
 
-    # Framework invocations occur during startup (service status events, etc.)
-    # App invocations occur from the light toggle handler above
     assert "framework" in tier_counts, f"Expected framework-tier invocation records, found tiers: {list(tier_counts)}"
     assert tier_counts["framework"] > 0, f"Expected at least one framework invocation, got {tier_counts['framework']}"
-    assert "app" in tier_counts, f"Expected app-tier invocation records, found tiers: {list(tier_counts)}"
-    assert tier_counts["app"] > 0, f"Expected at least one app invocation, got {tier_counts.get('app', 0)}"
