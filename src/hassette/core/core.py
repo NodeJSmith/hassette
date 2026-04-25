@@ -268,11 +268,11 @@ class Hassette(Resource):
             - no_session_count: records dropped because session_id was unavailable.
             - shutdown_count: records dropped during shutdown flush.
         """
-        return self.command_executor().get_drop_counters()
+        return self.command_executor.get_drop_counters()
 
     def get_error_handler_failures(self) -> int:
         """Return the count of user error handler invocations that raised or timed out."""
-        return self.command_executor().get_error_handler_failures()
+        return self.command_executor.get_error_handler_failures()
 
     @property
     def database_service(self) -> DatabaseService:
