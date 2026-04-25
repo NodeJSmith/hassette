@@ -139,14 +139,6 @@ Builds an `AppFullSnapshot` from a list of manifests with auto-computed status c
 
 Builds a mock listener metric with `.to_dict()` and direct attribute access.
 
-### `make_old_app_instance(**kwargs)` — `test_utils/web_helpers.py`
-
-Builds a `SimpleNamespace` app entry for old-style `AppHandler.get_status_snapshot()` snapshots. Includes `owner_id` (defaults to `None`).
-
-### `make_old_snapshot(running=None, failed=None, only_app=None)` — `test_utils/web_helpers.py`
-
-Builds an outer `SimpleNamespace` for `AppHandler.get_status_snapshot()`. Auto-computes counts. Defaults to one running app when both `running` and `failed` are `None`.
-
 ### `make_job(**kwargs)` — `test_utils/web_helpers.py`
 
 Builds a `SimpleNamespace` scheduler job with sensible defaults (job_id, name, owner, next_run, repeat, trigger).

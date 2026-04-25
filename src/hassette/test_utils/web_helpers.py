@@ -128,56 +128,6 @@ def setup_registry(hassette: MagicMock, manifests: list[AppManifestInfo] | None 
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Old-style snapshot factories (for AppHandler.get_status_snapshot())
-# ──────────────────────────────────────────────────────────────────────
-
-
-def make_old_app_instance(
-    app_key: str = "my_app",
-    index: int = 0,
-    instance_name: str = "MyApp[0]",
-    class_name: str = "MyApp",
-    status: str = "running",
-    error_message: str | None = None,
-    owner_id: str | None = None,
-) -> SimpleNamespace:
-    """Build a ``SimpleNamespace`` app entry for old-style snapshots."""
-    return SimpleNamespace(
-        app_key=app_key,
-        index=index,
-        instance_name=instance_name,
-        class_name=class_name,
-        status=SimpleNamespace(value=status),
-        error_message=error_message,
-        owner_id=owner_id,
-    )
-
-
-def make_old_snapshot(
-    running: list[SimpleNamespace] | None = None,
-    failed: list[SimpleNamespace] | None = None,
-    only_app: str | None = None,
-) -> SimpleNamespace:
-    """Build an outer ``SimpleNamespace`` for ``AppHandler.get_status_snapshot()``.
-
-    When *running* and *failed* are both ``None``, defaults to a single
-    running ``make_old_app_instance()`` entry.  Counts are auto-computed.
-    """
-    if running is None and failed is None:
-        running = [make_old_app_instance()]
-    running = running or []
-    failed = failed or []
-    return SimpleNamespace(
-        running=running,
-        failed=failed,
-        total_count=len(running) + len(failed),
-        running_count=len(running),
-        failed_count=len(failed),
-        only_app=only_app,
-    )
-
-
-# ──────────────────────────────────────────────────────────────────────
 # Scheduler job factory
 # ──────────────────────────────────────────────────────────────────────
 

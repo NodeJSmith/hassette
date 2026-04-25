@@ -44,8 +44,6 @@ from hassette.test_utils.web_helpers import (
     make_job,
     make_listener_metric,
     make_manifest,
-    make_old_app_instance,
-    make_old_snapshot,
     make_real_job,
     setup_registry,
 )
@@ -80,8 +78,6 @@ __all__ = [
     "make_light_state_dict",
     "make_listener_metric",
     "make_manifest",
-    "make_old_app_instance",
-    "make_old_snapshot",
     "make_real_job",
     "make_sensor_state_dict",
     "make_service_failed_event",
