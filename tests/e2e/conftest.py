@@ -16,6 +16,7 @@ from hassette.logging_ import LogCaptureHandler
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.web.app import create_fastapi_app
 from tests.e2e.mock_fixtures import (
+    build_app_health_summaries,
     build_error_records,
     build_global_summaries,
     build_handler_invocations,
@@ -93,7 +94,7 @@ def mock_hassette():
     wire_listener_telemetry(hassette, build_listener_telemetry())
     wire_job_telemetry(hassette, build_job_telemetry())
     wire_invocation_telemetry(hassette, build_handler_invocations(), build_job_executions())
-    wire_app_health_summaries(hassette)
+    wire_app_health_summaries(hassette, build_app_health_summaries())
     wire_session_telemetry(hassette, build_session_list())
 
     app_tier_errors, framework_tier_errors = build_error_records()
@@ -204,8 +205,8 @@ def live_server(_fastapi_app):
     thread.start()
 
     # Poll until the server is accepting connections.
-    # socket.create_connection(..., timeout=0.5) already blocks for up to 0.5s per
-    # attempt, so no additional sleep is needed between retries.
+    # socket.create_connection blocks up to 0.5s on success; the short sleep
+    # prevents a tight spin on connection-refused (which returns instantly).
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
         try:

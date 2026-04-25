@@ -8,7 +8,7 @@ fixture scaffolding only and makes individual seed builders reusable.
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
+from hassette.core.app_registry import AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
 from hassette.core.telemetry_models import (
     AppHealthSummary,
     GlobalSummary,
@@ -30,7 +30,7 @@ from hassette.types.enums import ResourceStatus
 # ──────────────────────────────────────────────────────────────────────
 
 
-def build_manifests() -> list:
+def build_manifests() -> list[AppManifestInfo]:
     """Build a rich set of app manifests for e2e tests."""
     return [
         make_manifest(
@@ -184,7 +184,7 @@ def build_old_snapshot() -> AppStatusSnapshot:
     )
 
 
-def build_scheduler_jobs() -> list:
+def build_scheduler_jobs() -> list[SimpleNamespace]:
     """Build scheduler job stubs for e2e seed data."""
     return [
         make_job(trigger_detail="PT30S", app_key="my_app", instance_index=0),
@@ -496,7 +496,7 @@ def build_session_list() -> list[SessionRecord]:
     ]
 
 
-def build_error_records() -> tuple[list, list]:
+def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], list[HandlerErrorRecord]]:
     """Build app-tier and framework-tier error records.
 
     Returns:
@@ -639,32 +639,35 @@ def wire_invocation_telemetry(
     )
 
 
-def wire_app_health_summaries(hassette) -> None:
+def build_app_health_summaries() -> dict[str, AppHealthSummary]:
+    """Build per-app health summaries for e2e tests."""
+    return {
+        "my_app": AppHealthSummary(
+            handler_count=2,
+            job_count=2,
+            total_invocations=30,
+            total_errors=1,
+            total_executions=20,
+            total_job_errors=1,
+            avg_duration_ms=2.0,
+            last_activity_ts=1704067200.0,
+        ),
+        "broken_app": AppHealthSummary(
+            handler_count=1,
+            job_count=1,
+            total_invocations=3,
+            total_errors=2,
+            total_executions=8,
+            total_job_errors=5,
+            avg_duration_ms=5.0,
+            last_activity_ts=1704067050.0,
+        ),
+    }
+
+
+def wire_app_health_summaries(hassette, summaries: dict[str, AppHealthSummary]) -> None:
     """Wire per-app health summaries onto the mock telemetry query service."""
-    hassette._telemetry_query_service.get_all_app_summaries = AsyncMock(
-        return_value={
-            "my_app": AppHealthSummary(
-                handler_count=2,
-                job_count=2,
-                total_invocations=30,
-                total_errors=1,
-                total_executions=20,
-                total_job_errors=1,
-                avg_duration_ms=2.0,
-                last_activity_ts=1704067200.0,
-            ),
-            "broken_app": AppHealthSummary(
-                handler_count=1,
-                job_count=1,
-                total_invocations=3,
-                total_errors=2,
-                total_executions=8,
-                total_job_errors=5,
-                avg_duration_ms=5.0,
-                last_activity_ts=1704067050.0,
-            ),
-        },
-    )
+    hassette._telemetry_query_service.get_all_app_summaries = AsyncMock(return_value=summaries)
 
 
 def wire_session_telemetry(hassette, sessions: list[SessionRecord]) -> None:
@@ -672,7 +675,11 @@ def wire_session_telemetry(hassette, sessions: list[SessionRecord]) -> None:
     hassette._telemetry_query_service.get_session_list = AsyncMock(return_value=sessions)
 
 
-def wire_error_telemetry(hassette, app_tier_errors: list, framework_tier_errors: list) -> None:
+def wire_error_telemetry(
+    hassette,
+    app_tier_errors: list[HandlerErrorRecord | JobErrorRecord],
+    framework_tier_errors: list[HandlerErrorRecord],
+) -> None:
     """Wire error records with source_tier routing onto the mock telemetry query service."""
 
     def _make_errors_side_effect(source_tier: str = "all", **_kwargs):

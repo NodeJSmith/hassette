@@ -84,12 +84,7 @@ async def wait_for(
 
 
 async def shutdown_resource(res: Resource) -> None:
-    logger = logging.getLogger("hassette.test_utils.harness")
-    try:
-        await res.shutdown()
-    except Exception:
-        logger.warning("Error shutting down resource %r", res, exc_info=True)
-        raise
+    await res.shutdown()
 
 
 class _HassetteMock(Resource):
@@ -204,7 +199,7 @@ def preserve_config(config: HassetteConfig) -> Generator[None, None, None]:
 # ---------------------------------------------------------------------------
 
 
-def _topological_sort(graph: dict[str, set[str]]) -> list[str]:
+def topological_sort(graph: dict[str, set[str]]) -> list[str]:
     """Return node names from *graph* in valid initialization order (deps before dependents).
 
     Uses iterative DFS with three-color (_white/_gray/_black) marking.  Only nodes
@@ -277,7 +272,7 @@ _DEPENDENCIES: dict[str, set[str]] = {
 }
 
 # Startup order derived from the dependency graph — no manual maintenance required.
-_STARTUP_ORDER: list[str] = _topological_sort(_DEPENDENCIES)
+_STARTUP_ORDER: list[str] = topological_sort(_DEPENDENCIES)
 
 # Maps harness component names to the corresponding real framework service class.
 # Used by the harness consistency test to verify _DEPENDENCIES stays in sync with
@@ -445,7 +440,7 @@ class HassetteHarness:
         return self
 
     def has_component(self, component: str) -> bool:
-        """Check whether a component was requested (directly or via dependency resolution)."""
+        """Check whether a component is active (includes transitive deps after start())."""
         return component in self._components
 
     # --- Dependency resolution ---
