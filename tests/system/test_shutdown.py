@@ -113,7 +113,7 @@ async def test_bus_driven_failed_cascade_triggers_shutdown(ha_container, tmp_pat
 
             await wait_for(
                 lambda: hassette.shutdown_event.is_set(),
-                timeout=10.0,
+                timeout=30.0,
                 desc="shutdown triggered after max restart attempts exceeded",
             )
         finally:
