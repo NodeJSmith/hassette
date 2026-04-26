@@ -116,6 +116,8 @@ nav:
 plugins:
   - search
   - glightbox
+  - panzoom:
+      key: "ctrl"
   - gen-files:
       scripts:
         - tools/gen_ref_pages.py
