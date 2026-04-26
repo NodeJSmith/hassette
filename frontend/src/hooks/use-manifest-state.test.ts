@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/preact";
-import type { AppManifest } from "../api/endpoints";
+import { createManifest } from "../test/factories";
 
 // Mock localStorage utilities
 vi.mock("../utils/local-storage", () => ({
@@ -11,23 +11,6 @@ vi.mock("../utils/local-storage", () => ({
 const localStorage = await import("../utils/local-storage");
 const getStoredSet = localStorage.getStoredSet as ReturnType<typeof vi.fn>;
 const setStoredSet = localStorage.setStoredSet as ReturnType<typeof vi.fn>;
-
-function createManifest(appKey: string): AppManifest {
-  return {
-    app_key: appKey,
-    class_name: "TestApp",
-    display_name: "Test App",
-    filename: "test.py",
-    enabled: true,
-    auto_loaded: true,
-    status: "running",
-    block_reason: null,
-    instance_count: 1,
-    instances: [],
-    error_message: null,
-    error_traceback: null,
-  };
-}
 
 describe("useManifestState", () => {
   beforeEach(() => {
@@ -40,7 +23,7 @@ describe("useManifestState", () => {
 
     const { useManifestState } = await import("./use-manifest-state");
     const { result } = renderHook(() =>
-      useManifestState([createManifest("app_a")]),
+      useManifestState([createManifest({ app_key: "app_a" })]),
     );
 
     expect(result.current.expanded.value).toEqual(new Set(["app_a"]));
@@ -49,7 +32,7 @@ describe("useManifestState", () => {
   it("toggleExpand adds a key", async () => {
     const { useManifestState } = await import("./use-manifest-state");
     const { result } = renderHook(() =>
-      useManifestState([createManifest("app_a")]),
+      useManifestState([createManifest({ app_key: "app_a" })]),
     );
 
     act(() => {
@@ -64,7 +47,7 @@ describe("useManifestState", () => {
 
     const { useManifestState } = await import("./use-manifest-state");
     const { result } = renderHook(() =>
-      useManifestState([createManifest("app_a")]),
+      useManifestState([createManifest({ app_key: "app_a" })]),
     );
 
     act(() => {
@@ -79,7 +62,7 @@ describe("useManifestState", () => {
 
     const { useManifestState } = await import("./use-manifest-state");
     const { result } = renderHook(() =>
-      useManifestState([createManifest("valid_app")]),
+      useManifestState([createManifest({ app_key: "valid_app" })]),
     );
 
     expect(result.current.expanded.value.has("valid_app")).toBe(true);
@@ -91,7 +74,7 @@ describe("useManifestState", () => {
       "./use-manifest-state"
     );
     const { result } = renderHook(() =>
-      useManifestState([createManifest("app_a")]),
+      useManifestState([createManifest({ app_key: "app_a" })]),
     );
 
     act(() => {

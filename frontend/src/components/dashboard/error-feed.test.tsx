@@ -1,40 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/preact";
 import { ErrorFeed } from "./error-feed";
-import type { DashboardErrorEntry, HandlerErrorEntry, JobErrorEntry } from "../../api/endpoints";
+import type { DashboardErrorEntry } from "../../api/endpoints";
+import { createHandlerError, createJobError } from "../../test/factories";
 
 vi.mock("../../hooks/use-relative-time", () => ({
   useRelativeTime: () => "2m ago",
 }));
-
-function createError(overrides: Partial<HandlerErrorEntry> = {}): HandlerErrorEntry {
-  return {
-    kind: "handler",
-    error_message: "something broke",
-    error_type: "ValueError",
-    execution_start_ts: 1700000000,
-    app_key: "test_app",
-    listener_id: 42,
-    topic: "state_changed",
-    handler_method: "on_light_change",
-    source_tier: "app",
-    ...overrides,
-  };
-}
-
-function createJobError(overrides: Partial<JobErrorEntry> = {}): JobErrorEntry {
-  return {
-    kind: "job",
-    error_message: "something broke",
-    error_type: "ValueError",
-    execution_start_ts: 1700000000,
-    app_key: "test_app",
-    job_id: 7,
-    job_name: "cleanup",
-    source_tier: "app",
-    ...overrides,
-  };
-}
 
 describe("ErrorFeed", () => {
   it("renders empty state when no errors", () => {
@@ -43,20 +15,20 @@ describe("ErrorFeed", () => {
   });
 
   it("badge shows error_type not kind", () => {
-    const { container } = render(<ErrorFeed errors={[createError({ error_type: "ValueError" })]} />);
+    const { container } = render(<ErrorFeed errors={[createHandlerError({ error_type: "ValueError" })]} />);
     const badge = container.querySelector(".ht-tag");
     expect(badge?.textContent).toBe("ValueError");
   });
 
   it("badge falls back to kind when error_type is empty", () => {
-    const { container } = render(<ErrorFeed errors={[createError({ error_type: "" })]} />);
+    const { container } = render(<ErrorFeed errors={[createHandlerError({ error_type: "" })]} />);
     const badge = container.querySelector(".ht-tag");
     expect(badge?.textContent).toBe("handler");
   });
 
   it("truncates long dotted error_type to last component", () => {
     const { container } = render(
-      <ErrorFeed errors={[createError({ error_type: "homeassistant.exceptions.ServiceNotFound" })]} />,
+      <ErrorFeed errors={[createHandlerError({ error_type: "homeassistant.exceptions.ServiceNotFound" })]} />,
     );
     const badge = container.querySelector(".ht-tag");
     expect(badge?.textContent).toBe("ServiceNotFound");
@@ -64,7 +36,7 @@ describe("ErrorFeed", () => {
 
   it("shows handler_method in subtitle", () => {
     const { getByText } = render(
-      <ErrorFeed errors={[createError({ handler_method: "on_button_press" })]} />,
+      <ErrorFeed errors={[createHandlerError({ handler_method: "on_button_press" })]} />,
     );
     expect(getByText("on_button_press")).toBeDefined();
   });
@@ -80,14 +52,14 @@ describe("ErrorFeed", () => {
 
   it("unknown kind gets neutral class", () => {
     const { container } = render(
-      <ErrorFeed errors={[{ ...createError(), kind: "cron" } as unknown as DashboardErrorEntry]} />,
+      <ErrorFeed errors={[{ ...createHandlerError(), kind: "cron" } as unknown as DashboardErrorEntry]} />,
     );
     const badge = container.querySelector(".ht-tag");
     expect(badge?.className).toContain("ht-tag--neutral");
   });
 
   it("renders 'deleted handler' when listener_id is null", () => {
-    const err = createError({ listener_id: null as unknown as number, app_key: null as unknown as string });
+    const err = createHandlerError({ listener_id: null as unknown as number, app_key: null as unknown as string });
     const { getAllByText } = render(<ErrorFeed errors={[err]} />);
     expect(getAllByText("deleted handler").length).toBeGreaterThan(0);
   });
@@ -99,13 +71,13 @@ describe("ErrorFeed", () => {
   });
 
   it("renders a 'Framework' tier badge when source_tier is 'framework'", () => {
-    const err = createError({ source_tier: "framework" } as Parameters<typeof createError>[0]);
+    const err = createHandlerError({ source_tier: "framework" } as Parameters<typeof createHandlerError>[0]);
     const { getByText } = render(<ErrorFeed errors={[err]} />);
     expect(getByText("Framework")).toBeDefined();
   });
 
   it("does not render tier badge for app-tier errors", () => {
-    const err = createError({ source_tier: "app" } as Parameters<typeof createError>[0]);
+    const err = createHandlerError({ source_tier: "app" } as Parameters<typeof createHandlerError>[0]);
     const { queryByText } = render(<ErrorFeed errors={[err]} />);
     expect(queryByText("Framework")).toBeNull();
   });
@@ -113,8 +85,8 @@ describe("ErrorFeed", () => {
   it("key uses listener_id not execution_start_ts+index", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     const errors = [
-      createError({ listener_id: 10, execution_start_ts: 1700000000, app_key: "app_a" }),
-      createError({ listener_id: 20, execution_start_ts: 1700000000, app_key: "app_a" }),
+      createHandlerError({ listener_id: 10, execution_start_ts: 1700000000, app_key: "app_a" }),
+      createHandlerError({ listener_id: 20, execution_start_ts: 1700000000, app_key: "app_a" }),
     ];
     render(<ErrorFeed errors={errors} />);
     // No duplicate key warnings should appear
@@ -126,7 +98,7 @@ describe("ErrorFeed", () => {
   });
 
   it("test_framework_error_renders_badge_not_link: framework app_key renders as span not anchor", () => {
-    const err = createError({ app_key: "__hassette__.service_watcher", source_tier: "framework" });
+    const err = createHandlerError({ app_key: "__hassette__.service_watcher", source_tier: "framework" });
     const { container, queryByRole } = render(<ErrorFeed errors={[err]} />);
     // Must not be an anchor link
     const links = queryByRole("link");
@@ -138,21 +110,21 @@ describe("ErrorFeed", () => {
   });
 
   it("test_traceback_toggle_shown_when_present: traceback button visible when error_traceback set", () => {
-    const err = createError({ error_traceback: "Traceback (most recent call last):\n  File test.py" });
+    const err = createHandlerError({ error_traceback: "Traceback (most recent call last):\n  File test.py" });
     const { getByRole } = render(<ErrorFeed errors={[err]} />);
     const button = getByRole("button", { name: /traceback/i });
     expect(button).toBeDefined();
   });
 
   it("test_traceback_toggle_hidden_when_absent: no traceback button when error_traceback is null", () => {
-    const err = createError({ error_traceback: null });
+    const err = createHandlerError({ error_traceback: null });
     const { queryByRole } = render(<ErrorFeed errors={[err]} />);
     expect(queryByRole("button", { name: /traceback/i })).toBeNull();
   });
 
   it("test_traceback_toggle_expands_pre: clicking toggle reveals pre with traceback text", () => {
     const tracebackText = "Traceback (most recent call last):\n  File test.py, line 1";
-    const err = createError({ error_traceback: tracebackText });
+    const err = createHandlerError({ error_traceback: tracebackText });
     const { container, getByRole } = render(<ErrorFeed errors={[err]} />);
 
     // No <pre> element initially
@@ -169,7 +141,7 @@ describe("ErrorFeed", () => {
   });
 
   it("framework error with null listener_id does not render 'deleted handler'", () => {
-    const err = createError({
+    const err = createHandlerError({
       app_key: "__hassette__.service_watcher",
       listener_id: null as unknown as number,
       source_tier: "framework",
@@ -180,7 +152,7 @@ describe("ErrorFeed", () => {
   });
 
   it("framework error with null listener_id shows '(unregistered)' suffix", () => {
-    const err = createError({
+    const err = createHandlerError({
       app_key: "__hassette__.service_watcher",
       listener_id: null as unknown as number,
       handler_method: "restart_service",
@@ -191,7 +163,7 @@ describe("ErrorFeed", () => {
   });
 
   it("framework error with null handler_method and null listener_id shows '(unregistered)'", () => {
-    const err = createError({
+    const err = createHandlerError({
       app_key: "__hassette__.service_watcher",
       listener_id: null as unknown as number,
       handler_method: null as unknown as string,
@@ -212,8 +184,8 @@ describe("ErrorFeed", () => {
   });
 
   it("test_unified_feed_includes_both_tiers: renders both app and framework errors", () => {
-    const appErr = createError({ app_key: "my_app", source_tier: "app" });
-    const fwErr = createError({ app_key: "__hassette__.core", source_tier: "framework", listener_id: 99 });
+    const appErr = createHandlerError({ app_key: "my_app", source_tier: "app" });
+    const fwErr = createHandlerError({ app_key: "__hassette__.core", source_tier: "framework", listener_id: 99 });
     const { getByText } = render(<ErrorFeed errors={[appErr, fwErr]} />);
 
     // App error renders as link

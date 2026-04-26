@@ -5,6 +5,23 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
+from hassette.web.telemetry_helpers import compute_error_rate
+from tests.e2e.mock_fixtures import (
+    APP_TIER_BROKEN_APP_TOTAL_EXECUTIONS,
+    APP_TIER_BROKEN_APP_TOTAL_INVOCATIONS,
+    APP_TIER_MY_APP_TOTAL_EXECUTIONS,
+    APP_TIER_MY_APP_TOTAL_INVOCATIONS,
+    ERRORS_COMBINED_COUNT,
+    FRAMEWORK_TIER_TOTAL_HANDLER_ERRORS,
+    FRAMEWORK_TIER_TOTAL_JOB_ERRORS,
+    GLOBAL_COMBINED_TOTAL,
+    GLOBAL_HANDLER_ERRORS,
+    GLOBAL_JOB_ERRORS,
+    GLOBAL_TOTAL_EXECUTIONS,
+    GLOBAL_TOTAL_FAILURES,
+    GLOBAL_TOTAL_INVOCATIONS,
+)
+
 pytestmark = pytest.mark.e2e
 
 
@@ -44,17 +61,35 @@ def test_dashboard_renders_kpi_strip(page: Page, base_url: str) -> None:
 def test_dashboard_error_rate_includes_jobs(page: Page, base_url: str) -> None:
     """Error rate denominator includes both handler invocations AND job executions.
 
-    Seed data: 33 invocations + 28 executions = 61 total, 3 + 6 = 9 errors.
-    The detail text must show "9 / 61 invocations", NOT "3 / 33 invocations".
+    Expected counts are derived from shared computed constants (not hand-written).
+    compute_error_rate is called as a smoke-check that seed data produces a non-zero
+    rate, but the primary assertion verifies the UI displays the correct combined
+    denominator string and does NOT show a handler-only denominator.
     """
     page.goto(base_url + "/")
     kpi_strip = page.locator("[data-testid='kpi-strip']")
     expect(kpi_strip).to_be_visible()
 
-    # Combined denominator: 33 handler invocations + 28 job executions = 61
-    expect(kpi_strip).to_contain_text("9 / 61 invocations")
-    # Must NOT show handler-only denominator
-    expect(kpi_strip).not_to_contain_text("3 / 33 invocations")
+    # Derive expected counts via the shared backend helper — same formula as the route.
+    # compute_error_rate returns a float; we need the raw counts for the UI display string.
+    expected_failures = GLOBAL_TOTAL_FAILURES
+    expected_total = GLOBAL_COMBINED_TOTAL
+    expected_text = f"{expected_failures} / {expected_total} invocations"
+
+    # Verify the formula result matches (smoke-check that seed data is consistent)
+    computed_rate = compute_error_rate(
+        total_invocations=GLOBAL_TOTAL_INVOCATIONS,
+        total_executions=GLOBAL_TOTAL_EXECUTIONS,
+        handler_errors=GLOBAL_HANDLER_ERRORS,
+        job_errors=GLOBAL_JOB_ERRORS,
+    )
+    assert computed_rate > 0, "Seed data must produce a non-zero error rate"
+
+    # Combined denominator includes BOTH handler invocations AND job executions
+    expect(kpi_strip).to_contain_text(expected_text)
+    # Must NOT show handler-only denominator (verifies jobs are in the denominator)
+    handler_only_text = f"{GLOBAL_HANDLER_ERRORS} / {GLOBAL_TOTAL_INVOCATIONS} invocations"
+    expect(kpi_strip).not_to_contain_text(handler_only_text)
 
 
 # ── App health grid ─────────────────────────────────────────────────
@@ -98,19 +133,17 @@ def test_app_card_shows_invocation_and_execution_counts(page: Page, base_url: st
     """App cards with activity display invocation and execution counts."""
     page.goto(base_url + "/")
 
-    # my_app has seed data: 30 invocations, 20 executions
     my_app_card = page.locator("[data-testid='app-card-my_app']")
     counts = my_app_card.locator("[data-testid='app-card-counts']")
     expect(counts).to_be_visible()
-    expect(counts).to_contain_text("30 inv")
-    expect(counts).to_contain_text("20 exec")
+    expect(counts).to_contain_text(f"{APP_TIER_MY_APP_TOTAL_INVOCATIONS} inv")
+    expect(counts).to_contain_text(f"{APP_TIER_MY_APP_TOTAL_EXECUTIONS} exec")
 
-    # broken_app has seed data: 3 invocations, 8 executions
     broken_card = page.locator("[data-testid='app-card-broken_app']")
     broken_counts = broken_card.locator("[data-testid='app-card-counts']")
     expect(broken_counts).to_be_visible()
-    expect(broken_counts).to_contain_text("3 inv")
-    expect(broken_counts).to_contain_text("8 exec")
+    expect(broken_counts).to_contain_text(f"{APP_TIER_BROKEN_APP_TOTAL_INVOCATIONS} inv")
+    expect(broken_counts).to_contain_text(f"{APP_TIER_BROKEN_APP_TOTAL_EXECUTIONS} exec")
 
     # other_app has zero invocations and executions — no count row
     other_card = page.locator("[data-testid='app-card-other_app']")
@@ -130,15 +163,14 @@ def test_dashboard_renders_error_feed(page: Page, base_url: str) -> None:
     """Error items visible with app name and message.
 
     The unified error feed shows both app-tier and framework-tier errors together.
-    Seed data: 3 app errors + 1 orphan + 1 framework error = 5 items.
     """
     page.goto(base_url + "/")
     error_feed = page.locator("[data-testid='dashboard-errors']")
     expect(error_feed).to_be_visible()
 
-    # Should contain seeded error data (3 app errors + 1 orphan + 1 framework = 5)
+    # Should contain seeded error data (app-tier + framework-tier combined)
     error_items = error_feed.locator("[data-testid='error-item']")
-    expect(error_items).to_have_count(5)
+    expect(error_items).to_have_count(ERRORS_COMBINED_COUNT)
 
     # Check errors from multiple apps
     expect(error_feed).to_contain_text("my_app")
@@ -231,8 +263,8 @@ def test_framework_affordance_shows_error_count_badge(page: Page, base_url: str)
     # Error count badge shows the number of framework errors
     error_badge = page.locator("[data-testid='framework-error-count']")
     expect(error_badge).to_be_visible()
-    # Seed data has 1 framework error — badge count must reflect it
-    expect(error_badge).to_contain_text("1")
+    # Badge count must reflect the framework error count from seed data
+    expect(error_badge).to_contain_text(str(FRAMEWORK_TIER_TOTAL_HANDLER_ERRORS + FRAMEWORK_TIER_TOTAL_JOB_ERRORS))
 
 
 def test_framework_errors_in_feed_have_framework_badge(page: Page, base_url: str) -> None:

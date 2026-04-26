@@ -227,3 +227,158 @@ api.assert_called_exact("turn_off", entity_id="light.x", domain="homeassistant")
 | Verify no unexpected arguments were passed | `assert_called_exact` |
 
 **Default is partial.** If you use `assert_called("turn_on", entity_id="light.x")` and the call also recorded `brightness=200`, the assertion still passes. Use `assert_called_exact` if that extra argument should be flagged as unexpected.
+
+---
+
+## E2E Seed Data Resilience Convention
+
+All E2E test assertions that depend on seed data values **must** use computed constants, not hand-written literals.
+
+### Rule
+
+Any assertion that verifies a value that comes from seed data (telemetry counts, invocation totals, error counts, source locations) must reference a constant from `tests/e2e/mock_fixtures.py` rather than embedding the number or string directly in the test.
+
+**Wrong** (breaks silently when seed data changes):
+```python
+expect(counts).to_contain_text("30 inv")
+expect(kpi_strip).to_contain_text("9 / 61 invocations")
+expect(error_items).to_have_count(5)
+```
+
+**Right** (self-updating, single source of truth):
+```python
+expect(counts).to_contain_text(f"{APP_TIER_MY_APP_TOTAL_INVOCATIONS} inv")
+expect(kpi_strip).to_contain_text(f"{GLOBAL_TOTAL_FAILURES} / {GLOBAL_COMBINED_TOTAL} invocations")
+expect(error_items).to_have_count(ERRORS_COMBINED_COUNT)
+```
+
+### Constant naming
+
+Module-level constants in `mock_fixtures.py` use tier-qualified names:
+
+| Prefix | Source |
+|---|---|
+| `APP_TIER_` | `build_app_health_summaries()` |
+| `GLOBAL_` | `build_global_summaries()` |
+| `ERRORS_` | `build_error_records()` |
+| `LISTENER_` | `build_listener_telemetry()` |
+| `JOB_` | `build_job_telemetry()` |
+| `FRAMEWORK_TIER_` | `wire_global_summary()` error count side-effects |
+
+All constants reference builder output objects — never hand-written literals.
+
+### Computation-verifying tests
+
+For tests that verify a formula (not just a displayed value), import the backend helper and use it to derive the expected string. This ensures the test exercises the actual production formula:
+
+```python
+from hassette.web.telemetry_helpers import compute_error_rate
+from tests.e2e.mock_fixtures import GLOBAL_TOTAL_INVOCATIONS, GLOBAL_TOTAL_EXECUTIONS, ...
+
+rate = compute_error_rate(
+    total_invocations=GLOBAL_TOTAL_INVOCATIONS,
+    total_executions=GLOBAL_TOTAL_EXECUTIONS,
+    handler_errors=GLOBAL_HANDLER_ERRORS,
+    job_errors=GLOBAL_JOB_ERRORS,
+)
+```
+
+### What does NOT need constants
+
+Static UI text assertions (page titles, column headers, labels like "Error Rate", "Status") must **not** use constants — they test UI copy, not seed data.
+
+### Acid test
+
+Before merging changes that touch seed data: change a value in `mock_fixtures.py` (e.g., `total_invocations` from 10 to 15), run `uv run nox -s e2e`, confirm all tests pass, then revert.
+
+---
+
+## Frontend Testing (Vitest + MSW)
+
+Frontend tests live in `frontend/src/` alongside the source files they test.
+Run them with `cd frontend && npx vitest run`.
+
+### Mocking Layer Rule
+
+Three mocking strategies exist. Choose based on what you are testing:
+
+| What you are testing | Strategy | When to use |
+| --- | --- | --- |
+| Component rendering given known data | `vi.mock(hook)` | Unit tests for visual output — loading states, conditional rendering, formatting |
+| Data-fetching behavior (loading states, error responses, API shape validation) | MSW via `server.use(...)` | Components that call `fetch` and need realistic HTTP responses |
+| Hook internals (signal identity, reconnect lifecycle, dependency tracking) | Direct fetcher injection via `fetcher` parameter | Tests for `useApi`, `useScopedApi`, and similar hooks that accept a `fetcher` arg |
+
+**Never mix strategies within a single test file** — pick the one matching the abstraction level being tested.
+
+Explicitly excluded from MSW migration:
+- `api/client.test.ts` — tests client-level error parsing (422 detail extraction, 500 message fallback, non-JSON statusText fallback). Retains direct `globalThis.fetch = vi.fn()` because it tests the fetch-adjacent layer.
+- `hooks/use-api.test.ts` and `hooks/use-scoped-api.test.ts` — inject a `vi.fn()` fetcher directly into the hook. They never call `fetch` and MSW has nothing to intercept.
+
+### MSW Usage Patterns
+
+**Global setup** (`src/test-setup.ts`): The MSW Node server is created in `src/test/server.ts` and its lifecycle is managed in `test-setup.ts` — started in `beforeAll`, reset in `afterEach`, and closed in `afterAll`. This applies automatically to every test file.
+
+**Default handlers** (`src/test/handlers.ts`): Every endpoint in `src/api/endpoints.ts` has a default handler that returns an empty but valid response shape. Tests that need specific data override the default for that test:
+
+```ts
+import { server } from "../../../test/server";
+import { http, HttpResponse } from "msw";
+import type { components } from "../../../api/generated-types";
+
+it("shows app name from API", async () => {
+  server.use(
+    http.get("/api/apps/manifests", () =>
+      HttpResponse.json<components["schemas"]["AppManifestListResponse"]>({
+        total: 1, running: 1, failed: 0, stopped: 0, disabled: 0, blocked: 0,
+        manifests: [{ app_key: "my_app", display_name: "My App", ... }],
+        only_app: null,
+      })
+    )
+  );
+
+  // render component and assert ...
+});
+```
+
+`server.use(...)` overrides are scoped to the test. `afterEach` in the global setup calls `server.resetHandlers()`, so overrides don't bleed between tests.
+
+**`onUnhandledRequest` policy**: Set to `'error'` — any unhandled request causes the test to fail immediately. If a new endpoint is added to `endpoints.ts`, a corresponding handler must be added to `handlers.ts`.
+
+### Factory Functions
+
+Shared factories live in `src/test/factories.ts`. Use them instead of per-file factory objects.
+
+Each factory:
+- Returns a complete, valid object satisfying the generated type
+- Accepts `Partial<T>` overrides for per-test customization
+- Uses TypeScript `satisfies` so missing required fields from `generated-types.ts` cause compile errors
+
+```ts
+import { createAppGridEntry, createHandlerError } from "../../test/factories";
+
+// Minimal — uses all defaults
+const app = createAppGridEntry();
+
+// Override specific fields
+const failedApp = createAppGridEntry({ status: "failed", total_errors: 5 });
+const err = createHandlerError({ error_type: "TimeoutError", app_key: "my_app" });
+```
+
+Available factories: `createManifest`, `createManifestList`, `createAppGridEntry`, `createListener`, `createJob`, `createHealthData`, `createKpis`, `createHandlerError`, `createJobError`, `createLogEntry`, `createSession`, `createTelemetryStatus`.
+
+### Render Helper
+
+Components that call `useAppState()` (reads from `AppStateContext`) need the context provider. Use `renderWithAppState` from `src/test/render-helpers.tsx`:
+
+```tsx
+import { renderWithAppState } from "../../test/render-helpers";
+
+it("shows degraded banner when telemetry is down", () => {
+  const { getByText } = renderWithAppState(<MyComponent />, {
+    stateOverrides: { telemetryDegraded: signal(true) },
+  });
+  expect(getByText("Telemetry unavailable")).toBeDefined();
+});
+```
+
+Components that do not call `useAppState()` can use `render` from `@testing-library/preact` directly.

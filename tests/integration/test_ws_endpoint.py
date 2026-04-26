@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -10,6 +11,7 @@ from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
+from hassette.web.routes.ws import _read_client
 
 try:
     from starlette.testclient import TestClient
@@ -274,3 +276,81 @@ class TestWebSocketConnection:
             msg = ws.receive_json()
             assert msg["type"] == "log"
             assert msg["data"]["level"] == "INFO"
+
+
+class TestWebSocketEdgeCases:
+    """Edge case tests: invalid messages, unknown types, subscribe with missing/invalid fields."""
+
+    def test_unknown_message_type_connection_stays_open(
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
+    ) -> None:
+        """Sending an unknown message type is silently ignored; connection stays open."""
+        with client.websocket_connect("/api/ws") as ws:
+            ws.receive_json()  # connected
+            ws.send_json({"type": "unknown_type", "data": {}})
+            # Verify the connection is still alive by sending ping and receiving pong
+            ws.send_json({"type": "ping"})
+            msg = ws.receive_json()
+            assert msg["type"] == "pong"
+
+    def test_subscribe_with_missing_fields_uses_defaults(
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
+    ) -> None:
+        """Subscribe with an empty data dict uses defaults: logs=False, min_log_level=INFO."""
+        with client.websocket_connect("/api/ws") as ws:
+            ws.receive_json()  # connected
+            ws.send_json({"type": "subscribe", "data": {}})
+            _sync_via_ping(ws)
+            # Log messages should NOT pass through (logs=False by default)
+            _put_to_all_queues(
+                runtime_query_service,
+                {"type": "log", "data": {"level": "INFO", "message": "should not arrive"}},
+            )
+            # Non-log message confirms connection is alive and log was filtered
+            _put_to_all_queues(
+                runtime_query_service,
+                {"type": "state_changed", "data": {"entity_id": "light.kitchen"}},
+            )
+            msg = ws.receive_json()
+            assert msg["type"] == "state_changed"
+
+    def test_subscribe_with_missing_data_key_uses_defaults(
+        self, client: "TestClient", runtime_query_service: RuntimeQueryService
+    ) -> None:
+        """Subscribe message without a 'data' key treats data as empty dict."""
+        with client.websocket_connect("/api/ws") as ws:
+            ws.receive_json()  # connected
+            # Send subscribe without 'data' key at all
+            ws.send_json({"type": "subscribe"})
+            _sync_via_ping(ws)
+            # Connection must still be open
+            _put_to_all_queues(
+                runtime_query_service,
+                {"type": "app_status_changed", "data": {"app_key": "my_app"}},
+            )
+            msg = ws.receive_json()
+            assert msg["type"] == "app_status_changed"
+
+    async def test_malformed_json_message_raises_without_crashing_server(self) -> None:
+        """Malformed JSON causes _read_client to re-raise JSONDecodeError.
+
+        Starlette's sync TestClient deadlocks when one task-group branch raises
+        a non-disconnect exception while the other blocks on the queue, so we
+        verify the behavior by calling _read_client directly.
+        """
+        mock_ws = AsyncMock()
+        mock_ws.receive_json = AsyncMock(side_effect=json.JSONDecodeError("bad", "", 0))
+
+        ws_state: dict = {}
+        with pytest.raises(json.JSONDecodeError):
+            await _read_client(mock_ws, ws_state)
+
+    def test_unknown_message_type_without_data_key_ignored(self, client: "TestClient") -> None:
+        """Unknown message with no 'data' key is silently ignored; connection survives."""
+        with client.websocket_connect("/api/ws") as ws:
+            ws.receive_json()  # connected
+            ws.send_json({"type": "whatisthis"})
+            # Should still respond to ping
+            ws.send_json({"type": "ping"})
+            msg = ws.receive_json()
+            assert msg["type"] == "pong"

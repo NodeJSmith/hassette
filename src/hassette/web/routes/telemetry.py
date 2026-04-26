@@ -39,6 +39,7 @@ from hassette.web.models import (
 from hassette.web.telemetry_helpers import (
     classify_error_rate,
     classify_health_bar,
+    compute_error_rate,
 )
 
 LOGGER = getLogger(__name__)
@@ -129,11 +130,12 @@ def _health_status_from_summary(summary: AppHealthSummary) -> str:
 
 def _error_rate_from_summary(summary: AppHealthSummary) -> float:
     """Compute error rate percentage from an app health summary."""
-    total = summary.total_invocations + summary.total_executions
-    if total == 0:
-        return 0.0
-    failures = summary.total_errors + summary.total_timed_out + summary.total_job_errors + summary.total_job_timed_out
-    return (failures / total) * 100
+    return compute_error_rate(
+        total_invocations=summary.total_invocations,
+        total_executions=summary.total_executions,
+        handler_errors=summary.total_errors + summary.total_timed_out,
+        job_errors=summary.total_job_errors + summary.total_job_timed_out,
+    )
 
 
 @router.get("/app/{app_key}/health", response_model=AppHealthResponse)
@@ -166,10 +168,18 @@ async def app_health(
             health_status=classify_health_bar(100.0),
         )
 
-    # Compute combined error rate (handlers + jobs) for consistency
-    total = sum(ls.total_invocations for ls in listeners) + sum(j.total_executions for j in jobs)
-    errors = sum(ls.failed for ls in listeners) + sum(j.failed for j in jobs)
-    error_rate = (errors / total * 100) if total > 0 else 0.0
+    total_invocations = sum(ls.total_invocations for ls in listeners)
+    total_executions = sum(j.total_executions for j in jobs)
+    handler_errors = sum(ls.failed + ls.timed_out for ls in listeners)
+    job_errors = sum(j.failed + j.timed_out for j in jobs)
+    error_rate = compute_error_rate(
+        total_invocations=total_invocations,
+        total_executions=total_executions,
+        handler_errors=handler_errors,
+        job_errors=job_errors,
+    )
+    total = total_invocations + total_executions
+    errors = handler_errors + job_errors
     success_rate = ((total - errors) / total * 100) if total > 0 else 100.0
 
     # Compute handler/job-specific averages
@@ -358,14 +368,12 @@ async def dashboard_kpis(
             uptime_seconds=status.uptime_seconds,
         )
 
-    total = summary.listeners.total_invocations + summary.jobs.total_executions
-    failures = (
-        summary.listeners.total_errors
-        + summary.listeners.total_timed_out
-        + summary.jobs.total_errors
-        + summary.jobs.total_timed_out
+    error_rate = compute_error_rate(
+        total_invocations=summary.listeners.total_invocations,
+        total_executions=summary.jobs.total_executions,
+        handler_errors=summary.listeners.total_errors + summary.listeners.total_timed_out,
+        job_errors=summary.jobs.total_errors + summary.jobs.total_timed_out,
     )
-    error_rate = (failures / total * 100) if total > 0 else 0.0
 
     status = runtime.get_system_status()
 
