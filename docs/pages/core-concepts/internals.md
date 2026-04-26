@@ -77,24 +77,41 @@ Per-app handles are thin wrappers. When an app shuts down, its `Bus` removes its
 
 ## 2. Service Dependencies
 
-Services declare `depends_on` at the class level. The framework computes wave-based startup order from these declarations. An arrow from A to B means "A waits for B to be ready."
+Services declare `depends_on` at the class level. The framework computes wave-based startup order from these declarations. Arrows point from dependents down to their dependencies — services at the top start last.
 
 ```mermaid
-graph TD
+graph BT
     accTitle: Service Dependency Graph
-    accDescr: Which services must be ready before others can initialize
+    accDescr: Wave-based startup order, wave 0 at the top
 
-    DB[DatabaseService]
-    WS[WebsocketService]
-    CMD[CommandExecutor]
-    API[ApiResource]
-    BUS[BusService]
-    SCHED[SchedulerService]
-    SP[StateProxy]
-    AH[AppHandler]
-    RQS[RuntimeQueryService]
-    TQS[TelemetryQueryService]
-    WEB[WebApiService]
+    subgraph wave0["Wave 0 — No Dependencies"]
+        DB[DatabaseService]
+        WS[WebsocketService]
+        BUS[BusService]
+        SCHED[SchedulerService]
+    end
+
+    subgraph wave1["Wave 1"]
+        CMD[CommandExecutor]
+        API[ApiResource]
+    end
+
+    subgraph wave2["Wave 2"]
+        SP[StateProxy]
+        TQS[TelemetryQueryService]
+    end
+
+    subgraph wave3["Wave 3"]
+        AH[AppHandler]
+    end
+
+    subgraph wave4["Wave 4"]
+        RQS[RuntimeQueryService]
+    end
+
+    subgraph wave5["Wave 5 — Last to Start"]
+        WEB[WebApiService]
+    end
 
     CMD --> DB
     TQS --> DB
@@ -104,20 +121,15 @@ graph TD
     RQS --> BUS & SP & AH
     WEB --> RQS & TQS
 
-    style DB fill:#f0f0f0,stroke:#999
-    style WS fill:#f0f0f0,stroke:#999
-    style BUS fill:#e8f0ff,stroke:#6688cc
-    style SCHED fill:#e8f0ff,stroke:#6688cc
-    style SP fill:#e8f0ff,stroke:#6688cc
-    style API fill:#e8f0ff,stroke:#6688cc
-    style AH fill:#fff0e8,stroke:#cc8844
-    style WEB fill:#f0f8e8,stroke:#88aa66
-    style RQS fill:#f0f8e8,stroke:#88aa66
-    style TQS fill:#f0f8e8,stroke:#88aa66
-    style CMD fill:#f0f0f0,stroke:#999
+    style wave0 fill:#e8f0ff,stroke:#6688cc
+    style wave1 fill:#dde8f8,stroke:#6688cc
+    style wave2 fill:#d0e0f0,stroke:#6688cc
+    style wave3 fill:#c4d8e8,stroke:#6688cc
+    style wave4 fill:#b8d0e0,stroke:#6688cc
+    style wave5 fill:#acc8d8,stroke:#6688cc
 ```
 
-`DatabaseService`, `WebsocketService`, `BusService`, and `SchedulerService` have no dependencies and start in wave 0. `WebApiService` is the deepest node (via `RuntimeQueryService` and `AppHandler`).
+Shutdown proceeds in reverse wave order — `WebApiService` stops first, `DatabaseService` and `WebsocketService` stop last.
 
 ---
 
@@ -126,21 +138,28 @@ graph TD
 Events flow from Home Assistant through a four-stage inbound pipeline. Outbound calls go through the `Api` handle back to HA via REST or WebSocket.
 
 ```mermaid
-flowchart LR
+flowchart TD
     accTitle: Event and Data Flow
     accDescr: Inbound event pipeline and outbound API calls
 
-    HA["Home Assistant"]
-
-    subgraph inbound["Inbound Pipeline"]
-        direction LR
-        WS["WebsocketService"]
-        ESS["EventStreamService"]
-        BS["BusService"]
-        CE["CommandExecutor"]
+    subgraph ha["Home Assistant"]
+        HA_IN(("WS<br/>events"))
+        HA_OUT(("WS / REST<br/>commands"))
     end
 
-    subgraph app["App Handler"]
+    subgraph inbound["Inbound Pipeline"]
+        WS["WebsocketService<br/><i>receive loop</i>"]
+        ESS["EventStreamService<br/><i>memory channel</i>"]
+        BS["BusService<br/><i>topic expand + filter</i>"]
+        CE["CommandExecutor<br/><i>invoke + record</i>"]
+        WS --> ESS --> BS --> CE
+    end
+
+    subgraph cache["State Cache"]
+        SP["StateProxy"]
+    end
+
+    subgraph app["App"]
         Handler["on_* handler"]
     end
 
@@ -149,17 +168,18 @@ flowchart LR
         WSOut["WebsocketService<br/>(WS send)"]
     end
 
-    HA -- "WS frame" --> WS
-    WS -- "memory channel" --> ESS
-    ESS --> BS
-    BS -- "predicate filter" --> CE
-    CE -- "invoke" --> Handler
-    Handler -- "api.call_service()" --> AR & WSOut
-    AR -- "HTTP" --> HA
-    WSOut -- "WS frame" --> HA
-
-    WS -. "state_changed<br/>(priority 100)" .-> SP["StateProxy"]
+    HA_IN --> WS
+    WS -. "state_changed<br/>(priority 100)" .-> SP
+    CE --> Handler
     SP -. "self.states.*" .-> Handler
+    Handler --> AR & WSOut
+    AR & WSOut --> HA_OUT
+
+    style ha fill:#f0f0f0,stroke:#999
+    style inbound fill:#e8f0ff,stroke:#6688cc
+    style cache fill:#f0f8e8,stroke:#88aa66
+    style app fill:#fff0e8,stroke:#cc8844
+    style outbound fill:#f8f0ff,stroke:#8866cc
 ```
 
 `StateProxy` subscribes to state_changed events at priority 100, so its cache is always updated before any user handler sees the event. The `CommandExecutor` records every invocation to SQLite for the telemetry UI.
@@ -223,7 +243,7 @@ sequenceDiagram
 The `Bus` handle translates `on_*()` calls into `Listener` objects, which the shared `BusService` indexes by topic for fast dispatch.
 
 ```mermaid
-flowchart LR
+flowchart TD
     accTitle: Bus Event Routing
     accDescr: From app subscription through predicate filtering to handler invocation
 
@@ -235,19 +255,19 @@ flowchart LR
     end
 
     subgraph routing["BusService Router"]
-        exact["Exact topics<br/>light.kitchen"]
-        glob["Glob topics<br/>light.*"]
+        exact["Exact topics<br/><i>light.kitchen</i>"]
+        glob["Glob topics<br/><i>light.*</i>"]
     end
 
     subgraph dispatch["Dispatch"]
         match["Predicate check"]
         exec["CommandExecutor"]
         handler["App handler"]
+        match --> exec --> handler
     end
 
     L -- "add_listener()" --> exact & glob
     exact & glob -- "event arrives" --> match
-    match -- "passed" --> exec --> handler
 
     style registration fill:#e8f0ff,stroke:#6688cc
     style routing fill:#f0f8e8,stroke:#88aa66
@@ -273,7 +293,7 @@ flowchart LR
 The `Scheduler` handle wraps convenience methods around five trigger types. All jobs end up in a shared min-heap inside `SchedulerService`.
 
 ```mermaid
-flowchart LR
+flowchart TD
     accTitle: Scheduler Job Pipeline
     accDescr: From convenience methods through triggers to the dispatch loop
 
@@ -282,23 +302,23 @@ flowchart LR
     end
 
     subgraph triggers["Triggers"]
+        direction LR
         After["After<br/><i>one-shot delay</i>"]
         Once["Once<br/><i>one-shot at time</i>"]
         Every["Every<br/><i>recurring interval</i>"]
         Daily["Daily<br/><i>DST-safe cron</i>"]
-        Cron["Cron<br/><i>croniter expression</i>"]
+        Cron["Cron<br/><i>croniter</i>"]
     end
 
     subgraph engine["SchedulerService"]
         heap["Min-heap<br/>by next_run"]
         loop["serve() loop"]
         exec["CommandExecutor"]
+        heap -- "pop due" --> loop --> exec
     end
 
     methods --> triggers
     triggers -- "ScheduledJob" --> heap
-    heap -- "pop due" --> loop
-    loop --> exec
     exec -. "re-enqueue<br/>if recurring" .-> heap
 
     style api fill:#e8f0ff,stroke:#6688cc
@@ -317,7 +337,7 @@ flowchart LR
 The per-app `Api` handle delegates all transport to shared singletons. Single-entity reads use REST; bulk reads and service calls use WebSocket.
 
 ```mermaid
-flowchart LR
+flowchart TD
     accTitle: Api Transport
     accDescr: How per-app Api delegates to shared REST and WebSocket transports
 
@@ -442,30 +462,45 @@ flowchart LR
 
 ---
 
-## 10. Resource Lifecycle State Machine
+## 10. Resource Lifecycle
 
 Every component extends `Resource` (synchronous init) or `Service` (long-running `serve()` loop). The `LifecycleMixin` provides status transitions and readiness signaling.
 
+### State Transitions
+
 ```mermaid
-stateDiagram-v2
+flowchart LR
     accTitle: Resource Lifecycle States
     accDescr: Status transitions for all framework components
 
-    [*] --> NOT_STARTED
-    NOT_STARTED --> STARTING : start()
-    STARTING --> RUNNING : handle_running()
-    RUNNING --> STOPPING : shutdown()
-    STOPPING --> STOPPED : handle_stop()
-    STARTING --> FAILED : error
-    RUNNING --> FAILED : error
-    RUNNING --> CRASHED : serve() exits (Service only)
-    FAILED --> STARTING : restart()
-    STOPPED --> [*]
+    NOT_STARTED:::neutral -- "start()" --> STARTING:::active
+    STARTING -- "handle_running()" --> RUNNING:::active
+    RUNNING -- "shutdown()" --> STOPPING:::active
+    STOPPING -- "handle_stop()" --> STOPPED:::neutral
+
+    STARTING -- "error" --> FAILED:::error
+    RUNNING -- "error" --> FAILED
+    RUNNING -- "serve() exits" --> CRASHED:::error
+    FAILED -- "restart()" --> STARTING
+
+    classDef neutral fill:#f0f0f0,stroke:#999,color:#333
+    classDef active fill:#e8f0ff,stroke:#6688cc,color:#333
+    classDef error fill:#ffe8e8,stroke:#cc6666,color:#333
 ```
 
-**Readiness vs. running.** These are separate concerns:
+### Readiness vs. Running
 
-- `handle_running()` sets status to RUNNING and emits an event — other components can observe lifecycle state
-- `mark_ready()` sets the `ready_event` that unblocks `depends_on` waiters — a Resource calls this at the end of `on_initialize()`; a Service calls it inside `serve()` once actually processing
+These are **separate concerns** that are easy to confuse:
 
-**Wave startup.** Dependencies are computed into topological levels. Each wave starts concurrently via `gather()`, but waves run sequentially — all dependencies are guaranteed ready before dependents begin. Shutdown proceeds in reverse wave order. A per-wave timeout triggers `_force_terminal()` on non-compliant children.
+| Concept | Method | What it does | Who calls it |
+|---|---|---|---|
+| **Status** | `handle_running()` | Sets RUNNING, emits event | Framework (automatic) |
+| **Readiness** | `mark_ready()` | Unblocks `depends_on` waiters | Resource: end of `on_initialize()`. Service: inside `serve()` once processing |
+
+A component can be RUNNING but not ready (still initializing internal state), or ready but not yet RUNNING (edge case during transition).
+
+### Wave Startup and Shutdown
+
+Dependencies are computed into topological levels. Each wave starts concurrently via `gather()`, but waves run sequentially — all dependencies are guaranteed ready before dependents begin.
+
+Shutdown proceeds in reverse wave order. A per-wave timeout triggers `_force_terminal()` on non-compliant children, which recursively force-stops without running hooks (accepted risk for stuck services).
