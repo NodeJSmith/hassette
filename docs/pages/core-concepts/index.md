@@ -165,6 +165,10 @@ An arrow from A to B means "A depends on B" — B must be ready before A initial
 !!! note "EventStreamService"
     `EventStreamService` has a constructor-time dependency: it passes a receive stream to `BusService` at Hassette construction time, before any service initializes. This structural ordering is enforced by child registration order rather than `depends_on`, which only expresses runtime readiness dependencies.
 
+## Deep Dive
+
+For detailed Mermaid diagrams of every subsystem's internals — event routing, scheduler heap, state caching, the resource lifecycle state machine, and more — see [System Internals](internals.md).
+
 ## See Also
 
 - [Apps](apps/index.md) – how apps fit into the overall architecture.

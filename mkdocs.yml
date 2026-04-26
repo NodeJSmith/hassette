@@ -44,6 +44,7 @@ nav:
           - Troubleshooting: pages/getting-started/docker/troubleshooting.md
   - Core Concepts:
       - Architecture: pages/core-concepts/index.md
+      - System Internals: pages/core-concepts/internals.md
       - Apps:
           - Overview: pages/core-concepts/apps/index.md
           - Lifecycle: pages/core-concepts/apps/lifecycle.md
