@@ -142,9 +142,8 @@ flowchart TD
     accTitle: Event and Data Flow
     accDescr: Inbound event pipeline and outbound API calls
 
-    subgraph ha["Home Assistant"]
-        HA_IN(("WS<br/>events"))
-        HA_OUT(("WS / REST<br/>commands"))
+    subgraph ha_in["Home Assistant"]
+        HA_IN(("Inbound<br/>WS events"))
     end
 
     subgraph inbound["Inbound Pipeline"]
@@ -168,6 +167,10 @@ flowchart TD
         WSOut["WebsocketService<br/>(WS send)"]
     end
 
+    subgraph ha_out["Home Assistant"]
+        HA_OUT(("Outbound<br/>WS / REST"))
+    end
+
     HA_IN --> WS
     WS -. "state_changed<br/>(priority 100)" .-> SP
     CE --> Handler
@@ -175,7 +178,8 @@ flowchart TD
     Handler --> AR & WSOut
     AR & WSOut --> HA_OUT
 
-    style ha fill:#f0f0f0,stroke:#999
+    style ha_in fill:#f0f0f0,stroke:#999
+    style ha_out fill:#f0f0f0,stroke:#999
     style inbound fill:#e8f0ff,stroke:#6688cc
     style cache fill:#f0f8e8,stroke:#88aa66
     style app fill:#fff0e8,stroke:#cc8844
@@ -193,52 +197,7 @@ flowchart TD
 
 ---
 
-## 4. App Lifecycle
-
-The framework manages all state transitions. User code implements `on_initialize` (register listeners and jobs) and `on_shutdown` (release resources). The other hooks (`before_*`, `after_*`) are available but rarely needed.
-
-```mermaid
-sequenceDiagram
-    accTitle: App Lifecycle
-    accDescr: From manifest loading through initialization to shutdown
-
-    participant Handler as AppHandler
-    participant App
-    participant Bus as App.bus
-    participant Sched as App.scheduler
-
-    rect rgb(232, 240, 255)
-        Note over Handler,App: Startup
-        Handler->>App: instantiate(config)
-        App->>Bus: add_child()
-        App->>Sched: add_child()
-    end
-
-    rect rgb(240, 248, 232)
-        Note over App,Sched: Initialize
-        App->>App: on_initialize()
-        Note right of App: Register listeners + schedule jobs
-        Bus->>Bus: mark_ready()
-        Sched->>Sched: mark_ready()
-        App->>App: handle_running()
-    end
-
-    rect rgb(255, 240, 232)
-        Note over App,Sched: Shutdown
-        App->>App: on_shutdown()
-        Bus->>Bus: remove all listeners
-        Sched->>Sched: remove all jobs
-        App->>App: handle_stop()
-    end
-```
-
-- All framework services (`WebsocketService`, `BusService`, `SchedulerService`, `StateProxy`) are guaranteed ready before any app's `on_initialize` runs — enforced by `AppHandler.depends_on`.
-- `handle_running()` emits `HASSETTE_EVENT_APP_STATE_CHANGED`, which other apps can subscribe to for sequenced startup.
-- In dev mode, `FileWatcherService` triggers hot-reload of only the affected app keys.
-
----
-
-## 5. Bus Internals
+## 4. Bus Internals
 
 The `Bus` handle translates `on_*()` calls into `Listener` objects, which the shared `BusService` indexes by topic for fast dispatch.
 
@@ -288,9 +247,9 @@ flowchart TD
 
 ---
 
-## 6. Scheduler Internals
+## 5. Scheduler Internals
 
-The `Scheduler` handle wraps convenience methods around five trigger types. All jobs end up in a shared min-heap inside `SchedulerService`.
+The `Scheduler` handle wraps convenience methods (`run_in`, `run_once`, `run_every`, `run_daily`, `run_cron`, `schedule`) around trigger objects. All jobs end up in a shared min-heap inside `SchedulerService`.
 
 ```mermaid
 flowchart TD
@@ -298,16 +257,11 @@ flowchart TD
     accDescr: From convenience methods through triggers to the dispatch loop
 
     subgraph api["Scheduler API"]
-        methods["run_in() / run_once()<br/>run_every() / run_daily()<br/>run_cron() / schedule()"]
+        methods["run_*() / schedule()"]
     end
 
     subgraph triggers["Triggers"]
-        direction LR
-        After["After<br/><i>one-shot delay</i>"]
-        Once["Once<br/><i>one-shot at time</i>"]
-        Every["Every<br/><i>recurring interval</i>"]
-        Daily["Daily<br/><i>DST-safe cron</i>"]
-        Cron["Cron<br/><i>croniter</i>"]
+        T["Trigger<br/><i>implements TriggerProtocol</i>"]
     end
 
     subgraph engine["SchedulerService"]
@@ -317,8 +271,8 @@ flowchart TD
         heap -- "pop due" --> loop --> exec
     end
 
-    methods --> triggers
-    triggers -- "ScheduledJob" --> heap
+    methods --> T
+    T -- "ScheduledJob" --> heap
     exec -. "re-enqueue<br/>if recurring" .-> heap
 
     style api fill:#e8f0ff,stroke:#6688cc
@@ -326,13 +280,15 @@ flowchart TD
     style engine fill:#fff0e8,stroke:#cc8844
 ```
 
+Built-in triggers: `After` (one-shot delay), `Once` (one-shot at time), `Every` (recurring interval), `Daily` (DST-safe cron), `Cron` (croniter expression). Custom triggers implement `TriggerProtocol`.
+
 - `Daily` uses cron internally for DST-safe wall-clock scheduling. A naive 24-hour interval would drift across DST transitions.
 - `jitter` adds random offset at enqueue time to spread concurrent starts.
 - Job groups (`group=`) enable bulk cancellation. Named jobs (`name=`) support deduplication via `if_exists="skip"`.
 
 ---
 
-## 7. Api Internals
+## 6. Api Internals
 
 The per-app `Api` handle delegates all transport to shared singletons. Single-entity reads use REST; bulk reads and service calls use WebSocket.
 
@@ -376,7 +332,7 @@ Auth: long-lived access token from `HassetteConfig.token`. Injected as `Bearer` 
 
 ---
 
-## 8. StateManager and StateProxy
+## 7. StateManager and StateProxy
 
 `StateProxy` maintains an in-memory cache of all entity states. `StateManager` provides typed per-app access with Pydantic model validation and caching.
 
@@ -422,12 +378,12 @@ flowchart TD
 
 ---
 
-## 9. Web/UI Layer
+## 8. Web/UI Layer
 
 The web layer is opt-in. `WebApiService` starts a uvicorn/FastAPI server. The frontend is a Preact SPA. Two data source services provide live and historical data.
 
 ```mermaid
-flowchart LR
+flowchart TD
     accTitle: Web Layer
     accDescr: How the frontend connects to backend data sources
 
@@ -462,14 +418,14 @@ flowchart LR
 
 ---
 
-## 10. Resource Lifecycle
+## 9. Resource Lifecycle
 
 Every component extends `Resource` (synchronous init) or `Service` (long-running `serve()` loop). The `LifecycleMixin` provides status transitions and readiness signaling.
 
 ### State Transitions
 
 ```mermaid
-flowchart LR
+flowchart TD
     accTitle: Resource Lifecycle States
     accDescr: Status transitions for all framework components
 
