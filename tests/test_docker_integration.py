@@ -295,7 +295,7 @@ class TestApp(App[AppConfig]):
         # Should complete successfully
         assert result.returncode == 0
         # Should show completion message even with no requirements found
-        assert "Installed 0 requirements.txt file(s)" in (result.stderr + result.stdout)
+        assert "requirements install: complete (0 file(s))" in (result.stderr + result.stdout)
 
 
 @pytest.mark.integration
@@ -381,7 +381,7 @@ def test_docker_skips_requirements_by_default():
 
         # Startup should succeed but requirements should be skipped
         assert result.returncode == 0
-        assert "Runtime dependency installation disabled" in output
+        assert "requirements install: disabled" in output
         assert "Installing requirements from" not in output
 
 
@@ -470,7 +470,7 @@ def test_docker_project_install_with_lockfile(docker_project_dir: Path):
 
     output = result.stderr + result.stdout
     assert result.returncode == 0, f"Project install failed. Output:\n{output}"
-    assert "Project install complete." in output
+    assert "project install: complete" in output
 
 
 @pytest.mark.integration
@@ -511,7 +511,7 @@ def test_docker_project_install_without_build_system(docker_project_dir: Path):
 
     output = result.stderr + result.stdout
     assert result.returncode == 0, f"Project without [build-system] should still work. Output:\n{output}"
-    assert "Project install complete." in output
+    assert "project install: complete" in output
 
 
 @pytest.mark.integration
@@ -591,7 +591,7 @@ def test_docker_project_install_with_real_dep(docker_project_dir: Path):
 
     output = result.stderr + result.stdout
     assert result.returncode == 0, f"Project install with real dep failed. Output:\n{output}"
-    assert "Project install complete." in output
+    assert "project install: complete" in output
 
 
 @pytest.mark.integration
@@ -712,5 +712,5 @@ def test_docker_no_project_no_deps_starts_clean():
 
         output = result.stderr + result.stdout
         assert result.returncode == 0, f"Clean start failed. Output:\n{output}"
-        assert "No project found" in output
-        assert "Runtime dependency installation disabled" in output
+        assert "project install: skipped" in output
+        assert "requirements install: disabled" in output
