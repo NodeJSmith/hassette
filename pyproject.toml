@@ -73,7 +73,6 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 [dependency-groups]
 dev = [
     "bcrypt>=4.0",
-    "mkdocs-panzoom-plugin>=0.5.2",
     "pyright>=1.1.408",
     "tomli-w>=1.2.0",
 ]
@@ -102,6 +101,7 @@ docs = [
     "watchdog>=6.0.0",
     "ruff>=0.14.9",
     "mkdocs-glightbox>=0.5.2",
+    "mkdocs-panzoom-plugin>=0.5.2",
 ]
 
 [tool.uv]

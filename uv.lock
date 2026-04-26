@@ -744,7 +744,6 @@ test = [
 [package.dev-dependencies]
 dev = [
     { name = "bcrypt" },
-    { name = "mkdocs-panzoom-plugin" },
     { name = "pyright" },
     { name = "tomli-w" },
 ]
@@ -755,6 +754,7 @@ docs = [
     { name = "mkdocs-glightbox" },
     { name = "mkdocs-literate-nav" },
     { name = "mkdocs-material" },
+    { name = "mkdocs-panzoom-plugin" },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "pymdown-extensions" },
     { name = "ruff" },
@@ -809,7 +809,6 @@ provides-extras = ["test"]
 [package.metadata.requires-dev]
 dev = [
     { name = "bcrypt", specifier = ">=4.0" },
-    { name = "mkdocs-panzoom-plugin", specifier = ">=0.5.2" },
     { name = "pyright", specifier = ">=1.1.408" },
     { name = "tomli-w", specifier = ">=1.2.0" },
 ]
@@ -820,6 +819,7 @@ docs = [
     { name = "mkdocs-glightbox", specifier = ">=0.5.2" },
     { name = "mkdocs-literate-nav", specifier = ">=0.6.1" },
     { name = "mkdocs-material", specifier = ">=9.6.0" },
+    { name = "mkdocs-panzoom-plugin", specifier = ">=0.5.2" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.25.0" },
     { name = "pymdown-extensions", specifier = ">=10.8.1" },
     { name = "ruff", specifier = ">=0.14.9" },
