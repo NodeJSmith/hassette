@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from hassette.bus.bus import Bus
+    from hassette.config.classes import AppManifest
+    from hassette.core.app_handler import AppHandler
     from hassette.core.core import Hassette
     from hassette.core.state_proxy import StateProxy
     from hassette.resources.base import Resource
@@ -71,6 +73,29 @@ def reset_mock_api(server: "SimpleTestServer") -> None:
         server: The SimpleTestServer instance to reset.
     """
     server.reset()
+
+
+async def reset_app_handler(app_handler: "AppHandler", original_manifests: dict[str, "AppManifest"]) -> None:
+    """Reset AppHandler to a clean state by re-bootstrapping from a manifest snapshot.
+
+    Performs a full bootstrap cycle: stop all running apps, clear registry state,
+    restore manifests from a deep copy, and re-bootstrap. This mirrors the
+    framework startup path.
+
+    Args:
+        app_handler: The AppHandler instance to reset.
+        original_manifests: The post-bootstrap manifest snapshot to restore from.
+    """
+    for app_key in list(app_handler.registry.apps):
+        await app_handler.stop_app(app_key)
+
+    # Clear test-owned listeners before re-bootstrap so they don't fire
+    # on APP_LOAD_COMPLETED events during bootstrap_apps().
+    await app_handler.hassette.bus_service.remove_listeners_by_owner("test")
+
+    app_handler.registry.clear_all()
+    app_handler.registry.set_manifests({k: v.model_copy(deep=True) for k, v in original_manifests.items()})
+    await app_handler.lifecycle.bootstrap_apps()
 
 
 def _reset_resource_flags(resource: "Resource") -> None:

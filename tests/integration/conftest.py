@@ -41,9 +41,9 @@ _HARNESS_FIXTURES = frozenset(
         "hassette_with_file_watcher",
         "hassette_with_state_proxy",
         "hassette_with_state_registry",
+        "hassette_with_app_handler",
         # hassette_with_mock_api excluded: yields (Api, SimpleTestServer), not HassetteHarness.
-        # hassette_with_app_handler excluded: function-scoped, recreated fresh per test.
-        # hassette_with_app_handler_custom_config excluded: same reason.
+        # hassette_with_app_handler_custom_config excluded: function-scoped, recreated fresh per test.
     }
 )
 
@@ -52,7 +52,7 @@ _HARNESS_FIXTURES = frozenset(
 async def cleanup_harness(request: pytest.FixtureRequest) -> None:
     """Reset all active module-scoped harness components before each test.
 
-    Function-scoped fixtures (hassette_with_app_handler, hassette_with_app_handler_custom_config)
+    Function-scoped fixtures (hassette_with_app_handler_custom_config)
     are recreated fresh per test and don't need cleanup.
     """
     for name in _HARNESS_FIXTURES & set(request.fixturenames):

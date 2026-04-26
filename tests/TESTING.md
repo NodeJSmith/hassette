@@ -85,7 +85,7 @@ app = create_fastapi_app(stub)
 | ------------ | ------------------------------------------------- | ----------------------------------------------------- |
 | **session**  | Immutable data, expensive one-time setup          | `state_change_events`, e2e `mock_hassette`            |
 | **module**   | Components with reset/cleanup between tests       | `hassette_with_bus`, `hassette_with_state_proxy`      |
-| **function** | Mutable config or components that can't be reused | `hassette_with_app_handler`, web test `mock_hassette` |
+| **function** | Mutable config or components that can't be reused | `hassette_with_app_handler_custom_config`, web test `mock_hassette` |
 
 Module scope with autouse cleanup gives 5-10x speedup over function scope. Prefer module scope when possible.
 
@@ -114,19 +114,19 @@ async def cleanup_harness(request: pytest.FixtureRequest) -> None:
         await harness.reset()
 ```
 
-`_HARNESS_FIXTURES` covers the 6 module-scoped harness fixtures:
+`_HARNESS_FIXTURES` covers the 7 module-scoped harness fixtures:
 `hassette_with_nothing`, `hassette_with_bus`, `hassette_with_scheduler`,
 `hassette_with_file_watcher`, `hassette_with_state_proxy`,
-`hassette_with_state_registry`.
+`hassette_with_state_registry`, `hassette_with_app_handler`.
 
-Function-scoped fixtures (`hassette_with_app_handler`,
-`hassette_with_app_handler_custom_config`) are excluded — they are recreated
-fresh for each test, so no cleanup is needed.
+Function-scoped fixtures (`hassette_with_app_handler_custom_config`) are
+excluded — they are recreated fresh for each test, so no cleanup is needed.
 
 `HassetteHarness.reset()` resets each active component independently:
 
 | Component      | Reset action                                              |
 | -------------- | --------------------------------------------------------- |
+| `app_handler`  | Stop/clear/re-bootstrap cycle via `reset_app_handler()`   |
 | `state_proxy`  | Full shutdown/initialize cycle via `reset_state_proxy()`  |
 | `bus`          | All listeners removed via `reset_bus()`                   |
 | `scheduler`    | All jobs removed via `reset_scheduler()`                  |

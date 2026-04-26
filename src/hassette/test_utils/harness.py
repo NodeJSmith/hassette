@@ -34,12 +34,13 @@ from hassette.scheduler import Scheduler
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
-from hassette.test_utils.reset import reset_bus, reset_mock_api, reset_scheduler, reset_state_proxy
+from hassette.test_utils.reset import reset_app_handler, reset_bus, reset_mock_api, reset_scheduler, reset_state_proxy
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.types.enums import ResourceStatus
 from hassette.utils.service_utils import wait_for_ready
 
 if typing.TYPE_CHECKING:
+    from hassette.config.classes import AppManifest
     from hassette.events import Event, HassStateDict
 
 
@@ -283,6 +284,7 @@ class HassetteHarness:
 
         self._previous_task_factory: typing.Any = None
         self._hassette_ctx_token: typing.Any = None  # Token[Hassette] | None
+        self._original_app_manifests: dict[str, AppManifest] | None = None
 
         if not skip_global_set:
             self._hassette_ctx_token = context.set_global_hassette(self.hassette)
@@ -387,6 +389,10 @@ class HassetteHarness:
         check). The cost is negligible per test — one ``remove_all_listeners()`` and
         one ``_remove_all_jobs()`` call at most.
         """
+        # app_handler resets first: re-bootstrap registers fresh listeners/jobs,
+        # then bus/scheduler resets clear any stale test-added ones.
+        if self.has_component("app_handler") and self._original_app_manifests is not None:
+            await reset_app_handler(self.app_handler, self._original_app_manifests)
         if self.has_component("state_proxy"):
             await reset_state_proxy(self.state_proxy)
         if self.has_component("bus"):
@@ -542,6 +548,11 @@ class HassetteHarness:
             raise TimeoutError(
                 f"HassetteHarness: components did not become ready within {TIMEOUTS.WAIT_FOR_READY}s: {names}"
             )
+
+        if self.has_component("app_handler"):
+            self._original_app_manifests = {
+                k: v.model_copy(deep=True) for k, v in self.app_handler.registry.manifests.items()
+            }
 
         return self
 

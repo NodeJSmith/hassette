@@ -98,14 +98,11 @@ async def hassette_with_file_watcher(
         yield harness
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 async def hassette_with_app_handler(
     hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
     test_config_with_apps,
 ) -> "AsyncIterator[HassetteHarness]":
-    # Cannot upgrade to module scope: TestApps tests mutate app_handler state
-    # (orphan/enable/reload cycles) that is not reverted between tests. Upgrading
-    # requires making those tests idempotent or adding per-test state reset.
     async with hassette_harness(test_config_with_apps).with_app_handler().with_scheduler() as harness:
         yield harness
 
