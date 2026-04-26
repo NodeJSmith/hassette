@@ -60,6 +60,7 @@ graph TD
         App --> Scheduler
         App --> Api
         App --> StateManager
+        App --> Cache
     end
 
     AppLifecycleService --> App

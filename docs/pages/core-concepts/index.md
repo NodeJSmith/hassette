@@ -117,9 +117,10 @@ flowchart TD
         BUS[Bus]
         SCHED[Scheduler]
         STATES[States]
+        CACHE[Cache]
     end
 
-    APP --> API & BUS & SCHED & STATES
+    APP --> API & BUS & SCHED & STATES & CACHE
 
     style app fill:#e8f0ff,stroke:#6688cc
     style handles fill:#fff0e8,stroke:#cc8844
