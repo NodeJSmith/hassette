@@ -1,7 +1,7 @@
 # Design: Improve Web Frontend and Backend Tests
 
 **Date:** 2026-04-25
-**Status:** approved
+**Status:** archived
 **Research:** /tmp/claude-mine-define-research-8NoP7E/brief.md
 
 ## Problem

@@ -13,5 +13,17 @@ coverage:
       default:
         target: auto
 
+flags:
+  backend:
+    paths:
+      - src/hassette/
+    carryforward: true
+  frontend:
+    paths:
+      - frontend/src/
+    carryforward: true
+
 ignore:
   - "src/hassette/migrations/**"
+  - "frontend/src/test/**"
+  - "frontend/src/test-setup.ts"

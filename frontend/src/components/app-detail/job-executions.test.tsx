@@ -1,20 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, fireEvent } from "@testing-library/preact";
 import { JobExecutions } from "./job-executions";
-import type { JobExecutionData } from "../../api/endpoints";
-
-function createExecution(overrides: Partial<JobExecutionData> = {}): JobExecutionData {
-  return {
-    execution_start_ts: 1700000000,
-    duration_ms: 75,
-    status: "success",
-    source_tier: "app",
-    error_type: null,
-    error_message: null,
-    error_traceback: null,
-    ...overrides,
-  };
-}
+import { createExecution } from "../../test/factories";
 
 describe("JobExecutions", () => {
   it("renders 'No executions recorded' when executions array is empty", () => {

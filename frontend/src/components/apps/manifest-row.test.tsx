@@ -1,8 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/preact";
 import { ManifestRow } from "./manifest-row";
-import { createManifest } from "../../test/factories";
-import type { AppManifest, AppInstance } from "../../api/endpoints";
+import { createManifest, createInstance } from "../../test/factories";
 
 // Mock ActionButtons to avoid API call setup — we're testing ManifestRow rendering
 vi.mock("./action-buttons", () => ({
@@ -10,20 +9,6 @@ vi.mock("./action-buttons", () => ({
     <div data-testid={`action-buttons-${appKey}`} data-status={status} />
   ),
 }));
-
-function createInstance(overrides: Partial<AppInstance> = {}): AppInstance {
-  return {
-    app_key: "test_app",
-    index: 0,
-    instance_name: "inst_0",
-    class_name: "TestApp",
-    status: "running",
-    error_message: null,
-    error_traceback: null,
-    owner_id: null,
-    ...overrides,
-  };
-}
 
 describe("ManifestRow", () => {
   // -- Basic rendering --
@@ -131,7 +116,7 @@ describe("ManifestRow", () => {
         createInstance({ index: 0, instance_name: "inst_0" }),
         createInstance({ index: 1, instance_name: "inst_1" }),
       ],
-    }) as AppManifest;
+    });
     const { getByTestId } = render(
       <ManifestRow manifest={manifest} isExpanded={false} onToggleExpand={vi.fn()} />,
     );
@@ -144,7 +129,7 @@ describe("ManifestRow", () => {
       app_key: "multi",
       instance_count: 2,
       instances: [createInstance({ index: 0 }), createInstance({ index: 1 })],
-    }) as AppManifest;
+    });
     const { getByTestId } = render(
       <ManifestRow manifest={manifest} isExpanded={false} onToggleExpand={onToggle} />,
     );
@@ -160,7 +145,7 @@ describe("ManifestRow", () => {
         createInstance({ index: 0, instance_name: "inst_0" }),
         createInstance({ index: 1, instance_name: "inst_1" }),
       ],
-    }) as AppManifest;
+    });
     const { getByText } = render(
       <ManifestRow manifest={manifest} isExpanded={true} onToggleExpand={vi.fn()} />,
     );
@@ -176,7 +161,7 @@ describe("ManifestRow", () => {
         createInstance({ index: 0, instance_name: "inst_0" }),
         createInstance({ index: 1, instance_name: "inst_1" }),
       ],
-    }) as AppManifest;
+    });
     const { queryByText } = render(
       <ManifestRow manifest={manifest} isExpanded={false} onToggleExpand={vi.fn()} />,
     );
@@ -189,7 +174,7 @@ describe("ManifestRow", () => {
       app_key: "multi",
       instance_count: 2,
       instances: [createInstance({ index: 0 }), createInstance({ index: 1 })],
-    }) as AppManifest;
+    });
 
     const { getByTestId: getNotExpanded } = render(
       <ManifestRow manifest={manifest} isExpanded={false} onToggleExpand={vi.fn()} />,
@@ -204,7 +189,7 @@ describe("ManifestRow", () => {
       app_key: "multi",
       instance_count: 2,
       instances: [createInstance({ index: 0, instance_name: "inst_0" })],
-    }) as AppManifest;
+    });
     const { container } = render(
       <ManifestRow manifest={manifest} isExpanded={true} onToggleExpand={vi.fn()} />,
     );

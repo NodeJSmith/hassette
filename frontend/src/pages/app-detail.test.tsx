@@ -5,7 +5,8 @@ import type { ComponentChildren } from "preact";
 import { AppDetailPage } from "./app-detail";
 import { AppStateContext } from "../state/context";
 import { createAppState, type AppState } from "../state/create-app-state";
-import type { AppInstance, AppManifest, ManifestListResponse, JobData } from "../api/endpoints";
+import { createManifest, createInstance, createManifestList } from "../test/factories";
+import type { AppManifest, ManifestListResponse, JobData } from "../api/endpoints";
 
 // Stub wouter navigation
 vi.mock("wouter", () => ({
@@ -48,49 +49,8 @@ const useApi = useApiMod.useApi as unknown as ReturnType<typeof vi.fn>;
 const useScopedApiMod = await import("../hooks/use-scoped-api");
 const useScopedApi = useScopedApiMod.useScopedApi as unknown as ReturnType<typeof vi.fn>;
 
-function createInstance(overrides: Partial<AppInstance> = {}): AppInstance {
-  return {
-    app_key: "test_app",
-    index: 0,
-    instance_name: "inst_0",
-    class_name: "TestApp",
-    status: "running",
-    error_message: null,
-    error_traceback: null,
-    owner_id: null,
-    ...overrides,
-  };
-}
-
-function createManifest(overrides: Partial<AppManifest> = {}): AppManifest {
-  return {
-    app_key: "test_app",
-    class_name: "TestApp",
-    display_name: "Test App",
-    filename: "test_app.py",
-    enabled: true,
-    auto_loaded: true,
-    status: "running",
-    block_reason: null,
-    instance_count: 1,
-    instances: [createInstance()],
-    error_message: null,
-    error_traceback: null,
-    ...overrides,
-  };
-}
-
 function createManifestListResponse(manifest: AppManifest): ManifestListResponse {
-  return {
-    total: 1,
-    running: 1,
-    failed: 0,
-    stopped: 0,
-    disabled: 0,
-    blocked: 0,
-    manifests: [manifest],
-    only_app: null,
-  };
+  return createManifestList({ manifests: [manifest] });
 }
 
 /** Build a fake UseApiResult where data is already resolved. */

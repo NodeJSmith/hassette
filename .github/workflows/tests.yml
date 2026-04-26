@@ -29,9 +29,15 @@ jobs:
               run: npm ci
               working-directory: frontend
 
-            - name: Run frontend tests
-              run: npm test
+            - name: Run frontend tests with coverage
+              run: npm run test:coverage
               working-directory: frontend
+
+            - name: Upload frontend coverage
+              uses: actions/upload-artifact@v4
+              with:
+                  name: frontend-coverage
+                  path: frontend/coverage/lcov.info
 
             - name: Regenerate schemas
               run: uv run python scripts/export_schemas.py
@@ -109,7 +115,7 @@ jobs:
                   include-hidden-files: true
 
     combine-and-report:
-        needs: [test, system]
+        needs: [frontend, test, system]
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -129,6 +135,12 @@ jobs:
                   path: coverage-parts
                   pattern: .coverage.*
                   merge-multiple: true
+
+            - name: Download frontend coverage
+              uses: actions/download-artifact@v5
+              with:
+                  name: frontend-coverage
+                  path: frontend-coverage
 
             - name: Combine coverage and report
               run: |
@@ -151,8 +163,9 @@ jobs:
             - name: Upload coverage to Codecov
               uses: codecov/codecov-action@v5
               with:
-                  files: coverage.xml
+                  files: coverage.xml,frontend-coverage/lcov.info
                   fail_ci_if_error: true
                   verbose: true
                   name: codecov-${{ github.run_id }}
                   token: ${{ secrets.CODECOV_TOKEN }}
+                  flags: backend,frontend

@@ -6,7 +6,8 @@ import type { ComponentChildren } from "preact";
 import { ManifestList, EXPANDED_KEY } from "./manifest-list";
 import { AppStateContext } from "../../state/context";
 import { createAppState, type AppState } from "../../state/create-app-state";
-import type { AppManifest, AppInstance } from "../../api/endpoints";
+import { createManifest, createInstance } from "../../test/factories";
+import type { AppManifest } from "../../api/endpoints";
 import type { FilterValue } from "./status-filter";
 
 // Mock useMediaQuery to return desktop (false) so the table renders
@@ -35,38 +36,6 @@ vi.mock("../../api/endpoints", () => ({
 const localStorage = await import("../../utils/local-storage");
 const getStoredSet = localStorage.getStoredSet as ReturnType<typeof vi.fn>;
 const setStoredSet = localStorage.setStoredSet as ReturnType<typeof vi.fn>;
-
-function createInstance(overrides: Partial<AppInstance> = {}): AppInstance {
-  return {
-    app_key: "test_app",
-    index: 0,
-    instance_name: "inst_0",
-    class_name: "TestApp",
-    status: "running",
-    error_message: null,
-    error_traceback: null,
-    owner_id: null,
-    ...overrides,
-  };
-}
-
-function createManifest(overrides: Partial<AppManifest> = {}): AppManifest {
-  return {
-    app_key: "test_app",
-    class_name: "TestApp",
-    display_name: "Test App",
-    filename: "test_app.py",
-    enabled: true,
-    auto_loaded: true,
-    status: "running",
-    block_reason: null,
-    instance_count: 1,
-    instances: [],
-    error_message: null,
-    error_traceback: null,
-    ...overrides,
-  };
-}
 
 function createMultiInstanceManifest(appKey = "multi"): AppManifest {
   return createManifest({

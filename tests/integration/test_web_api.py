@@ -1,6 +1,7 @@
 """Integration tests for the FastAPI web API using httpx AsyncClient."""
 
 import logging
+import sqlite3
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -572,8 +573,6 @@ class TestTelemetryDashboard:
         assert data["errors"][1]["kind"] == "job"
 
     async def test_kpis_returns_zeroed_on_sqlite_error(self, client: "AsyncClient", mock_hassette) -> None:
-        import sqlite3
-
         mock_hassette.telemetry_query_service.get_global_summary = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
@@ -590,8 +589,6 @@ class TestTelemetryDashboard:
             await client.get("/api/telemetry/dashboard/kpis")
 
     async def test_errors_returns_empty_on_sqlite_error(self, client: "AsyncClient", mock_hassette) -> None:
-        import sqlite3
-
         mock_hassette.telemetry_query_service.get_recent_errors = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
@@ -657,8 +654,6 @@ class TestTelemetryStatus:
 
     async def test_telemetry_status_db_unavailable(self, client: "AsyncClient", mock_hassette) -> None:
         """/api/telemetry/status returns 503 with degraded=true when DB query raises sqlite3.Error."""
-        import sqlite3
-
         mock_hassette.telemetry_query_service.check_health = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
@@ -756,8 +751,6 @@ class TestTelemetrySessionsEndpoint:
 
     async def test_sessions_endpoint_db_error_returns_empty(self, client: "AsyncClient", mock_hassette) -> None:
         """Verify graceful degradation returns empty list on DB error."""
-        import sqlite3
-
         mock_hassette.telemetry_query_service.get_session_list = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
@@ -934,8 +927,6 @@ class TestDbErrorGuards:
 
     async def test_app_health_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """sqlite3.Error on app_health returns 503 with zero-value response."""
-        import sqlite3
-
         mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
@@ -947,8 +938,6 @@ class TestDbErrorGuards:
 
     async def test_app_listeners_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """sqlite3.Error on app_listeners returns 503 with empty list."""
-        import sqlite3
-
         mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
@@ -959,8 +948,6 @@ class TestDbErrorGuards:
 
     async def test_app_jobs_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """sqlite3.Error on app_jobs returns 503 with empty list."""
-        import sqlite3
-
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
@@ -973,8 +960,6 @@ class TestDbErrorGuards:
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
         """sqlite3.Error on handler_invocations returns 503 with empty list."""
-        import sqlite3
-
         mock_hassette.telemetry_query_service.get_handler_invocations = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
@@ -985,8 +970,6 @@ class TestDbErrorGuards:
 
     async def test_job_executions_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """sqlite3.Error on job_executions returns 503 with empty list."""
-        import sqlite3
-
         mock_hassette.telemetry_query_service.get_job_executions = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
@@ -1025,8 +1008,6 @@ class TestStatusDropCounters:
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
         """When DB is degraded, dropped counters default to 0 (safe fallback)."""
-        import sqlite3
-
         mock_hassette.telemetry_query_service.check_health = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
@@ -1307,8 +1288,6 @@ class TestAppHealthDbErrorFallback:
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
         """sqlite3.Error on get_job_summary (after listener_summary succeeds) returns 503."""
-        import sqlite3
-
         mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(return_value=[])
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
@@ -1329,8 +1308,6 @@ class TestDashboardAppGridDbErrorFallback:
 
         The endpoint still returns 200 with manifests having zero health data.
         """
-        import sqlite3
-
         mock_hassette.telemetry_query_service.get_all_app_summaries = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
@@ -1373,8 +1350,6 @@ class TestDashboardAppGridDbErrorFallback:
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
         """When summaries dict is empty after DB error, _error_rate_from_summary returns 0.0 (line 347-349)."""
-        import sqlite3
-
         mock_hassette.telemetry_query_service.get_all_app_summaries = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
@@ -1415,8 +1390,6 @@ class TestDashboardFrameworkSummary:
 
     async def test_db_error_falls_back_to_zeros(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """sqlite3.Error on get_error_counts falls back to total_errors=0, total_job_errors=0."""
-        import sqlite3
-
         mock_hassette.telemetry_query_service.get_error_counts = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )

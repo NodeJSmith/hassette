@@ -1,20 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, fireEvent } from "@testing-library/preact";
 import { HandlerInvocations } from "./handler-invocations";
-import type { HandlerInvocationData } from "../../api/endpoints";
-
-function createInvocation(overrides: Partial<HandlerInvocationData> = {}): HandlerInvocationData {
-  return {
-    execution_start_ts: 1700000000,
-    duration_ms: 50,
-    status: "success",
-    source_tier: "app",
-    error_type: null,
-    error_message: null,
-    error_traceback: null,
-    ...overrides,
-  };
-}
+import { createInvocation } from "../../test/factories";
 
 describe("HandlerInvocations", () => {
   it("renders 'No invocations recorded' when invocations array is empty", () => {

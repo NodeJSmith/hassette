@@ -12,8 +12,7 @@
  */
 
 import { afterAll, afterEach, beforeAll } from "vitest";
-import { setupServer } from "msw/node";
-import { handlers } from "./test/handlers";
+import { server } from "./test/server";
 
 globalThis.requestAnimationFrame = (cb: FrameRequestCallback): number => {
   return setTimeout(cb, 0) as unknown as number;
@@ -23,15 +22,11 @@ globalThis.cancelAnimationFrame = (id: number): void => {
   clearTimeout(id);
 };
 
-export const server = setupServer(...handlers);
-
 beforeAll(() => {
-  // Handler coverage is complete — any unhandled request is a missing handler.
   server.listen({ onUnhandledRequest: "error" });
 });
 
 afterEach(() => {
-  // Reset any per-test handler overrides so tests don't bleed into each other.
   server.resetHandlers();
 });
 

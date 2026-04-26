@@ -233,7 +233,7 @@ def base_url(live_server: str) -> str:
 
 
 @pytest.fixture(autouse=True)
-def _default_scope_all(page, base_url: str) -> None:
+def _default_scope_all(request, page, base_url: str) -> None:
     """Set session scope to 'all' so telemetry loads without a WS-provided sessionId.
 
     The E2E test server disables WebSocket (ws='none'), so the frontend
@@ -242,7 +242,10 @@ def _default_scope_all(page, base_url: str) -> None:
     'all' lets all existing tests see real data.
 
     Individual tests can override by setting localStorage themselves.
+    Skipped for WS tests — they manage their own origin and scope.
     """
+    if "live_server_ws" in request.fixturenames:
+        return
     page.goto(base_url + "/")
     page.evaluate('localStorage.setItem("hassette:sessionScope", JSON.stringify("all"))')
     page.reload()
@@ -313,10 +316,10 @@ def live_server_ws(_fastapi_app, runtime_query_service):
 
     yield f"http://127.0.0.1:{port}"
 
-    server.should_exit = True
-    thread.join(timeout=5)
-    if thread.is_alive():
-        raise RuntimeError("WS-enabled live server did not stop within 5s")
-
-    # Restore original lock so other session fixtures are not affected.
-    runtime_query_service._lock = original_lock
+    try:
+        server.should_exit = True
+        thread.join(timeout=5)
+        if thread.is_alive():
+            raise RuntimeError("WS-enabled live server did not stop within 5s")
+    finally:
+        runtime_query_service._lock = original_lock

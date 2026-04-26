@@ -23,8 +23,25 @@ type JobErrorEntry = components["schemas"]["JobErrorEntry"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
 type SessionRecord = components["schemas"]["SessionRecord"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
+type AppInstanceResponse = components["schemas"]["AppInstanceResponse"];
+type HandlerInvocation = components["schemas"]["HandlerInvocation"];
+type JobExecution = components["schemas"]["JobExecution"];
 
 // ---- Individual object factories ----
+
+export function createInstance(overrides: Partial<AppInstanceResponse> = {}): AppInstanceResponse {
+  return {
+    app_key: "test_app",
+    index: 0,
+    instance_name: "inst_0",
+    class_name: "TestApp",
+    status: "running",
+    error_message: null,
+    error_traceback: null,
+    owner_id: null,
+    ...overrides,
+  } satisfies AppInstanceResponse;
+}
 
 export function createManifest(overrides: Partial<AppManifestResponse> = {}): AppManifestResponse {
   return {
@@ -252,4 +269,28 @@ export function createTelemetryStatus(overrides: Partial<TelemetryStatusResponse
     error_handler_failures: 0,
     ...overrides,
   } satisfies TelemetryStatusResponse;
+}
+
+export function createInvocation(overrides: Partial<HandlerInvocation> = {}): HandlerInvocation {
+  return {
+    execution_start_ts: 1700000000,
+    duration_ms: 50,
+    status: "success",
+    source_tier: "app",
+    error_type: null,
+    error_message: null,
+    ...overrides,
+  } satisfies HandlerInvocation;
+}
+
+export function createExecution(overrides: Partial<JobExecution> = {}): JobExecution {
+  return {
+    execution_start_ts: 1700000000,
+    duration_ms: 75,
+    status: "success",
+    source_tier: "app",
+    error_type: null,
+    error_message: null,
+    ...overrides,
+  } satisfies JobExecution;
 }

@@ -3,25 +3,12 @@ import { fireEvent, waitFor } from "@testing-library/preact";
 import { signal } from "@preact/signals";
 import { http, HttpResponse } from "msw";
 import type { components } from "../../api/generated-types";
-import { server } from "../../test-setup";
+import { server } from "../../test/server";
 import { renderWithAppState } from "../../test/render-helpers";
-import { createListener } from "../../test/factories";
+import { createListener, createInvocation } from "../../test/factories";
 import { HandlerRow } from "./handler-row";
 
 type HandlerInvocation = components["schemas"]["HandlerInvocation"];
-
-function makeInvocation(overrides: Partial<HandlerInvocation> = {}): HandlerInvocation {
-  return {
-    execution_start_ts: 1700000000,
-    duration_ms: 50,
-    status: "success",
-    source_tier: "app",
-    error_type: null,
-    error_message: null,
-    error_traceback: null,
-    ...overrides,
-  };
-}
 
 /**
  * Render HandlerRow with sessionScope="all" so useScopedApi fires without
@@ -155,7 +142,7 @@ describe("HandlerRow", () => {
   });
 
   it("fetches and renders invocation table after expansion", async () => {
-    const invocations = [makeInvocation({ status: "success" })];
+    const invocations = [createInvocation({ status: "success" })];
     server.use(
       http.get("/api/telemetry/handler/:listener_id/invocations", () => {
         return HttpResponse.json<HandlerInvocation[]>(invocations);
@@ -172,7 +159,7 @@ describe("HandlerRow", () => {
   });
 
   it("renders invocation status badge after expansion", async () => {
-    const invocations = [makeInvocation({ status: "success" })];
+    const invocations = [createInvocation({ status: "success" })];
     server.use(
       http.get("/api/telemetry/handler/:listener_id/invocations", () => {
         return HttpResponse.json<HandlerInvocation[]>(invocations);

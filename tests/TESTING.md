@@ -316,12 +316,12 @@ Explicitly excluded from MSW migration:
 
 ### MSW Usage Patterns
 
-**Global setup** (`src/test-setup.ts`): The MSW Node server is started in `beforeAll`, reset in `afterEach`, and closed in `afterAll`. This applies automatically to every test file.
+**Global setup** (`src/test-setup.ts`): The MSW Node server is created in `src/test/server.ts` and its lifecycle is managed in `test-setup.ts` — started in `beforeAll`, reset in `afterEach`, and closed in `afterAll`. This applies automatically to every test file.
 
 **Default handlers** (`src/test/handlers.ts`): Every endpoint in `src/api/endpoints.ts` has a default handler that returns an empty but valid response shape. Tests that need specific data override the default for that test:
 
 ```ts
-import { server } from "../../../test-setup";
+import { server } from "../../../test/server";
 import { http, HttpResponse } from "msw";
 import type { components } from "../../../api/generated-types";
 

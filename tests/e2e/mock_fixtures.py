@@ -694,7 +694,7 @@ def wire_error_telemetry(
     )
 
 
-_FRAMEWORK_ERROR_COUNTS: tuple[int, int] = (1, 0)
+_framework_error_counts: tuple[int, int] = (1, 0)
 
 
 def wire_global_summary(
@@ -715,7 +715,7 @@ def wire_global_summary(
 
     def _make_error_counts_side_effect(source_tier: str = "app", **_kwargs) -> tuple[int, int]:
         if source_tier == "framework":
-            return _FRAMEWORK_ERROR_COUNTS
+            return _framework_error_counts
         return (3, 6)
 
     hassette._telemetry_query_service.get_error_counts = AsyncMock(
@@ -773,8 +773,8 @@ GLOBAL_JOB_ERRORS: int = _default_global_summary.jobs.total_errors + _default_gl
 GLOBAL_TOTAL_FAILURES: int = GLOBAL_HANDLER_ERRORS + GLOBAL_JOB_ERRORS
 GLOBAL_COMBINED_TOTAL: int = GLOBAL_TOTAL_INVOCATIONS + GLOBAL_TOTAL_EXECUTIONS
 
-FRAMEWORK_TIER_TOTAL_HANDLER_ERRORS: int = _FRAMEWORK_ERROR_COUNTS[0]
-FRAMEWORK_TIER_TOTAL_JOB_ERRORS: int = _FRAMEWORK_ERROR_COUNTS[1]
+FRAMEWORK_TIER_TOTAL_HANDLER_ERRORS: int = _framework_error_counts[0]
+FRAMEWORK_TIER_TOTAL_JOB_ERRORS: int = _framework_error_counts[1]
 
 # ── Error feed counts ──────────────────────────────────────────────────
 
