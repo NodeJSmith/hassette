@@ -4,9 +4,10 @@ import asyncio
 import contextlib
 import os
 import shutil
+import socket
 import subprocess
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -15,7 +16,11 @@ import pytest
 from pydantic_settings import SettingsConfigDict
 
 from hassette import Hassette
+from hassette.api import Api
+from hassette.bus import Bus
 from hassette.config.config import HassetteConfig
+from hassette.events import RawStateChangeEvent
+from hassette.test_utils import wait_for
 
 COMPOSE_FILE = Path(__file__).parent / "docker-compose.yml"
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "ha-config"
@@ -39,7 +44,7 @@ class _SystemTestConfig(HassetteConfig):
 
 
 @pytest.fixture(scope="session")
-def ha_container(tmp_path_factory: pytest.TempPathFactory) -> str:
+def ha_container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
     """Start the HA Docker container for the test session and tear it down after.
 
     Copies the committed fixture files to a temporary directory before starting
@@ -186,3 +191,85 @@ def make_system_config(ha_url: str, tmp_path: Path) -> HassetteConfig:
         autodetect_apps=False,
         startup_timeout_seconds=30,
     )
+
+
+def make_web_system_config(ha_url: str, tmp_path: Path) -> tuple[HassetteConfig, str]:
+    """Build a HassetteConfig with the web API enabled, using a dynamically assigned port.
+
+    Finds a free port by binding a socket, releases it, then uses that port for the
+    web API. This avoids port conflicts between parallel test runs.
+
+    Args:
+        ha_url: Base URL of the running Home Assistant instance.
+        tmp_path: Per-test temporary directory used for ``data_dir`` and ``app_dir``.
+
+    Returns:
+        A tuple of ``(config, base_url)`` where ``base_url`` is e.g.
+        ``http://localhost:PORT``.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(("", 0))
+        port = sock.getsockname()[1]
+
+    app_dir = tmp_path / "apps"
+    app_dir.mkdir(exist_ok=True)
+
+    config = _SystemTestConfig(
+        base_url=ha_url,
+        token=HA_TOKEN,
+        data_dir=tmp_path / "data",
+        app_dir=app_dir,
+        run_web_api=True,
+        web_api_port=port,
+        autodetect_apps=False,
+        startup_timeout_seconds=30,
+    )
+    return config, f"http://localhost:{port}"
+
+
+async def toggle_and_capture(
+    bus: Bus,
+    api: Api,
+    entity_id: str,
+    *,
+    service_domain: str = "light",
+    service_action: str = "toggle",
+    timeout: float = 10.0,
+) -> list[RawStateChangeEvent]:
+    """Register a state-change handler, toggle an entity, and wait for at least one event.
+
+    Registers a ``bus.on_state_change`` handler for ``entity_id``, calls
+    ``api.call_service`` to trigger the given service, then waits (via
+    ``wait_for``) until at least one event is captured.
+
+    Args:
+        bus: The Bus instance to subscribe on.
+        api: The Api instance to call the service through.
+        entity_id: The entity ID to watch and toggle (e.g. ``"light.kitchen_lights"``).
+        service_domain: The HA service domain (default ``"light"``).
+        service_action: The HA service action (default ``"toggle"``).
+        timeout: Maximum seconds to wait for an event to arrive (default 10.0).
+
+    Returns:
+        The list of captured ``RawStateChangeEvent`` objects (at least one).
+    """
+    captured: list[RawStateChangeEvent] = []
+
+    async def _handler(event: RawStateChangeEvent) -> None:
+        captured.append(event)
+
+    bus.on_state_change(entity_id, handler=_handler)
+    await api.call_service(service_domain, service_action, {"entity_id": entity_id})
+    await wait_for(lambda: len(captured) >= 1, timeout=timeout, desc=f"state_changed event for {entity_id}")
+    return captured
+
+
+@pytest.fixture(scope="session")
+def system_app_dir() -> Path:
+    """Return the directory containing system test app fixtures.
+
+    Returns:
+        Path to ``tests/system/apps/``.
+    """
+    return Path(__file__).parent / "apps"
