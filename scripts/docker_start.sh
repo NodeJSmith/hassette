@@ -2,8 +2,19 @@
 
 set -euo pipefail
 
+# ── startup timing ──────────────────────────────────────────────────────────
+STARTUP_EPOCH=$(date +%s%3N)
+log_phase() {
+    local elapsed
+    elapsed=$(( $(date +%s%3N) - STARTUP_EPOCH ))
+    printf "[%7dms] %s\n" "$elapsed" "$1"
+}
+
+log_phase "entrypoint started"
+
 # shellcheck disable=SC1091
 . /app/.venv/bin/activate
+log_phase "venv activated"
 
 # Validate venv health by importing hassette — catches corrupt images
 HASSETTE_VERSION=$(python -c "import importlib.metadata; print(importlib.metadata.version('hassette'))" 2>&1) || {
@@ -11,7 +22,7 @@ HASSETTE_VERSION=$(python -c "import importlib.metadata; print(importlib.metadat
     echo "       Details: ${HASSETTE_VERSION}"
     exit 1
 }
-echo "Running Hassette version ${HASSETTE_VERSION}"
+log_phase "venv health check passed (v${HASSETTE_VERSION})"
 
 # APP_DIR is where we start looking for actual *.py files that contain App/AppSync classes
 # PROJECT_DIR is where to look for a uv.lock or pyproject.toml file for a package
@@ -123,15 +134,14 @@ run_uv_install() {
 # 1. Project-based install (export deps → install with constraints → install package)
 # ---------------------------------------------------------------------------
 if [ -f "$PROJECT_DIR/uv.lock" ]; then
-    echo "Installing locked project from $PROJECT_DIR..."
+    log_phase "project install: starting (from $PROJECT_DIR)"
 
     # Temp files — cleaned up on exit (including early termination)
     user_deps_file=$(mktemp /tmp/user-deps.XXXXXX)
     tmp_project=$(mktemp -d /tmp/project-build.XXXXXX)
     trap 'rm -f "${user_deps_file}"; rm -rf "${tmp_project}"' EXIT
 
-    # Export resolved deps as a flat requirements list
-    # --output-file is preferred over stdout redirect: uv writes atomically (temp+rename)
+    log_phase "project install: exporting locked deps"
     run_uv_install 300 "export" export \
         --no-hashes --frozen \
         --directory "$PROJECT_DIR" \
@@ -139,30 +149,29 @@ if [ -f "$PROJECT_DIR/uv.lock" ]; then
         --no-dev --no-editable --no-emit-project \
         --output-file "${user_deps_file}"
 
-    # Install deps through constraints (catches conflicts with clear errors)
+    log_phase "project install: installing deps with constraints"
     run_uv_install 300 "project" pip install \
         -r "${user_deps_file}" \
         -c "$CONSTRAINTS"
 
-    # Copy project to a writable temp dir before installing. Some build backends
-    # (notably setuptools without [build-system]) write egg-info into the source
-    # tree, which fails if the mount is read-only or owned by a different UID.
+    log_phase "project install: installing project package"
     cp -a "$PROJECT_DIR"/. "$tmp_project"/
     run_uv_install 120 "project" pip install \
         --no-deps "$tmp_project"
 
-    echo "Project install complete."
+    log_phase "project install: complete"
 
 elif [ -f "$PROJECT_DIR/pyproject.toml" ]; then
-    echo "Found pyproject.toml in $PROJECT_DIR but no uv.lock — run 'uv lock' to generate a lockfile, then restart."
+    log_phase "project install: skipped (pyproject.toml found but no uv.lock — run 'uv lock' to generate a lockfile, then restart)"
 else
-    echo "No project found in $PROJECT_DIR — skipping project install"
+    log_phase "project install: skipped (no project in $PROJECT_DIR)"
 fi
 
 # ---------------------------------------------------------------------------
 # 2. Requirements.txt discovery (only when HASSETTE__INSTALL_DEPS=1)
 # ---------------------------------------------------------------------------
 if [ "${INSTALL_DEPS}" = "1" ]; then
+    log_phase "requirements install: starting"
     if [ -z "$FD_BIN" ]; then
         echo "ERROR: HASSETTE__INSTALL_DEPS=1 but fd is not installed in this image."
         exit 1
@@ -186,7 +195,7 @@ if [ "${INSTALL_DEPS}" = "1" ]; then
         done < <("$FD_BIN" -t f -a -0 --max-depth 5 '^requirements\.txt$' "${ROOTS[@]}" | sort -z)
     fi
 
-    echo "Installed $found_files requirements.txt file(s)"
+    log_phase "requirements install: complete ($found_files file(s))"
 else
     # Hint if user tried a truthy value other than "1"
     case "${INSTALL_DEPS}" in
@@ -194,19 +203,21 @@ else
             echo "WARNING: HASSETTE__INSTALL_DEPS='${INSTALL_DEPS}' is not recognized — use '1' to enable. Your requirements.txt files will NOT be installed."
             ;;
     esac
-    echo "Runtime dependency installation disabled (set HASSETTE__INSTALL_DEPS=1 to enable)"
+    log_phase "requirements install: disabled (set HASSETTE__INSTALL_DEPS=1 to enable)"
 fi
 
 if [ "${PRUNE_UV_CACHE}" = "1" ]; then
-    echo "Pruning stale uv cache entries..."
+    log_phase "uv cache prune: starting"
     uv cache prune || echo "WARNING: uv cache prune failed — continuing anyway"
+    log_phase "uv cache prune: complete"
 else
     case "${PRUNE_UV_CACHE}" in
         true|yes|on|TRUE|YES|ON)
             echo "WARNING: HASSETTE__PRUNE_UV_CACHE='${PRUNE_UV_CACHE}' is not recognized — use '1' to enable or '0' to disable. Cache will NOT be pruned."
             ;;
     esac
-    echo "uv cache pruning disabled (set HASSETTE__PRUNE_UV_CACHE=1 to enable)"
+    log_phase "uv cache prune: disabled"
 fi
 
+log_phase "handing off to hassette"
 exec hassette "$@"
