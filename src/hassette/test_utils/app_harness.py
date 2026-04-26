@@ -54,9 +54,15 @@ from hassette.types.enums import ResourceStatus
 
 LOGGER = logging.getLogger(__name__)
 
-# Per-class asyncio.Lock to prevent concurrent harnesses for the same App class
-# from corrupting class-level app_manifest (Finding 2).
+# Per-class asyncio.Lock used as a narrow critical section around the
+# _CLASS_MANIFEST_STATE read-modify-write and config validation. Held only
+# during synchronous operations — not during app startup, test body, or teardown.
 _CLASS_LOCKS: weakref.WeakKeyDictionary[type, asyncio.Lock] = weakref.WeakKeyDictionary()
+
+# Per-class reference-counted manifest state. When concurrent harnesses share
+# an App class, the first to enter saves the original manifest and subsequent
+# ones increment the count. Only the last to exit (count drops to 0) restores.
+_CLASS_MANIFEST_STATE: weakref.WeakKeyDictionary[type, tuple[int, Any]] = weakref.WeakKeyDictionary()
 
 
 def _get_class_lock(cls: type) -> asyncio.Lock:
@@ -220,9 +226,9 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
             harness.states   # StateManager
 
     Note:
-        Mutates class-level attributes (app_manifest) with save/restore.
-        Safe for sequential tests and xdist workers. NOT safe for concurrent use within
-        the same process for the same App class.
+        Mutates class-level attributes (app_manifest) with save/restore under a
+        narrow per-class asyncio.Lock. Safe for sequential tests, xdist workers,
+        and concurrent use via asyncio.gather for the same App class.
     """
 
     # Class-level sentinel for "not set" — distinguishes None from "attribute absent"
@@ -258,7 +264,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         self._time_patcher_registered: bool = False
 
     async def __aenter__(self) -> "AppTestHarness":
-        """Set up the full harness in 13 steps with LIFO teardown via AsyncExitStack."""
+        """Set up the full harness in 11 steps with LIFO teardown via AsyncExitStack."""
         exit_stack = AsyncExitStack()
         self._exit_stack = exit_stack
 
@@ -284,11 +290,8 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         # Step 2: Create minimal HassetteConfig
         hassette_config = make_test_config(data_dir=data_dir)
 
-        # Step 3: Validate user config hermetically.
-        # Use _get_app_config_class to resolve the generic type argument (App[MyConfig])
-        # even when app_config_cls is not set as a class attribute (e.g. inline test classes).
+        # Step 3: Resolve app config class (read-only, safe outside lock).
         app_config_cls = _get_app_config_class(self._app_cls)
-        validated_config = _make_hermetic_config(self._app_cls, app_config_cls, self._config_dict)
 
         # Step 4: Create HassetteHarness (skip_global_set=True — we handle ContextVar below)
         harness = (
@@ -329,19 +332,26 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         # Step 8: Mark state proxy ready
         harness.state_proxy.mark_ready(reason="AppTestHarness: mark ready for test")
 
-        # Step 9: Acquire per-class lock to prevent concurrent harnesses for the
-        # same App class from corrupting class-level attributes (Finding 2).
-        class_lock = _get_class_lock(self._app_cls)
-        await class_lock.acquire()
-        exit_stack.callback(class_lock.release)
+        # Step 9: Synthesize manifest under narrow per-class lock.
+        # The lock serializes the _CLASS_MANIFEST_STATE read-modify-write so
+        # concurrent harnesses for the same class share one manifest lifecycle —
+        # only the last to exit restores the original. Config cell race-safety
+        # is handled separately by the no-await guarantee in _make_hermetic_config.
+        async with _get_class_lock(self._app_cls):
+            validated_config = _make_hermetic_config(self._app_cls, app_config_cls, self._config_dict)
+            state = _CLASS_MANIFEST_STATE.get(self._app_cls)
+            if state is None:
+                original_manifest = getattr(self._app_cls, "app_manifest", self._UNSET)
+                manifest = _synthesize_manifest(self._app_cls)
+                self._app_cls.app_manifest = manifest
+                _CLASS_MANIFEST_STATE[self._app_cls] = (1, original_manifest)
+            else:
+                count, original_manifest = state
+                _CLASS_MANIFEST_STATE[self._app_cls] = (count + 1, original_manifest)
 
-        # Step 10: Synthesize AppManifest and set on class with save/restore
-        manifest = _synthesize_manifest(self._app_cls)
-        original_manifest = getattr(self._app_cls, "app_manifest", self._UNSET)
-        self._app_cls.app_manifest = manifest
-        exit_stack.callback(self._restore_manifest, original_manifest)
+        exit_stack.push_async_callback(self._restore_manifest)
 
-        # Step 11: Instantiate the app with RecordingApi injected via constructor
+        # Step 10: Instantiate the app with RecordingApi injected via constructor
         app = self._app_cls(
             hassette=harness.hassette,  # pyright: ignore[reportArgumentType]
             app_config=validated_config,
@@ -355,7 +365,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
 
         self._app = app
 
-        # Step 12: Register app shutdown first (late registration = early unwind)
+        # Step 11: Register app shutdown first (late registration = early unwind)
         # This ensures app shuts down before harness.stop() runs.
         # Wrapped to prevent shutdown exceptions from masking the original test failure.
         exit_stack.push_async_callback(self._safe_app_shutdown, app)
@@ -387,19 +397,31 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         except Exception as e:
             LOGGER.warning("Failed to clean up tmpdir %s: %s", data_dir, e)
 
-    def _restore_manifest(self, original: Any) -> None:
-        """Restore app_cls.app_manifest to its original value."""
-        if original is self._UNSET:
-            with contextlib.suppress(AttributeError):
-                del self._app_cls.app_manifest
-            # Verify deletion succeeded — del on an inherited attribute is a no-op.
-            if "app_manifest" in self._app_cls.__dict__:
+    async def _restore_manifest(self) -> None:
+        """Decrement the manifest reference count; restore original when count reaches 0."""
+        async with _get_class_lock(self._app_cls):
+            state = _CLASS_MANIFEST_STATE.get(self._app_cls)
+            if state is None:
                 LOGGER.warning(
-                    "_restore_manifest: could not delete app_manifest from %s.__dict__",
+                    "_restore_manifest: _CLASS_MANIFEST_STATE entry missing for %s",
                     self._app_cls.__name__,
                 )
-        else:
-            self._app_cls.app_manifest = original
+                return
+            count, original = state
+            if count > 1:
+                _CLASS_MANIFEST_STATE[self._app_cls] = (count - 1, original)
+                return
+            del _CLASS_MANIFEST_STATE[self._app_cls]
+            if original is self._UNSET:
+                with contextlib.suppress(AttributeError):
+                    del self._app_cls.app_manifest
+                if "app_manifest" in self._app_cls.__dict__:
+                    LOGGER.warning(
+                        "_restore_manifest: could not delete app_manifest from %s.__dict__",
+                        self._app_cls.__name__,
+                    )
+            else:
+                self._app_cls.app_manifest = original
 
     async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         """Delegate teardown to the AsyncExitStack (LIFO order)."""
