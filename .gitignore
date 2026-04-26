@@ -211,6 +211,7 @@ docs/apidocs
 docs/code-reference
 
 .claude/settings.local.json
+.claude/agent-memory/
 .claude/plan/
 .claude/plan.done.md
 .claude/worktrees/
