@@ -129,8 +129,7 @@ describe("HandlerRow", () => {
   it("shows loading state immediately after expansion", () => {
     server.use(
       http.get("/api/telemetry/handler/:listener_id/invocations", async () => {
-        // Delay response so we can observe loading state
-        await new Promise(() => {}); // never resolves within this assertion
+        await new Promise((resolve) => setTimeout(resolve, 50));
         return HttpResponse.json([]);
       }),
     );

@@ -101,3 +101,14 @@ def test_compute_error_rate_executions_only_no_invocations() -> None:
     )
     expected = (1 / 8) * 100
     assert result == pytest.approx(expected)
+
+
+def test_compute_error_rate_clamped_to_100_when_errors_exceed_total() -> None:
+    """Mismatched counters should not produce a rate above 100%."""
+    result = compute_error_rate(
+        total_invocations=5,
+        total_executions=5,
+        handler_errors=8,
+        job_errors=7,
+    )
+    assert result == 100.0

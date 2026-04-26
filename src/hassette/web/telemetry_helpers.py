@@ -53,7 +53,7 @@ def compute_error_rate(
     if total == 0:
         return 0.0
     failures = handler_errors + job_errors
-    return (failures / total) * 100
+    return min((failures / total) * 100, 100.0)
 
 
 def classify_error_rate(rate: float) -> str:

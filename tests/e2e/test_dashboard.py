@@ -61,12 +61,10 @@ def test_dashboard_renders_kpi_strip(page: Page, base_url: str) -> None:
 def test_dashboard_error_rate_includes_jobs(page: Page, base_url: str) -> None:
     """Error rate denominator includes both handler invocations AND job executions.
 
-    Uses compute_error_rate from the backend to derive the expected string, ensuring
-    the E2E assertion exercises the actual formula rather than a re-derivation that
-    can silently drift from production code.
-
-    The combined denominator must include BOTH handler invocations and job executions —
-    the test verifies the formula by asserting the handler-only denominator does NOT appear.
+    Expected counts are derived from shared computed constants (not hand-written).
+    compute_error_rate is called as a smoke-check that seed data produces a non-zero
+    rate, but the primary assertion verifies the UI displays the correct combined
+    denominator string and does NOT show a handler-only denominator.
     """
     page.goto(base_url + "/")
     kpi_strip = page.locator("[data-testid='kpi-strip']")
