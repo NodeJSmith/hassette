@@ -5,15 +5,21 @@ The scheduler lets you run functions at specific times, after a delay, or on a r
 Every scheduling method is backed by a **trigger object** that encapsulates when and how often a job fires. The convenience methods (`run_in`, `run_once`, `run_every`, `run_daily`, `run_cron`) create the appropriate trigger for you. For advanced use cases, pass a trigger directly to `schedule()`.
 
 ```mermaid
-graph TB
-    APP[Your App] --> |run_in| SCHED[Scheduler]
-    APP --> |run_once| SCHED
-    APP --> |run_every| SCHED
-    APP --> |run_daily| SCHED
-    APP --> |run_cron| SCHED
-    APP --> |schedule| SCHED
+flowchart TD
+    subgraph app["Your App"]
+        methods["run_*() / schedule()"]
+    end
 
-    SCHED --> |manages| JOB[ScheduledJob]
+    subgraph framework["Scheduler"]
+        SCHED["SchedulerService"]
+        JOB["ScheduledJob"]
+        SCHED -- "manages" --> JOB
+    end
+
+    methods --> SCHED
+
+    style app fill:#e8f0ff,stroke:#6688cc
+    style framework fill:#fff0e8,stroke:#cc8844
 ```
 
 ## Trigger Types

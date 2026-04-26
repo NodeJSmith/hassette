@@ -101,6 +101,7 @@ docs = [
     "watchdog>=6.0.0",
     "ruff>=0.14.9",
     "mkdocs-glightbox>=0.5.2",
+    "mkdocs-panzoom-plugin>=0.5.2",
 ]
 
 [tool.uv]

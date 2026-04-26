@@ -7,12 +7,24 @@ Apps can be **asynchronous** (preferred) or **synchronous**. Sync apps are autom
 ## Structure
 
 ```mermaid
-graph TB
-    A[App] -->|uses| Api
-    A -->|subscribes to| Bus
-    A -->|schedules| Scheduler
-    A -->|accesses| States
-    A -->|persists to| Cache
+flowchart TD
+    subgraph app["Your App"]
+        A["App"]
+    end
+
+    subgraph resources["Resources"]
+        direction LR
+        Api
+        Bus
+        Scheduler
+        States
+        Cache
+    end
+
+    A --> Api & Bus & Scheduler & States & Cache
+
+    style app fill:#e8f0ff,stroke:#6688cc
+    style resources fill:#fff0e8,stroke:#cc8844
 ```
 
 ## Defining an App

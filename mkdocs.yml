@@ -74,6 +74,7 @@ nav:
           - Authentication: pages/core-concepts/configuration/auth.md
           - Global Settings: pages/core-concepts/configuration/global.md
           - Applications: pages/core-concepts/configuration/applications.md
+      - System Internals: pages/core-concepts/internals.md
   - Web UI:
       - Overview: pages/web-ui/index.md
       - Dashboard: pages/web-ui/dashboard.md
@@ -115,6 +116,8 @@ nav:
 plugins:
   - search
   - glightbox
+  - panzoom:
+      key: "ctrl"
   - gen-files:
       scripts:
         - tools/gen_ref_pages.py

@@ -214,6 +214,21 @@ See `design/README.md` for the full guide on what goes where.
 
 The changelog is derived entirely from commit types (`feat`, `fix`, `perf`, etc.) — write good commit messages and the changelog takes care of itself.
 
+## Mermaid Diagram Color Scheme
+
+All Mermaid diagrams in `docs/` use a consistent color palette. Apply these when creating or modifying diagrams:
+
+| Role | Fill | Stroke | Use for |
+|---|---|---|---|
+| **User-facing** | `#e8f0ff` | `#6688cc` | App code, per-app resources, browser |
+| **Data / services** | `#f0f8e8` | `#88aa66` | Data sources, caches, routing |
+| **Framework internals** | `#fff0e8` | `#cc8844` | Shared services, transport, dispatch |
+| **Per-app resources** | `#f8f0ff` | `#8866cc` | When distinguishing per-app from shared |
+| **External / neutral** | `#f0f0f0` | `#999` | Home Assistant, terminal states |
+| **Error states** | `#ffe8e8` | `#cc6666` | FAILED, CRASHED |
+
+Layout: use `flowchart TD` (top-to-bottom) by default. Use subgraphs with background colors for visual grouping. Keep node text to 1-2 lines; move details to prose or tables below the diagram.
+
 ## Code Style
 
 - Line length: 120 characters

@@ -6,11 +6,27 @@ Hassette maintains a local, real-time cache of all Home Assistant states. This i
 ## Diagram
 
 ```mermaid
-graph TB
-  HA["Home Assistant"] -->|"State change events (WebSocket)"| WS["WebsocketService"]
-  WS --> SP["StateProxy"]
-  SP --> SM["StateManager (self.states)"]
-  APP["Your App"] -->|"Read (sync)"| SM
+flowchart TD
+    subgraph ha["Home Assistant"]
+        HA["State change events"]
+    end
+
+    subgraph framework["Framework"]
+        WS["WebsocketService"]
+        SP["StateProxy<br/><i>in-memory cache</i>"]
+        WS --> SP
+    end
+
+    subgraph app["Your App"]
+        SM["self.states<br/><i>typed, sync access</i>"]
+    end
+
+    HA -- "WebSocket" --> WS
+    SP --> SM
+
+    style ha fill:#f0f0f0,stroke:#999
+    style framework fill:#fff0e8,stroke:#cc8844
+    style app fill:#e8f0ff,stroke:#6688cc
 ```
 
 ## Using the StateManager
