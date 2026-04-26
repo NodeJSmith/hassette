@@ -127,7 +127,7 @@ async def hassette_with_state_proxy(
     """Module-scoped HassetteHarness fixture with state proxy.
 
     Uses module scope for 5-10x performance improvement.
-    Tests should use the cleanup_state_proxy_fixture to reset state between tests.
+    State is reset between tests by the autouse cleanup_harness fixture.
     """
     async with hassette_harness(test_config).with_state_proxy().with_state_registry().with_scheduler() as harness:
         yield harness
