@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.0](https://github.com/NodeJSmith/hassette/compare/v0.25.0...v0.26.0) (2026-04-26)
+
+
+### Features
+
+* add startup timing instrumentation to docker entrypoint ([#617](https://github.com/NodeJSmith/hassette/issues/617)) ([5e67530](https://github.com/NodeJSmith/hassette/commit/5e675306d6a32feebe43eb4acc4cdd742247c62b))
+
+
+### Bug Fixes
+
+* narrow per-class lock in AppTestHarness for concurrent same-class harnesses ([#614](https://github.com/NodeJSmith/hassette/issues/614)) ([5b4c710](https://github.com/NodeJSmith/hassette/commit/5b4c710efb80303f14c497a149a158f73237cee7))
+
+
+### Documentation
+
+* add prior art research on resource/service lifecycle architecture ([#606](https://github.com/NodeJSmith/hassette/issues/606)) ([940a461](https://github.com/NodeJSmith/hassette/commit/940a46158e7ac5625b7b78f0c69be243610a6f9e))
+
+
+### Tests
+
+* add unit tests for StateManager.__getattr__ and DomainStates cache ([#613](https://github.com/NodeJSmith/hassette/issues/613)) ([f107482](https://github.com/NodeJSmith/hassette/commit/f10748287dac3e0aa727817172d16956ea49b2fa)), closes [#563](https://github.com/NodeJSmith/hassette/issues/563)
+* **test_utils:** enable module-scoped hassette_with_app_handler fixture ([#618](https://github.com/NodeJSmith/hassette/issues/618)) ([02df6f7](https://github.com/NodeJSmith/hassette/commit/02df6f7a424dbd21f094ab960b5461c2d375c88a))
+
 ## [0.25.0](https://github.com/NodeJSmith/hassette/compare/v0.24.0...v0.25.0) (2026-04-26)
 
 
