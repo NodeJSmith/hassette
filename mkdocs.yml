@@ -44,7 +44,6 @@ nav:
           - Troubleshooting: pages/getting-started/docker/troubleshooting.md
   - Core Concepts:
       - Architecture: pages/core-concepts/index.md
-      - System Internals: pages/core-concepts/internals.md
       - Apps:
           - Overview: pages/core-concepts/apps/index.md
           - Lifecycle: pages/core-concepts/apps/lifecycle.md
@@ -75,6 +74,7 @@ nav:
           - Authentication: pages/core-concepts/configuration/auth.md
           - Global Settings: pages/core-concepts/configuration/global.md
           - Applications: pages/core-concepts/configuration/applications.md
+      - System Internals: pages/core-concepts/internals.md
   - Web UI:
       - Overview: pages/web-ui/index.md
       - Dashboard: pages/web-ui/dashboard.md
