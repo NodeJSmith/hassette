@@ -26,6 +26,36 @@ class _ListenerLike(Protocol):
     predicate_description: str | None
 
 
+def compute_error_rate(
+    total_invocations: int,
+    total_executions: int,
+    handler_errors: int,
+    job_errors: int,
+) -> float:
+    """Compute error rate percentage from handler and job totals.
+
+    The denominator is the combined count of handler invocations and job
+    executions — both contribute to the user-visible activity total.  This
+    prevents the denominator from being only one side of the equation (e.g.
+    handler-only), which would misstate the real error rate.
+
+    Args:
+        total_invocations: Total handler invocations (includes successful, failed, timed-out).
+        total_executions: Total job executions (includes successful, failed, timed-out).
+        handler_errors: Total handler failures (errors + timed-out combined).
+        job_errors: Total job failures (errors + timed-out combined).
+
+    Returns:
+        Error rate as a percentage in [0, 100].  Returns 0.0 when both totals
+        are zero to avoid division by zero.
+    """
+    total = total_invocations + total_executions
+    if total == 0:
+        return 0.0
+    failures = handler_errors + job_errors
+    return (failures / total) * 100
+
+
 def classify_error_rate(rate: float) -> str:
     """Map an error-rate percentage to a CSS class name.
 

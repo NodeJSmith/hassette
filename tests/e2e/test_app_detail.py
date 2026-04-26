@@ -3,6 +3,15 @@
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e.mock_fixtures import (
+    JOB_MY_APP_1_SOURCE_LOCATION,
+    JOB_MY_APP_1_TOTAL_EXECUTIONS,
+    JOB_MY_APP_2_TOTAL_EXECUTIONS,
+    LISTENER_MY_APP_1_SOURCE_LOCATION,
+    LISTENER_MY_APP_1_TOTAL_INVOCATIONS,
+    LISTENER_MY_APP_2_TOTAL_INVOCATIONS,
+)
+
 pytestmark = pytest.mark.e2e
 
 
@@ -26,8 +35,8 @@ def test_app_detail_renders_handler_rows(page: Page, base_url: str) -> None:
     expect(handler_list).to_contain_text("on_light_change")
     expect(handler_list).to_contain_text("on_temp_update")
     # Invocation counts
-    expect(handler_list).to_contain_text("10 calls")
-    expect(handler_list).to_contain_text("20 calls")
+    expect(handler_list).to_contain_text(f"{LISTENER_MY_APP_1_TOTAL_INVOCATIONS} calls")
+    expect(handler_list).to_contain_text(f"{LISTENER_MY_APP_2_TOTAL_INVOCATIONS} calls")
 
 
 def test_handler_row_expand_loads_invocations(page: Page, base_url: str) -> None:
@@ -71,8 +80,8 @@ def test_app_detail_renders_job_rows(page: Page, base_url: str) -> None:
     expect(job_list).to_contain_text("check_lights")
     expect(job_list).to_contain_text("morning_routine")
     # Execution counts
-    expect(job_list).to_contain_text("15 runs")
-    expect(job_list).to_contain_text("5 runs")
+    expect(job_list).to_contain_text(f"{JOB_MY_APP_1_TOTAL_EXECUTIONS} runs")
+    expect(job_list).to_contain_text(f"{JOB_MY_APP_2_TOTAL_EXECUTIONS} runs")
 
 
 def test_job_row_expand_loads_executions(page: Page, base_url: str) -> None:
@@ -127,7 +136,7 @@ def test_registration_source_link(page: Page, base_url: str) -> None:
     # Source display block should be present with actual content from fixture
     source_display = detail.locator("[data-testid='source-display']")
     expect(source_display).to_be_visible()
-    expect(source_display).to_contain_text("my_app.py:15")
+    expect(source_display).to_contain_text(LISTENER_MY_APP_1_SOURCE_LOCATION)
     expect(source_display).to_contain_text("on_initialize")
 
 
@@ -140,7 +149,7 @@ def test_job_registration_source_display(page: Page, base_url: str) -> None:
     expect(detail).to_be_visible(timeout=5000)
     source_display = detail.locator("[data-testid='source-display']")
     expect(source_display).to_be_visible()
-    expect(source_display).to_contain_text("my_app.py:30")
+    expect(source_display).to_contain_text(JOB_MY_APP_1_SOURCE_LOCATION)
     expect(source_display).to_contain_text("on_initialize")
 
 
@@ -185,7 +194,7 @@ def test_expanded_row_preserves_state_across_signals(page: Page, base_url: str) 
 
     # Verify counts are correct
     calls_el = page.locator("[data-testid='handler-row-1'] .ht-meta-item[title='Total invocations']")
-    expect(calls_el).to_have_text("10 calls")
+    expect(calls_el).to_have_text(f"{LISTENER_MY_APP_1_TOTAL_INVOCATIONS} calls")
 
     # Verify dot color: listener 1 has failures -> danger
     dot_1 = page.locator("[data-testid='handler-row-1'] .ht-item-row__dot")

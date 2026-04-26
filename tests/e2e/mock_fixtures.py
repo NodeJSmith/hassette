@@ -694,6 +694,9 @@ def wire_error_telemetry(
     )
 
 
+_FRAMEWORK_ERROR_COUNTS: tuple[int, int] = (1, 0)
+
+
 def wire_global_summary(
     hassette,
     framework_global_summary: GlobalSummary,
@@ -712,7 +715,7 @@ def wire_global_summary(
 
     def _make_error_counts_side_effect(source_tier: str = "app", **_kwargs) -> tuple[int, int]:
         if source_tier == "framework":
-            return (1, 0)
+            return _FRAMEWORK_ERROR_COUNTS
         return (3, 6)
 
     hassette._telemetry_query_service.get_error_counts = AsyncMock(
@@ -731,3 +734,68 @@ def wire_owner_resolution(hassette) -> None:
     hassette._app_handler.registry.get.side_effect = lambda app_key, index=0: (
         SimpleNamespace(unique_name="MyApp.MyApp[0]") if app_key == "my_app" and index == 0 else None
     )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Module-level computed constants for E2E assertions
+#
+# All constants are derived from the builder functions above — never
+# hand-written literals.  Use these in E2E test assertions so that
+# changing a seed value here automatically updates the tests.
+#
+# Naming convention: <TIER>_<ENTITY>_<FIELD>
+#   APP_TIER_   — per-app health summaries (build_app_health_summaries)
+#   GLOBAL_     — all-tier global summary (build_global_summaries)
+#   ERRORS_     — error feed counts (build_error_records)
+#   LISTENER_   — per-listener telemetry (build_listener_telemetry)
+#   JOB_        — per-job telemetry (build_job_telemetry)
+# ──────────────────────────────────────────────────────────────────────
+
+# ── App-tier health summaries ──────────────────────────────────────────
+
+_app_health = build_app_health_summaries()
+
+APP_TIER_MY_APP_TOTAL_INVOCATIONS: int = _app_health["my_app"].total_invocations
+APP_TIER_MY_APP_TOTAL_EXECUTIONS: int = _app_health["my_app"].total_executions
+APP_TIER_BROKEN_APP_TOTAL_INVOCATIONS: int = _app_health["broken_app"].total_invocations
+APP_TIER_BROKEN_APP_TOTAL_EXECUTIONS: int = _app_health["broken_app"].total_executions
+
+# ── Global summary (default = app + framework combined denominator) ────
+
+_framework_global_summary, _default_global_summary = build_global_summaries()
+
+GLOBAL_TOTAL_INVOCATIONS: int = _default_global_summary.listeners.total_invocations
+GLOBAL_TOTAL_EXECUTIONS: int = _default_global_summary.jobs.total_executions
+GLOBAL_HANDLER_ERRORS: int = (
+    _default_global_summary.listeners.total_errors + _default_global_summary.listeners.total_timed_out
+)
+GLOBAL_JOB_ERRORS: int = _default_global_summary.jobs.total_errors + _default_global_summary.jobs.total_timed_out
+GLOBAL_TOTAL_FAILURES: int = GLOBAL_HANDLER_ERRORS + GLOBAL_JOB_ERRORS
+GLOBAL_COMBINED_TOTAL: int = GLOBAL_TOTAL_INVOCATIONS + GLOBAL_TOTAL_EXECUTIONS
+
+FRAMEWORK_TIER_TOTAL_HANDLER_ERRORS: int = _FRAMEWORK_ERROR_COUNTS[0]
+FRAMEWORK_TIER_TOTAL_JOB_ERRORS: int = _FRAMEWORK_ERROR_COUNTS[1]
+
+# ── Error feed counts ──────────────────────────────────────────────────
+
+_app_tier_errors, _framework_tier_errors = build_error_records()
+
+ERRORS_APP_TIER_COUNT: int = len(_app_tier_errors)
+ERRORS_FRAMEWORK_TIER_COUNT: int = len(_framework_tier_errors)
+ERRORS_COMBINED_COUNT: int = ERRORS_APP_TIER_COUNT + ERRORS_FRAMEWORK_TIER_COUNT
+
+# ── Per-listener telemetry for my_app ─────────────────────────────────
+
+_listeners = build_listener_telemetry()
+
+LISTENER_MY_APP_1_TOTAL_INVOCATIONS: int = _listeners["my_app"][0].total_invocations
+LISTENER_MY_APP_2_TOTAL_INVOCATIONS: int = _listeners["my_app"][1].total_invocations
+LISTENER_MY_APP_1_SOURCE_LOCATION: str = _listeners["my_app"][0].source_location
+
+# ── Per-job telemetry for my_app ───────────────────────────────────────
+
+_jobs = build_job_telemetry()
+
+JOB_MY_APP_1_TOTAL_EXECUTIONS: int = _jobs["my_app"][0].total_executions
+JOB_MY_APP_2_TOTAL_EXECUTIONS: int = _jobs["my_app"][1].total_executions
+JOB_MY_APP_1_SOURCE_LOCATION: str = _jobs["my_app"][0].source_location

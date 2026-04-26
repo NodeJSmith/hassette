@@ -4,6 +4,8 @@ rendering stability when WS is unavailable."""
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e.mock_fixtures import LISTENER_MY_APP_1_TOTAL_INVOCATIONS
+
 pytestmark = pytest.mark.e2e
 
 
@@ -91,4 +93,4 @@ def test_expanded_handler_row_stable_without_ws(page: Page, base_url: str) -> No
 
     # Stats text should be present
     calls_el = page.locator("[data-testid='handler-row-1'] .ht-meta-item[title='Total invocations']")
-    expect(calls_el).to_have_text("10 calls")
+    expect(calls_el).to_have_text(f"{LISTENER_MY_APP_1_TOTAL_INVOCATIONS} calls")
