@@ -10,20 +10,20 @@ from hassette.events.base import Event
 from hassette.test_utils import create_call_service_event, create_state_change_event, wait_for
 
 if TYPE_CHECKING:
-    from hassette import Hassette
     from hassette.bus import Bus
+    from hassette.test_utils.harness import HassetteHarness
 
 
 @pytest.fixture
-def bus(hassette_with_bus: "Hassette") -> "Bus":
+def bus(hassette_with_bus: "HassetteHarness") -> "Bus":
     """Return the Bus resource for the running Hassette harness."""
-    return hassette_with_bus._bus
+    return hassette_with_bus.bus
 
 
-async def test_app_level_error_handler_called_on_failure(hassette_with_bus: "Hassette") -> None:
+async def test_app_level_error_handler_called_on_failure(hassette_with_bus: "HassetteHarness") -> None:
     """App-level handler registered via bus.on_error() is called when a listener raises."""
     hassette = hassette_with_bus
-    bus = hassette._bus
+    bus = hassette.bus
 
     error_contexts: list[BusErrorContext] = []
     handler_ran = asyncio.Event()
@@ -49,10 +49,10 @@ async def test_app_level_error_handler_called_on_failure(hassette_with_bus: "Has
     assert error_contexts[0].topic == "test.app_level"
 
 
-async def test_per_listener_error_handler_wins(hassette_with_bus: "Hassette") -> None:
+async def test_per_listener_error_handler_wins(hassette_with_bus: "HassetteHarness") -> None:
     """Per-registration on_error= takes precedence over the app-level handler."""
     hassette = hassette_with_bus
-    bus = hassette._bus
+    bus = hassette.bus
 
     app_level_calls: list[BusErrorContext] = []
     per_listener_calls: list[BusErrorContext] = []
@@ -84,10 +84,10 @@ async def test_per_listener_error_handler_wins(hassette_with_bus: "Hassette") ->
     assert isinstance(per_listener_calls[0].exception, RuntimeError)
 
 
-async def test_no_handler_framework_default_behavior(hassette_with_bus: "Hassette") -> None:
+async def test_no_handler_framework_default_behavior(hassette_with_bus: "HassetteHarness") -> None:
     """When no error handler is registered, listener failure does not crash the harness."""
     hassette = hassette_with_bus
-    bus = hassette._bus
+    bus = hassette.bus
 
     completed = asyncio.Event()
 
@@ -102,13 +102,13 @@ async def test_no_handler_framework_default_behavior(hassette_with_bus: "Hassett
 
     # Handler ran (exception was raised) and harness didn't crash
     await asyncio.wait_for(completed.wait(), timeout=2.0)
-    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks drained")
+    await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks drained")
 
 
-async def test_multiple_listeners_different_handlers(hassette_with_bus: "Hassette") -> None:
+async def test_multiple_listeners_different_handlers(hassette_with_bus: "HassetteHarness") -> None:
     """Multiple listeners on the same bus can have different per-registration error handlers."""
     hassette = hassette_with_bus
-    bus = hassette._bus
+    bus = hassette.bus
 
     calls_a: list[BusErrorContext] = []
     calls_b: list[BusErrorContext] = []
@@ -151,10 +151,10 @@ async def test_multiple_listeners_different_handlers(hassette_with_bus: "Hassett
     assert isinstance(calls_b[0].exception, TypeError)
 
 
-async def test_on_error_registered_after_listeners_still_works(hassette_with_bus: "Hassette") -> None:
+async def test_on_error_registered_after_listeners_still_works(hassette_with_bus: "HassetteHarness") -> None:
     """on_error() registered AFTER listeners is resolved at dispatch time — it still fires (FR11)."""
     hassette = hassette_with_bus
-    bus = hassette._bus
+    bus = hassette.bus
 
     error_contexts: list[BusErrorContext] = []
     handler_ran = asyncio.Event()
@@ -182,10 +182,10 @@ async def test_on_error_registered_after_listeners_still_works(hassette_with_bus
     assert "late registration test" in str(error_contexts[0].exception)
 
 
-async def test_on_error_after_multiple_listeners_applies_to_all(hassette_with_bus: "Hassette") -> None:
+async def test_on_error_after_multiple_listeners_applies_to_all(hassette_with_bus: "HassetteHarness") -> None:
     """on_error() registered after multiple listeners applies to all of them (lazy resolution)."""
     hassette = hassette_with_bus
-    bus = hassette._bus
+    bus = hassette.bus
 
     error_contexts: list[BusErrorContext] = []
     both_ran = asyncio.Event()
@@ -217,10 +217,10 @@ async def test_on_error_after_multiple_listeners_applies_to_all(hassette_with_bu
     assert exception_types == {ValueError, TypeError}
 
 
-async def test_on_call_service_error_handler(hassette_with_bus: "Hassette") -> None:
+async def test_on_call_service_error_handler(hassette_with_bus: "HassetteHarness") -> None:
     """on_call_service with on_error= routes handler exceptions to the error handler."""
     hassette = hassette_with_bus
-    bus = hassette._bus
+    bus = hassette.bus
 
     error_contexts: list[BusErrorContext] = []
     handler_ran = asyncio.Event()

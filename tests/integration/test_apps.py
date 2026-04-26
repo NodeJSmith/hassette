@@ -6,10 +6,10 @@ from unittest.mock import patch
 
 import pytest
 
-from hassette import Hassette
 from hassette.bus import Listener
 from hassette.core.app_change_detector import ChangeSet
 from hassette.test_utils import wait_for
+from hassette.test_utils.harness import HassetteHarness
 from hassette.types import Topic
 from hassette.utils.app_utils import load_app_class_from_manifest
 
@@ -20,13 +20,13 @@ if typing.TYPE_CHECKING:
 
 
 class TestApps:
-    hassette: Hassette
+    hassette: HassetteHarness
     app_handler: "AppHandler"
 
     @pytest.fixture(autouse=True)
-    def setup(self, hassette_with_app_handler: Hassette):
+    def setup(self, hassette_with_app_handler: HassetteHarness):
         self.hassette = hassette_with_app_handler
-        self.app_handler = hassette_with_app_handler._app_handler
+        self.app_handler = hassette_with_app_handler.app_handler
 
     async def test_apps_are_working(self) -> None:
         """Test actual WebSocket calls against running HA instance."""
@@ -71,7 +71,7 @@ class TestApps:
             results.append(kwargs)
             self.hassette.task_bucket.post_to_loop(event.set)
 
-        self.hassette._bus_service.add_listener(
+        self.hassette.bus_service.add_listener(
             Listener.create(
                 self.app_handler.task_bucket,
                 owner_id="test",
@@ -111,7 +111,7 @@ class TestApps:
         async def handler(**kwargs):  # noqa
             self.hassette.task_bucket.post_to_loop(event.set)
 
-        self.hassette._bus_service.add_listener(
+        self.hassette.bus_service.add_listener(
             Listener.create(
                 self.app_handler.task_bucket,
                 owner_id="test",
@@ -151,7 +151,7 @@ class TestApps:
         async def handler(**kwargs):  # noqa
             self.hassette.task_bucket.post_to_loop(event.set)
 
-        self.hassette._bus_service.add_listener(
+        self.hassette.bus_service.add_listener(
             Listener.create(
                 self.app_handler.task_bucket,
                 owner_id="test",

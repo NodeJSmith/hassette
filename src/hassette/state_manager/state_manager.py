@@ -235,6 +235,7 @@ class StateManager(Resource):
     @property
     def _state_proxy(self) -> StateProxy:
         """Access the underlying StateProxy instance."""
+        assert self.hassette._state_proxy is not None
         return self.hassette._state_proxy
 
     def __getattr__(self, domain: str) -> "DomainStates[BaseState]":

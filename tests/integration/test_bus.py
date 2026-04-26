@@ -25,14 +25,14 @@ from hassette.test_utils import create_call_service_event, create_state_change_e
 from hassette.types import Topic
 
 if typing.TYPE_CHECKING:
-    from hassette import Hassette
     from hassette.bus import Bus
+    from hassette.test_utils.harness import HassetteHarness
 
 
 @pytest.fixture
-def bus(hassette_with_bus: "Hassette") -> "Bus":
+def bus(hassette_with_bus: "HassetteHarness") -> "Bus":
     """Return the Bus resource for the running Hassette harness."""
-    return hassette_with_bus._bus
+    return hassette_with_bus.bus
 
 
 @pytest.mark.parametrize(
@@ -196,7 +196,7 @@ async def test_on_call_service_handles_mapping_predicates(bus: "Bus") -> None:
     assert listener.predicate(wrong_service_event) is False
 
 
-async def test_once_listener_removed(hassette_with_bus: "Hassette") -> None:
+async def test_once_listener_removed(hassette_with_bus: "HassetteHarness") -> None:
     """Listeners registered with once=True are removed after the first invocation."""
     hassette = hassette_with_bus
 
@@ -207,7 +207,7 @@ async def test_once_listener_removed(hassette_with_bus: "Hassette") -> None:
         received_payloads.append(event.payload.value)
         hassette_with_bus.task_bucket.post_to_loop(first_invocation.set)
 
-    hassette._bus.on(topic="custom.once", handler=handler, once=True)
+    hassette.bus.on(topic="custom.once", handler=handler, once=True)
 
     await hassette.send_event("custom.once", Event(topic="custom.once", payload=SimpleNamespace(value=1)))
 
@@ -216,12 +216,12 @@ async def test_once_listener_removed(hassette_with_bus: "Hassette") -> None:
 
     await hassette.send_event("custom.once", Event(topic="custom.once", payload=SimpleNamespace(value=2)))
 
-    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks cleaned up")
+    await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks cleaned up")
 
     assert received_payloads == [1], f"Expected handler to fire once with payload 1, got {received_payloads}"
 
 
-async def test_once_listener_fires_exactly_once_under_rapid_dispatch(hassette_with_bus: "Hassette") -> None:
+async def test_once_listener_fires_exactly_once_under_rapid_dispatch(hassette_with_bus: "HassetteHarness") -> None:
     """Two rapid events must not cause a once=True handler to fire twice.
 
     Regression test for the double-fire race: dispatch spawns tasks per listener,
@@ -237,7 +237,7 @@ async def test_once_listener_fires_exactly_once_under_rapid_dispatch(hassette_wi
         # Yield to let the second dispatch task run concurrently
         await asyncio.sleep(0)
 
-    hassette._bus.on(topic="custom.rapid", handler=handler, once=True)
+    hassette.bus.on(topic="custom.rapid", handler=handler, once=True)
 
     # Send two events back-to-back — both enter dispatch before removal task executes
     ev1 = Event(topic="custom.rapid", payload=SimpleNamespace(value=1))
@@ -247,12 +247,12 @@ async def test_once_listener_fires_exactly_once_under_rapid_dispatch(hassette_wi
 
     # Wait for at least one handler invocation, then let tasks drain
     await wait_for(lambda: call_count >= 1, desc="once handler fired at least once")
-    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks cleaned up")
+    await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks cleaned up")
 
     assert call_count == 1, f"once=True handler should fire exactly once, fired {call_count} times"
 
 
-async def test_bus_background_tasks_cleanup(hassette_with_bus: "Hassette") -> None:
+async def test_bus_background_tasks_cleanup(hassette_with_bus: "HassetteHarness") -> None:
     """Bus cleans up background tasks after a once handler completes."""
     hassette = hassette_with_bus
 
@@ -261,19 +261,17 @@ async def test_bus_background_tasks_cleanup(hassette_with_bus: "Hassette") -> No
     async def handler(event: Event[SimpleNamespace]) -> None:  # noqa
         hassette_with_bus.task_bucket.post_to_loop(event_received.set)
 
-    hassette._bus.on(topic="custom.cleanup", handler=handler, once=True)
+    hassette.bus.on(topic="custom.cleanup", handler=handler, once=True)
 
     await hassette.send_event("custom.cleanup", Event(topic="custom.cleanup", payload=SimpleNamespace(value=9)))
 
     await asyncio.wait_for(event_received.wait(), timeout=1)
-    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks cleaned up")
+    await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks cleaned up")
 
-    assert len(hassette._bus.task_bucket) == 0, (
-        f"Expected no leftover bus tasks, found {len(hassette._bus.task_bucket)}"
-    )
+    assert len(hassette.bus.task_bucket) == 0, f"Expected no leftover bus tasks, found {len(hassette.bus.task_bucket)}"
 
 
-async def test_bus_uses_kwargs(hassette_with_bus: "Hassette") -> None:
+async def test_bus_uses_kwargs(hassette_with_bus: "HassetteHarness") -> None:
     """Handlers receive configured args and kwargs when invoked."""
     hassette = hassette_with_bus
 
@@ -284,7 +282,7 @@ async def test_bus_uses_kwargs(hassette_with_bus: "Hassette") -> None:
         formatted_messages.append(f"Value: {event.payload.value}{suffix}")
         hassette_with_bus.task_bucket.post_to_loop(event_processed.set)
 
-    hassette._bus.on(topic="custom.args", handler=handler, kwargs={"suffix": "!"})
+    hassette.bus.on(topic="custom.args", handler=handler, kwargs={"suffix": "!"})
 
     await hassette.send_event("custom.args", Event(topic="custom.args", payload=SimpleNamespace(value="Test")))
 
@@ -308,7 +306,7 @@ async def test_bus_uses_kwargs(hassette_with_bus: "Hassette") -> None:
     ],
 )
 async def test_state_change_handles_globs(
-    hassette_with_bus: "Hassette", entity_id: str, expected: str | set[str]
+    hassette_with_bus: "HassetteHarness", entity_id: str, expected: str | set[str]
 ) -> None:
     """Bus matches state change with glob patterns correctly."""
     hassette = hassette_with_bus
@@ -323,7 +321,7 @@ async def test_state_change_handles_globs(
         if set(received_entity_ids) == expected:
             hassette_with_bus.task_bucket.post_to_loop(events_processed.set)
 
-    hassette._bus.on_state_change(entity_id=entity_id, handler=handler)
+    hassette.bus.on_state_change(entity_id=entity_id, handler=handler)
 
     await hassette.send_event(
         Topic.HASS_EVENT_STATE_CHANGED,
@@ -367,7 +365,7 @@ async def test_state_change_handles_globs(
     ],
 )
 async def test_attribute_change_handles_globs(
-    hassette_with_bus: "Hassette", entity_id: str, expected: str | set[str]
+    hassette_with_bus: "HassetteHarness", entity_id: str, expected: str | set[str]
 ) -> None:
     """Bus matches attribute change topics with glob patterns correctly."""
     hassette = hassette_with_bus
@@ -382,7 +380,7 @@ async def test_attribute_change_handles_globs(
         if set(received_entity_ids) == expected:
             hassette_with_bus.task_bucket.post_to_loop(events_processed.set)
 
-    hassette._bus.on_attribute_change(entity_id=entity_id, attr="friendly_name", handler=handler)
+    hassette.bus.on_attribute_change(entity_id=entity_id, attr="friendly_name", handler=handler)
 
     await hassette.send_event(
         Topic.HASS_EVENT_STATE_CHANGED,
@@ -429,10 +427,10 @@ async def test_attribute_change_handles_globs(
     assert actual == expected, f"Expected handler to receive {expected}, got {actual}"
 
 
-async def test_listener_registration_spawns_background_task(hassette_with_bus: "Hassette") -> None:
+async def test_listener_registration_spawns_background_task(hassette_with_bus: "HassetteHarness") -> None:
     """All listeners spawn a background task to persist via executor (#547)."""
     hassette = hassette_with_bus
-    bus = hassette._bus
+    bus = hassette.bus
     assert bus is not None
 
     def handler(event: Event) -> None:
@@ -443,12 +441,12 @@ async def test_listener_registration_spawns_background_task(hassette_with_bus: "
 
     await wait_for(lambda: listener.db_id is not None, desc="listener registered")
 
-    hassette._bus_service._executor.register_listener.assert_called()
+    hassette.bus_service._executor.register_listener.assert_called()
     assert listener.db_id is not None
     assert listener.db_id > 0
 
 
-async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hassette") -> None:
+async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "HassetteHarness") -> None:
     """Bus can subscribe to all state change events."""
     hassette = hassette_with_bus
 
@@ -461,7 +459,7 @@ async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hass
         if set(received_entity_ids) == expected:
             hassette_with_bus.task_bucket.post_to_loop(events_processed.set)
 
-    hassette._bus.on_state_change(entity_id="*", handler=handler)
+    hassette.bus.on_state_change(entity_id="*", handler=handler)
 
     await hassette.send_event(
         Topic.HASS_EVENT_STATE_CHANGED,
@@ -484,7 +482,7 @@ async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hass
     assert actual == expected, f"Expected handler to receive {expected}, got {actual}"
 
 
-async def test_dispatch_calls_executor(hassette_with_bus: "Hassette") -> None:
+async def test_dispatch_calls_executor(hassette_with_bus: "HassetteHarness") -> None:
     """_dispatch() delegates to the executor for app-owned listeners (db_id set)."""
     from hassette.core.commands import InvokeHandler
     from hassette.events.base import Event
@@ -495,16 +493,16 @@ async def test_dispatch_calls_executor(hassette_with_bus: "Hassette") -> None:
     def handler(_event: Event) -> None:
         hassette_with_bus.task_bucket.post_to_loop(event_handled.set)
 
-    hassette._bus.on(topic="custom.exec_test", handler=handler)
+    hassette.bus.on(topic="custom.exec_test", handler=handler)
 
     # Simulate an app-owned listener by setting db_id (internal listeners have db_id=None)
-    await wait_for(lambda: not hassette._bus.task_bucket.pending_tasks(), desc="registration task completed")
-    all_listeners = await hassette._bus_service.router.get_topic_listeners("custom.exec_test")
+    await wait_for(lambda: not hassette.bus.task_bucket.pending_tasks(), desc="registration task completed")
+    all_listeners = await hassette.bus_service.router.get_topic_listeners("custom.exec_test")
     for listener in all_listeners:
         if listener.db_id is None:
             listener.mark_registered(99)
 
-    executor = hassette._bus_service._executor
+    executor = hassette.bus_service._executor
     executor.execute.reset_mock()
 
     payload_event = Event(topic="custom.exec_test", payload="test-payload")
@@ -519,7 +517,7 @@ async def test_dispatch_calls_executor(hassette_with_bus: "Hassette") -> None:
     assert isinstance(cmd, InvokeHandler), f"Expected InvokeHandler, got {type(cmd)}"
 
 
-async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_bus: "Hassette") -> None:
+async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_bus: "HassetteHarness") -> None:
     """All listeners (including those with no app_key) route through CommandExecutor.
 
     Since the registration gate was removed (#547), all listeners are DB-registered
@@ -534,9 +532,9 @@ async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_b
     def handler(_event: Event) -> None:
         hassette.task_bucket.post_to_loop(event_handled.set)
 
-    hassette._bus.on(topic="custom.internal_test", handler=handler)
+    hassette.bus.on(topic="custom.internal_test", handler=handler)
 
-    executor = hassette._bus_service._executor
+    executor = hassette.bus_service._executor
     executor.execute.reset_mock()
 
     payload_event = Event(topic="custom.internal_test", payload="test-payload")
@@ -550,7 +548,7 @@ async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_b
     assert cmd.listener_id is not None
 
 
-async def test_dispatch_handler_exception_routed_through_executor(hassette_with_bus: "Hassette") -> None:
+async def test_dispatch_handler_exception_routed_through_executor(hassette_with_bus: "HassetteHarness") -> None:
     """Handler exceptions are captured by CommandExecutor, not propagated or silently dropped.
 
     The unified dispatch path passes all invocations through the executor regardless of
@@ -566,9 +564,9 @@ async def test_dispatch_handler_exception_routed_through_executor(hassette_with_
         hassette.task_bucket.post_to_loop(error_raised.set)
         raise ValueError("test error from internal handler")
 
-    hassette._bus.on(topic="custom.error_test", handler=failing_handler)
+    hassette.bus.on(topic="custom.error_test", handler=failing_handler)
 
-    executor = hassette._bus_service._executor
+    executor = hassette.bus_service._executor
     executor.execute.reset_mock()
 
     payload_event = Event(topic="custom.error_test", payload="test-payload")
@@ -583,7 +581,7 @@ async def test_dispatch_handler_exception_routed_through_executor(hassette_with_
     assert isinstance(cmd, InvokeHandler)
 
 
-async def test_debounced_dispatch_coalesces_events_through_executor(hassette_with_bus: "Hassette") -> None:
+async def test_debounced_dispatch_coalesces_events_through_executor(hassette_with_bus: "HassetteHarness") -> None:
     """Debounced app-owned listener coalesces rapid events and routes through CommandExecutor.
 
     This tests the full pipeline: _dispatch -> _make_tracked_invoke_fn -> rate_limiter.call(execute_fn) ->
@@ -598,9 +596,9 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
     def handler(_event: Event) -> None:
         hassette.task_bucket.post_to_loop(event_handled.set)
 
-    hassette._bus.on(topic="custom.debounce_test", handler=handler, debounce=0.1)
+    hassette.bus.on(topic="custom.debounce_test", handler=handler, debounce=0.1)
 
-    executor = hassette._bus_service._executor
+    executor = hassette.bus_service._executor
     executor.execute.reset_mock()
 
     # Send 3 rapid events — debounce should coalesce into 1 executor call
@@ -609,7 +607,7 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
 
     # Wait for debounce to fire
     await asyncio.wait_for(event_handled.wait(), timeout=1.0)
-    await wait_for(lambda: not hassette._bus.task_bucket.pending_tasks(), desc="bus tasks drained")
+    await wait_for(lambda: not hassette.bus.task_bucket.pending_tasks(), desc="bus tasks drained")
 
     # Executor should have been called exactly once (debounce coalesced)
     assert executor.execute.call_count == 1, (
@@ -620,7 +618,7 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
     assert cmd.listener_id is not None
 
 
-async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bus: "Hassette") -> None:
+async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bus: "HassetteHarness") -> None:
     """Throttled app-owned listener fires once and drops subsequent events within the window.
 
     This tests the full pipeline: _dispatch -> _make_tracked_invoke_fn -> rate_limiter.call(execute_fn) ->
@@ -635,9 +633,9 @@ async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bu
     def handler(_event: Event) -> None:
         hassette.task_bucket.post_to_loop(event_handled.set)
 
-    hassette._bus.on(topic="custom.throttle_test", handler=handler, throttle=5.0)
+    hassette.bus.on(topic="custom.throttle_test", handler=handler, throttle=5.0)
 
-    executor = hassette._bus_service._executor
+    executor = hassette.bus_service._executor
     executor.execute.reset_mock()
 
     # Send 3 rapid events — throttle should allow only the first
@@ -645,7 +643,7 @@ async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bu
         await hassette.send_event("custom.throttle_test", Event(topic="custom.throttle_test", payload=f"event-{i}"))
 
     await asyncio.wait_for(event_handled.wait(), timeout=1.0)
-    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks cleaned up")
+    await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks cleaned up")
 
     # Executor should have been called exactly once (throttle dropped the rest)
     assert executor.execute.call_count == 1, (
@@ -661,7 +659,7 @@ async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bu
 # ---------------------------------------------------------------------------
 
 
-async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bus: "Hassette") -> None:
+async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bus: "HassetteHarness") -> None:
     """Non-app listener (db_id=None) with debounce coalesces rapid events.
 
     The unified dispatch path routes all listeners through CommandExecutor, so execute() IS
@@ -678,9 +676,9 @@ async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bu
         hassette.task_bucket.post_to_loop(event_handled.set)
 
     # Internal bus (no app_key) — listener gets db_id=None, but still routes through executor
-    hassette._bus.on(topic="custom.internal_debounce", handler=handler, debounce=0.1)
+    hassette.bus.on(topic="custom.internal_debounce", handler=handler, debounce=0.1)
 
-    executor = hassette._bus_service._executor
+    executor = hassette.bus_service._executor
     executor.execute.reset_mock()
 
     # Send 3 rapid events — debounce should coalesce into 1 handler call
@@ -690,14 +688,14 @@ async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bu
         )
 
     await asyncio.wait_for(event_handled.wait(), timeout=1.0)
-    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks drained")
+    await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks drained")
 
     assert call_count == 1, f"Expected 1 call (debounce coalesce), got {call_count}"
     # Unified dispatch: executor IS called once (coalesced event)
     executor.execute.assert_called_once()
 
 
-async def test_internal_dispatch_with_throttle_drops_events(hassette_with_bus: "Hassette") -> None:
+async def test_internal_dispatch_with_throttle_drops_events(hassette_with_bus: "HassetteHarness") -> None:
     """Non-app listener (db_id=None) with throttle fires once and drops subsequent events.
 
     The unified dispatch path routes all listeners through CommandExecutor, so execute() IS
@@ -713,9 +711,9 @@ async def test_internal_dispatch_with_throttle_drops_events(hassette_with_bus: "
         call_count += 1
         hassette.task_bucket.post_to_loop(event_handled.set)
 
-    hassette._bus.on(topic="custom.internal_throttle", handler=handler, throttle=5.0)
+    hassette.bus.on(topic="custom.internal_throttle", handler=handler, throttle=5.0)
 
-    executor = hassette._bus_service._executor
+    executor = hassette.bus_service._executor
     executor.execute.reset_mock()
 
     # Send 3 rapid events — throttle should allow only the first
@@ -725,7 +723,7 @@ async def test_internal_dispatch_with_throttle_drops_events(hassette_with_bus: "
         )
 
     await asyncio.wait_for(event_handled.wait(), timeout=1.0)
-    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks cleaned up")
+    await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks cleaned up")
 
     assert call_count == 1, f"Expected 1 call (throttle), got {call_count}"
     # Unified dispatch: executor IS called (once, for the event that passed the throttle)
@@ -733,7 +731,7 @@ async def test_internal_dispatch_with_throttle_drops_events(hassette_with_bus: "
 
 
 async def test_internal_dispatch_with_debounce_routes_through_executor(
-    hassette_with_bus: "Hassette",
+    hassette_with_bus: "HassetteHarness",
 ) -> None:
     """Debounced non-app handler exceptions are captured by CommandExecutor.
 
@@ -748,9 +746,9 @@ async def test_internal_dispatch_with_debounce_routes_through_executor(
         hassette.task_bucket.post_to_loop(error_raised.set)
         raise ValueError("test error from debounced internal handler")
 
-    hassette._bus.on(topic="custom.internal_debounce_error", handler=failing_handler, debounce=0.05)
+    hassette.bus.on(topic="custom.internal_debounce_error", handler=failing_handler, debounce=0.05)
 
-    executor = hassette._bus_service._executor
+    executor = hassette.bus_service._executor
     executor.execute.reset_mock()
 
     await hassette.send_event(
@@ -759,7 +757,7 @@ async def test_internal_dispatch_with_debounce_routes_through_executor(
     )
 
     await asyncio.wait_for(error_raised.wait(), timeout=1.0)
-    await wait_for(lambda: len(hassette._bus.task_bucket) == 0, desc="bus tasks drained")
+    await wait_for(lambda: len(hassette.bus.task_bucket) == 0, desc="bus tasks drained")
 
     # Unified dispatch: executor IS called even for debounced non-app handlers
     executor.execute.assert_called_once()
@@ -770,7 +768,7 @@ async def test_internal_dispatch_with_debounce_routes_through_executor(
 # ---------------------------------------------------------------------------
 
 
-async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "Hassette") -> None:
+async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "HassetteHarness") -> None:
     """Cancelling a rate limiter during the debounce sleep window prevents the handler from firing.
 
     Uses the asyncio.Event gate pattern from CLAUDE.md regression test patterns.
@@ -784,14 +782,14 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
         nonlocal handler_fired
         handler_fired = True
 
-    hassette._bus.on(topic="custom.cancel_debounce", handler=handler, debounce=0.5)
+    hassette.bus.on(topic="custom.cancel_debounce", handler=handler, debounce=0.5)
 
     # Poll until listener appears in the router (registration is async + DB-backed)
     listener = None
     rate_limiter = None
     deadline = asyncio.get_running_loop().time() + 3.0
     while asyncio.get_running_loop().time() < deadline:
-        all_listeners = await hassette._bus_service.router.get_topic_listeners("custom.cancel_debounce")
+        all_listeners = await hassette.bus_service.router.get_topic_listeners("custom.cancel_debounce")
         if len(all_listeners) == 1 and all_listeners[0].rate_limiter is not None:
             listener = all_listeners[0]
             rate_limiter = listener.rate_limiter
@@ -817,7 +815,7 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
     assert not handler_fired, "Handler should not fire after rate limiter cancellation"
 
 
-async def test_cancel_before_add_task_completes_does_not_orphan_listener(hassette_with_bus: "Hassette") -> None:
+async def test_cancel_before_add_task_completes_does_not_orphan_listener(hassette_with_bus: "HassetteHarness") -> None:
     """Cancelling a subscription before the add_listener task runs must not leave an orphaned listener.
 
     Regression test for #451: Bus.on() spawns an async task for add_listener and
@@ -828,7 +826,7 @@ async def test_cancel_before_add_task_completes_does_not_orphan_listener(hassett
     Uses an asyncio.Event gate to block the add task, ensuring cancel() runs first.
     """
     hassette = hassette_with_bus
-    router = hassette._bus_service.router
+    router = hassette.bus_service.router
 
     async def handler(_event) -> None:
         pass
@@ -844,7 +842,7 @@ async def test_cancel_before_add_task_completes_does_not_orphan_listener(hassett
     router.add_route = gated_add_route  # pyright: ignore[reportAttributeAccessIssue]
     try:
         # Subscribe — the add task spawns but blocks on the gate
-        sub = hassette._bus.on(topic="custom.orphan_test", handler=handler)
+        sub = hassette.bus.on(topic="custom.orphan_test", handler=handler)
 
         # Cancel before the add task can proceed
         sub.cancel()
@@ -853,7 +851,7 @@ async def test_cancel_before_add_task_completes_does_not_orphan_listener(hassett
 
         # Now release the gate — add task proceeds
         gate.set()
-        await wait_for(lambda: not hassette._bus.task_bucket.pending_tasks(), desc="add task completed")
+        await wait_for(lambda: not hassette.bus.task_bucket.pending_tasks(), desc="add task completed")
 
         # The listener must not be in the router
         listeners = await router.get_topic_listeners("custom.orphan_test")
@@ -865,7 +863,7 @@ async def test_cancel_before_add_task_completes_does_not_orphan_listener(hassett
         router.add_route = original_add_route  # pyright: ignore[reportAttributeAccessIssue]
 
 
-async def test_cancel_before_add_task_completes_app_key_path(hassette_with_bus: "Hassette") -> None:
+async def test_cancel_before_add_task_completes_app_key_path(hassette_with_bus: "HassetteHarness") -> None:
     """Same race as above but via the app-key code path (_register_then_add_route).
 
     When a Bus has an app_key, add_listener goes through _register_then_add_route
@@ -873,8 +871,8 @@ async def test_cancel_before_add_task_completes_app_key_path(hassette_with_bus: 
     add_route must prevent orphaned listeners on this path too.
     """
     hassette = hassette_with_bus
-    bus = hassette._bus
-    router = hassette._bus_service.router
+    bus = hassette.bus
+    router = hassette.bus_service.router
 
     # Give the bus a mock parent with app_key so it takes the _register_then_add_route path
     mock_parent = Mock()
@@ -903,7 +901,7 @@ async def test_cancel_before_add_task_completes_app_key_path(hassette_with_bus: 
         await asyncio.sleep(0)
 
         gate.set()
-        await wait_for(lambda: not hassette._bus.task_bucket.pending_tasks(), desc="add task completed")
+        await wait_for(lambda: not hassette.bus.task_bucket.pending_tasks(), desc="add task completed")
 
         listeners = await router.get_topic_listeners("custom.orphan_app_test")
         assert len(listeners) == 0, (

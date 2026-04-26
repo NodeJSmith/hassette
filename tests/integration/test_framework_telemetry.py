@@ -87,15 +87,15 @@ async def test_framework_listener_registers_with_source_tier(harness_config: Has
         async def test_handler(event: MagicMock) -> None:
             pass
 
-        bus = harness.hassette._bus
+        bus = harness.bus
         bus.on(
             topic="test.topic",
             handler=test_handler,
             name="hassette.test.listener",
         )
-        await harness.hassette._bus_service.await_registrations_complete(bus.parent.app_key)
+        await harness.bus_service.await_registrations_complete(bus.parent.app_key)
 
-        listeners = await harness.hassette._bus_service.router.get_topic_listeners("test.topic")
+        listeners = await harness.bus_service.router.get_topic_listeners("test.topic")
         assert len(listeners) > 0
         listener = listeners[0]
         assert listener.source_tier == "framework"

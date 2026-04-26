@@ -12,13 +12,14 @@ from hassette.types import ResourceStatus, Topic
 @pytest.fixture
 async def get_service_watcher_mock(hassette_with_bus):
     """Return a fresh service watcher for each test."""
-    watcher = ServiceWatcher(hassette_with_bus, parent=hassette_with_bus)
-    original_children = list(hassette_with_bus.children)
-    with preserve_config(hassette_with_bus.config):
+    hassette = hassette_with_bus.hassette
+    watcher = ServiceWatcher(hassette, parent=hassette)
+    original_children = list(hassette.children)
+    with preserve_config(hassette.config):
         yield watcher
         # Clean up bus listeners registered by this watcher via propagation
         await watcher.shutdown()
-        await reset_hassette_lifecycle(hassette_with_bus, original_children=original_children)
+        await reset_hassette_lifecycle(hassette, original_children=original_children)
 
 
 def get_dummy_service(called: dict[str, int], hassette, *, fail: bool = False) -> Service:

@@ -22,15 +22,17 @@ from hassette.test_utils import (
 from hassette.types import Topic
 
 if TYPE_CHECKING:
-    from hassette import Hassette
+    from hassette.test_utils.harness import HassetteHarness
 
 
-async def _send_and_wait(hassette: "Hassette", entity_id: str, old_state: dict | None, new_state: dict | None) -> None:
+async def _send_and_wait(
+    hassette: "HassetteHarness", entity_id: str, old_state: dict | None, new_state: dict | None
+) -> None:
     """Send a state change event and wait for the proxy to process it."""
     event = make_full_state_change_event(entity_id, old_state, new_state)
     await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
     await wait_for(
-        lambda: hassette._state_proxy.get_state(entity_id) is not None,
+        lambda: hassette.state_proxy.get_state(entity_id) is not None,
         desc=f"{entity_id} state arrived",
     )
 
@@ -38,7 +40,7 @@ async def _send_and_wait(hassette: "Hassette", entity_id: str, old_state: dict |
 class TestStatesDomainAccessors:
     """Tests for domain-specific properties."""
 
-    async def test_lights_returns_light_states(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_lights_returns_light_states(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """lights property returns DomainStates[LightState] containing only lights."""
         hassette = hassette_with_state_proxy
 
@@ -55,7 +57,7 @@ class TestStatesDomainAccessors:
             await _send_and_wait(hassette, entity_id, None, state_dict)
 
         # Create StateManager instance and access lights
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         lights = states_instance.light
 
         assert isinstance(lights, DomainStates)
@@ -76,7 +78,7 @@ class TestStatesDomainAccessors:
         assert "light.kitchen" in light_ids
         assert "sensor.temp" not in light_ids
 
-    async def test_sensors_returns_sensor_states(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_sensors_returns_sensor_states(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """sensors property returns DomainStates[SensorState] containing only sensors."""
         hassette = hassette_with_state_proxy
 
@@ -87,7 +89,7 @@ class TestStatesDomainAccessors:
         for entity_id, state_dict in [("sensor.temperature", sensor1), ("sensor.humidity", sensor2)]:
             await _send_and_wait(hassette, entity_id, None, state_dict)
 
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         sensors = states_instance.sensor
 
         sensor_ids = []
@@ -101,7 +103,7 @@ class TestStatesDomainAccessors:
         assert "sensor.temperature" in sensor_ids
         assert "sensor.humidity" in sensor_ids
 
-    async def test_switches_returns_switch_states(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_switches_returns_switch_states(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """switches property returns DomainStates[SwitchState] containing only switches."""
         hassette = hassette_with_state_proxy
 
@@ -112,7 +114,7 @@ class TestStatesDomainAccessors:
         for entity_id, state_dict in [("switch.outlet1", switch1), ("switch.outlet2", switch2)]:
             await _send_and_wait(hassette, entity_id, None, state_dict)
 
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         switches = states_instance.switch
 
         switch_ids = []
@@ -130,7 +132,7 @@ class TestStatesDomainAccessors:
 class TestStatesGenericAccess:
     """Tests for generic state access methods."""
 
-    async def test_get_states_with_model(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_get_states_with_model(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """get_states() returns DomainStates for the specified model."""
         hassette = hassette_with_state_proxy
 
@@ -138,7 +140,7 @@ class TestStatesGenericAccess:
         light = make_light_state_dict("light.test", "on", brightness=200)
         await _send_and_wait(hassette, "light.test", None, light)
 
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         lights = states_instance[states.LightState]
 
         assert isinstance(lights, DomainStates)
@@ -156,7 +158,9 @@ class TestStatesGenericAccess:
 class TestDomainStates:
     """Tests for DomainStates helper class."""
 
-    async def test_value_with_decimals_does_not_lose_precision(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_value_with_decimals_does_not_lose_precision(
+        self, hassette_with_state_proxy: "HassetteHarness"
+    ) -> None:
         """Test that state values with decimals do not lose precision when converted."""
         hassette = hassette_with_state_proxy
 
@@ -165,14 +169,14 @@ class TestDomainStates:
         new_sensor_dict = make_state_dict("input_number.test_value", "22.5")
         await _send_and_wait(hassette, "input_number.test_value", old_sensor_dict, new_sensor_dict)
 
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
 
         assert states_instance.input_number.get("input_number.test_value").value == 22.5
 
         # initial issue had second access of value causing loss of precision due to double conversion
         assert states_instance.input_number.get("input_number.test_value").value == 22.5
 
-    async def test_states_are_cached_until_changed(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_states_are_cached_until_changed(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """Test that state objects are cached until the state changes."""
         hassette = hassette_with_state_proxy
 
@@ -181,7 +185,7 @@ class TestDomainStates:
         new_state_dict = make_state_dict("input_number.test_value", "22.5")
         await _send_and_wait(hassette, "input_number.test_value", old_state_dict, new_state_dict)
 
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         input_number_manager = states_instance.input_number
 
         orig_obj = input_number_manager.get("input_number.test_value")
@@ -206,7 +210,7 @@ class TestDomainStates:
             "State object should be replaced after state change"
         )
 
-    async def test_iteration_over_domain(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_iteration_over_domain(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """DomainStates can be iterated to get (entity_id, state) tuples."""
         hassette = hassette_with_state_proxy
 
@@ -215,7 +219,7 @@ class TestDomainStates:
             light = make_light_state_dict(f"light.room_{i}", "on")
             await _send_and_wait(hassette, f"light.room_{i}", None, light)
 
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         lights = states_instance.light
 
         # Iterate and collect
@@ -227,7 +231,7 @@ class TestDomainStates:
 
         assert len(collected) >= 3
 
-    async def test_len_of_domain(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_len_of_domain(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """len(DomainStates) returns count of entities in domain."""
         hassette = hassette_with_state_proxy
 
@@ -238,12 +242,12 @@ class TestDomainStates:
         for entity_id, state_dict in [("sensor.test_1", sensor1), ("sensor.test_2", sensor2)]:
             await _send_and_wait(hassette, entity_id, None, state_dict)
 
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         sensors = states_instance.sensor
 
         assert len(sensors) >= 2
 
-    async def test_get_with_matching_domain(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_get_with_matching_domain(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """DomainStates.get() returns state if domain matches."""
         hassette = hassette_with_state_proxy
 
@@ -251,7 +255,7 @@ class TestDomainStates:
         light = make_light_state_dict("light.test", "on", brightness=100)
         await _send_and_wait(hassette, "light.test", None, light)
 
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         lights = states_instance.light
 
         result = lights.get("light.test")
@@ -262,7 +266,7 @@ class TestDomainStates:
         assert result.entity_id == "light.test"
         assert hasattr(result.attributes, "brightness"), "LightState should have brightness attribute"
 
-    async def test_get_with_wrong_domain_raises_value_error(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_get_with_wrong_domain_raises_value_error(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """DomainStates.get() returns None if entity domain doesn't match."""
         hassette = hassette_with_state_proxy
 
@@ -270,18 +274,18 @@ class TestDomainStates:
         sensor = make_sensor_state_dict("sensor.test", "25")
         await _send_and_wait(hassette, "sensor.test", None, sensor)
 
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
 
         # Try to get sensor from lights domain
         lights = states_instance.light
         with pytest.raises(ValueError, match=r"Entity ID 'sensor\.test' has domain 'sensor', expected 'light'"):
             lights.get("sensor.test")
 
-    async def test_iteration_over_empty_domain(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_iteration_over_empty_domain(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """Iterating over DomainStates with no entities returns empty."""
         hassette = hassette_with_state_proxy
 
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
 
         # Assuming no climate entities exist
         climate_states = states_instance.climate
@@ -294,11 +298,13 @@ class TestDomainStates:
 class TestStatesIntegration:
     """Integration tests combining StateProxy and StateManager."""
 
-    async def test_proxy_stores_base_states_accessors_convert(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_proxy_stores_base_states_accessors_convert(
+        self, hassette_with_state_proxy: "HassetteHarness"
+    ) -> None:
         """StateProxy stores BaseState, States accessors convert to domain-specific types."""
         hassette = hassette_with_state_proxy
-        proxy = hassette._state_proxy
-        states_instance = StateManager(hassette, parent=hassette)
+        proxy = hassette.state_proxy
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
 
         # Add various entity types
         light = make_light_state_dict("light.test", "on", brightness=150)
@@ -338,11 +344,11 @@ class TestStatesIntegration:
             f"States accessor should return SensorState, got {type(sensor_state).__name__}"
         )
 
-    async def test_states_reflects_proxy_updates(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_states_reflects_proxy_updates(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """States accessors reflect live updates from StateProxy."""
         hassette = hassette_with_state_proxy
 
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
 
         light_manager = states_instance.light
 
@@ -366,11 +372,11 @@ class TestStatesIntegration:
         assert type(dynamic_light) is not states.BaseState, "Should be LightState, not bare BaseState"
         assert dynamic_light.attributes.brightness == 150
 
-    async def test_domain_filtering_across_updates(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_domain_filtering_across_updates(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """Domain accessors correctly filter across multiple updates."""
         hassette = hassette_with_state_proxy
 
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
 
         # Add multiple entity types
         entities = [
@@ -417,7 +423,7 @@ class TestStatesIntegration:
         assert "sensor.test_1" not in light_ids
         assert "light.test_1" not in sensor_ids
 
-    async def test_lazy_iteration_with_caching(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_lazy_iteration_with_caching(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """Test that yield_items returns the correct items lazily."""
         hassette = hassette_with_state_proxy
 
@@ -430,7 +436,7 @@ class TestStatesIntegration:
         for entity_id, state_dict in entities:
             await _send_and_wait(hassette, entity_id, None, state_dict)
 
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
 
         light_manager = states_instance.light
 
@@ -450,14 +456,16 @@ class TestStatesIntegration:
 class TestStateManagerGenericAccess:
     """Tests for StateManager.get() generic access method."""
 
-    async def test_get_registered_domain_returns_typed_state(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_get_registered_domain_returns_typed_state(
+        self, hassette_with_state_proxy: "HassetteHarness"
+    ) -> None:
         """get() returns domain-specific type for registered domains."""
         hassette = hassette_with_state_proxy
 
         light_dict = make_light_state_dict("light.bedroom", "on", brightness=150)
         await _send_and_wait(hassette, "light.bedroom", None, light_dict)
 
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         result = states_instance.get("light.bedroom")
 
         assert result is not None
@@ -466,7 +474,9 @@ class TestStateManagerGenericAccess:
         assert result.value == "on"
         assert result.attributes.brightness == 150
 
-    async def test_get_unregistered_domain_returns_base_state(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_get_unregistered_domain_returns_base_state(
+        self, hassette_with_state_proxy: "HassetteHarness"
+    ) -> None:
         """get() returns BaseState for unregistered domains."""
         hassette = hassette_with_state_proxy
 
@@ -474,7 +484,7 @@ class TestStateManagerGenericAccess:
         test_dict = make_state_dict("test.test_entity", "test_value")
         await _send_and_wait(hassette, "test.test_entity", None, test_dict)
 
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         result = states_instance.get("test.test_entity")
 
         assert result is not None
@@ -484,18 +494,18 @@ class TestStateManagerGenericAccess:
         assert result.domain == "test"
         assert result.value == "test_value"
 
-    async def test_get_nonexistent_entity_returns_none(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_get_nonexistent_entity_returns_none(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """get() returns None for entities that don't exist."""
         hassette = hassette_with_state_proxy
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
 
         result = states_instance.get("nonexistent.entity")
         assert result is None
 
-    async def test_get_with_invalid_entity_id_returns_none(self, hassette_with_state_proxy: "Hassette") -> None:
+    async def test_get_with_invalid_entity_id_returns_none(self, hassette_with_state_proxy: "HassetteHarness") -> None:
         """get() returns None for malformed entity IDs."""
         hassette = hassette_with_state_proxy
-        states_instance = StateManager(hassette, parent=hassette)
+        states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
 
         result = states_instance.get("invalid_no_dot")
         assert result is None

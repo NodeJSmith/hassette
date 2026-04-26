@@ -2,14 +2,18 @@ import asyncio
 import tracemalloc
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 import tomli_w
 
-from hassette import Hassette, HassetteConfig
+from hassette import HassetteConfig
 from hassette.conversion.state_registry import StateRegistry
 from hassette.conversion.type_registry import TypeRegistry
 from hassette.task_bucket import TaskBucket
+
+if TYPE_CHECKING:
+    from hassette.test_utils.harness import HassetteHarness
 
 tracemalloc.start()
 
@@ -205,7 +209,7 @@ def _isolate_registries():
 
 
 @pytest.fixture
-async def bucket_fixture(hassette_with_nothing: Hassette) -> AsyncIterator[TaskBucket]:
+async def bucket_fixture(hassette_with_nothing: "HassetteHarness") -> AsyncIterator[TaskBucket]:
     try:
         yield hassette_with_nothing.task_bucket
     finally:

@@ -13,22 +13,22 @@ import pytest
 from hassette.scheduler.triggers import Every
 
 if typing.TYPE_CHECKING:
-    from hassette import Hassette
     from hassette.bus import Bus
     from hassette.scheduler import Scheduler
+    from hassette.test_utils.harness import HassetteHarness
 
 
 THIS_FILE = str(Path(__file__).resolve())
 
 
 @pytest.fixture
-def bus(hassette_with_scheduler: "Hassette") -> "Bus":
-    return hassette_with_scheduler._bus
+def bus(hassette_with_scheduler: "HassetteHarness") -> "Bus":
+    return hassette_with_scheduler.bus
 
 
 @pytest.fixture
-def scheduler(hassette_with_scheduler: "Hassette") -> "Scheduler":
-    return hassette_with_scheduler._scheduler
+def scheduler(hassette_with_scheduler: "HassetteHarness") -> "Scheduler":
+    return hassette_with_scheduler.scheduler
 
 
 async def test_bus_on_state_change_captures_test_file_source(bus: "Bus") -> None:

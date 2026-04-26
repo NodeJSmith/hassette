@@ -5,7 +5,6 @@ from zoneinfo import ZoneInfo
 
 from whenever import ZonedDateTime
 
-from hassette import Hassette
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.core.commands import ExecuteJob
@@ -13,13 +12,14 @@ from hassette.scheduler import ScheduledJob
 from hassette.scheduler.triggers import Every
 from hassette.test_utils import wait_for
 from hassette.test_utils.app_harness import AppTestHarness
+from hassette.test_utils.harness import HassetteHarness
 from hassette.utils.date_utils import now
 from hassette.web.utils import resolve_trigger
 
 TZ = ZoneInfo("America/Chicago")
 
 
-async def test_run_in_passes_args_kwargs_async(hassette_with_scheduler: Hassette) -> None:
+async def test_run_in_passes_args_kwargs_async(hassette_with_scheduler: HassetteHarness) -> None:
     """run_in forwards args/kwargs to async callables."""
     job_executed = asyncio.Event()
     captured_arguments: list[tuple[int, int, bool]] = []
@@ -28,7 +28,7 @@ async def test_run_in_passes_args_kwargs_async(hassette_with_scheduler: Hassette
         captured_arguments.append((a, b, flag))
         hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
 
-    scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=0.01, args=(1, 2), kwargs={"flag": True})
+    scheduled_job = hassette_with_scheduler.scheduler.run_in(target, delay=0.01, args=(1, 2), kwargs={"flag": True})
 
     await asyncio.wait_for(job_executed.wait(), timeout=1)
     scheduled_job.cancel()
@@ -36,7 +36,7 @@ async def test_run_in_passes_args_kwargs_async(hassette_with_scheduler: Hassette
     assert captured_arguments == [(1, 2, True)], f"Expected [(1, 2, True)], got {captured_arguments}"
 
 
-async def test_run_in_passes_args_kwargs_sync(hassette_with_scheduler: Hassette) -> None:
+async def test_run_in_passes_args_kwargs_sync(hassette_with_scheduler: HassetteHarness) -> None:
     """run_in forwards args/kwargs to sync callables."""
     event_loop = asyncio.get_running_loop()
     job_executed = asyncio.Event()
@@ -46,7 +46,7 @@ async def test_run_in_passes_args_kwargs_sync(hassette_with_scheduler: Hassette)
         captured_arguments.append((name, count))
         event_loop.call_soon_threadsafe(job_executed.set)
 
-    scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=0.01, args=("sensor",), kwargs={"count": 3})
+    scheduled_job = hassette_with_scheduler.scheduler.run_in(target, delay=0.01, args=("sensor",), kwargs={"count": 3})
 
     await asyncio.wait_for(job_executed.wait(), timeout=1)
     scheduled_job.cancel()
@@ -74,7 +74,7 @@ def test_scheduled_job_copies_args_kwargs() -> None:
     assert job.kwargs == {"alpha": 99}, f"Expected {{'alpha': 99}}, got {job.kwargs}"
 
 
-async def test_run_job_calls_executor(hassette_with_scheduler: Hassette) -> None:
+async def test_run_job_calls_executor(hassette_with_scheduler: HassetteHarness) -> None:
     """run_job() delegates execution to CommandExecutor.execute() with an ExecuteJob command."""
     job_executed = asyncio.Event()
 
@@ -82,7 +82,7 @@ async def test_run_job_calls_executor(hassette_with_scheduler: Hassette) -> None
         hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
 
     # Reset the mock call history and set up a stub that also runs the job
-    scheduler_service = hassette_with_scheduler._scheduler_service
+    scheduler_service = hassette_with_scheduler.scheduler_service
     assert scheduler_service is not None
     executor = scheduler_service._executor
 
@@ -96,7 +96,7 @@ async def test_run_job_calls_executor(hassette_with_scheduler: Hassette) -> None
     executor.execute.side_effect = _capturing_execute
     executor.execute.reset_mock()
 
-    scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=0.05)
+    scheduled_job = hassette_with_scheduler.scheduler.run_in(target, delay=0.05)
     # Simulate an app-owned job by setting db_id (internal jobs have db_id=None and bypass executor)
     scheduled_job.mark_registered(99)
 
@@ -108,18 +108,18 @@ async def test_run_job_calls_executor(hassette_with_scheduler: Hassette) -> None
     assert executed_cmds[0].job is scheduled_job, "ExecuteJob.job should be the scheduled job"
 
 
-async def test_run_job_non_app_routes_through_executor(hassette_with_scheduler: Hassette) -> None:
+async def test_run_job_non_app_routes_through_executor(hassette_with_scheduler: HassetteHarness) -> None:
     """Jobs without app_key still route through CommandExecutor and get DB-registered (#547)."""
     job_executed = asyncio.Event()
 
     async def target() -> None:
         hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
 
-    scheduler_service = hassette_with_scheduler._scheduler_service
+    scheduler_service = hassette_with_scheduler.scheduler_service
     executor = scheduler_service._executor
     executor.execute.reset_mock()
 
-    scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=0.01)
+    scheduled_job = hassette_with_scheduler.scheduler.run_in(target, delay=0.01)
 
     await asyncio.wait_for(job_executed.wait(), timeout=1)
     scheduled_job.cancel()
@@ -130,16 +130,16 @@ async def test_run_job_non_app_routes_through_executor(hassette_with_scheduler: 
     assert cmd.job_db_id is not None
 
 
-async def test_job_registration_sets_db_id(hassette_with_scheduler: Hassette) -> None:
+async def test_job_registration_sets_db_id(hassette_with_scheduler: HassetteHarness) -> None:
     """Adding a job triggers register_job() and sets job.db_id.
 
     All jobs now go through DB registration regardless of app_key (#547).
     """
     db_id = 99
 
-    scheduler = hassette_with_scheduler._scheduler
+    scheduler = hassette_with_scheduler.scheduler
     assert scheduler is not None
-    scheduler_service = hassette_with_scheduler._scheduler_service
+    scheduler_service = hassette_with_scheduler.scheduler_service
     assert scheduler_service is not None
     executor = scheduler_service._executor
     executor.register_job = AsyncMock(return_value=db_id)
@@ -159,7 +159,7 @@ async def test_job_registration_sets_db_id(hassette_with_scheduler: Hassette) ->
     scheduled_job.cancel()
 
 
-async def test_jobs_execute_in_run_order(hassette_with_scheduler: Hassette) -> None:
+async def test_jobs_execute_in_run_order(hassette_with_scheduler: HassetteHarness) -> None:
     """run_once executes jobs according to their scheduled time."""
     execution_order: list[str] = []
     early_job_complete = asyncio.Event()
@@ -173,10 +173,10 @@ async def test_jobs_execute_in_run_order(hassette_with_scheduler: Hassette) -> N
         return _job
 
     reference = now()
-    hassette_with_scheduler._scheduler.run_once(
+    hassette_with_scheduler.scheduler.run_once(
         make_job("late", late_job_complete), at=reference.add(seconds=0.4), name="late_job"
     )
-    hassette_with_scheduler._scheduler.run_once(
+    hassette_with_scheduler.scheduler.run_once(
         make_job("early", early_job_complete), at=reference.add(seconds=0.1), name="early_job"
     )
 
@@ -471,14 +471,14 @@ def test_resolve_trigger_none_job() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with_scheduler: Hassette) -> None:
+async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with_scheduler: HassetteHarness) -> None:
     """job.cancel() delegates to Scheduler.cancel_job(), which spawns mark_job_cancelled(db_id).
 
     Verifies AC6: the back-reference cancel path produces a durable DB write
     (cancelled_at IS NOT NULL). Verified via the mock_executor call record since
     the integration harness uses a mock executor at the repository boundary.
     """
-    scheduler_service = hassette_with_scheduler._scheduler_service
+    scheduler_service = hassette_with_scheduler.scheduler_service
     assert scheduler_service is not None
     executor = scheduler_service._executor
 
@@ -493,7 +493,7 @@ async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with
         hassette_with_scheduler.task_bucket.post_to_loop(job_done.set)
 
     # Schedule a job and simulate it having been persisted with db_id=42
-    scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=10)
+    scheduled_job = hassette_with_scheduler.scheduler.run_in(target, delay=10)
     scheduled_job.mark_registered(db_id)
 
     # Cancel via the back-reference (job.cancel() → scheduler.cancel_job())
@@ -506,7 +506,7 @@ async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with
     executor.mark_job_cancelled.assert_called_once_with(db_id)
 
     # Verify the job is dequeued (no longer in the scheduler)
-    remaining = hassette_with_scheduler._scheduler.list_jobs()
+    remaining = hassette_with_scheduler.scheduler.list_jobs()
     assert not any(j is scheduled_job for j in remaining), "Cancelled job should be removed from scheduler"
 
 
@@ -515,13 +515,13 @@ async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with
 # ---------------------------------------------------------------------------
 
 
-async def test_cancel_before_db_id_set_does_not_raise(hassette_with_scheduler: Hassette) -> None:
+async def test_cancel_before_db_id_set_does_not_raise(hassette_with_scheduler: HassetteHarness) -> None:
     """job.cancel() does not raise when db_id is None (registration not yet complete).
 
     Verifies AC5: the cancel path is safe to call before DB registration completes.
     No mark_job_cancelled DB write should be spawned when db_id is None.
     """
-    scheduler_service = hassette_with_scheduler._scheduler_service
+    scheduler_service = hassette_with_scheduler.scheduler_service
     assert scheduler_service is not None
     executor = scheduler_service._executor
 
@@ -531,7 +531,7 @@ async def test_cancel_before_db_id_set_does_not_raise(hassette_with_scheduler: H
         pass
 
     # Schedule a job without calling mark_registered — db_id remains None
-    scheduled_job = hassette_with_scheduler._scheduler.run_in(target, delay=10)
+    scheduled_job = hassette_with_scheduler.scheduler.run_in(target, delay=10)
     assert scheduled_job.db_id is None, "db_id should be None before registration"
 
     # Cancel via back-reference — must not raise
@@ -541,5 +541,5 @@ async def test_cancel_before_db_id_set_does_not_raise(hassette_with_scheduler: H
     executor.mark_job_cancelled.assert_not_called()
 
     # Job should be dequeued
-    remaining = hassette_with_scheduler._scheduler.list_jobs()
+    remaining = hassette_with_scheduler.scheduler.list_jobs()
     assert not any(j is scheduled_job for j in remaining), "Cancelled job should be removed from scheduler"

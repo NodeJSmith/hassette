@@ -136,6 +136,7 @@ async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIte
         TimeoutError: If Hassette does not reach running state within ``timeout`` seconds.
     """
     hassette = Hassette(config)
+    hassette.wire_services()
     task = asyncio.create_task(hassette.run_forever())
     try:
         loop = asyncio.get_running_loop()

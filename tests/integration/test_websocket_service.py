@@ -18,13 +18,14 @@ from hassette.exceptions import (
 from hassette.types import Topic
 
 if TYPE_CHECKING:
-    from hassette import Hassette
+    from hassette.test_utils.harness import HassetteHarness
 
 
 @pytest.fixture
-def websocket_service(hassette_with_bus: "Hassette") -> WebsocketService:
+def websocket_service(hassette_with_bus: "HassetteHarness") -> WebsocketService:
     """Create a fresh websocket service instance for each test."""
-    return WebsocketService(hassette_with_bus, parent=hassette_with_bus)
+    hassette = hassette_with_bus.hassette
+    return WebsocketService(hassette, parent=hassette)
 
 
 def _build_fake_ws(*, is_closed: bool = False) -> ClientWebSocketResponse:

@@ -1,12 +1,15 @@
 import asyncio
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
 from whenever import ZonedDateTime
 
 import hassette.scheduler.classes as classes_module
-from hassette import Hassette
 from hassette.scheduler import After, Cron, Daily, Every, Once, TriggerProtocol
+
+if TYPE_CHECKING:
+    from hassette.test_utils.harness import HassetteHarness
 
 TZ = "America/Chicago"
 
@@ -17,16 +20,16 @@ def _t(year: int, month: int, day: int, hour: int = 0, minute: int = 0, second: 
 
 
 @pytest.mark.integration
-async def test_run_cron_rejects_invalid(hassette_with_scheduler: Hassette) -> None:
+async def test_run_cron_rejects_invalid(hassette_with_scheduler: "HassetteHarness") -> None:
     """run_cron raises ValueError when the cron expression is invalid."""
     with pytest.raises(ValueError, match="Invalid cron expression"):
-        hassette_with_scheduler._scheduler.run_cron(lambda: None, "not a cron expression at all")
+        hassette_with_scheduler.scheduler.run_cron(lambda: None, "not a cron expression at all")
 
 
 @pytest.mark.integration
-async def test_run_cron_accepts_valid(hassette_with_scheduler: Hassette) -> None:
+async def test_run_cron_accepts_valid(hassette_with_scheduler: "HassetteHarness") -> None:
     """Valid cron expressions schedule jobs successfully."""
-    scheduled_job = hassette_with_scheduler._scheduler.run_cron(lambda: None, "* * * * *")
+    scheduled_job = hassette_with_scheduler.scheduler.run_cron(lambda: None, "* * * * *")
     await asyncio.sleep(0)
     scheduled_job.cancel()
 

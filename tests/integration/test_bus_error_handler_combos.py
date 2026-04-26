@@ -42,7 +42,7 @@ async def combo_harness(test_config) -> AsyncIterator[tuple[HassetteHarness, "Ha
     api_mock = AsyncMock()
     api_mock.sync = AsyncMock()
     api_mock.get_states_raw = AsyncMock(return_value=[])
-    harness.hassette.api = api_mock
+    harness.hassette._api = api_mock
 
     await harness.start()
 

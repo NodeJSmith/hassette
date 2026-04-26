@@ -12,7 +12,7 @@ from hassette.test_utils.harness import (
     _COMPONENT_CLASS_MAP,
     _DEPENDENCIES,
     HassetteHarness,
-    topological_sort,
+    sort_harness_graph,
 )
 
 _starters = HassetteHarness._starters
@@ -25,23 +25,23 @@ _REVERSE_CLASS_MAP: dict[type, str] = {v: k for k, v in _COMPONENT_CLASS_MAP.ite
 # ---------------------------------------------------------------------------
 
 
-def test_topological_sort_empty() -> None:
+def test_sort_harness_graph_empty() -> None:
     """Empty graph returns empty list."""
-    assert topological_sort({}) == []
+    assert sort_harness_graph({}) == []
 
 
-def test_topological_sort_linear() -> None:
+def test_sort_harness_graph_linear() -> None:
     """Linear chain: a → b → c returns [a, b, c] order (deps before dependents)."""
     graph: dict[str, set[str]] = {
         "a": set(),
         "b": {"a"},
         "c": {"b"},
     }
-    result = topological_sort(graph)
+    result = sort_harness_graph(graph)
     assert result.index("a") < result.index("b") < result.index("c")
 
 
-def test_topological_sort_diamond() -> None:
+def test_sort_harness_graph_diamond() -> None:
     """Diamond: d depends on b and c, both depend on a."""
     graph: dict[str, set[str]] = {
         "a": set(),
@@ -49,21 +49,21 @@ def test_topological_sort_diamond() -> None:
         "c": {"a"},
         "d": {"b", "c"},
     }
-    result = topological_sort(graph)
+    result = sort_harness_graph(graph)
     assert result.index("a") < result.index("b")
     assert result.index("a") < result.index("c")
     assert result.index("b") < result.index("d")
     assert result.index("c") < result.index("d")
 
 
-def test_topological_sort_cycle_raises() -> None:
+def test_sort_harness_graph_cycle_raises() -> None:
     """Cycle in graph raises ValueError."""
     graph: dict[str, set[str]] = {
         "a": {"b"},
         "b": {"a"},
     }
     with pytest.raises(ValueError, match=r"[Cc]ycle"):
-        topological_sort(graph)
+        sort_harness_graph(graph)
 
 
 # ---------------------------------------------------------------------------

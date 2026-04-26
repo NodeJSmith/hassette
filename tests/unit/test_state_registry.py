@@ -4,7 +4,7 @@ from hassette.models.states import BaseState
 from hassette.test_utils import make_state_dict
 
 if typing.TYPE_CHECKING:
-    from hassette import Hassette
+    from hassette.test_utils.harness import HassetteHarness
 
 
 class CustomOuterDefinition(BaseState):
@@ -12,7 +12,7 @@ class CustomOuterDefinition(BaseState):
 
 
 def test_custom_class_defined_inside_function_still_returns_custom_state(
-    hassette_with_state_registry: "Hassette",
+    hassette_with_state_registry: "HassetteHarness",
 ) -> None:
     """try_convert_state will return BaseState if a custom state class is defined inside a
     function and not registered."""
@@ -30,13 +30,13 @@ def test_custom_class_defined_inside_function_still_returns_custom_state(
         last_updated="2024-01-01T00:00:00Z",
     )
 
-    value = hassette.state_registry.try_convert_state(state_dict)
+    value = hassette.hassette.state_registry.try_convert_state(state_dict)
     assert value is not None, "State conversion failed"
     assert type(value) is CustomStateWithoutRegister, f"CustomStateWithoutRegister BaseState, got {type(value)}"
 
 
 def test_custom_class_nested_definition_returns_proper_state_after_register(
-    hassette_with_state_registry: "Hassette",
+    hassette_with_state_registry: "HassetteHarness",
 ) -> None:
     """try_convert_state will return the correct custom state if the class is registered."""
     hassette = hassette_with_state_registry
@@ -52,8 +52,8 @@ def test_custom_class_nested_definition_returns_proper_state_after_register(
         last_updated="2024-01-01T00:00:00Z",
     )
 
-    hassette.state_registry.register(CustomStateWithRegister)
-    return_value = hassette.state_registry.try_convert_state(state_dict)
+    hassette.hassette.state_registry.register(CustomStateWithRegister)
+    return_value = hassette.hassette.state_registry.try_convert_state(state_dict)
 
     assert return_value is not None, "State conversion failed"
     assert type(return_value) is not BaseState, "Expected a specific state class, got BaseState"
@@ -63,7 +63,7 @@ def test_custom_class_nested_definition_returns_proper_state_after_register(
 
 
 def test_custom_state_defined_at_module_level_works_without_calling_register(
-    hassette_with_state_registry: "Hassette",
+    hassette_with_state_registry: "HassetteHarness",
 ) -> None:
     """try_convert_state can handle custom states without calling register if they are defined at module level."""
     hassette = hassette_with_state_registry
@@ -76,7 +76,7 @@ def test_custom_state_defined_at_module_level_works_without_calling_register(
         last_updated="2024-01-01T00:00:00Z",
     )
 
-    return_value = hassette.state_registry.try_convert_state(state_dict)
+    return_value = hassette.hassette.state_registry.try_convert_state(state_dict)
 
     assert return_value is not None, "State conversion failed"
     assert type(return_value) is not BaseState, "Expected a specific state class, got BaseState"

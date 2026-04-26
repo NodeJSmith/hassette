@@ -7,8 +7,8 @@
 ```python
 from hassette.test_utils import HassetteHarness
 
-# Builder chains — bus is auto-added because state_proxy depends on it
-async with HassetteHarness(config).with_state_proxy().with_scheduler() as harness:
+# Builder chains — bus and scheduler are auto-added because state_proxy depends on both
+async with HassetteHarness(config).with_state_proxy() as harness:
     hassette = harness.hassette
 ```
 
@@ -19,10 +19,10 @@ async with HassetteHarness(config).with_state_proxy().with_scheduler() as harnes
 | `.with_bus()`            | Event bus + BusService               | —                    |
 | `.with_scheduler()`      | SchedulerService + Scheduler         | —                    |
 | `.with_api_mock()`       | Mock HTTP server + ApiResource + Api | —                    |
-| `.with_state_proxy()`    | StateProxy                           | `bus`                |
+| `.with_state_proxy()`    | StateProxy                           | `bus`, `scheduler`                |
 | `.with_state_registry()` | STATE_REGISTRY + TYPE_REGISTRY       | —                    |
 | `.with_file_watcher()`   | FileWatcherService                   | —                    |
-| `.with_app_handler()`    | AppHandler                           | `bus`, `state_proxy` |
+| `.with_app_handler()`    | AppHandler                           | `bus`, `scheduler`, `state_proxy` |
 
 ## Choosing a Mock Strategy
 
@@ -64,7 +64,9 @@ app = create_fastapi_app(stub)
 ### Harness fixtures (`src/hassette/test_utils/fixtures.py`)
 
 - `hassette_harness` — factory that creates a bare `HassetteHarness` with a fresh TCP port
-- `hassette_with_*` — pre-configured harness fixtures (e.g., `hassette_with_bus`, `hassette_with_state_proxy`)
+- `hassette_with_*` — pre-configured harness fixtures (e.g., `hassette_with_bus`, `hassette_with_state_proxy`); all yield `HassetteHarness` directly
+
+  Exception: `hassette_with_mock_api` yields `tuple[Api, SimpleTestServer]` — a different pattern used only by API-level tests.
 
 ### Web mock fixtures
 
@@ -100,16 +102,40 @@ with preserve_config(hassette.config):
 # config is restored after the block
 ```
 
-### Autouse cleanup fixtures — `tests/integration/conftest.py`
+### Autouse cleanup — `cleanup_harness` in `tests/integration/conftest.py`
 
-Four autouse fixtures reset module-scoped harness state before each test. They live in `tests/integration/conftest.py` (not in the plugin module) to avoid interfering with sync Playwright e2e tests.
+A single `cleanup_harness` autouse fixture resets module-scoped harness state before each test. It lives in `tests/integration/conftest.py` (not in the plugin module) to avoid interfering with sync Playwright e2e tests.
 
-| Fixture                       | Resets                                                | Covers fixtures                                                                                              |
-| ----------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `cleanup_state_proxy_fixture` | State cache + bus listeners via `reset_state_proxy()` | `hassette_with_state_proxy`                                                                                  |
-| `cleanup_bus_fixture`         | All bus listeners via `reset_bus()`                   | `hassette_with_bus`, `hassette_with_scheduler`, `hassette_with_file_watcher`, `hassette_with_state_registry` |
-| `cleanup_scheduler_fixture`   | All scheduler jobs via `reset_scheduler()`            | `hassette_with_scheduler`                                                                                    |
-| `cleanup_mock_api_fixture`    | Mock server expectations via `reset_mock_api()`       | `hassette_with_mock_api`                                                                                     |
+```python
+@pytest.fixture(autouse=True)
+async def cleanup_harness(request: pytest.FixtureRequest) -> None:
+    for name in _HARNESS_FIXTURES & set(request.fixturenames):
+        harness: HassetteHarness = request.getfixturevalue(name)
+        await harness.reset()
+```
+
+`_HARNESS_FIXTURES` covers the 6 module-scoped harness fixtures:
+`hassette_with_nothing`, `hassette_with_bus`, `hassette_with_scheduler`,
+`hassette_with_file_watcher`, `hassette_with_state_proxy`,
+`hassette_with_state_registry`.
+
+Function-scoped fixtures (`hassette_with_app_handler`,
+`hassette_with_app_handler_custom_config`) are excluded — they are recreated
+fresh for each test, so no cleanup is needed.
+
+`HassetteHarness.reset()` resets each active component independently:
+
+| Component      | Reset action                                              |
+| -------------- | --------------------------------------------------------- |
+| `state_proxy`  | Full shutdown/initialize cycle via `reset_state_proxy()`  |
+| `bus`          | All listeners removed via `reset_bus()`                   |
+| `scheduler`    | All jobs removed via `reset_scheduler()`                  |
+| `api_mock`     | Expectations cleared via `reset_mock_api()`               |
+
+Bus and Scheduler are siblings of StateProxy — not children of it. Resetting
+StateProxy does not clear bus listeners or scheduler jobs, so each component is
+always reset explicitly when active. The cost is negligible (one
+`remove_all_listeners()` + one `_remove_all_jobs()` call per test at most).
 
 Reset functions are defined in `src/hassette/test_utils/reset.py`.
 
@@ -151,7 +177,7 @@ Configures the mock registry to return a proper `AppFullSnapshot`.
 
 `tests/integration/conftest.py` provides:
 
-- **Autouse cleanup fixtures** — `cleanup_state_proxy_fixture`, `cleanup_bus_fixture`, `cleanup_scheduler_fixture`, `cleanup_mock_api_fixture` (reset module-scoped harness state between tests)
+- **`cleanup_harness`** — single autouse fixture that resets all active module-scoped harness components before each test by calling `harness.reset()` on each matching fixture
 - **`runtime_query_service`** — shared across integration web test files; each file defines its own `mock_hassette`
 - **`app`** — FastAPI application instance
 - **`client`** — httpx `AsyncClient`

@@ -310,7 +310,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         api_mock = AsyncMock()
         api_mock.sync = AsyncMock()
         api_mock.get_states_raw = AsyncMock(return_value=[])
-        harness.hassette.api = api_mock
+        harness.hassette._api = api_mock
 
         # Step 6: Start harness — registers stop() as teardown (early registration = late unwind)
         await harness.start()

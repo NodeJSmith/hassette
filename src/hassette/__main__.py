@@ -51,6 +51,7 @@ async def main() -> None:
     config = HassetteConfig()
 
     core = Hassette(config=config)
+    core.wire_services()
 
     loop = asyncio.get_running_loop()
     try:
