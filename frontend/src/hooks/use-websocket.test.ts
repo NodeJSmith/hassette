@@ -39,15 +39,13 @@ class MockWebSocket {
 }
 
 describe("useWebSocket", () => {
-  const OriginalWebSocket = globalThis.WebSocket;
-
   beforeEach(() => {
     MockWebSocket.instances = [];
-    globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
+    vi.stubGlobal("WebSocket", MockWebSocket);
   });
 
   afterEach(() => {
-    globalThis.WebSocket = OriginalWebSocket;
+    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
 

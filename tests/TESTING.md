@@ -227,3 +227,95 @@ api.assert_called_exact("turn_off", entity_id="light.x", domain="homeassistant")
 | Verify no unexpected arguments were passed | `assert_called_exact` |
 
 **Default is partial.** If you use `assert_called("turn_on", entity_id="light.x")` and the call also recorded `brightness=200`, the assertion still passes. Use `assert_called_exact` if that extra argument should be flagged as unexpected.
+
+---
+
+## Frontend Testing (Vitest + MSW)
+
+Frontend tests live in `frontend/src/` alongside the source files they test.
+Run them with `cd frontend && npx vitest run`.
+
+### Mocking Layer Rule
+
+Three mocking strategies exist. Choose based on what you are testing:
+
+| What you are testing | Strategy | When to use |
+| --- | --- | --- |
+| Component rendering given known data | `vi.mock(hook)` | Unit tests for visual output — loading states, conditional rendering, formatting |
+| Data-fetching behavior (loading states, error responses, API shape validation) | MSW via `server.use(...)` | Components that call `fetch` and need realistic HTTP responses |
+| Hook internals (signal identity, reconnect lifecycle, dependency tracking) | Direct fetcher injection via `fetcher` parameter | Tests for `useApi`, `useScopedApi`, and similar hooks that accept a `fetcher` arg |
+
+**Never mix strategies within a single test file** — pick the one matching the abstraction level being tested.
+
+Explicitly excluded from MSW migration:
+- `api/client.test.ts` — tests client-level error parsing (422 detail extraction, 500 message fallback, non-JSON statusText fallback). Retains direct `globalThis.fetch = vi.fn()` because it tests the fetch-adjacent layer.
+- `hooks/use-api.test.ts` and `hooks/use-scoped-api.test.ts` — inject a `vi.fn()` fetcher directly into the hook. They never call `fetch` and MSW has nothing to intercept.
+
+### MSW Usage Patterns
+
+**Global setup** (`src/test-setup.ts`): The MSW Node server is started in `beforeAll`, reset in `afterEach`, and closed in `afterAll`. This applies automatically to every test file.
+
+**Default handlers** (`src/test/handlers.ts`): Every endpoint in `src/api/endpoints.ts` has a default handler that returns an empty but valid response shape. Tests that need specific data override the default for that test:
+
+```ts
+import { server } from "../../../test-setup";
+import { http, HttpResponse } from "msw";
+import type { components } from "../../../api/generated-types";
+
+it("shows app name from API", async () => {
+  server.use(
+    http.get("/api/apps/manifests", () =>
+      HttpResponse.json<components["schemas"]["AppManifestListResponse"]>({
+        total: 1, running: 1, failed: 0, stopped: 0, disabled: 0, blocked: 0,
+        manifests: [{ app_key: "my_app", display_name: "My App", ... }],
+        only_app: null,
+      })
+    )
+  );
+
+  // render component and assert ...
+});
+```
+
+`server.use(...)` overrides are scoped to the test. `afterEach` in the global setup calls `server.resetHandlers()`, so overrides don't bleed between tests.
+
+**`onUnhandledRequest` policy**: Currently `'warn'` (prints a console warning for unmatched requests). WP07 switches this to `'error'` once handler coverage is complete.
+
+### Factory Functions
+
+Shared factories live in `src/test/factories.ts`. Use them instead of per-file factory objects.
+
+Each factory:
+- Returns a complete, valid object satisfying the generated type
+- Accepts `Partial<T>` overrides for per-test customization
+- Uses TypeScript `satisfies` so missing required fields from `generated-types.ts` cause compile errors
+
+```ts
+import { createAppGridEntry, createHandlerError } from "../../test/factories";
+
+// Minimal — uses all defaults
+const app = createAppGridEntry();
+
+// Override specific fields
+const failedApp = createAppGridEntry({ status: "failed", total_errors: 5 });
+const err = createHandlerError({ error_type: "TimeoutError", app_key: "my_app" });
+```
+
+Available factories: `createManifest`, `createManifestList`, `createAppGridEntry`, `createListener`, `createJob`, `createHealthData`, `createKpis`, `createHandlerError`, `createJobError`, `createLogEntry`, `createSession`, `createTelemetryStatus`.
+
+### Render Helper
+
+Components that call `useAppState()` (reads from `AppStateContext`) need the context provider. Use `renderWithAppState` from `src/test/render-helpers.tsx`:
+
+```tsx
+import { renderWithAppState } from "../../test/render-helpers";
+
+it("shows degraded banner when telemetry is down", () => {
+  const { getByText } = renderWithAppState(<MyComponent />, {
+    stateOverrides: { telemetryDegraded: signal(true) },
+  });
+  expect(getByText("Telemetry unavailable")).toBeDefined();
+});
+```
+
+Components that do not call `useAppState()` can use `render` from `@testing-library/preact` directly.

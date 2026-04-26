@@ -26,8 +26,13 @@ vi.mock("../../api/endpoints", () => ({
 let rafCallbacks: Array<FrameRequestCallback> = [];
 let rafIdCounter = 0;
 
-const origRAF = globalThis.requestAnimationFrame;
-const origCAF = globalThis.cancelAnimationFrame;
+// Capture the polyfill values installed by test-setup.ts at module load time.
+// test-setup.ts setupFiles run before test modules are evaluated, so these
+// will hold the polyfill functions (not jsdom's undefined values). Restoring
+// to these values in afterEach keeps Preact's cancelAnimationFrame cleanup
+// working for any pending setTimeout-based callbacks that fire after teardown.
+const setupRAF = globalThis.requestAnimationFrame;
+const setupCAF = globalThis.cancelAnimationFrame;
 
 beforeEach(() => {
   rafCallbacks = [];
@@ -43,8 +48,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  globalThis.requestAnimationFrame = origRAF;
-  globalThis.cancelAnimationFrame = origCAF;
+  globalThis.requestAnimationFrame =
+    setupRAF ?? ((cb: FrameRequestCallback) => setTimeout(cb, 0) as unknown as number);
+  globalThis.cancelAnimationFrame =
+    setupCAF ?? ((id: number) => clearTimeout(id));
 });
 
 /** Flush all pending requestAnimationFrame callbacks within act(). */
