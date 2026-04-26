@@ -1,19 +1,24 @@
-graph TD
-    A[Container Starts] --> B[Activate venv\nValidate hassette importable]
-    B --> C{uv.lock exists?}
-    C -->|Yes| D[uv export → /tmp/user-deps.txt]
-    D --> E[uv pip install -r user-deps.txt\n-c constraints.txt]
-    E --> F[uv pip install --no-deps project]
-    C -->|No| G{pyproject.toml exists?}
-    G -->|Yes| H[Log: run uv lock to generate a lockfile]
-    G -->|No| I[Skip project install]
-    F --> J{HASSETTE__INSTALL_DEPS=1?}
+flowchart TD
+    A[Container Starts]:::neutral --> B[Activate venv\nValidate hassette importable]:::step
+    B --> C{uv.lock exists?}:::decision
+    C -->|Yes| D[uv export → /tmp/user-deps.txt]:::step
+    D --> E[uv pip install -r user-deps.txt\n-c constraints.txt]:::step
+    E --> F[uv pip install --no-deps project]:::step
+    C -->|No| G{pyproject.toml exists?}:::decision
+    G -->|Yes| H[Log: run uv lock to generate a lockfile]:::fallback
+    G -->|No| I[Skip project install]:::fallback
+    F --> J{HASSETTE__INSTALL_DEPS=1?}:::decision
     H --> J
     I --> J
-    J -->|Yes| K[Discover requirements.txt files via fd\nexact match only]
-    K --> L[For each: uv pip install -r file -c constraints.txt]
-    L --> N{HASSETTE__PRUNE_UV_CACHE=1?}
+    J -->|Yes| K[Discover requirements.txt files via fd\nexact match only]:::step
+    K --> L[For each: uv pip install -r file\n-c constraints.txt]:::step
+    L --> N{HASSETTE__PRUNE_UV_CACHE=1?}:::decision
     J -->|No| N
-    N -->|Yes| O[uv cache prune]
-    O --> M[Start hassette]
+    N -->|Yes| O[uv cache prune]:::step
+    O --> M[Start hassette]:::neutral
     N -->|No| M
+
+    classDef neutral fill:#f0f0f0,stroke:#999,color:#333
+    classDef step fill:#e8f0ff,stroke:#6688cc,color:#333
+    classDef decision fill:#f0f8e8,stroke:#88aa66,color:#333
+    classDef fallback fill:#fff0e8,stroke:#cc8844,color:#333
