@@ -342,7 +342,7 @@ it("shows app name from API", async () => {
 
 `server.use(...)` overrides are scoped to the test. `afterEach` in the global setup calls `server.resetHandlers()`, so overrides don't bleed between tests.
 
-**`onUnhandledRequest` policy**: Currently `'warn'` (prints a console warning for unmatched requests). WP07 switches this to `'error'` once handler coverage is complete.
+**`onUnhandledRequest` policy**: Set to `'error'` — any unhandled request causes the test to fail immediately. If a new endpoint is added to `endpoints.ts`, a corresponding handler must be added to `handlers.ts`.
 
 ### Factory Functions
 
