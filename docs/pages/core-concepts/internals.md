@@ -159,22 +159,26 @@ sequenceDiagram
 
     Note over App: initialize() runs hooks in order
     App->>App: before_initialize()
-    App->>App: on_initialize() -- user registers listeners / schedules jobs
+    App->>App: on_initialize()
+    Note right of App: User registers listeners and schedules jobs here
     Bus->>Bus: mark_ready()
     Sched->>Sched: mark_ready()
     App->>App: after_initialize()
-    App->>App: handle_running() -- RUNNING status + event
+    App->>App: handle_running()
+    Note right of App: Sets RUNNING status and emits event
 
-    Note over App: on_ready() not a hook; RUNNING status is the signal
+    Note over App: RUNNING status is the signal, not a hook
     App->>HA: api.call_service(), api.get_state(), etc.
 
-    Note over App: shutdown path (signal or config reload)
+    Note over App: Shutdown path (signal or config reload)
     App->>App: before_shutdown()
-    App->>App: on_shutdown() -- user releases resources
+    App->>App: on_shutdown()
+    Note right of App: User releases resources here
     Bus->>Bus: remove_all_listeners()
     Sched->>Sched: remove_all_jobs()
     App->>App: after_shutdown()
-    App->>App: handle_stop() -- STOPPED status + event
+    App->>App: handle_stop()
+    Note right of App: Sets STOPPED status and emits event
 ```
 
 **Notes on each phase.**

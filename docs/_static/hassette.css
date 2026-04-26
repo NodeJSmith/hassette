@@ -1,5 +1,5 @@
 /* Widen content column for diagrams */
-.md-main__inner.md-grid {
+.md-main .md-grid {
   max-width: 1200px;
 }
 
