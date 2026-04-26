@@ -43,38 +43,86 @@ These diagrams illustrate the architecture and relationships between the main co
 #### 1) High-level flow
 
 ```mermaid
-graph LR
-    HA[Home Assistant] <--> H[Hassette]
-    H --> APPS[Your Apps]
-    APPS --> H
+flowchart TD
+    subgraph ha["Home Assistant"]
+        HA["Events + API"]
+    end
+
+    subgraph hassette["Hassette"]
+        H["Framework"]
+    end
+
+    subgraph apps["Your Apps"]
+        APPS["Automations"]
+    end
+
+    HA <--> H
+    H <--> APPS
+
+    style ha fill:#f0f0f0,stroke:#999
+    style hassette fill:#fff0e8,stroke:#cc8844
+    style apps fill:#e8f0ff,stroke:#6688cc
 ```
 
 #### 2) Core services inside Hassette
 
 ```mermaid
-graph TB
+flowchart TD
     H[Hassette]
-    H --> WS[WebsocketService]
-    H --> API[ApiResource]
-    H --> BUS[BusService]
-    H --> SCHED[SchedulerService]
-    H --> APPS[AppHandler]
-    H --> STATE[StateProxy]
-    H --> DB[DatabaseService]
-    H --> WEB[WebApiService]
-    H --> RTQ[RuntimeQueryService]
-    H --> TQ[TelemetryQueryService]
+
+    subgraph infra["Infrastructure"]
+        direction LR
+        WS[WebsocketService]
+        DB[DatabaseService]
+    end
+
+    subgraph core["Core"]
+        direction LR
+        BUS[BusService]
+        SCHED[SchedulerService]
+        API[ApiResource]
+        STATE[StateProxy]
+    end
+
+    subgraph web["Web"]
+        direction LR
+        WEB[WebApiService]
+        RTQ[RuntimeQueryService]
+        TQ[TelemetryQueryService]
+    end
+
+    subgraph apps["Apps"]
+        APPH[AppHandler]
+    end
+
+    H --- infra & core & web & apps
+
+    style infra fill:#f0f0f0,stroke:#999
+    style core fill:#fff0e8,stroke:#cc8844
+    style web fill:#f0f8e8,stroke:#88aa66
+    style apps fill:#e8f0ff,stroke:#6688cc
 ```
 
 #### 3) What each app gets (lightweight handles)
 
 ```mermaid
-graph TB
-    APP[App Instance]
-    APP --> API[Api]
-    APP --> BUS[Bus]
-    APP --> SCHED[Scheduler]
-    APP --> STATES[States]
+flowchart TD
+    subgraph app["App Instance"]
+        APP["Your App"]
+    end
+
+    subgraph handles["Lightweight Handles"]
+        direction LR
+        API[Api]
+        BUS[Bus]
+        SCHED[Scheduler]
+        STATES[States]
+    end
+
+    APP --> API & BUS & SCHED & STATES
+
+    style app fill:#e8f0ff,stroke:#6688cc
+    style handles fill:#fff0e8,stroke:#cc8844
 ```
 
 Learn more about writing apps in the [apps](apps/index.md) section.
@@ -122,45 +170,58 @@ Fix cycles by restructuring the dependency so one service no longer needs the ot
 
 ### Framework dependency graph
 
-The built-in services have the following declared dependencies:
+The built-in services have the following declared dependencies, organized by startup wave:
 
 ```mermaid
-graph TD
-    DB[DatabaseService]
-    WS[WebsocketService]
-    CMD[CommandExecutor]
-    API[ApiResource]
-    BUS[BusService]
-    SCHED[SchedulerService]
-    SP[StateProxy]
-    AH[AppHandler]
-    RQS[RuntimeQueryService]
-    TQS[TelemetryQueryService]
-    WEB[WebApiService]
-    SW[ServiceWatcher]
+graph BT
+    subgraph wave0["Wave 0 — No Dependencies"]
+        DB[DatabaseService]
+        WS[WebsocketService]
+        BUS[BusService]
+        SCHED[SchedulerService]
+    end
+
+    subgraph wave1["Wave 1"]
+        CMD[CommandExecutor]
+        API[ApiResource]
+    end
+
+    subgraph wave2["Wave 2"]
+        SP[StateProxy]
+        TQS[TelemetryQueryService]
+    end
+
+    subgraph wave3["Wave 3"]
+        AH[AppHandler]
+    end
+
+    subgraph wave4["Wave 4"]
+        RQS[RuntimeQueryService]
+    end
+
+    subgraph wave5["Wave 5 — Last to Start"]
+        WEB[WebApiService]
+    end
 
     CMD --> DB
-    API --> WS
-    SP --> WS
-    SP --> API
-    SP --> BUS
-    SP --> SCHED
-    AH --> WS
-    AH --> API
-    AH --> BUS
-    AH --> SCHED
-    AH --> SP
-    RQS --> BUS
-    RQS --> SP
-    RQS --> AH
     TQS --> DB
-    WEB --> RQS
-    SW --> BUS
+    API --> WS
+    SP --> WS & API & BUS & SCHED
+    AH --> WS & API & BUS & SCHED & SP
+    RQS --> BUS & SP & AH
+    WEB --> RQS & TQS
+
+    style wave0 fill:#e8f0ff,stroke:#6688cc
+    style wave1 fill:#dde8f8,stroke:#6688cc
+    style wave2 fill:#d0e0f0,stroke:#6688cc
+    style wave3 fill:#c4d8e8,stroke:#6688cc
+    style wave4 fill:#b8d0e0,stroke:#6688cc
+    style wave5 fill:#acc8d8,stroke:#6688cc
 ```
 
-An arrow from A to B means "A depends on B" — B must be ready before A initializes.
+An arrow from A to B means "A depends on B" — B must be ready before A initializes. Shutdown proceeds in reverse wave order.
 
-`DatabaseService`, `WebsocketService`, `BusService`, and `SchedulerService` have no declared dependencies and initialize first. `WebApiService` is the deepest node in the graph (via `RuntimeQueryService` → `AppHandler` → `StateProxy`).
+For detailed diagrams of each subsystem's internals, see [System Internals](internals.md).
 
 !!! note "EventStreamService"
     `EventStreamService` has a constructor-time dependency: it passes a receive stream to `BusService` at Hassette construction time, before any service initializes. This structural ordering is enforced by child registration order rather than `depends_on`, which only expresses runtime readiness dependencies.

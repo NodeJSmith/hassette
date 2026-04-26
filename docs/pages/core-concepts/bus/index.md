@@ -5,18 +5,29 @@ The event bus connects your apps to Home Assistant and to Hassette itself. It de
 Apps register event handlers through `self.bus`, which is created automatically at app instantiation.
 
 ```mermaid
-graph TB
-    HA[Home Assistant<br/>Events] --> WS[WebSocket]
-    WS --> BUS[BusService]
-    BUS --> |state_changed| APP1[App Handler 1]
-    BUS --> |call_service| APP2[App Handler 2]
-    BUS --> |custom_event| APP3[App Handler 3]
+flowchart TD
+    subgraph ha["Home Assistant"]
+        HA["Events"]
+    end
 
-    style HA fill:#41bdf5
-    style BUS fill:#ff6b6b
-    style APP1 fill:#4ecdc4
-    style APP2 fill:#4ecdc4
-    style APP3 fill:#4ecdc4
+    subgraph framework["Framework"]
+        WS["WebsocketService"]
+        BUS["BusService"]
+        WS --> BUS
+    end
+
+    subgraph handlers["App Handlers"]
+        APP1["Handler 1<br/><i>state_changed</i>"]
+        APP2["Handler 2<br/><i>call_service</i>"]
+        APP3["Handler 3<br/><i>custom_event</i>"]
+    end
+
+    HA --> WS
+    BUS --> APP1 & APP2 & APP3
+
+    style ha fill:#f0f0f0,stroke:#999
+    style framework fill:#fff0e8,stroke:#cc8844
+    style handlers fill:#e8f0ff,stroke:#6688cc
 ```
 
 ## Subscribing to Events

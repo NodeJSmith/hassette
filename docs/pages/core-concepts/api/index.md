@@ -3,10 +3,26 @@
 The `Api` resource lets your apps interact with Home Assistant. It wraps the REST and WebSocket APIs with typed Python interfaces and handles authentication, retries, and type conversion automatically.
 
 ```mermaid
-graph TB
-    APP[Your App] --> |self.api| API[Api Client]
-    API --> |get_state| HA[Home Assistant]
-    API --> |call_service| HA
+flowchart TD
+    subgraph app["Your App"]
+        APP["self.api"]
+    end
+
+    subgraph framework["Api Client"]
+        REST["REST<br/><i>get_state()</i>"]
+        WS["WebSocket<br/><i>call_service()</i>"]
+    end
+
+    subgraph ha["Home Assistant"]
+        HA["HA API"]
+    end
+
+    APP --> REST & WS
+    REST & WS --> HA
+
+    style app fill:#e8f0ff,stroke:#6688cc
+    style framework fill:#fff0e8,stroke:#cc8844
+    style ha fill:#f0f0f0,stroke:#999
 ```
 
 ## Usage
