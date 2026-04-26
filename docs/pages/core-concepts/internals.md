@@ -1,3 +1,8 @@
+---
+hide:
+  - toc
+---
+
 # Hassette Architecture Overview
 
 Hassette is an async-first Python framework for building Home Assistant automations. It connects to Home Assistant over WebSocket, routes incoming events through a typed pub/sub bus, dispatches them to user-defined App classes, and provides a web UI for monitoring the running system. This document describes how the major components relate, how data and events flow, and how the App lifecycle works.
