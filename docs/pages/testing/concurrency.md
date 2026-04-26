@@ -4,7 +4,7 @@ The harness has two independent isolation mechanisms. Understanding which applie
 
 ## Same-Class Concurrency (always applies)
 
-`AppTestHarness` uses a **per-App-class `asyncio.Lock`** as a narrow critical section around the `app_manifest` read-modify-write and hermetic config validation. The lock is held only during synchronous attribute operations — not during app startup or teardown.
+`AppTestHarness` uses a **per-App-class `asyncio.Lock`** as a narrow critical section around the `app_manifest` read-modify-write and hermetic config validation. The lock is held only during these synchronous operations — not during app startup or teardown.
 
 - Two harnesses for the **same App class** can run concurrently in the same event loop. Using `asyncio.gather()` with multiple harnesses that share a class is safe — a reference counter ensures `app_manifest` is set on the first entry and restored only when the last harness exits.
 - Two harnesses for **different App classes** can also run concurrently without conflict.

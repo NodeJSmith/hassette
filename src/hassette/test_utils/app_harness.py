@@ -333,10 +333,10 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         harness.state_proxy.mark_ready(reason="AppTestHarness: mark ready for test")
 
         # Step 9: Synthesize manifest under narrow per-class lock.
-        # The lock serializes the _CLASS_MANIFEST_STATE read-modify-write so
-        # concurrent harnesses for the same class share one manifest lifecycle —
-        # only the last to exit restores the original. Config cell race-safety
-        # is handled separately by the no-await guarantee in _make_hermetic_config.
+        # The lock serializes both hermetic config validation and the
+        # _CLASS_MANIFEST_STATE read-modify-write so concurrent harnesses for
+        # the same class share one manifest lifecycle — only the last to exit
+        # restores the original.
         async with _get_class_lock(self._app_cls):
             validated_config = _make_hermetic_config(self._app_cls, app_config_cls, self._config_dict)
             state = _CLASS_MANIFEST_STATE.get(self._app_cls)
