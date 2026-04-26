@@ -26,9 +26,8 @@ globalThis.cancelAnimationFrame = (id: number): void => {
 export const server = setupServer(...handlers);
 
 beforeAll(() => {
-  // onUnhandledRequest: 'warn' during initial development.
-  // WP07 switches this to 'error' once handler coverage is complete.
-  server.listen({ onUnhandledRequest: "warn" });
+  // Handler coverage is complete — any unhandled request is a missing handler.
+  server.listen({ onUnhandledRequest: "error" });
 });
 
 afterEach(() => {

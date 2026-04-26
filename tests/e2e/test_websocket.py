@@ -1,5 +1,5 @@
 """E2E tests for WebSocket infrastructure: connection indicator and SPA
-rendering stability when WS is unavailable."""
+rendering stability when WS is unavailable, and the WS session-scoped fetch path."""
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -94,3 +94,59 @@ def test_expanded_handler_row_stable_without_ws(page: Page, base_url: str) -> No
     # Stats text should be present
     calls_el = page.locator("[data-testid='handler-row-1'] .ht-meta-item[title='Total invocations']")
     expect(calls_el).to_have_text(f"{LISTENER_MY_APP_1_TOTAL_INVOCATIONS} calls")
+
+
+# ── WebSocket session path ────────────────────────────────────────────
+
+
+def test_websocket_session_scoped_fetch(page: Page, live_server_ws: str) -> None:
+    """The default user flow: WS connects → session_id received → API calls include session_id.
+
+    Uses live_server_ws (WebSocket enabled, ws='websockets-sansio').
+    The _default_scope_all autouse fixture runs on the ws='none' server's
+    origin and does not affect localStorage on the WS server's distinct port
+    origin, so sessionScope defaults to 'current' here.
+
+    Verifies:
+    - The status bar transitions to 'Connected' (WS handshake completes)
+    - Dashboard API calls include ?session_id=N matching the session from
+      the mock Hassette stub (session_id=1 as set in conftest.py)
+    """
+    # Collect all API requests made by the dashboard while it loads.
+    api_requests: list[str] = []
+
+    def _capture(request) -> None:
+        if "/api/telemetry/" in request.url:
+            api_requests.append(request.url)
+
+    page.on("request", _capture)
+
+    # Navigate to the WS-enabled server. sessionScope defaults to 'current'
+    # (no prior localStorage on this origin), so useScopedApi waits for a
+    # session_id before firing any telemetry fetch.
+    page.goto(live_server_ws + "/")
+
+    # The status bar should reach 'Connected' once the WS handshake completes
+    # and the server sends the 'connected' message with session_id.
+    # When connected, StatusBar renders only the dot (no text label) — check
+    # the aria-label attribute instead of visible text.
+    status_bar = page.locator(".ht-status-bar")
+    expect(status_bar).to_be_visible()
+    ws_indicator = page.locator(".ht-ws-indicator")
+    expect(ws_indicator.first).to_have_attribute("aria-label", "Connected", timeout=10000)
+
+    # After WS connects, useScopedApi unblocks and fires telemetry fetches.
+    # Wait for the dashboard to finish loading (spinner disappears or data appears).
+    expect(page.locator("#dashboard-app-grid")).to_be_visible(timeout=10000)
+
+    # At least one dashboard telemetry request must have been made.
+    assert len(api_requests) > 0, "No /api/telemetry/ requests were captured"
+
+    # Every session-scoped request must include ?session_id=1 (the mock stub's
+    # session_id set in conftest.py: hassette.session_id = 1).
+    # The 'all'-scope endpoints (e.g. /telemetry/status, /telemetry/sessions)
+    # do not include session_id — filter to the scoped ones.
+    scoped_requests = [u for u in api_requests if "session_id" in u]
+    assert len(scoped_requests) > 0, f"No session-scoped telemetry requests found. All requests: {api_requests}"
+    for url in scoped_requests:
+        assert "session_id=1" in url, f"Expected session_id=1 in URL but got: {url}"

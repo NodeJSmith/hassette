@@ -1,5 +1,6 @@
 """Fixtures for Playwright-based e2e tests of the Hassette Web UI."""
 
+import asyncio
 import logging
 import shutil
 import socket
@@ -245,3 +246,77 @@ def _default_scope_all(page, base_url: str) -> None:
     page.goto(base_url + "/")
     page.evaluate('localStorage.setItem("hassette:sessionScope", JSON.stringify("all"))')
     page.reload()
+
+
+# ── WebSocket-enabled server fixtures ─────────────────────────────────
+#
+# Two server configurations serve different testing needs:
+#
+#  live_server (session-scoped, ws='none') — used by almost all E2E tests.
+#    WebSocket is disabled to avoid the websockets.legacy DeprecationWarning
+#    that becomes a hard error under pytest's filterwarnings=["error"].
+#    The _default_scope_all autouse fixture forces sessionScope='all' so
+#    telemetry loads without a WS-provided sessionId.
+#
+#  live_server_ws (function-scoped, ws='websockets-sansio') — used only by
+#    tests that need to exercise the WebSocket session path (scope='current'
+#    + session ID). websockets-sansio avoids the legacy DeprecationWarning.
+#    Tests using this fixture receive the session_id from the real WS
+#    connected message — nothing is mocked.
+
+
+@pytest.fixture
+def live_server_ws(_fastapi_app, runtime_query_service):
+    """Start a WebSocket-enabled uvicorn server for session-path tests.
+
+    Uses ws='websockets-sansio' to avoid the websockets.legacy DeprecationWarning
+    that is promoted to an error by pytest's filterwarnings=["error"] setting.
+    Function-scoped: the server starts and stops per test to keep WS tests isolated.
+
+    The session-scoped runtime_query_service was created with use_real_lock=False
+    (a MagicMock for _lock) because asyncio.Lock was loop-bound in older Pythons.
+    Since Python 3.10+, Lock picks up the running loop on first use, so we can
+    safely replace the mock with a real Lock here for the duration of this fixture.
+    The original mock is restored after the test to avoid cross-test contamination.
+    """
+    # Swap in a real asyncio.Lock so register_ws_client / unregister_ws_client work.
+    original_lock = runtime_query_service._lock
+    runtime_query_service._lock = asyncio.Lock()
+
+    port = _get_free_port()
+    config = uvicorn.Config(
+        app=_fastapi_app,
+        host="127.0.0.1",
+        port=port,
+        log_level="warning",
+        ws="websockets-sansio",
+        # Short graceful shutdown: browser WebSocket stays open until Playwright
+        # releases it, so we cannot wait forever. Cancel lingering connections
+        # after 1 second and proceed. The daemon thread ensures the process
+        # does not hang if the server does not exit cleanly.
+        timeout_graceful_shutdown=1,
+    )
+    server = uvicorn.Server(config)
+
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+                break
+        except OSError:
+            time.sleep(0.05)
+    else:
+        raise RuntimeError(f"WS-enabled live server did not start within 10s on port {port}")
+
+    yield f"http://127.0.0.1:{port}"
+
+    server.should_exit = True
+    thread.join(timeout=5)
+    if thread.is_alive():
+        raise RuntimeError("WS-enabled live server did not stop within 5s")
+
+    # Restore original lock so other session fixtures are not affected.
+    runtime_query_service._lock = original_lock
