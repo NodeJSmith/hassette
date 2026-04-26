@@ -89,6 +89,10 @@ async def reset_app_handler(app_handler: "AppHandler", original_manifests: dict[
     for app_key in list(app_handler.registry.apps):
         await app_handler.stop_app(app_key)
 
+    # Clear test-owned listeners before re-bootstrap so they don't fire
+    # on APP_LOAD_COMPLETED events during bootstrap_apps().
+    await app_handler.hassette.bus_service.remove_listeners_by_owner("test")
+
     app_handler.registry.clear_all()
     app_handler.registry.set_manifests({k: v.model_copy(deep=True) for k, v in original_manifests.items()})
     await app_handler.lifecycle.bootstrap_apps()
