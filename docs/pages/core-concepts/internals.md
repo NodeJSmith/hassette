@@ -191,8 +191,8 @@ flowchart TD
 
 | Failure | Behavior |
 |---|---|
-| WS disconnect | Exponential backoff retry (max 5 attempts) |
-| Auth failure | Process exits, no retry |
+| WS disconnect | `_make_connection` retries up to 5 times (tenacity, exponential jitter). If `serve()` still fails, `ServiceWatcher` restarts the service up to `service_restart_max_attempts` (default 5). |
+| Auth failure | `InvalidAuthError` skips tenacity retry, but `ServiceWatcher` still attempts restarts up to `service_restart_max_attempts`. Hassette shuts down if failures continue. |
 | Handler timeout | Logged, invocation recorded as timed-out |
 | DB write failure | 3 retries, then dropped with counter increment |
 
@@ -458,6 +458,6 @@ A component can be RUNNING but not ready (still initializing internal state), or
 
 ### Wave Startup and Shutdown
 
-Dependencies are computed into topological levels. Each wave starts concurrently via `gather()`, but waves run sequentially — all dependencies are guaranteed ready before dependents begin.
+Dependencies are computed into topological levels. Within a wave, the framework calls `start()` on each child so their initialization can proceed concurrently, then waits for all to become ready before starting the next wave.
 
 Shutdown proceeds in reverse wave order. A per-wave timeout triggers `_force_terminal()` on non-compliant children, which recursively force-stops without running hooks (accepted risk for stuck services).

@@ -171,7 +171,7 @@ Fix cycles by restructuring the dependency so one service no longer needs the ot
 
 ### Framework dependency graph
 
-The built-in services have the following declared dependencies, organized by startup wave:
+The key built-in services have the following declared dependencies, organized by startup wave:
 
 ```mermaid
 graph BT
