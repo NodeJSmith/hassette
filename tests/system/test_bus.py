@@ -26,13 +26,7 @@ async def test_state_change_handler_fires(ha_container: str, tmp_path):
 
 
 async def test_attribute_change_handler_fires(ha_container: str, tmp_path):
-    """An attribute-change handler fires when the entity's friendly_name attribute changes.
-
-    Note: HA's demo light may not emit an attribute change on toggle for every attribute.
-    ``friendly_name`` is stable and unlikely to change, so we use ``color_mode`` or
-    ``brightness`` which does change on toggle. If the attribute does not appear in the
-    event, the test is skipped with an explanatory note.
-    """
+    """An attribute-change handler fires when the brightness attribute is present in a state change."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
@@ -43,24 +37,19 @@ async def test_attribute_change_handler_fires(ha_container: str, tmp_path):
         async def _capture(event: RawStateChangeEvent) -> None:
             received.append(event)
 
-        # brightness changes when a color light turns on/off
-        bus.on_attribute_change(_ENTITY, "brightness", handler=_capture)
+        # changed=False so the handler fires on any event where brightness is present,
+        # regardless of whether the value actually changed from the previous state
+        bus.on_attribute_change(_ENTITY, "brightness", handler=_capture, changed=False)
 
-        await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY, "brightness": 200})
         await api.call_service(_DOMAIN, "turn_off", {"entity_id": _ENTITY})
-        await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY, "brightness": 100})
+        await asyncio.sleep(0.5)
+        await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY, "brightness": 200})
 
-        try:
-            await wait_for(
-                lambda: len(received) >= 1,
-                timeout=15.0,
-                desc="attribute_changed event for brightness on kitchen_lights",
-            )
-        except TimeoutError:
-            pytest.skip(
-                "light.kitchen_lights did not emit a brightness attribute change — "
-                "demo light may not support brightness in this HA version"
-            )
+        await wait_for(
+            lambda: len(received) >= 1,
+            timeout=15.0,
+            desc="attribute_changed event for brightness on kitchen_lights",
+        )
 
         assert len(received) >= 1
 

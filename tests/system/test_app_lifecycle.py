@@ -145,6 +145,12 @@ class SchedulerCheckApp(App):
         app_instance = hassette.app_handler.apps[app_key][0]
 
         await wait_for(
+            lambda: app_instance.status == ResourceStatus.RUNNING,
+            timeout=15.0,
+            desc="SchedulerCheckApp to reach RUNNING status",
+        )
+
+        await wait_for(
             lambda: len(app_instance.fired) > 0,  # pyright: ignore[reportAttributeAccessIssue]
             timeout=5.0,
             desc="SchedulerCheckApp callback to fire",
