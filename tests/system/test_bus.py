@@ -41,7 +41,13 @@ async def test_attribute_change_handler_fires(ha_container: str, tmp_path):
         await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY, "brightness": 50})
         await asyncio.sleep(1.0)
 
-        bus.on_attribute_change(_ENTITY, "brightness", handler=_capture)
+        sub = bus.on_attribute_change(_ENTITY, "brightness", handler=_capture)
+
+        await wait_for(
+            lambda: sub.listener.db_id is not None,
+            timeout=10.0,
+            desc="attribute listener DB registration",
+        )
 
         # Change brightness to a distinctly different value — guaranteed attribute change
         await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY, "brightness": 200})
