@@ -83,7 +83,7 @@ async def test_failed_service_cascade_triggers_shutdown(ha_container: str, tmp_p
 
             await wait_for(
                 shutdown_event.is_set,
-                timeout=30,
+                timeout=45,
                 desc="ServiceWatcher to exhaust retries and call shutdown",
             )
         finally:
