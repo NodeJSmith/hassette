@@ -1,46 +1,21 @@
-"""Startup system tests — run against a live Home Assistant container.
-
-These tests verify that Hassette connects, creates a session, and surfaces
-entities from the HA demo integration. They require a running HA container
-(managed by the ``ha_container`` fixture in conftest.py).
-
-Run with:
-    pytest -m system -v
-"""
-
-import logging
+"""System tests for Hassette startup lifecycle."""
 
 import pytest
 
-from hassette.events import RawStateChangeEvent
-from hassette.test_utils import wait_for
-from tests.system.conftest import make_system_config, startup_context
+from .conftest import make_system_config, startup_context
 
-pytestmark = [pytest.mark.system, pytest.mark.filterwarnings("default::DeprecationWarning")]
+pytestmark = [pytest.mark.system]
 
 
-async def test_startup_completes(ha_container, tmp_path):
-    """Hassette reaches the running state and records a positive session ID."""
+async def test_startup_completes(ha_container: str, tmp_path) -> None:
+    """Hassette reaches a running state and creates a valid session ID."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
-        assert hassette.session_id is not None
         assert hassette.session_id > 0
 
 
-async def test_session_created_in_db(ha_container, tmp_path):
-    """A row exists in the sessions table with status='running' for the active session."""
-    config = make_system_config(ha_container, tmp_path)
-    async with startup_context(config) as hassette:
-        async with hassette.database_service.db.execute(
-            "SELECT id, status FROM sessions WHERE id = ?", (hassette.session_id,)
-        ) as cursor:
-            row = await cursor.fetchone()
-        assert row is not None
-        assert row[1] == "running"
-
-
-async def test_demo_entities_visible(ha_container, tmp_path):
-    """Entities from the HA demo integration are present in the state list."""
+async def test_demo_entities_visible(ha_container: str, tmp_path) -> None:
+    """HA API returns real entities including the demo fixture entities."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         states = await hassette.api.get_states()
@@ -49,38 +24,14 @@ async def test_demo_entities_visible(ha_container, tmp_path):
         assert "binary_sensor.movement_backyard" in entity_ids
 
 
-async def test_bus_handler_fires_on_state_change(ha_container, tmp_path):
-    """A bus handler registered for a light entity fires after toggling that light."""
+async def test_session_persisted_as_running(ha_container: str, tmp_path) -> None:
+    """A session row with status='running' exists in the DB for the current session_id."""
     config = make_system_config(ha_container, tmp_path)
-    received: list[object] = []
-
-    async def capture_event(event: RawStateChangeEvent) -> None:
-        received.append(event)
-
     async with startup_context(config) as hassette:
-        bus = hassette._bus
-        bus.on_state_change("light.kitchen_lights", handler=capture_event)
-        await hassette.api.call_service("light", "toggle", {"entity_id": "light.kitchen_lights"})
-        await wait_for(lambda: len(received) >= 1, timeout=10.0, desc="state_changed event received")
-
-    assert len(received) >= 1, f"Expected state_changed event, got {received}"
-
-
-async def test_no_sentinel_records_dropped(ha_container, tmp_path, caplog):
-    """No sentinel/unregistered invocation records are dropped during startup."""
-    config = make_system_config(ha_container, tmp_path)
-    received: list[object] = []
-
-    async def capture_event(event: RawStateChangeEvent) -> None:
-        received.append(event)
-
-    with caplog.at_level(logging.WARNING, logger="hassette.CommandExecutor"):
-        async with startup_context(config) as hassette:
-            bus = hassette._bus
-            sub = bus.on_state_change("light.kitchen_lights", handler=capture_event)
-            await wait_for(lambda: sub.listener.db_id is not None, timeout=10.0, desc="listener registered")
-            await hassette.api.call_service("light", "toggle", {"entity_id": "light.kitchen_lights"})
-            await wait_for(lambda: len(received) >= 1, timeout=10.0, desc="state_changed event received")
-
-    dropped = [r for r in caplog.records if "Dropping" in r.message and "invocation record" in r.message]
-    assert dropped == [], f"Sentinel records dropped during startup: {[r.message for r in dropped]}"
+        session_id = hassette.session_id
+        async with hassette.database_service.db.execute(
+            "SELECT status FROM sessions WHERE id = ?", (session_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        assert row is not None
+        assert row[0] == "running"

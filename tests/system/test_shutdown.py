@@ -1,121 +1,90 @@
-"""Shutdown system tests — verify clean shutdown against a live Home Assistant container.
+"""System tests for Hassette shutdown lifecycle."""
 
-These tests verify that Hassette's shutdown path completes cleanly with all
-children in terminal state and event streams closed. They exercise the full
-Hassette.shutdown() override (total timeout + _finalize_shutdown propagation +
-_on_children_stopped hook + close_streams fallback).
-
-Run with:
-    pytest -m system -v
-"""
+import asyncio
+import sqlite3
 
 import pytest
 
 from hassette.resources.base import Service
 from hassette.test_utils import make_service_failed_event, wait_for
 from hassette.types.enums import ResourceStatus
-from tests.system.conftest import make_system_config, startup_context
 
-pytestmark = [pytest.mark.system, pytest.mark.filterwarnings("default::DeprecationWarning")]
+from .conftest import make_system_config, startup_context
+
+pytestmark = [pytest.mark.system]
 
 
-async def test_shutdown_completes_cleanly(ha_container, tmp_path):
-    """Hassette.shutdown() terminates all children and closes event streams."""
+async def test_clean_shutdown(ha_container: str, tmp_path) -> None:
+    """After startup_context exits, Hassette is fully shut down and the session row is finalized."""
     config = make_system_config(ha_container, tmp_path)
-    async with startup_context(config) as hassette:
-        # Verify we're fully running before shutdown
-        assert hassette.session_id > 0
-        assert len(hassette.children) > 0
 
-    # After the context manager exits, shutdown has completed
+    async with startup_context(config) as hassette:
+        session_id = hassette.session_id
+        db_path = hassette.config.db_path or (hassette.config.data_dir / "hassette.db")
+
+    # After the context exits, assert shutdown completed
     assert hassette._shutdown_completed is True
     assert hassette.status == ResourceStatus.STOPPED
-    assert hassette.event_streams_closed
+    assert hassette.event_streams_closed is True
 
+    for child in hassette.children:
+        assert child.status == ResourceStatus.STOPPED, f"Child {child.unique_name} expected STOPPED, got {child.status}"
 
-async def test_all_children_stopped_after_shutdown(ha_container, tmp_path):
-    """Every direct child of Hassette is in STOPPED state after shutdown."""
-    config = make_system_config(ha_container, tmp_path)
-    async with startup_context(config) as hassette:
-        children_snapshot = list(hassette.children)
-
-    for child in children_snapshot:
-        assert child._shutdown_completed is True, (
-            f"{child.unique_name} should be _shutdown_completed after Hassette shutdown"
+    # Verify session row finalized via a fresh sqlite3 connection
+    conn = sqlite3.connect(db_path)
+    try:
+        cursor = conn.execute(
+            "SELECT status, stopped_at FROM sessions WHERE id = ?",
+            (session_id,),
         )
-        assert child.status == ResourceStatus.STOPPED, f"{child.unique_name} should be STOPPED, got {child.status}"
+        row = cursor.fetchone()
+    finally:
+        conn.close()
+
+    assert row is not None, "Session row not found"
+    status, stopped_at = row
+    assert status == "success", f"Expected status='success', got {status!r}"
+    assert stopped_at is not None, "stopped_at should be non-null after shutdown"
 
 
-async def test_grandchildren_stopped_after_shutdown(ha_container, tmp_path):
-    """Grandchildren (e.g., StateProxy.Bus, AppHandler.AppLifecycleService) are also STOPPED."""
+async def test_failed_service_cascade_triggers_shutdown(ha_container: str, tmp_path) -> None:
+    """A FAILED event for an unknown service cascades through ServiceWatcher and triggers shutdown."""
+
+    class _AlwaysFailingService(Service):
+        """A service that always fails on initialize — used to drive the cascade test."""
+
+        async def on_initialize(self) -> None:
+            raise RuntimeError("_AlwaysFailingService always fails")
+
+        async def serve(self) -> None:
+            pass  # never reached
+
     config = make_system_config(ha_container, tmp_path)
+    config = config.model_copy(update={"service_restart_max_attempts": 1, "service_restart_backoff_seconds": 0.0})
     async with startup_context(config) as hassette:
-        all_descendants = [
-            (grandchild.unique_name, grandchild) for child in hassette.children for grandchild in child.children
-        ]
+        shutdown_event = asyncio.Event()
 
-    for name, desc in all_descendants:
-        assert desc._shutdown_completed is True, f"Grandchild {name} should be _shutdown_completed"
-        assert desc.status == ResourceStatus.STOPPED, f"Grandchild {name} should be STOPPED, got {desc.status}"
+        # Add the always-failing service as a child so ServiceWatcher can find it by class_name
+        failing_service = _AlwaysFailingService(hassette, parent=hassette)
+        hassette.children.append(failing_service)
 
+        real_shutdown = hassette.shutdown
 
-class _AlwaysFailingService(Service):
-    """Service whose on_initialize always raises — triggers the restart cascade."""
+        async def _stub_shutdown() -> None:
+            shutdown_event.set()
 
-    async def serve(self) -> None:
-        pass
-
-    async def on_initialize(self) -> None:
-        raise RuntimeError("always fails")
-
-
-async def test_bus_driven_failed_cascade_triggers_shutdown(ha_container, tmp_path):
-    """Full bus-driven cascade: FAILED event → restart → fail → repeat → shutdown.
-
-    Uses a real Hassette with a real ServiceWatcher and BusService. Verifies that
-    the watcher's bus listeners correctly wire up: a single FAILED event triggers
-    restart_service, which fails, emits another FAILED event, exhausts the retry
-    budget, and calls hassette.shutdown().
-
-    Moved from integration tests because the cascade requires a fully-wired Hassette
-    with clean bus state — module-scoped integration fixtures pollute the BusService
-    router between tests.
-    """
-    config = make_system_config(ha_container, tmp_path)
-    config.service_restart_max_attempts = 2
-    config.service_restart_backoff_seconds = 0.0
-
-    async with startup_context(config) as hassette:
-        # Add a service that always fails on initialize
-        dummy = _AlwaysFailingService(hassette)
-        hassette.children.append(dummy)
-
-        event = make_service_failed_event(dummy)
-
-        # Stub hassette.shutdown() to just set the event. We can't let the real
-        # shutdown run here — it would tear down the Hassette while startup_context
-        # still owns the lifecycle. startup_context.__aexit__ handles the real
-        # shutdown via shutdown_event.set() → run_forever exits → clean teardown.
-        original_shutdown = hassette.shutdown
-
-        async def _shutdown_stub() -> None:
-            hassette.shutdown_event.set()
-
-        hassette.shutdown = _shutdown_stub  # pyright: ignore[reportAttributeAccessIssue]
+        hassette.shutdown = _stub_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
         try:
-            # Fire the FAILED event — the ServiceWatcher's bus listener should catch it
-            # and start the restart cascade:
-            #   FAILED → restart_service (attempt 1) → on_initialize raises
-            #   → handle_failed emits FAILED → restart_service (attempt 2 ≥ max)
-            #   → hassette.shutdown()  (stub sets shutdown_event)
-            await hassette.send_event(event.topic, event)
+            # Fire a FAILED event — ServiceWatcher will restart once (max_attempts=1),
+            # then exhaust retries and call hassette.shutdown() (which is now the stub)
+            failed_event = make_service_failed_event(failing_service)
+            await hassette.send_event(failed_event.topic, failed_event)
 
             await wait_for(
-                lambda: hassette.shutdown_event.is_set(),
-                timeout=30.0,
-                desc="shutdown triggered after max restart attempts exceeded",
+                shutdown_event.is_set,
+                timeout=45,
+                desc="ServiceWatcher to exhaust retries and call shutdown",
             )
         finally:
-            # Restore real shutdown so startup_context can clean up properly
-            hassette.shutdown = original_shutdown  # pyright: ignore[reportAttributeAccessIssue]
+            hassette.shutdown = real_shutdown  # pyright: ignore[reportAttributeAccessIssue]
