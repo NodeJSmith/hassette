@@ -28,13 +28,16 @@ async def test_trivial_app_initializes(ha_container: str, tmp_path: Path, system
             desc="TrivialApp to appear in app_handler.apps",
         )
 
-        # Find the trivial app key and instance
         trivial_key = next(key for key in hassette.app_handler.apps if "TrivialApp" in key)
         instances = hassette.app_handler.apps[trivial_key]
         assert len(instances) >= 1
 
         app_instance = instances[0]
-        assert app_instance.status == ResourceStatus.RUNNING
+        await wait_for(
+            lambda: app_instance.status == ResourceStatus.RUNNING,
+            timeout=15.0,
+            desc="TrivialApp to reach RUNNING status",
+        )
 
 
 async def test_app_gets_working_api(ha_container: str, tmp_path: Path) -> None:
