@@ -291,13 +291,15 @@ async def wait_for_web_server(base_url: str, *, timeout: float = 30.0) -> None:
     raise TimeoutError(f"Web server at {base_url} did not start within {timeout}s: {last_exc}")
 
 
-def wait_for_ha_ready(base_url: str = HA_URL, *, timeout: float = 60.0) -> None:
-    """Block until HA's REST API responds 200 consistently.
+def wait_for_ha_ready(base_url: str = HA_URL, *, timeout: float = 60.0, stable_checks: int = 3) -> None:
+    """Block until HA's REST API responds 200 for ``stable_checks`` consecutive polls.
 
-    Called before reconnection tests to ensure HA has fully stabilized
-    after a prior docker restart.
+    A single 200 is not sufficient — after a docker restart, HA may accept
+    requests briefly before fully initializing its WebSocket handler. Requiring
+    consecutive successes ensures the instance has stabilized.
     """
     deadline = time.monotonic() + timeout
+    consecutive = 0
     while time.monotonic() < deadline:
         try:
             r = httpx.get(
@@ -306,10 +308,14 @@ def wait_for_ha_ready(base_url: str = HA_URL, *, timeout: float = 60.0) -> None:
                 timeout=3,
             )
             if r.status_code == 200:
-                return
+                consecutive += 1
+                if consecutive >= stable_checks:
+                    return
+            else:
+                consecutive = 0
         except Exception:
-            pass
-        time.sleep(2)
+            consecutive = 0
+        time.sleep(1)
     raise TimeoutError(f"HA did not become ready within {timeout}s")
 
 

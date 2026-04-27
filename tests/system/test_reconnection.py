@@ -42,6 +42,8 @@ async def test_websocket_reconnects_after_ha_restart(ha_container: str, tmp_path
             desc="WebSocket disconnect detected after HA restart",
         )
 
+        wait_for_ha_ready()
+
         await wait_for(
             lambda: websocket_service.is_ready() and bool(websocket_service._subscription_ids),  # pyright: ignore[reportPrivateUsage]
             timeout=60.0,
@@ -87,6 +89,8 @@ async def test_state_proxy_refreshes_after_reconnect(ha_container: str, tmp_path
             interval=0.5,
             desc="WebSocket disconnect detected after HA restart",
         )
+
+        wait_for_ha_ready()
 
         def _entity_available() -> bool:
             try:
