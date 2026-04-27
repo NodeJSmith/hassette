@@ -17,6 +17,11 @@ async def test_initial_state_loaded(ha_container: str, tmp_path) -> None:
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         state_proxy = hassette.state_proxy
+        await wait_for(
+            lambda: state_proxy.is_ready() and len(state_proxy.states) > 0,
+            timeout=15.0,
+            desc="state proxy ready with populated states",
+        )
         assert len(state_proxy.states) > 0
         assert _ENTITY in state_proxy
 
@@ -26,6 +31,11 @@ async def test_state_change_propagates_to_proxy(ha_container: str, tmp_path) -> 
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         state_proxy = hassette.state_proxy
+        await wait_for(
+            lambda: state_proxy.is_ready() and len(state_proxy.states) > 0,
+            timeout=15.0,
+            desc="state proxy ready with populated states",
+        )
 
         # Read the original state BEFORE toggling so we can detect the change
         original = state_proxy.get_state(_ENTITY)
@@ -51,6 +61,11 @@ async def test_state_manager_typed_access(ha_container: str, tmp_path) -> None:
     """StateManager.states.light['kitchen_lights'] returns a state with .state str and .attributes dict-like."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
+        await wait_for(
+            lambda: hassette.state_proxy.is_ready() and len(hassette.state_proxy.states) > 0,
+            timeout=15.0,
+            desc="state proxy ready with populated states",
+        )
         state = hassette.states.light["kitchen_lights"]
         assert isinstance(state.state, str)
         # attributes is a Pydantic model but behaves like a dict-accessible object
@@ -62,6 +77,11 @@ async def test_state_manager_domain_iteration(ha_container: str, tmp_path) -> No
     """Iterating hassette.states.light yields (entity_id, state) tuples for each light entity."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
+        await wait_for(
+            lambda: hassette.state_proxy.is_ready() and len(hassette.state_proxy.states) > 0,
+            timeout=15.0,
+            desc="state proxy ready with populated states",
+        )
         entities = list(hassette.states.light)
         assert len(entities) > 0
         for entity_id, state in entities:
