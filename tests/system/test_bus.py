@@ -15,7 +15,7 @@ _ENTITY = "light.kitchen_lights"
 _DOMAIN = "light"
 
 
-async def test_state_change_handler_fires(ha_container: str, tmp_path):
+async def test_state_change_handler_fires(ha_container: str, tmp_path) -> None:
     """A state-change handler registered via bus.on_state_change receives at least one event when the entity toggles."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
@@ -25,7 +25,7 @@ async def test_state_change_handler_fires(ha_container: str, tmp_path):
         assert all(isinstance(e, RawStateChangeEvent) for e in received)
 
 
-async def test_attribute_change_handler_fires(ha_container: str, tmp_path):
+async def test_attribute_change_handler_fires(ha_container: str, tmp_path) -> None:
     """An attribute-change handler fires when the brightness attribute is present in a state change."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
@@ -61,7 +61,7 @@ async def test_attribute_change_handler_fires(ha_container: str, tmp_path):
         assert len(received) >= 1
 
 
-async def test_glob_pattern_matching(ha_container: str, tmp_path):
+async def test_glob_pattern_matching(ha_container: str, tmp_path) -> None:
     """A glob pattern subscription (light.*) receives events for light.kitchen_lights."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
@@ -86,7 +86,7 @@ async def test_glob_pattern_matching(ha_container: str, tmp_path):
         assert all(e.payload.entity_id.startswith("light.") for e in received)
 
 
-async def test_changed_to_predicate(ha_container: str, tmp_path):
+async def test_changed_to_predicate(ha_container: str, tmp_path) -> None:
     """A changed_to='on' handler fires only when the light turns on, not when it turns off."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
@@ -122,7 +122,7 @@ async def test_changed_to_predicate(ha_container: str, tmp_path):
         )
 
 
-async def test_debounce(ha_container: str, tmp_path):
+async def test_debounce(ha_container: str, tmp_path) -> None:
     """A debounced handler fires at most once after 3 rapid toggles followed by a 2s wait."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
@@ -154,7 +154,7 @@ async def test_debounce(ha_container: str, tmp_path):
         assert len(received) == 1, f"Expected exactly 1 debounced event, got {len(received)}"
 
 
-async def test_throttle(ha_container: str, tmp_path):
+async def test_throttle(ha_container: str, tmp_path) -> None:
     """A throttled handler fires at most once regardless of multiple toggles within the window."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
@@ -186,7 +186,7 @@ async def test_throttle(ha_container: str, tmp_path):
         assert len(received) == 1, f"Expected exactly 1 throttled event, got {len(received)}"
 
 
-async def test_once_handler(ha_container: str, tmp_path):
+async def test_once_handler(ha_container: str, tmp_path) -> None:
     """A once=True handler fires exactly once even when the entity toggles multiple times."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
@@ -226,7 +226,7 @@ async def test_once_handler(ha_container: str, tmp_path):
         assert len(received) == 1, f"once=True handler should fire exactly once, got {len(received)}"
 
 
-async def test_multiple_handlers_same_entity(ha_container: str, tmp_path):
+async def test_multiple_handlers_same_entity(ha_container: str, tmp_path) -> None:
     """Two handlers registered on the same entity both receive events when the entity changes."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:

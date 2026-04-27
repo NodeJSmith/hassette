@@ -12,7 +12,7 @@ from .conftest import make_system_config, startup_context
 pytestmark = [pytest.mark.system]
 
 
-async def test_run_in_fires_after_delay(ha_container: str, tmp_path):
+async def test_run_in_fires_after_delay(ha_container: str, tmp_path) -> None:
     """A run_in job fires after its configured delay."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
@@ -26,7 +26,7 @@ async def test_run_in_fires_after_delay(ha_container: str, tmp_path):
         await wait_for(lambda: len(fired) >= 1, timeout=5.0, desc="run_in callback to fire")
 
 
-async def test_run_every_fires_multiple_times(ha_container: str, tmp_path):
+async def test_run_every_fires_multiple_times(ha_container: str, tmp_path) -> None:
     """A run_every job fires at least twice within the timeout window."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
@@ -40,7 +40,7 @@ async def test_run_every_fires_multiple_times(ha_container: str, tmp_path):
         await wait_for(lambda: len(fired) >= 2, timeout=5.0, desc="run_every callback to fire at least twice")
 
 
-async def test_run_once_at_time(ha_container: str, tmp_path):
+async def test_run_once_at_time(ha_container: str, tmp_path) -> None:
     """A run_once job fires at the specified ZonedDateTime target."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
@@ -57,7 +57,7 @@ async def test_run_once_at_time(ha_container: str, tmp_path):
         await wait_for(lambda: len(fired) >= 1, timeout=8.0, desc="run_once callback to fire at target time")
 
 
-async def test_job_cancellation(ha_container: str, tmp_path):
+async def test_job_cancellation(ha_container: str, tmp_path) -> None:
     """A cancelled job does not fire after cancellation."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
@@ -75,7 +75,7 @@ async def test_job_cancellation(ha_container: str, tmp_path):
         assert len(fired) == 0
 
 
-async def test_group_cancellation(ha_container: str, tmp_path):
+async def test_group_cancellation(ha_container: str, tmp_path) -> None:
     """All jobs in a group are cancelled before any fires."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
@@ -96,7 +96,7 @@ async def test_group_cancellation(ha_container: str, tmp_path):
         assert len(fired) == 0
 
 
-async def test_job_execution_persisted(ha_container: str, tmp_path):
+async def test_job_execution_persisted(ha_container: str, tmp_path) -> None:
     """A completed job execution is persisted to the job_executions table."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:

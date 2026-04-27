@@ -16,7 +16,7 @@ _ENTITY = "light.kitchen_lights"
 _DOMAIN = "light"
 
 
-async def test_health_endpoint(ha_container: str, tmp_path):
+async def test_health_endpoint(ha_container: str, tmp_path) -> None:
     """GET /api/health returns 200 and a JSON body with a websocket_connected field."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config) as _hassette:
@@ -30,7 +30,7 @@ async def test_health_endpoint(ha_container: str, tmp_path):
         assert "websocket_connected" in body
 
 
-async def test_apps_endpoint(ha_container: str, tmp_path):
+async def test_apps_endpoint(ha_container: str, tmp_path) -> None:
     """GET /api/apps returns 200 and an AppStatusResponse-shaped JSON body."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config) as _hassette:
@@ -48,7 +48,7 @@ async def test_apps_endpoint(ha_container: str, tmp_path):
         assert isinstance(body["apps"], list)
 
 
-async def test_config_endpoint(ha_container: str, tmp_path):
+async def test_config_endpoint(ha_container: str, tmp_path) -> None:
     """GET /api/config returns 200 and a ConfigResponse-shaped JSON body."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config) as _hassette:
@@ -65,7 +65,7 @@ async def test_config_endpoint(ha_container: str, tmp_path):
         assert body["run_web_api"] is True
 
 
-async def test_telemetry_after_activity(ha_container: str, tmp_path):
+async def test_telemetry_after_activity(ha_container: str, tmp_path) -> None:
     """After a bus handler fires, GET /api/dashboard/kpis shows non-zero invocation count."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
@@ -88,7 +88,7 @@ async def test_telemetry_after_activity(ha_container: str, tmp_path):
         assert kpis.get("total_invocations", 0) > 0, f"Dashboard KPIs still show 0 invocations after polling: {kpis}"
 
 
-async def test_websocket_receives_events(ha_container: str, tmp_path):
+async def test_websocket_receives_events(ha_container: str, tmp_path) -> None:
     """Connecting to /api/ws yields an initial 'connected' message then event messages on activity."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
     ws_url = base_url.replace("http://", "ws://", 1) + "/api/ws"

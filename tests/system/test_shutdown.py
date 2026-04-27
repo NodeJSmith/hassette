@@ -14,7 +14,7 @@ from .conftest import make_system_config, startup_context
 pytestmark = [pytest.mark.system]
 
 
-async def test_clean_shutdown(ha_container: str, tmp_path):
+async def test_clean_shutdown(ha_container: str, tmp_path) -> None:
     """After startup_context exits, Hassette is fully shut down and the session row is finalized."""
     config = make_system_config(ha_container, tmp_path)
 
@@ -47,7 +47,7 @@ async def test_clean_shutdown(ha_container: str, tmp_path):
     assert stopped_at is not None, "stopped_at should be non-null after shutdown"
 
 
-async def test_failed_service_cascade_triggers_shutdown(ha_container: str, tmp_path):
+async def test_failed_service_cascade_triggers_shutdown(ha_container: str, tmp_path) -> None:
     """A FAILED event for an unknown service cascades through ServiceWatcher and triggers shutdown."""
 
     class _AlwaysFailingService(Service):
