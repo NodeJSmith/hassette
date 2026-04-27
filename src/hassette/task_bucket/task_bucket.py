@@ -121,7 +121,9 @@ class TaskBucket(Resource):
 
     def spawn(self, coro: CoroLikeT[T], *, name: str | None = None) -> asyncio.Task[T]:
         """Convenience: create and track a new task."""
-        self.logger.debug("Spawning task %s in bucket %s", name or repr(coro), self.unique_name)
+        if name is None:
+            name = getattr(coro, "__qualname__", None) or repr(coro)
+        self.logger.debug("Spawning task %s in bucket %s", name, self.unique_name)
         current_thread = threading.get_ident()
 
         if current_thread == self.hassette._loop_thread_id:

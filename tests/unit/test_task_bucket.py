@@ -11,6 +11,7 @@ Tests cover the snapshot-semantics and filtering guarantees of
 """
 
 import asyncio
+import threading
 from unittest.mock import MagicMock
 
 import pytest
@@ -141,3 +142,37 @@ async def test_pending_tasks_returns_snapshot_not_reference(bucket: TaskBucket) 
 
     # But a fresh call reflects the updated state
     assert t not in bucket.pending_tasks()
+
+
+class TestSpawnTaskNaming:
+    """spawn() should derive a meaningful task name from the coroutine when none is given."""
+
+    @pytest.fixture
+    async def spawn_bucket(self, bucket: TaskBucket) -> TaskBucket:
+        bucket.hassette._loop_thread_id = threading.get_ident()
+        bucket.hassette.loop = asyncio.get_running_loop()
+        return bucket
+
+    async def test_spawn_without_name_uses_coroutine_qualname(self, spawn_bucket: TaskBucket) -> None:
+        gate = asyncio.Event()
+
+        async def my_important_task() -> None:
+            await gate.wait()
+
+        task = spawn_bucket.spawn(my_important_task())
+        assert "my_important_task" in task.get_name()
+
+        gate.set()
+        await task
+
+    async def test_spawn_with_explicit_name_preserves_it(self, spawn_bucket: TaskBucket) -> None:
+        gate = asyncio.Event()
+
+        async def some_coro() -> None:
+            await gate.wait()
+
+        task = spawn_bucket.spawn(some_coro(), name="my-custom-name")
+        assert task.get_name() == "my-custom-name"
+
+        gate.set()
+        await task
