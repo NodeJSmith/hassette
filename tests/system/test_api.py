@@ -97,9 +97,9 @@ async def test_get_history(ha_container: str, tmp_path) -> None:
 
         await hassette.api.call_service(_DOMAIN, "toggle", {"entity_id": _ENTITY})
 
-        deadline = asyncio.get_event_loop().time() + 15.0
+        deadline = asyncio.get_running_loop().time() + 15.0
         history: list = []  # pyright: ignore[reportMissingTypeArgument]
-        while not history and asyncio.get_event_loop().time() < deadline:
+        while not history and asyncio.get_running_loop().time() < deadline:
             history = await hassette.api.get_history(_ENTITY, start_time=start)
             if not history:
                 await asyncio.sleep(0.5)

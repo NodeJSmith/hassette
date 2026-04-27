@@ -265,6 +265,28 @@ async def toggle_and_capture(
     return captured
 
 
+async def wait_for_web_server(base_url: str, *, timeout: float = 15.0) -> None:
+    """Poll the health endpoint until the web server responds.
+
+    The uvicorn server starts asynchronously alongside Hassette's other services;
+    it may take a second or two before it accepts connections.
+    """
+    import httpx as _httpx
+
+    deadline = asyncio.get_running_loop().time() + timeout
+    last_exc: Exception | None = None
+    async with _httpx.AsyncClient() as client:
+        while asyncio.get_running_loop().time() < deadline:
+            try:
+                r = await client.get(f"{base_url}/api/health", timeout=2.0)
+                if r.status_code in (200, 503):
+                    return
+            except Exception as exc:
+                last_exc = exc
+            await asyncio.sleep(0.2)
+    raise TimeoutError(f"Web server at {base_url} did not start within {timeout}s: {last_exc}")
+
+
 @pytest.fixture(scope="session")
 def system_app_dir() -> Path:
     """Return the directory containing system test app fixtures.
