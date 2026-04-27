@@ -26,6 +26,7 @@ COMPOSE_FILE = Path(__file__).parent / "docker-compose.yml"
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "ha-config"
 HA_URL = "http://localhost:18123"
 HA_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMyIsImlhdCI6MTczNTY4OTYwMCwiZXhwIjoyMDUxMDQ5NjAwfQ.q-p85dOe-MMnKQhSNh_LEWnWJGK-GA3xdmqb4LKvkU0"  # noqa: E501 — JWT cannot be line-wrapped
+HA_CONTAINER_NAME = "hassette-system-ha"
 STARTUP_TIMEOUT = 60  # seconds
 
 
@@ -271,11 +272,9 @@ async def wait_for_web_server(base_url: str, *, timeout: float = 15.0) -> None:
     The uvicorn server starts asynchronously alongside Hassette's other services;
     it may take a second or two before it accepts connections.
     """
-    import httpx as _httpx
-
     deadline = asyncio.get_running_loop().time() + timeout
     last_exc: Exception | None = None
-    async with _httpx.AsyncClient() as client:
+    async with httpx.AsyncClient() as client:
         while asyncio.get_running_loop().time() < deadline:
             try:
                 r = await client.get(f"{base_url}/api/health", timeout=2.0)

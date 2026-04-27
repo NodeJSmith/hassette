@@ -382,3 +382,79 @@ it("shows degraded banner when telemetry is down", () => {
 ```
 
 Components that do not call `useAppState()` can use `render` from `@testing-library/preact` directly.
+
+---
+
+## System Tests
+
+System tests run against a real Home Assistant Docker container. They verify end-to-end behavior that cannot be tested with mock infrastructure: WebSocket connectivity, event delivery, reconnection recovery, state synchronization, and scheduler execution under real timing.
+
+### How to Run
+
+```bash
+# Via nox (recommended — matches CI)
+uv run nox -s system
+
+# Direct pytest invocation
+timeout 300 uv run pytest -m system -v -x -n 0
+```
+
+The `-n 0` flag is required — system tests must run serially because they share the session-scoped `ha_container` fixture (a single Docker container). Parallel execution would cause tests to interfere with each other.
+
+### Organization
+
+One file per user-visible subsystem:
+
+| File | What it tests |
+|---|---|
+| `test_startup.py` | Hassette startup lifecycle, session creation, entity visibility |
+| `test_bus.py` | Event bus: state-change handlers, attribute-change, glob patterns, debounce, throttle |
+| `test_scheduler.py` | Scheduler: run_in, run_every, run_daily, cron triggers, job groups, jitter |
+| `test_state_proxy.py` | State proxy: initial cache, live updates, typed StateManager access |
+| `test_api.py` | HA REST/WebSocket API: get_state, call_service, fire_event |
+| `test_app_lifecycle.py` | App lifecycle hooks: on_initialize, on_ready, on_shutdown |
+| `test_reconnection.py` | WebSocket reconnection: disconnect detection, reconnect with subscriptions, state proxy refresh |
+| `test_shutdown.py` | Graceful shutdown: session status, resource teardown |
+| `test_web_api.py` | Web API endpoints: health, manifests, telemetry |
+
+### Infrastructure
+
+`tests/system/conftest.py` provides the following fixtures and helpers:
+
+**Session-scoped fixtures:**
+- `ha_container` — starts the HA Docker container before the session and tears it down after. Yields the base URL (`http://localhost:18123`).
+- `system_app_dir` — returns `Path` to `tests/system/apps/`.
+
+**Config factories:**
+- `make_system_config(ha_url, tmp_path)` — returns a `HassetteConfig` pointing at the system test HA instance with `run_web_api=False`.
+- `make_web_system_config(ha_url, tmp_path)` — returns `(config, base_url)` with `run_web_api=True` and a dynamically assigned port.
+
+**Context manager:**
+- `startup_context(config, timeout=30)` — async context manager that starts Hassette in the background, waits until fully connected (session created, WebSocket ready, event subscriptions active), yields the `Hassette` instance, and shuts it down on exit.
+
+**Test helpers:**
+- `toggle_and_capture(bus, api, entity_id, *, service_domain, service_action, timeout)` — registers a `bus.on_state_change` handler, calls `api.call_service` to toggle an entity, and waits until at least one event is captured. Returns the list of captured `RawStateChangeEvent` objects.
+- `wait_for_web_server(base_url, *, timeout)` — polls the `/api/health` endpoint until the web server responds (used for web API tests).
+
+### App Fixtures
+
+Committed apps in `tests/system/apps/` cover common patterns:
+
+| File | Purpose |
+|---|---|
+| `trivial_app.py` | Minimal `App` subclass with no side effects |
+| `bus_handler_app.py` | App that registers bus handlers and captures events |
+| `config_app.py` | App with a custom `AppConfig` for config-loading tests |
+
+For test-specific variants, write an inline app to `tmp_path` and point `config.app_dir` at it. `autodetect_apps=True` is required when using `app_dir`.
+
+### Key Conventions
+
+- **All tests are async** — use `async def test_*`.
+- **`pytestmark = [pytest.mark.system]`** — every test file must declare this at module level so the marker is applied to all tests in the file.
+- **All polling via `wait_for`** — never use `asyncio.sleep` as a substitute for a readiness check. Use `wait_for(predicate, timeout=..., desc=...)` from `hassette.test_utils`.
+- **No caplog assertions** — test observable behavior (events received, state values, return values), not log output. Log messages are implementation details.
+- **Tests are independent of execution order** — each test creates its own `HassetteConfig` and `startup_context`. No shared mutable state between tests.
+- **Container name is `hassette-system-ha`** — used for `docker pause`/`docker unpause` in reconnection tests. Defined in `tests/system/docker-compose.yml`.
+- **Subprocess calls use `check=True`** — all `subprocess.run` calls that invoke docker commands must pass `check=True` so failures are immediately visible as errors, not silent no-ops.
+- **Reconnection timeouts are generous** — use at least 15s for disconnect detection and 30s for reconnect confirmation to accommodate container startup latency.
