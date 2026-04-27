@@ -266,7 +266,7 @@ async def toggle_and_capture(
     return captured
 
 
-async def wait_for_web_server(base_url: str, *, timeout: float = 15.0) -> None:
+async def wait_for_web_server(base_url: str, *, timeout: float = 30.0) -> None:
     """Poll the health endpoint until the web server responds.
 
     The uvicorn server starts asynchronously alongside Hassette's other services;

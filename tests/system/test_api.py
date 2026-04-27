@@ -1,11 +1,11 @@
 """System tests for the API — real HA interactions through a running Hassette instance."""
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 
-import hassette.utils.date_utils as date_utils
 from hassette.events import Event
 from hassette.test_utils import wait_for
 
@@ -93,7 +93,7 @@ async def test_get_history(ha_container: str, tmp_path) -> None:
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         # Record a timestamp before the toggle so the history window includes it
-        start = date_utils.now().subtract(seconds=120)
+        start = datetime.now(tz=UTC) - timedelta(seconds=120)
 
         await hassette.api.call_service(_DOMAIN, "toggle", {"entity_id": _ENTITY})
 

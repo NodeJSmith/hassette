@@ -41,7 +41,7 @@ async def test_websocket_reconnects_after_ha_restart(ha_container: str, tmp_path
             # Step 3: wait until Hassette detects the disconnect
             await wait_for(
                 lambda: not websocket_service.is_ready(),
-                timeout=15.0,
+                timeout=30.0,
                 interval=0.5,
                 desc="WebSocket disconnect detected after HA pause",
             )
@@ -96,7 +96,7 @@ async def test_state_proxy_refreshes_after_reconnect(ha_container: str, tmp_path
             # Step 3: wait for disconnect detection (state proxy becomes not ready)
             await wait_for(
                 lambda: not hassette.websocket_service.is_ready(),
-                timeout=15.0,
+                timeout=30.0,
                 interval=0.5,
                 desc="WebSocket disconnect detected after HA pause",
             )

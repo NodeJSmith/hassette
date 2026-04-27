@@ -87,7 +87,7 @@ async def test_glob_pattern_matching(ha_container: str, tmp_path):
         )
 
         assert len(received) >= 1
-        assert all(e.entity_id.startswith("light.") for e in received)
+        assert all(e.payload.entity_id.startswith("light.") for e in received)
 
 
 async def test_changed_to_predicate(ha_container: str, tmp_path):
