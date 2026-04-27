@@ -26,7 +26,7 @@ System tests exist to prove things that unit and integration tests cannot: that 
 ## Non-Goals
 
 - FileWatcher / hot reload tests — filesystem timing is inherently flaky in CI; better served by integration tests with mocked watchfiles
-- Cron scheduling tests — too slow (must wait for minute boundary); unit tests with frozen time are sufficient
+- ~~Cron scheduling tests~~ — added during implementation; 6-field cron (seconds) fires quickly, `run_daily` accepts the ~60s wait
 - WebUiWatcherService tests — internal service with no user-facing behavior worth system-testing
 - SessionManager internals (orphan marking, stale listener cleanup) — DB operations that are fully unit-testable
 - Numeric coverage targets — subsystem coverage is the goal, not a percentage
@@ -75,13 +75,13 @@ System tests exist to prove things that unit and integration tests cannot: that 
 7. No caplog-based assertions anywhere in the suite — verify observable behavior instead
 8. Every test file must apply the `pytest.mark.system` marker
 9. Tests must be independent of execution order — no test may depend on state left by a previous test
-10. The reconnection test must use `docker pause`/`docker unpause` to simulate a real connection drop, not mock the WebSocket
+10. The reconnection test must use `docker restart` to simulate a real connection drop — `docker pause` freezes the process without closing TCP connections, requiring keepalive timeout before disconnect detection; `restart` immediately closes the connection and is a more realistic HA-update scenario
 
 ## Edge Cases
 
 1. **HA demo entity state accumulates across tests** — toggling a light in one test leaves it in the toggled state for the next. Tests must either be robust to either initial state or reset entities before asserting.
 2. **Port conflicts for web API tests** — tests enabling the web API must use a non-default port to avoid conflicts with any local hassette instance.
-3. **Reconnection timing** — after unpausing the HA container, the WebSocket may take several seconds to reconnect. Polling must have sufficient timeout.
+3. **Reconnection timing** — after restarting the HA container, the WebSocket may take several seconds to reconnect. Polling must have sufficient timeout.
 4. **App import errors** — test apps written to disk could have syntax errors if string templating goes wrong. Tests should verify the app actually loaded, not just that hassette started.
 5. **Scheduler timing jitter** — `run_in(1.0)` may fire at 1.0s or 1.2s depending on event loop load. Assertions must use `wait_for` with generous timeouts, not exact timing checks.
 6. **Multiple events from a single toggle** — HA may emit multiple state_changed events for a single `light.toggle` (e.g., brightness + on/off). Tests asserting event counts must use `>=` not `==`.

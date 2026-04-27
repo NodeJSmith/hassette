@@ -58,7 +58,7 @@ async def test_state_change_propagates_to_proxy(ha_container: str, tmp_path) -> 
 
 
 async def test_state_manager_typed_access(ha_container: str, tmp_path) -> None:
-    """StateManager.states.light['kitchen_lights'] returns a state with .state str and .attributes dict-like."""
+    """StateManager.states.light['kitchen_lights'] returns a typed state with .value and .attributes."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         await wait_for(

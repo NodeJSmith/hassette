@@ -415,7 +415,7 @@ One file per user-visible subsystem:
 | `test_app_lifecycle.py` | App lifecycle hooks: on_initialize, on_ready, on_shutdown |
 | `test_reconnection.py` | WebSocket reconnection: disconnect detection, reconnect with subscriptions, state proxy refresh |
 | `test_shutdown.py` | Graceful shutdown: session status, resource teardown |
-| `test_web_api.py` | Web API endpoints: health, manifests, telemetry |
+| `test_web_api.py` | Web API endpoints: health, apps, config, telemetry, WebSocket events |
 
 ### Infrastructure
 

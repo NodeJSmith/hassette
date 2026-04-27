@@ -226,7 +226,7 @@ def make_web_system_config(ha_url: str, tmp_path: Path) -> tuple[HassetteConfig,
         autodetect_apps=False,
         startup_timeout_seconds=30,
     )
-    return config, f"http://localhost:{port}"
+    return config, f"http://127.0.0.1:{port}"
 
 
 async def toggle_and_capture(

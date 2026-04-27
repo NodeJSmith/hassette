@@ -79,7 +79,13 @@ async def test_glob_pattern_matching(ha_container: str, tmp_path) -> None:
         async def _capture(event: RawStateChangeEvent) -> None:
             received.append(event)
 
-        bus.on_state_change("light.*", handler=_capture)
+        sub = bus.on_state_change("light.*", handler=_capture)
+
+        await wait_for(
+            lambda: sub.listener.db_id is not None,
+            timeout=10.0,
+            desc="glob listener registration",
+        )
 
         await api.call_service(_DOMAIN, "toggle", {"entity_id": _ENTITY})
         await wait_for(

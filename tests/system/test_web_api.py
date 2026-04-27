@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 import pytest
-from websockets.asyncio.client import connect as ws_connect
+from websockets import connect as ws_connect
 
 from .conftest import make_web_system_config, startup_context, toggle_and_capture, wait_for_web_server
 
@@ -66,7 +66,7 @@ async def test_config_endpoint(ha_container: str, tmp_path) -> None:
 
 
 async def test_telemetry_after_activity(ha_container: str, tmp_path) -> None:
-    """After a bus handler fires, GET /api/dashboard/kpis shows non-zero invocation count."""
+    """After a bus handler fires, GET /api/telemetry/dashboard/kpis shows non-zero invocation count."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         await wait_for_web_server(base_url)
