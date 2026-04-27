@@ -93,7 +93,7 @@ async def test_get_history(ha_container: str, tmp_path) -> None:
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         # Record a timestamp before the toggle so the history window includes it
-        start = datetime.now(tz=UTC) - timedelta(seconds=120)
+        start = (datetime.now(tz=UTC) - timedelta(seconds=120)).isoformat()
 
         await hassette.api.call_service(_DOMAIN, "toggle", {"entity_id": _ENTITY})
 

@@ -10,7 +10,10 @@ from websockets.asyncio.client import connect as ws_connect
 
 from .conftest import make_web_system_config, startup_context, toggle_and_capture, wait_for_web_server
 
-pytestmark = [pytest.mark.system]
+pytestmark = [
+    pytest.mark.system,
+    pytest.mark.filterwarnings("ignore:websockets.legacy is deprecated:DeprecationWarning"),
+]
 
 _ENTITY = "light.kitchen_lights"
 _DOMAIN = "light"
