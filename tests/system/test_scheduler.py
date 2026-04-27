@@ -112,23 +112,15 @@ async def test_job_execution_persisted(ha_container: str, tmp_path) -> None:
         # Wait for the callback to fire first.
         await wait_for(lambda: len(fired) >= 1, timeout=5.0, desc="run_in callback to fire before DB check")
 
-        # The telemetry write pipeline is async and batched; poll the DB directly
-        # until a row with the correct session_id appears. wait_for only accepts a
-        # synchronous predicate, so we use an explicit poll loop here.
-        deadline = asyncio.get_running_loop().time() + 10.0
-        row_found = False
-        while asyncio.get_running_loop().time() < deadline:
+        async def _row_exists() -> bool:
             async with hassette.database_service.read_db.execute(
                 "SELECT COUNT(*) FROM job_executions WHERE session_id = ?",
                 (session_id,),
             ) as cursor:
                 row = await cursor.fetchone()
-                if row is not None and row[0] > 0:
-                    row_found = True
-                    break
-            await asyncio.sleep(0.1)
+                return row is not None and row[0] > 0
 
-        assert row_found, f"No job_executions row found for session_id={session_id} within 10s"
+        await wait_for(_row_exists, timeout=10.0, interval=0.1, desc=f"job_executions row for session_id={session_id}")
 
 
 async def test_run_daily_fires(ha_container: str, tmp_path) -> None:

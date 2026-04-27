@@ -8,6 +8,8 @@ import httpx
 import pytest
 from websockets import connect as ws_connect
 
+from hassette.test_utils import wait_for
+
 from .conftest import make_web_system_config, startup_context, toggle_and_capture, wait_for_web_server
 
 pytestmark = [pytest.mark.system]
@@ -74,18 +76,13 @@ async def test_telemetry_after_activity(ha_container: str, tmp_path) -> None:
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
         await toggle_and_capture(bus, hassette.api, _ENTITY)
 
-        kpis: dict[str, Any] = {}
-        deadline = asyncio.get_running_loop().time() + 20.0
         async with httpx.AsyncClient() as client:
-            while asyncio.get_running_loop().time() < deadline:
-                r = await client.get(f"{base_url}/api/telemetry/dashboard/kpis", timeout=5.0)
-                if r.status_code == 200:
-                    kpis = r.json()
-                    if kpis.get("total_invocations", 0) > 0:
-                        break
-                await asyncio.sleep(0.3)
 
-        assert kpis.get("total_invocations", 0) > 0, f"Dashboard KPIs still show 0 invocations after polling: {kpis}"
+            async def _has_invocations() -> bool:
+                r = await client.get(f"{base_url}/api/telemetry/dashboard/kpis", timeout=5.0)
+                return r.status_code == 200 and r.json().get("total_invocations", 0) > 0
+
+            await wait_for(_has_invocations, timeout=20.0, interval=0.3, desc="telemetry KPIs to show invocations")
 
 
 async def test_websocket_receives_events(ha_container: str, tmp_path) -> None:
