@@ -39,7 +39,13 @@ async def test_attribute_change_handler_fires(ha_container: str, tmp_path) -> No
 
         # Set a known starting state BEFORE registering the handler
         await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY}, brightness=50)
-        await asyncio.sleep(1.0)
+        await wait_for(
+            lambda: (s := hassette.state_proxy.states.get(_ENTITY)) is not None
+            and s.get("state") == "on"
+            and s.get("attributes", {}).get("brightness") == 50,
+            timeout=10.0,
+            desc="brightness settled to 50",
+        )
 
         sub = bus.on_attribute_change(_ENTITY, "brightness", handler=_capture)
 
@@ -102,7 +108,11 @@ async def test_changed_to_predicate(ha_container: str, tmp_path) -> None:
 
         # Ensure a known starting state — light is off
         await api.call_service(_DOMAIN, "turn_off", {"entity_id": _ENTITY})
-        await asyncio.sleep(1.0)
+        await wait_for(
+            lambda: (s := hassette.state_proxy.states.get(_ENTITY)) is not None and s.get("state") == "off",
+            timeout=10.0,
+            desc="light turned off",
+        )
 
         # Turn on — handler should fire
         await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY})
@@ -255,3 +265,65 @@ async def test_multiple_handlers_same_entity(ha_container: str, tmp_path) -> Non
 
         assert len(received_a) >= 1
         assert len(received_b) >= 1
+
+
+async def test_immediate_fires_with_current_state(ha_container: str, tmp_path) -> None:
+    """An immediate=True handler fires immediately with the entity's current state, before any toggle."""
+    config = make_system_config(ha_container, tmp_path)
+    async with startup_context(config) as hassette:
+        bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
+
+        received: list[RawStateChangeEvent] = []
+
+        async def _capture(event: RawStateChangeEvent) -> None:
+            received.append(event)
+
+        bus.on_state_change(_ENTITY, handler=_capture, immediate=True)
+
+        await wait_for(
+            lambda: len(received) >= 1,
+            timeout=10.0,
+            desc="immediate handler fires with current state",
+        )
+
+        assert len(received) >= 1
+        assert received[0].payload.data.new_state is not None
+
+
+async def test_duration_handler_fires_after_hold(ha_container: str, tmp_path) -> None:
+    """A duration handler fires only after the state holds for the specified duration."""
+    config = make_system_config(ha_container, tmp_path)
+    async with startup_context(config) as hassette:
+        bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
+        api = hassette.api
+
+        # Ensure light is off before we start
+        await api.call_service(_DOMAIN, "turn_off", {"entity_id": _ENTITY})
+        await wait_for(
+            lambda: (s := hassette.state_proxy.states.get(_ENTITY)) is not None and s.get("state") == "off",
+            timeout=10.0,
+            desc="light off before duration test",
+        )
+
+        received: list[RawStateChangeEvent] = []
+
+        async def _capture(event: RawStateChangeEvent) -> None:
+            received.append(event)
+
+        bus.on_state_change(_ENTITY, handler=_capture, duration=2.0)
+
+        # Turn on — starts the duration timer
+        await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY})
+
+        # Handler should NOT have fired yet (duration hasn't elapsed)
+        await asyncio.sleep(0.5)
+        assert len(received) == 0, "Duration handler fired too early"
+
+        # Wait for the duration to elapse
+        await wait_for(
+            lambda: len(received) >= 1,
+            timeout=10.0,
+            desc="duration handler fires after state held for 2s",
+        )
+
+        assert len(received) >= 1

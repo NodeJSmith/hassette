@@ -408,7 +408,7 @@ One file per user-visible subsystem:
 | File | What it tests |
 |---|---|
 | `test_startup.py` | Hassette startup lifecycle, session creation, entity visibility |
-| `test_bus.py` | Event bus: state-change handlers, attribute-change, glob patterns, debounce, throttle |
+| `test_bus.py` | Event bus: state-change handlers, attribute-change, glob patterns, debounce, throttle, immediate, duration |
 | `test_scheduler.py` | Scheduler: run_in, run_every, run_daily, cron triggers, job groups, jitter |
 | `test_state_proxy.py` | State proxy: initial cache, live updates, typed StateManager access |
 | `test_api.py` | HA REST/WebSocket API: get_state, call_service, fire_event |
@@ -455,6 +455,6 @@ For test-specific variants, write an inline app to `tmp_path` and point `config.
 - **All polling via `wait_for`** — never use `asyncio.sleep` as a substitute for a readiness check. Use `wait_for(predicate, timeout=..., desc=...)` from `hassette.test_utils`.
 - **No caplog assertions** — test observable behavior (events received, state values, return values), not log output. Log messages are implementation details.
 - **Tests are independent of execution order** — each test creates its own `HassetteConfig` and `startup_context`. No shared mutable state between tests.
-- **Container name is `hassette-system-ha`** — used for `docker pause`/`docker unpause` in reconnection tests. Defined in `tests/system/docker-compose.yml`.
+- **Container name is `hassette-system-ha`** — used for `docker restart` in reconnection tests. Defined in `tests/system/docker-compose.yml`. We use `restart` instead of `pause`/`unpause` because `pause` freezes the process without closing TCP connections, requiring a WebSocket keepalive timeout before disconnect is detected. `restart` immediately closes the connection and is a more realistic failure scenario (HA restarting after an update).
 - **Subprocess calls use `check=True`** — all `subprocess.run` calls that invoke docker commands must pass `check=True` so failures are immediately visible as errors, not silent no-ops.
 - **Reconnection timeouts are generous** — use at least 15s for disconnect detection and 30s for reconnect confirmation to accommodate container startup latency.
