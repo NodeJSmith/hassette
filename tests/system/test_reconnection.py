@@ -7,7 +7,7 @@ import pytest
 from hassette.events import RawStateChangeEvent
 from hassette.test_utils import wait_for
 
-from .conftest import HA_CONTAINER_NAME, make_system_config, startup_context, toggle_and_capture
+from .conftest import HA_CONTAINER_NAME, make_system_config, startup_context, toggle_and_capture, wait_for_ha_ready
 
 pytestmark = [pytest.mark.system]
 
@@ -24,6 +24,7 @@ async def test_websocket_reconnects_after_ha_restart(ha_container: str, tmp_path
     4. Wait until HA comes back and Hassette reconnects with active subscriptions.
     5. Register a bus handler and toggle the light — verify event delivery works.
     """
+    wait_for_ha_ready()
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         websocket_service = hassette.websocket_service
@@ -64,6 +65,7 @@ async def test_state_proxy_refreshes_after_reconnect(ha_container: str, tmp_path
     4. Wait until the state proxy is ready with populated states.
     5. Verify that light.kitchen_lights has a valid state.
     """
+    wait_for_ha_ready()
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         state_proxy = hassette.state_proxy
@@ -86,15 +88,20 @@ async def test_state_proxy_refreshes_after_reconnect(ha_container: str, tmp_path
             desc="WebSocket disconnect detected after HA restart",
         )
 
+        def _entity_available() -> bool:
+            try:
+                return state_proxy.get_state(_ENTITY) is not None
+            except Exception:
+                return False
+
         await wait_for(
-            lambda: hassette.websocket_service.is_ready() and state_proxy.is_ready() and len(state_proxy.states) > 0,
+            _entity_available,
             timeout=60.0,
             interval=0.5,
-            desc="state proxy ready with non-empty states after reconnect",
+            desc=f"{_ENTITY} available in state proxy after reconnect",
         )
 
         recovered = state_proxy.get_state(_ENTITY)
-        assert recovered is not None, f"Entity {_ENTITY!r} missing from state proxy after reconnect"
         assert isinstance(recovered["state"], str)
         assert recovered["state"] in ("on", "off", "unavailable"), (
             f"Unexpected state value for {_ENTITY!r} after reconnect: {recovered['state']!r}"

@@ -291,6 +291,28 @@ async def wait_for_web_server(base_url: str, *, timeout: float = 30.0) -> None:
     raise TimeoutError(f"Web server at {base_url} did not start within {timeout}s: {last_exc}")
 
 
+def wait_for_ha_ready(base_url: str = HA_URL, *, timeout: float = 60.0) -> None:
+    """Block until HA's REST API responds 200 consistently.
+
+    Called before reconnection tests to ensure HA has fully stabilized
+    after a prior docker restart.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            r = httpx.get(
+                f"{base_url}/api/",
+                headers={"Authorization": f"Bearer {HA_TOKEN}"},
+                timeout=3,
+            )
+            if r.status_code == 200:
+                return
+        except Exception:
+            pass
+        time.sleep(2)
+    raise TimeoutError(f"HA did not become ready within {timeout}s")
+
+
 @pytest.fixture(scope="session")
 def system_app_dir() -> Path:
     """Return the directory containing system test app fixtures.
