@@ -10,6 +10,12 @@ def orjson_dump(data: Any) -> str:
     return orjson.dumps(data, default=str).decode("utf-8")
 
 
+def format_time_param(value: PlainDateTime | ZonedDateTime | Date | str) -> str:
+    if isinstance(value, ZonedDateTime):
+        return str(value.to_fixed_offset())
+    return str(value)
+
+
 def clean_kwargs(**kwargs: Any) -> dict[str, Any]:
     """Converts values to strings where needed and removes keys with None values."""
 
@@ -20,7 +26,10 @@ def clean_kwargs(**kwargs: Any) -> dict[str, Any]:
         if isinstance(val, bool):
             return str(val).lower()
 
-        if isinstance(val, (PlainDateTime | ZonedDateTime | Instant | Date)):
+        if isinstance(val, ZonedDateTime):
+            return str(val.to_fixed_offset())
+
+        if isinstance(val, (PlainDateTime | Instant | Date)):
             return val.format_iso()
 
         if isinstance(val, (int | float | str)):
