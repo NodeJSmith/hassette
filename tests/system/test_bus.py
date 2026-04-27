@@ -38,7 +38,7 @@ async def test_attribute_change_handler_fires(ha_container: str, tmp_path):
             received.append(event)
 
         # Set a known starting state BEFORE registering the handler
-        await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY, "brightness": 50})
+        await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY}, brightness=50)
         await asyncio.sleep(1.0)
 
         sub = bus.on_attribute_change(_ENTITY, "brightness", handler=_capture)
@@ -50,7 +50,7 @@ async def test_attribute_change_handler_fires(ha_container: str, tmp_path):
         )
 
         # Change brightness to a distinctly different value — guaranteed attribute change
-        await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY, "brightness": 200})
+        await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY}, brightness=200)
 
         await wait_for(
             lambda: len(received) >= 1,
