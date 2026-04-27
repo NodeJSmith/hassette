@@ -78,7 +78,7 @@ async def test_telemetry_after_activity(ha_container: str, tmp_path):
         deadline = asyncio.get_running_loop().time() + 20.0
         async with httpx.AsyncClient() as client:
             while asyncio.get_running_loop().time() < deadline:
-                r = await client.get(f"{base_url}/api/dashboard/kpis", timeout=5.0)
+                r = await client.get(f"{base_url}/api/telemetry/dashboard/kpis", timeout=5.0)
                 if r.status_code == 200:
                     kpis = r.json()
                     if kpis.get("total_invocations", 0) > 0:
