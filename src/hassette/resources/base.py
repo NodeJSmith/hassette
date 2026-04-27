@@ -7,6 +7,7 @@ from functools import cached_property
 from logging import INFO, Logger, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
+from anyio import ClosedResourceError
 from diskcache import Cache
 
 from hassette.exceptions import CannotOverrideFinalError, FatalError
@@ -634,6 +635,14 @@ class Service(Resource):
             with suppress(Exception):
                 await self.handle_stop()
             raise
+        except ClosedResourceError as exc:
+            if not self.hassette.shutdown_event.is_set():
+                self.logger.error("Serve() task raised ClosedResourceError outside shutdown")
+                with suppress(Exception):
+                    await self.handle_failed(exc)
+                return
+            with suppress(Exception):
+                await self.handle_stop()
         except FatalError as e:
             self.logger.error("Serve() task failed with fatal error: %s %s", type(e).__name__, e)
             # Crash/failure path

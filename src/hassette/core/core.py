@@ -382,6 +382,9 @@ class Hassette(Resource):
         """Send an event to the event bus."""
         if self._event_stream_service is None:
             raise RuntimeError("wire_services() has not been called")
+        if self.event_streams_closed:
+            self.logger.debug("send_event dropped: streams closed (topic=%s)", event_name)
+            return
         await self._event_stream_service.send_event(event_name, event)
 
     async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: float | None = None) -> bool:
