@@ -9,7 +9,7 @@ from hassette.test_utils import wait_for
 
 from .conftest import HA_CONTAINER_NAME, make_system_config, startup_context, toggle_and_capture, wait_for_ha_ready
 
-pytestmark = [pytest.mark.system]
+pytestmark = [pytest.mark.system_destructive]
 
 _ENTITY = "light.kitchen_lights"
 

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import typing
 from asyncio import CancelledError
@@ -85,6 +86,7 @@ class ApiResource(Resource):
 
     async def on_shutdown(self) -> None:
         await self._stack.aclose()
+        await asyncio.sleep(0)
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:

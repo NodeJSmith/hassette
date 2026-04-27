@@ -233,9 +233,12 @@ class WebsocketService(Service):
             )
             self.logger.debug("Closed WebSocket with code %s", aiohttp.WSCloseCode.GOING_AWAY)
 
-        # Close the aiohttp session
+        # Close the aiohttp session. The sleep(0) yields to the event loop so
+        # the underlying transport can finalize — without it, aiohttp's __del__
+        # emits "Unclosed client session" during GC.
         if self._session:
             await self._session.close()
+            await asyncio.sleep(0)
             self.logger.debug("Closed aiohttp session")
 
         await super().cleanup()

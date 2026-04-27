@@ -200,10 +200,11 @@ class DatabaseService(Service):
             try:
                 await conn.close()
             except Exception:
-                self.logger.exception("Failed to close %s", attr)
-                # Suppress __del__ ResourceWarning if async close was interrupted.
-                # aiosqlite's __del__ warns when _connection is non-None.
-                conn._connection = None  # pyright: ignore[reportPrivateUsage]
+                self.logger.exception("Failed to close %s async — falling back to sync stop()", attr)
+                # aiosqlite's stop() synchronously closes the underlying sqlite3
+                # connection and terminates the background thread without needing
+                # an active event loop. Prevents __del__ ResourceWarning on GC.
+                conn.stop()
             finally:
                 setattr(self, attr, None)
 

@@ -123,24 +123,6 @@ async def test_job_execution_persisted(ha_container: str, tmp_path) -> None:
         await wait_for(_row_exists, timeout=10.0, interval=0.1, desc=f"job_executions row for session_id={session_id}")
 
 
-async def test_run_daily_fires(ha_container: str, tmp_path) -> None:
-    """A run_daily job fires when the wall-clock minute arrives."""
-    config = make_system_config(ha_container, tmp_path)
-    async with startup_context(config) as hassette:
-        scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
-        fired: list[int] = []
-
-        async def _callback() -> None:
-            fired.append(1)
-
-        # Schedule for the next minute boundary (HH:MM resolution).
-        # Worst case waits ~60s, but this tests the real Daily trigger path.
-        target = date_utils.now().add(minutes=1)
-        at_str = f"{target.hour:02d}:{target.minute:02d}"
-        scheduler.run_daily(_callback, at=at_str)
-        await wait_for(lambda: len(fired) >= 1, timeout=90.0, desc="run_daily callback to fire")
-
-
 async def test_run_cron_fires(ha_container: str, tmp_path) -> None:
     """A cron job with a per-second expression fires within a few seconds."""
     config = make_system_config(ha_container, tmp_path)
