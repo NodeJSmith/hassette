@@ -1,7 +1,7 @@
 # Design: System Test Suite Rewrite
 
 **Date:** 2026-04-26
-**Status:** approved
+**Status:** archived
 
 ## Problem
 
