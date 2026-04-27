@@ -202,7 +202,15 @@ async def test_once_handler(ha_container: str, tmp_path):
         async def _capture(event: RawStateChangeEvent) -> None:
             received.append(event)
 
-        bus.on_state_change(_ENTITY, handler=_capture, once=True)
+        sub = bus.on_state_change(_ENTITY, handler=_capture, once=True)
+
+        # once=True registration awaits DB write before adding the route —
+        # wait for db_id to confirm the route is active before toggling
+        await wait_for(
+            lambda: sub.listener.db_id is not None,
+            timeout=10.0,
+            desc="once=True listener DB registration",
+        )
 
         # First toggle — handler fires
         await api.call_service(_DOMAIN, "toggle", {"entity_id": _ENTITY})
