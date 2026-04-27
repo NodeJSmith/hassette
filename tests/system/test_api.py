@@ -23,8 +23,8 @@ async def test_get_state_single_entity(ha_container: str, tmp_path) -> None:
     async with startup_context(config) as hassette:
         state = await hassette.api.get_state(_ENTITY)
         assert state.entity_id == _ENTITY
-        assert isinstance(state.state, str)
-        assert state.state in ("on", "off")
+        assert isinstance(state.value, str)
+        assert state.value in ("on", "off")
 
 
 async def test_set_state_roundtrip(ha_container: str, tmp_path) -> None:
@@ -35,11 +35,11 @@ async def test_set_state_roundtrip(ha_container: str, tmp_path) -> None:
 
         await hassette.api.set_state(entity, "on", {})
         result_on = await hassette.api.get_state(entity)
-        assert result_on.state == "on"
+        assert result_on.value == "on"
 
         await hassette.api.set_state(entity, "off", {})
         result_off = await hassette.api.get_state(entity)
-        assert result_off.state == "off"
+        assert result_off.value == "off"
 
 
 async def test_fire_event_received_by_bus(ha_container: str, tmp_path) -> None:
