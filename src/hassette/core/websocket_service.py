@@ -26,7 +26,6 @@ from hassette.exceptions import (
     CouldNotFindHomeAssistantError,
     FailedMessageError,
     InvalidAuthError,
-    ResourceNotReadyError,
     RetryableConnectionClosedError,
 )
 from hassette.resources.base import Service
@@ -176,15 +175,13 @@ class WebsocketService(Service):
             self.logger.debug("Connected to WebSocket at %s", self.url)
             await self.authenticate()
 
-            # mark ready before subscribing, otherwise we'll raise an exception due to not ready status
-            self.mark_ready(reason="WebSocket connected and authenticated")
-
             # start reader first so send_and_wait can get replies
             recv_task = self.task_bucket.spawn(self._recv_loop(), name="ws:recv")
 
             await self._send_connection_established_event()
-            # subscribe to events
             self._subscription_ids.add(await self._subscribe_events())
+
+            self.mark_ready(reason="WebSocket connected, authenticated, and subscribed")
             return recv_task
 
         return await _inner_connect()
@@ -312,9 +309,6 @@ class WebsocketService(Service):
         Raises:
             FailedMessageError: If sending the message fails.
         """
-
-        if not self.ready_event.is_set():
-            raise ResourceNotReadyError("WebSocket is not ready")
 
         self.logger.debug("Sending WebSocket message: %s", data)
 

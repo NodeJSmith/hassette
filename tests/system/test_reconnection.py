@@ -31,7 +31,6 @@ async def test_websocket_reconnects_after_ha_restart(ha_container: str, tmp_path
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
 
         assert websocket_service.is_ready()
-        assert bool(websocket_service._subscription_ids)  # pyright: ignore[reportPrivateUsage]
 
         subprocess.run(["docker", "restart", HA_CONTAINER_NAME], check=True)
 
@@ -45,10 +44,10 @@ async def test_websocket_reconnects_after_ha_restart(ha_container: str, tmp_path
         wait_for_ha_ready()
 
         await wait_for(
-            lambda: websocket_service.is_ready() and bool(websocket_service._subscription_ids),  # pyright: ignore[reportPrivateUsage]
+            websocket_service.is_ready,
             timeout=60.0,
             interval=0.5,
-            desc="WebSocket reconnected with active subscriptions after HA restart",
+            desc="WebSocket reconnected after HA restart",
         )
 
         received = await toggle_and_capture(bus, hassette.api, _ENTITY, timeout=30.0)

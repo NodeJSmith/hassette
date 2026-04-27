@@ -109,20 +109,14 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
 
 
 def _session_ready(hassette: Hassette) -> bool:
-    """Check if Hassette has created a valid session, WebSocket is connected, and event subscriptions are active.
+    """Check if Hassette has a valid session and the WebSocket is fully ready.
 
-    session_id > 0 becomes true after Phase 1 (database + session creation), but
-    the WebSocket (Phase 2) may not be connected yet. Tests that call API methods
-    need the WebSocket to be ready. Additionally, mark_ready() fires before
-    _subscribe_events() completes — checking _subscription_ids ensures HA will
-    actually deliver events before the test starts sending commands.
+    session_id > 0 becomes true after Phase 1 (database + session creation).
+    is_ready() now fires only after authentication AND event subscriptions
+    complete, so no private field access is needed.
     """
     try:
-        return (
-            hassette.session_id > 0
-            and hassette.websocket_service.is_ready()
-            and bool(hassette.websocket_service._subscription_ids)
-        )
+        return hassette.session_id > 0 and hassette.websocket_service.is_ready()
     except Exception:
         return False
 

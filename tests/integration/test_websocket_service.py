@@ -12,7 +12,6 @@ from hassette.exceptions import (
     ConnectionClosedError,
     FailedMessageError,
     InvalidAuthError,
-    ResourceNotReadyError,
     RetryableConnectionClosedError,
 )
 from hassette.types import Topic
@@ -65,7 +64,6 @@ async def test_send_json_injects_message_id_when_absent(websocket_service: Webso
     """Ensure send_json injects a message id and forwards the payload."""
     fake_ws = _build_fake_ws()
     websocket_service._ws = fake_ws
-    websocket_service.mark_ready(reason="test ready")
 
     await websocket_service.send_json(type="ping")
     payload = fake_ws.send_json.await_args.args[0]  # pyright: ignore
@@ -77,18 +75,15 @@ async def test_send_json_preserves_message_id_when_present(websocket_service: We
     """Ensure send_json preserves a message id when present."""
     fake_ws = _build_fake_ws()
     websocket_service._ws = fake_ws
-    websocket_service.mark_ready(reason="test ready")
 
     await websocket_service.send_json(type="pong", id=41)
     second_payload = fake_ws.send_json.await_args_list[0].args[0]  # pyright: ignore
     assert second_payload["id"] == 41, "Expected explicit message id to be preserved"
 
 
-async def test_send_json_requires_readiness(websocket_service: WebsocketService) -> None:
-    """Raise when attempting to send before the service is ready."""
-    websocket_service._ws = _build_fake_ws()
-
-    with pytest.raises(ResourceNotReadyError):
+async def test_send_json_requires_connection(websocket_service: WebsocketService) -> None:
+    """Raise when attempting to send without an established connection."""
+    with pytest.raises(ConnectionClosedError):
         await websocket_service.send_json(type="ping")
 
 
@@ -96,7 +91,6 @@ async def test_send_json_checks_connection_state(websocket_service: WebsocketSer
     """Raise when the underlying websocket reports a closed connection."""
     fake_ws = _build_fake_ws(is_closed=True)
     websocket_service._ws = fake_ws
-    websocket_service.mark_ready(reason="ready for connection check")
 
     with pytest.raises(ConnectionClosedError):
         await websocket_service.send_json(type="ping")
@@ -108,7 +102,6 @@ async def test_send_json_propagates_reset_error(websocket_service: WebsocketServ
     fake_ws.send_json.side_effect = ClientConnectionResetError("boom")  # pyright: ignore
 
     websocket_service._ws = fake_ws
-    websocket_service.mark_ready(reason="ready for reset test")
 
     with pytest.raises(ClientConnectionResetError):
         await websocket_service.send_json(type="ping")
@@ -120,7 +113,6 @@ async def test_send_json_wraps_generic_exceptions(websocket_service: WebsocketSe
     fake_ws.send_json.side_effect = RuntimeError("unexpected")  # pyright: ignore
 
     websocket_service._ws = fake_ws
-    websocket_service.mark_ready(reason="ready for error test")
 
     with pytest.raises(FailedMessageError):
         await websocket_service.send_json(type="ping")
@@ -128,7 +120,6 @@ async def test_send_json_wraps_generic_exceptions(websocket_service: WebsocketSe
 
 async def test_send_and_wait_returns_response(websocket_service: WebsocketService) -> None:
     """Resolve send_and_wait when the websocket replies with success."""
-    websocket_service.mark_ready(reason="ready for send_and_wait")
 
     async def send_side_effect(**data: object) -> None:
         message_id = data["id"]
@@ -146,7 +137,7 @@ async def test_send_and_wait_returns_response(websocket_service: WebsocketServic
 async def test_send_and_wait_times_out(websocket_service: WebsocketService) -> None:
     """Raise FailedMessageError when the response future times out."""
     websocket_service.hassette.config.websocket_response_timeout_seconds = 0
-    websocket_service.mark_ready(reason="ready for timeout test")
+
     websocket_service.send_json = AsyncMock(return_value=None)
 
     with pytest.raises(FailedMessageError):
@@ -324,7 +315,7 @@ async def test_disconnect_event_fires_on_recv_loop_failure(websocket_service: We
 
 async def test_marked_not_ready_on_recv_loop_failure(websocket_service: WebsocketService) -> None:
     """Mark the service not-ready immediately when the recv loop fails."""
-    websocket_service.mark_ready(reason="test ready")
+    websocket_service.mark_ready(reason="test: verify ready→not-ready transition")
     websocket_service.hassette.send_event = AsyncMock()
 
     with (
