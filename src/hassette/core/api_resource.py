@@ -27,13 +27,14 @@ from hassette.exceptions import (
 from hassette.models.history import normalize_history
 from hassette.resources.base import Resource
 from hassette.types.types import LOG_LEVEL_TYPE
-from hassette.utils.request_utils import clean_kwargs, orjson_dump
+from hassette.utils.request_utils import clean_kwargs, format_time_param, orjson_dump
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
 
 
 LOGGER = getLogger(__name__)
+
 NOT_RETRYABLE = (
     EntityNotFoundError,
     InvalidAuthError,
@@ -187,7 +188,7 @@ class ApiResource(Resource):
     ) -> list[list[dict[str, Any]]]:
         """Get the history of a specific entity."""
 
-        url = f"history/period/{start_time}"
+        url = f"history/period/{format_time_param(start_time)}"
 
         params = {
             "filter_entity_id": entity_id,

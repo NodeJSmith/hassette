@@ -71,12 +71,18 @@ class TIMEOUTS:
 
 
 async def wait_for(
-    predicate: Callable[[], bool], *, timeout: float = 3.0, interval: float = 0.02, desc: str = "condition"
+    predicate: Callable[[], bool] | Callable[[], typing.Awaitable[bool]],
+    *,
+    timeout: float = 3.0,
+    interval: float = 0.02,
+    desc: str = "condition",
 ) -> None:
+    is_async = inspect.iscoroutinefunction(predicate)
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     while True:
-        if predicate():
+        result = (await predicate()) if is_async else predicate()  # pyright: ignore[reportGeneralIssues]
+        if result:
             return
         if loop.time() >= deadline:
             raise TimeoutError(f"Timed out waiting for {desc}")

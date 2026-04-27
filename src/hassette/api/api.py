@@ -199,6 +199,7 @@ from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
 from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.utils.request_utils import format_time_param
 
 from .sync import ApiSyncFacade
 
@@ -832,7 +833,7 @@ class Api(Resource):
             A list of logbook entries for the specified entity.
         """
 
-        url = f"logbook/{start_time}"
+        url = f"logbook/{format_time_param(start_time)}"
         params = {"entity": entity_id, "end_time": end_time}
 
         response = await self.get_rest_request(url, params=params)
