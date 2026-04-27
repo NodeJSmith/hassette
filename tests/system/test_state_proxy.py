@@ -67,7 +67,7 @@ async def test_state_manager_typed_access(ha_container: str, tmp_path) -> None:
             desc="state proxy ready with populated states",
         )
         state = hassette.states.light["kitchen_lights"]
-        assert isinstance(state.state, str)
+        assert isinstance(state.value, str)
         # attributes is a Pydantic model but behaves like a dict-accessible object
         # Verify it has the attribute and it is not None
         assert state.attributes is not None
@@ -87,4 +87,4 @@ async def test_state_manager_domain_iteration(ha_container: str, tmp_path) -> No
         for entity_id, state in entities:
             assert isinstance(entity_id, str)
             assert entity_id.startswith("light.")
-            assert isinstance(state.state, str)
+            assert isinstance(state.value, str)
