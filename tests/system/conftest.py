@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import json
 import os
 import shutil
 import socket
@@ -286,13 +287,16 @@ async def wait_for_web_server(base_url: str, *, timeout: float = 30.0) -> None:
 
 
 def wait_for_ha_ready(base_url: str = HA_URL, *, timeout: float = 60.0, stable_checks: int = 3) -> None:
-    """Block until HA's REST API responds 200 for ``stable_checks`` consecutive polls.
+    """Block until HA's REST API responds 200 consistently and a WebSocket handshake succeeds.
 
-    A single 200 is not sufficient — after a docker restart, HA may accept
-    requests briefly before fully initializing its WebSocket handler. Requiring
-    consecutive successes ensures the instance has stabilized.
+    A single REST 200 is not sufficient — after a docker restart, HA may
+    accept REST requests while its WebSocket handler is still initializing,
+    causing connections to drop ~10s later. This function requires consecutive
+    REST successes, then verifies a WebSocket can connect and authenticate.
     """
     deadline = time.monotonic() + timeout
+
+    # Phase 1: consecutive REST checks
     consecutive = 0
     while time.monotonic() < deadline:
         try:
@@ -304,13 +308,45 @@ def wait_for_ha_ready(base_url: str = HA_URL, *, timeout: float = 60.0, stable_c
             if r.status_code == 200:
                 consecutive += 1
                 if consecutive >= stable_checks:
-                    return
+                    break
             else:
                 consecutive = 0
         except Exception:
             consecutive = 0
         time.sleep(1)
-    raise TimeoutError(f"HA did not become ready within {timeout}s")
+    else:
+        raise TimeoutError(f"HA REST API did not stabilize within {timeout}s")
+
+    # Phase 2: verify WebSocket connects, authenticates, and stays open briefly.
+    # HA may accept the WS handshake but drop it seconds later while still
+    # initializing — holding the connection for a few seconds catches this.
+    ws_url = base_url.replace("http", "ws") + "/api/websocket"
+    while time.monotonic() < deadline:
+        try:
+            _ws_probe(ws_url, hold_seconds=3)
+            return
+        except Exception:
+            time.sleep(1)
+    raise TimeoutError(f"HA WebSocket did not stabilize within {timeout}s")
+
+
+def _ws_probe(ws_url: str, hold_seconds: float = 3) -> None:
+    """Open a WebSocket, authenticate, hold for ``hold_seconds``, then close.
+
+    Raises on any failure — connection refused, auth rejected, or HA dropping
+    the connection during the hold window. Uses the synchronous websockets
+    client to avoid conflicts with the test's running event loop.
+    """
+    from websockets.sync.client import connect
+
+    with connect(ws_url) as ws:
+        msg = json.loads(ws.recv(timeout=5))
+        assert msg["type"] == "auth_required"
+        ws.send(json.dumps({"type": "auth", "access_token": HA_TOKEN}))
+        msg = json.loads(ws.recv(timeout=5))
+        if msg["type"] != "auth_ok":
+            raise RuntimeError(f"WS auth failed: {msg}")
+        time.sleep(hold_seconds)
 
 
 @pytest.fixture(scope="session")
