@@ -12,6 +12,7 @@ def _make_hassette_stub() -> AsyncMock:
     hassette.config.data_dir = "/tmp/hassette-test"
     hassette.config.default_cache_size = 1024
     hassette.config.resource_shutdown_timeout_seconds = 1
+    hassette.config.startup_timeout_seconds = 30
     hassette.config.task_cancellation_timeout_seconds = 1
     hassette.config.task_bucket_log_level = "DEBUG"
     hassette.config.dev_mode = False

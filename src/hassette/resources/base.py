@@ -13,6 +13,7 @@ from diskcache import Cache
 from hassette.exceptions import CannotOverrideFinalError, FatalError
 from hassette.types.enums import ResourceRole, ResourceStatus
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, SourceTier
+from hassette.utils.service_utils import wait_for_ready
 
 from .mixins import LifecycleMixin
 
@@ -232,6 +233,39 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         inst = child_class(hassette=self.hassette, parent=self, **kwargs)
         self.children.append(inst)
         return inst
+
+    async def start_children_and_wait(self, timeout: float | None = None) -> None:
+        """Start all children concurrently and block until they are ready.
+
+        All children are started simultaneously — ``depends_on`` ordering is
+        not enforced. Use ``Hassette.run_forever()`` for wave-based startup.
+
+        Args:
+            timeout: Seconds to wait for readiness. ``None`` uses
+                ``config.startup_timeout_seconds``.
+
+        Raises:
+            TimeoutError: If any child is not ready within the timeout or
+                if shutdown is requested during the wait.
+        """
+        if not self.children:
+            return
+
+        for child in self.children:
+            child.start()
+
+        effective_timeout = timeout if timeout is not None else self.hassette.config.startup_timeout_seconds
+        ready = await wait_for_ready(
+            self.children, timeout=effective_timeout, shutdown_event=self.hassette.shutdown_event
+        )
+        if not ready:
+            not_ready = [f"{c.class_name}({c.status.value})" for c in self.children if not c.is_ready()]
+            if self.hassette.shutdown_event.is_set():
+                detail = f"; not ready: {', '.join(not_ready)}" if not_ready else ""
+                reason = f"shutdown during wait{detail}"
+            else:
+                reason = ", ".join(not_ready) or "unknown"
+            raise TimeoutError(f"Children of {self.class_name} did not become ready: {reason}")
 
     async def _run_hooks(
         self, hooks: list[typing.Callable[[], typing.Awaitable[None]]], *, continue_on_error: bool = False
