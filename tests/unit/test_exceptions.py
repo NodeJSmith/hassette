@@ -7,7 +7,7 @@ implementation mistake (``from_error_response`` dropping its ``code`` and
 positional-only construction remains backward compatible so every existing
 ``FailedMessageError("msg")`` call site continues to work.
 
-See ``design/specs/2037-helper-crud-api/tasks/WP03.md`` for the full spec.
+See ``design/specs/031-helper-crud-api/design.md`` for the full spec.
 """
 
 import pytest

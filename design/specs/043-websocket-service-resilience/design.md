@@ -259,14 +259,14 @@ async def serve(self) -> None:
                             recovery_started_at = time.monotonic()
                         early_drop_attempts += 1
                         # log with timing, attempt count, and close code
-                        self.mark_not_ready(reason="Early drop detected")
                         await self._send_connection_lost_event()
+                        self.mark_not_ready(reason="Early drop detected")
                         await self._partial_cleanup()
                         await self._early_drop_backoff(early_drop_attempts)
                         continue
                     # Genuine failure — propagate to _serve_wrapper
-                    self.mark_not_ready(reason="WebSocket recv loop failed")
                     await self._send_connection_lost_event()
+                    self.mark_not_ready(reason="WebSocket recv loop failed")
                     raise
 ```
 

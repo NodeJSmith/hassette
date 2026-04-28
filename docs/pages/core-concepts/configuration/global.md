@@ -157,8 +157,8 @@ Each layer is independently configurable. The inner layer must exhaust all its a
 |---------|------|---------|-------------|
 | `websocket_early_drop_stable_window_seconds` | float | `30.0` | How long (in seconds) after a successful connect a disconnect is considered an "early drop" and eligible for fast retry. Drops outside this window are treated as genuine failures. |
 | `websocket_early_drop_max_retries` | integer | `5` | Maximum number of early-drop retries before escalating to the service restart layer. |
-| `websocket_early_drop_backoff_initial_seconds` | float | `2.0` | Initial wait between early-drop retry attempts. |
-| `websocket_early_drop_backoff_max_seconds` | float | `60.0` | Maximum wait between early-drop retry attempts. |
+| `websocket_early_drop_backoff_initial_seconds` | float | `2.0` | Initial wait between early-drop retry attempts. Jitter (up to this value) is added to each wait to prevent synchronized reconnection storms. |
+| `websocket_early_drop_backoff_max_seconds` | float | `60.0` | Maximum wait between early-drop retry attempts (before jitter). |
 | `websocket_max_recovery_seconds` | float | `300.0` | Total wall-clock cap (in seconds) for the early-drop retry loop. When this budget is exceeded, the current failure escalates to the service restart layer regardless of remaining per-retry attempts. This prevents the worst-case scenario where many retries each at maximum backoff add up to an unreasonably long recovery window. |
 
 **When to tune these settings:**

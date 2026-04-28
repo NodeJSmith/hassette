@@ -60,7 +60,7 @@ def mock_hassette():
     hassette._state_proxy.is_ready.return_value = True
 
     # Mock websocket service
-    hassette._websocket_service.status = "running"
+    hassette._websocket_service.status = ResourceStatus.RUNNING
 
     # Mock app handler
     _instance = AppInstanceInfo(
