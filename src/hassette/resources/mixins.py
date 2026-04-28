@@ -139,7 +139,7 @@ class LifecycleMixin(_LifecycleHostStubs):
     def request_shutdown(self, reason: str | None = None) -> None:
         """Set the sticky shutdown flag. Idempotent."""
         if not self.shutdown_event.is_set():
-            self.logger.debug("%s shutdown requested: %s", self.unique_name, reason or "")
+            self.logger.info("%s shutdown requested: %s", self.unique_name, reason or "no reason", stacklevel=2)
             self.shutdown_event.set()
         # clear readiness early so callers back off
         self.mark_not_ready(reason or "shutdown requested")

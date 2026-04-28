@@ -28,7 +28,7 @@ def dev(session: "Session"):
         "run",
         "pytest",
         "-m",
-        "not docker and not e2e and not system",
+        "not docker and not e2e and not system and not system_destructive",
         "-n",
         "auto",
         "--dist",
@@ -48,7 +48,7 @@ def tests(session: "Session"):
         "hassette",
         "pytest",
         "-m",
-        "not docker and not e2e and not system",
+        "not docker and not e2e and not system and not system_destructive",
         "-n",
         "auto",
         "--dist",
@@ -117,6 +117,8 @@ def system_with_coverage(session: "Session"):
 
 
 def _run_system_tests(session: "Session", *, marker: str, extra_args: list[str] | None = None) -> None:
+    session.env["PYTHONTRACEMALLOC"] = "1"
+    session.env["PYTHONASYNCIODEBUG"] = "1"
     session.run(
         "uv",
         "run",
@@ -147,7 +149,7 @@ def tests_with_coverage(session: "Session"):
         "hassette",
         "pytest",
         "-m",
-        "not docker and not e2e and not system",
+        "not docker and not e2e and not system and not system_destructive",
         "-n",
         "auto",
         "--dist",

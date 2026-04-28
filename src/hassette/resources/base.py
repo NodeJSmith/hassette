@@ -476,8 +476,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if self._shutting_down:
             return
         self._shutting_down = True
-        self.request_shutdown("shutdown")
-        self.logger.debug("Shutting down %s: %s", self.role, self.unique_name)
+        self.request_shutdown(f"{self.unique_name} shutdown")
 
         try:
             await self._run_hooks(
@@ -610,8 +609,7 @@ class Service(Resource):
         if self._shutting_down:
             return
         self._shutting_down = True
-        self.request_shutdown("shutdown")
-        self.logger.debug("Shutting down %s: %s", self.role, self.unique_name)
+        self.request_shutdown(f"{self.unique_name} shutdown")
         try:
             await self._run_hooks([self.before_shutdown], continue_on_error=True)
             if self.is_running() and self._serve_task:

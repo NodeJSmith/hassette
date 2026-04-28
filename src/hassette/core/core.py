@@ -560,6 +560,8 @@ class Hassette(Resource):
         FinalMeta exempts Hassette from the @final on Resource.shutdown().
         This ensures hooks + child propagation + cleanup all share one budget.
         """
+        if not self._shutdown_completed and not self._shutting_down:
+            self.logger.info("Hassette shutdown initiated", stacklevel=2)
         try:
             async with asyncio.timeout(self.config.total_shutdown_timeout_seconds):
                 await super().shutdown()
