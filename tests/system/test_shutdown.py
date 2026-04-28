@@ -11,7 +11,7 @@ from hassette.types.enums import ResourceStatus
 
 from .conftest import make_system_config, startup_context
 
-pytestmark = [pytest.mark.system]
+pytestmark = [pytest.mark.system_destructive]
 
 
 async def test_clean_shutdown(ha_container: str, tmp_path) -> None:
@@ -47,7 +47,6 @@ async def test_clean_shutdown(ha_container: str, tmp_path) -> None:
     assert stopped_at is not None, "stopped_at should be non-null after shutdown"
 
 
-@pytest.mark.system_destructive
 async def test_failed_service_cascade_triggers_shutdown(ha_container: str, tmp_path) -> None:
     """A FAILED event for an unknown service cascades through ServiceWatcher and triggers shutdown."""
 
