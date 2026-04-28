@@ -136,8 +136,8 @@ class ApiResource(Resource):
             suppress_error_message: bool = False,
             **kwargs,
         ) -> aiohttp.ClientResponse:
-            if self._session is None:
-                raise RuntimeError("Client session is not connected")
+            if self._session is None or self._session.closed:
+                raise ResourceNotReadyError("Client session is not connected")
 
             params = clean_kwargs(**(params or {}))
             str_data = orjson_dump(data or {})
