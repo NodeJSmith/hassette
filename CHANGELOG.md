@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.0](https://github.com/NodeJSmith/hassette/compare/v0.25.0...v0.26.0) (2026-04-28)
+
+
+### Features
+
+* add startup timing instrumentation to docker entrypoint ([#617](https://github.com/NodeJSmith/hassette/issues/617)) ([5e67530](https://github.com/NodeJSmith/hassette/commit/5e675306d6a32feebe43eb4acc4cdd742247c62b))
+
+
+### Bug Fixes
+
+* address 4 issues discovered during system test rewrite ([#626](https://github.com/NodeJSmith/hassette/issues/626)) ([cb0d7c5](https://github.com/NodeJSmith/hassette/commit/cb0d7c5c672bf01f35714386e16c8cd7087d1d3e))
+* guard shutdown against ClosedResourceError and restore strict filterwarnings ([#627](https://github.com/NodeJSmith/hassette/issues/627)) ([f120cba](https://github.com/NodeJSmith/hassette/commit/f120cba19d4d18bf8c610ce4138715b79e2f0c50))
+* narrow per-class lock in AppTestHarness for concurrent same-class harnesses ([#614](https://github.com/NodeJSmith/hassette/issues/614)) ([5b4c710](https://github.com/NodeJSmith/hassette/commit/5b4c710efb80303f14c497a149a158f73237cee7))
+
+
+### Documentation
+
+* add prior art research on resource/service lifecycle architecture ([#606](https://github.com/NodeJSmith/hassette/issues/606)) ([940a461](https://github.com/NodeJSmith/hassette/commit/940a46158e7ac5625b7b78f0c69be243610a6f9e))
+
+
+### Tests
+
+* add unit tests for StateManager.__getattr__ and DomainStates cache ([#613](https://github.com/NodeJSmith/hassette/issues/613)) ([f107482](https://github.com/NodeJSmith/hassette/commit/f10748287dac3e0aa727817172d16956ea49b2fa)), closes [#563](https://github.com/NodeJSmith/hassette/issues/563)
+* rewrite system tests — 7 → 43 tests across all subsystems ([#624](https://github.com/NodeJSmith/hassette/issues/624)) ([9d4dd57](https://github.com/NodeJSmith/hassette/commit/9d4dd573afa8eda78bac1b99af535f084335ab2d))
+* **test_utils:** enable module-scoped hassette_with_app_handler fixture ([#618](https://github.com/NodeJSmith/hassette/issues/618)) ([02df6f7](https://github.com/NodeJSmith/hassette/commit/02df6f7a424dbd21f094ab960b5461c2d375c88a))
+
 ## [0.25.0](https://github.com/NodeJSmith/hassette/compare/v0.24.0...v0.25.0) (2026-04-26)
 
 
