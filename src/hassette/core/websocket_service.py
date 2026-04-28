@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import random
 import time
 import typing
 from contextlib import AsyncExitStack, suppress
@@ -49,6 +50,10 @@ RETRYABLE = (
     ClientOSError,
     CouldNotFindHomeAssistantError,
 )
+# Subset of RETRYABLE that qualifies for early-drop retry.
+# Excludes ClientConnectorError and CouldNotFindHomeAssistantError — those indicate
+# the server is unreachable, not that it dropped a post-auth connection.
+EARLY_DROP_RETRYABLE = (RetryableConnectionClosedError, ServerDisconnectedError)
 
 
 class WebsocketService(Service):
@@ -133,22 +138,71 @@ class WebsocketService(Service):
 
     async def serve(self) -> None:
         """Connect to the WebSocket and run the receive loop."""
+        config = self.hassette.config
+        max_early_drops = config.websocket_early_drop_max_retries
+        max_recovery = config.websocket_max_recovery_seconds
+        self.logger.info(
+            "WebSocket resilience budget: max ~%.0f minutes to permanent shutdown "
+            "(early-drop: %d retries capped at %ds, connection: %d retries, service: %d restarts)",
+            max_recovery / 60,
+            max_early_drops,
+            int(max_recovery),
+            config.websocket_connect_retry_max_attempts,
+            config.service_restart_max_attempts,
+        )
+
         async with self._connect_lock:
             timeout = ClientTimeout(connect=self.connection_timeout_seconds, total=self.total_timeout_seconds)
 
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                self._recv_task = await self._make_connection(session)
-                self.logger.info("Websocket connected to %s", self.url)
+                early_drop_attempts = 0
+                stable_window = config.websocket_early_drop_stable_window_seconds
+                recovery_started_at: float | None = None
 
-                # Keep running until recv loop ends (disconnect, error, etc.)
-                try:
-                    await self._recv_task
-                except Exception:
-                    self.logger.warning("WebSocket recv loop failed, notifying downstream consumers")
-                    self.mark_not_ready(reason="WebSocket recv loop failed")
-                    with suppress(Exception):
+                while True:
+                    try:
+                        self._recv_task = await self._make_connection(session)
+                        await self._recv_task
+                        return  # clean exit (shutdown)
+                    except InvalidAuthError:
+                        if early_drop_attempts > 0:
+                            self.logger.error("Authentication failed on reconnect — possible token revocation")
+                        raise
+                    except Exception as exc:
+                        elapsed = (
+                            (time.monotonic() - self._connected_at) if self._connected_at is not None else float("inf")
+                        )
+                        recovery_elapsed = (
+                            (time.monotonic() - recovery_started_at) if recovery_started_at is not None else 0.0
+                        )
+                        is_early = (
+                            elapsed < stable_window
+                            and isinstance(exc, EARLY_DROP_RETRYABLE)
+                            and early_drop_attempts < max_early_drops
+                            and recovery_elapsed < max_recovery
+                        )
+                        if is_early:
+                            if recovery_started_at is None:
+                                recovery_started_at = time.monotonic()
+                            early_drop_attempts += 1
+                            close_code = getattr(exc, "close_code", None)
+                            self.logger.warning(
+                                "WebSocket early drop detected (elapsed=%.1fs, attempt=%d/%d%s) — retrying",
+                                elapsed,
+                                early_drop_attempts,
+                                max_early_drops,
+                                f", close_code={close_code}" if close_code is not None else "",
+                            )
+                            # Send event before marking not-ready so the idempotency guard passes
+                            await self._send_connection_lost_event()
+                            self.mark_not_ready(reason="Early drop detected")
+                            await self._partial_cleanup()
+                            await self._early_drop_backoff(early_drop_attempts)
+                            continue
+                        # Genuine failure — propagate to _serve_wrapper
                         await self._send_connection_lost_event()
-                    raise
+                        self.mark_not_ready(reason="WebSocket recv loop failed")
+                        raise
 
     async def _connect_ws(self, session: aiohttp.ClientSession) -> None:
         """Open the WebSocket connection and authenticate.
@@ -215,6 +269,19 @@ class WebsocketService(Service):
         self._subscription_ids.clear()
         self._ws = None
         self._recv_task = None
+
+    async def _early_drop_backoff(self, attempt: int) -> None:
+        """Compute and sleep for an exponential-jitter backoff after an early drop.
+
+        Args:
+            attempt: The current attempt number (1-based).
+        """
+        config = self.hassette.config
+        backoff = min(
+            config.websocket_early_drop_backoff_initial_seconds * (2 ** (attempt - 1)),
+            config.websocket_early_drop_backoff_max_seconds,
+        ) + random.uniform(0, config.websocket_early_drop_backoff_initial_seconds)
+        await asyncio.sleep(backoff)
 
     async def _make_connection(self, session: aiohttp.ClientSession) -> asyncio.Task:
         self._connected_at = None
@@ -448,16 +515,21 @@ class WebsocketService(Service):
             return
 
         if msg_type in {WSMsgType.CLOSE, WSMsgType.CLOSED}:
-            raise RetryableConnectionClosedError(f"WebSocket closed by peer ({msg_type!r})")
+            close_code = getattr(self._ws, "close_code", None)
+            raise RetryableConnectionClosedError(f"WebSocket closed by peer ({msg_type!r})", close_code=close_code)
 
         # took a while to track this one down - we need to cancel if we get told that the connection is closing
         if msg_type == WSMsgType.CLOSING:
             self.logger.debug("WebSocket is closing - exiting receive loop")
-            raise RetryableConnectionClosedError("WebSocket is closing")
+            close_code = getattr(self._ws, "close_code", None)
+            raise RetryableConnectionClosedError("WebSocket is closing", close_code=close_code)
 
         if msg_type == WSMsgType.ERROR:
             exc = msg.data if isinstance(msg.data, BaseException) else None
-            raise RetryableConnectionClosedError(f"WebSocket error frame received: {msg.data!r}") from exc
+            close_code = getattr(self._ws, "close_code", None)
+            raise RetryableConnectionClosedError(
+                f"WebSocket error frame received: {msg.data!r}", close_code=close_code
+            ) from exc
 
         self.logger.warning("Received unexpected message type: %r", msg_type)
 
@@ -479,9 +551,18 @@ class WebsocketService(Service):
         await self.hassette.send_event(event.topic, event)
 
     async def _send_connection_lost_event(self) -> None:
-        """Send a connection lost event to the event bus."""
+        """Send a connection lost event to the event bus.
+
+        Idempotent: skips if the service is already not-ready (prevents duplicate
+        DISCONNECTED events during early-drop retry cycles and before_shutdown calls).
+        Self-suppressing: bus dispatch errors are silently swallowed so callers never
+        need external suppress() wrappers and a bus failure cannot mask a network error.
+        """
+        if not self.is_ready():
+            return
         event = HassetteSimpleEvent.create_event(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
-        await self.hassette.send_event(event.topic, event)
+        with suppress(Exception):
+            await self.hassette.send_event(event.topic, event)
 
     async def _send_connection_established_event(self) -> None:
         """Send a connection established event to the event bus."""
