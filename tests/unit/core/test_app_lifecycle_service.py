@@ -11,21 +11,6 @@ from hassette.types import Topic
 from hassette.types.enums import BlockReason, ResourceStatus
 
 
-def _make_spawn_mock() -> AsyncMock:
-    """Create a mock for task_bucket.spawn that properly closes passed coroutines.
-
-    spawn() is synchronous but returns an asyncio.Task which callers ``await``.
-    AsyncMock is used so the return value is awaitable, matching real behavior.
-    The side_effect closes the coroutine to prevent 'was never awaited' warnings.
-    """
-
-    async def _spawn_side_effect(coro: object, **_kwargs: object) -> None:
-        if hasattr(coro, "close"):
-            coro.close()
-
-    return AsyncMock(side_effect=_spawn_side_effect)
-
-
 @pytest.fixture
 def mock_hassette() -> MagicMock:
     """Create a mock Hassette instance with config."""
@@ -501,8 +486,6 @@ class TestStartApps:
         mock_registry.active_manifests = {"app_a": manifest_a, "app_b": manifest_b}
         mock_registry.get_manifest = Mock(side_effect=lambda k: {"app_a": manifest_a, "app_b": manifest_b}.get(k))
         mock_registry.get_apps_by_key = Mock(return_value={})
-        lifecycle_service.task_bucket = Mock()
-        lifecycle_service.task_bucket.spawn = _make_spawn_mock()
 
         await lifecycle_service.start_apps()
 
@@ -544,8 +527,6 @@ class TestStartApp:
         """Calls factory.create_instances with correct app_key."""
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_apps_by_key = Mock(return_value={})
-        lifecycle_service.task_bucket = Mock()
-        lifecycle_service.task_bucket.spawn = _make_spawn_mock()
 
         await lifecycle_service.start_app("test_app")
 
@@ -562,8 +543,6 @@ class TestStartApp:
         """Emits NOT_STARTED event for each created instance."""
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_apps_by_key = Mock(return_value={0: mock_app_instance})
-        lifecycle_service.task_bucket = Mock()
-        lifecycle_service.task_bucket.spawn = _make_spawn_mock()
 
         with patch("hassette.core.app_lifecycle_service.get_log_capture_handler", return_value=None):
             await lifecycle_service.start_app("test_app")
@@ -599,15 +578,11 @@ class TestStartApp:
 
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_apps_by_key = Mock(return_value={0: mock_app_instance})
-        lifecycle_service.task_bucket = Mock()
-        lifecycle_service.task_bucket.spawn = _make_spawn_mock()
 
         with patch("hassette.core.app_lifecycle_service.get_log_capture_handler", return_value=None):
             await lifecycle_service.start_app("test_app")
 
-        # start_app spawns initialize_instances but doesn't await it (task_bucket mock returns immediately)
-        # The important thing is that clear_registrations is no longer called.
-        mock_hassette.command_executor.reconcile_registrations.assert_not_awaited()
+        assert initialize_order == ["initialize", "reconcile"]
 
     async def test_skips_disabled_app(
         self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock, mock_factory: MagicMock
@@ -676,8 +651,6 @@ class TestReloadApp:
         mock_registry.unregister_app = Mock(return_value=None)
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_apps_by_key = Mock(return_value={})
-        lifecycle_service.task_bucket = Mock()
-        lifecycle_service.task_bucket.spawn = _make_spawn_mock()
 
         await lifecycle_service.reload_app("test_app")
 

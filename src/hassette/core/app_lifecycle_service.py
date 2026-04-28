@@ -281,7 +281,7 @@ class AppLifecycleService(Resource):
             raise
 
     async def start_app(self, app_key: str, force_reload: bool = False) -> None:
-        """Create instances for an app and spawn their initialization.
+        """Create instances for an app and await their initialization.
 
         Args:
             app_key: The app key to start
@@ -312,7 +312,7 @@ class AppLifecycleService(Resource):
                     handler.register_app_logger(inst.logger.name, app_key)
                 event = HassetteAppStateEvent.from_data(app=inst, status=ResourceStatus.NOT_STARTED)
                 await self.hassette.send_event(Topic.HASSETTE_EVENT_APP_STATE_CHANGED, event)
-            await self.task_bucket.spawn(self.initialize_instances(app_key, instances, app_manifest))
+            await self.initialize_instances(app_key, instances, app_manifest)
 
     async def stop_app(self, app_key: str) -> None:
         """Stop and remove all instances for a given app key.

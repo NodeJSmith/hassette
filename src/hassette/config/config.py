@@ -150,8 +150,9 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     allow_startup_if_app_precheck_fails: bool = Field(default=False)
     """Whether to allow Hassette to start even if the app precheck fails. This is generally not recommended."""
 
-    startup_timeout_seconds: int = Field(default=10)
-    """Length of time to wait for all Hassette resources to start before giving up."""
+    startup_timeout_seconds: int = Field(default=30)
+    """Length of time to wait for each wave of Hassette resources to start before giving up.
+    Must be >= app_startup_timeout_seconds since AppHandler readiness waits for app bootstrap."""
 
     app_startup_timeout_seconds: int = Field(default=20)
     """Length of time to wait for an app to start before giving up."""
