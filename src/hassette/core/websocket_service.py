@@ -233,8 +233,10 @@ class WebsocketService(Service):
         Returns:
             The recv loop task.
         """
-        # start reader first so send_and_wait can get replies
+        # start reader first so send_and_wait can get replies; assign to self immediately
+        # so _partial_cleanup can cancel it if a later step (subscribe, event) raises
         recv_task = self.task_bucket.spawn(self._recv_loop(), name="ws:recv")
+        self._recv_task = recv_task
 
         await self._send_connection_established_event()
         self._subscription_ids.add(await self._subscribe_events())

@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-28
 **Status:** archived
-**Research:** /tmp/claude-mine-define-research-hFHGWz/brief.md
+**Research:** Ephemeral local research notes were used during drafting and are not preserved in-repo.
 
 ## Problem
 
