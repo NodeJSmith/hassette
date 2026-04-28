@@ -37,7 +37,6 @@ from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.test_utils.reset import reset_app_handler, reset_bus, reset_mock_api, reset_scheduler, reset_state_proxy
 from hassette.test_utils.test_server import SimpleTestServer
 from hassette.types.enums import ResourceStatus
-from hassette.utils.service_utils import wait_for_ready
 
 if typing.TYPE_CHECKING:
     from hassette.config.classes import AppManifest
@@ -539,21 +538,8 @@ class HassetteHarness:
         if not self.has_component("bus"):
             self.hassette.send_event = AsyncMock()
 
-        for resource in self.hassette.children:
-            resource.start()
-
         self.hassette.ready_event.set()
-        ready = await wait_for_ready(
-            [x for x in self.hassette.children],
-            timeout=TIMEOUTS.WAIT_FOR_READY,
-            shutdown_event=self.hassette.shutdown_event,
-        )
-        if not ready:
-            not_ready = [r for r in self.hassette.children if not getattr(r, "is_ready", lambda: True)()]
-            names = [type(r).__name__ for r in not_ready] or ["unknown"]
-            raise TimeoutError(
-                f"HassetteHarness: components did not become ready within {TIMEOUTS.WAIT_FOR_READY}s: {names}"
-            )
+        await self.hassette.start_children_and_wait(timeout=TIMEOUTS.WAIT_FOR_READY)
 
         if self.has_component("app_handler"):
             self._original_app_manifests = {
