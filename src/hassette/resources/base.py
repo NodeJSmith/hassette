@@ -615,8 +615,18 @@ class Service(Resource):
             if self.is_running() and self._serve_task:
                 self._serve_task.cancel()
                 self.logger.debug("Cancelled serve() task")
-                with suppress(asyncio.CancelledError):
-                    await self._serve_task
+                try:
+                    await asyncio.wait_for(
+                        self._serve_task,
+                        timeout=self.hassette.config.resource_shutdown_timeout_seconds,
+                    )
+                except asyncio.CancelledError:
+                    pass
+                except TimeoutError:
+                    self.logger.warning(
+                        "Serve task for %s did not complete within resource shutdown timeout",
+                        self.unique_name,
+                    )
             await self._run_hooks([self.on_shutdown, self.after_shutdown], continue_on_error=True)
         finally:
             await self._finalize_shutdown()

@@ -1,7 +1,6 @@
 """WebApiService: runs the FastAPI/uvicorn server."""
 
 import asyncio
-import contextlib
 import typing
 from typing import ClassVar
 
@@ -59,6 +58,7 @@ class WebApiService(Service):
             log_level=self.config_log_level.lower(),
             lifespan="off",
             ws="websockets-sansio",
+            timeout_graceful_shutdown=3,
         )
         self._server = uvicorn.Server(config)
 
@@ -67,8 +67,12 @@ class WebApiService(Service):
         try:
             await self._server.serve()
         except asyncio.CancelledError:
-            with contextlib.suppress(Exception):
-                await self._server.shutdown()
+            if self._server.started:
+                self._server.should_exit = True
+                try:
+                    await asyncio.shield(self._server.shutdown())
+                except Exception:
+                    self.logger.warning("uvicorn shutdown raised during cancellation", exc_info=True)
             raise
         except Exception:
             self.logger.exception("Web API server encountered an error")

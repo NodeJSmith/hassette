@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import json
+import logging
 import os
 import shutil
 import socket
@@ -23,12 +24,15 @@ from hassette.config.config import HassetteConfig
 from hassette.events import RawStateChangeEvent
 from hassette.test_utils import wait_for
 
+logger = logging.getLogger(__name__)
+
 COMPOSE_FILE = Path(__file__).parent / "docker-compose.yml"
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "ha-config"
 HA_URL = "http://localhost:18123"
 HA_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMyIsImlhdCI6MTczNTY4OTYwMCwiZXhwIjoyMDUxMDQ5NjAwfQ.q-p85dOe-MMnKQhSNh_LEWnWJGK-GA3xdmqb4LKvkU0"  # noqa: E501 — JWT cannot be line-wrapped
 HA_CONTAINER_NAME = "hassette-system-ha"
 STARTUP_TIMEOUT = 60  # seconds
+SHUTDOWN_TIMEOUT = 15  # seconds
 
 
 class _SystemTestConfig(HassetteConfig):
@@ -153,13 +157,12 @@ async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIte
         yield hassette
     finally:
         hassette.shutdown_event.set()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
-        # If run_forever already called shutdown (via shutdown_event), ensure
-        # a full shutdown still runs. This handles the case where shutdown was
-        # stubbed during a test — run_forever's finally called the stub, so
-        # resources were never cleaned up. The _shutdown_completed guard makes
-        # this a no-op if real shutdown already ran.
+        try:
+            await asyncio.wait_for(task, timeout=SHUTDOWN_TIMEOUT)
+        except asyncio.CancelledError:
+            pass
+        except TimeoutError:
+            logger.warning("Hassette shutdown timed out after 15s — forcing fallback")
         if not hassette._shutdown_completed:
             with contextlib.suppress(Exception):
                 await hassette.shutdown()

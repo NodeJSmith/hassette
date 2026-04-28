@@ -201,11 +201,13 @@ class DatabaseService(Service):
                 await conn.close()
             except Exception:
                 self.logger.exception("Failed to close %s async — falling back to sync stop()", attr)
-                # aiosqlite's stop() synchronously closes the underlying sqlite3
-                # connection and terminates the background thread without needing
-                # an active event loop. Prevents __del__ ResourceWarning on GC.
                 conn.stop()
             finally:
+                thread = getattr(conn, "_thread", None)
+                if thread is not None and thread.is_alive():
+                    await asyncio.to_thread(thread.join, 5.0)
+                    if thread.is_alive():
+                        self.logger.warning("aiosqlite background thread for %s did not exit within 5s", attr)
                 setattr(self, attr, None)
 
     async def cleanup(self, timeout: int | None = None) -> None:
