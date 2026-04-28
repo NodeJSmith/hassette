@@ -56,6 +56,62 @@ async def test_websocket_reconnects_after_ha_restart(ha_container: str, tmp_path
         assert all(isinstance(e, RawStateChangeEvent) for e in received)
 
 
+async def test_early_drop_retry_does_not_increment_restart_counter(ha_container: str, tmp_path) -> None:
+    """Early-drop retry handles HA restart without consuming ServiceWatcher restart budget.
+
+    This is the primary acceptance test for issue #629. After an HA restart causes
+    the WebSocket to drop and reconnect, the ServiceWatcher restart counter must
+    remain at zero — proving the early-drop retry loop in serve() handled recovery
+    internally without escalating to handle_failed().
+
+    Sequence:
+    1. Start Hassette and confirm it is fully connected.
+    2. Record the ServiceWatcher restart counter (should be 0).
+    3. Restart the HA container.
+    4. Wait for disconnect detection, then reconnect.
+    5. Assert the restart counter is still 0 — zero budget consumed.
+    6. Verify event delivery works (functional confirmation).
+    """
+    wait_for_ha_ready()
+    config = make_system_config(ha_container, tmp_path)
+    async with startup_context(config) as hassette:
+        websocket_service = hassette.websocket_service
+        service_watcher = hassette._service_watcher  # pyright: ignore[reportPrivateUsage]
+        bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
+
+        assert websocket_service.is_ready()
+        assert service_watcher is not None
+
+        ws_key = "WebsocketService:Service"
+        assert service_watcher._restart_attempts.get(ws_key, 0) == 0  # pyright: ignore[reportPrivateUsage]
+
+        subprocess.run(["docker", "restart", HA_CONTAINER_NAME], check=True)
+
+        await wait_for(
+            lambda: not websocket_service.is_ready(),
+            timeout=30.0,
+            interval=0.5,
+            desc="WebSocket disconnect detected after HA restart",
+        )
+
+        wait_for_ha_ready()
+
+        await wait_for(
+            websocket_service.is_ready,
+            timeout=60.0,
+            interval=0.5,
+            desc="WebSocket reconnected after HA restart",
+        )
+
+        assert service_watcher._restart_attempts.get(ws_key, 0) == 0, (  # pyright: ignore[reportPrivateUsage]
+            "ServiceWatcher restart counter should be 0 — early-drop retry should have handled "
+            "reconnection without escalating to handle_failed()"
+        )
+
+        received = await toggle_and_capture(bus, hassette.api, _ENTITY, timeout=30.0)
+        assert len(received) >= 1
+
+
 async def test_state_proxy_refreshes_after_reconnect(ha_container: str, tmp_path) -> None:
     """State proxy recovers and reflects valid entity state after an HA restart.
 
