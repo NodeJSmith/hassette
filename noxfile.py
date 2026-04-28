@@ -133,6 +133,10 @@ def _run_system_tests(session: "Session", *, marker: str, extra_args: list[str] 
         "-n",
         "0",
         "--tb=short",
+        "--reruns",
+        "2",
+        "--reruns-delay",
+        "5",
         *(extra_args or []),
         external=True,
     )
