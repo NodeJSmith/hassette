@@ -16,16 +16,23 @@ _ENTITY = "light.kitchen_lights"
 _DOMAIN = "light"
 
 
+def _find_app(hassette, class_name: str):
+    """Find an app instance by class name, with a clear error if missing."""
+    apps = hassette.app_handler.apps
+    key = next((k for k in apps if class_name in k), None)
+    assert key is not None, f"{class_name} not found in app_handler.apps: {list(apps)}"
+    return key, apps[key][0]
+
+
 async def test_trivial_app_initializes(ha_container: str, tmp_path: Path, system_app_dir: Path) -> None:
     """An app loaded from disk appears in app_handler.apps with RUNNING status after startup."""
     config = make_system_config(ha_container, tmp_path)
     config = config.model_copy(update={"autodetect_apps": True, "app_dir": system_app_dir})
 
     async with startup_context(config) as hassette:
-        trivial_key = next(key for key in hassette.app_handler.apps if "TrivialApp" in key)
-        instances = hassette.app_handler.apps[trivial_key]
-        assert len(instances) >= 1
-        assert instances[0].status == ResourceStatus.RUNNING
+        trivial_key, app_instance = _find_app(hassette, "TrivialApp")
+        assert len(hassette.app_handler.apps[trivial_key]) >= 1
+        assert app_instance.status == ResourceStatus.RUNNING
 
 
 async def test_app_gets_working_api(ha_container: str, tmp_path: Path) -> None:
@@ -47,8 +54,7 @@ class ApiCheckApp(App):
     config = config.model_copy(update={"autodetect_apps": True, "app_dir": apps_dir})
 
     async with startup_context(config) as hassette:
-        app_key = next(key for key in hassette.app_handler.apps if "ApiCheckApp" in key)
-        app_instance = hassette.app_handler.apps[app_key][0]
+        _, app_instance = _find_app(hassette, "ApiCheckApp")
         assert app_instance.status == ResourceStatus.RUNNING
 
         fetched = app_instance.fetched_states  # pyright: ignore[reportAttributeAccessIssue]
@@ -61,8 +67,7 @@ async def test_app_bus_handler_fires(ha_container: str, tmp_path: Path, system_a
     config = config.model_copy(update={"autodetect_apps": True, "app_dir": system_app_dir})
 
     async with startup_context(config) as hassette:
-        app_key = next(key for key in hassette.app_handler.apps if "BusHandlerApp" in key)
-        app_instance = hassette.app_handler.apps[app_key][0]
+        _, app_instance = _find_app(hassette, "BusHandlerApp")
         assert app_instance.status == ResourceStatus.RUNNING
 
         # toggle_and_capture cannot be used here — the handler is registered by the app, not the test
@@ -101,8 +106,7 @@ class SchedulerCheckApp(App):
     config = config.model_copy(update={"autodetect_apps": True, "app_dir": apps_dir})
 
     async with startup_context(config) as hassette:
-        app_key = next(key for key in hassette.app_handler.apps if "SchedulerCheckApp" in key)
-        app_instance = hassette.app_handler.apps[app_key][0]
+        _, app_instance = _find_app(hassette, "SchedulerCheckApp")
         assert app_instance.status == ResourceStatus.RUNNING
 
         await wait_for(
@@ -131,8 +135,7 @@ class StateCheckApp(App):
     config = config.model_copy(update={"autodetect_apps": True, "app_dir": apps_dir})
 
     async with startup_context(config) as hassette:
-        app_key = next(key for key in hassette.app_handler.apps if "StateCheckApp" in key)
-        app_instance = hassette.app_handler.apps[app_key][0]
+        _, app_instance = _find_app(hassette, "StateCheckApp")
         assert app_instance.status == ResourceStatus.RUNNING
 
         light_states = app_instance.light_states  # pyright: ignore[reportAttributeAccessIssue]
@@ -161,8 +164,7 @@ class ShutdownCheckApp(App):
     config = config.model_copy(update={"autodetect_apps": True, "app_dir": apps_dir})
 
     async with startup_context(config) as hassette:
-        app_key = next(key for key in hassette.app_handler.apps if "ShutdownCheckApp" in key)
-        app_instance = hassette.app_handler.apps[app_key][0]
+        _, app_instance = _find_app(hassette, "ShutdownCheckApp")
 
     # After startup_context exits, shutdown has completed
     assert app_instance.shutdown_called is True  # pyright: ignore[reportAttributeAccessIssue]
@@ -202,11 +204,8 @@ class IsolationAppB(App):
     config = config.model_copy(update={"autodetect_apps": True, "app_dir": apps_dir})
 
     async with startup_context(config) as hassette:
-        key_a = next(key for key in hassette.app_handler.apps if "IsolationAppA" in key)
-        key_b = next(key for key in hassette.app_handler.apps if "IsolationAppB" in key)
-
-        app_a = hassette.app_handler.apps[key_a][0]
-        app_b = hassette.app_handler.apps[key_b][0]
+        _, app_a = _find_app(hassette, "IsolationAppA")
+        _, app_b = _find_app(hassette, "IsolationAppB")
         assert app_a.status == ResourceStatus.RUNNING
         assert app_b.status == ResourceStatus.RUNNING
 

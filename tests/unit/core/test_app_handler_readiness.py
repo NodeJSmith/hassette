@@ -62,14 +62,16 @@ class TestAppHandlerReadiness:
     async def test_not_ready_while_bootstrap_in_progress(self, app_handler: AppHandler) -> None:
         """AppHandler stays not-ready while bootstrap_apps is still running."""
         gate = asyncio.Event()
+        started = asyncio.Event()
 
         async def gated_bootstrap() -> None:
+            started.set()
             await gate.wait()
 
         app_handler.lifecycle.bootstrap_apps = gated_bootstrap
 
         task = asyncio.create_task(app_handler.after_initialize())
-        await asyncio.sleep(0)
+        await started.wait()
 
         assert not app_handler.is_ready(), "Should not be ready while bootstrap is gated"
 
