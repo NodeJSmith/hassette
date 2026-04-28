@@ -259,12 +259,11 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             self.children, timeout=effective_timeout, shutdown_event=self.hassette.shutdown_event
         )
         if not ready:
-            not_ready = [f"{c.class_name}({c.status.value})" for c in self.children if not c.is_ready()]
+            child_statuses = ", ".join(f"{c.class_name}({c.status.value})" for c in self.children)
             if self.hassette.shutdown_event.is_set():
-                detail = f"; not ready: {', '.join(not_ready)}" if not_ready else ""
-                reason = f"shutdown during wait{detail}"
+                reason = f"shutdown during wait after {effective_timeout}s; child statuses: {child_statuses}"
             else:
-                reason = ", ".join(not_ready) or "unknown"
+                reason = f"timed out after {effective_timeout}s; child statuses: {child_statuses}"
             raise TimeoutError(f"Children of {self.class_name} did not become ready: {reason}")
 
     async def _run_hooks(

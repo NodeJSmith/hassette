@@ -64,7 +64,7 @@ async def test_timeout_raises_with_diagnostics():
     parent.add_child(_ReadyOnInit)
     parent.add_child(_NeverReady)
 
-    with pytest.raises(TimeoutError, match=r"_NeverReady\("):
+    with pytest.raises(TimeoutError, match=r"timed out after 0\.1s.*_NeverReady"):
         await parent.start_children_and_wait(timeout=0.1)
 
 
