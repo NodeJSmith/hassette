@@ -114,14 +114,14 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
 
 
 def _session_ready(hassette: Hassette) -> bool:
-    """Check if Hassette has a valid session and the WebSocket is fully ready.
+    """Check if Hassette is fully ready: session, WebSocket, and all apps initialized.
 
     session_id > 0 becomes true after Phase 1 (database + session creation).
-    is_ready() now fires only after authentication AND event subscriptions
-    complete, so no private field access is needed.
+    websocket_service.is_ready() fires after authentication AND event subscriptions.
+    app_handler.is_ready() fires after bootstrap_apps() completes (all apps RUNNING or FAILED).
     """
     try:
-        return hassette.session_id > 0 and hassette.websocket_service.is_ready()
+        return hassette.session_id > 0 and hassette.websocket_service.is_ready() and hassette.app_handler.is_ready()
     except Exception:
         return False
 

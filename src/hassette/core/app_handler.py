@@ -93,10 +93,11 @@ class AppHandler(Resource):
     # --- Lifecycle hooks ---
 
     async def on_initialize(self) -> None:
-        """Set up file-watcher subscription and signal readiness.
+        """Set up file-watcher subscription.
 
         All declared dependencies (WebsocketService, ApiResource, BusService,
         SchedulerService, StateProxy) are guaranteed ready by depends_on auto-wait.
+        Readiness is deferred to after_initialize once bootstrap_apps completes.
         """
         if self.hassette.config.dev_mode or self.hassette.config.allow_reload_in_prod:
             if self.hassette.config.allow_reload_in_prod:
@@ -110,18 +111,16 @@ class AppHandler(Resource):
         else:
             self.logger.debug("Not watching for app changes, dev_mode is disabled")
 
-        self.mark_ready(reason="initialized")
-
     async def after_initialize(self) -> None:
-        """Spawn app bootstrap.
+        """Await app bootstrap, then signal readiness.
 
         All declared dependencies are guaranteed ready by depends_on auto-wait before
-        on_initialize() runs. bootstrap_apps runs in AppHandler's task_bucket; individual
-        app initializations are spawned into AppLifecycleService's task_bucket
-        (child Resource, shut down before parent).
+        on_initialize() runs. Readiness is deferred until bootstrap completes so the
+        wave-based startup in run_forever() does not proceed until apps are available.
         """
-        self.logger.debug("Scheduling app initialization")
-        self.task_bucket.spawn(self.lifecycle.bootstrap_apps())
+        self.logger.debug("Bootstrapping apps")
+        await self.lifecycle.bootstrap_apps()
+        self.mark_ready(reason="apps-bootstrapped")
 
     async def on_shutdown(self) -> None:
         """Shutdown all app instances gracefully."""

@@ -22,22 +22,10 @@ async def test_trivial_app_initializes(ha_container: str, tmp_path: Path, system
     config = config.model_copy(update={"autodetect_apps": True, "app_dir": system_app_dir})
 
     async with startup_context(config) as hassette:
-        await wait_for(
-            lambda: any("TrivialApp" in key for key in hassette.app_handler.apps),
-            timeout=15.0,
-            desc="TrivialApp to appear in app_handler.apps",
-        )
-
         trivial_key = next(key for key in hassette.app_handler.apps if "TrivialApp" in key)
         instances = hassette.app_handler.apps[trivial_key]
         assert len(instances) >= 1
-
-        app_instance = instances[0]
-        await wait_for(
-            lambda: app_instance.status == ResourceStatus.RUNNING,
-            timeout=15.0,
-            desc="TrivialApp to reach RUNNING status",
-        )
+        assert instances[0].status == ResourceStatus.RUNNING
 
 
 async def test_app_gets_working_api(ha_container: str, tmp_path: Path) -> None:
@@ -59,20 +47,9 @@ class ApiCheckApp(App):
     config = config.model_copy(update={"autodetect_apps": True, "app_dir": apps_dir})
 
     async with startup_context(config) as hassette:
-        await wait_for(
-            lambda: any("ApiCheckApp" in key for key in hassette.app_handler.apps),
-            timeout=15.0,
-            desc="ApiCheckApp to appear in app_handler.apps",
-        )
-
         app_key = next(key for key in hassette.app_handler.apps if "ApiCheckApp" in key)
         app_instance = hassette.app_handler.apps[app_key][0]
-
-        await wait_for(
-            lambda: app_instance.status == ResourceStatus.RUNNING,
-            timeout=15.0,
-            desc="ApiCheckApp to reach RUNNING status",
-        )
+        assert app_instance.status == ResourceStatus.RUNNING
 
         fetched = app_instance.fetched_states  # pyright: ignore[reportAttributeAccessIssue]
         assert len(fetched) > 0
@@ -84,20 +61,9 @@ async def test_app_bus_handler_fires(ha_container: str, tmp_path: Path, system_a
     config = config.model_copy(update={"autodetect_apps": True, "app_dir": system_app_dir})
 
     async with startup_context(config) as hassette:
-        await wait_for(
-            lambda: any("BusHandlerApp" in key for key in hassette.app_handler.apps),
-            timeout=15.0,
-            desc="BusHandlerApp to appear in app_handler.apps",
-        )
-
         app_key = next(key for key in hassette.app_handler.apps if "BusHandlerApp" in key)
         app_instance = hassette.app_handler.apps[app_key][0]
-
-        await wait_for(
-            lambda: app_instance.status == ResourceStatus.RUNNING,
-            timeout=15.0,
-            desc="BusHandlerApp to reach RUNNING status",
-        )
+        assert app_instance.status == ResourceStatus.RUNNING
 
         # toggle_and_capture cannot be used here — the handler is registered by the app, not the test
 
@@ -135,20 +101,9 @@ class SchedulerCheckApp(App):
     config = config.model_copy(update={"autodetect_apps": True, "app_dir": apps_dir})
 
     async with startup_context(config) as hassette:
-        await wait_for(
-            lambda: any("SchedulerCheckApp" in key for key in hassette.app_handler.apps),
-            timeout=15.0,
-            desc="SchedulerCheckApp to appear in app_handler.apps",
-        )
-
         app_key = next(key for key in hassette.app_handler.apps if "SchedulerCheckApp" in key)
         app_instance = hassette.app_handler.apps[app_key][0]
-
-        await wait_for(
-            lambda: app_instance.status == ResourceStatus.RUNNING,
-            timeout=15.0,
-            desc="SchedulerCheckApp to reach RUNNING status",
-        )
+        assert app_instance.status == ResourceStatus.RUNNING
 
         await wait_for(
             lambda: len(app_instance.fired) > 0,  # pyright: ignore[reportAttributeAccessIssue]
@@ -176,20 +131,9 @@ class StateCheckApp(App):
     config = config.model_copy(update={"autodetect_apps": True, "app_dir": apps_dir})
 
     async with startup_context(config) as hassette:
-        await wait_for(
-            lambda: any("StateCheckApp" in key for key in hassette.app_handler.apps),
-            timeout=15.0,
-            desc="StateCheckApp to appear in app_handler.apps",
-        )
-
         app_key = next(key for key in hassette.app_handler.apps if "StateCheckApp" in key)
         app_instance = hassette.app_handler.apps[app_key][0]
-
-        await wait_for(
-            lambda: app_instance.status == ResourceStatus.RUNNING,
-            timeout=15.0,
-            desc="StateCheckApp to reach RUNNING status",
-        )
+        assert app_instance.status == ResourceStatus.RUNNING
 
         light_states = app_instance.light_states  # pyright: ignore[reportAttributeAccessIssue]
         assert len(light_states) > 0
@@ -217,12 +161,6 @@ class ShutdownCheckApp(App):
     config = config.model_copy(update={"autodetect_apps": True, "app_dir": apps_dir})
 
     async with startup_context(config) as hassette:
-        await wait_for(
-            lambda: any("ShutdownCheckApp" in key for key in hassette.app_handler.apps),
-            timeout=15.0,
-            desc="ShutdownCheckApp to appear in app_handler.apps",
-        )
-
         app_key = next(key for key in hassette.app_handler.apps if "ShutdownCheckApp" in key)
         app_instance = hassette.app_handler.apps[app_key][0]
 
@@ -264,26 +202,13 @@ class IsolationAppB(App):
     config = config.model_copy(update={"autodetect_apps": True, "app_dir": apps_dir})
 
     async with startup_context(config) as hassette:
-        await wait_for(
-            lambda: (
-                any("IsolationAppA" in key for key in hassette.app_handler.apps)
-                and any("IsolationAppB" in key for key in hassette.app_handler.apps)
-            ),
-            timeout=15.0,
-            desc="Both IsolationAppA and IsolationAppB to appear in app_handler.apps",
-        )
-
         key_a = next(key for key in hassette.app_handler.apps if "IsolationAppA" in key)
         key_b = next(key for key in hassette.app_handler.apps if "IsolationAppB" in key)
 
         app_a = hassette.app_handler.apps[key_a][0]
         app_b = hassette.app_handler.apps[key_b][0]
-
-        await wait_for(
-            lambda: app_a.status == ResourceStatus.RUNNING and app_b.status == ResourceStatus.RUNNING,
-            timeout=15.0,
-            desc="Both apps to reach RUNNING status",
-        )
+        assert app_a.status == ResourceStatus.RUNNING
+        assert app_b.status == ResourceStatus.RUNNING
 
         # toggle_and_capture cannot be used here — the handler is registered by the app, not the test
         await hassette.api.call_service(_DOMAIN, "toggle", {"entity_id": _ENTITY})
