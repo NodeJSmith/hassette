@@ -190,6 +190,30 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     websocket_heartbeat_interval_seconds: int = Field(default=30)
     """Interval to send ping messages to keep the WebSocket connection alive. Passed to aiohttp."""
 
+    websocket_connect_retry_max_attempts: int = Field(default=5)
+    """Maximum number of attempts to establish the initial WebSocket connection before giving up."""
+
+    websocket_connect_retry_initial_wait_seconds: float = Field(default=1.0)
+    """Initial backoff wait in seconds between WebSocket connection retry attempts."""
+
+    websocket_connect_retry_max_wait_seconds: float = Field(default=32.0)
+    """Maximum backoff wait in seconds between WebSocket connection retry attempts."""
+
+    websocket_early_drop_stable_window_seconds: float = Field(default=30.0)
+    """Seconds a connection must stay alive before it is considered stable (resets early-drop counter)."""
+
+    websocket_early_drop_max_retries: int = Field(default=5)
+    """Maximum number of early-drop reconnect attempts before treating the failure as fatal."""
+
+    websocket_early_drop_backoff_initial_seconds: float = Field(default=2.0)
+    """Initial backoff wait in seconds between early-drop reconnect attempts."""
+
+    websocket_early_drop_backoff_max_seconds: float = Field(default=60.0)
+    """Maximum backoff wait in seconds between early-drop reconnect attempts."""
+
+    websocket_max_recovery_seconds: float = Field(default=300.0)
+    """Maximum total wall-clock seconds to spend on all WebSocket recovery attempts before giving up."""
+
     scheduler_min_delay_seconds: int = Field(default=1)
     """Minimum delay between scheduled jobs."""
 

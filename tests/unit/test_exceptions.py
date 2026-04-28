@@ -7,12 +7,12 @@ implementation mistake (``from_error_response`` dropping its ``code`` and
 positional-only construction remains backward compatible so every existing
 ``FailedMessageError("msg")`` call site continues to work.
 
-See ``design/specs/2037-helper-crud-api/tasks/WP03.md`` for the full spec.
+See ``design/specs/031-helper-crud-api/design.md`` for the full spec.
 """
 
 import pytest
 
-from hassette.exceptions import FailedMessageError
+from hassette.exceptions import ConnectionClosedError, FailedMessageError, RetryableConnectionClosedError
 
 
 def test_failed_message_error_backward_compat_positional_only() -> None:
@@ -111,3 +111,31 @@ def test_failed_message_error_chain_preserves_original() -> None:
     assert isinstance(cause, FailedMessageError)
     assert cause.code == "a"
     assert cause.original_data == {"k": 1}
+
+
+# ---------------------------------------------------------------------------
+# RetryableConnectionClosedError tests
+# ---------------------------------------------------------------------------
+
+
+def test_retryable_connection_closed_error_default_close_code() -> None:
+    """close_code defaults to None when not provided."""
+    e = RetryableConnectionClosedError("connection dropped")
+
+    assert str(e) == "connection dropped"
+    assert e.close_code is None
+
+
+def test_retryable_connection_closed_error_with_close_code() -> None:
+    """close_code is stored when provided as keyword argument."""
+    e = RetryableConnectionClosedError("connection dropped", close_code=1006)
+
+    assert str(e) == "connection dropped"
+    assert e.close_code == 1006
+
+
+def test_retryable_connection_closed_error_inheritance() -> None:
+    """RetryableConnectionClosedError is still a subclass of ConnectionClosedError."""
+    e = RetryableConnectionClosedError("connection dropped")
+
+    assert isinstance(e, ConnectionClosedError)

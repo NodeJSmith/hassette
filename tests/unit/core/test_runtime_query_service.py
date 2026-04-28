@@ -60,7 +60,7 @@ def mock_hassette():
     hassette._state_proxy.is_ready.return_value = True
 
     # Mock websocket service
-    hassette._websocket_service.status = "running"
+    hassette._websocket_service.status = ResourceStatus.RUNNING
 
     # Mock app handler
     _instance = AppInstanceInfo(
@@ -339,6 +339,22 @@ class TestSystemStatus:
         assert status.entity_count == 2
         assert status.app_count == 1
         assert isinstance(status.services_running, list)
+
+    def test_system_status_ws_connected_reflects_readiness(self, runtime: RuntimeQueryService) -> None:
+        """ws_connected is False when websocket_service.is_ready() returns False.
+
+        This covers the early-drop retry case: status is RUNNING but the service
+        is not ready (the WebSocket dropped post-auth and a retry is in progress).
+        """
+        runtime.hassette.websocket_service.is_ready.return_value = False
+        status = runtime.get_system_status()
+        assert status.websocket_connected is False
+
+    def test_system_status_ws_connected_true_when_ready(self, runtime: RuntimeQueryService) -> None:
+        """ws_connected is True when websocket_service.is_ready() returns True."""
+        runtime.hassette.websocket_service.is_ready.return_value = True
+        status = runtime.get_system_status()
+        assert status.websocket_connected is True
 
 
 class TestWebSocketClientManagement:

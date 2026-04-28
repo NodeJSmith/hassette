@@ -5,7 +5,7 @@ Global settings control how Hassette runs and connects to Home Assistant. These 
 **Most users only need the first few sections.** The settings are organized from most to least commonly configured:
 
 - **Common** — [Connection](#connection-settings), [Runtime](#runtime-settings), [Storage](#storage-settings), [Web UI](#web-ui-settings), [Database](#database-settings)
-- **Advanced** — [Timeouts](#timeout-settings), [Scheduler](#scheduler-settings), [Logging](#logging-settings), [Bus Filtering](#bus-filtering-settings), [Production](#production-settings), [App Detection](#app-detection-settings), [Service Restart Policy](#service-restart-policy), [Other Advanced](#other-advanced-settings)
+- **Advanced** — [Timeouts](#timeout-settings), [WebSocket Resilience](#websocket-resilience), [Scheduler](#scheduler-settings), [Logging](#logging-settings), [Bus Filtering](#bus-filtering-settings), [Production](#production-settings), [App Detection](#app-detection-settings), [Service Restart Policy](#service-restart-policy), [Other Advanced](#other-advanced-settings)
 
 ---
 
@@ -130,6 +130,45 @@ These settings control how long Hassette waits for various operations before giv
 | `websocket_connection_timeout_seconds` | integer | `5` | Time to wait for the WebSocket connection to establish. |
 | `websocket_total_timeout_seconds` | integer | `30` | Total time for WebSocket operations to complete. |
 | `websocket_heartbeat_interval_seconds` | integer | `30` | Interval for WebSocket keepalive pings. |
+
+### WebSocket Resilience
+
+Hassette uses a three-layer retry model to keep the connection to Home Assistant stable across brief disruptions:
+
+| Layer | What it handles | Config prefix |
+|-------|-----------------|---------------|
+| **Connection retry** | Initial TCP connect, authentication, and event subscription failures | `websocket_connect_retry_*` |
+| **Early-drop retry** | Post-authentication drops that happen within a short window after connect (e.g. HA restarting while Hassette is running) | `websocket_early_drop_*` |
+| **Service restart** | Persistent failures after the inner retries are exhausted — Hassette restarts the WebSocket service entirely | `service_restart_*` |
+
+Each layer is independently configurable. The inner layer must exhaust all its attempts before the next layer takes over.
+
+**Connection-level retry** (tunes how Hassette reconnects when the initial connection attempt fails):
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `websocket_connect_retry_max_attempts` | integer | `5` | Maximum number of connection attempts before giving up and escalating to the service restart layer. |
+| `websocket_connect_retry_initial_wait_seconds` | float | `1.0` | Initial wait between connection retry attempts. Doubles after each failure (exponential backoff with jitter). |
+| `websocket_connect_retry_max_wait_seconds` | float | `32.0` | Maximum wait between connection retry attempts. Caps the exponential growth. |
+
+**Early-drop retry** (tunes how Hassette handles connections that drop shortly after being established):
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `websocket_early_drop_stable_window_seconds` | float | `30.0` | How long (in seconds) after a successful connect a disconnect is considered an "early drop" and eligible for fast retry. Drops outside this window are treated as genuine failures. |
+| `websocket_early_drop_max_retries` | integer | `5` | Maximum number of early-drop retries before escalating to the service restart layer. |
+| `websocket_early_drop_backoff_initial_seconds` | float | `2.0` | Initial wait between early-drop retry attempts. Jitter (up to this value) is added to each wait to prevent synchronized reconnection storms. |
+| `websocket_early_drop_backoff_max_seconds` | float | `60.0` | Maximum wait between early-drop retry attempts (before jitter). |
+| `websocket_max_recovery_seconds` | float | `300.0` | Total wall-clock cap (in seconds) for the early-drop retry loop. When this budget is exceeded, the current failure escalates to the service restart layer regardless of remaining per-retry attempts. This prevents the worst-case scenario where many retries each at maximum backoff add up to an unreasonably long recovery window. |
+
+**When to tune these settings:**
+
+- **Slow HA restarts** (>30 seconds): Increase `websocket_early_drop_stable_window_seconds` so drops during HA startup are still treated as early-drops eligible for fast retry.
+- **Flaky networks**: Increase `websocket_connect_retry_max_attempts` and `websocket_connect_retry_max_wait_seconds` to tolerate longer transient outages.
+- **Low tolerance for downtime**: Decrease `websocket_early_drop_backoff_initial_seconds` and `websocket_early_drop_backoff_max_seconds` to retry more aggressively.
+- **Large service restart budgets**: Increase `websocket_max_recovery_seconds` so Hassette keeps retrying rather than handing off to the slower service-restart layer.
+
+For the service restart layer settings, see [Service Restart Policy](#service-restart-policy).
 
 ### Timeouts
 

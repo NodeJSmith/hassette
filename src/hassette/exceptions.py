@@ -48,6 +48,10 @@ class CouldNotFindHomeAssistantError(FatalError):
 class RetryableConnectionClosedError(ConnectionClosedError):
     """Custom exception to indicate that the WebSocket connection was closed but can be retried."""
 
+    def __init__(self, msg: str, *, close_code: int | None = None) -> None:
+        super().__init__(msg)
+        self.close_code = close_code
+
 
 class FailedMessageError(HassetteError):
     """Custom exception to indicate that a message sent to the WebSocket failed.
