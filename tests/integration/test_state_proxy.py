@@ -402,6 +402,48 @@ class TestStateProxyWebsocketListeners:
 
         await proxy.on_initialize()  # Ensure it can be used in later tests
 
+    async def test_on_disconnect_first_call_clears_cache(self, state_proxy: "StateProxy") -> None:
+        """on_disconnect clears the cache on the first call when proxy is ready."""
+        # Add some states to verify they get cleared
+        state_proxy.states["light.test"] = make_light_state_dict("light.test", "on")
+        state_proxy.states["sensor.test"] = make_sensor_state_dict("sensor.test", "20")
+        assert len(state_proxy.states) == 2
+        assert state_proxy.is_ready()
+
+        await state_proxy.on_disconnect()
+
+        # Cache cleared and proxy not ready
+        assert len(state_proxy.states) == 0
+        assert not state_proxy.is_ready()
+
+    async def test_on_disconnect_idempotent(self, state_proxy: "StateProxy") -> None:
+        """on_disconnect is a no-op when StateProxy is already not-ready.
+
+        During early-drop retry cycles, StateProxy may receive multiple DISCONNECTED
+        events. After the first call clears the cache and marks not-ready, all
+        subsequent calls must be no-ops to prevent redundant cache-clear and REST
+        API fetch cycles.
+        """
+        # Set up: proxy is ready, states populated
+        state_proxy.states["light.test"] = make_light_state_dict("light.test", "on")
+
+        # First call: clears cache and marks not-ready
+        await state_proxy.on_disconnect()
+        assert not state_proxy.is_ready()
+        assert len(state_proxy.states) == 0
+
+        # Add a sentinel to the states dict to detect a second cache clear
+        state_proxy.states["sentinel.entity"] = make_light_state_dict("sentinel.entity", "on")
+
+        # Second call: must be a no-op — sentinel must survive
+        with patch.object(state_proxy, "mark_not_ready") as mock_mark_not_ready:
+            await state_proxy.on_disconnect()
+
+        # Sentinel untouched — cache was NOT cleared again
+        assert "sentinel.entity" in state_proxy.states
+        # mark_not_ready was NOT called again
+        mock_mark_not_ready.assert_not_called()
+
 
 class TestStateProxyShutdown:
     """Tests for shutdown behavior."""

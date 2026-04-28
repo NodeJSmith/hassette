@@ -272,7 +272,14 @@ class StateProxy(Resource):
         Clears the cache when Home Assistant stops. The cache will be rebuilt when
         Home Assistant starts and we receive state_changed events again, or when
         we detect a reconnection.
+
+        This method is idempotent: if StateProxy is already not-ready (cache already
+        cleared from a previous disconnect), subsequent calls are no-ops. This prevents
+        redundant cache-clear and REST API fetch cycles during early-drop retry loops.
         """
+        if not self.is_ready():
+            return
+
         self.logger.info("WebSocket disconnected, clearing state cache")
 
         # clear the state cache

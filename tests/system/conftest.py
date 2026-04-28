@@ -339,6 +339,13 @@ def _ws_probe(ws_url: str, hold_seconds: float = 3) -> None:
     Raises on any failure — connection refused, auth rejected, or HA dropping
     the connection during the hold window. Uses the synchronous websockets
     client to avoid conflicts with the test's running event loop.
+
+    Defense-in-depth: production code (WebsocketService early-drop retry loop) now
+    handles post-authentication drops automatically, so system tests no longer rely
+    on this probe as their primary stability guard. However, the probe is retained
+    here because it catches the same HA startup-window flakiness at the fixture
+    level — before any test starts — which reduces test noise and avoids waiting
+    for Hassette's backoff timers during normal CI runs.
     """
     from websockets.sync.client import connect
 

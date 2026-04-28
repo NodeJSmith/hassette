@@ -366,7 +366,7 @@ The `wait_for_ha_ready()` hold-probe should become unnecessary for test reliabil
 
 ## Documentation Updates
 
-- **Config reference** (`docs/`): Add the 7 new configuration fields with types, defaults, and descriptions. Add a subsection explaining the three-layer retry model and when to tune each layer.
+- **Config reference** (`docs/`): Add the 8 new configuration fields with types, defaults, and descriptions. Add a subsection explaining the three-layer retry model and when to tune each layer.
 - **Docstrings**: `serve()`, `_connect_ws()`, `_start_recv_and_subscribe()`, `_partial_cleanup()` — describe the method's responsibility and where it sits in the connection lifecycle.
 - **Architecture page** (if one covers the WebSocket service): Update to reflect the three-layer retry model.
 
