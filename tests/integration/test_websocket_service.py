@@ -30,7 +30,6 @@ def websocket_service(hassette_with_bus: "HassetteHarness") -> WebsocketService:
 def _build_fake_ws(*, is_closed: bool = False) -> ClientWebSocketResponse:
     """Return a lightweight websocket stub with adjustable state."""
     fake_ws = SimpleNamespace()
-    fake_ws._conn = SimpleNamespace(closed=is_closed)
     fake_ws.closed = is_closed
     fake_ws.send_json = AsyncMock()
     fake_ws.receive_json = AsyncMock()
@@ -56,7 +55,7 @@ async def test_connected_reflects_websocket_state(websocket_service: WebsocketSe
     websocket_service._ws = fake_ws
     assert websocket_service.connected is True
 
-    fake_ws._conn.closed = True  # pyright: ignore
+    fake_ws.closed = True  # pyright: ignore
     assert websocket_service.connected is False
 
 
@@ -278,6 +277,19 @@ async def test_raw_recv_raises_on_closing_frame(websocket_service: WebsocketServ
 
     with pytest.raises(RetryableConnectionClosedError):
         await websocket_service._raw_recv()
+
+
+async def test_raw_recv_raises_on_error_frame(websocket_service: WebsocketService) -> None:
+    """Raise RetryableConnectionClosedError when an ERROR frame is received."""
+    fake_ws = _build_fake_ws()
+    socket_error = RuntimeError("socket error")
+    fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.ERROR, data=socket_error))
+    websocket_service._ws = fake_ws
+
+    with pytest.raises(RetryableConnectionClosedError) as exc_info:
+        await websocket_service._raw_recv()
+
+    assert exc_info.value.__cause__ is socket_error
 
 
 # --- Disconnect handling on recv loop failure ---

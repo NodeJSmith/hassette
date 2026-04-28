@@ -117,13 +117,7 @@ class WebsocketService(Service):
 
     @property
     def connected(self) -> bool:
-        if self._ws is None:
-            return False
-
-        if self._ws._conn is None:
-            return False
-
-        return not self._ws._conn.closed
+        return self._ws is not None and not self._ws.closed
 
     def get_next_message_id(self) -> int:
         """Get the next message ID."""
@@ -403,6 +397,10 @@ class WebsocketService(Service):
         if msg_type == WSMsgType.CLOSING:
             self.logger.debug("WebSocket is closing - exiting receive loop")
             raise RetryableConnectionClosedError("WebSocket is closing")
+
+        if msg_type == WSMsgType.ERROR:
+            exc = msg.data if isinstance(msg.data, BaseException) else None
+            raise RetryableConnectionClosedError(f"WebSocket error frame received: {msg.data!r}") from exc
 
         self.logger.warning("Received unexpected message type: %r", msg_type)
 
