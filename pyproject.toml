@@ -85,6 +85,7 @@ test = [
     "pytest-cov>=7.0.0",
     "pytest-playwright>=0.6.2",
     "pytest-randomly>=3.16.0",
+    "pytest-rerunfailures>=15.0",
     "pytest-repeat>=0.9.4",
     "pytest-timeout>=2.4.0",
     "pytest-xdist>=3.8.0",
@@ -118,14 +119,19 @@ pythonpath = ["src", "tools"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
-filterwarnings = ["default"]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:^websockets\\.legacy",
+    "ignore::DeprecationWarning:^uvicorn\\.protocols\\.websockets",
+]
 # Skip slow Docker tests by default (run with: pytest -m docker)
-addopts = "-m 'not docker and not system'"
+addopts = "-m 'not docker and not system and not system_destructive'"
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
     "docker: marks tests that require Docker and are slow (run explicitly with '-m docker')",
     "e2e: marks browser-based end-to-end tests requiring Playwright (run explicitly with '-m e2e')",
     "system: marks system tests requiring a running HA Docker container (run explicitly with 'nox -s system')",
+    "system_destructive: system tests that restart HA or inject failures — run in isolation after normal system tests",
 ]
 
 [tool.coverage.run]

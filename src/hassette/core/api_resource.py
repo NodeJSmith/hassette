@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import typing
 from asyncio import CancelledError
@@ -85,6 +86,7 @@ class ApiResource(Resource):
 
     async def on_shutdown(self) -> None:
         await self._stack.aclose()
+        await asyncio.sleep(0.25 if self.hassette.config.verify_ssl else 0)
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -134,8 +136,8 @@ class ApiResource(Resource):
             suppress_error_message: bool = False,
             **kwargs,
         ) -> aiohttp.ClientResponse:
-            if self._session is None:
-                raise RuntimeError("Client session is not connected")
+            if self._session is None or self._session.closed:
+                raise ResourceNotReadyError("Client session is not connected")
 
             params = clean_kwargs(**(params or {}))
             str_data = orjson_dump(data or {})

@@ -7,6 +7,7 @@ from functools import cached_property
 from logging import INFO, Logger, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
+from anyio import ClosedResourceError
 from diskcache import Cache
 
 from hassette.exceptions import CannotOverrideFinalError, FatalError
@@ -475,8 +476,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if self._shutting_down:
             return
         self._shutting_down = True
-        self.request_shutdown("shutdown")
-        self.logger.debug("Shutting down %s: %s", self.role, self.unique_name)
+        self.request_shutdown(f"{self.unique_name} shutdown")
 
         try:
             await self._run_hooks(
@@ -609,15 +609,24 @@ class Service(Resource):
         if self._shutting_down:
             return
         self._shutting_down = True
-        self.request_shutdown("shutdown")
-        self.logger.debug("Shutting down %s: %s", self.role, self.unique_name)
+        self.request_shutdown(f"{self.unique_name} shutdown")
         try:
             await self._run_hooks([self.before_shutdown], continue_on_error=True)
             if self.is_running() and self._serve_task:
                 self._serve_task.cancel()
                 self.logger.debug("Cancelled serve() task")
-                with suppress(asyncio.CancelledError):
-                    await self._serve_task
+                try:
+                    await asyncio.wait_for(
+                        self._serve_task,
+                        timeout=self.hassette.config.resource_shutdown_timeout_seconds,
+                    )
+                except asyncio.CancelledError:
+                    pass
+                except TimeoutError:
+                    self.logger.warning(
+                        "Serve task for %s did not complete within resource shutdown timeout",
+                        self.unique_name,
+                    )
             await self._run_hooks([self.on_shutdown, self.after_shutdown], continue_on_error=True)
         finally:
             await self._finalize_shutdown()
@@ -634,6 +643,14 @@ class Service(Resource):
             with suppress(Exception):
                 await self.handle_stop()
             raise
+        except ClosedResourceError as exc:
+            if not self.hassette.shutdown_event.is_set():
+                self.logger.error("Serve() task raised ClosedResourceError outside shutdown")
+                with suppress(Exception):
+                    await self.handle_failed(exc)
+                return
+            with suppress(Exception):
+                await self.handle_stop()
         except FatalError as e:
             self.logger.error("Serve() task failed with fatal error: %s %s", type(e).__name__, e)
             # Crash/failure path

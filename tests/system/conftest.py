@@ -2,6 +2,8 @@
 
 import asyncio
 import contextlib
+import json
+import logging
 import os
 import shutil
 import socket
@@ -22,12 +24,15 @@ from hassette.config.config import HassetteConfig
 from hassette.events import RawStateChangeEvent
 from hassette.test_utils import wait_for
 
+logger = logging.getLogger(__name__)
+
 COMPOSE_FILE = Path(__file__).parent / "docker-compose.yml"
 FIXTURE_DIR = Path(__file__).parent.parent / "fixtures" / "ha-config"
 HA_URL = "http://localhost:18123"
 HA_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMyIsImlhdCI6MTczNTY4OTYwMCwiZXhwIjoyMDUxMDQ5NjAwfQ.q-p85dOe-MMnKQhSNh_LEWnWJGK-GA3xdmqb4LKvkU0"  # noqa: E501 — JWT cannot be line-wrapped
 HA_CONTAINER_NAME = "hassette-system-ha"
 STARTUP_TIMEOUT = 60  # seconds
+SHUTDOWN_TIMEOUT = 15  # seconds
 
 
 class _SystemTestConfig(HassetteConfig):
@@ -109,20 +114,14 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
 
 
 def _session_ready(hassette: Hassette) -> bool:
-    """Check if Hassette has created a valid session, WebSocket is connected, and event subscriptions are active.
+    """Check if Hassette has a valid session and the WebSocket is fully ready.
 
-    session_id > 0 becomes true after Phase 1 (database + session creation), but
-    the WebSocket (Phase 2) may not be connected yet. Tests that call API methods
-    need the WebSocket to be ready. Additionally, mark_ready() fires before
-    _subscribe_events() completes — checking _subscription_ids ensures HA will
-    actually deliver events before the test starts sending commands.
+    session_id > 0 becomes true after Phase 1 (database + session creation).
+    is_ready() now fires only after authentication AND event subscriptions
+    complete, so no private field access is needed.
     """
     try:
-        return (
-            hassette.session_id > 0
-            and hassette.websocket_service.is_ready()
-            and bool(hassette.websocket_service._subscription_ids)
-        )
+        return hassette.session_id > 0 and hassette.websocket_service.is_ready()
     except Exception:
         return False
 
@@ -158,13 +157,12 @@ async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIte
         yield hassette
     finally:
         hassette.shutdown_event.set()
-        with contextlib.suppress(asyncio.CancelledError):
-            await task
-        # If run_forever already called shutdown (via shutdown_event), ensure
-        # a full shutdown still runs. This handles the case where shutdown was
-        # stubbed during a test — run_forever's finally called the stub, so
-        # resources were never cleaned up. The _shutdown_completed guard makes
-        # this a no-op if real shutdown already ran.
+        try:
+            await asyncio.wait_for(task, timeout=SHUTDOWN_TIMEOUT)
+        except asyncio.CancelledError:
+            pass
+        except TimeoutError:
+            logger.warning("Hassette shutdown timed out after 15s — forcing fallback")
         if not hassette._shutdown_completed:
             with contextlib.suppress(Exception):
                 await hassette.shutdown()
@@ -291,13 +289,18 @@ async def wait_for_web_server(base_url: str, *, timeout: float = 30.0) -> None:
     raise TimeoutError(f"Web server at {base_url} did not start within {timeout}s: {last_exc}")
 
 
-def wait_for_ha_ready(base_url: str = HA_URL, *, timeout: float = 60.0) -> None:
-    """Block until HA's REST API responds 200 consistently.
+def wait_for_ha_ready(base_url: str = HA_URL, *, timeout: float = 60.0, stable_checks: int = 3) -> None:
+    """Block until HA's REST API responds 200 consistently and a WebSocket handshake succeeds.
 
-    Called before reconnection tests to ensure HA has fully stabilized
-    after a prior docker restart.
+    A single REST 200 is not sufficient — after a docker restart, HA may
+    accept REST requests while its WebSocket handler is still initializing,
+    causing connections to drop ~10s later. This function requires consecutive
+    REST successes, then verifies a WebSocket can connect and authenticate.
     """
     deadline = time.monotonic() + timeout
+
+    # Phase 1: consecutive REST checks
+    consecutive = 0
     while time.monotonic() < deadline:
         try:
             r = httpx.get(
@@ -306,11 +309,47 @@ def wait_for_ha_ready(base_url: str = HA_URL, *, timeout: float = 60.0) -> None:
                 timeout=3,
             )
             if r.status_code == 200:
-                return
+                consecutive += 1
+                if consecutive >= stable_checks:
+                    break
+            else:
+                consecutive = 0
         except Exception:
-            pass
-        time.sleep(2)
-    raise TimeoutError(f"HA did not become ready within {timeout}s")
+            consecutive = 0
+        time.sleep(1)
+    else:
+        raise TimeoutError(f"HA REST API did not stabilize within {timeout}s")
+
+    # Phase 2: verify WebSocket connects, authenticates, and stays open briefly.
+    # HA may accept the WS handshake but drop it seconds later while still
+    # initializing — holding the connection for a few seconds catches this.
+    ws_url = base_url.replace("http", "ws") + "/api/websocket"
+    while time.monotonic() < deadline:
+        try:
+            _ws_probe(ws_url, hold_seconds=3)
+            return
+        except Exception:
+            time.sleep(1)
+    raise TimeoutError(f"HA WebSocket did not stabilize within {timeout}s")
+
+
+def _ws_probe(ws_url: str, hold_seconds: float = 3) -> None:
+    """Open a WebSocket, authenticate, hold for ``hold_seconds``, then close.
+
+    Raises on any failure — connection refused, auth rejected, or HA dropping
+    the connection during the hold window. Uses the synchronous websockets
+    client to avoid conflicts with the test's running event loop.
+    """
+    from websockets.sync.client import connect
+
+    with connect(ws_url) as ws:
+        msg = json.loads(ws.recv(timeout=5))
+        assert msg["type"] == "auth_required"
+        ws.send(json.dumps({"type": "auth", "access_token": HA_TOKEN}))
+        msg = json.loads(ws.recv(timeout=5))
+        if msg["type"] != "auth_ok":
+            raise RuntimeError(f"WS auth failed: {msg}")
+        time.sleep(hold_seconds)
 
 
 @pytest.fixture(scope="session")

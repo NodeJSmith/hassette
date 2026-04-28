@@ -11,7 +11,7 @@ from hassette.types.enums import ResourceStatus
 
 from .conftest import make_system_config, startup_context
 
-pytestmark = [pytest.mark.system]
+pytestmark = [pytest.mark.system_destructive]
 
 
 async def test_clean_shutdown(ha_container: str, tmp_path) -> None:
@@ -88,3 +88,7 @@ async def test_failed_service_cascade_triggers_shutdown(ha_container: str, tmp_p
             )
         finally:
             hassette.shutdown = real_shutdown  # pyright: ignore[reportAttributeAccessIssue]
+            # Remove manually-injected child to prevent its lingering tasks from
+            # polluting the shared session-scoped event loop in subsequent tests.
+            if failing_service in hassette.children:
+                hassette.children.remove(failing_service)

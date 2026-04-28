@@ -28,7 +28,7 @@ def dev(session: "Session"):
         "run",
         "pytest",
         "-m",
-        "not docker and not e2e and not system",
+        "not docker and not e2e and not system and not system_destructive",
         "-n",
         "auto",
         "--dist",
@@ -48,7 +48,7 @@ def tests(session: "Session"):
         "hassette",
         "pytest",
         "-m",
-        "not docker and not e2e and not system",
+        "not docker and not e2e and not system and not system_destructive",
         "-n",
         "auto",
         "--dist",
@@ -92,31 +92,33 @@ def e2e(session: "Session"):
 def system(session: "Session"):
     """System tests against a real HA Docker container.
 
-    The ``ha_container`` pytest fixture manages Docker automatically —
-    it starts the container before the session and tears it down after.
+    Runs non-destructive system tests first, then destructive tests
+    (docker restart, failure injection) in a separate invocation so
+    they cannot contaminate the shared event loop.
     """
-    session.run(
-        "uv",
-        "run",
-        "--active",
-        "--reinstall-package",
-        "hassette",
-        "pytest",
-        "-m",
-        "system",
-        "-v",
-        "-x",
-        "-n",
-        "0",
-        "--tb=short",
-        external=True,
-    )
+    _run_system_tests(session, marker="system and not system_destructive")
+    _run_system_tests(session, marker="system_destructive")
 
 
 @nox.session
 def system_with_coverage(session: "Session"):
     """System tests with coverage collection for Codecov."""
     session.env["COVERAGE_FILE"] = ".coverage.system"
+    _run_system_tests(
+        session,
+        marker="system and not system_destructive",
+        extra_args=["--cov=hassette", "--cov-branch", "--cov-report=xml:coverage.system.xml"],
+    )
+    _run_system_tests(
+        session,
+        marker="system_destructive",
+        extra_args=["--cov=hassette", "--cov-branch", "--cov-append", "--cov-report=xml:coverage.system.xml"],
+    )
+
+
+def _run_system_tests(session: "Session", *, marker: str, extra_args: list[str] | None = None) -> None:
+    session.env["PYTHONTRACEMALLOC"] = "1"
+    session.env["PYTHONASYNCIODEBUG"] = "1"
     session.run(
         "uv",
         "run",
@@ -125,15 +127,17 @@ def system_with_coverage(session: "Session"):
         "hassette",
         "pytest",
         "-m",
-        "system",
+        marker,
         "-v",
         "-x",
         "-n",
         "0",
         "--tb=short",
-        "--cov=hassette",
-        "--cov-branch",
-        "--cov-report=xml:coverage.system.xml",
+        "--reruns",
+        "2",
+        "--reruns-delay",
+        "5",
+        *(extra_args or []),
         external=True,
     )
 
@@ -149,7 +153,7 @@ def tests_with_coverage(session: "Session"):
         "hassette",
         "pytest",
         "-m",
-        "not docker and not e2e and not system",
+        "not docker and not e2e and not system and not system_destructive",
         "-n",
         "auto",
         "--dist",

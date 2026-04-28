@@ -178,29 +178,42 @@ class DatabaseService(Service):
 
     async def on_shutdown(self) -> None:
         """Drain the write queue, cancel the worker, then close the database connection."""
-        if self._db_worker_task is not None:
-            queue, self._db_write_queue = self._db_write_queue, None
-            if queue is not None:
-                await queue.join()
-            self._db_worker_task.cancel()
-            await asyncio.gather(self._db_worker_task, return_exceptions=True)
-            self._db_worker_task = None
+        try:
+            if self._db_worker_task is not None:
+                queue, self._db_write_queue = self._db_write_queue, None
+                if queue is not None:
+                    await queue.join()
+                self._db_worker_task.cancel()
+                await asyncio.gather(self._db_worker_task, return_exceptions=True)
+                self._db_worker_task = None
+        except Exception:
+            self.logger.exception("Error draining write queue during shutdown")
+        finally:
+            await self._close_connections()
 
-        if self._read_db is not None:
+    async def _close_connections(self) -> None:
+        """Close both database connections. Idempotent — safe to call multiple times."""
+        for attr in ("_read_db", "_db"):
+            conn: aiosqlite.Connection | None = getattr(self, attr)
+            if conn is None:
+                continue
             try:
-                await self._read_db.close()
+                await conn.close()
             except Exception:
-                self.logger.exception("Failed to close read database connection")
+                self.logger.exception("Failed to close %s async — falling back to sync stop()", attr)
+                conn.stop()
             finally:
-                self._read_db = None
+                thread = getattr(conn, "_thread", None)
+                if thread is not None and thread.is_alive():
+                    await asyncio.to_thread(thread.join, 5.0)
+                    if thread.is_alive():
+                        self.logger.warning("aiosqlite background thread for %s did not exit within 5s", attr)
+                setattr(self, attr, None)
 
-        if self._db is not None:
-            try:
-                await self._db.close()
-            except Exception:
-                self.logger.exception("Failed to close database connection")
-            finally:
-                self._db = None
+    async def cleanup(self, timeout: int | None = None) -> None:
+        """Close database connections if on_shutdown was interrupted or never ran."""
+        await self._close_connections()
+        await super().cleanup(timeout)
 
     async def _db_write_worker(self) -> None:
         """Drain _db_write_queue sequentially.

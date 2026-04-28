@@ -110,6 +110,10 @@ class SessionManager(Resource):
                 self.logger.warning("Cannot record crash — database not initialized")
                 return
 
+            if self._database_service._db_write_queue is None:
+                self.logger.warning("Cannot record crash — database write queue shut down")
+                return
+
             self._session_error = True
             self.logger.info("Recorded service crash: %s (%s)", data.resource_name, data.exception_type)
             await self._database_service.submit(self._do_on_service_crashed(event))

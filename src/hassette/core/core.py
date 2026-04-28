@@ -382,6 +382,9 @@ class Hassette(Resource):
         """Send an event to the event bus."""
         if self._event_stream_service is None:
             raise RuntimeError("wire_services() has not been called")
+        if self.event_streams_closed:
+            self.logger.debug("send_event dropped: streams closed (topic=%s)", event_name)
+            return
         await self._event_stream_service.send_event(event_name, event)
 
     async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: float | None = None) -> bool:
@@ -557,6 +560,8 @@ class Hassette(Resource):
         FinalMeta exempts Hassette from the @final on Resource.shutdown().
         This ensures hooks + child propagation + cleanup all share one budget.
         """
+        if not self._shutdown_completed and not self._shutting_down:
+            self.logger.info("Hassette shutdown initiated", stacklevel=2)
         try:
             async with asyncio.timeout(self.config.total_shutdown_timeout_seconds):
                 await super().shutdown()
