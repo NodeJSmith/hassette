@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 import typing
 from contextlib import AsyncExitStack, suppress
 from itertools import count
@@ -78,6 +79,9 @@ class WebsocketService(Service):
     _connect_lock: asyncio.Lock
     """Lock to prevent concurrent connection attempts."""
 
+    _connected_at: float | None
+    """Monotonic timestamp of the most recent successful connection, or None."""
+
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         self.url = self.hassette.ws_url
@@ -89,6 +93,7 @@ class WebsocketService(Service):
         self._recv_task = None
         self._subscription_ids = set()
         self._connect_lock = asyncio.Lock()
+        self._connected_at = None
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -145,38 +150,90 @@ class WebsocketService(Service):
                         await self._send_connection_lost_event()
                     raise
 
+    async def _connect_ws(self, session: aiohttp.ClientSession) -> None:
+        """Open the WebSocket connection and authenticate.
+
+        Sets self._ws. Converts ClientConnectorError with ConnectionRefusedError cause
+        to CouldNotFindHomeAssistantError.
+
+        Args:
+            session: The aiohttp ClientSession to use for the WebSocket connection.
+        """
+        self._session = session
+
+        try:
+            self._ws = await session.ws_connect(
+                self.url, heartbeat=self.heartbeat_interval_seconds, ssl=self.hassette.config.verify_ssl
+            )
+        except ClientConnectorError as exc:
+            if exc.__cause__ and isinstance(exc.__cause__, ConnectionRefusedError):
+                raise CouldNotFindHomeAssistantError(self.url) from exc.__cause__
+            raise
+
+        self.logger.debug("Connected to WebSocket at %s", self.url)
+        await self.authenticate()
+
+    async def _start_recv_and_subscribe(self) -> asyncio.Task:
+        """Spawn the recv loop, send connection event, subscribe, mark ready, and record connected_at.
+
+        Returns:
+            The recv loop task.
+        """
+        # start reader first so send_and_wait can get replies
+        recv_task = self.task_bucket.spawn(self._recv_loop(), name="ws:recv")
+
+        await self._send_connection_established_event()
+        self._subscription_ids.add(await self._subscribe_events())
+
+        self.mark_ready(reason="WebSocket connected, authenticated, and subscribed")
+        self._connected_at = time.monotonic()
+        return recv_task
+
+    async def _partial_cleanup(self) -> None:
+        """Cancel recv task, close WebSocket, clear futures and subscriptions.
+
+        Does NOT close self._session — that is owned by serve()'s async with block.
+        Suppresses all exceptions so cleanup never prevents retry.
+        """
+        if self._recv_task is not None:
+            self._recv_task.cancel()
+            with suppress(Exception):
+                await asyncio.wait_for(
+                    asyncio.gather(self._recv_task, return_exceptions=True),
+                    timeout=2.0,
+                )
+
+        if self._ws is not None and not self._ws.closed:
+            with suppress(Exception):
+                await self._ws.close()
+
+        for fut in list(self._response_futures.values()):
+            if not fut.done():
+                with suppress(Exception):
+                    fut.set_exception(RetryableConnectionClosedError("WebSocket disconnected"))
+        self._response_futures.clear()
+        self._subscription_ids.clear()
+        self._ws = None
+        self._recv_task = None
+
     async def _make_connection(self, session: aiohttp.ClientSession) -> asyncio.Task:
+        self._connected_at = None
+
         # inner function so we can use `self` in the retry decorator
         @retry(
             retry=retry_if_not_exception_type(NON_RETRYABLE) | retry_if_exception_type(RETRYABLE),
-            wait=wait_exponential_jitter(initial=1, max=32),
-            stop=stop_after_attempt(5),
+            wait=wait_exponential_jitter(
+                initial=self.hassette.config.websocket_connect_retry_initial_wait_seconds,
+                max=self.hassette.config.websocket_connect_retry_max_wait_seconds,
+            ),
+            stop=stop_after_attempt(self.hassette.config.websocket_connect_retry_max_attempts),
             reraise=True,
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
         )
         async def _inner_connect():
-            self._session = session
-
-            try:
-                self._ws = await session.ws_connect(
-                    self.url, heartbeat=self.heartbeat_interval_seconds, ssl=self.hassette.config.verify_ssl
-                )
-            except ClientConnectorError as exc:
-                if exc.__cause__ and isinstance(exc.__cause__, ConnectionRefusedError):
-                    raise CouldNotFindHomeAssistantError(self.url) from exc.__cause__
-                raise
-
-            self.logger.debug("Connected to WebSocket at %s", self.url)
-            await self.authenticate()
-
-            # start reader first so send_and_wait can get replies
-            recv_task = self.task_bucket.spawn(self._recv_loop(), name="ws:recv")
-
-            await self._send_connection_established_event()
-            self._subscription_ids.add(await self._subscribe_events())
-
-            self.mark_ready(reason="WebSocket connected, authenticated, and subscribed")
-            return recv_task
+            await self._partial_cleanup()
+            await self._connect_ws(session)
+            return await self._start_recv_and_subscribe()
 
         return await _inner_connect()
 

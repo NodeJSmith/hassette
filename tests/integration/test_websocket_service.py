@@ -1,15 +1,17 @@
 import asyncio
+import time
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from aiohttp import ClientWebSocketResponse, WSMsgType
-from aiohttp.client_exceptions import ClientConnectionResetError
+from aiohttp.client_exceptions import ClientConnectionResetError, ClientConnectorError
 
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import (
     ConnectionClosedError,
+    CouldNotFindHomeAssistantError,
     FailedMessageError,
     InvalidAuthError,
     RetryableConnectionClosedError,
@@ -360,3 +362,133 @@ async def test_disconnect_event_failure_does_not_mask_original_error(websocket_s
         pytest.raises(RetryableConnectionClosedError),
     ):
         await websocket_service.serve()
+
+
+# --- Decomposed method tests ---
+
+
+async def test_connect_ws_sets_ws_and_authenticates(websocket_service: WebsocketService) -> None:
+    """_connect_ws sets self._ws and calls authenticate."""
+    fake_ws = _build_fake_ws()
+    fake_session = MagicMock()
+    fake_session.ws_connect = AsyncMock(return_value=fake_ws)
+
+    websocket_service.authenticate = AsyncMock()
+
+    await websocket_service._connect_ws(fake_session)
+
+    assert websocket_service._ws is fake_ws
+    websocket_service.authenticate.assert_awaited_once()
+
+
+async def test_connect_ws_wraps_connection_refused(websocket_service: WebsocketService) -> None:
+    """_connect_ws converts ClientConnectorError with ConnectionRefusedError cause to CouldNotFindHomeAssistantError."""
+    fake_session = MagicMock()
+    cause = ConnectionRefusedError("refused")
+    connector_error = ClientConnectorError.__new__(ClientConnectorError)
+    connector_error.__cause__ = cause
+
+    fake_session.ws_connect = AsyncMock(side_effect=connector_error)
+
+    with pytest.raises(CouldNotFindHomeAssistantError):
+        await websocket_service._connect_ws(fake_session)
+
+
+async def test_start_recv_and_subscribe_marks_ready(websocket_service: WebsocketService) -> None:
+    """_start_recv_and_subscribe spawns recv, calls mark_ready, sets _connected_at, returns recv task."""
+    fake_task = asyncio.ensure_future(asyncio.sleep(0))
+    websocket_service.task_bucket = MagicMock()
+
+    # Capture and discard the coroutine argument to avoid "coroutine never awaited" warning
+    spawned_coros = []
+
+    def _spawn_side_effect(coro, *, name=None):  # noqa: ARG001
+        spawned_coros.append(coro)
+        return fake_task
+
+    websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)
+    websocket_service._send_connection_established_event = AsyncMock()
+    websocket_service._subscribe_events = AsyncMock(return_value=42)
+    websocket_service.mark_ready = Mock()
+
+    result = await websocket_service._start_recv_and_subscribe()
+
+    # Close any coroutines captured to suppress ResourceWarning
+    for coro in spawned_coros:
+        coro.close()
+
+    assert result is fake_task
+    websocket_service.mark_ready.assert_called_once()
+    assert websocket_service._connected_at is not None
+    assert websocket_service._subscription_ids == {42}
+    # Clean up the task
+    fake_task.cancel()
+
+
+async def test_partial_cleanup_cancels_recv_and_closes_ws(websocket_service: WebsocketService) -> None:
+    """_partial_cleanup cancels recv task, closes ws, clears futures and subscription ids."""
+    fake_ws = _build_fake_ws()
+    fake_recv_task = asyncio.ensure_future(asyncio.sleep(100))
+    websocket_service._ws = fake_ws
+    websocket_service._recv_task = fake_recv_task
+    websocket_service._subscription_ids = {1, 2}
+
+    # Seed a pending future
+    fut = websocket_service.hassette.loop.create_future()
+    websocket_service._response_futures[99] = fut
+
+    await websocket_service._partial_cleanup()
+
+    assert websocket_service._ws is None
+    assert websocket_service._recv_task is None
+    assert websocket_service._subscription_ids == set()
+    assert websocket_service._response_futures == {}
+    assert fut.done()
+    assert isinstance(fut.exception(), RetryableConnectionClosedError)
+
+
+async def test_partial_cleanup_preserves_session(websocket_service: WebsocketService) -> None:
+    """_partial_cleanup must NOT clear self._session."""
+    fake_session = MagicMock()
+    websocket_service._session = fake_session
+    websocket_service._ws = _build_fake_ws()
+    websocket_service._recv_task = asyncio.ensure_future(asyncio.sleep(0))
+
+    await websocket_service._partial_cleanup()
+
+    assert websocket_service._session is fake_session
+
+
+async def test_partial_cleanup_suppresses_errors(websocket_service: WebsocketService) -> None:
+    """_partial_cleanup must not propagate any exceptions."""
+    fake_ws = _build_fake_ws()
+    fake_ws.close = AsyncMock(side_effect=RuntimeError("close failed"))
+    websocket_service._ws = fake_ws
+    websocket_service._recv_task = None
+
+    # Should not raise
+    await websocket_service._partial_cleanup()
+
+
+async def test_partial_cleanup_timeout_on_gather(websocket_service: WebsocketService) -> None:
+    """_partial_cleanup completes within ~2s even when recv task is non-cancellable."""
+
+    async def _never_ends():
+        try:
+            await asyncio.sleep(1000)
+        except asyncio.CancelledError:
+            # simulate a task that ignores cancellation
+            await asyncio.sleep(1000)
+
+    stuck_task = asyncio.ensure_future(_never_ends())
+    websocket_service._recv_task = stuck_task
+    websocket_service._ws = _build_fake_ws()
+
+    started = time.monotonic()
+    try:
+        await websocket_service._partial_cleanup()
+        elapsed = time.monotonic() - started
+        assert elapsed < 4.0, f"_partial_cleanup took too long: {elapsed:.2f}s"
+    finally:
+        stuck_task.cancel()
+        await asyncio.gather(stuck_task, return_exceptions=True)
