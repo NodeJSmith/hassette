@@ -43,7 +43,7 @@ The initial connection itself retries up to 5 times with exponential backoff (st
 
 - It restarts `WebsocketService` using its `RestartSpec`: up to **5 restarts** within a **300-second sliding window** (TRANSIENT type).
 - Each restart waits an exponentially increasing delay starting at **2 seconds**, doubling each attempt, capped at **60 seconds**.
-- When Home Assistant comes back and the connection is re-established, Hassette fires `hassette.event.websocket_connected` and resets the restart budget.
+- When Home Assistant comes back and the service recovers to RUNNING and becomes ready, Hassette fires `hassette.event.websocket_connected` and the restart budget resets automatically.
 
 **If the restart budget is exhausted**, `WebsocketService` enters `EXHAUSTED_COOLING` for a 300-second cooldown, then resets its budget and retries. The TRANSIENT restart type means it keeps trying rather than shutting down immediately.
 

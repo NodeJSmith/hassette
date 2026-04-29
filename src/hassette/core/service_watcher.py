@@ -394,26 +394,22 @@ class ServiceWatcher(Resource):
         if len(services) > 1:
             self.logger.warning("Multiple %s found for '%s', restarting all", role, name)
 
-        # Step 7: Restart the service — catch and log exceptions, do NOT double-count budget
-        for svc in services:
-            try:
-                await svc.restart()
-                # Restart call completed without exception. Clear in-restart so subsequent
-                # FAILED events (from serve() failing again) can proceed normally.
-                # If the service transitions to RUNNING and calls mark_ready(), _on_service_running
-                # will reset the budget. If it fails immediately, the next FAILED event starts a new cycle.
-                self._restarting.discard(key)
-            except Exception as e:
-                self.logger.error(
-                    "%s '%s' restart raised an exception (service left in FAILED state): %s",
-                    role,
-                    name,
-                    e,
-                )
-                # Do NOT re-raise — the bus handler must not crash.
-                # Do NOT call budget.record_restart() again — already recorded above.
-                # Clear in-restart so the next FAILED event can proceed.
-                self._restarting.discard(key)
+        # Step 7: Restart the service — catch and log exceptions, do NOT double-count budget.
+        # Clear in-restart guard AFTER the entire loop so concurrent FAILED events cannot
+        # enter restart_service() while restarts are still in progress.
+        try:
+            for svc in services:
+                try:
+                    await svc.restart()
+                except Exception as e:
+                    self.logger.error(
+                        "%s '%s' restart raised an exception (service left in FAILED state): %s",
+                        role,
+                        name,
+                        e,
+                    )
+        finally:
+            self._restarting.discard(key)
 
     async def log_service_event(self, event: HassetteServiceEvent) -> None:
         """Log the startup of a service."""
