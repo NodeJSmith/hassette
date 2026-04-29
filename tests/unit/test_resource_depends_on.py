@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from hassette.resources.base import Resource, Service
+from hassette.resources.base import Resource, RestartSpec, Service
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -96,6 +96,7 @@ class _ResourceWithNoDeps(Resource):
 
 
 class _ServiceWithDepA(Service):
+    restart_spec = RestartSpec()
     depends_on: ClassVar[list[type[Resource]]] = [_SimpleDepA]
 
     async def serve(self) -> None:
