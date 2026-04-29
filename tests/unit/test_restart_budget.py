@@ -79,6 +79,29 @@ class TestRestartBudgetEviction:
             assert len(budget._timestamps) == 2
 
 
+class TestRestartBudgetCurrentAttempts:
+    def test_current_attempts_counts_active_timestamps(self) -> None:
+        """current_attempts() returns the number of restarts within the active window."""
+        budget = RestartBudget(intensity=5, period_seconds=300.0)
+        with patch("time.monotonic", return_value=0.0):
+            budget.record_restart()
+            budget.record_restart()
+        with patch("time.monotonic", return_value=1.0):
+            assert budget.current_attempts() == 2
+
+    def test_current_attempts_evicts_expired(self) -> None:
+        """current_attempts() excludes timestamps that have fallen outside the window."""
+        budget = RestartBudget(intensity=5, period_seconds=300.0)
+        with patch("time.monotonic", return_value=0.0):
+            budget.record_restart()
+            budget.record_restart()
+        with patch("time.monotonic", return_value=150.0):
+            budget.record_restart()
+        with patch("time.monotonic", return_value=350.0):
+            assert budget.current_attempts() == 1
+            assert len(budget._timestamps) == 1
+
+
 class TestRestartBudgetReset:
     def test_budget_reset_clears_all(self) -> None:
         """Record restarts, call reset(), verify is_exhausted() == False."""

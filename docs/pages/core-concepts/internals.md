@@ -437,8 +437,13 @@ flowchart TD
 
     STARTING -- "error" --> FAILED:::error
     RUNNING -- "error" --> FAILED
-    RUNNING -- "serve() exits" --> CRASHED:::error
+    RUNNING -- "FatalError" --> CRASHED:::error
     FAILED -- "restart()" --> STARTING
+    FAILED -- "PERMANENT\nexhausted" --> CRASHED
+    FAILED -- "TEMPORARY\nexhausted" --> EXHAUSTED_DEAD:::error
+    FAILED -- "TRANSIENT\nexhausted" --> EXHAUSTED_COOLING:::error
+    EXHAUSTED_COOLING -- "after cooldown" --> STARTING
+    EXHAUSTED_COOLING -- "cooldown limit\nexceeded" --> EXHAUSTED_DEAD
 
     classDef neutral fill:#f0f0f0,stroke:#999,color:#333
     classDef active fill:#e8f0ff,stroke:#6688cc,color:#333

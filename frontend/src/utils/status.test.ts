@@ -8,7 +8,9 @@ describe("statusToVariant", () => {
     expect(statusToVariant("stopped")).toBe("warning");
     expect(statusToVariant("disabled")).toBe("neutral");
     expect(statusToVariant("blocked")).toBe("warning");
+    expect(statusToVariant("not_started")).toBe("neutral");
     expect(statusToVariant("starting")).toBe("neutral");
+    expect(statusToVariant("stopping")).toBe("neutral");
     expect(statusToVariant("shutting_down")).toBe("neutral");
   });
 
