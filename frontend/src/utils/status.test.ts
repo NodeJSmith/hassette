@@ -12,6 +12,14 @@ describe("statusToVariant", () => {
     expect(statusToVariant("shutting_down")).toBe("neutral");
   });
 
+  it("maps exhausted_dead to danger variant", () => {
+    expect(statusToVariant("exhausted_dead")).toBe("danger");
+  });
+
+  it("maps exhausted_cooling to warning variant", () => {
+    expect(statusToVariant("exhausted_cooling")).toBe("warning");
+  });
+
   it("returns neutral and warns for unknown status", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(statusToVariant("exploding")).toBe("neutral");

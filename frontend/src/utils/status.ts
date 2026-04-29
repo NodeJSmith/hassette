@@ -9,11 +9,15 @@ export type ErrorRateClass = "good" | "warn" | "bad";
 const APP_STATUS_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, StatusVariant>([
   ["running", "success"],
   ["failed", "danger"],
+  ["crashed", "danger"],
   ["stopped", "warning"],
   ["disabled", "neutral"],
   ["blocked", "warning"],  // Intentional: blocked = needs attention (matches small badge behavior)
   ["starting", "neutral"],
   ["shutting_down", "neutral"],
+  // Service exhaustion statuses
+  ["exhausted_dead", "danger"],     // Permanent failure — budget exhausted, no further restarts
+  ["exhausted_cooling", "warning"], // Long cooldown in progress — will retry after cooldown period
   // Session statuses (shared map so StatusBadge works for both apps and sessions)
   ["success", "success"],
   ["failure", "danger"],

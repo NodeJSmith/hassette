@@ -174,3 +174,75 @@ class TestWsServerMessageDiscriminates:
         raw = {"type": "unknown_type", "data": {}, "timestamp": 1234567890.0}
         with pytest.raises(ValueError, match="does not match any of the expected tags"):
             self.adapter.validate_python(raw)
+
+
+class TestServiceStatusDataRetryAt:
+    """Verify ServiceStatusData includes retry_at field for exhausted service states."""
+
+    def test_service_status_data_includes_retry_at(self) -> None:
+        """ServiceStatusData accepts retry_at as an optional float field."""
+        payload = WsServiceStatusPayload(
+            resource_name="my_service",
+            role="service",
+            status="exhausted_cooling",
+            retry_at=1714000000.0,
+        )
+        assert payload.retry_at == 1714000000.0
+
+    def test_service_status_data_retry_at_defaults_to_none(self) -> None:
+        """retry_at defaults to None when not provided."""
+        payload = WsServiceStatusPayload(
+            resource_name="my_service",
+            role="service",
+            status="running",
+        )
+        assert payload.retry_at is None
+
+    def test_service_status_exhausted_dead_serialization(self) -> None:
+        """EXHAUSTED_DEAD status serializes correctly in WebSocket messages."""
+        msg = ServiceStatusWsMessage(
+            type="service_status",
+            data=WsServiceStatusPayload(
+                resource_name="dead_service",
+                role="service",
+                status="exhausted_dead",
+                retry_at=None,
+            ),
+            timestamp=1714000000.0,
+        )
+        dumped = msg.model_dump()
+        assert dumped["data"]["status"] == "exhausted_dead"
+        assert dumped["data"]["retry_at"] is None
+
+    def test_service_status_exhausted_cooling_with_retry_at(self) -> None:
+        """EXHAUSTED_COOLING includes retry_at timestamp in serialized output."""
+        retry_timestamp = 1714000300.0
+        msg = ServiceStatusWsMessage(
+            type="service_status",
+            data=WsServiceStatusPayload(
+                resource_name="cooling_service",
+                role="service",
+                status="exhausted_cooling",
+                retry_at=retry_timestamp,
+            ),
+            timestamp=1714000000.0,
+        )
+        dumped = msg.model_dump()
+        assert dumped["data"]["status"] == "exhausted_cooling"
+        assert dumped["data"]["retry_at"] == retry_timestamp
+
+    def test_service_status_payload_mirrors_event_dataclass_retry_at(self) -> None:
+        """WsServiceStatusPayload mirrors ServiceStatusPayload.retry_at field."""
+        from hassette.events.hassette import ServiceStatusPayload
+        from hassette.types.enums import ResourceRole, ResourceStatus
+
+        dataclass_instance = ServiceStatusPayload(
+            resource_name="cooling_service",
+            role=ResourceRole.SERVICE,
+            status=ResourceStatus.EXHAUSTED_COOLING,
+            retry_at=1714000300.0,
+        )
+        serialized = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(dataclass_instance).items()}
+        payload = WsServiceStatusPayload.model_validate(serialized)
+        assert payload.status == "exhausted_cooling"
+        assert payload.retry_at == 1714000300.0

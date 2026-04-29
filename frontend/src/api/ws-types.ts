@@ -44,6 +44,9 @@ export interface WsServiceStatusPayload {
   exception: string | null;
   exception_type: string | null;
   exception_traceback: string | null;
+  /** Unix timestamp when next restart will be attempted. Populated for
+   * EXHAUSTED_COOLING, null for EXHAUSTED_DEAD and all other statuses. */
+  retry_at: number | null;
 }
 
 export interface WsLogPayload {
