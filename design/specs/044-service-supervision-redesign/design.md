@@ -374,7 +374,7 @@ The existing `test_service_watcher.py` tests need updating:
 - `src/hassette/core/scheduler_service.py` — Declare RestartSpec
 - `src/hassette/core/file_watcher.py` — Declare RestartSpec
 - `src/hassette/core/web_ui_watcher.py` — Declare RestartSpec
-- `src/hassette/core/domain_models.py` — Add EXHAUSTED to service status enum
+- `src/hassette/types/enums.py` — Add EXHAUSTED_DEAD, EXHAUSTED_COOLING to ResourceStatus enum; add RestartType enum
 - `src/hassette/events/hassette.py` — Ensure EXHAUSTED status flows through existing event types
 - `tests/integration/test_service_watcher.py` — Rewrite for per-service specs, sliding window, exhaustion paths
 - Web UI components — Render EXHAUSTED state, optional cooldown timer display
