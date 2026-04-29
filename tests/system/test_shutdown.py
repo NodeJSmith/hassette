@@ -8,7 +8,7 @@ import pytest
 
 from hassette.resources.base import RestartSpec, Service
 from hassette.test_utils import make_service_failed_event, wait_for
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import ResourceStatus, RestartType
 
 from .conftest import make_system_config, startup_context
 
@@ -55,6 +55,7 @@ async def test_failed_service_cascade_triggers_shutdown(ha_container: str, tmp_p
         """A service that always fails on initialize — used to drive the cascade test."""
 
         restart_spec: ClassVar[RestartSpec] = RestartSpec(
+            restart_type=RestartType.PERMANENT,
             budget_intensity=1,
             backoff_base_seconds=0.0,
         )
