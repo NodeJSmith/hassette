@@ -158,6 +158,10 @@ uv run nox -s e2e
 
 These suites run with the same warning configuration as CI (`filterwarnings` in `pyproject.toml`). Unit and integration tests alone are insufficient for core changes — they mock the very boundaries where regressions hide.
 
+### Run fixed tests before committing
+
+When fixing or modifying any test, run that test locally and confirm it passes before committing. For system and e2e tests, use the nox sessions above. For unit/integration tests, run at minimum the affected test file. Do not commit test fixes based on code inspection alone — a test that looks correct can still fail due to marker filtering, warning configuration, fixture scoping, or async timing.
+
 ## GitHub Issues
 
 ### Title Conventions
