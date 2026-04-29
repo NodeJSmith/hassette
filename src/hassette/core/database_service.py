@@ -14,6 +14,7 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine
 
 from hassette.resources.base import RestartSpec, Service
+from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
@@ -52,7 +53,12 @@ class DatabaseService(Service):
     of old execution records.
     """
 
-    restart_spec: ClassVar[RestartSpec] = RestartSpec()
+    restart_spec: ClassVar[RestartSpec] = RestartSpec(
+        restart_type=RestartType.TRANSIENT,
+        budget_intensity=3,
+        budget_period_seconds=120,
+        fatal_error_names=("SchemaVersionError",),
+    )
 
     _db: aiosqlite.Connection | None
     """The aiosqlite write connection, set during on_initialize."""

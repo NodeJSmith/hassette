@@ -32,6 +32,7 @@ from hassette.exceptions import (
 )
 from hassette.resources.base import RestartSpec, Service
 from hassette.types import Topic
+from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
@@ -57,7 +58,12 @@ EARLY_DROP_RETRYABLE = (RetryableConnectionClosedError, ServerDisconnectedError)
 
 
 class WebsocketService(Service):
-    restart_spec: ClassVar[RestartSpec] = RestartSpec()
+    restart_spec: ClassVar[RestartSpec] = RestartSpec(
+        restart_type=RestartType.TRANSIENT,
+        budget_intensity=5,
+        budget_period_seconds=300,
+        startup_timeout_seconds=60,
+    )
 
     url: str
     """WebSocket URL to connect to."""

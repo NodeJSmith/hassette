@@ -6,6 +6,7 @@ from typing import ClassVar
 from watchfiles import awatch
 
 from hassette.resources.base import RestartSpec, Service
+from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 
 _WEB_DIR = Path(__file__).resolve().parent.parent / "web"
@@ -29,7 +30,11 @@ def _change_kind(path: str) -> str:
 class WebUiWatcherService(Service):
     """Watches web UI static/template files and broadcasts reload signals to browsers."""
 
-    restart_spec: ClassVar[RestartSpec] = RestartSpec()
+    restart_spec: ClassVar[RestartSpec] = RestartSpec(
+        restart_type=RestartType.TEMPORARY,
+        budget_intensity=3,
+        budget_period_seconds=60,
+    )
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
