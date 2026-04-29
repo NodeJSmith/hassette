@@ -2,10 +2,11 @@
 
 import asyncio
 import sqlite3
+from typing import ClassVar
 
 import pytest
 
-from hassette.resources.base import Service
+from hassette.resources.base import RestartSpec, Service
 from hassette.test_utils import make_service_failed_event, wait_for
 from hassette.types.enums import ResourceStatus
 
@@ -53,6 +54,11 @@ async def test_failed_service_cascade_triggers_shutdown(ha_container: str, tmp_p
     class _AlwaysFailingService(Service):
         """A service that always fails on initialize — used to drive the cascade test."""
 
+        restart_spec: ClassVar[RestartSpec] = RestartSpec(
+            budget_intensity=1,
+            backoff_base_seconds=0.0,
+        )
+
         async def on_initialize(self) -> None:
             raise RuntimeError("_AlwaysFailingService always fails")
 
@@ -60,7 +66,6 @@ async def test_failed_service_cascade_triggers_shutdown(ha_container: str, tmp_p
             pass  # never reached
 
     config = make_system_config(ha_container, tmp_path)
-    config = config.model_copy(update={"service_restart_max_attempts": 1, "service_restart_backoff_seconds": 0.0})
     async with startup_context(config) as hassette:
         shutdown_event = asyncio.Event()
 
@@ -76,8 +81,8 @@ async def test_failed_service_cascade_triggers_shutdown(ha_container: str, tmp_p
         hassette.shutdown = _stub_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
         try:
-            # Fire a FAILED event — ServiceWatcher will restart once (max_attempts=1),
-            # then exhaust retries and call hassette.shutdown() (which is now the stub)
+            # Fire a FAILED event — ServiceWatcher will restart once (budget_intensity=1),
+            # then exhaust the budget and call hassette.shutdown() (which is now the stub)
             failed_event = make_service_failed_event(failing_service)
             await hassette.send_event(failed_event.topic, failed_event)
 

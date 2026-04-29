@@ -156,7 +156,7 @@ class WebsocketService(Service):
             max_early_drops,
             int(max_recovery),
             config.websocket_connect_retry_max_attempts,
-            config.service_restart_max_attempts,
+            self.restart_spec.budget_intensity,
         )
 
         async with self._connect_lock:
