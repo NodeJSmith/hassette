@@ -144,6 +144,20 @@ uv run pytest -m e2e --headed --tracing on -k test_sidebar_navigation
 
 System dependencies for Chromium require `sudo`. If `playwright install --with-deps` fails, run `sudo uv run playwright install-deps chromium` manually.
 
+## Pre-Ship Verification for Core Changes
+
+When a branch modifies core service infrastructure — files in `src/hassette/core/`, `src/hassette/resources/`, or `src/hassette/types/enums.py` — run the system and e2e test suites locally before pushing the PR, in addition to the standard unit/integration tests:
+
+```bash
+# System tests (requires Docker — validates WS, reconnection, service lifecycle)
+uv run nox -s system
+
+# E2E tests (requires Playwright — validates frontend against real backend)
+uv run nox -s e2e
+```
+
+These suites run with the same warning configuration as CI (`filterwarnings` in `pyproject.toml`). Unit and integration tests alone are insufficient for core changes — they mock the very boundaries where regressions hide.
+
 ## GitHub Issues
 
 ### Title Conventions
