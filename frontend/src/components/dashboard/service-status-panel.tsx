@@ -1,12 +1,12 @@
 /**
- * ServiceStatusPanel — displays live internal service statuses on the dashboard.
+ * ServiceStatusPanel — displays degraded internal service statuses on the dashboard.
  *
  * Subscribes to the global serviceStatus signal (populated from WebSocket
- * service_status messages). Shows all services with their current status,
- * with special rendering for:
+ * service_status messages). Only shows services in a non-healthy state:
  *   - EXHAUSTED_DEAD: permanent failure indicator (red/danger)
  *   - EXHAUSTED_COOLING: countdown timer until next retry (amber/warning)
- *   - All other statuses: standard StatusBadge rendering
+ *   - FAILED / CRASHED: active failure
+ * Healthy statuses (running, starting, stopped, etc.) are filtered out.
  */
 
 import { useEffect, useRef, useState } from "preact/hooks";
@@ -14,10 +14,8 @@ import { useAppState } from "../../state/context";
 import type { ServiceStatusEntry } from "../../state/create-app-state";
 import { statusToVariant } from "../../utils/status";
 
-/**
- * Format seconds remaining into a human-readable countdown string.
- * E.g. 125 → "2m 5s", 45 → "45s", 0 → "0s"
- */
+const HEALTHY_STATUSES = new Set(["running", "starting", "not_started", "stopping", "stopped"]);
+
 function formatCountdown(secondsRemaining: number): string {
   const s = Math.max(0, Math.floor(secondsRemaining));
   if (s >= 60) {
@@ -28,10 +26,6 @@ function formatCountdown(secondsRemaining: number): string {
   return `${s}s`;
 }
 
-/**
- * CountdownTimer renders a live countdown using requestAnimationFrame.
- * Updates every second by checking the difference between retry_at and now.
- */
 interface CountdownTimerProps {
   retryAt: number;
 }
@@ -47,7 +41,6 @@ function CountdownTimer({ retryAt }: CountdownTimerProps) {
     function tick() {
       const remaining = Math.max(0, retryAt - Date.now() / 1000);
       const currentSec = Math.floor(remaining);
-      // Only update React state when the second changes (avoids excessive renders)
       if (currentSec !== lastSecRef.current) {
         lastSecRef.current = currentSec;
         setSecondsLeft(remaining);
@@ -65,14 +58,21 @@ function CountdownTimer({ retryAt }: CountdownTimerProps) {
   }, [retryAt]);
 
   if (secondsLeft <= 0) {
-    return <span class="ht-service-status-panel__countdown">retrying now…</span>;
+    return <span class="ht-ssp__detail ht-ssp__detail--cooling">retrying now…</span>;
   }
   return (
-    <span class="ht-service-status-panel__countdown" aria-label={`Retrying in ${formatCountdown(secondsLeft)}`}>
+    <span class="ht-ssp__detail ht-ssp__detail--cooling" aria-label={`Retrying in ${formatCountdown(secondsLeft)}`}>
       Retrying in {formatCountdown(secondsLeft)}
     </span>
   );
 }
+
+const STATUS_LABELS: Record<string, string> = {
+  exhausted_dead: "Permanently failed",
+  exhausted_cooling: "Cooling down",
+  failed: "Failed",
+  crashed: "Crashed",
+};
 
 interface ServiceRowProps {
   entry: ServiceStatusEntry;
@@ -80,91 +80,39 @@ interface ServiceRowProps {
 
 function ServiceRow({ entry }: ServiceRowProps) {
   const { status, resource_name, retry_at } = entry;
-  const isExhaustedDead = status === "exhausted_dead";
-  const isExhaustedCooling = status === "exhausted_cooling";
-
-  if (isExhaustedDead) {
-    return (
-      <li
-        class="ht-service-status-panel__row ht-service-status-panel__row--dead"
-        data-testid={`service-status-row-${resource_name}`}
-      >
-        <span class="ht-service-status-panel__dot ht-service-status-panel__dot--dead" aria-hidden="true" />
-        <span class="ht-service-status-panel__name">{resource_name}</span>
-        <span
-          class="ht-service-status-panel__label ht-service-status-panel__label--dead"
-          data-testid={`service-status-label-${resource_name}`}
-        >
-          Permanently failed
-        </span>
-      </li>
-    );
-  }
-
-  if (isExhaustedCooling) {
-    return (
-      <li
-        class="ht-service-status-panel__row ht-service-status-panel__row--cooling"
-        data-testid={`service-status-row-${resource_name}`}
-      >
-        <span class="ht-service-status-panel__dot ht-service-status-panel__dot--cooling" aria-hidden="true" />
-        <span class="ht-service-status-panel__name">{resource_name}</span>
-        {retry_at !== null ? (
-          <CountdownTimer retryAt={retry_at} />
-        ) : (
-          <span
-            class="ht-service-status-panel__label ht-service-status-panel__label--cooling"
-            data-testid={`service-status-label-${resource_name}`}
-          >
-            Cooling down
-          </span>
-        )}
-      </li>
-    );
-  }
-
-  const variantClass = statusToVariant(status);
+  const variant = statusToVariant(status);
+  const label = STATUS_LABELS[status] ?? status;
 
   return (
-    <li
-      class="ht-service-status-panel__row"
-      data-testid={`service-status-row-${resource_name}`}
-    >
-      <span
-        class={`ht-service-status-panel__dot ht-service-status-panel__dot--${variantClass}`}
-        aria-hidden="true"
-      />
-      <span class="ht-service-status-panel__name">{resource_name}</span>
-      <span
-        class={`ht-service-status-panel__label ht-service-status-panel__label--${variantClass}`}
-        data-testid={`service-status-label-${resource_name}`}
-      >
-        {status}
+    <li class={`ht-ssp__row ht-ssp__row--${variant}`} data-testid={`service-status-row-${resource_name}`}>
+      <span class={`ht-ssp__dot ht-ssp__dot--${variant}`} aria-hidden="true" />
+      <span class="ht-ssp__name">{resource_name}</span>
+      <span class={`ht-ssp__label ht-ssp__label--${variant}`} data-testid={`service-status-label-${resource_name}`}>
+        {label}
       </span>
+      {status === "exhausted_cooling" && retry_at !== null && <CountdownTimer retryAt={retry_at} />}
     </li>
   );
 }
 
 export function ServiceStatusPanel() {
   const { serviceStatus } = useAppState();
-  const entries = Object.values(serviceStatus.value);
+  const entries = Object.values(serviceStatus.value).filter(
+    (e) => !HEALTHY_STATUSES.has(e.status),
+  );
 
   if (entries.length === 0) {
     return null;
   }
 
-  const hasCritical = entries.some(
-    (e) => e.status === "exhausted_dead" || e.status === "exhausted_cooling",
-  );
-
   return (
     <div
-      class={`ht-card${hasCritical ? " ht-card--urgent" : " ht-card--receded"} ht-mb-6 ht-service-status-panel`}
+      class="ht-card ht-card--receded ht-mb-6 ht-ssp"
       data-testid="service-status-panel"
       aria-label="Internal service status"
     >
-      <h2 class="ht-heading-5">Service Status</h2>
-      <ul class="ht-service-status-panel__list" aria-label="Service statuses">
+      <h2 class="ht-heading-5 ht-mb-3">Service Status</h2>
+      <ul class="ht-ssp__list" aria-label="Service statuses">
         {entries.map((entry) => (
           <ServiceRow key={entry.resource_name} entry={entry} />
         ))}
