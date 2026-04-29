@@ -166,6 +166,7 @@ async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIte
         if not hassette._shutdown_completed:
             with contextlib.suppress(Exception):
                 await hassette.shutdown()
+        await asyncio.sleep(0)
 
 
 def make_system_config(ha_url: str, tmp_path: Path) -> HassetteConfig:
