@@ -1,7 +1,7 @@
 # Design: Service Supervision Redesign
 
 **Date:** 2026-04-28
-**Status:** approved
+**Status:** archived
 **Research:** design/research/2026-04-28-service-supervision/research.md
 
 ## Problem
