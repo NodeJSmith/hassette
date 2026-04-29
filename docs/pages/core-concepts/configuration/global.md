@@ -5,7 +5,7 @@ Global settings control how Hassette runs and connects to Home Assistant. These 
 **Most users only need the first few sections.** The settings are organized from most to least commonly configured:
 
 - **Common** — [Connection](#connection-settings), [Runtime](#runtime-settings), [Storage](#storage-settings), [Web UI](#web-ui-settings), [Database](#database-settings)
-- **Advanced** — [Timeouts](#timeout-settings), [WebSocket Resilience](#websocket-resilience), [Scheduler](#scheduler-settings), [Logging](#logging-settings), [Bus Filtering](#bus-filtering-settings), [Production](#production-settings), [App Detection](#app-detection-settings), [Service Restart Policy](#service-restart-policy), [Other Advanced](#other-advanced-settings)
+- **Advanced** — [Timeouts](#timeout-settings), [WebSocket Resilience](#websocket-resilience), [Scheduler](#scheduler-settings), [Logging](#logging-settings), [Bus Filtering](#bus-filtering-settings), [Production](#production-settings), [App Detection](#app-detection-settings), [Other Advanced](#other-advanced-settings)
 
 ---
 
@@ -139,7 +139,7 @@ Hassette uses a three-layer retry model to keep the connection to Home Assistant
 |-------|-----------------|---------------|
 | **Connection retry** | Initial TCP connect, authentication, and event subscription failures | `websocket_connect_retry_*` |
 | **Early-drop retry** | Post-authentication drops that happen within a short window after connect (e.g. HA restarting while Hassette is running) | `websocket_early_drop_*` |
-| **Service restart** | Persistent failures after the inner retries are exhausted — Hassette restarts the WebSocket service entirely | `service_restart_*` |
+| **Service restart** | Persistent failures after the inner retries are exhausted — Hassette restarts the WebSocket service entirely | Per-service `RestartSpec` (see [Service Supervision](../internals.md#service-supervision)) |
 
 Each layer is independently configurable. The inner layer must exhaust all its attempts before the next layer takes over.
 
@@ -168,7 +168,7 @@ Each layer is independently configurable. The inner layer must exhaust all its a
 - **Low tolerance for downtime**: Decrease `websocket_early_drop_backoff_initial_seconds` and `websocket_early_drop_backoff_max_seconds` to retry more aggressively.
 - **Large service restart budgets**: Increase `websocket_max_recovery_seconds` so Hassette keeps retrying rather than handing off to the slower service-restart layer.
 
-For the service restart layer settings, see [Service Restart Policy](#service-restart-policy).
+For the service restart layer behavior, see [Service Supervision](../internals.md#service-supervision).
 
 ### Timeouts
 
@@ -275,15 +275,10 @@ Filter out noisy events at the bus level before they reach your apps.
 
 ## Service Restart Policy
 
-These settings control automatic restart behavior when an internal service crashes.
+!!! warning "Removed"
+    The five global `service_restart_*` config fields (`service_restart_max_attempts`, `service_restart_backoff_seconds`, `service_restart_max_backoff_seconds`, `service_restart_backoff_multiplier`, `service_restart_readiness_timeout_seconds`) have been removed. Remove them from your `hassette.toml` if present — they are no longer read.
 
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `service_restart_max_attempts` | integer | `5` | Maximum restart attempts before giving up. |
-| `service_restart_backoff_seconds` | float | `2.0` | Initial delay between restart attempts. |
-| `service_restart_max_backoff_seconds` | float | `60.0` | Maximum delay between restart attempts. |
-| `service_restart_backoff_multiplier` | float | `2.0` | Multiplier applied after each failed attempt. |
-| `service_restart_readiness_timeout_seconds` | float | `10.0` | Seconds to wait for a restarted service to become ready. |
+    Restart behavior is now declared per-service via a `RestartSpec` class attribute. Each built-in service ships with sensible defaults. See [Service Supervision](../internals.md#service-supervision) for the full model.
 
 ## Other Advanced Settings
 

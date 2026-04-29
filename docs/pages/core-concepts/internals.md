@@ -191,8 +191,8 @@ flowchart TD
 
 | Failure | Behavior |
 |---|---|
-| WS disconnect | `_make_connection` retries up to 5 times (tenacity, exponential jitter). If `serve()` still fails, `ServiceWatcher` restarts the service up to `service_restart_max_attempts` (default 5). |
-| Auth failure | `InvalidAuthError` skips tenacity retry, but `ServiceWatcher` still attempts restarts up to `service_restart_max_attempts`. Hassette shuts down if failures continue. |
+| WS disconnect | `_make_connection` retries up to 5 times (tenacity, exponential jitter). If `serve()` still fails, `ServiceWatcher` restarts the service per its `RestartSpec` (TRANSIENT, budget 5/300s). |
+| Auth failure | `InvalidAuthError` is a `FatalError` subclass — it bypasses `ServiceWatcher` entirely. `_serve_wrapper` catches it and calls `handle_crash()`, setting the service to CRASHED. Hassette shuts down immediately. |
 | Handler timeout | Logged, invocation recorded as timed-out |
 | DB write failure | 3 retries, then dropped with counter increment |
 
@@ -461,3 +461,88 @@ A component can be RUNNING but not ready (still initializing internal state), or
 Dependencies are computed into topological levels. Within a wave, the framework calls `start()` on each child so their initialization can proceed concurrently, then waits for all to become ready before starting the next wave.
 
 Shutdown proceeds in reverse wave order. A per-wave timeout triggers `_force_terminal()` on non-compliant children, which recursively force-stops without running hooks (accepted risk for stuck services).
+
+### Service Supervision
+
+When a `Service` transitions to FAILED, `ServiceWatcher` reads that service's `restart_spec` class attribute and drives the restart decision. Every `Service` subclass declares a `RestartSpec` as a class-level attribute; services that don't declare one inherit the default (`TRANSIENT`, budget 5/300s).
+
+#### RestartSpec
+
+`RestartSpec` is a frozen dataclass in `hassette.resources.base`:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `restart_type` | `RestartType` | `TRANSIENT` | Strategy governing restart and exhaustion behavior |
+| `non_retryable_error_names` | `tuple[str, ...]` | `()` | Exception names that skip restart and go straight to exhaustion handling |
+| `fatal_error_names` | `tuple[str, ...]` | `()` | Exception names that trigger immediate system shutdown |
+| `backoff_base_seconds` | `float` | `2.0` | Initial delay before first restart attempt |
+| `backoff_multiplier` | `float` | `2.0` | Factor applied to backoff on each successive attempt |
+| `backoff_max_seconds` | `float` | `60.0` | Maximum backoff delay |
+| `budget_intensity` | `int` | `5` | Maximum restarts allowed within the sliding window |
+| `budget_period_seconds` | `float` | `300.0` | Sliding window size in seconds |
+| `startup_timeout_seconds` | `float` | `30.0` | How long to wait for `mark_ready()` after a restart |
+| `cooldown_seconds` | `float` | `300.0` | Duration of the long-cooldown phase (TRANSIENT services only) |
+| `max_cooldown_cycles` | `int` | `0` | Maximum cooldown cycles before transitioning to EXHAUSTED_DEAD; `0` means infinite |
+
+**Usage:**
+
+```python
+from hassette.resources.base import Service, RestartSpec
+from hassette.types.enums import RestartType
+
+class MyService(Service):
+    restart_spec = RestartSpec(
+        restart_type=RestartType.TRANSIENT,
+        budget_intensity=3,
+        budget_period_seconds=120,
+        fatal_error_names=("SchemaVersionError",),
+    )
+```
+
+#### RestartType
+
+`RestartType` is a `StrEnum` with three values:
+
+| Value | Behavior when budget is exhausted |
+|---|---|
+| `PERMANENT` | Transitions to CRASHED and triggers system shutdown. Used for services that are structurally required (BusService, SchedulerService). |
+| `TRANSIENT` | Enters a long cooldown (`EXHAUSTED_COOLING`), then resets the budget and retries. Useful for services with intermittent failures (WebsocketService, DatabaseService). |
+| `TEMPORARY` | Transitions to EXHAUSTED_DEAD — no further restarts. Used for optional background services (FileWatcherService, WebUiWatcherService). |
+
+#### Sliding-Window Budget
+
+`RestartBudget` tracks restart timestamps within a rolling time window. When the number of recorded restarts within the window reaches `budget_intensity`, the budget is exhausted.
+
+The window slides continuously: a restart from 10 minutes ago no longer counts against the budget if `budget_period_seconds` is 300. When a service successfully reaches RUNNING and signals readiness, the budget resets automatically — brief instability followed by a successful recovery doesn't accumulate permanently toward exhaustion.
+
+#### Three-Layer Error Routing
+
+`ServiceWatcher.restart_service()` evaluates each FAILED event through three layers before deciding to restart:
+
+1. **FatalError subclasses** — raised inside `serve()`, caught by the service wrapper, route directly to CRASHED status and shutdown. These bypass `ServiceWatcher` entirely.
+2. **`fatal_error_names`** — exception type names checked by `ServiceWatcher` on FAILED events. Triggers immediate system shutdown even if restarts remain in the budget.
+3. **`non_retryable_error_names`** — exception type names checked by `ServiceWatcher`. Skips the restart entirely and jumps directly to exhaustion handling.
+
+Errors that don't match any of the above proceed through the normal restart flow: budget check → exponential backoff → restart.
+
+#### New Statuses
+
+Two statuses represent exhaustion states specific to services:
+
+| Status | Meaning |
+|---|---|
+| `EXHAUSTED_DEAD` | Budget exhausted, no further restarts will occur. Terminal state. |
+| `EXHAUSTED_COOLING` | Budget exhausted; service is in long-cooldown before budget reset and retry. |
+
+#### Per-Service Restart Specs
+
+| Service | Type | Budget (intensity/period) | Notes |
+|---|---|---|---|
+| `BusService` | `PERMANENT` | 2 / 30s | Structural — shutdown if it can't stay up |
+| `SchedulerService` | `PERMANENT` | 2 / 30s | Structural — shutdown if it can't stay up |
+| `WebsocketService` | `TRANSIENT` | 5 / 300s | startup_timeout=60s — HA may take time to come back |
+| `DatabaseService` | `TRANSIENT` | 3 / 120s | `fatal_error_names=("SchemaVersionError",)` |
+| `WebApiService` | `TRANSIENT` | 3 / 60s | |
+| `CommandExecutor` | `TRANSIENT` | 3 / 120s | |
+| `FileWatcherService` | `TEMPORARY` | 3 / 60s | Optional — stops permanently on exhaustion |
+| `WebUiWatcherService` | `TEMPORARY` | 3 / 60s | Optional — stops permanently on exhaustion |
