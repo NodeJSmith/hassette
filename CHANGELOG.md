@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.0](https://github.com/NodeJSmith/hassette/compare/v0.26.0...v0.27.0) (2026-04-29)
+
+
+### Features
+
+* add early-drop retry and modernize WebSocket service resilience ([#631](https://github.com/NodeJSmith/hassette/issues/631)) ([3561a19](https://github.com/NodeJSmith/hassette/commit/3561a195cb3eaaba9eb911394b47d583d9d2afe5))
+* add start_children_and_wait convenience method to Resource ([#636](https://github.com/NodeJSmith/hassette/issues/636)) ([9782f26](https://github.com/NodeJSmith/hassette/commit/9782f26bedc35d1c6ec092e49cd6d29d814c7282))
+* redesign service supervision with per-service RestartSpec ([#638](https://github.com/NodeJSmith/hassette/issues/638)) ([5681c92](https://github.com/NodeJSmith/hassette/commit/5681c92a7cf823cac677609ecc613756ea393776))
+
+
+### Bug Fixes
+
+* defer AppHandler readiness until app bootstrap completes ([#635](https://github.com/NodeJSmith/hassette/issues/635)) ([0d59699](https://github.com/NodeJSmith/hassette/commit/0d596991520159c1841ea57908e0467703686289))
+
 ## [0.26.0](https://github.com/NodeJSmith/hassette/compare/v0.25.0...v0.26.0) (2026-04-28)
 
 
