@@ -26,6 +26,9 @@ class ServiceStatusPayload:
     exception: str | None = None
     exception_type: str | None = None
     exception_traceback: str | None = None
+    retry_at: float | None = None
+    """Unix timestamp when the next restart will be attempted (populated for EXHAUSTED_COOLING).
+    None for EXHAUSTED_DEAD and PERMANENT exhaustion."""
 
 
 @dataclass(slots=True, frozen=True)

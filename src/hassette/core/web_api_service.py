@@ -8,7 +8,7 @@ import uvicorn
 
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.telemetry_query_service import TelemetryQueryService
-from hassette.resources.base import Resource, Service
+from hassette.resources.base import Resource, RestartSpec, Service
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.web.app import create_fastapi_app
 
@@ -20,6 +20,7 @@ class WebApiService(Service):
     """Runs the FastAPI/uvicorn server for the web API and healthcheck."""
 
     depends_on: ClassVar[list[type[Resource]]] = [RuntimeQueryService, TelemetryQueryService]
+    restart_spec: ClassVar[RestartSpec] = RestartSpec()
 
     host: str
     port: int

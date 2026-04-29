@@ -4,7 +4,7 @@ import time
 import typing
 from collections.abc import Coroutine
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import aiosqlite
 from alembic import command
@@ -13,7 +13,7 @@ from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine
 
-from hassette.resources.base import Service
+from hassette.resources.base import RestartSpec, Service
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
@@ -51,6 +51,8 @@ class DatabaseService(Service):
     Handles Alembic migrations, heartbeat updates, and retention cleanup
     of old execution records.
     """
+
+    restart_spec: ClassVar[RestartSpec] = RestartSpec()
 
     _db: aiosqlite.Connection | None
     """The aiosqlite write connection, set during on_initialize."""

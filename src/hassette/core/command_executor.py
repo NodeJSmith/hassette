@@ -19,7 +19,7 @@ from hassette.core.registration import ListenerRegistration, ScheduledJobRegistr
 from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.error_context import ErrorContext
 from hassette.exceptions import DependencyError, HassetteError
-from hassette.resources.base import Resource, Service
+from hassette.resources.base import Resource, RestartSpec, Service
 from hassette.scheduler.classes import JobExecutionRecord
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.types.types import LOG_LEVEL_TYPE
@@ -60,6 +60,7 @@ class CommandExecutor(Service):
     """
 
     depends_on: ClassVar[list[type[Resource]]] = [DatabaseService]
+    restart_spec: ClassVar[RestartSpec] = RestartSpec()
 
     _write_queue: asyncio.Queue[HandlerInvocationRecord | JobExecutionRecord | RetryableBatch]
     """Bounded queue of execution records pending DB persistence."""
