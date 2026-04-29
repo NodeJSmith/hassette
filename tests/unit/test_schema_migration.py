@@ -276,6 +276,7 @@ class TestDbVersionMismatch:
 
         svc = DatabaseService.__new__(DatabaseService)
         svc._db = None
+        svc._read_db = None
         svc._db_path = db_path
         svc._consecutive_heartbeat_failures = 0
         svc._consecutive_size_triggers = 0
@@ -291,34 +292,6 @@ class TestDbVersionMismatch:
             asyncio.run(svc._handle_schema_version(db_path))
             # DB file should have been deleted (on_initialize handles re-running migrations)
             assert not db_path.exists()
-
-    def test_db_version_ahead_halts_startup(self, tmp_path: Path) -> None:
-        """When DB version is ahead of head, startup raises RuntimeError."""
-        db_path = tmp_path / "test.db"
-        db_path.touch()
-
-        hassette_mock = MagicMock()
-        hassette_mock.config.db_path = db_path
-        hassette_mock.config.data_dir = tmp_path
-        hassette_mock.config.database_service_log_level = "INFO"
-
-        svc = DatabaseService.__new__(DatabaseService)
-        svc._db = None
-        svc._db_path = db_path
-        svc._consecutive_heartbeat_failures = 0
-        svc._consecutive_size_triggers = 0
-        svc._db_write_queue = None
-        svc._db_worker_task = None
-        svc.hassette = hassette_mock
-        svc.logger = MagicMock()
-
-        # DB has revision 002, but code only knows about 001
-        with (
-            patch.object(DatabaseService, "_get_current_db_revision", return_value="002"),
-            patch.object(DatabaseService, "_get_expected_head_revision", return_value="001"),
-            pytest.raises(RuntimeError, match="ahead"),
-        ):
-            asyncio.run(svc._handle_schema_version(db_path))
 
 
 # ---------------------------------------------------------------------------

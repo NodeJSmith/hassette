@@ -34,6 +34,17 @@ class ConnectionClosedError(HassetteError):
     """Custom exception to indicate that the WebSocket connection was closed unexpectedly."""
 
 
+class SchemaVersionError(HassetteError):
+    """Raised when the on-disk database schema version is ahead of the code's expected head.
+
+    This indicates the database was created by a newer binary. The service should not
+    auto-delete the database in this case; manual intervention is required.
+
+    Listed in ``DatabaseService.restart_spec.fatal_error_names`` so the ServiceWatcher
+    triggers immediate shutdown (FAILED path) rather than retrying.
+    """
+
+
 class CouldNotFindHomeAssistantError(FatalError):
     """Custom exception to indicate that the Home Assistant instance could not be found."""
 

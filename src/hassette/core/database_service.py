@@ -13,6 +13,7 @@ from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine
 
+from hassette.exceptions import SchemaVersionError
 from hassette.resources.base import RestartSpec, Service
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
@@ -346,13 +347,13 @@ class DatabaseService(Service):
         If the DB version is older than head, logs a WARNING and deletes the DB file
         so that migrations recreate it cleanly.
         If the DB version is *ahead* of head (newer DB on older binary), logs an ERROR
-        and raises RuntimeError — auto-delete is refused in this case.
+        and raises SchemaVersionError — auto-delete is refused in this case.
 
         Args:
             db_path: Path to the SQLite database file.
 
         Raises:
-            RuntimeError: When the DB version is ahead of the expected head revision.
+            SchemaVersionError: When the DB version is ahead of the expected head revision.
             RuntimeError: When the DB file cannot be deleted due to permissions.
         """
         if not db_path.exists():
@@ -382,7 +383,7 @@ class DatabaseService(Service):
                     current_rev,
                     expected_head,
                 )
-                raise RuntimeError(
+                raise SchemaVersionError(
                     f"Database schema version {current_rev!r} is ahead of expected head "
                     f"{expected_head!r}. Cannot start safely."
                 )
