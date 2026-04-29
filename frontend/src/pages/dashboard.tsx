@@ -10,6 +10,7 @@ import { AppGrid } from "../components/dashboard/app-grid";
 import { ErrorFeed } from "../components/dashboard/error-feed";
 import { FrameworkHealth } from "../components/dashboard/framework-health";
 import { KpiStrip } from "../components/dashboard/kpi-strip";
+import { ServiceStatusPanel } from "../components/dashboard/service-status-panel";
 import { IconCheck, IconInfo, IconWarning } from "../components/shared/icons";
 import { Spinner } from "../components/shared/spinner";
 import { useScopedApi } from "../hooks/use-scoped-api";
@@ -123,6 +124,7 @@ export function DashboardPage() {
         </div>
       )}
 
+      <ServiceStatusPanel />
       <FrameworkHealth />
     </div>
   );

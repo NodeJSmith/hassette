@@ -87,3 +87,10 @@ class ServiceStatusData(BaseModel):
     exception: str | None = None
     exception_type: str | None = None
     exception_traceback: str | None = None
+    retry_at: float | None = None
+    """Unix timestamp when the next restart will be attempted.
+
+    Populated for ``EXHAUSTED_COOLING`` events (the service is in a long cooldown
+    and will retry at this time). ``None`` for ``EXHAUSTED_DEAD`` and all other
+    statuses.  The frontend uses this to display a live countdown timer.
+    """

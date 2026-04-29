@@ -83,7 +83,8 @@ async def test_early_drop_retry_does_not_increment_restart_counter(ha_container:
         assert service_watcher is not None
 
         ws_key = "WebsocketService:Service"
-        assert service_watcher._restart_attempts.get(ws_key, 0) == 0  # pyright: ignore[reportPrivateUsage]
+        budget_before = service_watcher._budgets.get(ws_key)  # pyright: ignore[reportPrivateUsage]
+        assert budget_before is None or budget_before.current_attempts() == 0
 
         subprocess.run(["docker", "restart", HA_CONTAINER_NAME], check=True)
 
@@ -103,9 +104,11 @@ async def test_early_drop_retry_does_not_increment_restart_counter(ha_container:
             desc="WebSocket reconnected after HA restart",
         )
 
-        assert service_watcher._restart_attempts.get(ws_key, 0) == 0, (  # pyright: ignore[reportPrivateUsage]
+        budget_after = service_watcher._budgets.get(ws_key)  # pyright: ignore[reportPrivateUsage]
+        restart_count = budget_after.current_attempts() if budget_after else 0
+        assert restart_count == 0, (
             "ServiceWatcher restart counter should be 0 — early-drop retry should have handled "
-            "reconnection without escalating to handle_failed()"
+            f"reconnection without escalating to handle_failed() (got {restart_count})"
         )
 
         received = await toggle_and_capture(bus, hassette.api, _ENTITY, timeout=30.0)

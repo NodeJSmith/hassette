@@ -1,8 +1,10 @@
 import asyncio
 import typing
 import uuid
+import warnings
 from abc import abstractmethod
 from contextlib import suppress
+from dataclasses import dataclass
 from functools import cached_property
 from logging import INFO, Logger, getLogger
 from typing import Any, ClassVar, TypeVar, final
@@ -11,7 +13,7 @@ from anyio import ClosedResourceError
 from diskcache import Cache
 
 from hassette.exceptions import CannotOverrideFinalError, FatalError
-from hassette.types.enums import ResourceRole, ResourceStatus
+from hassette.types.enums import ResourceRole, ResourceStatus, RestartType
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, SourceTier
 from hassette.utils.service_utils import wait_for_ready
 
@@ -21,6 +23,50 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette, TaskBucket
 
 _ResourceT = TypeVar("_ResourceT", bound="Resource")
+
+
+@dataclass(frozen=True)
+class RestartSpec:
+    """Specification for how a Service should handle restarts and budget exhaustion.
+
+    Attach to a :class:`Service` subclass as a class attribute::
+
+        class MyService(Service):
+            restart_spec = RestartSpec(restart_type=RestartType.PERMANENT)
+    """
+
+    restart_type: RestartType = RestartType.TRANSIENT
+    """Strategy governing restart and budget-exhaustion behavior."""
+
+    non_retryable_error_names: tuple[str, ...] = ()
+    """Exception type names that skip restart and follow the budget-exhaustion path directly."""
+
+    fatal_error_names: tuple[str, ...] = ()
+    """Exception type names that always trigger immediate shutdown regardless of restart_type."""
+
+    backoff_base_seconds: float = 2.0
+    """Base seconds for exponential backoff between restart attempts."""
+
+    backoff_multiplier: float = 2.0
+    """Multiplier applied to backoff on each successive restart attempt."""
+
+    backoff_max_seconds: float = 60.0
+    """Maximum backoff delay in seconds."""
+
+    budget_intensity: int = 5
+    """Maximum number of restarts allowed within the budget window."""
+
+    budget_period_seconds: float = 300.0
+    """Sliding window size in seconds for the restart budget."""
+
+    startup_timeout_seconds: float = 30.0
+    """How long to wait for mark_ready() after a restart before considering it failed."""
+
+    cooldown_seconds: float = 300.0
+    """Duration in seconds for the long-cooldown phase (TRANSIENT services only)."""
+
+    max_cooldown_cycles: int = 0
+    """Maximum cooldown cycles before transitioning to EXHAUSTED_DEAD. 0 = infinite."""
 
 
 class FinalMeta(type):
@@ -577,11 +623,46 @@ class Service(Resource):
             after_shutdown()     — overridable: post-cleanup
 
     Subclasses MUST implement serve(). All six hooks are available.
+
+    Subclasses should declare ``restart_spec`` to specify their restart strategy::
+
+        class MyService(Service):
+            restart_spec = RestartSpec(restart_type=RestartType.PERMANENT)
+
+    Concrete subclasses that do not declare ``restart_spec`` will emit a warning at
+    class definition time, because silently inheriting the default profile can hide
+    incorrect production behavior.
     """
 
     role: ClassVar[ResourceRole] = ResourceRole.SERVICE
 
+    restart_spec: ClassVar[RestartSpec] = RestartSpec()
+    """Restart strategy for this service. Declare on each concrete subclass."""
+
     _serve_task: asyncio.Task | None = None
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        # Only warn for concrete classes. Since FinalMeta doesn't inherit from ABCMeta,
+        # __abstractmethods__ is not computed automatically. Instead, check for any
+        # abstract methods declared directly on this class — if any exist, treat the
+        # class as abstract/intermediate and skip the warning.
+        has_abstract_methods = any(
+            getattr(v, "__isabstractmethod__", False)
+            for v in cls.__dict__.values()
+            if callable(v) or isinstance(v, (staticmethod, classmethod, property))
+        )
+        if has_abstract_methods:
+            return
+        # Only warn if restart_spec was not declared directly on this class.
+        if "restart_spec" not in cls.__dict__:
+            warnings.warn(
+                f"{cls.__name__} does not declare restart_spec. "
+                f"Inheriting the default RestartSpec() may silently use the wrong restart strategy. "
+                f"Declare restart_spec on {cls.__name__} explicitly.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     def _force_terminal(self) -> None:
         """Override to also cancel the serve task."""

@@ -361,6 +361,18 @@
           ],
           "default": null,
           "title": "Exception Traceback"
+        },
+        "retry_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retry At"
         }
       },
       "required": [

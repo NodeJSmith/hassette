@@ -67,6 +67,8 @@ Located in `src/hassette/event_handling/`:
 
 `Resource` (`src/hassette/resources/base.py`) is the base class for app components (Bus, Scheduler, Api, StateManager). `Service` extends it for background services. Both have lifecycle hooks and child resource tracking with priority-based initialization/shutdown.
 
+Services declare a `restart_spec` class attribute (`RestartSpec`) that controls supervision behavior: restart type (`PERMANENT`, `TRANSIENT`, or `TEMPORARY`), sliding-window budget (intensity + period), backoff parameters, and error routing (fatal vs. non-retryable error names). The `ServiceWatcher` reads this spec when a service fails.
+
 ## App Pattern
 
 ```python
@@ -141,6 +143,24 @@ uv run pytest -m e2e --headed --tracing on -k test_sidebar_navigation
 ```
 
 System dependencies for Chromium require `sudo`. If `playwright install --with-deps` fails, run `sudo uv run playwright install-deps chromium` manually.
+
+## Pre-Ship Verification for Core Changes
+
+When a branch modifies core service infrastructure — files in `src/hassette/core/`, `src/hassette/resources/`, or `src/hassette/types/enums.py` — run the system and e2e test suites locally before pushing the PR, in addition to the standard unit/integration tests:
+
+```bash
+# System tests (requires Docker — validates WS, reconnection, service lifecycle)
+uv run nox -s system
+
+# E2E tests (requires Playwright — validates frontend against real backend)
+uv run nox -s e2e
+```
+
+These suites run with the same warning configuration as CI (`filterwarnings` in `pyproject.toml`). Unit and integration tests alone are insufficient for core changes — they mock the very boundaries where regressions hide.
+
+### Run fixed tests before committing
+
+When fixing or modifying any test, run that test locally and confirm it passes before committing. For system and e2e tests, use the nox sessions above. For unit/integration tests, run at minimum the affected test file. Do not commit test fixes based on code inspection alone — a test that looks correct can still fail due to marker filtering, warning configuration, fixture scoping, or async timing.
 
 ## GitHub Issues
 

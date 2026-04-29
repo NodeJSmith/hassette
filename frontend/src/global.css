@@ -1124,6 +1124,69 @@ strong {
 .ht-status-badge--neutral .ht-status-badge__dot   { background: var(--ht-text-dim); }
 .ht-status-badge--neutral .ht-status-badge__label  { color: var(--ht-text-dim); }
 
+/* — Service Status Panel ————————————————————————————— */
+.ht-ssp__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ht-sp-2);
+}
+
+.ht-ssp__row {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-3);
+  padding: var(--ht-sp-2) var(--ht-sp-3);
+  border-radius: var(--ht-radius-sm);
+  background: var(--ht-surface-recessed);
+  font-size: var(--ht-text-sm);
+}
+
+.ht-ssp__row--danger {
+  background: color-mix(in srgb, var(--ht-danger) 8%, var(--ht-surface-recessed));
+}
+
+.ht-ssp__row--warning {
+  background: color-mix(in srgb, var(--ht-warning) 8%, var(--ht-surface-recessed));
+}
+
+.ht-ssp__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--ht-radius-full);
+  flex-shrink: 0;
+}
+
+.ht-ssp__dot--success { background: var(--ht-success); }
+.ht-ssp__dot--danger  { background: var(--ht-danger); }
+.ht-ssp__dot--warning { background: var(--ht-warning); }
+.ht-ssp__dot--neutral { background: var(--ht-text-dim); }
+
+.ht-ssp__name {
+  font-weight: var(--ht-weight-medium);
+  color: var(--ht-text);
+}
+
+.ht-ssp__label {
+  font-weight: var(--ht-weight-medium);
+}
+
+.ht-ssp__label--danger  { color: var(--ht-danger); }
+.ht-ssp__label--warning { color: var(--ht-warning); }
+.ht-ssp__label--neutral { color: var(--ht-text-dim); }
+
+.ht-ssp__detail {
+  margin-left: auto;
+  font-size: var(--ht-text-xs);
+  color: var(--ht-text-muted);
+}
+
+.ht-ssp__detail--cooling {
+  color: var(--ht-warning);
+}
+
 /* — Health Card ——————————————————————————————————————— */
 .ht-health-card {
   display: flex;

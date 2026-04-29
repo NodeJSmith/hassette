@@ -38,7 +38,7 @@ from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.bus.bus import Bus
 from hassette.core.scheduler_service import _ScheduledJobQueue
-from hassette.resources.base import FinalMeta, Resource, Service
+from hassette.resources.base import FinalMeta, Resource, RestartSpec, Service
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
 from hassette.test_utils import wait_for
@@ -317,6 +317,8 @@ async def test_shutdown_propagation_timeout_forces_terminal_state():
 class SimpleService(Service):
     """Service that runs indefinitely until cancelled."""
 
+    restart_spec = RestartSpec()
+
     async def serve(self) -> None:
         await asyncio.Event().wait()  # block forever
 
@@ -376,6 +378,7 @@ class StatusCapturingChild(Resource):
 class SimpleServiceWithServeFlag(Service):
     """Service that sets a flag once serve() starts running."""
 
+    restart_spec = RestartSpec()
     serve_started: bool = False
 
     async def serve(self) -> None:
@@ -678,6 +681,8 @@ class StubResource(Resource):
 
 class StubService(Service):
     """Simple service for testing _force_terminal()."""
+
+    restart_spec = RestartSpec()
 
     async def serve(self) -> None:
         await asyncio.Event().wait()

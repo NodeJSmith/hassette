@@ -78,7 +78,7 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
         "repairs.issue_registry",
         "trace.saved_traces",
     )
-    config_tmp = tmp_path_factory.mktemp("ha-config", numbered=False)
+    config_tmp = tmp_path_factory.mktemp("ha-config")
     shutil.copytree(FIXTURE_DIR, config_tmp, dirs_exist_ok=True, ignore=_ignore)
 
     env = {**os.environ, "HA_CONFIG_PATH": str(config_tmp)}
@@ -166,6 +166,7 @@ async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIte
         if not hassette._shutdown_completed:
             with contextlib.suppress(Exception):
                 await hassette.shutdown()
+        await asyncio.sleep(0)
 
 
 def make_system_config(ha_url: str, tmp_path: Path) -> HassetteConfig:

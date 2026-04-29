@@ -161,6 +161,7 @@ class RuntimeQueryService(Resource):
             exception=data.exception,
             exception_type=data.exception_type,
             exception_traceback=data.exception_traceback,
+            retry_at=data.retry_at,
         )
         entry = {"type": "service_status", "data": payload.model_dump(), "timestamp": time.time()}
         self._event_buffer.append(entry)

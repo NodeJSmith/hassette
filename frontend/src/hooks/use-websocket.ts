@@ -112,8 +112,21 @@ export function useWebSocket(state: AppState): void {
               break;
 
             case "state_changed":
-            case "service_status":
               // Available for future use
+              break;
+
+            case "service_status":
+              state.serviceStatus.value = {
+                ...state.serviceStatus.value,
+                [msg.data.resource_name]: {
+                  resource_name: msg.data.resource_name,
+                  role: msg.data.role,
+                  status: msg.data.status,
+                  previous_status: msg.data.previous_status,
+                  exception: msg.data.exception,
+                  retry_at: msg.data.retry_at,
+                },
+              };
               break;
           }
         });

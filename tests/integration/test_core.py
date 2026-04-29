@@ -21,7 +21,7 @@ from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.core.web_api_service import WebApiService
 from hassette.core.websocket_service import WebsocketService
-from hassette.resources.base import Resource
+from hassette.resources.base import Resource, RestartSpec
 from hassette.scheduler import Scheduler
 from hassette.test_utils import wait_for
 from hassette.utils.service_utils import topological_sort, validate_dependency_graph
@@ -356,6 +356,7 @@ def test_graph_validation_catches_missing_type() -> None:
     class _StubService(DatabaseService):
         """Stub that declares a dependency on the unregistered _GhostDep."""
 
+        restart_spec = RestartSpec()
         depends_on: ClassVar[list[type[Resource]]] = [_GhostDep]
 
     with pytest.raises(ValueError, match="_GhostDep"):

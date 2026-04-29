@@ -4,7 +4,7 @@ import random
 import typing
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, ClassVar, Generic, TypeVar, cast
 
 from fair_async_rlock import FairAsyncRLock
 from whenever import TimeDelta, ZonedDateTime
@@ -13,7 +13,8 @@ import hassette.utils.date_utils as date_utils
 from hassette.core.commands import ExecuteJob
 from hassette.core.registration import ScheduledJobRegistration
 from hassette.core.registration_tracker import RegistrationTracker
-from hassette.resources.base import Resource, Service
+from hassette.resources.base import Resource, RestartSpec, Service
+from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.serialization import safe_json_serialize
 
@@ -28,6 +29,12 @@ T = TypeVar("T")
 
 class SchedulerService(Service):
     """Service that manages scheduled jobs."""
+
+    restart_spec: ClassVar[RestartSpec] = RestartSpec(
+        restart_type=RestartType.PERMANENT,
+        budget_intensity=2,
+        budget_period_seconds=30,
+    )
 
     _job_queue: "_ScheduledJobQueue"
     """Queue of scheduled jobs."""

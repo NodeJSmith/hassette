@@ -7,7 +7,7 @@ import typing
 from contextlib import AsyncExitStack, suppress
 from itertools import count
 from logging import getLogger
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 import aiohttp
 import anyio
@@ -30,8 +30,9 @@ from hassette.exceptions import (
     InvalidAuthError,
     RetryableConnectionClosedError,
 )
-from hassette.resources.base import Service
+from hassette.resources.base import RestartSpec, Service
 from hassette.types import Topic
+from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
@@ -57,6 +58,13 @@ EARLY_DROP_RETRYABLE = (RetryableConnectionClosedError, ServerDisconnectedError)
 
 
 class WebsocketService(Service):
+    restart_spec: ClassVar[RestartSpec] = RestartSpec(
+        restart_type=RestartType.TRANSIENT,
+        budget_intensity=5,
+        budget_period_seconds=300,
+        startup_timeout_seconds=60,
+    )
+
     url: str
     """WebSocket URL to connect to."""
 
@@ -148,7 +156,7 @@ class WebsocketService(Service):
             max_early_drops,
             int(max_recovery),
             config.websocket_connect_retry_max_attempts,
-            config.service_restart_max_attempts,
+            self.restart_spec.budget_intensity,
         )
 
         async with self._connect_lock:

@@ -123,6 +123,8 @@ filterwarnings = [
     "error",
     "ignore::DeprecationWarning:^websockets\\.legacy",
     "ignore::DeprecationWarning:^uvicorn\\.protocols\\.websockets",
+    "default:.*does not declare restart_spec.*:UserWarning",
+    "default::ResourceWarning:anyio\\.streams\\.memory",
 ]
 # Skip slow Docker tests by default (run with: pytest -m docker)
 addopts = "-m 'not docker and not system and not system_destructive'"

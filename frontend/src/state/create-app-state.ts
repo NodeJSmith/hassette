@@ -16,6 +16,15 @@ export interface AppStatusEntry {
   exception?: string | null;
 }
 
+export interface ServiceStatusEntry {
+  resource_name: string;
+  role: string;
+  status: string;
+  previous_status?: string | null;
+  exception?: string | null;
+  retry_at: number | null;
+}
+
 export interface LogStore {
   push(entry: WsLogPayload): void;
   toArray(): WsLogPayload[];
@@ -63,6 +72,15 @@ export function createAppState() {
      * refetch behind the debounce timer.
      */
     appStatus: signal<Record<string, AppStatusEntry>>({}),
+
+    /**
+     * Per-service status keyed by resource_name, updated via WS service_status messages.
+     *
+     * Tracks the latest status of each internal Hassette service, including
+     * exhaustion states (EXHAUSTED_DEAD, EXHAUSTED_COOLING) with their retry_at
+     * timestamps.
+     */
+    serviceStatus: signal<Record<string, ServiceStatusEntry>>({}),
 
     /** WebSocket connection state machine. */
     connection: signal<ConnectionStatus>("connecting"),

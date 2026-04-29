@@ -1,6 +1,19 @@
 from enum import StrEnum, auto
 
 
+class RestartType(StrEnum):
+    """Enumeration for service restart strategies."""
+
+    PERMANENT = auto()
+    """The service is permanent and should always be restarted on failure."""
+
+    TRANSIENT = auto()
+    """The service is transient — restarts on failure but supports cooldown cycling."""
+
+    TEMPORARY = auto()
+    """The service is temporary — once its restart budget is exhausted, it stops permanently."""
+
+
 class Topic(StrEnum):
     # hassette events
 
@@ -85,6 +98,12 @@ class ResourceStatus(StrEnum):
 
     CRASHED = auto()
     """The resource has crashed unexpectedly and cannot recover."""
+
+    EXHAUSTED_DEAD = auto()
+    """The service's restart budget is exhausted with no further restarts (permanent end state)."""
+
+    EXHAUSTED_COOLING = auto()
+    """The service's restart budget is exhausted and a long cooldown is in progress."""
 
 
 class ResourceRole(StrEnum):

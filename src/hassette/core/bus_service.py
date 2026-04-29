@@ -4,7 +4,7 @@ from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from fnmatch import fnmatch
 from functools import cached_property
-from typing import Any
+from typing import Any, ClassVar
 from uuid import uuid4
 
 from fair_async_rlock import FairAsyncRLock
@@ -19,8 +19,9 @@ from hassette.events import Event, HassPayload
 from hassette.events.base import HassContext
 from hassette.events.hass.hass import RawStateChangeEvent, RawStateChangePayload
 from hassette.exceptions import ResourceNotReadyError
-from hassette.resources.base import Resource, Service
+from hassette.resources.base import Resource, RestartSpec, Service
 from hassette.types import Topic
+from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
@@ -36,6 +37,12 @@ if typing.TYPE_CHECKING:
 
 class BusService(Service):
     """EventBus service that handles event dispatching and listener management."""
+
+    restart_spec: ClassVar[RestartSpec] = RestartSpec(
+        restart_type=RestartType.PERMANENT,
+        budget_intensity=2,
+        budget_period_seconds=30,
+    )
 
     stream: "MemoryObjectReceiveStream[tuple[str, Event[Any]]]"
     """Stream to receive events from."""

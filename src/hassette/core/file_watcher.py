@@ -1,14 +1,22 @@
 from pathlib import Path
+from typing import ClassVar
 
 from watchfiles import awatch
 
 from hassette.events.hassette import HassetteFileWatcherEvent
-from hassette.resources.base import Service
+from hassette.resources.base import RestartSpec, Service
+from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 
 
 class FileWatcherService(Service):
     """Background task to watch for file changes and reload apps."""
+
+    restart_spec: ClassVar[RestartSpec] = RestartSpec(
+        restart_type=RestartType.TEMPORARY,
+        budget_intensity=3,
+        budget_period_seconds=60,
+    )
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:

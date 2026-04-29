@@ -4,7 +4,7 @@ import time
 import typing
 from collections.abc import Coroutine
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import aiosqlite
 from alembic import command
@@ -13,7 +13,9 @@ from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine
 
-from hassette.resources.base import Service
+from hassette.exceptions import SchemaVersionError
+from hassette.resources.base import RestartSpec, Service
+from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
@@ -51,6 +53,13 @@ class DatabaseService(Service):
     Handles Alembic migrations, heartbeat updates, and retention cleanup
     of old execution records.
     """
+
+    restart_spec: ClassVar[RestartSpec] = RestartSpec(
+        restart_type=RestartType.TRANSIENT,
+        budget_intensity=3,
+        budget_period_seconds=120,
+        fatal_error_names=("SchemaVersionError",),
+    )
 
     _db: aiosqlite.Connection | None
     """The aiosqlite write connection, set during on_initialize."""
@@ -338,13 +347,13 @@ class DatabaseService(Service):
         If the DB version is older than head, logs a WARNING and deletes the DB file
         so that migrations recreate it cleanly.
         If the DB version is *ahead* of head (newer DB on older binary), logs an ERROR
-        and raises RuntimeError — auto-delete is refused in this case.
+        and raises SchemaVersionError — auto-delete is refused in this case.
 
         Args:
             db_path: Path to the SQLite database file.
 
         Raises:
-            RuntimeError: When the DB version is ahead of the expected head revision.
+            SchemaVersionError: When the DB version is ahead of the expected head revision.
             RuntimeError: When the DB file cannot be deleted due to permissions.
         """
         if not db_path.exists():
@@ -374,7 +383,7 @@ class DatabaseService(Service):
                     current_rev,
                     expected_head,
                 )
-                raise RuntimeError(
+                raise SchemaVersionError(
                     f"Database schema version {current_rev!r} is ahead of expected head "
                     f"{expected_head!r}. Cannot start safely."
                 )

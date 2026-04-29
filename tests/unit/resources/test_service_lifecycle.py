@@ -2,11 +2,12 @@
 not in on_initialize/on_shutdown, so subclasses can freely override hooks."""
 
 import asyncio
+import warnings
 
 import pytest
 
 from hassette.exceptions import CannotOverrideFinalError
-from hassette.resources.base import FinalMeta, Service
+from hassette.resources.base import FinalMeta, RestartSpec, Service
 from hassette.test_utils import wait_for
 from hassette.types.enums import ResourceStatus
 
@@ -16,6 +17,7 @@ from .conftest import _make_hassette_stub
 class SimpleService(Service):
     """Minimal concrete Service for testing."""
 
+    restart_spec = RestartSpec()
     served: bool = False
 
     async def serve(self) -> None:
@@ -30,6 +32,7 @@ class SimpleService(Service):
 class ServiceWithCustomHooks(Service):
     """Service that overrides on_initialize and on_shutdown without calling super()."""
 
+    restart_spec = RestartSpec()
     init_called: bool = False
     shutdown_called: bool = False
 
@@ -51,6 +54,7 @@ class ServiceWithCustomHooks(Service):
 class ServiceWithOrderTracking(Service):
     """Tracks the order of lifecycle events."""
 
+    restart_spec = RestartSpec()
     order: list[str]
 
     async def serve(self) -> None:
@@ -150,14 +154,16 @@ def test_finalmeta_blocks_service_subclass_from_overriding_initialize():
     key = f"{__name__}._BadSubclass"
     FinalMeta.LOADED_CLASSES.discard(key)
 
-    with pytest.raises(CannotOverrideFinalError):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        with pytest.raises(CannotOverrideFinalError):
 
-        class _BadSubclass(Service):
-            async def serve(self) -> None:
-                pass
+            class _BadSubclass(Service):
+                async def serve(self) -> None:
+                    pass
 
-            async def initialize(self) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
-                pass
+                async def initialize(self) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+                    pass
 
 
 def test_finalmeta_blocks_service_subclass_from_overriding_shutdown():
@@ -165,14 +171,16 @@ def test_finalmeta_blocks_service_subclass_from_overriding_shutdown():
     key = f"{__name__}._BadSubclass2"
     FinalMeta.LOADED_CLASSES.discard(key)
 
-    with pytest.raises(CannotOverrideFinalError):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        with pytest.raises(CannotOverrideFinalError):
 
-        class _BadSubclass2(Service):
-            async def serve(self) -> None:
-                pass
+            class _BadSubclass2(Service):
+                async def serve(self) -> None:
+                    pass
 
-            async def shutdown(self) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
-                pass
+                async def shutdown(self) -> None:  # pyright: ignore[reportIncompatibleMethodOverride]
+                    pass
 
 
 async def test_simple_service_completes_full_lifecycle():

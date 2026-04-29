@@ -41,20 +41,20 @@ When Home Assistant becomes unreachable or disconnects mid-session, Hassette han
 
 The initial connection itself retries up to 5 times with exponential backoff (starting at 1 second, capping at 32 seconds) before the service is considered failed. If the service fails, the `ServiceWatcher` takes over:
 
-- It restarts `WebsocketService` up to **5 more times** (configurable via `service_restart_max_attempts`).
-- Each restart waits an exponentially increasing delay starting at **2 seconds**, doubling each attempt, capped at **60 seconds** (`service_restart_backoff_seconds`, `service_restart_backoff_multiplier`, `service_restart_max_backoff_seconds`).
-- When Home Assistant comes back and the connection is re-established, Hassette fires `hassette.event.websocket_connected` and resets the restart counter.
+- It restarts `WebsocketService` using its `RestartSpec`: up to **5 restarts** within a **300-second sliding window** (TRANSIENT type).
+- Each restart waits an exponentially increasing delay starting at **2 seconds**, doubling each attempt, capped at **60 seconds**.
+- When Home Assistant comes back and the service recovers to RUNNING and becomes ready, Hassette fires `hassette.event.websocket_connected` and the restart budget resets automatically.
 
-**If all restarts are exhausted**, Hassette emits a `CRASHED` status event and shuts itself down cleanly.
+**If the restart budget is exhausted**, `WebsocketService` enters `EXHAUSTED_COOLING` for a 300-second cooldown, then resets its budget and retries. The TRANSIENT restart type means it keeps trying rather than shutting down immediately.
 
 **What to look for in logs:**
 
 ```
 WARNING  hassette.WebsocketService -- Retrying _inner_connect in Xs as it raised CouldNotFindHomeAssistantError: ...
 ERROR    hassette.WebsocketService -- Serve() task failed: CouldNotFindHomeAssistantError ...
-INFO     hassette.ServiceWatcher   -- Service 'WebsocketService' restart attempt N/5, waiting Xs
-INFO     hassette.WebsocketService -- Websocket connected to ws://...
-ERROR    hassette.ServiceWatcher   -- WebsocketService has failed 5 times (max 5), shutting down Hassette
+INFO     hassette.ServiceWatcher   -- Service 'WebsocketService' restarting (attempt N, waiting Xs)
+DEBUG    hassette.WebsocketService -- Connected to WebSocket at ws://...
+INFO     hassette.ServiceWatcher   -- Service 'WebsocketService' in cooldown for 300.0s (cycle 1)
 ```
 
 **During reconnection**, your app code keeps running — the bus, scheduler, and state manager remain active. API calls (`.call_service()`, `.get_state()`) will raise `ResourceNotReadyError` while the WebSocket is down because they depend on an active connection. Your handlers registered via the bus will resume receiving events as soon as the WebSocket reconnects; no re-registration is needed.

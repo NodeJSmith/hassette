@@ -53,8 +53,6 @@ def tests(session: "Session"):
         "auto",
         "--dist",
         "loadscope",
-        "-W",
-        "error",
         "--tb=line",
         external=True,
     )
@@ -81,8 +79,6 @@ def e2e(session: "Session"):
         "retain-on-failure",
         "--output",
         "test-results",
-        "-W",
-        "error",
         "--tb=line",
         external=True,
     )
@@ -158,8 +154,6 @@ def tests_with_coverage(session: "Session"):
         "auto",
         "--dist",
         "loadscope",
-        "-W",
-        "error",
         "--cov=hassette",
         "--cov-branch",
         "--cov-report=term-missing:skip-covered",

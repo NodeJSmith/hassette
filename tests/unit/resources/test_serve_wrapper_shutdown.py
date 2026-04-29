@@ -2,7 +2,7 @@
 
 from anyio import ClosedResourceError
 
-from hassette.resources.base import Service
+from hassette.resources.base import RestartSpec, Service
 from hassette.types.enums import ResourceStatus
 
 from .conftest import _make_hassette_stub
@@ -10,6 +10,8 @@ from .conftest import _make_hassette_stub
 
 class _ClosedResourceService(Service):
     """Service whose serve() raises ClosedResourceError (simulating stream closure)."""
+
+    restart_spec = RestartSpec()
 
     async def serve(self) -> None:
         raise ClosedResourceError()
