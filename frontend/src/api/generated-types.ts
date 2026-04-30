@@ -838,6 +838,12 @@ export interface components {
             error_message: string | null;
             /** Error Traceback */
             error_traceback?: string | null;
+            /** Execution Id */
+            execution_id?: string | null;
+            /** Trigger Context Id */
+            trigger_context_id?: string | null;
+            /** Trigger Origin */
+            trigger_origin?: string | null;
         };
         /** JobErrorEntry */
         JobErrorEntry: {
@@ -891,6 +897,8 @@ export interface components {
             error_message: string | null;
             /** Error Traceback */
             error_traceback?: string | null;
+            /** Execution Id */
+            execution_id?: string | null;
         };
         /**
          * JobSummary

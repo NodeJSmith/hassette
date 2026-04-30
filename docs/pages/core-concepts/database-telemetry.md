@@ -19,6 +19,42 @@ Framework-internal handlers (telemetry workers, WebSocket service, scheduler ser
 ??? note "Internal detail"
     Internally, framework handlers are stored with `source_tier='framework'` and a component-specific `app_key` of the form `__hassette__.<component>` — for example `__hassette__.service_watcher`, `__hassette__.app_handler`, or `__hassette__.core`. This naming identifies which part of the framework produced an error and is used by the web UI to display the component name in the **Framework** badge. The App Health grid filters out all framework keys, while KPIs and the error feed include all tiers by default.
 
+## Invocation and Execution Columns
+
+Each handler invocation and job execution record captures the following fields.
+
+### Handler invocations
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `execution_start_ts` | float | Unix timestamp when the handler started executing |
+| `duration_ms` | float | Wall-clock time the handler took, in milliseconds |
+| `status` | string | Outcome: `success`, `error`, `cancelled`, `di_failure`, or `timed_out` |
+| `source_tier` | string | `app` for user automations, `framework` for internal Hassette components |
+| `error_type` | string \| null | Exception class name, if the handler raised an error |
+| `error_message` | string \| null | Exception message, if the handler raised an error |
+| `error_traceback` | string \| null | Full Python traceback, if the handler raised an error |
+| `execution_id` | string \| null | UUID that ties this invocation to a specific trigger delivery. `null` for rows written before this feature was added. |
+| `trigger_context_id` | string \| null | UUID identifying the payload instance that triggered this handler. For hassette events, this is scoped to the specific payload object — not the raw event — so two handlers that receive the same event but different predicates will have the same `trigger_context_id` only if they received the same payload object. `null` for rows written before this feature was added. |
+| `trigger_origin` | string \| null | Where the trigger originated: `LOCAL` (Home Assistant local action), `REMOTE` (Home Assistant remote action), or `HASSETTE` (framework-generated internal event). `null` for rows written before this feature was added. |
+
+### Job executions
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `execution_start_ts` | float | Unix timestamp when the job started executing |
+| `duration_ms` | float | Wall-clock time the job took, in milliseconds |
+| `status` | string | Outcome: `success`, `error`, or `timed_out` |
+| `source_tier` | string | `app` for user automations, `framework` for internal Hassette components |
+| `error_type` | string \| null | Exception class name, if the job raised an error |
+| `error_message` | string \| null | Exception message, if the job raised an error |
+| `error_traceback` | string \| null | Full Python traceback, if the job raised an error |
+| `execution_id` | string \| null | UUID that ties this execution to a specific scheduler invocation. `null` for rows written before this feature was added. |
+
+### Pre-migration rows
+
+The `execution_id`, `trigger_context_id`, and `trigger_origin` columns were added in a schema migration. Rows written before this migration have `null` in all three columns. The web UI renders `null` as "—" in the Trace ID, Trigger, and Origin columns.
+
 ## Configuration
 
 All database settings are optional. The defaults work well for most installations.

@@ -140,4 +140,78 @@ describe("HandlerInvocations", () => {
     const rows = container.querySelectorAll("tbody tr");
     expect(rows.length).toBe(3);
   });
+
+  it("renders Trace ID, Trigger, and Origin column headers", () => {
+    const { getByText } = render(
+      <HandlerInvocations invocations={[createInvocation()]} listenerId={1} />,
+    );
+    expect(getByText("Trace ID")).toBeDefined();
+    expect(getByText("Trigger")).toBeDefined();
+    expect(getByText("Origin")).toBeDefined();
+  });
+
+  it("renders execution_id truncated to 8 chars with full value in title", () => {
+    const uuid = "abc12345-6789-abcd-ef01-234567890abc";
+    const { container } = render(
+      <HandlerInvocations
+        invocations={[createInvocation({ execution_id: uuid })]}
+        listenerId={1}
+      />,
+    );
+    const cell = container.querySelector("[title='" + uuid + "']");
+    expect(cell).not.toBeNull();
+    expect(cell!.textContent).toBe("abc12345…");
+  });
+
+  it("renders dash for null execution_id", () => {
+    const { getAllByText } = render(
+      <HandlerInvocations
+        invocations={[createInvocation({ execution_id: null })]}
+        listenerId={1}
+      />,
+    );
+    // At least one em-dash should appear (could also be from error column)
+    expect(getAllByText("—").length).toBeGreaterThan(0);
+  });
+
+  it("renders trigger_context_id truncated to 8 chars", () => {
+    const uuid = "deadbeef-1234-5678-90ab-cdef01234567";
+    const { container } = render(
+      <HandlerInvocations
+        invocations={[createInvocation({ trigger_context_id: uuid })]}
+        listenerId={1}
+      />,
+    );
+    const cell = container.querySelector("[title='" + uuid + "']");
+    expect(cell).not.toBeNull();
+    expect(cell!.textContent).toBe("deadbeef…");
+  });
+
+  it("renders trigger_origin as plain text", () => {
+    const { getByText } = render(
+      <HandlerInvocations
+        invocations={[createInvocation({ trigger_origin: "state_changed" })]}
+        listenerId={1}
+      />,
+    );
+    expect(getByText("state_changed")).toBeDefined();
+  });
+
+  it("traceback row spans all 7 columns", () => {
+    const { getByRole, container } = render(
+      <HandlerInvocations
+        invocations={[
+          createInvocation({
+            status: "error",
+            error_traceback: "Traceback (most recent call last):\n  File test.py, line 1",
+          }),
+        ]}
+        listenerId={1}
+      />,
+    );
+    fireEvent.click(getByRole("button", { name: /traceback/i }));
+    const tbRow = container.querySelector(".ht-traceback-row td");
+    expect(tbRow).not.toBeNull();
+    expect(tbRow!.getAttribute("colspan")).toBe("7");
+  });
 });

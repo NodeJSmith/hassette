@@ -2,12 +2,12 @@ import { signal } from "@preact/signals";
 import { useRef } from "preact/hooks";
 import type { HandlerInvocationData } from "../../api/endpoints";
 import { ShowMoreButton } from "../shared/show-more-button";
-import { formatDuration, formatTimestamp } from "../../utils/format";
+import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
 import { executionStatusVariant } from "../../utils/status";
 import { ErrorCell } from "./error-cell";
 
 const INITIAL_ROWS = 5;
-const COL_COUNT = 4;
+const COL_COUNT = 7;
 
 interface Props {
   invocations: HandlerInvocationData[];
@@ -39,6 +39,9 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
             <th class="ht-col-time">Timestamp</th>
             <th class="ht-col-duration">Duration</th>
             <th>Error</th>
+            <th>Trace ID</th>
+            <th>Trigger</th>
+            <th>Origin</th>
           </tr>
         </thead>
         <tbody>
@@ -59,6 +62,9 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
                     onToggle={() => toggleTraceback(i)}
                   />
                 </td>
+                <td class="ht-text-mono ht-text-xs" title={inv.execution_id ?? undefined}>{truncateId(inv.execution_id)}</td>
+                <td class="ht-text-mono ht-text-xs" title={inv.trigger_context_id ?? undefined}>{truncateId(inv.trigger_context_id)}</td>
+                <td class="ht-text-secondary ht-text-sm">{inv.trigger_origin ?? "—"}</td>
               </tr>,
               isExpanded && inv.error_traceback && (
                 <tr key={`${i}-tb`} class="ht-traceback-row">
