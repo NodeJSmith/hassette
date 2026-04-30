@@ -1,5 +1,5 @@
-import itertools
 import typing
+import uuid
 from dataclasses import dataclass, field
 from typing import Generic, Literal, TypeVar
 
@@ -14,9 +14,6 @@ DataT = TypeVar("DataT", covariant=True)
 """Represents the data type within an event payload."""
 
 
-HASSETTE_EVENT_ID_SEQ = itertools.count(1)
-
-
 @dataclass(frozen=True, slots=True)
 class EventPayload(Generic[DataT]):
     """Base payload with typed data."""
@@ -26,6 +23,12 @@ class EventPayload(Generic[DataT]):
 
     data: DataT
     """The actual event data."""
+
+    event_id: str = field(default="", kw_only=True)
+    """Unique identifier for this event. Subclasses override with a more specific default."""
+
+    origin: str = field(default="UNKNOWN", kw_only=True)
+    """Origin of the event. Subclasses override with a concrete value."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,14 +50,17 @@ class HassPayload(EventPayload[DataT]):
     data: DataT
     """The actual event data from Home Assistant."""
 
-    origin: Literal["LOCAL", "REMOTE"]
+    origin: Literal["LOCAL", "REMOTE"]  # pyright: ignore[reportGeneralTypeIssues]
     """Origin of the event, either 'LOCAL' or 'REMOTE'."""
 
-    time_fired: ZonedDateTime
+    time_fired: ZonedDateTime  # pyright: ignore[reportGeneralTypeIssues]
     """The time the event was fired."""
 
-    context: HassContext
+    context: HassContext  # pyright: ignore[reportGeneralTypeIssues]
     """The context of the event."""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "event_id", self.context.id)
 
     @property
     def entity_id(self) -> str | None:
@@ -77,11 +83,6 @@ class HassPayload(EventPayload[DataT]):
         """Return the service if present in the data."""
         return getattr(self.data, "service", None)
 
-    @property
-    def event_id(self) -> str:
-        """The unique identifier for the event."""
-        return self.context.id
-
     def __repr__(self) -> str:
         if self.entity_id:
             return f"HassPayload(event_type={self.event_type}, entity_id={self.entity_id}, event_id={self.event_id})"
@@ -99,8 +100,18 @@ class HassettePayload(EventPayload[DataT]):
     data: DataT
     """The actual event data from Home Assistant."""
 
-    event_id: int = field(default_factory=lambda: next(HASSETTE_EVENT_ID_SEQ))
-    """The unique identifier for the event."""
+    event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    """Unique identifier for this payload instance (UUID4).
+
+    Note: Unlike HA's ``context.id`` (stable across all handlers receiving the
+    same event), each ``HassettePayload`` construction generates a new ID. When
+    the bus reconstructs a hassette payload for different handlers, each handler
+    sees a distinct ``event_id``. Use this as a per-invocation trace token, not
+    as a stable event identity.
+    """
+
+    origin: str = "HASSETTE"
+    """Origin of the event, always 'HASSETTE' for framework-generated events."""
 
     def __repr__(self) -> str:
         return f"HassettePayload(event_type={self.event_type}, event_id={self.event_id})"
