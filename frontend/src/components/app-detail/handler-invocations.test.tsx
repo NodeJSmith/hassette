@@ -190,11 +190,11 @@ describe("HandlerInvocations", () => {
   it("renders trigger_origin as plain text", () => {
     const { getByText } = render(
       <HandlerInvocations
-        invocations={[createInvocation({ trigger_origin: "state_changed" })]}
+        invocations={[createInvocation({ trigger_origin: "LOCAL" })]}
         listenerId={1}
       />,
     );
-    expect(getByText("state_changed")).toBeDefined();
+    expect(getByText("LOCAL")).toBeDefined();
   });
 
   it("traceback row spans all 7 columns", () => {

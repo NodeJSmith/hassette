@@ -29,13 +29,14 @@ Each handler invocation and job execution record captures the following fields.
 |--------|------|-------------|
 | `execution_start_ts` | float | Unix timestamp when the handler started executing |
 | `duration_ms` | float | Wall-clock time the handler took, in milliseconds |
-| `status` | string | Outcome: `success`, `error`, `cancelled`, `di_failure`, or `timed_out` |
+| `status` | string | Outcome: `success`, `error`, `cancelled`, or `timed_out` |
+| `is_di_failure` | boolean | Whether the invocation failed due to a dependency injection error |
 | `source_tier` | string | `app` for user automations, `framework` for internal Hassette components |
 | `error_type` | string \| null | Exception class name, if the handler raised an error |
 | `error_message` | string \| null | Exception message, if the handler raised an error |
 | `error_traceback` | string \| null | Full Python traceback, if the handler raised an error |
 | `execution_id` | string \| null | UUID that ties this invocation to a specific trigger delivery. `null` for rows written before this feature was added. |
-| `trigger_context_id` | string \| null | UUID identifying the payload instance that triggered this handler. For hassette events, this is scoped to the specific payload object — not the raw event — so two handlers that receive the same event but different predicates will have the same `trigger_context_id` only if they received the same payload object. `null` for rows written before this feature was added. |
+| `trigger_context_id` | string \| null | UUID identifying the event that triggered this handler. For HA events, this is `context.id` from the originating Home Assistant event context and is stable across all handlers that receive the same event. For hassette-internal events, this is unique per event firing. `null` for rows written before this feature was added. |
 | `trigger_origin` | string \| null | Where the trigger originated: `LOCAL` (Home Assistant local action), `REMOTE` (Home Assistant remote action), or `HASSETTE` (framework-generated internal event). `null` for rows written before this feature was added. |
 
 ### Job executions
