@@ -16,6 +16,74 @@ if typing.TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
 
 
+def _inv_insert_params(record: HandlerInvocationRecord) -> dict:
+    """Build the named-parameter dict for a handler_invocations INSERT.
+
+    Includes all columns written by ``persist_batch()`` and
+    ``persist_batch_with_fk_fallback()``. Both paths must stay in sync with
+    this function — derive their column lists from ``params.keys()`` rather
+    than hardcoding strings.
+
+    The ``is_di_failure`` field is converted to ``int`` here (required by
+    SQLite — booleans are not a native SQLite type).
+
+    Args:
+        record: The handler invocation record to convert.
+
+    Returns:
+        A dict of named parameters ready for ``db.execute()`` or
+        ``db.executemany()``.
+    """
+    return {
+        "listener_id": record.listener_id,
+        "session_id": record.session_id,
+        "execution_start_ts": record.execution_start_ts,
+        "duration_ms": record.duration_ms,
+        "status": record.status,
+        "source_tier": record.source_tier,
+        "is_di_failure": 1 if record.is_di_failure else 0,
+        "error_type": record.error_type,
+        "error_message": record.error_message,
+        "error_traceback": record.error_traceback,
+        "execution_id": record.execution_id,
+        "trigger_context_id": record.trigger_context_id,
+        "trigger_origin": record.trigger_origin,
+    }
+
+
+def _job_insert_params(record: JobExecutionRecord) -> dict:
+    """Build the named-parameter dict for a job_executions INSERT.
+
+    Includes all columns written by ``persist_batch()`` and
+    ``persist_batch_with_fk_fallback()``. Both paths must stay in sync with
+    this function — derive their column lists from ``params.keys()`` rather
+    than hardcoding strings.
+
+    The ``is_di_failure`` field is converted to ``int`` here (required by
+    SQLite — booleans are not a native SQLite type).
+
+    Args:
+        record: The job execution record to convert.
+
+    Returns:
+        A dict of named parameters ready for ``db.execute()`` or
+        ``db.executemany()``.
+    """
+    return {
+        "job_id": record.job_id,
+        "session_id": record.session_id,
+        "execution_start_ts": record.execution_start_ts,
+        "duration_ms": record.duration_ms,
+        "status": record.status,
+        "source_tier": record.source_tier,
+        "is_di_failure": 1 if record.is_di_failure else 0,
+        "error_type": record.error_type,
+        "error_message": record.error_message,
+        "error_traceback": record.error_traceback,
+        "execution_id": record.execution_id,
+    }
+
+
 def _is_fk_violation(exc: sqlite3.IntegrityError) -> bool:
     """Return True if the IntegrityError is a foreign key constraint violation.
 
@@ -544,60 +612,28 @@ class TelemetryRepository:
         dropped = 0
         logger = logging.getLogger(__name__)
 
-        inv_cols = (
-            "listener_id, session_id, execution_start_ts, "
-            "duration_ms, status, source_tier, is_di_failure, "
-            "error_type, error_message, error_traceback"
-        )
-        inv_vals = (
-            ":listener_id, :session_id, :execution_start_ts, "
-            ":duration_ms, :status, :source_tier, :is_di_failure, "
-            ":error_type, :error_message, :error_traceback"
-        )
-        job_cols = (
-            "job_id, session_id, execution_start_ts, "
-            "duration_ms, status, source_tier, is_di_failure, "
-            "error_type, error_message, error_traceback"
-        )
-        job_vals = (
-            ":job_id, :session_id, :execution_start_ts, "
-            ":duration_ms, :status, :source_tier, :is_di_failure, "
-            ":error_type, :error_message, :error_traceback"
-        )
+        # Derive column and values clauses from the shared params functions.
+        # A sentinel record is used only to obtain the key order; all values
+        # are overridden per-record below. This ensures the column list in the
+        # FK-fallback path is always identical to the one used by persist_batch().
+        _inv_sentinel = _inv_insert_params(invocations[0]) if invocations else {}
+        _job_sentinel = _job_insert_params(job_executions[0]) if job_executions else {}
+        inv_cols = ", ".join(_inv_sentinel.keys()) if _inv_sentinel else ""
+        inv_vals = ", ".join(f":{k}" for k in _inv_sentinel) if _inv_sentinel else ""
+        job_cols = ", ".join(_job_sentinel.keys()) if _job_sentinel else ""
+        job_vals = ", ".join(f":{k}" for k in _job_sentinel) if _job_sentinel else ""
 
         try:
             await db.execute("BEGIN")
 
             for record in invocations:
-                params = {
-                    "listener_id": record.listener_id,
-                    "session_id": record.session_id,
-                    "execution_start_ts": record.execution_start_ts,
-                    "duration_ms": record.duration_ms,
-                    "status": record.status,
-                    "source_tier": record.source_tier,
-                    "is_di_failure": 1 if record.is_di_failure else 0,
-                    "error_type": record.error_type,
-                    "error_message": record.error_message,
-                    "error_traceback": record.error_traceback,
-                }
+                params = _inv_insert_params(record)
                 dropped += await _insert_row_with_fk_fallback(
                     db, "handler_invocations", inv_cols, inv_vals, params, "listener_id", logger
                 )
 
             for record in job_executions:
-                params = {
-                    "job_id": record.job_id,
-                    "session_id": record.session_id,
-                    "execution_start_ts": record.execution_start_ts,
-                    "duration_ms": record.duration_ms,
-                    "status": record.status,
-                    "source_tier": record.source_tier,
-                    "is_di_failure": 1 if record.is_di_failure else 0,
-                    "error_type": record.error_type,
-                    "error_message": record.error_message,
-                    "error_traceback": record.error_traceback,
-                }
+                params = _job_insert_params(record)
                 dropped += await _insert_row_with_fk_fallback(
                     db, "job_executions", job_cols, job_vals, params, "job_id", logger
                 )
@@ -632,63 +668,21 @@ class TelemetryRepository:
 
         try:
             if invocations:
+                inv_params = [_inv_insert_params(r) for r in invocations]
+                inv_cols = ", ".join(inv_params[0].keys())
+                inv_vals = ", ".join(f":{k}" for k in inv_params[0])
                 await db.executemany(
-                    """
-                    INSERT INTO handler_invocations (
-                        listener_id, session_id, execution_start_ts,
-                        duration_ms, status, source_tier, is_di_failure,
-                        error_type, error_message, error_traceback
-                    ) VALUES (
-                        :listener_id, :session_id, :execution_start_ts,
-                        :duration_ms, :status, :source_tier, :is_di_failure,
-                        :error_type, :error_message, :error_traceback
-                    )
-                    """,
-                    [
-                        {
-                            "listener_id": r.listener_id,
-                            "session_id": r.session_id,
-                            "execution_start_ts": r.execution_start_ts,
-                            "duration_ms": r.duration_ms,
-                            "status": r.status,
-                            "source_tier": r.source_tier,
-                            "is_di_failure": 1 if r.is_di_failure else 0,
-                            "error_type": r.error_type,
-                            "error_message": r.error_message,
-                            "error_traceback": r.error_traceback,
-                        }
-                        for r in invocations
-                    ],
+                    f"INSERT INTO handler_invocations ({inv_cols}) VALUES ({inv_vals})",
+                    inv_params,
                 )
 
             if job_executions:
+                job_params = [_job_insert_params(r) for r in job_executions]
+                job_cols = ", ".join(job_params[0].keys())
+                job_vals = ", ".join(f":{k}" for k in job_params[0])
                 await db.executemany(
-                    """
-                    INSERT INTO job_executions (
-                        job_id, session_id, execution_start_ts,
-                        duration_ms, status, source_tier, is_di_failure,
-                        error_type, error_message, error_traceback
-                    ) VALUES (
-                        :job_id, :session_id, :execution_start_ts,
-                        :duration_ms, :status, :source_tier, :is_di_failure,
-                        :error_type, :error_message, :error_traceback
-                    )
-                    """,
-                    [
-                        {
-                            "job_id": r.job_id,
-                            "session_id": r.session_id,
-                            "execution_start_ts": r.execution_start_ts,
-                            "duration_ms": r.duration_ms,
-                            "status": r.status,
-                            "source_tier": r.source_tier,
-                            "is_di_failure": 1 if r.is_di_failure else 0,
-                            "error_type": r.error_type,
-                            "error_message": r.error_message,
-                            "error_traceback": r.error_traceback,
-                        }
-                        for r in job_executions
-                    ],
+                    f"INSERT INTO job_executions ({job_cols}) VALUES ({job_vals})",
+                    job_params,
                 )
 
             await db.commit()

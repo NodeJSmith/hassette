@@ -453,6 +453,9 @@ EXPECTED_TABLES = {
         "error_traceback",
         "is_di_failure",
         "source_tier",
+        "execution_id",
+        "trigger_context_id",
+        "trigger_origin",
     },
     "job_executions": {
         "id",
@@ -466,6 +469,7 @@ EXPECTED_TABLES = {
         "error_traceback",
         "is_di_failure",
         "source_tier",
+        "execution_id",
     },
 }
 

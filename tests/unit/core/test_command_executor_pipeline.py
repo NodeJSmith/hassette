@@ -537,7 +537,10 @@ CREATE TABLE handler_invocations (
     error_traceback TEXT,
     is_di_failure INTEGER NOT NULL DEFAULT 0,
     source_tier TEXT NOT NULL DEFAULT 'app'
-        CHECK (source_tier IN ('app', 'framework'))
+        CHECK (source_tier IN ('app', 'framework')),
+    execution_id TEXT,
+    trigger_context_id TEXT,
+    trigger_origin TEXT
 );
 
 CREATE TABLE job_executions (
@@ -552,7 +555,8 @@ CREATE TABLE job_executions (
     error_traceback TEXT,
     is_di_failure INTEGER NOT NULL DEFAULT 0,
     source_tier TEXT NOT NULL DEFAULT 'app'
-        CHECK (source_tier IN ('app', 'framework'))
+        CHECK (source_tier IN ('app', 'framework')),
+    execution_id TEXT
 );
 """
 
