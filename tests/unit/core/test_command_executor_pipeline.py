@@ -1,4 +1,4 @@
-"""Unit tests for CommandExecutor write-pipeline resilience (WP03).
+"""Unit tests for CommandExecutor write-pipeline resilience.
 
 Tests cover:
 - Bounded queue with overflow handling
@@ -386,7 +386,7 @@ def test_build_record_reads_source_tier():
     result.error_traceback = None
     result.is_di_failure = False
 
-    record = CommandExecutor._build_record(executor, cmd, result, time.time())  # pyright: ignore[reportArgumentType]
+    record = CommandExecutor._build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
 
     assert isinstance(record, HandlerInvocationRecord)
     assert record.source_tier == "framework"
@@ -417,7 +417,7 @@ def test_build_record_reads_is_di_failure():
     result.error_traceback = None
     result.is_di_failure = True
 
-    record = CommandExecutor._build_record(executor, cmd, result, time.time())  # pyright: ignore[reportArgumentType]
+    record = CommandExecutor._build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
 
     assert isinstance(record, HandlerInvocationRecord)
     assert record.is_di_failure is True

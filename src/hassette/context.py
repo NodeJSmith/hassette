@@ -14,6 +14,7 @@ if typing.TYPE_CHECKING:
 LOGGER = getLogger(__name__)
 
 CURRENT_BUCKET: ContextVar["TaskBucket | None"] = ContextVar("CURRENT_BUCKET", default=None)
+CURRENT_EXECUTION_ID: ContextVar[str | None] = ContextVar("CURRENT_EXECUTION_ID", default=None)
 HASSETTE_INSTANCE: ContextVar["Hassette"] = ContextVar("HASSETTE_INSTANCE")
 HASSETTE_SET_LOCATION: ContextVar[str | None] = ContextVar("HASSETTE_SET_LOCATION", default=None)
 HASSETTE_CONFIG: ContextVar["HassetteConfig"] = ContextVar("HASSETTE_CONFIG")

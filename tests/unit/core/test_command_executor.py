@@ -20,6 +20,10 @@ def _make_cmd_invoke_handler(source_tier: str) -> MagicMock:
     cmd.listener = MagicMock()
     cmd.listener.invoke = AsyncMock(return_value=None)
     cmd.effective_timeout = None
+    # Provide event with payload attributes so _build_record can extract trigger fields
+    cmd.event = MagicMock()
+    cmd.event.payload.event_id = "test-event-id"
+    cmd.event.payload.origin = "LOCAL"
     return cmd
 
 
@@ -68,7 +72,7 @@ class TestCommandExecutorSourceTierBranching:
         def log_error(result: ExecutionResult) -> None:
             pass
 
-        result = await executor._execute(fn, cmd, log_error)
+        result = await executor._execute(fn, cmd, log_error, "test-execution-id")
 
         assert result.status == "error"
         assert result.error_type == "DependencyError"
@@ -86,7 +90,7 @@ class TestCommandExecutorSourceTierBranching:
         def log_error(result: ExecutionResult) -> None:
             pass
 
-        result = await executor._execute(fn, cmd, log_error)
+        result = await executor._execute(fn, cmd, log_error, "test-execution-id")
 
         assert result.status == "error"
         assert result.error_traceback is None
@@ -102,7 +106,7 @@ class TestCommandExecutorSourceTierBranching:
         def log_error(result: ExecutionResult) -> None:
             pass
 
-        result = await executor._execute(fn, cmd, log_error)
+        result = await executor._execute(fn, cmd, log_error, "test-execution-id")
 
         assert result.status == "error"
         assert result.error_type == "DependencyError"
@@ -121,7 +125,7 @@ class TestCommandExecutorSourceTierBranching:
         def log_error(result: ExecutionResult) -> None:
             pass
 
-        result = await executor._execute(fn, cmd, log_error)
+        result = await executor._execute(fn, cmd, log_error, "test-execution-id")
 
         assert result.status == "error"
         assert result.error_traceback is not None
@@ -138,7 +142,7 @@ class TestCommandExecutorSourceTierBranching:
             pass
 
         with pytest.raises(AssertionError, match="Unexpected source_tier"):
-            await executor._execute(fn, cmd, log_error)
+            await executor._execute(fn, cmd, log_error, "test-execution-id")
 
     async def test_app_tier_unknown_exception_preserves_traceback(self) -> None:
         """App-tier unknown exceptions (not DependencyError/HassetteError) still get tracebacks."""
@@ -151,7 +155,7 @@ class TestCommandExecutorSourceTierBranching:
         def log_error(result: ExecutionResult) -> None:
             pass
 
-        result = await executor._execute(fn, cmd, log_error)
+        result = await executor._execute(fn, cmd, log_error, "test-execution-id")
 
         assert result.status == "error"
         assert result.error_type == "RuntimeError"
