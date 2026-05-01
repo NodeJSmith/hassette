@@ -242,7 +242,7 @@ class CommandExecutor(Service):
             The populated ``ExecutionResult``.
         """
         execution_start_ts = time.time()
-        result = ExecutionResult(execution_id=execution_id)
+        result = ExecutionResult()
         match cmd.source_tier:
             case "app":
                 known: tuple[type[Exception], ...] = (DependencyError, HassetteError)
@@ -508,21 +508,11 @@ class CommandExecutor(Service):
         handler: "Callable",
         ctx: ErrorContext,
     ) -> None:
-        # CURRENT_EXECUTION_ID is set to the parent execution's ID via inherited context
-        # snapshot. This is intentional for error correlation but is not reset here —
-        # sub-tasks spawned by user error handler code will inherit the same ID.
         """Invoke a user-registered error handler in a separate spawned task.
 
-        Normalizes the handler via make_async_adapter at invocation time (not at registration time)
-        so that sync handlers run in the thread pool and async handlers are awaited directly.
-        Wraps invocation in asyncio.timeout to prevent runaway handlers from blocking indefinitely.
-
-        On handler exception or handler-raised TimeoutError: logs at ERROR and increments _error_handler_failures.
-        On framework-triggered timeout: logs at WARNING and increments _error_handler_failures.
-
-        Args:
-            handler: The raw error handler callable (sync or async).
-            ctx: The error context (BusErrorContext or SchedulerErrorContext) to pass to the handler.
+        Note: CURRENT_EXECUTION_ID is set to the parent execution's ID via inherited
+        context snapshot. This is intentional for error correlation but is not reset
+        here — sub-tasks spawned by user error handler code will inherit the same ID.
         """
         async_handler = self.task_bucket.make_async_adapter(handler)
         timeout = self.hassette.config.error_handler_timeout_seconds

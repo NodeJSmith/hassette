@@ -101,13 +101,10 @@ class HassettePayload(EventPayload[DataT]):
     """The actual event data from Home Assistant."""
 
     event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    """Unique identifier for this payload instance (UUID4).
+    """Unique identifier for this payload instance (UUID4), generated at construction time.
 
-    Note: Unlike HA's ``context.id`` (stable across all handlers receiving the
-    same event), each ``HassettePayload`` construction generates a new ID. When
-    the bus reconstructs a hassette payload for different handlers, each handler
-    sees a distinct ``event_id``. Use this as a per-invocation trace token, not
-    as a stable event identity.
+    The bus shares one payload instance with all matched listeners, so all handlers
+    for the same event see the same ``event_id``.
     """
 
     origin: str = field(default="HASSETTE", init=False)
