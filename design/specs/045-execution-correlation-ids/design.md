@@ -1,7 +1,7 @@
 # Design: Per-Execution Correlation IDs
 
 **Date:** 2026-04-29
-**Status:** approved
+**Status:** archived
 **Issue:** #571
 
 ## Problem
