@@ -110,7 +110,7 @@ class HassettePayload(EventPayload[DataT]):
     as a stable event identity.
     """
 
-    origin: str = "HASSETTE"
+    origin: str = field(default="HASSETTE", init=False)
     """Origin of the event, always 'HASSETTE' for framework-generated events."""
 
     def __repr__(self) -> str:
