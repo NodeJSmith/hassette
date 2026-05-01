@@ -25,5 +25,5 @@ class SchedulerErrorContext(ErrorContext):
     kwargs: dict[str, Any]
 
     @property
-    def log_label(self) -> str:
+    def _domain_label(self) -> str:
         return f"job={self.job_name}"

@@ -419,10 +419,16 @@ class CommandExecutor(Service):
 
             def _log_error(result: ExecutionResult) -> None:
                 if result.error_traceback is None:
-                    self.logger.error("Handler error (topic=%s): %s", cmd.topic, result.error_message)
+                    self.logger.error(
+                        "Handler error (topic=%s, exec=%s): %s", cmd.topic, execution_id, result.error_message
+                    )
                 else:
                     self.logger.error(
-                        "Handler error (topic=%s, handler=%r)\n%s", cmd.topic, cmd.listener, result.error_traceback
+                        "Handler error (topic=%s, handler=%r, exec=%s)\n%s",
+                        cmd.topic,
+                        cmd.listener,
+                        execution_id,
+                        result.error_traceback,
                     )
 
             result = await self._execute(lambda: cmd.listener.invoke(cmd.event), cmd, _log_error, execution_id)
@@ -434,6 +440,7 @@ class CommandExecutor(Service):
                     ctx = BusErrorContext(
                         exception=result.exc,
                         traceback="".join(traceback.format_exception(result.exc)),
+                        execution_id=execution_id,
                         topic=cmd.topic,
                         listener_name=repr(cmd.listener),
                         event=cmd.event,
@@ -465,9 +472,13 @@ class CommandExecutor(Service):
 
             def _log_error(result: ExecutionResult) -> None:
                 if result.error_traceback is None:
-                    self.logger.error("Job error (job_db_id=%s): %s", cmd.job_db_id, result.error_message)
+                    self.logger.error(
+                        "Job error (job_db_id=%s, exec=%s): %s", cmd.job_db_id, execution_id, result.error_message
+                    )
                 else:
-                    self.logger.error("Job error (job_db_id=%s)\n%s", cmd.job_db_id, result.error_traceback)
+                    self.logger.error(
+                        "Job error (job_db_id=%s, exec=%s)\n%s", cmd.job_db_id, execution_id, result.error_traceback
+                    )
 
             result = await self._execute(cmd.callable, cmd, _log_error, execution_id)
 
@@ -478,6 +489,7 @@ class CommandExecutor(Service):
                     ctx = SchedulerErrorContext(
                         exception=result.exc,
                         traceback="".join(traceback.format_exception(result.exc)),
+                        execution_id=execution_id,
                         job_name=cmd.job.name,
                         job_group=cmd.job.group,
                         args=cmd.job.args,
