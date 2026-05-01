@@ -50,6 +50,7 @@ def _make_executor() -> CommandExecutor:
     executor._dropped_exhausted = 0
     executor._dropped_no_session = 0
     executor._dropped_shutdown = 0
+    executor._error_handler_failures = 0
     executor._last_capacity_warn_ts = 0.0
     executor._timeout_warn_timestamps = {}
     executor.repository = MagicMock()
