@@ -45,7 +45,7 @@ Each handler invocation and job execution record captures the following fields.
 |--------|------|-------------|
 | `execution_start_ts` | float | Unix timestamp when the job started executing |
 | `duration_ms` | float | Wall-clock time the job took, in milliseconds |
-| `status` | string | Outcome: `success`, `error`, or `timed_out` |
+| `status` | string | Outcome: `success`, `error`, `cancelled`, or `timed_out` |
 | `source_tier` | string | `app` for user automations, `framework` for internal Hassette components |
 | `error_type` | string \| null | Exception class name, if the job raised an error |
 | `error_message` | string \| null | Exception message, if the job raised an error |

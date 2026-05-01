@@ -242,7 +242,7 @@ class CommandExecutor(Service):
             The populated ``ExecutionResult``.
         """
         execution_start_ts = time.time()
-        result = ExecutionResult()
+        result = ExecutionResult(execution_id=execution_id, status="cancelled")
         match cmd.source_tier:
             case "app":
                 known: tuple[type[Exception], ...] = (DependencyError, HassetteError)
