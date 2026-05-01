@@ -31,6 +31,14 @@ def upgrade() -> None:
     op.add_column("handler_invocations", sa.Column("trigger_context_id", sa.Text(), nullable=True))
     op.add_column("handler_invocations", sa.Column("trigger_origin", sa.Text(), nullable=True))
     op.add_column("job_executions", sa.Column("execution_id", sa.Text(), nullable=True))
+    op.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_hi_execution_id "
+        "ON handler_invocations(execution_id) WHERE execution_id IS NOT NULL"
+    )
+    op.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_je_execution_id "
+        "ON job_executions(execution_id) WHERE execution_id IS NOT NULL"
+    )
 
 
 def downgrade() -> None:

@@ -262,6 +262,39 @@ class TestExecutionIdContextVar:
 
         assert CURRENT_EXECUTION_ID.get() is None
 
+    async def test_concurrent_handlers_get_independent_execution_ids(self) -> None:
+        """Two handlers running concurrently each see their own execution_id."""
+        executor = _make_executor()
+        captured: list[str | None] = []
+        barrier = asyncio.Event()
+
+        async def capture_with_yield(*_args) -> None:
+            captured.append(CURRENT_EXECUTION_ID.get())
+            barrier.set()
+            await asyncio.sleep(0)
+
+        async def capture_after_barrier(*_args) -> None:
+            await barrier.wait()
+            captured.append(CURRENT_EXECUTION_ID.get())
+
+        listener1 = _make_listener()
+        listener1.invoke = AsyncMock(side_effect=capture_with_yield)
+        cmd1 = _make_invoke_handler_cmd(listener=listener1)
+
+        listener2 = _make_listener()
+        listener2.invoke = AsyncMock(side_effect=capture_after_barrier)
+        cmd2 = _make_invoke_handler_cmd(listener=listener2)
+
+        await asyncio.gather(
+            executor._execute_handler(cmd1),
+            executor._execute_handler(cmd2),
+        )
+
+        assert len(captured) == 2
+        assert captured[0] is not None
+        assert captured[1] is not None
+        assert captured[0] != captured[1]
+
 
 # ---------------------------------------------------------------------------
 # HandlerInvocationRecord trigger field tests
@@ -343,8 +376,8 @@ class TestJobRecordFields:
         record = executor._write_queue.get_nowait()
         assert record.execution_id is not None
         assert _is_valid_uuid4(record.execution_id)
-        assert record.trigger_context_id is None
-        assert record.trigger_origin is None
+        assert not hasattr(record, "trigger_context_id")
+        assert not hasattr(record, "trigger_origin")
 
 
 # ---------------------------------------------------------------------------

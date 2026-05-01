@@ -667,6 +667,7 @@ class TelemetryRepository:
         db = self._db_service.db
 
         try:
+            await db.execute("BEGIN")
             if invocations:
                 inv_params = [_inv_insert_params(r) for r in invocations]
                 inv_cols = ", ".join(inv_params[0].keys())

@@ -88,6 +88,11 @@ async def test_fresh_db_creates_all_tables(initialized_service: DatabaseService)
         assert "idx_listeners_natural" in indexes
         assert "idx_scheduled_jobs_app" in indexes
         assert "idx_scheduled_jobs_natural" in indexes
+
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'uq_%'")
+        unique_indexes = sorted(row[0] for row in cursor.fetchall())
+        assert "uq_hi_execution_id" in unique_indexes
+        assert "uq_je_execution_id" in unique_indexes
     finally:
         conn.close()
 

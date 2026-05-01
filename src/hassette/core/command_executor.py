@@ -495,6 +495,9 @@ class CommandExecutor(Service):
         handler: "Callable",
         ctx: ErrorContext,
     ) -> None:
+        # CURRENT_EXECUTION_ID is set to the parent execution's ID via inherited context
+        # snapshot. This is intentional for error correlation but is not reset here —
+        # sub-tasks spawned by user error handler code will inherit the same ID.
         """Invoke a user-registered error handler in a separate spawned task.
 
         Normalizes the handler via make_async_adapter at invocation time (not at registration time)
