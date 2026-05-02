@@ -154,7 +154,7 @@ Hassette's P/C/A/D architecture is **well-validated by the prior art** — it co
 
 1. **No operator overloading for composition**: Writing `P.AllOf([P.DomainMatches("light"), P.StateTo("on")])` is more verbose than hypothetical `P.DomainMatches("light") & P.StateTo("on")`. Python's `__and__`/`__or__`/`__invert__` could make composition more natural. The tradeoff: operator overloading is less explicit and harder to search for. Given the codebase's philosophy of explicitness, this may be intentionally avoided.
 
-2. **No short-circuit optimization**: The predicate tree is evaluated fully — `AllOf` doesn't stop on first false, `AnyOf` doesn't stop on first true (worth verifying). EventBridge and CEP systems optimize evaluation order. For home automation volumes this likely doesn't matter, but if predicate evaluation ever shows up in profiling, the dataclass-based tree structure is already in the right shape for optimization.
+2. ~~No short-circuit optimization~~ — **already handled**. `AllOf` uses `all(p(value) for p in self.predicates)` and `AnyOf` uses `any(p(event) for p in self.predicates)` — Python's built-in `all()` and `any()` already short-circuit (stop on first False/True respectively). No optimization gap here.
 
 3. **Richer predicate serialization**: Predicates are already serialized to the UI via `human_description` (`.summarize()`) and `predicate_description` (repr), displayed in handler rows. The current output is string-based. A structured `.to_dict()` serialization could enable richer UI features — interactive predicate trees, filter-by-predicate search in the dashboard, or visual predicate builders. This is polish on an existing capability, not a missing feature.
 
