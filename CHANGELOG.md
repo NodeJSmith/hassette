@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.0](https://github.com/NodeJSmith/hassette/compare/v0.27.0...v0.28.0) (2026-05-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* add per-execution correlation IDs for handler and job tracing ([#641](https://github.com/NodeJSmith/hassette/issues/641))
+
+### Features
+
+* add per-execution correlation IDs for handler and job tracing ([#641](https://github.com/NodeJSmith/hassette/issues/641)) ([2d258ea](https://github.com/NodeJSmith/hassette/commit/2d258eaebfe40f1105fed55d5acdb9212afed808))
+
+
+### Documentation
+
+* add prior art research briefs for 20 framework areas ([#645](https://github.com/NodeJSmith/hassette/issues/645)) ([d80a693](https://github.com/NodeJSmith/hassette/commit/d80a693bf702de381c95b6b050b04d93017cb91e))
+
 ## [0.27.0](https://github.com/NodeJSmith/hassette/compare/v0.26.0...v0.27.0) (2026-04-29)
 
 
