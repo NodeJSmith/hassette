@@ -168,9 +168,9 @@ Hassette's current UI is a solid **monitoring foundation** that already handles 
 
 **Gaps worth considering:**
 
-1. **No manual trigger capability** — every surveyed framework offers "run now" from the UI. For hassette, this could mean: trigger a scheduled job immediately, or fire a synthetic event to test a listener. Pydantic AppConfig makes schema-driven trigger forms (Pattern 3) almost free.
+1. **No manual trigger capability** — every surveyed framework offers "run now" from the UI. For hassette, this could mean: trigger a scheduled job immediately, or fire a synthetic event to test a listener. Pydantic AppConfig makes schema-driven trigger forms (Pattern 2) almost free.
 
-2. **No execution replay** (Pattern 3/4) — can't re-run a handler with the event that triggered it. Since hassette captures listener invocations but not the triggering event data, this would need the "trigger context on invocations" column from the DB prior art survey.
+2. **No execution replay** (Pattern 3) — can't re-run a handler with the event that triggered it. Since hassette captures listener invocations but not the triggering event data, this would need the "trigger context on invocations" column from the DB prior art survey.
 
 3. **No cross-automation trace linking** (Pattern 8) — if App A's handler fires an event that triggers App B's listener, no UI connection exists. The bus already has this information; surfacing it in the UI would be a differentiator over HA.
 

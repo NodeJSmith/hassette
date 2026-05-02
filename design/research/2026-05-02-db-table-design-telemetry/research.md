@@ -167,7 +167,7 @@ The most impactful improvements to consider, in priority order:
 
 1. **Trigger context on invocations** — even a nullable `trigger_entity_id` or `trigger_summary` column would dramatically improve "why did this fire?" debugging. This is the #1 gap compared to Prefect and Airflow, which link every execution to its triggering event/run.
 
-2. **Retention/pruning** — a background task that prunes invocations older than N days (configurable, with soft-delete buffer) would prevent unbounded growth. n8n's two-stage approach is simple and proven. Consider also a "pin" mechanism for user-annotated executions.
+2. **Retention enhancements** — basic retention exists (hourly cleanup by age + size failsafe). Potential improvements: per-app configurable retention policies (critical apps keep more history), a "pin" mechanism for user-annotated executions exempt from pruning, and two-stage soft-delete with safety buffer (n8n pattern).
 
 3. **Execution mode/trigger type** — a `trigger_mode` column (event, schedule, manual, retry) on invocations/executions would enable filtering by how something was triggered, useful for both debugging and analytics.
 
