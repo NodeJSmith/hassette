@@ -199,3 +199,65 @@ async def test_worker_continues_after_enqueue_error(
     assert initialized_service_with_worker._db_write_queue is not None
     await initialized_service_with_worker._db_write_queue.join()
     assert completed == [1]
+
+
+async def test_close_remaining_queue_items_closes_coroutines_and_cancels_futures(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """Remaining queue items have their coroutines closed and futures cancelled."""
+    queue = initialized_service_with_worker._db_write_queue
+    assert queue is not None
+
+    async def sentinel_coro() -> int:
+        return 99
+
+    coro1 = sentinel_coro()
+    coro2 = sentinel_coro()
+    future1: asyncio.Future[int] = asyncio.get_running_loop().create_future()
+    future2: asyncio.Future[int] = asyncio.get_running_loop().create_future()
+
+    # Bypass submit() — put items directly so the worker doesn't consume them
+    worker_task = initialized_service_with_worker._db_worker_task
+    assert worker_task is not None
+    worker_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await worker_task
+    initialized_service_with_worker._db_worker_task = None
+
+    queue.put_nowait((coro1, future1))
+    queue.put_nowait((coro2, future2))
+
+    initialized_service_with_worker._close_remaining_queue_items(queue)
+
+    assert future1.cancelled()
+    assert future2.cancelled()
+    assert queue.empty()
+
+
+async def test_on_shutdown_closes_remaining_items_when_join_interrupted(
+    service: DatabaseService,
+) -> None:
+    """When queue.join() is interrupted, remaining coroutines are closed in finally."""
+    queue: asyncio.Queue[tuple[object, asyncio.Future[object] | None]] = asyncio.Queue(maxsize=100)
+    service._db_write_queue = queue
+
+    async def noop_coro() -> None:
+        pass
+
+    future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+    queue.put_nowait((noop_coro(), future))
+    queue.put_nowait((noop_coro(), None))
+
+    async def stuck_worker() -> None:
+        await asyncio.Event().wait()
+
+    service._db_worker_task = asyncio.create_task(stuck_worker())
+
+    shutdown_task = asyncio.create_task(service.on_shutdown())
+    await asyncio.sleep(0.05)
+    shutdown_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await shutdown_task
+
+    assert service._db_worker_task is None
+    assert future.cancelled()

@@ -279,6 +279,9 @@ export function createInvocation(overrides: Partial<HandlerInvocation> = {}): Ha
     source_tier: "app",
     error_type: null,
     error_message: null,
+    execution_id: null,
+    trigger_context_id: null,
+    trigger_origin: null,
     ...overrides,
   } satisfies HandlerInvocation;
 }
@@ -291,6 +294,7 @@ export function createExecution(overrides: Partial<JobExecution> = {}): JobExecu
     source_tier: "app",
     error_type: null,
     error_message: null,
+    execution_id: null,
     ...overrides,
   } satisfies JobExecution;
 }

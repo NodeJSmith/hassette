@@ -395,3 +395,6 @@ class JobExecutionRecord:
     error_message: str | None = None
     error_type: str | None = None
     error_traceback: str | None = None
+
+    execution_id: str | None = None
+    """UUID4 string identifying the specific execution instance. None when not populated."""

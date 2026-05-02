@@ -156,9 +156,12 @@ async def test_command_executor_records_source_tier_on_error(mock_hassette_with_
 
     from hassette.core.commands import InvokeHandler
 
+    mock_event = MagicMock()
+    mock_event.payload.event_id = None
+    mock_event.payload.origin = None
     cmd = InvokeHandler(
         listener=listener,
-        event=MagicMock(),
+        event=mock_event,
         topic="test.topic",
         listener_id=1,
         source_tier="framework",
@@ -251,9 +254,12 @@ async def test_queue_persistence_via_drain_and_persist(mock_hassette_with_db: Ma
 
     from hassette.core.commands import InvokeHandler
 
+    mock_event = MagicMock()
+    mock_event.payload.event_id = None
+    mock_event.payload.origin = None
     cmd = InvokeHandler(
         listener=listener,
-        event=MagicMock(),
+        event=mock_event,
         topic="test",
         listener_id=listener_id,
         source_tier="app",
@@ -300,9 +306,12 @@ async def test_pre_registration_orphan_persisted_with_null_listener_id(mock_hass
 
     from hassette.core.commands import InvokeHandler
 
+    mock_event = MagicMock()
+    mock_event.payload.event_id = None
+    mock_event.payload.origin = None
     cmd = InvokeHandler(
         listener=listener,
-        event=MagicMock(),
+        event=mock_event,
         topic="test",
         listener_id=None,  # Not yet registered
         source_tier="app",
@@ -430,9 +439,12 @@ async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: Magi
     from hassette.core.commands import InvokeHandler
 
     for i in range(hassette.config.telemetry_write_queue_max):
+        mock_event = MagicMock()
+        mock_event.payload.event_id = None
+        mock_event.payload.origin = None
         cmd = InvokeHandler(
             listener=listener,
-            event=MagicMock(),
+            event=mock_event,
             topic="test",
             listener_id=i + 1,
             source_tier="app",
@@ -444,9 +456,12 @@ async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: Magi
     assert executor._write_queue.full()
 
     # Try to enqueue one more — should be dropped
+    overflow_event = MagicMock()
+    overflow_event.payload.event_id = None
+    overflow_event.payload.origin = None
     cmd = InvokeHandler(
         listener=listener,
-        event=MagicMock(),
+        event=overflow_event,
         topic="test",
         listener_id=999,
         source_tier="app",

@@ -34,6 +34,8 @@ def dev(session: "Session"):
         "--dist",
         "loadscope",
         "--tb=short",
+        "--reruns",
+        "2",
         external=True,
     )
 
@@ -54,6 +56,8 @@ def tests(session: "Session"):
         "--dist",
         "loadscope",
         "--tb=line",
+        "--reruns",
+        "2",
         external=True,
     )
 
@@ -160,5 +164,7 @@ def tests_with_coverage(session: "Session"):
         "--cov-report=xml",
         "--cov-report=html",
         "--tb=line",
+        "--reruns",
+        "2",
         external=True,
     )

@@ -448,7 +448,7 @@ class ServiceWatcher(Resource):
 
         try:
             self.logger.error(
-                "%s '%s' has crashed (event_id %d), shutting down Hassette, %s",
+                "%s '%s' has crashed (event_id %s), shutting down Hassette, %s",
                 role,
                 name,
                 event.payload.event_id,

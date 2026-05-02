@@ -187,6 +187,7 @@ class DatabaseService(Service):
 
     async def on_shutdown(self) -> None:
         """Drain the write queue, cancel the worker, then close the database connection."""
+        queue: asyncio.Queue[_WriteQueueItem] | None = None
         try:
             if self._db_worker_task is not None:
                 queue, self._db_write_queue = self._db_write_queue, None
@@ -198,7 +199,33 @@ class DatabaseService(Service):
         except Exception:
             self.logger.exception("Error draining write queue during shutdown")
         finally:
+            if self._db_worker_task is not None:
+                self._db_worker_task.cancel()
+                await asyncio.gather(self._db_worker_task, return_exceptions=True)
+                self._db_worker_task = None
+            self._close_remaining_queue_items(queue)
             await self._close_connections()
+
+    def _close_remaining_queue_items(self, queue: asyncio.Queue[_WriteQueueItem] | None) -> None:
+        """Close any coroutines left on the write queue without executing them.
+
+        Called during shutdown to prevent unawaited-coroutine warnings from GC.
+        """
+        if queue is None:
+            return
+        closed = 0
+        while True:
+            try:
+                coro, future = queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            coro.close()
+            if future is not None and not future.done():
+                future.cancel()
+            queue.task_done()
+            closed += 1
+        if closed:
+            self.logger.debug("Closed %d remaining coroutine(s) from write queue during shutdown", closed)
 
     async def _close_connections(self) -> None:
         """Close both database connections. Idempotent — safe to call multiple times."""
@@ -269,7 +296,12 @@ class DatabaseService(Service):
             coro.close()
             raise RuntimeError("DatabaseService.submit() called before on_initialize()")
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
-        await self._db_write_queue.put((coro, future))
+        try:
+            await self._db_write_queue.put((coro, future))
+        except BaseException:
+            coro.close()
+            future.cancel()
+            raise
         return await future
 
     def enqueue(self, coro: Coroutine[Any, Any, Any]) -> None:

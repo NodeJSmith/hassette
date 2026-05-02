@@ -31,5 +31,5 @@ class BusErrorContext(ErrorContext):
     event: "Event[Any]"
 
     @property
-    def log_label(self) -> str:
+    def _domain_label(self) -> str:
         return f"topic={self.topic}, listener={self.listener_name}"

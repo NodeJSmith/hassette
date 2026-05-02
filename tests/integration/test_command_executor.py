@@ -491,7 +491,7 @@ def test_build_record_uses_session_id_directly(mock_hassette: MagicMock) -> None
     result.status = "success"
     result.duration_ms = 1.0
 
-    record = exc._build_record(cmd, result, time.time())
+    record = exc._build_record(cmd, result, time.time(), "test-exec-id")
     assert isinstance(record, HandlerInvocationRecord)
     assert record.session_id == 99
     assert record.listener_id == 5

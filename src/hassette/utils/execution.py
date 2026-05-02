@@ -21,6 +21,7 @@ MAX_TRACEBACK_SIZE = 8192
 class ExecutionResult:
     """Captures timing and error information from a tracked execution."""
 
+    execution_id: str | None = None
     monotonic_start: float = 0.0
     duration_ms: float = 0.0
     status: str = "pending"
