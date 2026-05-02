@@ -150,7 +150,7 @@ Hassette's CommandExecutor is a solid implementation of **Pattern 1 (Bounded Que
 
 2. **No graduated backpressure** (Pattern 4) — we go from "accept everything" to "drop" at 100% capacity. The 75% warning log is passive. Consider: at 75%, stop persisting framework-tier invocations (keep only app-tier). At 90%, stop persisting successful invocations (keep only errors).
 
-3. **Meta-telemetry not exposed via API** — drop counters exist (`_dropped_overflow`, `_dropped_exhausted`, `_dropped_no_session`) but are only visible in session records at shutdown. They should be queryable in real-time for the dashboard and alertable.
+3. ~~Meta-telemetry not exposed via API~~ — **already addressed**. Drop counters are exposed via `GET /api/telemetry/status` (all four counters: overflow, exhausted, no_session, shutdown) and are queryable in real-time.
 
 4. **No backoff between retries** — requeued batches are immediately eligible for the next drain cycle. Under sustained DB pressure, this means rapid retry → fail → retry without letting the DB recover. A brief sleep or priority reduction after requeue would help.
 
@@ -160,7 +160,7 @@ Hassette's CommandExecutor is a solid implementation of **Pattern 1 (Bounded Que
 
 The CommandExecutor is well-designed for hassette's typical load (home automation telemetry is low-to-moderate frequency). The most impactful improvements:
 
-1. **Expose drop counters via the web API and dashboard** — meta-telemetry is the highest-value addition. Users should see "12 records dropped in the last hour due to queue overflow" on the dashboard, not discover it in logs after the fact.
+1. **Surface drop counters on the dashboard UI** — the API endpoint (`GET /api/telemetry/status`) already exists. The remaining work is surfacing these in the frontend dashboard so users see "12 records dropped in the last hour" without needing to hit the API manually.
 
 2. **Add graduated priority dropping** — at 80% capacity, stop persisting successful framework-tier invocations. At 90%, stop persisting successful app-tier invocations. Always persist errors regardless of queue state. This preserves debugging data under load.
 

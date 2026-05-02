@@ -154,7 +154,7 @@ Hassette's testing infrastructure is already more sophisticated than most compar
 
 2. **Time control is per-function patch, not event-loop level** — we patch `date_utils.now()` which means only code using that function is time-controlled. `asyncio.sleep()`, `asyncio.wait_for(timeout=...)`, and any third-party code using `time.time()` still use real time. Trio's approach controls time at the scheduler level, affecting all timing.
 
-3. **No test infrastructure published for end users** — pytest-homeassistant-custom-component shows the value of packaging framework test utils as a first-class deliverable. Hassette's `test_utils/` exists but isn't designed for external consumption (yet).
+3. ~~No test infrastructure published for end users~~ — **already addressed**. `test_utils/__all__` exports 13 Tier 1 APIs (AppTestHarness, RecordingApi, event factories, etc.) explicitly designed and documented for end-user consumption. A dedicated design spec (025-end-user-test-utils) was implemented.
 
 4. **No replay/determinism testing** — no mechanism to record a sequence of events and replay them to verify consistent behavior. Lower priority for hassette (handlers are typically pure reactions, not stateful workflows), but would catch non-determinism in ordering-sensitive code.
 
@@ -164,7 +164,7 @@ The testing infrastructure is strong. The most impactful improvement:
 
 1. **Autojump clock integration** — replace or augment `TimeControlMixin` with a mechanism that auto-advances time when the event loop is idle. This would eliminate `advance_time()` + `trigger_due_jobs()` boilerplate and make scheduler tests express intent rather than mechanics. Investigation: can we hook asyncio's event loop clock (`loop.time()`) with a custom implementation that auto-advances?
 
-2. **Expose test_utils as a stable package** — when hassette's app ecosystem grows, app developers will need the same harness. Design the test_utils API for external consumption now, before it accumulates internal-only patterns that are hard to stabilize later.
+2. ~~Expose test_utils as a stable package~~ — **already done**. Tier 1 APIs are exported, documented, and explicitly designed for end-user consumption. Future work: ensure independently installable (e.g., `hassette[test]` extra) if not already.
 
 3. **Add event recording/replay** (lower priority) — record the event sequence during integration tests for regression detection. If a handler produces different results from the same event sequence, the test fails.
 

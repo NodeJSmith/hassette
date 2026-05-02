@@ -147,11 +147,11 @@ Hassette's current schema is closest to **Pattern 2 (Flat Relational)** with ele
 - `registration_source` and `source_location` — enables "where was this registered?" debugging that most frameworks don't offer.
 
 **Potential gaps to consider:**
-1. **No state transition history** — unlike Prefect, we only store the final outcome of an invocation (success/error/cancelled/timed_out). We can't answer "how long was it queued before running?" or "did it transition through multiple states?" This may not matter for hassette (events are fast, not long-running workflows), but is worth noting.
+1. **No state transition history** (intentional) — unlike Prefect, we only store the final outcome of an invocation (success/error/cancelled/timed_out). We can't answer "how long was it queued before running?" This is by design — hassette handlers are fast-fire (not long-running workflows), so intermediate states have minimal debugging value. Only worth revisiting if long-running handlers or explicit queuing are added.
 2. **No trigger context on invocations** — `handler_invocations` has `listener_id` but doesn't capture *which event* triggered the invocation (entity_id, old_state, new_state). Debugging "why did this fire?" requires correlating with event logs externally. Airflow stores dag_run_id linking back to the triggering event.
 3. **No retry tracking** — Airflow stores `try_number` and `max_tries`. Hassette's invocation records don't track whether this was a retry or which attempt number it is. If retries are added later, the schema would need to accommodate this.
 4. **No execution arguments** — Celery's extended model stores `args_json` and `kwargs_json` on executions. Hassette stores these on `scheduled_jobs` (the registration) but not on individual executions. If args change between runs (dynamic scheduling), the invocation won't capture what arguments were used for that specific execution.
-5. **No retention/pruning story** — n8n's configurable retention (per-workflow save policy + two-stage pruning) is a solved problem in the ecosystem. Hassette's tables will grow unboundedly without a pruning strategy. The session table's `dropped_*` counters suggest awareness of this but no active management.
+5. ~~No retention/pruning story~~ — **already addressed**. `database_service.py` implements hourly retention cleanup (deletes invocations/executions older than `db_retention_days` config) plus a size failsafe that triggers emergency cleanup when DB exceeds `db_max_size_mb`. Both run in the serve loop.
 6. **No "mode" column** — n8n tracks how an execution was triggered (manual, trigger, webhook, retry). Hassette doesn't distinguish between "user triggered via UI" vs. "event-driven" vs. "scheduled" invocations.
 
 **What doesn't apply:**
