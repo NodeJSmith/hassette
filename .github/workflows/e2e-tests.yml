@@ -2,10 +2,34 @@ name: E2E Tests
 
 on:
     push:
+        branches: [main]
+    pull_request:
+        branches: [main]
     workflow_dispatch:
 
 jobs:
+    changes:
+        runs-on: ubuntu-latest
+        outputs:
+            code: ${{ steps.filter.outputs.code }}
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dorny/paths-filter@v3
+              id: filter
+              with:
+                  filters: |
+                      code:
+                        - 'src/**'
+                        - 'tests/e2e/**'
+                        - 'frontend/**'
+                        - 'pyproject.toml'
+                        - 'uv.lock'
+                        - 'noxfile.py'
+                        - '.github/workflows/e2e-tests.yml'
+
     e2e:
+        needs: changes
+        if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
         timeout-minutes: 10
 
@@ -33,3 +57,18 @@ jobs:
                   name: e2e-test-results
                   path: test-results/
                   retention-days: 7
+
+    e2e-complete:
+        needs: [e2e]
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+            - name: Report result
+              run: |
+                  failed="${{ contains(needs.*.result, 'failure') }}"
+                  cancelled="${{ contains(needs.*.result, 'cancelled') }}"
+                  if [[ "$failed" == "true" || "$cancelled" == "true" ]]; then
+                      echo "E2E tests failed or were cancelled"
+                      exit 1
+                  fi
+                  echo "E2E tests passed or were skipped (no relevant changes)"

@@ -2,10 +2,38 @@ name: Lint
 
 on:
     push:
+        branches: [main]
+    pull_request:
+        branches: [main]
     workflow_dispatch:
 
 jobs:
+    changes:
+        runs-on: ubuntu-latest
+        outputs:
+            python: ${{ steps.filter.outputs.python }}
+            frontend: ${{ steps.filter.outputs.frontend }}
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dorny/paths-filter@v3
+              id: filter
+              with:
+                  filters: |
+                      python:
+                        - 'src/**'
+                        - 'tests/**'
+                        - 'pyproject.toml'
+                        - 'uv.lock'
+                        - '.pre-commit-config.yaml'
+                        - 'tools/**'
+                        - '.github/workflows/lint.yml'
+                      frontend:
+                        - 'frontend/**'
+                        - '.github/workflows/lint.yml'
+
     python:
+        needs: changes
+        if: needs.changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
@@ -41,6 +69,8 @@ jobs:
                   fi
 
     frontend:
+        needs: changes
+        if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -63,3 +93,18 @@ jobs:
             - name: Type check frontend
               run: npx tsc --noEmit
               working-directory: frontend
+
+    lint-complete:
+        needs: [python, frontend]
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+            - name: Report result
+              run: |
+                  failed="${{ contains(needs.*.result, 'failure') }}"
+                  cancelled="${{ contains(needs.*.result, 'cancelled') }}"
+                  if [[ "$failed" == "true" || "$cancelled" == "true" ]]; then
+                      echo "One or more lint jobs failed or were cancelled"
+                      exit 1
+                  fi
+                  echo "All lint checks passed or were skipped (no relevant changes)"
