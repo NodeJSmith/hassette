@@ -14,6 +14,9 @@ if typing.TYPE_CHECKING:
 LOGGER = getLogger(__name__)
 
 CURRENT_BUCKET: ContextVar["TaskBucket | None"] = ContextVar("CURRENT_BUCKET", default=None)
+CURRENT_EXECUTION_ID: ContextVar[str | None] = ContextVar("CURRENT_EXECUTION_ID", default=None)
+"""UUID4 set for the duration of each handler/job execution. Spawned sub-tasks inherit a snapshot
+of this value at creation time; the snapshot is NOT cleared when the originating execution ends."""
 HASSETTE_INSTANCE: ContextVar["Hassette"] = ContextVar("HASSETTE_INSTANCE")
 HASSETTE_SET_LOCATION: ContextVar[str | None] = ContextVar("HASSETTE_SET_LOCATION", default=None)
 HASSETTE_CONFIG: ContextVar["HassetteConfig"] = ContextVar("HASSETTE_CONFIG")

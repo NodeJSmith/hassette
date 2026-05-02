@@ -137,4 +137,52 @@ describe("JobExecutions", () => {
     const rows = container.querySelectorAll("tbody tr");
     expect(rows.length).toBe(2);
   });
+
+  it("renders Trace ID column header", () => {
+    const { getByText } = render(
+      <JobExecutions executions={[createExecution()]} jobId={1} />,
+    );
+    expect(getByText("Trace ID")).toBeDefined();
+  });
+
+  it("renders execution_id truncated to 8 chars with full value in title", () => {
+    const uuid = "abc12345-6789-abcd-ef01-234567890abc";
+    const { container } = render(
+      <JobExecutions
+        executions={[createExecution({ execution_id: uuid })]}
+        jobId={1}
+      />,
+    );
+    const cell = container.querySelector("[title='" + uuid + "']");
+    expect(cell).not.toBeNull();
+    expect(cell!.textContent).toBe("abc12345…");
+  });
+
+  it("renders dash for null execution_id", () => {
+    const { getAllByText } = render(
+      <JobExecutions
+        executions={[createExecution({ execution_id: null })]}
+        jobId={1}
+      />,
+    );
+    expect(getAllByText("—").length).toBeGreaterThan(0);
+  });
+
+  it("traceback row spans all 5 columns", () => {
+    const { getByRole, container } = render(
+      <JobExecutions
+        executions={[
+          createExecution({
+            status: "error",
+            error_traceback: "Traceback (most recent call last):\n  File job.py, line 10",
+          }),
+        ]}
+        jobId={1}
+      />,
+    );
+    fireEvent.click(getByRole("button", { name: /traceback/i }));
+    const tbRow = container.querySelector(".ht-traceback-row td");
+    expect(tbRow).not.toBeNull();
+    expect(tbRow!.getAttribute("colspan")).toBe("5");
+  });
 });

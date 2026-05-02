@@ -41,3 +41,12 @@ class HandlerInvocationRecord:
 
     error_traceback: str | None = None
     """Full traceback string if status is 'error', otherwise None."""
+
+    execution_id: str | None = None
+    """UUID4 string identifying the specific execution instance. None when not populated."""
+
+    trigger_context_id: str | None = None
+    """event_id from the triggering event payload. None for non-event-triggered invocations."""
+
+    trigger_origin: str | None = None
+    """Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'). None when not available."""

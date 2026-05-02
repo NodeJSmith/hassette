@@ -2,12 +2,12 @@ import { signal } from "@preact/signals";
 import { useRef } from "preact/hooks";
 import type { JobExecutionData } from "../../api/endpoints";
 import { ShowMoreButton } from "../shared/show-more-button";
-import { formatDuration, formatTimestamp } from "../../utils/format";
+import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
 import { executionStatusVariant } from "../../utils/status";
 import { ErrorCell } from "./error-cell";
 
 const INITIAL_ROWS = 5;
-const COL_COUNT = 4;
+const COL_COUNT = 5;
 
 interface Props {
   executions: JobExecutionData[];
@@ -39,6 +39,7 @@ export function JobExecutions({ executions, jobId }: Props) {
             <th class="ht-col-time">Timestamp</th>
             <th class="ht-col-duration">Duration</th>
             <th>Error</th>
+            <th>Trace ID</th>
           </tr>
         </thead>
         <tbody>
@@ -57,6 +58,7 @@ export function JobExecutions({ executions, jobId }: Props) {
                     onToggle={() => toggleTraceback(i)}
                   />
                 </td>
+                <td class="ht-text-mono ht-text-xs" title={ex.execution_id ?? undefined}>{truncateId(ex.execution_id)}</td>
               </tr>,
               isExpanded && ex.error_traceback && (
                 <tr key={`${i}-tb`} class="ht-traceback-row">

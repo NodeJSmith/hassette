@@ -1,4 +1,4 @@
-"""Unit tests for CommandExecutor write-pipeline resilience (WP03).
+"""Unit tests for CommandExecutor write-pipeline resilience.
 
 Tests cover:
 - Bounded queue with overflow handling
@@ -93,7 +93,7 @@ def _init_executor(queue_max: int = 10) -> CommandExecutor:
 
 
 # ---------------------------------------------------------------------------
-# Subtask 2 + 3: Bounded queue — QueueFull handling
+# Bounded queue — QueueFull handling
 # ---------------------------------------------------------------------------
 
 
@@ -120,7 +120,7 @@ async def test_bounded_queue_drops_on_full():
 
 
 # ---------------------------------------------------------------------------
-# Subtask 5: RetryableBatch expansion in _drain_and_persist
+# RetryableBatch expansion in _drain_and_persist
 # ---------------------------------------------------------------------------
 
 
@@ -154,7 +154,7 @@ async def test_retryable_batch_expanded_in_drain():
 
 
 # ---------------------------------------------------------------------------
-# Subtask 6: Sentinel guard — id=0 dropped, id=None allowed
+# Sentinel guard — id=0 dropped, id=None allowed
 # ---------------------------------------------------------------------------
 
 
@@ -223,7 +223,7 @@ async def test_sentinel_guard_allows_id_none():
 
 
 # ---------------------------------------------------------------------------
-# Subtask 7: Error classification — OperationalError → retry
+# Error classification — OperationalError → retry
 # ---------------------------------------------------------------------------
 
 
@@ -256,7 +256,7 @@ async def test_operational_error_triggers_retry():
 
 
 # ---------------------------------------------------------------------------
-# Subtask 7: Max retries — drops batch, increments _dropped_exhausted
+# Max retries — drops batch, increments _dropped_exhausted
 # ---------------------------------------------------------------------------
 
 
@@ -292,7 +292,7 @@ async def test_max_retries_drops_batch():
 
 
 # ---------------------------------------------------------------------------
-# Subtask 7: DataError → drop immediately + REGRESSION log
+# DataError → drop immediately + REGRESSION log
 # ---------------------------------------------------------------------------
 
 
@@ -323,7 +323,7 @@ async def test_data_error_drops_immediately():
 
 
 # ---------------------------------------------------------------------------
-# Subtask 8: FK violation → row-by-row fallback
+# FK violation → row-by-row fallback
 # ---------------------------------------------------------------------------
 
 
@@ -358,7 +358,7 @@ async def test_integrity_error_row_by_row_fallback():
 
 
 # ---------------------------------------------------------------------------
-# Subtask 9: _build_record reads source_tier and is_di_failure
+# _build_record reads source_tier and is_di_failure
 # ---------------------------------------------------------------------------
 
 
@@ -386,7 +386,7 @@ def test_build_record_reads_source_tier():
     result.error_traceback = None
     result.is_di_failure = False
 
-    record = CommandExecutor._build_record(executor, cmd, result, time.time())  # pyright: ignore[reportArgumentType]
+    record = CommandExecutor._build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
 
     assert isinstance(record, HandlerInvocationRecord)
     assert record.source_tier == "framework"
@@ -417,14 +417,14 @@ def test_build_record_reads_is_di_failure():
     result.error_traceback = None
     result.is_di_failure = True
 
-    record = CommandExecutor._build_record(executor, cmd, result, time.time())  # pyright: ignore[reportArgumentType]
+    record = CommandExecutor._build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
 
     assert isinstance(record, HandlerInvocationRecord)
     assert record.is_di_failure is True
 
 
 # ---------------------------------------------------------------------------
-# Subtask 10: _flush_queue handles RuntimeError from submit gracefully
+# _flush_queue handles RuntimeError from submit gracefully
 # ---------------------------------------------------------------------------
 
 
@@ -455,7 +455,7 @@ async def test_flush_queue_handles_db_closed():
 
 
 # ---------------------------------------------------------------------------
-# Subtask 11: persist_batch INSERT includes source_tier
+# persist_batch INSERT includes source_tier
 # ---------------------------------------------------------------------------
 
 
@@ -537,7 +537,10 @@ CREATE TABLE handler_invocations (
     error_traceback TEXT,
     is_di_failure INTEGER NOT NULL DEFAULT 0,
     source_tier TEXT NOT NULL DEFAULT 'app'
-        CHECK (source_tier IN ('app', 'framework'))
+        CHECK (source_tier IN ('app', 'framework')),
+    execution_id TEXT,
+    trigger_context_id TEXT,
+    trigger_origin TEXT
 );
 
 CREATE TABLE job_executions (
@@ -552,7 +555,8 @@ CREATE TABLE job_executions (
     error_traceback TEXT,
     is_di_failure INTEGER NOT NULL DEFAULT 0,
     source_tier TEXT NOT NULL DEFAULT 'app'
-        CHECK (source_tier IN ('app', 'framework'))
+        CHECK (source_tier IN ('app', 'framework')),
+    execution_id TEXT
 );
 """
 

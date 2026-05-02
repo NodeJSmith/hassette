@@ -41,6 +41,13 @@ export function formatTriggerDetail(detail: string): string {
   return parts.join(" ");
 }
 
+/** Truncate a UUID or ID string to 8 chars with ellipsis, or "—" for null/undefined. */
+export function truncateId(id: string | null | undefined): string {
+  if (!id) return "—";
+  if (id.length <= 8) return id;
+  return id.slice(0, 8) + "…";
+}
+
 /** Format a Unix timestamp as a relative time string (e.g., "2m ago"). */
 export function formatRelativeTime(ts: number): string {
   const now = Date.now() / 1000;

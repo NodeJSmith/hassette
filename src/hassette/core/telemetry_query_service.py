@@ -602,7 +602,10 @@ class TelemetryQueryService(Resource):
                 hi.source_tier,
                 hi.error_type,
                 hi.error_message,
-                hi.error_traceback
+                hi.error_traceback,
+                hi.execution_id,
+                hi.trigger_context_id,
+                hi.trigger_origin
             FROM handler_invocations hi
             WHERE hi.listener_id = :listener_id {session_clause}
             ORDER BY hi.execution_start_ts DESC
@@ -628,7 +631,8 @@ class TelemetryQueryService(Resource):
                 je.source_tier,
                 je.error_type,
                 je.error_message,
-                je.error_traceback
+                je.error_traceback,
+                je.execution_id
             FROM job_executions je
             WHERE je.job_id = :job_id {session_clause}
             ORDER BY je.execution_start_ts DESC

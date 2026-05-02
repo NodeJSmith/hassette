@@ -1,6 +1,6 @@
 """Base error context for bus and scheduler error handlers."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -17,12 +17,21 @@ class ErrorContext:
             traceback pins originating stack frame locals until this context is
             garbage-collected (bounded by ``error_handler_timeout_seconds``).
         traceback: Formatted traceback string.
+        execution_id: UUID4 identifying the execution that failed, or None.
     """
 
     exception: BaseException
     traceback: str
+    execution_id: str | None = field(default=None, kw_only=True)
 
     @property
     def log_label(self) -> str:
         """One-line label identifying the source of the error, used in log messages."""
+        base = self._domain_label
+        if self.execution_id:
+            return f"{base}, exec={self.execution_id}"
+        return base
+
+    @property
+    def _domain_label(self) -> str:
         raise NotImplementedError

@@ -94,7 +94,10 @@ CREATE TABLE handler_invocations (
     is_di_failure         INTEGER NOT NULL DEFAULT 0,
     error_type            TEXT,
     error_message         TEXT,
-    error_traceback       TEXT
+    error_traceback       TEXT,
+    execution_id          TEXT,
+    trigger_context_id    TEXT,
+    trigger_origin        TEXT
 );
 
 CREATE INDEX idx_hi_listener_time ON handler_invocations(listener_id, execution_start_ts DESC);
@@ -114,7 +117,8 @@ CREATE TABLE job_executions (
     is_di_failure         INTEGER NOT NULL DEFAULT 0,
     error_type            TEXT,
     error_message         TEXT,
-    error_traceback       TEXT
+    error_traceback       TEXT,
+    execution_id          TEXT
 );
 
 CREATE INDEX idx_je_job_time ON job_executions(job_id, execution_start_ts DESC);
