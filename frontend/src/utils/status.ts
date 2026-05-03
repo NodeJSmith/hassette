@@ -74,6 +74,25 @@ export function levelToVariant(level: string): StatusVariant {
   return LOG_LEVEL_MAP.get(level) ?? "neutral";
 }
 
+export type StatusKind = "ok" | "warn" | "err" | "mute";
+
+const STATUS_KIND_MAP: ReadonlyMap<string, StatusKind> = new Map<string, StatusKind>([
+  ["running", "ok"],
+  ["starting", "ok"],
+  ["failed", "err"],
+  ["crashed", "err"],
+  ["blocked", "warn"],
+  ["stopping", "warn"],
+  ["shutting_down", "warn"],
+  ["stopped", "mute"],
+  ["disabled", "mute"],
+  ["not_started", "mute"],
+]);
+
+export function statusToKind(status: string): StatusKind {
+  return STATUS_KIND_MAP.get(status) ?? "mute";
+}
+
 /**
  * Map a status + readiness pair to a StatusVariant.
  *

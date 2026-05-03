@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "preact/hooks";
+import { useEffect, useMemo, useState } from "preact/hooks";
 import { Route, Switch, useLocation } from "wouter";
 import { getManifests } from "./api/endpoints";
 import { AlertBanner } from "./components/layout/alert-banner";
@@ -10,6 +10,7 @@ import { useTelemetryHealth } from "./hooks/use-telemetry-health";
 import { useWebSocket } from "./hooks/use-websocket";
 import { AppDetailPage } from "./pages/app-detail";
 import { AppsPage } from "./pages/apps";
+import { ConfigPage } from "./pages/config";
 import { DashboardPage } from "./pages/dashboard";
 import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
@@ -19,18 +20,70 @@ import { createAppState } from "./state/create-app-state";
 export function App() {
   const state = useMemo(() => createAppState(), []);
   const [location] = useLocation();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMounted, setDrawerMounted] = useState(false);
+
+  if (drawerOpen && !drawerMounted) setDrawerMounted(true);
 
   useEffect(() => {
     const id = setInterval(() => { if (!document.hidden) state.tick.value++; }, 30_000);
     return () => clearInterval(id);
   }, [state]);
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        // TODO WP10: open command palette
+      }
+      if (e.key === "Escape" && drawerOpen) {
+        setDrawerOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [drawerOpen]);
+
   return (
     <AppStateContext.Provider value={state}>
       <WebSocketProvider state={state} />
       <TelemetryHealthProvider state={state} />
+
+      {/* Skip link */}
+      <a href="#main-content" class="ht-skip-link">Skip to main content</a>
+
+      {/* Hamburger button (mobile) */}
+      <button
+        type="button"
+        class="ht-hamburger"
+        aria-label="Open navigation"
+        aria-expanded={drawerOpen}
+        onClick={() => setDrawerOpen(true)}
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+      </button>
+
+      {/* Off-canvas drawer (mobile) */}
+      <div
+        class={`ht-drawer${drawerOpen ? " is-open" : ""}`}
+        aria-hidden={!drawerOpen}
+      >
+        {drawerMounted && <Sidebar />}
+      </div>
+      {drawerOpen && (
+        <div
+          class="ht-drawer-backdrop"
+          role="presentation"
+          onClick={() => setDrawerOpen(false)}
+        />
+      )}
+
+      {/* Desktop layout */}
       <div class="ht-layout">
-        <a href="#main-content" class="ht-skip-link">Skip to main content</a>
         <Sidebar />
         <main class="ht-main" id="main-content" tabIndex={-1}>
           <StatusBar />
@@ -42,6 +95,7 @@ export function App() {
               <Route path="/apps/:key/:index">{(params: { key: string; index: string }) => <AppDetailPage params={params} />}</Route>
               <Route path="/apps/:key">{(params: { key: string }) => <AppDetailPage params={params} />}</Route>
               <Route path="/logs" component={LogsPage} />
+              <Route path="/config" component={ConfigPage} />
               <Route component={NotFoundPage} />
             </Switch>
           </ErrorBoundary>

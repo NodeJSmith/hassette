@@ -72,6 +72,10 @@
   --shadow-2: 0 2px 8px rgba(20, 22, 26, 0.06), 0 1px 2px rgba(20, 22, 26, 0.04);
   --shadow-3: 0 8px 24px rgba(20, 22, 26, 0.08), 0 2px 6px rgba(20, 22, 26, 0.04);
 
+  /* Overlay */
+  --overlay-bg: rgba(0, 0, 0, 0.45);
+  --err-dark:   #9A2020;
+
   /* Motion */
   --ease:   cubic-bezier(0.4, 0, 0.2, 1);
   --t-fast: 120ms;
@@ -108,6 +112,10 @@
   --warn:  #D9B36E;  --warn-bg:  #272219;
   --err:   #E08278;  --err-bg:   #28191A;
   --mute:  #6A707A;  --mute-bg:  #1D1F23;
+
+  /* Overlay */
+  --overlay-bg: rgba(0, 0, 0, 0.5);
+  --err-dark:   #7A1A1A;
 
   /* Shadows */
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
