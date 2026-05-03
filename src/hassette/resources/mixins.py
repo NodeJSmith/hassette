@@ -11,8 +11,6 @@ from hassette.types.types import CoroLikeT
 LOGGER = logging.getLogger(__name__)
 
 if typing.TYPE_CHECKING:
-    import logging as _logging_typing
-
     from hassette.events import HassetteServiceEvent
 
 
@@ -100,7 +98,7 @@ class _HassetteP(Protocol):
 if typing.TYPE_CHECKING:
 
     class _LifecycleHostStubs(Protocol):
-        logger: _logging_typing.Logger
+        logger: logging.Logger
         hassette: _HassetteP
         role: Any
         class_name: str
