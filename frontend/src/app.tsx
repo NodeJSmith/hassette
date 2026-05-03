@@ -3,7 +3,6 @@ import { Route, Switch, useLocation } from "wouter";
 import { getManifests } from "./api/endpoints";
 import { AlertBanner } from "./components/layout/alert-banner";
 import { ErrorBoundary } from "./components/layout/error-boundary";
-import { BottomNav } from "./components/layout/bottom-nav";
 import { Sidebar } from "./components/layout/sidebar";
 import { StatusBar } from "./components/layout/status-bar";
 import { useApi } from "./hooks/use-api";
@@ -14,7 +13,6 @@ import { AppsPage } from "./pages/apps";
 import { DashboardPage } from "./pages/dashboard";
 import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
-import { SessionsPage } from "./pages/sessions";
 import { AppStateContext } from "./state/context";
 import { createAppState } from "./state/create-app-state";
 
@@ -44,13 +42,11 @@ export function App() {
               <Route path="/apps/:key/:index">{(params: { key: string; index: string }) => <AppDetailPage params={params} />}</Route>
               <Route path="/apps/:key">{(params: { key: string }) => <AppDetailPage params={params} />}</Route>
               <Route path="/logs" component={LogsPage} />
-              <Route path="/sessions" component={SessionsPage} />
               <Route component={NotFoundPage} />
             </Switch>
           </ErrorBoundary>
         </main>
       </div>
-      <BottomNav />
     </AppStateContext.Provider>
   );
 }

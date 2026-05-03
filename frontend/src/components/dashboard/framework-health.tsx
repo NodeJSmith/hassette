@@ -10,7 +10,7 @@ import { useScopedApi } from "../../hooks/use-scoped-api";
 import { IconWarning, IconCheck } from "../shared/icons";
 
 export function FrameworkHealth() {
-  const fwSummary = useScopedApi((sid) => getFrameworkSummary(sid));
+  const fwSummary = useScopedApi((since) => getFrameworkSummary(since));
 
   const isLoading = fwSummary.loading.value;
   const hasError = !!fwSummary.error.value;

@@ -10,6 +10,7 @@
  */
 
 import type { components } from "../api/generated-types";
+import type { WsInvocationCompletedPayload, WsExecutionCompletedPayload } from "../api/ws-types";
 
 type AppManifestResponse = components["schemas"]["AppManifestResponse"];
 type AppManifestListResponse = components["schemas"]["AppManifestListResponse"];
@@ -21,7 +22,6 @@ type DashboardKpisResponse = components["schemas"]["DashboardKpisResponse"];
 type HandlerErrorEntry = components["schemas"]["HandlerErrorEntry"];
 type JobErrorEntry = components["schemas"]["JobErrorEntry"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
-type SessionRecord = components["schemas"]["SessionRecord"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type AppInstanceResponse = components["schemas"]["AppInstanceResponse"];
 type HandlerInvocation = components["schemas"]["HandlerInvocation"];
@@ -243,21 +243,32 @@ export function createLogEntry(overrides: Partial<LogEntryResponse> = {}): LogEn
   } satisfies LogEntryResponse;
 }
 
-export function createSession(overrides: Partial<SessionRecord> = {}): SessionRecord {
+export function createInvocationCompletedPayload(
+  overrides: Partial<WsInvocationCompletedPayload> = {},
+): WsInvocationCompletedPayload {
   return {
-    id: 1,
-    started_at: 1700000000,
-    stopped_at: null,
-    status: "running",
+    listener_id: 1,
+    app_key: "test_app",
+    instance_index: 0,
+    status: "success",
+    duration_ms: 42,
     error_type: null,
-    error_message: null,
-    duration_seconds: null,
-    dropped_overflow: 0,
-    dropped_exhausted: 0,
-    dropped_no_session: 0,
-    dropped_shutdown: 0,
     ...overrides,
-  } satisfies SessionRecord;
+  };
+}
+
+export function createExecutionCompletedPayload(
+  overrides: Partial<WsExecutionCompletedPayload> = {},
+): WsExecutionCompletedPayload {
+  return {
+    job_id: 1,
+    app_key: "test_app",
+    instance_index: 0,
+    status: "success",
+    duration_ms: 75,
+    error_type: null,
+    ...overrides,
+  };
 }
 
 export function createTelemetryStatus(overrides: Partial<TelemetryStatusResponse> = {}): TelemetryStatusResponse {

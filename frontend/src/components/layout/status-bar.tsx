@@ -1,6 +1,5 @@
 import { useAppState } from "../../state/context";
 import { setStoredValue } from "../../utils/local-storage";
-import { SessionScopeToggle } from "./session-scope-toggle";
 
 export function StatusBar() {
   const {
@@ -75,7 +74,6 @@ export function StatusBar() {
           <span class="ht-text-xs">{ehFailures} handler err{ehFailures !== 1 ? "s" : ""}</span>
         </span>
       )}
-      <SessionScopeToggle />
       <button
         class="ht-theme-toggle"
         data-testid="theme-toggle"

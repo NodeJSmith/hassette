@@ -10,11 +10,6 @@ vi.mock("../../utils/local-storage", () => ({
   getStoredValue: vi.fn(),
 }));
 
-// Mock SessionScopeToggle — it has its own tests
-vi.mock("./session-scope-toggle", () => ({
-  SessionScopeToggle: () => <div data-testid="scope-toggle-stub" />,
-}));
-
 describe("StatusBar — connection states", () => {
   it("renders connected state without status label", () => {
     const { container, queryByText } = renderWithAppState(<StatusBar />, {

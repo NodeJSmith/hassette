@@ -24,12 +24,12 @@ describe("Sidebar", () => {
     expect(getByLabelText("Main navigation")).toBeDefined();
   });
 
-  it("renders four navigation links", () => {
+  it("renders three navigation links", () => {
     const { getAllByRole } = render(<Sidebar />);
-    // Includes brand link + 4 nav links
+    // Includes brand link + 3 nav links
     const links = getAllByRole("link");
-    // Brand link + 4 nav items = 5 total
-    expect(links.length).toBe(5);
+    // Brand link + 3 nav items = 4 total
+    expect(links.length).toBe(4);
   });
 
   it("renders dashboard nav link to root", () => {
@@ -50,19 +50,12 @@ describe("Sidebar", () => {
     expect(link.getAttribute("href")).toBe("/logs");
   });
 
-  it("renders sessions nav link to /sessions", () => {
-    const { getByTestId } = render(<Sidebar />);
-    const link = getByTestId("nav-sessions");
-    expect(link.getAttribute("href")).toBe("/sessions");
-  });
-
   it("applies is-active class to dashboard link when at root", () => {
     useLocation.mockReturnValue(["/", vi.fn()]);
     const { getByTestId } = render(<Sidebar />);
     expect(getByTestId("nav-dashboard").className).toContain("is-active");
     expect(getByTestId("nav-apps").className).not.toContain("is-active");
     expect(getByTestId("nav-logs").className).not.toContain("is-active");
-    expect(getByTestId("nav-sessions").className).not.toContain("is-active");
   });
 
   it("applies is-active class to apps link when at /apps", () => {
@@ -76,13 +69,6 @@ describe("Sidebar", () => {
     useLocation.mockReturnValue(["/logs", vi.fn()]);
     const { getByTestId } = render(<Sidebar />);
     expect(getByTestId("nav-logs").className).toContain("is-active");
-    expect(getByTestId("nav-dashboard").className).not.toContain("is-active");
-  });
-
-  it("applies is-active class to sessions link when at /sessions", () => {
-    useLocation.mockReturnValue(["/sessions", vi.fn()]);
-    const { getByTestId } = render(<Sidebar />);
-    expect(getByTestId("nav-sessions").className).toContain("is-active");
     expect(getByTestId("nav-dashboard").className).not.toContain("is-active");
   });
 

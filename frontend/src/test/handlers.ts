@@ -22,7 +22,6 @@ type DashboardAppGridResponse = components["schemas"]["DashboardAppGridResponse"
 type DashboardErrorsResponse = components["schemas"]["DashboardErrorsResponse"];
 type FrameworkSummaryResponse = components["schemas"]["FrameworkSummaryResponse"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
-type SessionRecord = components["schemas"]["SessionRecord"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
 type ActionResponse = components["schemas"]["ActionResponse"];
 
@@ -149,11 +148,6 @@ export const handlers = [
       dropped_shutdown: 0,
       error_handler_failures: 0,
     });
-  }),
-
-  // GET /api/telemetry/sessions
-  http.get("/api/telemetry/sessions", () => {
-    return HttpResponse.json<SessionRecord[]>([]);
   }),
 
   // GET /api/logs/recent

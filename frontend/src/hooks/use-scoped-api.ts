@@ -1,71 +1,80 @@
 /**
- * Session-scoped data-fetching hook.
+ * Time-window-scoped data-fetching hook.
  *
- * Wraps `useApi` and resolves the effective `sessionId` based on
- * the current session scope signal. When scope is "current" and
- * sessionId is non-null, the fetcher receives the sessionId. When
- * scope is "all", the fetcher receives null (all-time). When scope
- * is "current" but sessionId is still null (not yet connected),
- * the hook returns a loading state without firing any fetch.
+ * Wraps `useApi` and resolves the effective `since` timestamp based on
+ * the current time-preset signal and the server's uptime_seconds. The
+ * fetcher receives a Unix epoch seconds value (float) as its argument.
  *
- * Changes to `sessionScope` or `sessionId` automatically trigger
- * a refetch by including their values in the deps array.
+ * Loading gate: if `uptimeSeconds` is still null (WS connected message
+ * not yet received), the hook returns a loading state without firing any
+ * fetch. This prevents the first fetch from firing with `since=NaN`.
+ *
+ * Changes to `timePreset` or `uptimeSeconds` automatically trigger a
+ * refetch by including their values in the deps array.
  */
 
 import { useRef } from "preact/hooks";
 import { useApi, type UseApiOptions, type UseApiResult } from "./use-api";
 import { useAppState } from "../state/context";
+import type { TimePreset } from "../state/create-app-state";
 
 export interface UseScopedApiOptions extends UseApiOptions {
   /** Extra deps beyond scope signals (e.g., route params). */
   deps?: unknown[];
 }
 
+/** Window sizes in seconds for the fixed-window presets. */
+const PRESET_WINDOW_SECONDS: Record<Exclude<TimePreset, "since-restart">, number> = {
+  "1h": 3600,
+  "24h": 86400,
+  "7d": 604800,
+};
+
 /**
- * Resolve the effective sessionId for a telemetry fetch.
- * Returns the sessionId when scope is "current" and it's available,
- * null when scope is "all", and undefined when waiting for sessionId.
+ * Compute the `since` timestamp (Unix epoch seconds) for the given preset.
+ *
+ * Returns undefined when uptimeSeconds is null (not yet connected) — the
+ * caller uses this as a signal to block the fetch.
  */
-function resolveSessionId(
-  scope: "current" | "all",
-  sessionId: number | null,
-): number | null | undefined {
-  if (scope === "all") return null;
-  // scope === "current" — need a real sessionId
-  return sessionId ?? undefined;
+function resolveSince(preset: TimePreset, uptimeSeconds: number | null): number | undefined {
+  if (uptimeSeconds === null) return undefined;
+
+  if (preset === "since-restart") {
+    return Date.now() / 1000 - uptimeSeconds;
+  }
+
+  return Date.now() / 1000 - PRESET_WINDOW_SECONDS[preset];
 }
 
 /**
- * Session-scoped variant of `useApi`.
+ * Time-window-scoped variant of `useApi`.
  *
- * @param fetcher - Function that accepts an optional sessionId and returns a promise.
+ * @param fetcher - Function that accepts a `since` epoch-seconds timestamp and returns a promise.
  * @param options - Additional options (extra deps, lazy mode).
  */
 export function useScopedApi<T>(
-  fetcher: (sessionId: number | null) => Promise<T>,
+  fetcher: (since: number) => Promise<T>,
   options: UseScopedApiOptions = {},
 ): UseApiResult<T> {
   const { deps: extraDeps = [], ...apiOptions } = options;
-  const { sessionScope, sessionId } = useAppState();
+  const { timePreset, uptimeSeconds } = useAppState();
 
-  const scope = sessionScope.value;
-  const sid = sessionId.value;
-  const effective = resolveSessionId(scope, sid);
+  const preset = timePreset.value;
+  const uptime = uptimeSeconds.value;
+  const since = resolveSince(preset, uptime);
 
-  // When scope is "current" but sessionId is not yet available,
-  // return a static loading state without firing any fetch.
-  const waitingForSession = effective === undefined;
+  // Block fetches until the WS connected message has arrived and we have uptime_seconds.
+  const waitingForUptime = since === undefined;
 
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
-  // Combine scope signals with caller-provided deps so useApi
-  // detects changes and triggers refetches.
-  const allDeps = [scope, sid, ...extraDeps];
+  // Include scope signals in deps so useApi detects changes and triggers refetches.
+  const allDeps = [preset, uptime, ...extraDeps];
 
   return useApi(
-    () => fetcherRef.current(effective ?? null),
+    () => fetcherRef.current(since as number),
     allDeps,
-    { ...apiOptions, enabled: !waitingForSession },
+    { ...apiOptions, enabled: !waitingForUptime },
   );
 }

@@ -30,10 +30,10 @@ export function DashboardPage() {
   const errorTierFilter = useSignal<SourceTier>("all");
   const errorFilterInteracted = useSignal(false);
 
-  const kpis = useScopedApi((sid) => getDashboardKpis(sid));
-  const appGrid = useScopedApi((sid) => getDashboardAppGrid(sid).then((r) => r.apps));
+  const kpis = useScopedApi((since) => getDashboardKpis(since));
+  const appGrid = useScopedApi((since) => getDashboardAppGrid(since).then((r) => r.apps));
   const errors = useScopedApi(
-    (sid) => getDashboardErrors(sid, errorTierFilter.value).then((r) => r.errors),
+    (since) => getDashboardErrors(since, errorTierFilter.value).then((r) => r.errors),
     { deps: [errorTierFilter.value] },
   );
 

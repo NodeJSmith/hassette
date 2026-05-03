@@ -66,7 +66,8 @@ export function useWebSocket(state: AppState): void {
                 handshakeTimer = null;
               }
               state.connection.value = "connected";
-              // session_id removed in WP02; uptime_seconds replaces it as the loading gate (WP04)
+              // uptime_seconds is the loading gate for useScopedApi
+              state.uptimeSeconds.value = msg.data.uptime_seconds;
 
               if (hasConnectedRef.current) {
                 // Reconnection — clear stale log buffer and service status before re-subscribing
@@ -132,12 +133,12 @@ export function useWebSocket(state: AppState): void {
               };
               break;
 
-            // TODO(WP04): handle invocation_completed and execution_completed
-            // These messages carry per-drain batches of completion events that the
-            // handler/job telemetry tables should use to trigger debounced refetches
-            // rather than polling on a fixed interval.
             case "invocation_completed":
+              state.invocationCompleted.value = msg.data;
+              break;
+
             case "execution_completed":
+              state.executionCompleted.value = msg.data;
               break;
           }
         });

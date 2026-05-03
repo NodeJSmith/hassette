@@ -25,11 +25,11 @@ export function AppDetailPage({ params }: Props) {
   const [, navigate] = useLocation();
 
   const manifests = useApi(getManifests);
-  const health = useScopedApi((sid) => getAppHealth(appKey, instanceIndex, sid), { deps: [appKey, instanceIndex] });
+  const health = useScopedApi((since) => getAppHealth(appKey, instanceIndex, since), { deps: [appKey, instanceIndex] });
   const listeners = useScopedApi(
-    (sid) => getAppListeners(appKey, instanceIndex, sid), { deps: [appKey, instanceIndex] },
+    (since) => getAppListeners(appKey, instanceIndex, since), { deps: [appKey, instanceIndex] },
   );
-  const jobs = useScopedApi((sid) => getAppJobs(appKey, instanceIndex, sid), { deps: [appKey, instanceIndex] });
+  const jobs = useScopedApi((since) => getAppJobs(appKey, instanceIndex, since), { deps: [appKey, instanceIndex] });
 
   // Immediate fallback title on mount
   useEffect(() => { document.title = "App - Hassette"; }, []);

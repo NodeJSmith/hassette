@@ -11,13 +11,13 @@ import { HandlerRow } from "./handler-row";
 type HandlerInvocation = components["schemas"]["HandlerInvocation"];
 
 /**
- * Render HandlerRow with sessionScope="all" so useScopedApi fires without
- * waiting for a WebSocket session ID.
+ * Render HandlerRow with uptimeSeconds set so useScopedApi fires without
+ * waiting for the WebSocket connected message.
  */
 function renderHandlerRow(listener = createListener()) {
   return renderWithAppState(
     <HandlerRow listener={listener} />,
-    { stateOverrides: { sessionScope: signal<"current" | "all">("all") } },
+    { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
   );
 }
 

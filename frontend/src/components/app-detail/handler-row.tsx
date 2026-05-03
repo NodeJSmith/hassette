@@ -23,7 +23,7 @@ export function HandlerRow({ listener }: Props) {
   const expanded = useRef(signal(false)).current;
 
   const { data: invocations, loading, refetch } = useScopedApi(
-    (sid) => getHandlerInvocations(listener.listener_id, 50, sid),
+    (since) => getHandlerInvocations(listener.listener_id, 50, since),
     { deps: [listener.listener_id], lazy: true },
   );
 

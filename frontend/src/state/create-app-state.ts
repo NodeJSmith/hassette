@@ -1,11 +1,18 @@
 import { batch, signal, type Signal } from "@preact/signals";
 import { RingBuffer } from "../utils/ring-buffer";
 import { getStoredValue } from "../utils/local-storage";
-import { isSessionScope } from "../utils/session-scope";
 import { isTheme } from "../utils/theme";
-import type { WsLogPayload } from "../api/ws-types";
+import type { WsLogPayload, WsInvocationCompletedPayload, WsExecutionCompletedPayload } from "../api/ws-types";
 
 export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
+
+/** Time-window presets for telemetry queries. */
+export type TimePreset = "since-restart" | "1h" | "24h" | "7d";
+
+/** Type guard for TimePreset values stored in localStorage. */
+function isTimePreset(v: unknown): v is TimePreset {
+  return v === "since-restart" || v === "1h" || v === "24h" || v === "7d";
+}
 
 export interface AppStatusEntry {
   status: string;
@@ -97,13 +104,35 @@ export function createAppState() {
       getStoredValue<"dark" | "light">("theme", "light", isTheme)
     ),
 
-    /** Current Hassette session ID (from WS connected message). */
-    sessionId: signal<number | null>(null),
-
-    /** Session scope for telemetry queries (initialized from localStorage). */
-    sessionScope: signal<"current" | "all">(
-      getStoredValue<"current" | "all">("sessionScope", "current", isSessionScope)
+    /**
+     * Selected time-window preset for telemetry queries.
+     * "since-restart" uses uptime_seconds from the WS connected message as the window boundary.
+     * Persisted to localStorage.
+     */
+    timePreset: signal<TimePreset>(
+      getStoredValue<TimePreset>("timePreset", "since-restart", isTimePreset)
     ),
+
+    /**
+     * Server uptime in seconds, received from the WS connected message.
+     * Null until the first WS connected message is received.
+     * Used by useScopedApi to compute the "since-restart" window boundary.
+     */
+    uptimeSeconds: signal<number | null>(null),
+
+    /**
+     * Latest batch of invocation_completed WS events.
+     * Written by useWebSocket when an invocation_completed message arrives.
+     * Consumers subscribe to this signal to trigger debounced refetches.
+     */
+    invocationCompleted: signal<WsInvocationCompletedPayload[] | null>(null),
+
+    /**
+     * Latest batch of execution_completed WS events.
+     * Written by useWebSocket when an execution_completed message arrives.
+     * Consumers subscribe to this signal to trigger debounced refetches.
+     */
+    executionCompleted: signal<WsExecutionCompletedPayload[] | null>(null),
 
     /**
      * Incremented on WS reconnection (not first connect). useApi reads this

@@ -25,7 +25,7 @@ export function JobRow({ job, onGroupClick }: Props) {
   const expanded = useRef(signal(false)).current;
 
   const { data: executions, loading, refetch } = useScopedApi(
-    (sid) => getJobExecutions(job.job_id, 50, sid),
+    (since) => getJobExecutions(job.job_id, 50, since),
     { deps: [job.job_id], lazy: true },
   );
 

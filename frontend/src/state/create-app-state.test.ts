@@ -24,14 +24,52 @@ describe("createAppState", () => {
     a.theme.value = "dark";
     expect(b.theme.value).toBe("light"); // not affected
 
-    a.sessionId.value = 42;
-    expect(b.sessionId.value).toBeNull();
-
     a.reconnectVersion.value = 3;
     expect(b.reconnectVersion.value).toBe(0);
 
     a.tick.value = 5;
     expect(b.tick.value).toBe(0);
+  });
+
+  it("does not have sessionId signal", () => {
+    const state = createAppState();
+    expect("sessionId" in state).toBe(false);
+  });
+
+  it("does not have sessionScope signal", () => {
+    const state = createAppState();
+    expect("sessionScope" in state).toBe(false);
+  });
+
+  it("has timePreset signal defaulting to since-restart", () => {
+    const state = createAppState();
+    expect(state.timePreset.value).toBe("since-restart");
+  });
+
+  it("has uptimeSeconds signal defaulting to null", () => {
+    const state = createAppState();
+    expect(state.uptimeSeconds.value).toBeNull();
+  });
+
+  it("has invocationCompleted signal defaulting to null", () => {
+    const state = createAppState();
+    expect(state.invocationCompleted.value).toBeNull();
+  });
+
+  it("has executionCompleted signal defaulting to null", () => {
+    const state = createAppState();
+    expect(state.executionCompleted.value).toBeNull();
+  });
+
+  it("timePreset and uptimeSeconds are independent across instances", () => {
+    const a = createAppState();
+    const b = createAppState();
+
+    a.timePreset.value = "1h";
+    expect(b.timePreset.value).toBe("since-restart");
+
+    a.uptimeSeconds.value = 300;
+    expect(b.uptimeSeconds.value).toBeNull();
   });
 
   it("log store push/toArray are independent across instances", () => {
