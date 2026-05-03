@@ -312,6 +312,143 @@ describe("DashboardPage — tier filter toggle", () => {
   });
 });
 
+describe("DashboardPage — hero card state variants", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useDebouncedEffect.mockImplementation(() => {});
+  });
+
+  it("shows first-install hero when no apps are loaded", () => {
+    setupScopedApi({ appGridData: [], kpisData: createKpis() });
+    const { getByTestId } = renderWithAppState(<DashboardPage />);
+    expect(getByTestId("hero-card-first-install")).toBeDefined();
+  });
+
+  it("shows healthy hero when all apps running, no errors", () => {
+    setupScopedApi({
+      appGridData: [
+        createAppGridEntry({ app_key: "app_a", status: "running" }),
+      ],
+      errorsData: [],
+      kpisData: createKpis({ error_rate: 0, total_invocations: 100 }),
+    });
+    const { getByTestId } = renderWithAppState(<DashboardPage />);
+    expect(getByTestId("hero-card-healthy")).toBeDefined();
+  });
+
+  it("shows quiet hero when apps running but no activity", () => {
+    setupScopedApi({
+      appGridData: [
+        createAppGridEntry({ app_key: "app_a", status: "running", total_invocations: 0, total_executions: 0 }),
+      ],
+      errorsData: [],
+      kpisData: createKpis({ total_invocations: 0, total_executions: 0 }),
+    });
+    const { getByTestId } = renderWithAppState(<DashboardPage />);
+    expect(getByTestId("hero-card-quiet")).toBeDefined();
+  });
+
+  it("shows single-failure hero when exactly one app has failed", () => {
+    setupScopedApi({
+      appGridData: [
+        createAppGridEntry({ app_key: "app_a", status: "failed" }),
+        createAppGridEntry({ app_key: "app_b", status: "running" }),
+      ],
+      errorsData: [createHandlerError({ app_key: "app_a" })],
+      kpisData: createKpis({ total_errors: 1 }),
+    });
+    const { getByTestId } = renderWithAppState(<DashboardPage />);
+    expect(getByTestId("hero-card-single-failure")).toBeDefined();
+  });
+
+  it("shows multiple-failures hero when 2+ apps have failed", () => {
+    setupScopedApi({
+      appGridData: [
+        createAppGridEntry({ app_key: "app_a", status: "failed" }),
+        createAppGridEntry({ app_key: "app_b", status: "failed" }),
+        createAppGridEntry({ app_key: "app_c", status: "running" }),
+      ],
+      errorsData: [
+        createHandlerError({ app_key: "app_a" }),
+        createHandlerError({ app_key: "app_b", listener_id: 2 }),
+      ],
+      kpisData: createKpis({ total_errors: 3 }),
+    });
+    const { getByTestId } = renderWithAppState(<DashboardPage />);
+    expect(getByTestId("hero-card-multiple-failures")).toBeDefined();
+  });
+
+  it("healthy hero renders greeting text", () => {
+    setupScopedApi({
+      appGridData: [createAppGridEntry({ status: "running" })],
+      errorsData: [],
+      kpisData: createKpis({ total_invocations: 10 }),
+    });
+    const { getByTestId } = renderWithAppState(<DashboardPage />);
+    const hero = getByTestId("hero-card-healthy");
+    expect(hero.textContent).toMatch(/running smoothly|healthy|good/i);
+  });
+
+  it("first-install hero renders welcome message", () => {
+    setupScopedApi({ appGridData: [] });
+    const { getByTestId } = renderWithAppState(<DashboardPage />);
+    const hero = getByTestId("hero-card-first-install");
+    expect(hero.textContent).toMatch(/welcome|get started|no apps/i);
+  });
+
+  it("single-failure hero shows failing app name", () => {
+    setupScopedApi({
+      appGridData: [
+        createAppGridEntry({ app_key: "my_broken_app", display_name: "My Broken App", status: "failed" }),
+        createAppGridEntry({ app_key: "ok_app", status: "running" }),
+      ],
+      errorsData: [createHandlerError({ app_key: "my_broken_app" })],
+      kpisData: createKpis({ total_errors: 1 }),
+    });
+    const { getByTestId } = renderWithAppState(<DashboardPage />);
+    const hero = getByTestId("hero-card-single-failure");
+    expect(hero.textContent).toContain("My Broken App");
+  });
+
+  it("multiple-failures hero shows failure count", () => {
+    setupScopedApi({
+      appGridData: [
+        createAppGridEntry({ app_key: "app_a", status: "failed" }),
+        createAppGridEntry({ app_key: "app_b", status: "failed" }),
+        createAppGridEntry({ app_key: "app_c", status: "failed" }),
+      ],
+      errorsData: [],
+      kpisData: createKpis({ total_errors: 5 }),
+    });
+    const { getByTestId } = renderWithAppState(<DashboardPage />);
+    const hero = getByTestId("hero-card-multiple-failures");
+    expect(hero.textContent).toMatch(/3 apps? failed|3 failures/i);
+  });
+});
+
+describe("DashboardPage — telemetry degraded banner", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useDebouncedEffect.mockImplementation(() => {});
+  });
+
+  it("shows telemetry degraded banner when telemetryDegraded is true", () => {
+    setupScopedApi();
+    const { getByTestId } = renderWithAppState(<DashboardPage />, {
+      stateOverrides: { telemetryDegraded: signal(true), droppedOverflow: signal(5) },
+    });
+    expect(getByTestId("telemetry-degraded-banner")).toBeDefined();
+  });
+
+  it("does not show telemetry degraded banner when telemetryDegraded is false", () => {
+    setupScopedApi();
+    const { queryByTestId } = renderWithAppState(<DashboardPage />, {
+      stateOverrides: { telemetryDegraded: signal(false), droppedOverflow: signal(0) },
+    });
+    expect(queryByTestId("telemetry-degraded-banner")).toBeNull();
+  });
+});
+
 describe("DashboardPage — debounced refetch on appStatus change", () => {
   it("calls useDebouncedEffect with a callback that invokes refetch", async () => {
     // Reset all mocks to ensure clean state

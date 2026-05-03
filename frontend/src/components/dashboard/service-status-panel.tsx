@@ -13,7 +13,8 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useAppState } from "../../state/context";
 import type { ServiceStatusEntry } from "../../state/create-app-state";
-import { readinessVariant } from "../../utils/status";
+import { readinessVariant, statusToKind } from "../../utils/status";
+import { StatusShape } from "../shared/status-shape";
 
 const HEALTHY_STATUSES = new Set(["running", "starting", "not_started", "stopping", "stopped"]);
 
@@ -86,9 +87,12 @@ function ServiceRow({ entry }: ServiceRowProps) {
   const variant = readinessVariant(status, ready);
   const label = isStarting ? STATUS_LABELS["running_not_ready"] : (STATUS_LABELS[status] ?? status);
 
+  // Use StatusShape for the status indicator instead of dot spans
+  const shapeKind = statusToKind(isStarting ? "starting" : status);
+
   return (
     <li class={`ht-ssp__row ht-ssp__row--${variant}`} data-testid={`service-status-row-${resource_name}`}>
-      <span class={`ht-ssp__dot ht-ssp__dot--${variant}`} aria-hidden="true" />
+      <StatusShape kind={shapeKind} size={10} />
       <span class="ht-ssp__name">{resource_name}</span>
       <span class={`ht-ssp__label ht-ssp__label--${variant}`} data-testid={`service-status-label-${resource_name}`}>
         {label}

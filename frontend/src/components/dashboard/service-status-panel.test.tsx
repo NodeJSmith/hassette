@@ -240,6 +240,18 @@ describe("ServiceStatusPanel", () => {
       expect(row.className).toContain("ht-ssp__row--danger");
     });
 
+    it("renders StatusShape SVG for service rows instead of dot spans", () => {
+      const serviceStatus = makeServiceStatus([
+        makeEntry({ resource_name: "broken_svc", status: "failed" }),
+      ]);
+      const { container } = renderWithAppState(<ServiceStatusPanel />, {
+        stateOverrides: { serviceStatus },
+      });
+      // StatusShape renders SVG; old pattern used .ht-ssp__dot span
+      const svgs = container.querySelectorAll("svg");
+      expect(svgs.length).toBeGreaterThan(0);
+    });
+
     it("existing exhausted_cooling service still renders countdown after readiness changes", () => {
       const FUTURE_RETRY_AT = Date.now() / 1000 + 300;
       const serviceStatus = makeServiceStatus([

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/preact";
-import { AlertBanner } from "./alert-banner";
+import { signal } from "@preact/signals";
+import { AlertBanner, TelemetryDegradedBanner } from "./alert-banner";
+import { renderWithAppState } from "../../test/render-helpers";
 
 describe("AlertBanner", () => {
   it("renders nothing when no failed apps", () => {
@@ -67,5 +69,36 @@ describe("AlertBanner", () => {
     expect(links[0].getAttribute("href")).toBe("/apps/app_a");
     expect(links[1].getAttribute("href")).toBe("/apps/app_b");
     expect(links[2].getAttribute("href")).toBe("/apps/app_c");
+  });
+});
+
+describe("TelemetryDegradedBanner", () => {
+  it("renders nothing when telemetryDegraded is false", () => {
+    const { container } = renderWithAppState(<TelemetryDegradedBanner />, {
+      stateOverrides: { telemetryDegraded: signal(false), droppedOverflow: signal(0) },
+    });
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("renders banner when telemetryDegraded is true", () => {
+    const { getByTestId } = renderWithAppState(<TelemetryDegradedBanner />, {
+      stateOverrides: { telemetryDegraded: signal(true), droppedOverflow: signal(0) },
+    });
+    expect(getByTestId("telemetry-degraded-banner")).toBeDefined();
+  });
+
+  it("shows drop count when non-zero", () => {
+    const { getByText } = renderWithAppState(<TelemetryDegradedBanner />, {
+      stateOverrides: { telemetryDegraded: signal(true), droppedOverflow: signal(10), droppedExhausted: signal(5) },
+    });
+    expect(getByText(/15 events dropped/)).toBeDefined();
+  });
+
+  it("has role=alert for screen reader announcement", () => {
+    const { container } = renderWithAppState(<TelemetryDegradedBanner />, {
+      stateOverrides: { telemetryDegraded: signal(true), droppedOverflow: signal(0) },
+    });
+    const banner = container.querySelector("[role='alert']");
+    expect(banner).not.toBeNull();
   });
 });

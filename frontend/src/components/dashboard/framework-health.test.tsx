@@ -48,14 +48,22 @@ describe("FrameworkHealth", () => {
     expect(badge.className).toContain("ht-badge--danger");
   });
 
-  it("test_no_error_feed_expansion: no expandable error list or aria-expanded", () => {
+  it("test_collapse_toggle_present_when_errors_exist: toggle button visible when errors > 0", () => {
     vi.mocked(useScopedApi).mockReturnValue(
       makeSummary({ total_errors: 5, total_job_errors: 2 }),
     );
-    const { container, queryByRole } = render(<FrameworkHealth />);
+    const { queryByRole } = render(<FrameworkHealth />);
+    // Toggle button should exist for collapsible detail
+    const btn = queryByRole("button");
+    expect(btn).not.toBeNull();
+  });
+
+  it("test_no_toggle_when_no_errors: no toggle button when error count is 0", () => {
+    vi.mocked(useScopedApi).mockReturnValue(
+      makeSummary({ total_errors: 0, total_job_errors: 0 }),
+    );
+    const { queryByRole } = render(<FrameworkHealth />);
     expect(queryByRole("button")).toBeNull();
-    expect(container.querySelector("[aria-expanded]")).toBeNull();
-    expect(container.querySelector("[data-testid='dashboard-errors']")).toBeNull();
   });
 
   it("shows System Health label", () => {

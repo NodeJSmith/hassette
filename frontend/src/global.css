@@ -1559,17 +1559,6 @@ strong {
   background: color-mix(in srgb, var(--ht-warning) 8%, var(--ht-surface-recessed));
 }
 
-.ht-ssp__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--ht-radius-full);
-  flex-shrink: 0;
-}
-
-.ht-ssp__dot--success { background: var(--ht-success); }
-.ht-ssp__dot--danger  { background: var(--ht-danger); }
-.ht-ssp__dot--warning { background: var(--ht-warning); }
-.ht-ssp__dot--neutral { background: var(--ht-text-dim); }
 
 .ht-ssp__name {
   font-weight: var(--ht-weight-medium);
@@ -2145,21 +2134,6 @@ strong {
 }
 
 /* — Framework Health Affordance ———————————————————————— */
-.ht-framework-health__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  user-select: none;
-  padding: 0;
-  border-radius: var(--ht-radius-sm);
-  outline-offset: 2px;
-}
-
-.ht-framework-health__header:focus-visible {
-  outline: 2px solid var(--ht-accent);
-}
-
 .ht-framework-health__title {
   display: flex;
   align-items: center;
@@ -2677,4 +2651,118 @@ strong {
     animation-iteration-count: 1 !important;
     transition-duration: var(--ht-motion-reduced) !important;
   }
+}
+
+/* =====================================================
+   WP06 — Overview Page Components
+   All classes use ht- prefix with BEM structure.
+   Ink tokens: var(--font-mono), var(--ok), var(--warn),
+   var(--err), var(--ok-bg), var(--warn-bg), var(--err-bg)
+   ===================================================== */
+
+/* — Hero Card (system state indicator) ————————————————— */
+.ht-hero-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-6) var(--sp-5);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line-1);
+  margin-bottom: var(--sp-6);
+  background: var(--bg-surface);
+}
+
+.ht-hero-card--healthy {
+  border-color: var(--ok);
+  background: var(--ok-bg);
+}
+
+.ht-hero-card--quiet {
+  border-color: var(--line-1);
+  background: var(--bg-sunken);
+}
+
+.ht-hero-card--failure {
+  border-color: var(--err);
+  background: var(--err-bg);
+}
+
+.ht-hero-card--first-install {
+  border-color: var(--line-1);
+  background: var(--bg-surface);
+}
+
+.ht-hero-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--ok) 15%, transparent);
+  color: var(--ok);
+}
+
+.ht-hero-card__icon--err {
+  background: color-mix(in srgb, var(--err) 15%, transparent);
+  color: var(--err);
+}
+
+.ht-hero-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.ht-hero-card__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-h2);
+  font-weight: 400;
+  line-height: var(--lh-h2);
+  letter-spacing: var(--tr-h2);
+  color: var(--ink-1);
+  margin: 0;
+}
+
+.ht-hero-card__subtitle {
+  font-size: var(--fs-body);
+  color: var(--ink-3);
+  margin: 0;
+}
+
+/* — Telemetry Degraded Banner ——————————————————————————— */
+.ht-degraded-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  margin-bottom: var(--sp-4);
+  font-size: var(--fs-body);
+  border: 1px solid transparent;
+}
+
+.ht-degraded-banner--warn {
+  background: var(--warn-bg);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.ht-degraded-banner--err {
+  background: var(--err-bg);
+  border-color: var(--err);
+  color: var(--err);
+}
+
+.ht-degraded-banner__text {
+  flex: 1;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+/* — Framework Health Toggle ————————————————————————————— */
+.ht-framework-health__toggle {
+  margin-left: auto;
+  color: var(--ink-3);
 }

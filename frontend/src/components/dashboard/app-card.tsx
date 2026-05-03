@@ -1,8 +1,8 @@
 import type { DashboardAppGridEntry } from "../../api/endpoints";
-import { StatusBadge } from "../shared/status-badge";
+import { StatusShape } from "../shared/status-shape";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { pluralize } from "../../utils/format";
-import { errorRateToVariant } from "../../utils/status";
+import { errorRateToVariant, statusToKind } from "../../utils/status";
 
 interface Props {
   app: DashboardAppGridEntry;
@@ -10,6 +10,7 @@ interface Props {
 
 export function AppCard({ app }: Props) {
   const lastActivity = useRelativeTime(app.last_activity_ts);
+  const statusKind = statusToKind(app.status);
 
   return (
     <div class="ht-app-card" data-testid={`app-card-${app.app_key}`}>
@@ -23,7 +24,9 @@ export function AppCard({ app }: Props) {
               </span>
             )}
           </span>
-          {app.status !== "running" && <StatusBadge status={app.status} size="small" />}
+          {app.status !== "running" && (
+            <StatusShape kind={statusKind} size={12} />
+          )}
         </div>
         <div class="ht-app-card__stats">
           <span class="ht-text-xs ht-text-muted">{pluralize(app.handler_count, "handler")}</span>

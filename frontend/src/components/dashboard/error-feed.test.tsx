@@ -183,6 +183,19 @@ describe("ErrorFeed", () => {
     expect(queryByText("deleted job")).toBeNull();
   });
 
+  it("renders source location when available on handler error", () => {
+    const err = createHandlerError({ handler_method: "on_motion" });
+    // The error-feed shows handler_method as the subtitle/location indicator
+    const { getByText } = render(<ErrorFeed errors={[err]} />);
+    expect(getByText("on_motion")).toBeDefined();
+  });
+
+  it("error row tint applied via ht-error-entry class", () => {
+    const { container } = render(<ErrorFeed errors={[createHandlerError()]} />);
+    const entry = container.querySelector(".ht-error-entry");
+    expect(entry).not.toBeNull();
+  });
+
   it("test_unified_feed_includes_both_tiers: renders both app and framework errors", () => {
     const appErr = createHandlerError({ app_key: "my_app", source_tier: "app" });
     const fwErr = createHandlerError({ app_key: "__hassette__.core", source_tier: "framework", listener_id: 99 });

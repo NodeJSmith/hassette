@@ -72,4 +72,19 @@ describe("AppCard", () => {
     const errorRate = getByTestId("app-card-error-rate");
     expect(errorRate.className).toContain("ht-text-danger");
   });
+
+  it("renders StatusShape SVG (not StatusBadge dot) for non-running apps", () => {
+    const { container } = render(<AppCard app={createAppGridEntry({ status: "failed" })} />);
+    // StatusShape renders an SVG element; StatusBadge renders a span dot
+    const svg = container.querySelector("svg");
+    expect(svg).not.toBeNull();
+    // No status-badge span (old pattern)
+    expect(container.querySelector(".ht-status-badge")).toBeNull();
+  });
+
+  it("links to app detail page", () => {
+    const { container } = render(<AppCard app={createAppGridEntry({ app_key: "my_app" })} />);
+    const link = container.querySelector("a");
+    expect(link?.getAttribute("href")).toBe("/apps/my_app");
+  });
 });
