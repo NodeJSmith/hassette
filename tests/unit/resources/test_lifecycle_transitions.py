@@ -15,7 +15,7 @@ WP02 additions:
 - shutdown() sets STOPPING before hooks run (Resource)
 - shutdown() sets STOPPING before hooks run (Service)
 - Full shutdown sequence: RUNNING → STOPPING → STOPPED
-- RUNNING → STOPPED direct transition is no longer valid (requires STOPPING step)
+- RUNNING → STOPPED direct transition is valid (natural service completion via _serve_wrapper)
 """
 
 import asyncio

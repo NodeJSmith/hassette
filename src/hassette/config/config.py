@@ -306,11 +306,15 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Default size limit for caches in bytes. Defaults to 100 MiB."""
 
     strict_lifecycle: bool = Field(default=False)
-    """Whether to enable strict lifecycle transition validation.
+    """Enable strict validation for lifecycle transitions, connection state, and registries.
 
-    When True, invalid ResourceStatus transitions raise InvalidLifecycleTransitionError.
-    When False (default), invalid transitions log a WARNING but still proceed.
-    Intended to be set to True in test harnesses to catch lifecycle bugs early."""
+    Controls three subsystems uniformly:
+    - Resource lifecycle: invalid ResourceStatus transitions raise InvalidLifecycleTransitionError
+    - WebSocket connection: invalid ConnectionState transitions raise InvalidLifecycleTransitionError
+    - Registry validation: startup issues raise RegistryValidationError
+
+    When False (default), all three subsystems log WARNING instead of raising.
+    The test harness sets this to True by default."""
 
     asyncio_debug_mode: bool = Field(default=False)
     """Whether to enable asyncio debug mode."""

@@ -318,10 +318,11 @@ class InvalidLifecycleTransitionError(HassetteError):
 
 
 class RegistryValidationError(HassetteError):
-    """Raised when registry validation fails in strict lifecycle mode.
+    """Raised when startup registry validation finds error-level issues.
 
-    Only raised when ``HassetteConfig.strict_lifecycle`` is True. In non-strict
-    mode the same condition logs a WARNING instead.
+    Raised by ``validate_registries(strict=True)`` after collecting all issues.
+    ``Hassette.wire_services()`` passes ``strict=config.strict_lifecycle``, so in
+    production this only fires when the user explicitly enables strict mode.
 
     Attributes:
         issues: The full list of validation issues found. Always contains at least

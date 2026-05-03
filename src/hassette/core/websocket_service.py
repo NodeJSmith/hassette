@@ -136,9 +136,9 @@ class WebsocketService(Service):
     def _set_connection_state(self, new: ConnectionState) -> None:
         """Transition to a new connection state with validation.
 
-        Validates the transition against WS_VALID_TRANSITIONS. In strict mode raises
-        InvalidLifecycleTransitionError for invalid transitions; in non-strict mode logs
-        WARNING. Logs every valid transition at DEBUG with previous state.
+        Validates the transition against WS_VALID_TRANSITIONS. In strict lifecycle mode
+        raises InvalidLifecycleTransitionError for invalid transitions; in non-strict
+        (default) mode logs WARNING. Logs every valid transition at DEBUG with previous state.
 
         Args:
             new: The new connection state to transition to.

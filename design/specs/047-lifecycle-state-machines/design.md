@@ -88,16 +88,16 @@ The test harness (`HassetteHarness`) sets `strict_lifecycle = True` by default s
 Add a transition table to `LifecycleMixin` that defines valid `(from_status, to_status)` pairs. The `status` setter validates against this table.
 
 ```
-Valid transitions:
-  NOT_STARTED       → STARTING
-  STARTING          → RUNNING, FAILED, STOPPED
-  RUNNING           → STOPPING, FAILED, CRASHED
+Valid transitions (updated post-implementation to include timing-edge and shutdown paths):
+  NOT_STARTED       → STARTING, STOPPING, EXHAUSTED_COOLING (timing edge), EXHAUSTED_DEAD (timing edge)
+  STARTING          → RUNNING, FAILED, STOPPED, STOPPING, EXHAUSTED_COOLING (timing edge), EXHAUSTED_DEAD (timing edge)
+  RUNNING           → STOPPING, STOPPED (natural service completion), FAILED, CRASHED, EXHAUSTED_COOLING (timing edge), EXHAUSTED_DEAD (timing edge)
   STOPPING          → STOPPED, FAILED
   STOPPED           → STARTING  (restart)
-  FAILED            → STARTING (restart), STOPPED (shutdown after failure), EXHAUSTED_COOLING (budget exhausted, transient), EXHAUSTED_DEAD (budget exhausted, temporary)
-  CRASHED           → STARTING (restart), STOPPED (shutdown after crash), EXHAUSTED_DEAD (fatal, permanent)
-  EXHAUSTED_COOLING → STARTING (restart after cooldown), EXHAUSTED_DEAD (cooldown cycles exceeded)
-  EXHAUSTED_DEAD    → (terminal, no transitions out)
+  FAILED            → STARTING (restart), STOPPING (shutdown), STOPPED (handle_stop), EXHAUSTED_COOLING (budget exhausted, transient), EXHAUSTED_DEAD (budget exhausted, temporary)
+  CRASHED           → STARTING (restart), STOPPING (shutdown), STOPPED (handle_stop), EXHAUSTED_DEAD (fatal, permanent)
+  EXHAUSTED_COOLING → STARTING (restart after cooldown), STOPPING (shutdown while cooling), EXHAUSTED_DEAD (cooldown cycles exceeded)
+  EXHAUSTED_DEAD    → STOPPING (shutdown while dead — terminal for restart, not for process lifecycle)
 ```
 
 Implementation:
