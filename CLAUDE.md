@@ -175,7 +175,7 @@ When fixing or modifying any test, run that test locally and confirm it passes b
 
 Every issue should have:
 
-1. **Type label** (exactly one): `bug`, `enhancement`, `documentation`, `CICD`
+1. **Type label** (exactly one): `type:bug`, `type:enhancement`, `type:documentation`, `type:CICD`
 2. **Area label** (at least one, unless cross-cutting):
    - `area:api` — HA REST/WebSocket API
    - `area:apps` — App lifecycle / AppHandler
