@@ -34,7 +34,11 @@ if typing.TYPE_CHECKING:
         task_bucket: _TaskBucketP
 
         def _create_service_status_event(
-            self, status: ResourceStatus, exception: Exception | None = None
+            self,
+            status: ResourceStatus,
+            exception: Exception | None = None,
+            ready: bool = False,
+            ready_phase: str | None = None,
         ) -> "HassetteServiceEvent": ...
 
         async def initialize(self, *args, **kwargs) -> None: ...
@@ -174,7 +178,9 @@ class LifecycleMixin(_LifecycleHostStubs):
 
         self.logger.debug("%s stopping", self.unique_name, stacklevel=2)
         self.status = ResourceStatus.STOPPED
-        event = self._create_service_status_event(ResourceStatus.STOPPED)
+        event = self._create_service_status_event(
+            ResourceStatus.STOPPED, ready=self.is_ready(), ready_phase=self._ready_reason
+        )
         await self.hassette.send_event(event.topic, event)
         self.mark_not_ready("Stopped")
 
@@ -185,7 +191,9 @@ class LifecycleMixin(_LifecycleHostStubs):
 
         self.logger.exception("%s failed: %s - %s", self.unique_name, type(exception).__name__, str(exception))
         self.status = ResourceStatus.FAILED
-        event = self._create_service_status_event(ResourceStatus.FAILED, exception)
+        event = self._create_service_status_event(
+            ResourceStatus.FAILED, exception, ready=self.is_ready(), ready_phase=self._ready_reason
+        )
         await self.hassette.send_event(event.topic, event)
         self.mark_not_ready("Failed")
 
@@ -196,7 +204,9 @@ class LifecycleMixin(_LifecycleHostStubs):
 
         self.logger.debug("%s running", self.unique_name, stacklevel=2)
         self.status = ResourceStatus.RUNNING
-        event = self._create_service_status_event(ResourceStatus.RUNNING)
+        event = self._create_service_status_event(
+            ResourceStatus.RUNNING, ready=self.is_ready(), ready_phase=self._ready_reason
+        )
         await self.hassette.send_event(event.topic, event)
 
     async def handle_starting(self) -> None:
@@ -205,7 +215,9 @@ class LifecycleMixin(_LifecycleHostStubs):
             return
         self.logger.debug("%s starting", self.unique_name, stacklevel=2)
         self.status = ResourceStatus.STARTING
-        event = self._create_service_status_event(ResourceStatus.STARTING)
+        event = self._create_service_status_event(
+            ResourceStatus.STARTING, ready=self.is_ready(), ready_phase=self._ready_reason
+        )
         await self.hassette.send_event(event.topic, event)
 
     async def handle_crash(self, exception: Exception) -> None:
@@ -215,11 +227,19 @@ class LifecycleMixin(_LifecycleHostStubs):
 
         self.logger.error("%s crashed: %s - %s", self.unique_name, type(exception).__name__, str(exception))
         self.status = ResourceStatus.CRASHED
-        event = self._create_service_status_event(ResourceStatus.CRASHED, exception)
+        event = self._create_service_status_event(
+            ResourceStatus.CRASHED, exception, ready=self.is_ready(), ready_phase=self._ready_reason
+        )
         await self.hassette.send_event(event.topic, event)
         self.mark_not_ready("Crashed")
 
-    def _create_service_status_event(self, status: ResourceStatus, exception: Exception | BaseException | None = None):
+    def _create_service_status_event(
+        self,
+        status: ResourceStatus,
+        exception: Exception | BaseException | None = None,
+        ready: bool = False,
+        ready_phase: str | None = None,
+    ):
         from hassette.events import HassetteServiceEvent
 
         return HassetteServiceEvent.from_data(
@@ -228,4 +248,6 @@ class LifecycleMixin(_LifecycleHostStubs):
             status=status,
             previous_status=self._previous_status,
             exception=exception,
+            ready=ready,
+            ready_phase=ready_phase,
         )

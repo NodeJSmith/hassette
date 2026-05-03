@@ -160,6 +160,8 @@ class ServiceWatcher(Resource):
                     exception_type=exception_type,
                     exception_traceback=exception_traceback,
                     retry_at=retry_at,
+                    ready=False,
+                    ready_phase=None,
                 ),
             ),
         )
@@ -544,6 +546,8 @@ class ServiceWatcher(Resource):
                         role=role,
                         status=ResourceStatus.FAILED,
                         previous_status=None,  # unknown — event was missed during BusService restart
+                        ready=False,
+                        ready_phase=None,
                     ),
                 ),
             )

@@ -578,6 +578,16 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """Optional: last-chance actions after on_shutdown, before cleanup/STOPPED."""
         pass
 
+    async def _emit_readiness_event(self) -> None:
+        """Emit a service_status event reflecting the current readiness state.
+
+        Call this from an async context (e.g., inside ``serve()``) after calling
+        ``mark_ready()`` or ``mark_not_ready()`` to propagate mid-operation
+        readiness changes to the frontend.
+        """
+        event = self._create_service_status_event(self._status, ready=self.is_ready(), ready_phase=self._ready_reason)
+        await self.hassette.send_event(event.topic, event)
+
     async def restart(self) -> None:
         """Restart the instance by shutting it down and re-initializing it."""
         self.logger.debug("Restarting '%s' %s", self.class_name, self.role)

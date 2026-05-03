@@ -29,6 +29,10 @@ class ServiceStatusPayload:
     retry_at: float | None = None
     """Unix timestamp when the next restart will be attempted.
     Populated for EXHAUSTED_COOLING. None for EXHAUSTED_DEAD and all other statuses."""
+    ready: bool = False
+    """Whether the service has signalled readiness at the time of this status event."""
+    ready_phase: str | None = None
+    """Human-readable description of the current readiness phase, or None if not available."""
 
 
 @dataclass(slots=True, frozen=True)
@@ -63,6 +67,8 @@ class HassetteServiceEvent(Event[HassettePayload[ServiceStatusPayload]]):
         status: ResourceStatus,
         previous_status: ResourceStatus | None = None,
         exception: Exception | BaseException | None = None,
+        ready: bool = False,
+        ready_phase: str | None = None,
     ) -> "HassetteServiceEvent":
         exc_str = str(exception) if exception else None
         exc_type = type(exception).__name__ if exception else None
@@ -76,6 +82,8 @@ class HassetteServiceEvent(Event[HassettePayload[ServiceStatusPayload]]):
             exception=exc_str,
             exception_type=exc_type,
             exception_traceback=exc_tb,
+            ready=ready,
+            ready_phase=ready_phase,
         )
         return cls(
             topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,

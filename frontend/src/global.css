@@ -1180,7 +1180,7 @@ strong {
 .ht-ssp__detail {
   margin-left: auto;
   font-size: var(--ht-text-xs);
-  color: var(--ht-text-muted);
+  color: var(--ht-text-secondary);
 }
 
 .ht-ssp__detail--cooling {
