@@ -279,30 +279,7 @@ Retain the BEM-like class naming pattern (consider switching from `ht-` to a fre
 
 ### Frontend Component Structure
 
-The existing component organization (`components/dashboard/`, `components/app-detail/`, `components/layout/`, `components/shared/`, `pages/`) is retained and extended:
-
-**New components:**
-- `components/layout/sidebar.tsx` — complete rewrite: 240px with wordmark, app tree, status grouping, search
-- `components/layout/cmd-k-palette.tsx` — new: modal command palette with search index
-- `components/layout/time-preset-selector.tsx` — new: replaces session scope toggle
-- `components/shared/status-shape.tsx` — new: SVG shape-coded status indicators
-- `components/shared/confirm-dialog.tsx` — new: modal confirmation for destructive actions
-- `components/app-detail/handlers-tab.tsx` — new: master/detail layout
-- `components/app-detail/code-tab.tsx` — new: syntax-highlighted source display
-- `components/app-detail/config-tab.tsx` — new: per-app configuration display
-
-**Deleted components:**
-- `components/layout/session-scope-toggle.tsx`
-- `components/layout/bottom-nav.tsx` (replaced by off-canvas drawer)
-- `utils/session-scope.ts`
-- `pages/sessions.tsx`
-
-**Heavily rewritten:**
-- Every page component (dashboard, apps, app-detail, logs)
-- `components/layout/status-bar.tsx` — remove session toggle, add time preset
-- `hooks/use-scoped-api.ts` — remove session logic, replace with time-window filtering
-- `hooks/use-websocket.ts` — handle new event types, remove session ID tracking
-- `state/create-app-state.ts` — remove session signals, add time preset signal, add signals for new WS events
+Retain the existing organizational pattern: components grouped by feature (`components/dashboard/`, `components/app-detail/`, `components/layout/`, `components/shared/`), pages in `pages/`, hooks in `hooks/`, state in `state/`. Co-locate tests with their components. The specific files created, deleted, and rewritten are defined in the individual work packages — the design doc does not prescribe exact filenames.
 
 ### Backend Additions
 
