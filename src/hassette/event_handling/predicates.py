@@ -514,8 +514,13 @@ class ServiceDataWhere:
         return all(p(value) for p in self._predicates)
 
     def summarize(self) -> str:
-        parts = [f"{k} = {callable_name(v) if callable(v) else v}" for k, v in self.spec.items()]
-        return "service data where " + ", ".join(parts)
+        def _fmt(v: Any) -> str:
+            if callable(v):
+                return _summarize_condition(v) if hasattr(v, "summarize") else callable_name(v)
+            return str(v)
+
+        parts = [f"{k} = {_fmt(v)}" for k, v in self.spec.items()]
+        return ", ".join(parts)
 
     @classmethod
     def from_kwargs(cls, *, auto_glob: bool = True, **spec: "ChangeType") -> "ServiceDataWhere":

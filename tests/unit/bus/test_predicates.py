@@ -619,19 +619,33 @@ def test_predicate_summarize_golden_did_change() -> None:
 
 def test_predicate_summarize_golden_service_data_where() -> None:
     pred = ServiceDataWhere(spec={"entity_id": "light.kitchen"})
-    assert pred.summarize() == "service data where entity_id = light.kitchen"
+    assert pred.summarize() == "entity_id = light.kitchen"
 
 
 def test_predicate_summarize_golden_service_data_where_callable_condition() -> None:
     """ServiceDataWhere with callable condition uses callable_name() — not memory address."""
     pred = ServiceDataWhere(spec={"brightness": lambda v: v > 100, "entity_id": "light.kitchen"})
     result = pred.summarize()
-    # Must not contain a memory address
     assert "0x" not in result
-    # Callable condition shows as <callable>
     assert "brightness = <callable>" in result
-    # Literal condition shows as-is
     assert "entity_id = light.kitchen" in result
+
+
+def test_predicate_summarize_golden_service_data_where_multi_key() -> None:
+    pred = ServiceDataWhere(spec={"entity_id": "light.kitchen", "brightness": 255, "transition": 2})
+    assert pred.summarize() == "entity_id = light.kitchen, brightness = 255, transition = 2"
+
+
+def test_predicate_summarize_golden_service_data_where_with_condition_object() -> None:
+    from hassette.event_handling.conditions import IsIn
+
+    pred = ServiceDataWhere(spec={"entity_id": IsIn(["light.kitchen", "light.living"])})
+    assert pred.summarize() == "entity_id = in [light.kitchen, light.living]"
+
+
+def test_predicate_summarize_golden_service_data_where_with_glob() -> None:
+    pred = ServiceDataWhere(spec={"entity_id": "light.*"})
+    assert pred.summarize() == "entity_id = light.*"
 
 
 # ---------------------------------------------------------------------------
