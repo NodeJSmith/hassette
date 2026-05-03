@@ -393,6 +393,8 @@ async def test_fatal_error_triggers_immediate_shutdown(get_service_watcher_mock:
                 exception="fatal db error",
                 exception_type="FatalDbError",
                 exception_traceback=None,
+                ready=False,
+                ready_phase=None,
             ),
         ),
     )
@@ -446,6 +448,8 @@ async def test_non_retryable_error_skips_restart(get_service_watcher_mock: Servi
                 previous_status=ResourceStatus.RUNNING,
                 exception="non-retryable",
                 exception_type="NonRetryableError",
+                ready=False,
+                ready_phase=None,
             ),
         ),
     )

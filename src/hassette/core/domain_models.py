@@ -94,3 +94,7 @@ class ServiceStatusData(BaseModel):
     and will retry at this time). ``None`` for ``EXHAUSTED_DEAD`` and all other
     statuses.  The frontend uses this to display a live countdown timer.
     """
+    ready: bool = False
+    """Whether the service had signalled readiness at the time of this status event."""
+    ready_phase: str | None = None
+    """Human-readable description of the current readiness phase, or None if not available."""

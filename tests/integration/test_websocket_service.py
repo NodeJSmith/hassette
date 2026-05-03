@@ -413,6 +413,9 @@ async def test_start_recv_and_subscribe_marks_ready(websocket_service: Websocket
     websocket_service._send_connection_established_event = AsyncMock()
     websocket_service._subscribe_events = AsyncMock(return_value=42)
     websocket_service.mark_ready = Mock()
+    # Stub _emit_readiness_event: this test focuses on mark_ready/subscription behavior;
+    # readiness event emission is covered by test_websocket_readiness_events.py.
+    websocket_service._emit_readiness_event = AsyncMock()
 
     result = await websocket_service._start_recv_and_subscribe()
 

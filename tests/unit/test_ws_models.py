@@ -68,10 +68,14 @@ class TestServiceStatusPayloadMatchesDataclass:
             role=ResourceRole.SERVICE,
             status=ResourceStatus.RUNNING,
             previous_status=ResourceStatus.STARTING,
+            ready=True,
+            ready_phase="connected",
         )
         serialized = {k: str(v) if hasattr(v, "value") else v for k, v in asdict(dataclass_instance).items()}
         payload = WsServiceStatusPayload.model_validate(serialized)
         assert payload.resource_name == "telemetry"
+        assert payload.ready is True
+        assert payload.ready_phase == "connected"
 
 
 class TestStateChangedNormalizedEnvelope:
@@ -241,8 +245,12 @@ class TestServiceStatusDataRetryAt:
             role=ResourceRole.SERVICE,
             status=ResourceStatus.EXHAUSTED_COOLING,
             retry_at=1714000300.0,
+            ready=False,
+            ready_phase=None,
         )
         serialized = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(dataclass_instance).items()}
         payload = WsServiceStatusPayload.model_validate(serialized)
         assert payload.status == "exhausted_cooling"
         assert payload.retry_at == 1714000300.0
+        assert payload.ready is False
+        assert payload.ready_phase is None

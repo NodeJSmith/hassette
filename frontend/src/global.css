@@ -1149,7 +1149,7 @@ strong {
 }
 
 .ht-ssp__row--warning {
-  background: color-mix(in srgb, var(--ht-warning) 8%, var(--ht-surface-recessed));
+  background: var(--ht-warning-light);
 }
 
 .ht-ssp__dot {
@@ -1180,7 +1180,7 @@ strong {
 .ht-ssp__detail {
   margin-left: auto;
   font-size: var(--ht-text-xs);
-  color: var(--ht-text-muted);
+  color: var(--ht-text-secondary);
 }
 
 .ht-ssp__detail--cooling {
