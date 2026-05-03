@@ -116,9 +116,8 @@ class RateLimiter:
 
             try:
                 await asyncio.sleep(self.debounce)
-            except asyncio.CancelledError:
-                # Debounce reset: a new event superseded this one. Silent and expected.
-                return
+            except asyncio.CancelledError:  # noqa: ASYNC103 — debounce reset: a new event superseded this one
+                return  # noqa: ASYNC104
             # Guard: if cancel() was called while we were sleeping, don't fire the handler.
             if self._cancelled:
                 return

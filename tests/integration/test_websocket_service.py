@@ -479,8 +479,7 @@ async def test_partial_cleanup_timeout_on_gather(websocket_service: WebsocketSer
     async def _never_ends():
         try:
             await asyncio.sleep(1000)
-        except asyncio.CancelledError:
-            # simulate a task that ignores cancellation
+        except asyncio.CancelledError:  # noqa: ASYNC103 — intentionally simulates a task that ignores cancellation
             await asyncio.sleep(1000)
 
     stuck_task = asyncio.ensure_future(_never_ends())
