@@ -21,9 +21,23 @@ if typing.TYPE_CHECKING:
 # e.g. _force_terminal). WP02 adds the code paths that exercise STOPPING and EXHAUSTED states;
 # the table is complete from day one so the validation is correct for all future paths.
 VALID_TRANSITIONS: dict[ResourceStatus, frozenset[ResourceStatus]] = {
-    ResourceStatus.NOT_STARTED: frozenset({ResourceStatus.STARTING, ResourceStatus.STOPPING}),
+    ResourceStatus.NOT_STARTED: frozenset(
+        {
+            ResourceStatus.STARTING,
+            ResourceStatus.STOPPING,
+            ResourceStatus.EXHAUSTED_COOLING,  # budget exhausted before first start (timing edge)
+            ResourceStatus.EXHAUSTED_DEAD,  # budget exhausted before first start (timing edge)
+        }
+    ),
     ResourceStatus.STARTING: frozenset(
-        {ResourceStatus.RUNNING, ResourceStatus.FAILED, ResourceStatus.STOPPED, ResourceStatus.STOPPING}
+        {
+            ResourceStatus.RUNNING,
+            ResourceStatus.FAILED,
+            ResourceStatus.STOPPED,
+            ResourceStatus.STOPPING,
+            ResourceStatus.EXHAUSTED_COOLING,  # budget exhausted while restarting (timing edge)
+            ResourceStatus.EXHAUSTED_DEAD,  # budget exhausted while restarting (timing edge)
+        }
     ),
     ResourceStatus.RUNNING: frozenset(
         {
@@ -31,6 +45,8 @@ VALID_TRANSITIONS: dict[ResourceStatus, frozenset[ResourceStatus]] = {
             ResourceStatus.STOPPED,  # natural service completion (_serve_wrapper normal return)
             ResourceStatus.FAILED,
             ResourceStatus.CRASHED,
+            ResourceStatus.EXHAUSTED_COOLING,  # budget exhausted while running (timing edge)
+            ResourceStatus.EXHAUSTED_DEAD,  # budget exhausted while running (timing edge)
         }
     ),
     ResourceStatus.STOPPING: frozenset({ResourceStatus.STOPPED, ResourceStatus.FAILED}),

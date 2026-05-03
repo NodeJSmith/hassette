@@ -435,6 +435,11 @@ async def test_start_recv_and_subscribe_marks_ready(websocket_service: Websocket
     # readiness event emission is covered by test_websocket_readiness_events.py.
     websocket_service._emit_readiness_event = AsyncMock()
 
+    # _start_recv_and_subscribe calls _set_connection_state(CONNECTED).
+    # DISCONNECTED → CONNECTED is invalid; the real flow goes through CONNECTING first
+    # (set by serve() before calling _make_connection). Set CONNECTING as the pre-condition.
+    websocket_service._connection_state = ConnectionState.CONNECTING
+
     result = await websocket_service._start_recv_and_subscribe()
 
     # Close any coroutines captured to suppress ResourceWarning
@@ -829,8 +834,10 @@ async def test_service_status_stays_running_during_early_drop(
     monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_backoff_initial_seconds", 0.001)
     monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_backoff_max_seconds", 0.01)
 
-    # Set service to RUNNING state
-    await websocket_service.handle_running()
+    # Set service to RUNNING state using ._status bypass — deliberate test fixture setup,
+    # not a lifecycle operation. handle_running() requires STARTING → RUNNING which needs
+    # a full initialize() first; here we just need the status to be RUNNING for the assertion.
+    websocket_service._status = ResourceStatus.RUNNING
     await websocket_service.serve()
 
     assert len(statuses_during_retry) >= 1
