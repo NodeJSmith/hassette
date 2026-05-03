@@ -27,21 +27,21 @@ export function TimePresetSelector() {
   };
 
   return (
-    <div class="time-preset-selector">
+    <div class="ht-time-preset-selector">
       {PRESETS.map(({ value, label }) => (
         <button
           key={value}
           type="button"
-          class={`time-preset-selector__btn${current === value ? " is-active" : ""}`}
+          class={`ht-time-preset-selector__btn${current === value ? " ht-time-preset-selector__btn--active" : ""}`}
           aria-pressed={current === value}
           onClick={() => handlePreset(value)}
         >
           {label}
         </button>
       ))}
-      {Number.isFinite(uptime) && uptime !== null && (
-        <span class="time-preset-selector__uptime">
-          up {formatUptime(uptime as number)}
+      {Number.isFinite(uptime) && (
+        <span class="ht-time-preset-selector__uptime">
+          up {formatUptime(uptime!)}
         </span>
       )}
     </div>

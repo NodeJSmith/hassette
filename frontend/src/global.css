@@ -687,7 +687,7 @@ strong {
 }
 
 /* — Time Preset Selector —————————————————————————————— */
-.time-preset-selector {
+.ht-time-preset-selector {
   display: flex;
   align-items: center;
   gap: 2px;
@@ -697,7 +697,7 @@ strong {
   background: var(--bg-surface);
 }
 
-.time-preset-selector__btn {
+.ht-time-preset-selector__btn {
   padding: 3px 10px;
   font-family: var(--font-body);
   font-size: var(--fs-micro);
@@ -712,21 +712,21 @@ strong {
   white-space: nowrap;
 }
 
-.time-preset-selector__btn:last-of-type {
+.ht-time-preset-selector__btn:last-of-type {
   border-right: none;
 }
 
-.time-preset-selector__btn:hover:not(.is-active) {
+.ht-time-preset-selector__btn:hover:not(.ht-time-preset-selector__btn--active) {
   background: var(--bg-active);
   color: var(--ink-1);
 }
 
-.time-preset-selector__btn.is-active {
+.ht-time-preset-selector__btn.ht-time-preset-selector__btn--active {
   background: var(--bg-active);
   color: var(--ink-1);
 }
 
-.time-preset-selector__uptime {
+.ht-time-preset-selector__uptime {
   padding: 0 var(--sp-2);
   font-size: var(--fs-micro);
   color: var(--ink-4);
@@ -2129,11 +2129,6 @@ strong {
   }
 
   /* Touch target enforcement (WCAG 2.5.8 — 44px minimum) */
-  .ht-scope-toggle__btn {
-    min-height: 44px;
-    padding: var(--sp-2) var(--sp-3);
-  }
-
   .ht-theme-toggle {
     min-width: 44px;
     min-height: 44px;
@@ -2156,11 +2151,6 @@ strong {
     top: 0;
     z-index: 20;
     background: var(--bg-surface);
-  }
-
-  /* Bottom padding prevents content from hiding behind the fixed bottom nav */
-  .ht-main {
-    padding-bottom: calc(var(--sp-4) + var(--bottom-nav-height, 52px) + env(safe-area-inset-bottom, 0px));
   }
 
   /* Log table: hide App column — app name shown as tag in message column */
@@ -2659,60 +2649,6 @@ strong {
   font-family: var(--font-body);
   font-size: var(--fs-body);
   z-index: 1000;
-}
-
-/* — Bottom Navigation (mobile) ————————————————————————— */
-/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
-.ht-bottom-nav {
-  --bottom-nav-height: 52px;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  min-height: var(--bottom-nav-height);
-  display: flex;
-  background: var(--bg-surface);
-  border-top: 1px solid var(--line-1);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  z-index: 30;
-}
-
-.ht-bottom-nav__item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-1);
-  min-height: 44px;
-  color: var(--ink-3);
-  text-decoration: none;
-  font-size: var(--fs-micro);
-  font-family: var(--font-body);
-  transition: color var(--t-fast);
-}
-
-.ht-bottom-nav__item:hover,
-.ht-bottom-nav__item.is-active {
-  color: var(--ink-1);
-  background: var(--bg-sunken);
-}
-
-.ht-bottom-nav__item svg {
-  width: 20px;
-  height: 20px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* 769px = 768px + 1 — hides bottom nav when sidebar becomes visible at max-width:768px */
-@media screen and (min-width: 769px) {
-  .ht-bottom-nav {
-    display: none;
-  }
 }
 
 /* — Manifest Card List (mobile apps view) —————————————— */

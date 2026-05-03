@@ -119,7 +119,7 @@ describe("HandlersTab", () => {
       <HandlersTab
         listeners={listeners}
         jobs={[]}
-        focusMethod="on_motion"
+        focusMethod="app.on_motion"
       />,
       { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
     );

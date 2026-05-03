@@ -122,7 +122,14 @@ async def get_app_source(app_key: str, hassette: HassetteDep) -> AppSourceRespon
     if not resolved.exists():
         raise HTTPException(status_code=404, detail=f"Source file not found for app {app_key!r}")
 
-    content = resolved.read_text(encoding="utf-8")
+    try:
+        content = resolved.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Source file not found for app {app_key!r}") from exc
+    except (OSError, UnicodeDecodeError) as exc:
+        LOGGER.warning("Failed to read source for app %s", app_key, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to read app source") from exc
+
     return AppSourceResponse(
         app_key=app_key,
         filename=manifest.filename,

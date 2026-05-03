@@ -22,8 +22,8 @@ interface Props {
 /** Inline chips for listener modifier options. */
 function ModifierChips({ listener }: { listener: ListenerData }) {
   const chips: Array<{ label: string; value?: string }> = [];
-  if (listener.debounce) chips.push({ label: "debounce", value: `${listener.debounce * 1000}ms` });
-  if (listener.throttle) chips.push({ label: "throttle", value: `${listener.throttle * 1000}ms` });
+  if (listener.debounce) chips.push({ label: "debounce", value: `${listener.debounce * 1000}ms` }); // backend stores seconds
+  if (listener.throttle) chips.push({ label: "throttle", value: `${listener.throttle * 1000}ms` }); // backend stores seconds
   if (listener.once) chips.push({ label: "once" });
   if (listener.priority) chips.push({ label: "priority", value: String(listener.priority) });
   if (listener.immediate) chips.push({ label: "immediate" });
@@ -55,8 +55,8 @@ function ScheduleChips({ job }: { job: JobData }) {
 
   return (
     <div class="ht-chip-row" data-testid="schedule-chips">
-      {chips.map((c, i) => (
-        <span key={i} class="ht-chip ht-chip--schedule">{c.label}</span>
+      {chips.map((c) => (
+        <span key={c.label} class="ht-chip ht-chip--schedule">{c.label}</span>
       ))}
       {nextRunLabel && (
         <span key="next-run" class="ht-chip ht-chip--schedule">next: {nextRunLabel}</span>
@@ -181,7 +181,7 @@ export function HandlersTab({ listeners, jobs, focusMethod }: Props) {
   // Auto-select based on focusMethod
   useEffect(() => {
     if (!focusMethod) return;
-    const match = listeners.find((l) => l.handler_method.includes(focusMethod));
+    const match = listeners.find((l) => l.handler_method === focusMethod);
     if (match) {
       selectedId.value = { kind: "listener", id: match.listener_id };
       if (isMobile.value) showDetail.value = true;

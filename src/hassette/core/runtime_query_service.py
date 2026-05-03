@@ -54,10 +54,8 @@ class RuntimeQueryService(Resource):
     """Maps listener DB-ID → (app_key, instance_index) for completion event enrichment.
 
     Populated by :meth:`register_listener_meta` (called from ``CommandExecutor`` at
-    registration time).  Entries are never pruned — the dict grows by one per
-    registered listener per session, which is bounded by app reload frequency and
-    app count.  At typical deployment scale (hundreds of listeners, dozens of reloads)
-    this is negligible.
+    registration time).  Stale entries are pruned by :meth:`prune_meta` during
+    reconciliation after app reloads.
     """
 
     _job_meta: dict[int, tuple[str, int]]
