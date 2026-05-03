@@ -159,8 +159,8 @@ async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIte
         hassette.shutdown_event.set()
         try:
             await asyncio.wait_for(task, timeout=SHUTDOWN_TIMEOUT)
-        except asyncio.CancelledError:
-            pass
+        except asyncio.CancelledError:  # noqa: ASYNC103 — shutdown already triggered; cancellation is the expected path
+            pass  # noqa: ASYNC104
         except TimeoutError:
             logger.warning("Hassette shutdown timed out after 15s — forcing fallback")
         if not hassette._shutdown_completed:
