@@ -1,0 +1,223 @@
+"""Unit tests for WebsocketService readiness event emission.
+
+Verifies that _emit_readiness_event() is called after mark_not_ready() and mark_ready()
+in the serve() reconnect paths.
+"""
+
+import asyncio
+import threading
+import time
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+
+from hassette.core.websocket_service import WebsocketService
+from hassette.exceptions import RetryableConnectionClosedError
+from hassette.types import Topic
+
+
+def _make_ws_hassette_stub() -> AsyncMock:
+    """Minimal hassette stub sufficient for WebsocketService instantiation."""
+    hassette = AsyncMock()
+    hassette.config.log_level = "DEBUG"
+    hassette.config.websocket_log_level = "DEBUG"
+    hassette.config.data_dir = "/tmp/hassette-test"
+    hassette.config.default_cache_size = 1024
+    hassette.config.resource_shutdown_timeout_seconds = 1
+    hassette.config.startup_timeout_seconds = 30
+    hassette.config.task_cancellation_timeout_seconds = 1
+    hassette.config.task_bucket_log_level = "DEBUG"
+    hassette.config.dev_mode = False
+    hassette.config.websocket_response_timeout_seconds = 1
+    hassette.config.websocket_connection_timeout_seconds = 1
+    hassette.config.websocket_total_timeout_seconds = 2
+    hassette.config.websocket_heartbeat_interval_seconds = 5
+    hassette.config.websocket_authentication_timeout_seconds = 5
+    hassette.config.websocket_early_drop_max_retries = 5
+    hassette.config.websocket_early_drop_stable_window_seconds = 30.0
+    hassette.config.websocket_early_drop_backoff_initial_seconds = 0.001
+    hassette.config.websocket_early_drop_backoff_max_seconds = 0.01
+    hassette.config.websocket_max_recovery_seconds = 300.0
+    hassette.config.websocket_connect_retry_max_attempts = 3
+    hassette.config.websocket_connect_retry_initial_wait_seconds = 0.001
+    hassette.config.websocket_connect_retry_max_wait_seconds = 0.01
+    hassette.config.verify_ssl = False
+    hassette.ws_url = "ws://localhost:8123/api/websocket"
+    hassette.event_streams_closed = False
+    hassette.ready_event = asyncio.Event()
+    hassette.ready_event.set()
+    hassette.shutdown_event = asyncio.Event()
+    hassette._loop_thread_id = threading.get_ident()
+    hassette.loop = asyncio.get_running_loop()
+    hassette._scheduler_service.register_removal_callback = Mock()
+    hassette._scheduler_service.deregister_removal_callback = Mock()
+    return hassette
+
+
+@pytest.fixture
+async def websocket_service() -> WebsocketService:
+    """Create a WebsocketService with a fully-mocked hassette stub."""
+    hassette = _make_ws_hassette_stub()
+    return WebsocketService(hassette=hassette)
+
+
+class TestWebsocketReadinessEvents:
+    """Tests that _emit_readiness_event() fires at the correct serve() transition points."""
+
+    async def test_mark_not_ready_early_drop_emits_event(
+        self,
+        websocket_service: WebsocketService,
+    ) -> None:
+        """Early-drop path emits a service_status event with ready=False after mark_not_ready()."""
+        send_event_calls: list = []
+
+        async def capture_send_event(topic, event):
+            send_event_calls.append((topic, event))
+
+        websocket_service.hassette.send_event = capture_send_event  # pyright: ignore[reportAttributeAccessIssue]
+
+        # Arrange: service starts ready, _connected_at in stable window
+        websocket_service.mark_ready(reason="test: pre-state")
+        websocket_service._connected_at = time.monotonic()
+
+        # Mock _make_connection to return a task that fails with RetryableConnectionClosedError
+        # on the first call, then succeeds on the second.
+        call_count = 0
+
+        async def fake_make_connection(_session):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # Simulate successful connection (mark_ready mirrors what _start_recv_and_subscribe does)
+                websocket_service._connected_at = time.monotonic()
+                websocket_service.mark_ready(reason="test: connected")
+
+                async def _fail():
+                    raise RetryableConnectionClosedError("peer gone")
+
+                return asyncio.ensure_future(_fail())
+
+            # Second call: clean exit
+            async def _clean():
+                pass
+
+            return asyncio.ensure_future(_clean())
+
+        websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+        await websocket_service.serve()
+
+        # Assert: a service_status event with ready=False was emitted during the early-drop path
+        service_status_calls = [
+            (topic, event) for topic, event in send_event_calls if topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
+        ]
+        assert len(service_status_calls) >= 1, (
+            f"Expected at least one service_status event, got: {[t for t, _ in send_event_calls]}"
+        )
+
+        # Find the not-ready emission (early-drop path)
+        not_ready_events = [event for _, event in service_status_calls if not event.payload.data.ready]
+        assert len(not_ready_events) >= 1, "Expected at least one service_status event with ready=False"
+
+        first_not_ready = not_ready_events[0]
+        payload = first_not_ready.payload.data
+        assert payload.ready is False
+        assert payload.ready_phase is not None
+        assert "Early drop" in payload.ready_phase
+
+    async def test_mark_not_ready_recv_loop_failed_emits_event(
+        self,
+        websocket_service: WebsocketService,
+    ) -> None:
+        """Recv-loop-failure path emits a service_status event with ready=False."""
+        send_event_calls: list = []
+
+        async def capture_send_event(topic, event):
+            send_event_calls.append((topic, event))
+
+        websocket_service.hassette.send_event = capture_send_event  # pyright: ignore[reportAttributeAccessIssue]
+
+        # Arrange: service starts ready, _connected_at set to 60s ago (outside stable window)
+        websocket_service.mark_ready(reason="test: pre-state")
+
+        async def fake_make_connection(_session):
+            # Outside stable window → not an early drop → propagates as genuine failure
+            websocket_service._connected_at = time.monotonic() - 60.0
+            websocket_service.mark_ready(reason="test: connected")
+
+            async def _fail():
+                raise RetryableConnectionClosedError("stable drop")
+
+            return asyncio.ensure_future(_fail())
+
+        websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+
+        with pytest.raises(RetryableConnectionClosedError):
+            await websocket_service.serve()
+
+        service_status_calls = [
+            (topic, event) for topic, event in send_event_calls if topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
+        ]
+        assert len(service_status_calls) >= 1, "Expected at least one service_status event"
+
+        not_ready_events = [event for _, event in service_status_calls if not event.payload.data.ready]
+        assert len(not_ready_events) >= 1, "Expected at least one service_status event with ready=False"
+        assert not_ready_events[0].payload.data.ready is False
+
+    async def test_mark_ready_after_connect_emits_event(
+        self,
+        websocket_service: WebsocketService,
+    ) -> None:
+        """Successful connect path emits a service_status event with ready=True after mark_ready().
+
+        Runs the real _start_recv_and_subscribe() with sub-methods stubbed to isolate
+        the mark_ready() → _emit_readiness_event() call that subtask 3 adds.
+        """
+        send_event_calls: list = []
+
+        async def capture_send_event(topic, event):
+            send_event_calls.append((topic, event))
+
+        websocket_service.hassette.send_event = capture_send_event  # pyright: ignore[reportAttributeAccessIssue]
+
+        # Stub out the sub-methods that _start_recv_and_subscribe calls so we can run the
+        # real method and observe whether it calls _emit_readiness_event() after mark_ready().
+        spawned_coros: list = []
+
+        def _spawn_side_effect(coro, *, name=None):  # noqa: ARG001
+            spawned_coros.append(coro)
+
+            async def _noop():
+                pass
+
+            return asyncio.ensure_future(_noop())
+
+        websocket_service.task_bucket = Mock()  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)
+        websocket_service._send_connection_established_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service._subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
+
+        result_task = await websocket_service._start_recv_and_subscribe()
+
+        # Close spawned coroutines to suppress ResourceWarning
+        for coro in spawned_coros:
+            coro.close()
+        result_task.cancel()
+
+        # Assert: _emit_readiness_event() was called → a service_status event with ready=True was sent
+        service_status_calls = [
+            (topic, event) for topic, event in send_event_calls if topic == Topic.HASSETTE_EVENT_SERVICE_STATUS
+        ]
+        assert len(service_status_calls) >= 1, (
+            f"Expected at least one service_status event, got topics: {[t for t, _ in send_event_calls]}"
+        )
+
+        ready_events = [event for _, event in service_status_calls if event.payload.data.ready]
+        assert len(ready_events) >= 1, "Expected at least one service_status event with ready=True"
+
+        first_ready = ready_events[0]
+        payload = first_ready.payload.data
+        assert payload.ready is True
+        assert payload.ready_phase is not None
+        assert "connected" in payload.ready_phase.lower()
