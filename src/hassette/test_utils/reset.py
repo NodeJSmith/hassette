@@ -6,7 +6,7 @@ fixtures without test pollution.
 
 from typing import TYPE_CHECKING
 
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import ACTIVE_STATUSES, ResourceStatus
 
 if TYPE_CHECKING:
     from hassette.bus.bus import Bus
@@ -147,8 +147,7 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
     # transition.  Without this reset, a previous test's hassette.shutdown() would
     # leave status=STOPPED; the next test's shutdown() would attempt STOPPED → STOPPING,
     # which is invalid under strict lifecycle mode.
-    active_statuses = {ResourceStatus.NOT_STARTED, ResourceStatus.STARTING, ResourceStatus.RUNNING}
-    if hassette._status not in active_statuses:
+    if hassette._status not in ACTIVE_STATUSES:
         hassette._status = ResourceStatus.RUNNING
 
     _reset_resource_flags(hassette)
