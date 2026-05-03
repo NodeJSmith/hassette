@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import ClassVar
 
 from hassette.bus.error_context import BusErrorContext
-from hassette.bus.invocation_record import HandlerInvocationRecord
+from hassette.bus.invocation_record import SYNTHETIC_ORIGIN, HandlerInvocationRecord
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.database_service import DatabaseService
@@ -383,8 +383,8 @@ class CommandExecutor(Service):
                     error_message=result.error_message,
                     error_traceback=result.error_traceback,
                     execution_id=execution_id,
-                    trigger_context_id=cmd.event.payload.event_id,
-                    trigger_origin=cmd.event.payload.origin,
+                    trigger_context_id=None if cmd.is_synthetic else cmd.event.payload.event_id,
+                    trigger_origin=SYNTHETIC_ORIGIN if cmd.is_synthetic else cmd.event.payload.origin,
                 )
             case ExecuteJob():
                 return JobExecutionRecord(

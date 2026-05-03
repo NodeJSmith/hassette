@@ -438,8 +438,6 @@ class TestHermeticConfigClosure:
 
 def _make_task_bucket() -> TaskBucket:
     """Build a TaskBucket with a minimal Hassette mock — bypasses __init__ to avoid Resource wiring."""
-    import weakref
-
     hassette = Mock()
     hassette.config.task_cancellation_timeout_seconds = 5
     hassette.config.task_bucket_log_level = "DEBUG"
@@ -448,7 +446,7 @@ def _make_task_bucket() -> TaskBucket:
     hassette._loop_thread_id = None
 
     bucket = TaskBucket.__new__(TaskBucket)
-    bucket._tasks = weakref.WeakSet()
+    bucket._tasks = set()
     bucket._exception_recorders = []
     bucket.hassette = hassette
     bucket.logger = Mock()

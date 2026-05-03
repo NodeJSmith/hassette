@@ -2,16 +2,17 @@
 
 import asyncio
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from starlette.websockets import WebSocket
 
 from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
-from hassette.web.routes.ws import _read_client
+from hassette.web.routes.ws import _read_client, websocket_endpoint
 
 try:
     from starlette.testclient import TestClient
@@ -344,6 +345,49 @@ class TestWebSocketEdgeCases:
         ws_state: dict = {}
         with pytest.raises(json.JSONDecodeError):
             await _read_client(mock_ws, ws_state)
+
+    async def test_cancellation_propagates_and_cleans_up(self) -> None:
+        """Cancelling the endpoint task propagates CancelledError while still running finally cleanup.
+
+        Regression test: the ``except BaseException`` handler must re-raise
+        ``CancelledError`` so shutdown propagation works, while the ``finally``
+        block must still call ``unregister_ws_client`` to clean up the queue.
+        """
+        queue: asyncio.Queue = asyncio.Queue()
+        mock_runtime = AsyncMock()
+        mock_runtime.register_ws_client.return_value = queue
+        mock_runtime.get_system_status = MagicMock(return_value=MagicMock())
+
+        mock_ws = AsyncMock(spec=WebSocket)
+        mock_ws.app.state.hassette.runtime_query_service = mock_runtime
+        mock_ws.accept = AsyncMock()
+        mock_ws.send_json = AsyncMock()
+
+        blocked = asyncio.Event()
+        hang_forever: asyncio.Future = asyncio.get_running_loop().create_future()
+
+        async def _block():
+            blocked.set()
+            return await hang_forever
+
+        mock_ws.receive_json = AsyncMock(side_effect=_block)
+
+        mock_payload = MagicMock()
+        mock_payload.model_dump.return_value = {"entity_count": 0}
+        with (
+            patch("hassette.web.routes.ws.connected_payload_from", return_value=mock_payload),
+            patch("hassette.web.routes.ws.safe_session_id", return_value=None),
+        ):
+            task = asyncio.create_task(websocket_endpoint(mock_ws))
+            await blocked.wait()
+            assert not task.done(), "endpoint should be blocked waiting for messages"
+
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+        # The finally block must have called unregister_ws_client with the queue
+        mock_runtime.unregister_ws_client.assert_awaited_once_with(queue)
 
     def test_unknown_message_type_without_data_key_ignored(self, client: "TestClient") -> None:
         """Unknown message with no 'data' key is silently ignored; connection survives."""

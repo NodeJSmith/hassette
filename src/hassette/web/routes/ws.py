@@ -97,7 +97,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         async with anyio.create_task_group() as tg:
             tg.start_soon(_read_client, websocket, ws_state)
             tg.start_soon(_send_from_queue, websocket, queue, ws_state)
-    except BaseException as exc:
+    except BaseException as exc:  # noqa: ASYNC103 — disconnect errors are intentionally suppressed below
+        if isinstance(exc, asyncio.CancelledError):
+            raise
         if isinstance(exc, BaseExceptionGroup):
             _, rest = exc.split(_is_disconnect)
             if rest is not None:

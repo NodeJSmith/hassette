@@ -764,8 +764,8 @@ class Service(Resource):
                         self._serve_task,
                         timeout=self.hassette.config.resource_shutdown_timeout_seconds,
                     )
-                except asyncio.CancelledError:
-                    pass
+                except asyncio.CancelledError:  # noqa: ASYNC103 — we just called .cancel(); this is the expected path
+                    pass  # noqa: ASYNC104
                 except TimeoutError:
                     self.logger.warning(
                         "Serve task for %s did not complete within resource shutdown timeout",

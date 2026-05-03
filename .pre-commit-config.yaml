@@ -22,6 +22,12 @@ repos:
       - id: ruff-format
         exclude: ^docs/.*\.(py|rst)$ # Exclude docs/ directory for formatting.
 
+  - repo: https://github.com/python-trio/flake8-async
+    rev: "26.4.2"
+    hooks:
+      - id: flake8-async
+        args: ["--enable=ASYNC103,ASYNC104"]
+
   - repo: local
     hooks:
       - id: eslint

@@ -3,7 +3,6 @@ import contextlib
 import functools
 import threading
 import typing
-import weakref
 from collections.abc import Awaitable, Callable, Coroutine
 from concurrent.futures import Future
 from concurrent.futures import TimeoutError as CfTimeoutError
@@ -35,15 +34,14 @@ non-cancellation exception. See :meth:`TaskBucket.install_exception_recorder`.
 class TaskBucket(Resource):
     """Track and clean up a set of tasks for a service/app."""
 
-    _tasks: "weakref.WeakSet[asyncio.Task[Any]]"
-    """Weak set of tasks tracked by this bucket."""
+    _tasks: "set[asyncio.Task[Any]]"
 
     _exception_recorders: "list[ExceptionRecorderT]"
     """List of recorders called for each non-CancelledError task exception."""
 
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
-        self._tasks = weakref.WeakSet()
+        self._tasks: set[asyncio.Task[Any]] = set()
         self._exception_recorders = []
         self.mark_ready(reason="TaskBucket initialized")
 
@@ -68,8 +66,8 @@ class TaskBucket(Resource):
         def _done(t: asyncio.Task[Any]) -> None:
             try:
                 exc = t.exception()
-            except asyncio.CancelledError:
-                return
+            except asyncio.CancelledError:  # noqa: ASYNC103 — cancelled task is expected, not an error
+                return  # noqa: ASYNC104
             except Exception:
                 return
             if exc:
@@ -276,7 +274,7 @@ class TaskBucket(Resource):
 
         This is the recommended public accessor for drain helpers and test
         infrastructure. Returns a fresh list so callers can safely iterate after
-        mutations to the internal WeakSet without risking a ``RuntimeError``.
+        mutations to the internal set without risking a ``RuntimeError``.
 
         Returns:
             A list of tasks that are currently running (not yet done).
@@ -284,10 +282,7 @@ class TaskBucket(Resource):
         return [t for t in list(self._tasks) if not t.done()]
 
     def cancel_all_sync(self) -> None:
-        """Cancel all tracked tasks without awaiting completion (fire-and-forget).
-
-        Snapshots the WeakSet before iterating to avoid mutation during iteration.
-        """
+        """Cancel all tracked tasks without awaiting completion (fire-and-forget)."""
         current = asyncio.current_task()
         tasks = [t for t in list(self._tasks) if not t.done() and t is not current]
         for t in tasks:
@@ -295,7 +290,7 @@ class TaskBucket(Resource):
 
     async def cancel_all(self) -> None:
         """Cancel all tracked tasks, wait for them to finish, and log stragglers."""
-        # snapshot, because self._tasks is weak
+        # snapshot to avoid mutation during iteration
         current = asyncio.current_task()
         tasks = [t for t in list(self._tasks) if not t.done() and t is not current]
 
