@@ -534,13 +534,26 @@ def test_predicate_summarize_golden_attr_from() -> None:
 def test_predicate_summarize_golden_state_comparison() -> None:
     from hassette.event_handling.conditions import Increased
 
-    assert StateComparison(condition=Increased()).summarize() == "state Increased()"
+    assert StateComparison(condition=Increased()).summarize() == "state increased"
+
+
+def test_predicate_summarize_golden_state_comparison_with_comparison() -> None:
+    from hassette.event_handling.conditions import Comparison
+
+    assert StateComparison(condition=Comparison(">", 50)).summarize() == "state > 50"
 
 
 def test_predicate_summarize_golden_attr_comparison() -> None:
     from hassette.event_handling.conditions import Increased
 
-    assert AttrComparison(attr_name="brightness", condition=Increased()).summarize() == "attr brightness Increased()"
+    assert AttrComparison(attr_name="brightness", condition=Increased()).summarize() == "attr brightness increased"
+
+
+def test_predicate_summarize_golden_attr_comparison_with_comparison() -> None:
+    from hassette.event_handling.conditions import Comparison
+
+    pred = AttrComparison(attr_name="brightness", condition=Comparison(">=", 200))
+    assert pred.summarize() == "attr brightness >= 200"
 
 
 def test_predicate_summarize_golden_value_is_literal() -> None:

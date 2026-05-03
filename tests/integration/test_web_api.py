@@ -510,7 +510,7 @@ class TestTelemetryListeners:
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
-        assert data[0]["handler_summary"] == "Fires when light.kitchen"
+        assert data[0]["handler_summary"] == "light.kitchen"
         assert data[0]["listener_id"] == 1
 
 

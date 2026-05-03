@@ -8,9 +8,18 @@ from hassette.const import MISSING_VALUE
 from hassette.event_handling.conditions import (
     Comparison,
     Contains,
+    Decreased,
     EndsWith,
     Glob,
+    Increased,
+    Intersects,
+    IsIn,
+    IsNone,
+    IsNotNone,
+    IsOrContains,
     Missing,
+    NotIn,
+    NotIntersects,
     Present,
     Regex,
     StartsWith,
@@ -161,3 +170,93 @@ def test_comparison_condition() -> None:
 
     assert equal_to(15) is True
     assert equal_to(10) is False
+
+
+# ---------------------------------------------------------------------------
+# summarize() golden tests for all condition types
+# ---------------------------------------------------------------------------
+
+
+def test_condition_summarize_glob() -> None:
+    assert Glob("light.*").summarize() == "matches light.*"
+
+
+def test_condition_summarize_starts_with() -> None:
+    assert StartsWith("light.").summarize() == "starts with light."
+
+
+def test_condition_summarize_ends_with() -> None:
+    assert EndsWith(".kitchen").summarize() == "ends with .kitchen"
+
+
+def test_condition_summarize_contains() -> None:
+    assert Contains("kitchen").summarize() == "contains kitchen"
+
+
+def test_condition_summarize_regex() -> None:
+    assert Regex(r"light\..*kitchen").summarize() == r"matches /light\..*kitchen/"
+
+
+def test_condition_summarize_present() -> None:
+    assert Present().summarize() == "present"
+
+
+def test_condition_summarize_missing() -> None:
+    assert Missing().summarize() == "missing"
+
+
+def test_condition_summarize_is_in() -> None:
+    assert IsIn(["a", "b", "c"]).summarize() == "in [a, b, c]"
+
+
+def test_condition_summarize_is_in_truncates() -> None:
+    assert IsIn(["a", "b", "c", "d"]).summarize() == "in [a, b, c, …]"
+
+
+def test_condition_summarize_not_in() -> None:
+    assert NotIn(["x", "y"]).summarize() == "not in [x, y]"
+
+
+def test_condition_summarize_intersects() -> None:
+    assert Intersects(["a", "b"]).summarize() == "intersects [a, b]"
+
+
+def test_condition_summarize_not_intersects() -> None:
+    assert NotIntersects(["a", "b"]).summarize() == "does not intersect [a, b]"
+
+
+def test_condition_summarize_is_or_contains() -> None:
+    assert IsOrContains("light.kitchen").summarize() == "is or contains light.kitchen"
+
+
+def test_condition_summarize_is_none() -> None:
+    assert IsNone().summarize() == "is none"
+
+
+def test_condition_summarize_is_not_none() -> None:
+    assert IsNotNone().summarize() == "is not none"
+
+
+def test_condition_summarize_comparison() -> None:
+    assert Comparison(">", 50).summarize() == "> 50"
+
+
+def test_condition_summarize_comparison_eq() -> None:
+    assert Comparison("==", "on").summarize() == "== on"
+
+
+def test_condition_summarize_comparison_aliased_ops() -> None:
+    assert Comparison("gt", 50).summarize() == "> 50"
+    assert Comparison("lt", 10).summarize() == "< 10"
+    assert Comparison("ge", 100).summarize() == ">= 100"
+    assert Comparison("le", 0).summarize() == "<= 0"
+    assert Comparison("eq", "on").summarize() == "== on"
+    assert Comparison("ne", "off").summarize() == "!= off"
+
+
+def test_condition_summarize_increased() -> None:
+    assert Increased().summarize() == "increased"
+
+
+def test_condition_summarize_decreased() -> None:
+    assert Decreased().summarize() == "decreased"

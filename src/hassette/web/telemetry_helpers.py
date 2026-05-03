@@ -157,20 +157,22 @@ def compute_health_metrics(
 
 
 def format_handler_summary(listener: _ListenerLike) -> str:
-    """Generate a human-readable trigger description from listener metadata.
+    """Generate a compact trigger description from listener metadata.
+
+    Produces chip-friendly output suitable for UI display.
 
     Examples:
-        - ``"Fires when binary_sensor.garage_door → open"``
-        - ``"Fires on call_service"``
+        - ``"binary_sensor.garage_door → open"``
+        - ``"call_service service turn_on"``
     """
     entity_id = extract_entity_from_topic(listener.topic)
     condition = listener.human_description or listener.predicate_description or ""
     if entity_id:
-        parts = ["Fires when", entity_id]
+        parts = [entity_id]
         if condition:
             parts.append(condition)
         return " ".join(parts)
-    parts = ["Fires on", listener.topic]
+    parts = [listener.topic]
     if condition:
         parts.append(condition)
     return " ".join(parts)

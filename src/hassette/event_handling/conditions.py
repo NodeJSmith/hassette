@@ -61,6 +61,17 @@ from hassette.utils.glob_utils import matches_globs
 OPS = Literal[">", "<", ">=", "<=", "==", "!=", "gt", "lt", "ge", "le", "eq", "ne"]
 OP_LIST = list(OPS.__args__)
 
+_OP_DISPLAY: dict[str, str] = {"gt": ">", "lt": "<", "ge": ">=", "le": "<=", "eq": "==", "ne": "!="}
+
+_COLLECTION_DISPLAY_LIMIT = 3
+
+
+def _format_collection(items: Sequence[Any]) -> str:
+    if len(items) <= _COLLECTION_DISPLAY_LIMIT:
+        return "[" + ", ".join(str(i) for i in items) + "]"
+    shown = ", ".join(str(i) for i in items[:_COLLECTION_DISPLAY_LIMIT])
+    return f"[{shown}, …]"
+
 
 @dataclass(frozen=True)
 class Glob:
@@ -81,6 +92,9 @@ class Glob:
 
     def __call__(self, value: Any) -> bool:
         return isinstance(value, str) and matches_globs(value, (self.pattern,))
+
+    def summarize(self) -> str:
+        return f"matches {self.pattern}"
 
     def __repr__(self) -> str:
         return f"Glob({self.pattern!r})"
@@ -106,6 +120,9 @@ class StartsWith:
     def __call__(self, value: Any) -> bool:
         return isinstance(value, str) and value.startswith(self.prefix)
 
+    def summarize(self) -> str:
+        return f"starts with {self.prefix}"
+
     def __repr__(self) -> str:
         return f"StartsWith({self.prefix!r})"
 
@@ -130,6 +147,9 @@ class EndsWith:
     def __call__(self, value: Any) -> bool:
         return isinstance(value, str) and value.endswith(self.suffix)
 
+    def summarize(self) -> str:
+        return f"ends with {self.suffix}"
+
     def __repr__(self) -> str:
         return f"EndsWith({self.suffix!r})"
 
@@ -153,6 +173,9 @@ class Contains:
 
     def __call__(self, value: Any) -> bool:
         return isinstance(value, str) and self.substring in value
+
+    def summarize(self) -> str:
+        return f"contains {self.substring}"
 
     def __repr__(self) -> str:
         return f"Contains({self.substring!r})"
@@ -182,6 +205,9 @@ class Regex:
     def __call__(self, value: Any) -> bool:
         return isinstance(value, str) and self._compiled.match(value) is not None
 
+    def summarize(self) -> str:
+        return f"matches /{self.pattern}/"
+
     def __repr__(self) -> str:
         return f"Regex({self.pattern!r})"
 
@@ -193,6 +219,9 @@ class Present:
     def __call__(self, value: Any) -> bool:
         return value is not MISSING_VALUE
 
+    def summarize(self) -> str:
+        return "present"
+
 
 @dataclass(frozen=True)
 class Missing:
@@ -200,6 +229,9 @@ class Missing:
 
     def __call__(self, value: Any) -> bool:
         return value is MISSING_VALUE
+
+    def summarize(self) -> str:
+        return "missing"
 
 
 @dataclass(frozen=True)
@@ -224,6 +256,9 @@ class IsIn:
     def __call__(self, value: Any) -> bool:
         return value in self.collection
 
+    def summarize(self) -> str:
+        return f"in {_format_collection(self.collection)}"
+
 
 @dataclass(frozen=True)
 class NotIn:
@@ -246,6 +281,9 @@ class NotIn:
 
     def __call__(self, value: Any) -> bool:
         return value not in self.collection
+
+    def summarize(self) -> str:
+        return f"not in {_format_collection(self.collection)}"
 
 
 @dataclass(frozen=True)
@@ -273,6 +311,9 @@ class Intersects:
         # not using actual set operations to allow unhashable items
         return any(item in self.collection for item in value)
 
+    def summarize(self) -> str:
+        return f"intersects {_format_collection(self.collection)}"
+
 
 @dataclass(frozen=True)
 class NotIntersects:
@@ -299,6 +340,9 @@ class NotIntersects:
         # not using actual set operations to allow unhashable items
         return all(item not in self.collection for item in value)
 
+    def summarize(self) -> str:
+        return f"does not intersect {_format_collection(self.collection)}"
+
 
 @dataclass(frozen=True)
 class IsOrContains:
@@ -319,6 +363,9 @@ class IsOrContains:
             return any(item == self.condition for item in value)
         return value == self.condition
 
+    def summarize(self) -> str:
+        return f"is or contains {self.condition}"
+
 
 @dataclass(frozen=True)
 class IsNone:
@@ -334,6 +381,9 @@ class IsNone:
     def __call__(self, value: Any) -> bool:
         return value is None
 
+    def summarize(self) -> str:
+        return "is none"
+
 
 @dataclass(frozen=True)
 class IsNotNone:
@@ -348,6 +398,9 @@ class IsNotNone:
 
     def __call__(self, value: Any) -> bool:
         return value is not None
+
+    def summarize(self) -> str:
+        return "is not none"
 
 
 @dataclass(frozen=True, init=False)
@@ -390,6 +443,9 @@ class Comparison:
         except (TypeError, ValueError):
             return False
 
+    def summarize(self) -> str:
+        return f"{_OP_DISPLAY.get(self.op, self.op)} {self.compare_to}"
+
 
 @dataclass(frozen=True)
 class Increased:
@@ -411,6 +467,9 @@ class Increased:
         except (TypeError, ValueError):
             return False
 
+    def summarize(self) -> str:
+        return "increased"
+
 
 @dataclass(frozen=True)
 class Decreased:
@@ -431,3 +490,6 @@ class Decreased:
             return float(new_value) < float(old_value)
         except (TypeError, ValueError):
             return False
+
+    def summarize(self) -> str:
+        return "decreased"

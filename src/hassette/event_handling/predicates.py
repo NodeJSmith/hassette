@@ -108,6 +108,17 @@ def _summarize_predicate(predicate: "Predicate") -> str:
     return "custom condition"
 
 
+def _summarize_condition(condition: Any) -> str:
+    """Return a human-readable summary of a condition.
+
+    Delegates to the condition's ``summarize()`` method when available,
+    otherwise falls back to ``repr()``.
+    """
+    if hasattr(condition, "summarize"):
+        return condition.summarize()
+    return repr(condition)
+
+
 @dataclass(frozen=True)
 class AllOf:
     """Predicate that evaluates to True if all of the contained predicates evaluate to True."""
@@ -274,7 +285,7 @@ class StateComparison:
         return self.condition(get_state_value_old(value), get_state_value_new(value))
 
     def summarize(self) -> str:
-        return f"state {self.condition!r}"
+        return f"state {_summarize_condition(self.condition)}"
 
 
 @dataclass(frozen=True)
@@ -323,7 +334,7 @@ class AttrComparison:
         return self.condition(old_attr, new_attr)
 
     def summarize(self) -> str:
-        return f"attr {self.attr_name} {self.condition!r}"
+        return f"attr {self.attr_name} {_summarize_condition(self.condition)}"
 
 
 @dataclass(frozen=True)

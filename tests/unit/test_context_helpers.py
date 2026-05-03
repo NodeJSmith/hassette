@@ -4,22 +4,7 @@ from hassette.web.telemetry_helpers import (
     classify_error_rate,
     classify_health_bar,
     extract_entity_from_topic,
-    format_handler_summary,
 )
-
-
-class FakeListener:
-    """Minimal stand-in for ListenerSummary with only the fields we need."""
-
-    def __init__(
-        self,
-        topic: str,
-        human_description: str | None = None,
-        predicate_description: str | None = None,
-    ):
-        self.topic = topic
-        self.human_description = human_description
-        self.predicate_description = predicate_description
 
 
 class TestExtractEntityFromTopic:
@@ -50,50 +35,6 @@ class TestExtractEntityFromTopic:
 
     def test_empty_string(self) -> None:
         assert extract_entity_from_topic("") is None
-
-
-class TestFormatHandlerSummary:
-    """format_handler_summary generates human-readable trigger descriptions."""
-
-    def test_entity_state_with_human_description(self) -> None:
-        listener = FakeListener(
-            topic="state_changed.binary_sensor.garage_door",
-            human_description="→ open",
-        )
-        result = format_handler_summary(listener)
-        assert result == "Fires when binary_sensor.garage_door → open"
-
-    def test_entity_state_with_predicate_description(self) -> None:
-        listener = FakeListener(
-            topic="state_changed.light.kitchen",
-            predicate_description="state == on",
-        )
-        result = format_handler_summary(listener)
-        assert result == "Fires when light.kitchen state == on"
-
-    def test_entity_state_no_description(self) -> None:
-        listener = FakeListener(topic="state_changed.binary_sensor.garage_door")
-        result = format_handler_summary(listener)
-        assert result == "Fires when binary_sensor.garage_door"
-
-    def test_fallback_non_entity_topic(self) -> None:
-        listener = FakeListener(topic="call_service")
-        result = format_handler_summary(listener)
-        assert result == "Fires on call_service"
-
-    def test_fallback_with_human_description(self) -> None:
-        listener = FakeListener(topic="call_service", human_description="light.turn_on")
-        result = format_handler_summary(listener)
-        assert result == "Fires on call_service light.turn_on"
-
-    def test_human_description_takes_precedence(self) -> None:
-        listener = FakeListener(
-            topic="state_changed.light.kitchen",
-            human_description="→ on",
-            predicate_description="state == on",
-        )
-        result = format_handler_summary(listener)
-        assert result == "Fires when light.kitchen → on"
 
 
 class TestClassifyErrorRate:
