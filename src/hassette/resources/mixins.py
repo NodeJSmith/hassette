@@ -16,8 +16,7 @@ if typing.TYPE_CHECKING:
 
 # Valid ResourceStatus transitions. This is the authoritative table for the entire framework.
 # All code paths that change status must go through the setter (or use _status directly to bypass,
-# e.g. _force_terminal). WP02 adds the code paths that exercise STOPPING and EXHAUSTED states;
-# the table is complete from day one so the validation is correct for all future paths.
+# e.g. _force_terminal).
 VALID_TRANSITIONS: dict[ResourceStatus, frozenset[ResourceStatus]] = {
     ResourceStatus.NOT_STARTED: frozenset(
         {
