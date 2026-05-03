@@ -101,22 +101,27 @@ def _summarize_predicate(predicate: "Predicate") -> str:
     """Return a human-readable summary of a predicate.
 
     Delegates to the predicate's ``summarize()`` method when available,
-    otherwise falls back to ``"custom condition"``.
+    otherwise falls back to a stable callable name.
     """
     if hasattr(predicate, "summarize"):
         return predicate.summarize()  # pyright: ignore[reportAttributeAccessIssue]
-    return "custom condition"
+    if callable(predicate):
+        return callable_name(predicate)
+    return repr(predicate)
 
 
 def _summarize_condition(condition: Any) -> str:
     """Return a human-readable summary of a condition.
 
     Delegates to the condition's ``summarize()`` method when available,
-    otherwise falls back to ``repr()``.
+    falls back to a stable callable name for callables, or ``repr()``
+    for non-callable literals.
     """
     if hasattr(condition, "summarize"):
         return condition.summarize()
-    return repr(condition)
+    if callable(condition):
+        return callable_name(condition)
+    return str(condition)
 
 
 def _strip_outer_parens(s: str) -> str:
@@ -289,7 +294,7 @@ class StateFrom:
         return ValueIs(source=get_state_value_old, condition=self.condition)(value)
 
     def summarize(self) -> str:
-        return f"from {self.condition}"
+        return f"from {_summarize_condition(self.condition)}"
 
 
 @dataclass(frozen=True)
@@ -302,7 +307,7 @@ class StateTo:
         return ValueIs(source=get_state_value_new, condition=self.condition)(value)
 
     def summarize(self) -> str:
-        return f"{ARROW} {self.condition}"
+        return f"{ARROW} {_summarize_condition(self.condition)}"
 
 
 @dataclass(frozen=True)
@@ -334,7 +339,7 @@ class AttrFrom:
         return ValueIs(source=get_attr_old(self.attr_name), condition=self.condition)(value)
 
     def summarize(self) -> str:
-        return f"attr {self.attr_name} from {self.condition}"
+        return f"attr {self.attr_name} from {_summarize_condition(self.condition)}"
 
 
 @dataclass(frozen=True)
@@ -348,7 +353,7 @@ class AttrTo:
         return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(value)
 
     def summarize(self) -> str:
-        return f"attr {self.attr_name} {ARROW} {self.condition}"
+        return f"attr {self.attr_name} {ARROW} {_summarize_condition(self.condition)}"
 
 
 @dataclass(frozen=True)
