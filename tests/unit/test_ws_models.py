@@ -93,16 +93,16 @@ class TestStateChangedNormalizedEnvelope:
         assert "entity_id" not in dumped  # not at top level
 
 
-class TestConnectedPayloadIncludesSessionId:
-    """Verify ConnectedPayload includes session_id field."""
+class TestConnectedPayloadIncludesUptimeSeconds:
+    """Verify ConnectedPayload includes uptime_seconds field."""
 
-    def test_session_id_present(self) -> None:
-        payload = ConnectedPayload(session_id=42, entity_count=10, app_count=3)
-        assert payload.session_id == 42
+    def test_uptime_seconds_present(self) -> None:
+        payload = ConnectedPayload(uptime_seconds=123.4, entity_count=10, app_count=3)
+        assert payload.uptime_seconds == 123.4
 
-    def test_session_id_optional(self) -> None:
-        payload = ConnectedPayload(entity_count=10, app_count=3)
-        assert payload.session_id is None
+    def test_uptime_seconds_zero(self) -> None:
+        payload = ConnectedPayload(uptime_seconds=0.0, entity_count=10, app_count=3)
+        assert payload.uptime_seconds == 0.0
 
 
 class TestWsServerMessageDiscriminates:
@@ -141,12 +141,12 @@ class TestWsServerMessageDiscriminates:
     def test_connected(self) -> None:
         raw = {
             "type": "connected",
-            "data": {"session_id": 1, "entity_count": 5, "app_count": 2},
+            "data": {"uptime_seconds": 300.0, "entity_count": 5, "app_count": 2},
             "timestamp": 1234567890.0,
         }
         msg = self.adapter.validate_python(raw)
         assert isinstance(msg, ConnectedWsMessage)
-        assert msg.data.session_id == 1
+        assert msg.data.uptime_seconds == 300.0
         assert msg.timestamp == 1234567890.0
 
     def test_connectivity(self) -> None:

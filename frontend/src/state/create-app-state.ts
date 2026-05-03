@@ -94,7 +94,7 @@ export function createAppState() {
 
     /** Dark/light theme (initialized from localStorage via local-storage utility). */
     theme: signal<"dark" | "light">(
-      getStoredValue<"dark" | "light">("theme", "dark", isTheme)
+      getStoredValue<"dark" | "light">("theme", "light", isTheme)
     ),
 
     /** Current Hassette session ID (from WS connected message). */

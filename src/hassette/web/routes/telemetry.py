@@ -1,8 +1,8 @@
 """JSON telemetry endpoints for the Preact SPA.
 
-Session scoping is client-driven: endpoints accept an optional ``session_id``
-query parameter.  Pass a session ID for current-session data, or omit it for
-all-time aggregates.
+Time-window filtering is client-driven: endpoints accept an optional ``since``
+query parameter (Unix epoch float).  Pass a ``since`` value to restrict results
+to records with ``execution_start_ts >= since``, or omit it for all-time aggregates.
 """
 
 import sqlite3
@@ -144,17 +144,17 @@ async def app_health(
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
     instance_index: int = 0,
-    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = _SOURCE_TIER_PARAM,
 ) -> AppHealthResponse:
     """Health strip metrics for a single app instance."""
     effective_tier = source_tier if source_tier is not None else "app"
     try:
         listeners = await telemetry.get_listener_summary(
-            app_key=app_key, instance_index=instance_index, session_id=session_id, source_tier=effective_tier
+            app_key=app_key, instance_index=instance_index, since=since, source_tier=effective_tier
         )
         jobs = await telemetry.get_job_summary(
-            app_key=app_key, instance_index=instance_index, session_id=session_id, source_tier=effective_tier
+            app_key=app_key, instance_index=instance_index, since=since, source_tier=effective_tier
         )
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch app health for %s", app_key, exc_info=True)
@@ -207,14 +207,14 @@ async def app_listeners(
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
     instance_index: int = 0,
-    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = _SOURCE_TIER_PARAM,
 ) -> list[ListenerWithSummary]:
     """Listener metrics with human-readable handler summaries."""
     effective_tier = source_tier if source_tier is not None else "app"
     try:
         listeners = await telemetry.get_listener_summary(
-            app_key=app_key, instance_index=instance_index, session_id=session_id, source_tier=effective_tier
+            app_key=app_key, instance_index=instance_index, since=since, source_tier=effective_tier
         )
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch listeners for %s", app_key, exc_info=True)
@@ -230,7 +230,7 @@ async def app_jobs(
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
     instance_index: int = 0,
-    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = _SOURCE_TIER_PARAM,
 ) -> list[JobSummary]:
     """Job summaries for a single app instance, enriched with live heap data.
@@ -243,7 +243,7 @@ async def app_jobs(
     try:
         db_jobs = list(
             await telemetry.get_job_summary(
-                app_key=app_key, instance_index=instance_index, session_id=session_id, source_tier=effective_tier
+                app_key=app_key, instance_index=instance_index, since=since, source_tier=effective_tier
             )
         )
     except DB_ERRORS:
@@ -308,13 +308,11 @@ async def handler_invocations(
     telemetry: TelemetryDep,
     response: Response,
     limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
-    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[HandlerInvocation]:
     """Invocation history for a specific handler."""
     try:
-        return list(
-            await telemetry.get_handler_invocations(listener_id=listener_id, limit=limit, session_id=session_id)
-        )
+        return list(await telemetry.get_handler_invocations(listener_id=listener_id, limit=limit, since=since))
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch invocations for listener %s", listener_id, exc_info=True)
         response.status_code = 503
@@ -327,11 +325,11 @@ async def job_executions(
     telemetry: TelemetryDep,
     response: Response,
     limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
-    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[JobExecution]:
     """Execution history for a specific job."""
     try:
-        return list(await telemetry.get_job_executions(job_id=job_id, limit=limit, session_id=session_id))
+        return list(await telemetry.get_job_executions(job_id=job_id, limit=limit, since=since))
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch executions for job %s", job_id, exc_info=True)
         response.status_code = 503
@@ -342,13 +340,13 @@ async def job_executions(
 async def dashboard_kpis(
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
-    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = _SOURCE_TIER_PARAM,
 ) -> DashboardKpisResponse:
     """Global KPI metrics for the dashboard strip."""
     effective_tier = source_tier if source_tier is not None else "all"
     try:
-        summary = await telemetry.get_global_summary(session_id=session_id, source_tier=effective_tier)
+        summary = await telemetry.get_global_summary(since=since, source_tier=effective_tier)
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch global summary for dashboard KPIs", exc_info=True)
         status = runtime.get_system_status()
@@ -398,7 +396,7 @@ async def dashboard_kpis(
 async def dashboard_app_grid(
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
-    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> DashboardAppGridResponse:
     """Per-app health data for the dashboard grid.
 
@@ -407,7 +405,7 @@ async def dashboard_app_grid(
     """
     snapshot = runtime.get_all_manifests_snapshot()
     try:
-        summaries = await telemetry.get_all_app_summaries(session_id=session_id, source_tier="app")
+        summaries = await telemetry.get_all_app_summaries(since=since, source_tier="app")
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}
@@ -455,7 +453,6 @@ async def dashboard_app_grid(
 @router.get("/dashboard/errors", response_model=DashboardErrorsResponse)
 async def dashboard_errors(
     telemetry: TelemetryDep,
-    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = _SOURCE_TIER_PARAM,
 ) -> DashboardErrorsResponse:
     """Recent errors for the dashboard error feed."""
@@ -464,7 +461,6 @@ async def dashboard_errors(
         raw_errors = await telemetry.get_recent_errors(
             since_ts=time.time() - _ERROR_WINDOW_SECONDS,
             limit=10,
-            session_id=session_id,
             source_tier=effective_tier,
         )
     except DB_ERRORS:
@@ -507,12 +503,10 @@ async def dashboard_errors(
 @router.get("/dashboard/framework-summary", response_model=FrameworkSummaryResponse)
 async def dashboard_framework_summary(
     telemetry: TelemetryDep,
-    session_id: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> FrameworkSummaryResponse:
     """Framework error counts for the System Health badge.
 
-    Always scoped to the last 24 hours. When session_id is provided,
-    further narrows to errors from that session.
+    Always scoped to the last 24 hours.
     """
     total_errors = 0
     total_job_errors = 0
@@ -520,7 +514,6 @@ async def dashboard_framework_summary(
     try:
         total_errors, total_job_errors = await telemetry.get_error_counts(
             since_ts=time.time() - _ERROR_WINDOW_SECONDS,
-            session_id=session_id,
             source_tier="framework",
         )
     except DB_ERRORS:

@@ -1,6 +1,6 @@
 ---
 schema_version: 1
-updated_at: 2026-04-17
+updated_at: 2026-05-02
 ---
 
 ## Users & Purpose
@@ -29,9 +29,9 @@ Like opening a well-organized toolbox. Everything has a place, you grab what you
   - **Take**: KPI card pattern, status badge language, surface layering approach
   - **Leave**: The aggressive minimalism that sacrifices information density
 
-- **Terminal aesthetic (grown up)** — near-black with emerald and amber has the vibe of a terminal that evolved into a product. Data-forward, chrome-minimal.
-  - **Take**: The color temperature, the monospace-heavy data presentation
-  - **Leave**: The raw/unpolished feel — this needs to look like a product, not a prototype
+- **The Well-Made Notebook** — warm off-whites, serif headings, careful ink — the sensation of a good technical manual. The Ink design system draws from this: Newsreader for headings brings character; Geist body text keeps it modern and fast to read.
+  - **Take**: The warmth of off-white backgrounds, the personality of a real serif for display type
+  - **Leave**: Slow-reading text columns, ornamental spacing
 
 - **Prefect (Miter Design)** — state-driven color where every hue earns its place by representing a workflow state. Colorblind-accessible themes. Speed as a feature.
   - **Take**: Deliberateness of state color assignment, the visual hierarchy in flow run pages
@@ -49,35 +49,36 @@ Like opening a well-organized toolbox. Everything has a place, you grab what you
 
 ### Color World
 
-The green LED on a running Raspberry Pi. The cool gray of a breaker panel. The red blink of a low-battery smoke detector. The soft glow of a phone screen in a dark room pulling up the UI at midnight. The matte black of a well-made tool.
+Ink on cream paper. The precise lines of a technical instrument. Status light on a rack-mounted device. The difference between a running process and a crashed one, communicated in a glance — not through vivid color for its own sake, but through restrained, purposeful use of hue against warm neutral ground.
 
 ### Signature Element
 
-The breathing pulse dot — a slow inhale/exhale animation on the WebSocket connection indicator. Emerald when connected (breathing). Red and static when disconnected. The only continuously animated element. It exists because the system maintains a persistent WebSocket to Home Assistant — the dot breathes because the connection is alive.
+The breathing pulse dot — a slow inhale/exhale animation on the WebSocket connection indicator. Accent-colored when connected (breathing). Error-colored and static when disconnected. The only continuously animated element. It exists because the system maintains a persistent WebSocket to Home Assistant — the dot breathes because the connection is alive.
 
 - Appears in the **StatusBar** (top bar), not the sidebar
-- 8px circle, `--ht-accent` color with `breathe` keyframe animation (2.5s ease-in-out infinite)
-- Additional states: `connecting` (amber pulse), `degraded` (amber, for DB degradation or dropped events)
+- 8px circle, `--accent` color with `breathe` keyframe animation (2.5s ease-in-out infinite)
+- Additional states: `connecting` (muted, static), `degraded` (`--warn`, static), `disconnected` (`--err`, static)
 - Reduced motion: static dot, no animation
 
 ### Defaults Rejected
 
 | Default | Why it's wrong | Better alternative |
 |---------|---------------|-------------------|
-| Indigo/violet accent | Tailwind default, every AI-generated UI uses this — zero personality | Emerald: "alive, connected, working" — the LED on a running Pi |
-| Dark sidebar on light page | Jarring mixed-mode contrast that fights for attention | Sidebar uses same `--ht-bg` and `--ht-surface`, separated by border not color |
+| Indigo/violet accent | Tailwind default, every AI-generated UI uses this — zero personality | Ink-1 (near-black) in light mode; periwinkle-blue in dark — earns accent status through restraint |
+| Dark sidebar on light page | Jarring mixed-mode contrast that fights for attention | Sidebar uses same `--bg-page` and `--bg-surface`, separated by border not color |
 | Borders-only depth | Makes the UI feel flat and cheap at low information density | Subtle shadows + borders; shadows establish card hierarchy, borders separate rows |
-| Inter/Roboto/system-ui | Generic, says nothing about the product | DM Sans body, Space Grotesk headings, JetBrains Mono data |
+| Inter/Roboto/system-ui | Generic, says nothing about the product | Geist body, Newsreader display headings, Geist Mono data |
 | Card nesting | Cards inside cards creates visual noise | Handler rows are list items in bordered containers |
-| Bounce/elastic easing | The UI is a tool, not a toy | All transitions use ease-out |
-| Warm amber as primary accent | Was the old palette — rejected by user | Amber reserved for state values only |
+| Bounce/elastic easing | The UI is a tool, not a toy | All transitions use the Ink easing curve |
+| Warm amber as primary accent | Overused, dilutes status meaning | Warm status tones (ok/warn/err) are semantic-only; never decorative |
 
 ## Concrete Constraints
 
-- **No rounded corners above 10px** (except pills/badges at `radius-full`) — the product is technical
-- **Body text is DM Sans, never a serif** — the diagnostic-tool feel requires geometric sans
-- **Maximum 3 color families beyond neutrals** (emerald accent, amber values, red errors) — density demands restraint
-- **No drop shadows as primary depth in dark mode** — use border highlights and surface tint differentiation instead; shadows supplement but don't carry depth alone against near-black backgrounds
+- **No rounded corners above 8px** (except pills at `--r-pill`) — the product is technical
+- **Body text is Geist, never a raw system font** — Geist is on-brand and controlled
+- **Display headings (h1–h3) use Newsreader** — gives the UI character without being decorative
+- **Maximum 4 semantic hues beyond neutrals** (ok, warn, err, mute) — density demands restraint; accent is a neutral in light mode
+- **No drop shadows as primary depth in dark mode** — use surface layering and border hierarchy; shadows supplement but don't carry depth alone against near-black backgrounds
 - **Monospace for all data** — entity IDs, timestamps, handler names, invocation counts, log entries. Most content on the page is mono.
 - **No icons without text labels** in main content areas — exceptions: sidebar icon rail, and dense data-row action clusters (e.g., Stop/Reload in app list rows) where universal icons (play/stop/refresh) with `aria-label` and `title` suffice
 - **Density is a feature** — row padding is compact (10-12px vertical), meta text gaps are tight (12-16px), whitespace is for section separation not breathing room inside components
@@ -85,132 +86,126 @@ The breathing pulse dot — a slow inhale/exhale animation on the WebSocket conn
 ## Design Principles
 
 1. **Answer the question** — every page exists to answer a specific diagnostic question. If a component doesn't help answer it, remove it.
-2. **Hierarchy through type, not decoration** — font family (heading vs body vs mono), weight, and size create hierarchy. Not borders, backgrounds, or color.
-3. **Emerald means alive** — green is reserved for "connected, running, healthy." Don't dilute it on links, buttons, or decorative elements.
-4. **Show state, don't narrate it** — a red dot says "failed" faster than a paragraph. Status badges, health bars, and color-coded values over prose descriptions.
+2. **Hierarchy through type, not decoration** — Newsreader headings vs Geist body vs Geist Mono data create hierarchy. Not borders, backgrounds, or color for its own sake.
+3. **Green means ok** — `--ok` is reserved for "connected, running, healthy." Don't dilute it on links, buttons, or decorative elements.
+4. **Show state, don't narrate it** — a colored dot says "failed" faster than a paragraph. Status badges, health bars, and color-coded values over prose descriptions.
 5. **Respect the developer** — no onboarding tours, no tooltips on obvious things, no confirmation dialogs for reversible actions. The user knows what they're doing.
 
 ## Design Tokens
 
-### Color — Dark Mode (Graphite + Emerald) — Default
+The design system uses unprefixed Ink tokens (no `--ht-*` prefix). Light mode is the `:root` default; dark mode activates via `[data-theme="dark"]`.
 
-| Token | Value | Role |
-|-------|-------|------|
-| `--ht-bg` | `#111113` | Page canvas — near-black graphite |
-| `--ht-surface` | `#222226` | Cards, panels, list rows — perceptible separation from bg |
-| `--ht-surface-recessed` | `#2a2a2f` | Hover states, inset areas, expanded details |
-| `--ht-surface-sticky` | `#222226` | Sticky headers (same as surface) |
-| `--ht-border` | `rgba(255, 255, 255, 0.06)` | Default separation — visible when you look, invisible when you don't |
-| `--ht-border-strong` | `rgba(255, 255, 255, 0.10)` | Interactive element borders (inputs, buttons, toggles) |
-| `--ht-border-highlight` | `rgba(255, 255, 255, 0.08)` | Card top-edge highlight — simulates light source for depth |
-| `--ht-text` | `#ececef` | Primary text |
-| `--ht-text-secondary` | `#9898a0` | Secondary labels, meta text |
-| `--ht-text-dim` | `#5c5c66` | Tertiary text, timestamps, placeholders |
-| `--ht-link` | `#6bab94` | Interactive text — muted emerald, distinct from vivid accent and neutral text |
-| `--ht-link-hover` | `#8cc4ad` | Interactive hover state |
-| `--ht-accent` | `#34d399` | Status accent — emerald. Reserved for alive/connected/running states, pulse dot |
-| `--ht-accent-light` | `rgba(52, 211, 153, 0.10)` | Status accent backgrounds (badges, highlights) |
-| `--ht-value` | `#fbbf24` | State values in handler summaries — amber, distinct from accent |
-| `--ht-success` | `#34d399` | Healthy/running — same as accent (emerald = "all systems go") |
-| `--ht-success-light` | `rgba(52, 211, 153, 0.10)` | Success badge backgrounds |
-| `--ht-danger` | `#f87171` | Error, failed, disconnected |
-| `--ht-danger-light` | `rgba(248, 113, 113, 0.10)` | Error badge/trace backgrounds |
-| `--ht-warning` | `#fbbf24` | Warning states, elevated error rates |
-| `--ht-warning-light` | `rgba(251, 191, 36, 0.08)` | Warning badge backgrounds |
-| `--ht-shadow-sm` | `0 1px 3px rgba(0, 0, 0, 0.3)` | Cards, containers |
-| `--ht-shadow-md` | `0 4px 12px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.2)` | Hover lift, dropdowns |
+### Surfaces
 
-**Rationale**: Graphite neutrals (no blue tint, no warm tint — true neutral gray) keep the same temperature in both modes. Emerald as the primary accent because green = "alive, connected, working" in this domain — the LED on a running Pi, the "all systems go" signal. Amber for state values creates semantic separation from the accent without adding a third hue family. Red for errors is universal and unambiguous.
+| Token | Light | Dark | Role |
+|-------|-------|------|------|
+| `--bg-page` | `#FAFAF8` | `#111316` | Page canvas — warm off-white / deep neutral |
+| `--bg-surface` | `#FFFFFF` | `#191B1F` | Cards, panels, list rows |
+| `--bg-sunken` | `#F4F4F1` | `#15171B` | Inset areas, code backgrounds |
+| `--bg-active` | `#F0F0EC` | `#1D2026` | Hover states, expanded details |
 
-### Color — Light Mode (Chalk + Emerald)
+### Ink (Text)
 
-| Token | Value | Role |
-|-------|-------|------|
-| `--ht-bg` | `#ededf0` | Page canvas — cool chalk with visible separation from cards |
-| `--ht-surface` | `#f9f9fa` | Cards, panels, list rows |
-| `--ht-surface-recessed` | `#e6e6ea` | Hover states, inset areas, expanded details |
-| `--ht-surface-sticky` | `#f9f9fa` | Sticky headers |
-| `--ht-border` | `rgba(0, 0, 0, 0.08)` | Default separation |
-| `--ht-border-strong` | `rgba(0, 0, 0, 0.13)` | Interactive element borders |
-| `--ht-border-highlight` | `rgba(0, 0, 0, 0.04)` | Card top-edge highlight |
-| `--ht-text` | `#111113` | Primary text — near-black graphite |
-| `--ht-text-secondary` | `#55555e` | Secondary labels, meta text |
-| `--ht-text-dim` | `#9898a0` | Tertiary text, timestamps |
-| `--ht-link` | `#1a7a5a` | Interactive text — muted emerald for light backgrounds |
-| `--ht-link-hover` | `#0f5c42` | Interactive hover state |
-| `--ht-accent` | `#047857` | Status accent — deeper emerald, WCAG AA compliant (5.0:1 on white) |
-| `--ht-accent-light` | `rgba(4, 120, 87, 0.07)` | Status accent backgrounds |
-| `--ht-value` | `#b45309` | State values — darker amber for light backgrounds |
-| `--ht-success` | `#047857` | Healthy/running |
-| `--ht-success-light` | `rgba(4, 120, 87, 0.07)` | Success badge backgrounds |
-| `--ht-danger` | `#dc2626` | Error, failed, disconnected |
-| `--ht-danger-light` | `rgba(220, 38, 38, 0.07)` | Error badge/trace backgrounds |
-| `--ht-warning` | `#a16207` | Warning states |
-| `--ht-warning-light` | `rgba(161, 98, 7, 0.06)` | Warning badge backgrounds |
-| `--ht-shadow-sm` | `0 1px 2px rgba(0, 0, 0, 0.04)` | Cards, containers |
-| `--ht-shadow-md` | `0 4px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03)` | Hover lift, dropdowns |
+| Token | Light | Dark | Role |
+|-------|-------|------|------|
+| `--ink-1` | `#16181C` | `#EDEFF3` | Primary text |
+| `--ink-2` | `#4A4D54` | `#B5B9C0` | Secondary labels, meta text |
+| `--ink-3` | `#787C84` | `#888D97` | Tertiary text, timestamps, placeholders |
+| `--ink-4` | `#B0B3B8` | `#5A5E66` | Disabled text |
+
+### Lines (Borders)
+
+| Token | Light | Dark | Role |
+|-------|-------|------|------|
+| `--line-1` | `#E6E6E2` | `#272A30` | Default separation |
+| `--line-2` | `#ECECE8` | `#1F2227` | Subtle/secondary separators |
+| `--line-strong` | `#D0D0CC` | `#3A3E46` | Interactive element borders |
+
+### Accent
+
+| Token | Light | Dark | Role |
+|-------|-------|------|------|
+| `--accent` | `var(--ink-1)` | `#7A8AFF` | Primary interactive color |
+| `--accent-ink` | `var(--bg-page)` | `#0F1115` | Text on accent background |
+| `--accent-hover` | `#2A2D33` | `#93A0FF` | Hover state |
+| `--accent-soft` | `#E8E8E5` | `#1A1F36` | Soft accent background |
+
+**Rationale**: In light mode, accent is `ink-1` (near-black) — a deliberate choice. The system has personality through type (Newsreader) and surface warmth (`#FAFAF8`), not through a colored accent. In dark mode, periwinkle-blue earns its place without the "every AI-generated UI uses indigo" feel.
+
+### Status
+
+| Token | Light | Dark | Role |
+|-------|-------|------|------|
+| `--ok` / `--ok-bg` | `#1F7A4D` / `#EAF3EE` | `#5FB988` / `#19241E` | Running, healthy, connected |
+| `--warn` / `--warn-bg` | `#9A6A12` / `#F5EEDD` | `#D9B36E` / `#272219` | Warning, elevated error rate |
+| `--err` / `--err-bg` | `#B53024` / `#F5DEDC` | `#E08278` / `#28191A` | Error, failed, disconnected |
+| `--mute` / `--mute-bg` | `#9097A0` / `#EFF0EC` | `#6A707A` / `#1D1F23` | Stopped, disabled, unknown |
 
 ### Typography
 
-- **Headings**: Space Grotesk (600/700) — geometric, technical character. Distinguishes Hassette from generic admin panels. The only place personality shows in the type system.
-- **Body**: DM Sans (400/500) — clean geometric sans that pairs with Space Grotesk without competing. Readable at small sizes for meta text and descriptions.
-- **Mono**: JetBrains Mono (400/500/600) — entity IDs, timestamps, handler names, invocation data, log entries. The workhorse font — most data on the page is monospace.
+- **Display/headings (h1–h3)**: Newsreader 400 — a refined newspaper serif. Gives the UI character and warmth without being decorative. Headings feel authored, not generated.
+- **Body**: Geist 400/500 — clean, modern sans-serif by Vercel. Fast to read, pairs well with Newsreader without competing.
+- **Mono**: Geist Mono 400/500 — entity IDs, timestamps, handler names, invocation data, log entries. The workhorse font — most data on the page is monospace.
 - **Scale**:
-  - `--ht-text-xs`: 13px — uppercase labels (INIT STATUS, FIRES, AVG)
-  - `--ht-text-sm`: 14px — meta text, badge text, timestamps
-  - `--ht-text-base`: 16px — handler summaries, table data, log entries
-  - `--ht-text-md`: 17px — body text, descriptions
-  - `--ht-text-lg`: 19px — section headings (Event Handlers, Scheduled Jobs)
-  - `--ht-text-xl`: 23px — page titles (Garage Proximity)
-  - `--ht-text-2xl`: 27px — hero numbers in health cards (0.4%, 18ms, 3m ago)
-- **Weights**: 400 (body), 500 (mono emphasis, meta strong values), 600 (headings, stat values), 700 (page title only)
-- **Self-hosted**: WOFF2 files in `/frontend/public/fonts/` — DM Sans 400/500/700, Space Grotesk 400/500/600/700, JetBrains Mono 400/500
+  - `--fs-display` / `--lh-display`: 38px / 1.05 — hero display text
+  - `--fs-h1` / `--lh-h1`: 28px / 1.15 — page titles
+  - `--fs-h2` / `--lh-h2`: 20px / 1.25 — section headings
+  - `--fs-h3` / `--lh-h3`: 16px / 1.35 — subsection headings
+  - `--fs-body` / `--lh-body`: 14px / 1.55 — body text, table data
+  - `--fs-small` / `--lh-small`: 12.5px / 1.5 — meta text, captions
+  - `--fs-micro` / `--lh-micro`: 11px / 1.4 — labels, uppercase tags
+  - `--fs-mono-sm` / `--fs-mono-md`: 12px / 13px — code, data
+- **Letter spacing**: Display and headings use negative tracking (`--tr-display: -0.025em` → `--tr-h3: -0.005em`) for optical tightness at large sizes.
+- **Self-hosted**: WOFF2 files in `/frontend/public/fonts/` — Newsreader 400, Geist 400/500, Geist Mono 400/500
 
 ### Spacing
 
-- **Base**: 4px (`--ht-sp-1`)
-- **Scale**: `--ht-sp-1` (4px), `--ht-sp-2` (8px), `--ht-sp-3` (12px), `--ht-sp-4` (16px), `--ht-sp-5` (20px), `--ht-sp-6` (24px), `--ht-sp-8` (32px), `--ht-sp-10` (40px)
-- **Density**: Diagnostic tool — density is a feature. Row padding compact (10-12px vertical). Meta text gaps tight (12-16px). Health strip cards modest padding (12px 14px). Whitespace for section separation, not breathing room inside components.
+- **Base**: 4px (`--sp-1`)
+- **Scale**: `--sp-1` (4px) through `--sp-10` (72px)
+- **Density**: Diagnostic tool — density is a feature. Row padding compact (10-12px vertical). Meta text gaps tight (12-16px). Whitespace for section separation, not breathing room inside components.
 
-### Depth
+### Shadows
 
-- **Strategy**: Subtle shadows + borders. Shadows establish card-level hierarchy. Borders separate rows within lists.
-- **Why**: Borders-only was explicitly rejected ("flat and cheap"). Full Bulma-style shadows are too heavy. Single shadow-sm on cards adds dimensionality without weight.
-- **Levels**: `--ht-shadow-sm` on cards and containers, `--ht-shadow-md` on hover lift and dropdowns.
-- **Dark mode**: Surface bump (#111113 → #222226) provides perceptible luminance separation. Border highlights (`--ht-border-highlight` at 0.08 alpha) on card top edges simulate a light source. Together with shadows, cards are unambiguously visible.
+- **`--shadow-1`**: `0 1px 2px rgba(20, 22, 26, 0.04)` — subtle card lift (light mode)
+- **`--shadow-2`**: `0 2px 8px … + 0 1px 2px …` — card prominence
+- **`--shadow-3`**: `0 8px 24px … + 0 2px 6px …` — dropdowns, modals
+- **Dark mode**: Same shadow variables use higher opacity (`0.3 / 0.4 / 0.5`) against near-black backgrounds.
 
 ### Border Radius
 
-- **Scale**: `--ht-radius-sm` (6px), `--ht-radius-md` (9px), `--ht-radius-lg` (10px), `--ht-radius-full` (9999px)
-- **Character**: Slightly rounded — not sharp (too clinical), not pill-shaped (too playful). 9-10px on cards and list containers. 6px on buttons and inputs. Full round on badges and status dots. The radius says "tool with considered edges."
+- **`--r-sm`**: 4px — inputs, code spans
+- **`--r-md`**: 6px — buttons, cards, list containers
+- **`--r-lg`**: 8px — panels, larger cards
+- **`--r-xl`**: 12px — modals, large containers
+- **`--r-pill`**: 999px — badges, status dots
 
 ### Motion
 
-- **Micro**: 120ms `ease-out` — hover state transitions (background, border color)
-- **Transition**: 200ms `ease-out` — expand/collapse handler detail, tab switching
-- **Signature**: 2.5s `ease-in-out` infinite — the pulse dot breathe animation. Only continuous animation.
-- **Reduced motion**: All animations and transitions collapse to `0.01ms`. Pulse dot becomes static.
+- **`--t-fast`**: 120ms — hover state transitions (background, border color)
+- **`--t-med`**: 200ms — expand/collapse, tab switching
+- **`--ease`**: `cubic-bezier(0.4, 0, 0.2, 1)` — the Ink easing curve
+- **Signature animation**: pulse dot breathe, 2.5s ease-in-out infinite. Only continuous animation.
+- **Reduced motion**: `@media (prefers-reduced-motion: reduce)` — all animations collapse to 0.01ms
 
 ### Anti-patterns
 
-- **No warm amber/gold as primary accent** — amber is reserved for state values only
-- **No dark sidebar on light page** — sidebar uses same `--ht-bg` and `--ht-surface` as main content
-- **No borders-only depth** — every card and list container gets `--ht-shadow-sm`, supplemented by border highlights in dark mode
-- **No pure black or pure gray** — all neutrals have the graphite tint (`#111113`, `#1a1a1e`)
-- **No Inter, Roboto, or system-ui as primary font**
-- **No indigo/violet accents** — Tailwind default, AI slop signal
+- **No `--ht-*` prefixed tokens** — the old Graphite+Emerald system is replaced; all tokens are unprefixed Ink tokens
+- **No raw hex values in component CSS** — always reference tokens
+- **No sidebar on same dark tone as content** — sidebar uses `--bg-page` / `--bg-surface` in both modes
+- **No shadows for depth** — borders are the primary depth mechanism; shadows reserved for floating surfaces only (modals, command palette)
+- **No blue/indigo/violet accent** — light mode accent is `ink-1` (intentional); dark mode uses restrained periwinkle
 - **No card nesting** — handler rows are list items in bordered containers, not cards inside cards
-- **No bounce/elastic easing** — all transitions use `ease-out`
-- **No emerald on non-status elements** — accent is reserved for status (alive/connected/running). Links use `--ht-link` (muted emerald). Nav, tabs, toggles, and buttons use neutral treatments. Three semantic layers: vivid emerald = status, muted emerald = interactive, neutral = static text.
+- **No bounce/elastic easing** — all transitions use `--ease`
+- **No status colors on non-status elements** — `--ok` / `--warn` / `--err` reserved for state communication only
 
 ## Component Notes
 
 - **Handler rows**: Grid layout — `8px dot | 1fr content | auto stats`. Plain-language summary as primary text. Invocation count, last-fired, avg duration as mono meta text below. Expandable.
 - **Health strip**: 4-column grid of compact cards at top of App Detail. Init status, error rate, avg duration, last activity.
-- **StatusBar**: Top bar with pulse dot (WebSocket indicator), theme toggle, session scope toggle, and degraded/dropped-events indicators. Pulse dot uses `--ht-accent` with breathe animation when connected; `--ht-danger` and static when disconnected; amber when connecting or degraded.
-- **Status badges**: Pill-shaped (radius-full), mono font, colored dot + text. Running = emerald, Failed = red, Stopped/Disabled = dim gray. Background uses `-light` token variant.
-- **Log level toggle**: Segmented button group (DEBUG | INFO | WARN). Active state uses `--ht-accent-light` background with `--ht-accent` text.
-- **Sidebar**: 56px icon rail (no expanded state). Same background temperature as page (`--ht-bg`). Active nav item uses `--ht-surface-recessed` background (neutral, not accent). Hidden below 768px — replaced by bottom nav on mobile.
+- **StatusBar**: Top bar with pulse dot (WebSocket indicator), theme toggle, time-preset selector, and degraded/dropped-events indicators. Pulse dot uses `--accent` with breathe animation when connected; `--err` and static when disconnected; `--warn` when degraded.
+- **Status badges**: Pill-shaped (`--r-pill`), mono font, shape indicator + text. Running = `--ok`, Failed = `--err`, Stopped/Disabled = `--mute`. Background uses `*-bg` paired token.
+- **Log level toggle**: Segmented button group (DEBUG | INFO | WARN). Active state uses `--accent-soft` background with `--accent` text.
+- **Sidebar**: 240px panel with icon + label navigation. Same background temperature as page (`--bg-page`). Active nav item uses `--bg-active` background (neutral). Hidden below 768px — replaced by bottom nav on mobile.
 
 ## Open Questions
 

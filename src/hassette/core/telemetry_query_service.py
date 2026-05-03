@@ -54,6 +54,26 @@ def _source_tier_clause(source_tier: QuerySourceTier, alias: str) -> tuple[str, 
             assert_never(unreachable)
 
 
+def _since_clause(since: float | None, timestamp_col: str) -> tuple[str, dict[str, float]]:
+    """Return a (fragment, params) tuple for timestamp lower-bound filtering.
+
+    When ``since`` is not None, returns a parameterised ``AND`` fragment that
+    restricts rows to those with ``timestamp_col >= :since``.  When absent,
+    returns ``("", {})`` (no filter).
+
+    Mirrors the pattern of :func:`_source_tier_clause`.
+
+    Args:
+        since: Unix epoch float lower bound, or ``None`` for no filter.
+        timestamp_col: The SQL column expression to filter on (e.g.
+            ``"hi.execution_start_ts"``).
+    """
+    if since is None:
+        return ("", {})
+    # timestamp_col is an internal SQL column reference; no user data flows here
+    return (f"AND {timestamp_col} >= :since", {"since": since})
+
+
 def _build_app_summaries(
     listener_reg_rows: Iterable[aiosqlite.Row],
     listener_act_rows: Iterable[aiosqlite.Row],
@@ -105,7 +125,9 @@ def _build_app_summaries(
 
 
 def _build_global_queries(
-    session_id: int | None,
+    since_hi_clause: str,
+    since_je_clause: str,
+    since_params: dict[str, float],
     total_listeners_subq: str,
     total_jobs_subq: str,
     tier_hi_clause: str,
@@ -116,12 +138,9 @@ def _build_global_queries(
     """Build the listener and job SQL queries (and their params) for ``get_global_summary``.
 
     Returns ``(listener_query, job_query, listener_params, job_params)``.
-    The two variants differ only in the WHERE clause: a session equality filter when
-    ``session_id`` is provided, or ``1=1`` when absent.
+    Optional ``since_*`` fragments (from :func:`_since_clause`) add lower-bound
+    timestamp filters; they are empty strings when no ``since`` value is provided.
     """
-    hi_session_filter = "hi.session_id = :session_id" if session_id is not None else "1=1"
-    je_session_filter = "je.session_id = :session_id" if session_id is not None else "1=1"
-
     listener_query = f"""
         SELECT
             {total_listeners_subq} AS total_listeners,
@@ -132,7 +151,7 @@ def _build_global_queries(
             SUM(CASE WHEN hi.is_di_failure = 1 THEN 1 ELSE 0 END) AS total_di_failures,
             AVG(hi.duration_ms) AS avg_duration_ms
         FROM handler_invocations hi
-        WHERE {hi_session_filter} {tier_hi_clause}
+        WHERE 1=1 {since_hi_clause} {tier_hi_clause}
     """
     job_query = f"""
         SELECT
@@ -143,14 +162,11 @@ def _build_global_queries(
             SUM(CASE WHEN je.status = 'timed_out' THEN 1 ELSE 0 END) AS total_timed_out,
             COALESCE(AVG(je.duration_ms), 0.0) AS avg_duration_ms
         FROM job_executions je
-        WHERE {je_session_filter} {tier_je_clause}
+        WHERE 1=1 {since_je_clause} {tier_je_clause}
     """
 
-    listener_params: dict[str, Any] = {**tier_hi_params}
-    job_params: dict[str, Any] = {**tier_je_params}
-    if session_id is not None:
-        listener_params["session_id"] = session_id
-        job_params["session_id"] = session_id
+    listener_params: dict[str, Any] = {**tier_hi_params, **since_params}
+    job_params: dict[str, Any] = {**tier_je_params, **since_params}
 
     return listener_query, job_query, listener_params, job_params
 
@@ -235,7 +251,7 @@ class TelemetryQueryService(Resource):
         self,
         app_key: str,
         instance_index: int,
-        session_id: int | None = None,
+        since: float | None = None,
         source_tier: QuerySourceTier = "app",
     ) -> list[ListenerSummary]:
         """Return per-listener summary for a specific app instance.
@@ -246,25 +262,17 @@ class TelemetryQueryService(Resource):
         Args:
             app_key: The app key to filter by.
             instance_index: The app instance index to filter by.
-            session_id: When provided, restrict invocation counts to this session.
+            since: When provided, restrict invocation counts to records with
+                ``execution_start_ts >= since`` (Unix epoch float).
             source_tier: Filter listeners by source tier. ``'app'`` (default) excludes
                 framework internals. ``'all'`` includes all tiers.
         """
         tier_clause, tier_params = _source_tier_clause(source_tier, "l")
+        since_join_clause, since_params = _since_clause(since, "hi.execution_start_ts")
+        since_err_clause, _ = _since_clause(since, "hi2.execution_start_ts")
 
-        if session_id is not None:
-            join_condition = "hi.listener_id = l.id AND hi.session_id = :session_id"
-            last_err_filter = "AND session_id = :session_id"
-            params: dict = {
-                "session_id": session_id,
-                "app_key": app_key,
-                "instance_index": instance_index,
-                **tier_params,
-            }
-        else:
-            join_condition = "hi.listener_id = l.id"
-            last_err_filter = ""
-            params = {"app_key": app_key, "instance_index": instance_index, **tier_params}
+        join_condition = f"hi.listener_id = l.id {since_join_clause}"
+        params: dict = {"app_key": app_key, "instance_index": instance_index, **tier_params, **since_params}
 
         query = f"""
             SELECT
@@ -301,9 +309,9 @@ class TelemetryQueryService(Resource):
             FROM listeners l
             LEFT JOIN handler_invocations hi ON {join_condition}
             LEFT JOIN handler_invocations last_err ON last_err.id = (
-                SELECT id FROM handler_invocations
-                WHERE listener_id = l.id AND status IN ('error', 'timed_out') {last_err_filter}
-                ORDER BY execution_start_ts DESC LIMIT 1
+                SELECT hi2.id FROM handler_invocations hi2
+                WHERE hi2.listener_id = l.id AND hi2.status IN ('error', 'timed_out') {since_err_clause}
+                ORDER BY hi2.execution_start_ts DESC LIMIT 1
             )
             WHERE l.app_key = :app_key AND l.instance_index = :instance_index
             {tier_clause}
@@ -317,7 +325,7 @@ class TelemetryQueryService(Resource):
         self,
         app_key: str,
         instance_index: int,
-        session_id: int | None = None,
+        since: float | None = None,
         source_tier: QuerySourceTier = "app",
     ) -> list[JobSummary]:
         """Return per-job summary for a specific app instance.
@@ -325,23 +333,16 @@ class TelemetryQueryService(Resource):
         Args:
             app_key: The app key to filter by.
             instance_index: The app instance index to filter by.
-            session_id: When provided, restrict execution counts to this session.
+            since: When provided, restrict execution counts to records with
+                ``execution_start_ts >= since`` (Unix epoch float).
             source_tier: Filter jobs by source tier. ``'app'`` (default) excludes
                 framework internals. ``'all'`` includes all tiers.
         """
         tier_clause, tier_params = _source_tier_clause(source_tier, "sj")
+        since_join_clause, since_params = _since_clause(since, "je.execution_start_ts")
 
-        if session_id is not None:
-            join_condition = "je.job_id = sj.id AND je.session_id = :session_id"
-            params: dict = {
-                "session_id": session_id,
-                "app_key": app_key,
-                "instance_index": instance_index,
-                **tier_params,
-            }
-        else:
-            join_condition = "je.job_id = sj.id"
-            params = {"app_key": app_key, "instance_index": instance_index, **tier_params}
+        join_condition = f"je.job_id = sj.id {since_join_clause}"
+        params: dict = {"app_key": app_key, "instance_index": instance_index, **tier_params, **since_params}
 
         query = f"""
             SELECT
@@ -378,7 +379,7 @@ class TelemetryQueryService(Resource):
         return [JobSummary.model_validate(_row_to_dict(row)) for row in rows]
 
     async def get_all_app_summaries(
-        self, session_id: int | None = None, source_tier: QuerySourceTier = "app"
+        self, since: float | None = None, source_tier: QuerySourceTier = "app"
     ) -> dict[str, AppHealthSummary]:
         """Return per-app health summaries via 4 batch SQL queries.
 
@@ -390,7 +391,8 @@ class TelemetryQueryService(Resource):
         across all instances and filter by ``source_tier``.
 
         Args:
-            session_id: When provided, restrict activity counts to this session.
+            since: When provided, restrict activity counts to records with
+                ``execution_start_ts >= since`` (Unix epoch float).
             source_tier: Filter by source tier. ``'app'`` (default) excludes
                 framework internals. ``'framework'`` shows only framework actors.
                 ``'all'`` includes everything.
@@ -415,6 +417,8 @@ class TelemetryQueryService(Resource):
         tier_je_clause, tier_je_params = _source_tier_clause(source_tier, "je")
         tier_l_clause, _ = _source_tier_clause(source_tier, "l")
         tier_sj_clause, _ = _source_tier_clause(source_tier, "sj")
+        since_hi_clause, since_params = _since_clause(since, "hi.execution_start_ts")
+        since_je_clause, _ = _since_clause(since, "je.execution_start_ts")
 
         # --- Build registration queries (instance 0, via views) ---
         listener_reg_query = f"""
@@ -431,68 +435,37 @@ class TelemetryQueryService(Resource):
         """
 
         # --- Build activity queries (all instances) ---
-        if session_id is not None:
-            listener_act_query = f"""
-                SELECT
-                    l.app_key,
-                    COUNT(hi.rowid) AS total_invocations,
-                    SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
-                    SUM(CASE WHEN hi.status = 'timed_out' THEN 1 ELSE 0 END) AS total_timed_out,
-                    COALESCE(AVG(hi.duration_ms), 0.0) AS avg_duration_ms,
-                    MAX(hi.execution_start_ts) AS last_listener_activity_ts
-                FROM listeners l
-                LEFT JOIN handler_invocations hi ON hi.listener_id = l.id
-                    AND hi.session_id = :session_id
-                    {tier_clause}
-                WHERE 1=1 {tier_l_clause}
-                GROUP BY l.app_key
-            """
-            job_act_query = f"""
-                SELECT
-                    sj.app_key,
-                    COUNT(je.rowid) AS total_executions,
-                    SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_job_errors,
-                    SUM(CASE WHEN je.status = 'timed_out' THEN 1 ELSE 0 END) AS total_job_timed_out,
-                    MAX(je.execution_start_ts) AS last_job_activity_ts
-                FROM scheduled_jobs sj
-                LEFT JOIN job_executions je ON je.job_id = sj.id
-                    AND je.session_id = :session_id
-                    {tier_je_clause}
-                WHERE 1=1 {tier_sj_clause}
-                GROUP BY sj.app_key
-            """
-            listener_act_params: dict[str, Any] = {"session_id": session_id, **tier_params}
-            job_act_params: dict[str, Any] = {"session_id": session_id, **tier_je_params}
-        else:
-            listener_act_query = f"""
-                SELECT
-                    l.app_key,
-                    COUNT(hi.rowid) AS total_invocations,
-                    SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
-                    SUM(CASE WHEN hi.status = 'timed_out' THEN 1 ELSE 0 END) AS total_timed_out,
-                    COALESCE(AVG(hi.duration_ms), 0.0) AS avg_duration_ms,
-                    MAX(hi.execution_start_ts) AS last_listener_activity_ts
-                FROM listeners l
-                LEFT JOIN handler_invocations hi ON hi.listener_id = l.id
-                    {tier_clause}
-                WHERE 1=1 {tier_l_clause}
-                GROUP BY l.app_key
-            """
-            job_act_query = f"""
-                SELECT
-                    sj.app_key,
-                    COUNT(je.rowid) AS total_executions,
-                    SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_job_errors,
-                    SUM(CASE WHEN je.status = 'timed_out' THEN 1 ELSE 0 END) AS total_job_timed_out,
-                    MAX(je.execution_start_ts) AS last_job_activity_ts
-                FROM scheduled_jobs sj
-                LEFT JOIN job_executions je ON je.job_id = sj.id
-                    {tier_je_clause}
-                WHERE 1=1 {tier_sj_clause}
-                GROUP BY sj.app_key
-            """
-            listener_act_params = {**tier_params}
-            job_act_params = {**tier_je_params}
+        listener_act_query = f"""
+            SELECT
+                l.app_key,
+                COUNT(hi.rowid) AS total_invocations,
+                SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
+                SUM(CASE WHEN hi.status = 'timed_out' THEN 1 ELSE 0 END) AS total_timed_out,
+                COALESCE(AVG(hi.duration_ms), 0.0) AS avg_duration_ms,
+                MAX(hi.execution_start_ts) AS last_listener_activity_ts
+            FROM listeners l
+            LEFT JOIN handler_invocations hi ON hi.listener_id = l.id
+                {tier_clause}
+                {since_hi_clause}
+            WHERE 1=1 {tier_l_clause}
+            GROUP BY l.app_key
+        """
+        job_act_query = f"""
+            SELECT
+                sj.app_key,
+                COUNT(je.rowid) AS total_executions,
+                SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS total_job_errors,
+                SUM(CASE WHEN je.status = 'timed_out' THEN 1 ELSE 0 END) AS total_job_timed_out,
+                MAX(je.execution_start_ts) AS last_job_activity_ts
+            FROM scheduled_jobs sj
+            LEFT JOIN job_executions je ON je.job_id = sj.id
+                {tier_je_clause}
+                {since_je_clause}
+            WHERE 1=1 {tier_sj_clause}
+            GROUP BY sj.app_key
+        """
+        listener_act_params: dict[str, Any] = {**tier_params, **since_params}
+        job_act_params: dict[str, Any] = {**tier_je_params, **since_params}
 
         # BEGIN DEFERRED pins the WAL read mark on the read-only connection,
         # ensuring all four queries see a consistent snapshot. ROLLBACK releases it.
@@ -515,12 +488,13 @@ class TelemetryQueryService(Resource):
         return _build_app_summaries(listener_reg_rows, listener_act_rows, job_reg_rows, job_act_rows, source_tier)
 
     async def get_global_summary(
-        self, session_id: int | None = None, source_tier: QuerySourceTier = "app"
+        self, since: float | None = None, source_tier: QuerySourceTier = "app"
     ) -> GlobalSummary:
         """Return aggregate telemetry summary across all apps.
 
         Args:
-            session_id: When provided, restrict counts to this session.
+            since: When provided, restrict counts to records with
+                ``execution_start_ts >= since`` (Unix epoch float).
             source_tier: Filter invocations/executions by source tier.
                 ``'app'`` (default) counts only app-registered handlers/jobs.
                 ``'all'`` counts everything including framework internals.
@@ -529,6 +503,8 @@ class TelemetryQueryService(Resource):
         """
         tier_hi_clause, tier_hi_params = _source_tier_clause(source_tier, "hi")
         tier_je_clause, tier_je_params = _source_tier_clause(source_tier, "je")
+        since_hi_clause, since_params = _since_clause(since, "hi.execution_start_ts")
+        since_je_clause, _ = _since_clause(since, "je.execution_start_ts")
 
         match source_tier:
             case "app":
@@ -544,7 +520,9 @@ class TelemetryQueryService(Resource):
                 assert_never(unreachable)
 
         listener_query, job_query, listener_params, job_params = _build_global_queries(
-            session_id,
+            since_hi_clause,
+            since_je_clause,
+            since_params,
             total_listeners_subq,
             total_jobs_subq,
             tier_hi_clause,
@@ -590,10 +568,17 @@ class TelemetryQueryService(Resource):
         )
 
     async def get_handler_invocations(
-        self, listener_id: int, limit: int = 50, session_id: int | None = None
+        self, listener_id: int, limit: int = 50, since: float | None = None
     ) -> list[HandlerInvocation]:
-        """Return recent invocation records for a specific listener."""
-        session_clause = "AND hi.session_id = :session_id" if session_id is not None else ""
+        """Return recent invocation records for a specific listener.
+
+        Args:
+            listener_id: The listener to query.
+            limit: Maximum number of records to return.
+            since: When provided, restrict to records with
+                ``execution_start_ts >= since`` (Unix epoch float).
+        """
+        since_hi_clause, since_params = _since_clause(since, "hi.execution_start_ts")
         query = f"""
             SELECT
                 hi.execution_start_ts,
@@ -607,22 +592,25 @@ class TelemetryQueryService(Resource):
                 hi.trigger_context_id,
                 hi.trigger_origin
             FROM handler_invocations hi
-            WHERE hi.listener_id = :listener_id {session_clause}
+            WHERE hi.listener_id = :listener_id {since_hi_clause}
             ORDER BY hi.execution_start_ts DESC
             LIMIT :limit
         """
-        params: dict = {"listener_id": listener_id, "limit": limit}
-        if session_id is not None:
-            params["session_id"] = session_id
+        params: dict = {"listener_id": listener_id, "limit": limit, **since_params}
         async with self._db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return [HandlerInvocation.model_validate(_row_to_dict(row)) for row in rows]
 
-    async def get_job_executions(
-        self, job_id: int, limit: int = 50, session_id: int | None = None
-    ) -> list[JobExecution]:
-        """Return recent execution records for a specific scheduled job."""
-        session_clause = "AND je.session_id = :session_id" if session_id is not None else ""
+    async def get_job_executions(self, job_id: int, limit: int = 50, since: float | None = None) -> list[JobExecution]:
+        """Return recent execution records for a specific scheduled job.
+
+        Args:
+            job_id: The job to query.
+            limit: Maximum number of records to return.
+            since: When provided, restrict to records with
+                ``execution_start_ts >= since`` (Unix epoch float).
+        """
+        since_je_clause, since_params = _since_clause(since, "je.execution_start_ts")
         query = f"""
             SELECT
                 je.execution_start_ts,
@@ -634,13 +622,11 @@ class TelemetryQueryService(Resource):
                 je.error_traceback,
                 je.execution_id
             FROM job_executions je
-            WHERE je.job_id = :job_id {session_clause}
+            WHERE je.job_id = :job_id {since_je_clause}
             ORDER BY je.execution_start_ts DESC
             LIMIT :limit
         """
-        params: dict = {"job_id": job_id, "limit": limit}
-        if session_id is not None:
-            params["session_id"] = session_id
+        params: dict = {"job_id": job_id, "limit": limit, **since_params}
         async with self._db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return [JobExecution.model_validate(_row_to_dict(row)) for row in rows]

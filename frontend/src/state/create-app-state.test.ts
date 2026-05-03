@@ -21,8 +21,8 @@ describe("createAppState", () => {
     const a = createAppState();
     const b = createAppState();
 
-    a.theme.value = "light";
-    expect(b.theme.value).toBe("dark"); // not affected
+    a.theme.value = "dark";
+    expect(b.theme.value).toBe("light"); // not affected
 
     a.sessionId.value = 42;
     expect(b.sessionId.value).toBeNull();

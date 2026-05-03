@@ -109,7 +109,7 @@ class LogEntryResponse(BaseModel):
 
 
 class ConnectedPayload(BaseModel):
-    session_id: int | None = None
+    uptime_seconds: float
     entity_count: int
     app_count: int
 

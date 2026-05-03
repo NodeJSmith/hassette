@@ -121,17 +121,9 @@
     },
     "ConnectedPayload": {
       "properties": {
-        "session_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Session Id"
+        "uptime_seconds": {
+          "title": "Uptime Seconds",
+          "type": "number"
         },
         "entity_count": {
           "title": "Entity Count",
@@ -143,6 +135,7 @@
         }
       },
       "required": [
+        "uptime_seconds",
         "entity_count",
         "app_count"
       ],

@@ -1,147 +1,116 @@
 /* =====================================================
-   Hassette Design Tokens — Graphite + Emerald
-   Light mode: [data-theme="light"]  (Chalk + Emerald)
-   Dark mode:  [data-theme="dark"]   (Graphite + Emerald)
-
-   Default: dark. Toggle persisted in localStorage.
+   Hassette Design Tokens — Ink
+   Light theme: :root (default)
+   Dark theme:  [data-theme="dark"]
    ===================================================== */
 
-/* — Dark Mode (default) —————————————————————————————— */
-:root,
-[data-theme="dark"] {
-  /* Surfaces */
-  --ht-bg: #111113;
-  --ht-surface: #222226;
-  --ht-surface-recessed: #2a2a2f;
-  --ht-surface-sticky: #222226;
-
-  /* Borders */
-  --ht-border: rgba(255, 255, 255, 0.06);
-  --ht-border-strong: rgba(255, 255, 255, 0.10);
-  --ht-border-highlight: rgba(255, 255, 255, 0.08);
-
-  /* Text */
-  --ht-text: #ececef;
-  --ht-text-secondary: #9898a0;
-  --ht-text-dim: #5c5c66;
-
-  /* Interactive (muted emerald — distinct from vivid status accent and neutral text) */
-  --ht-link: #6bab94;
-  --ht-link-hover: #8cc4ad;
-
-  /* Accent (Emerald — reserved for status: alive/connected/running) */
-  --ht-accent: #34d399;
-  --ht-accent-light: rgba(52, 211, 153, 0.10);
-
-  /* Value */
-  --ht-value: #fbbf24;
-
-  /* Semantic */
-  --ht-success: #34d399;
-  --ht-success-light: rgba(52, 211, 153, 0.10);
-
-  --ht-danger: #f87171;
-  --ht-danger-light: rgba(248, 113, 113, 0.10);
-
-  --ht-warning: #fbbf24;
-  --ht-warning-light: rgba(251, 191, 36, 0.08);
-
-  /* Depth */
-  --ht-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --ht-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-/* — Light Mode ——————————————————————————————————————— */
-[data-theme="light"] {
-  /* Surfaces */
-  --ht-bg: #ededf0;
-  --ht-surface: #f9f9fa;
-  --ht-surface-recessed: #e6e6ea;
-  --ht-surface-sticky: #f9f9fa;
-
-  /* Borders */
-  --ht-border: rgba(0, 0, 0, 0.08);
-  --ht-border-strong: rgba(0, 0, 0, 0.13);
-  --ht-border-highlight: rgba(0, 0, 0, 0.04);
-
-  /* Text */
-  --ht-text: #111113;
-  --ht-text-secondary: #55555e;
-  --ht-text-dim: #9898a0;
-
-  /* Interactive (muted emerald) */
-  --ht-link: #1a7a5a;
-  --ht-link-hover: #0f5c42;
-
-  /* Accent (Emerald — reserved for status) */
-  --ht-accent: #047857;
-  --ht-accent-light: rgba(4, 120, 87, 0.07);
-
-  /* Value */
-  --ht-value: #b45309;
-
-  /* Semantic */
-  --ht-success: #047857;
-  --ht-success-light: rgba(4, 120, 87, 0.07);
-
-  --ht-danger: #dc2626;
-  --ht-danger-light: rgba(220, 38, 38, 0.07);
-
-  --ht-warning: #a16207;
-  --ht-warning-light: rgba(161, 98, 7, 0.06);
-
-  /* Depth */
-  --ht-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --ht-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
-}
-
-/* — Typography —————————————————————————————————————— */
+/* — Light Theme (default) ——————————————————————————— */
 :root {
-  /* Font families */
-  --ht-font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
-  --ht-font-body: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --ht-font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+  /* Surfaces */
+  --bg-page:    #FAFAF8;
+  --bg-surface: #FFFFFF;
+  --bg-sunken:  #F4F4F1;
+  --bg-active:  #F0F0EC;
 
-  /* Font weights */
-  --ht-weight-regular: 400;
-  --ht-weight-medium: 500;
-  --ht-weight-semibold: 600;
-  --ht-weight-bold: 700;
+  /* Ink (text) */
+  --ink-1: #16181C;
+  --ink-2: #4A4D54;
+  --ink-3: #787C84;
+  --ink-4: #B0B3B8;
+
+  /* Lines (borders) */
+  --line-1:      #E6E6E2;
+  --line-2:      #ECECE8;
+  --line-strong: #D0D0CC;
+
+  /* Accent */
+  --accent:       var(--ink-1);
+  --accent-ink:   var(--bg-page);
+  --accent-hover: #2A2D33;
+  --accent-soft:  #E8E8E5;
+
+  /* Status */
+  --ok:    #1F7A4D;  --ok-bg:    #EAF3EE;
+  --warn:  #9A6A12;  --warn-bg:  #F5EEDD;
+  --err:   #B53024;  --err-bg:   #F5DEDC;
+  --mute:  #9097A0;  --mute-bg:  #EFF0EC;
+
+  /* Code */
+  --code-bg:      var(--bg-sunken);
+  --code-comment: var(--ink-3);
+
+  /* Typography */
+  --font-display: 'Newsreader', 'Source Serif Pro', Georgia, serif;
+  --font-body:    'Geist', system-ui, -apple-system, sans-serif;
+  --font-mono:    'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* Type scale */
-  --ht-text-xs: 13px;
-  --ht-text-sm: 14px;
-  --ht-text-base: 16px;
-  --ht-text-md: 17px;
-  --ht-text-lg: 19px;
-  --ht-text-xl: 23px;
-  --ht-text-2xl: 27px;
+  --fs-display: 38px;  --lh-display: 1.05;  --tr-display: -0.025em;
+  --fs-h1:      28px;  --lh-h1:      1.15;  --tr-h1:      -0.02em;
+  --fs-h2:      20px;  --lh-h2:      1.25;  --tr-h2:      -0.015em;
+  --fs-h3:      16px;  --lh-h3:      1.35;  --tr-h3:      -0.005em;
+  --fs-body:    14px;  --lh-body:    1.55;
+  --fs-small:   12.5px; --lh-small:  1.5;
+  --fs-micro:   11px;  --lh-micro:   1.4;
+  --fs-mono-sm: 12px;
+  --fs-mono-md: 13px;
+
+  /* Spacing (4px grid) */
+  --sp-1: 4px;   --sp-2: 8px;   --sp-3: 12px;  --sp-4: 16px;
+  --sp-5: 20px;  --sp-6: 24px;  --sp-7: 32px;  --sp-8: 40px;
+  --sp-9: 56px;  --sp-10: 72px;
+
+  /* Border radius */
+  --r-sm:  4px;
+  --r-md:  6px;
+  --r-lg:  8px;
+  --r-xl:  12px;
+  --r-pill: 999px;
+
+  /* Shadows */
+  --shadow-1: 0 1px 2px rgba(20, 22, 26, 0.04);
+  --shadow-2: 0 2px 8px rgba(20, 22, 26, 0.06), 0 1px 2px rgba(20, 22, 26, 0.04);
+  --shadow-3: 0 8px 24px rgba(20, 22, 26, 0.08), 0 2px 6px rgba(20, 22, 26, 0.04);
+
+  /* Motion */
+  --ease:   cubic-bezier(0.4, 0, 0.2, 1);
+  --t-fast: 120ms;
+  --t-med:  200ms;
 }
 
-/* — Spacing (4px grid) ————————————————————————————— */
-:root {
-  --ht-sp-1: 4px;
-  --ht-sp-2: 8px;
-  --ht-sp-3: 12px;
-  --ht-sp-4: 16px;
-  --ht-sp-5: 20px;
-  --ht-sp-6: 24px;
-  --ht-sp-8: 32px;
-  --ht-sp-10: 40px;
-}
+/* — Dark Theme ——————————————————————————————————————— */
+[data-theme="dark"] {
+  /* Surfaces */
+  --bg-page:    #111316;
+  --bg-surface: #191B1F;
+  --bg-sunken:  #15171B;
+  --bg-active:  #1D2026;
 
-/* — Border Radius —————————————————————————————————— */
-:root {
-  --ht-radius-sm: 6px;
-  --ht-radius-md: 9px;
-  --ht-radius-lg: 10px;
-  --ht-radius-full: 9999px;
-}
+  /* Ink (text) */
+  --ink-1: #EDEFF3;
+  --ink-2: #B5B9C0;
+  --ink-3: #888D97;
+  --ink-4: #5A5E66;
 
-/* — Motion ————————————————————————————————————————— */
-:root {
-  --ht-motion-micro: 120ms ease-out;
-  --ht-motion-transition: 200ms ease-out;
-  --ht-motion-signature: 2.5s ease-in-out infinite;
-  --ht-motion-reduced: 0.01ms;
+  /* Lines (borders) */
+  --line-1:      #272A30;
+  --line-2:      #1F2227;
+  --line-strong: #3A3E46;
+
+  /* Accent */
+  --accent:       #7A8AFF;
+  --accent-ink:   #0F1115;
+  --accent-hover: #93A0FF;
+  --accent-soft:  #1A1F36;
+
+  /* Status */
+  --ok:    #5FB988;  --ok-bg:    #19241E;
+  --warn:  #D9B36E;  --warn-bg:  #272219;
+  --err:   #E08278;  --err-bg:   #28191A;
+  --mute:  #6A707A;  --mute-bg:  #1D1F23;
+
+  /* Shadows */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 2px 8px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-3: 0 8px 24px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
 }

@@ -108,15 +108,14 @@ def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
     )
 
 
-def connected_payload_from(status: SystemStatus, session_id: int | None) -> ConnectedPayload:
-    """Build a ``ConnectedPayload`` from a ``SystemStatus`` and session ID.
+def connected_payload_from(status: SystemStatus) -> ConnectedPayload:
+    """Build a ``ConnectedPayload`` from a ``SystemStatus``.
 
-    ``session_id`` is not part of ``SystemStatus`` — it must be obtained by
-    the caller (e.g. via ``safe_session_id()``) and passed as a separate
-    argument.
+    ``uptime_seconds`` is sourced from ``SystemStatus.uptime_seconds``, which
+    is computed from the same ``_start_time`` used by ``GET /health``.
     """
     return ConnectedPayload(
-        session_id=session_id,
+        uptime_seconds=status.uptime_seconds,
         entity_count=status.entity_count,
         app_count=status.app_count,
     )

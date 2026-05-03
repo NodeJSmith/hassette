@@ -1,111 +1,67 @@
 /* Self-hosted fonts — Latin subset
-   DM Sans: 400, 500, 700
-   JetBrains Mono: 400, 500
-   Space Grotesk: 400, 500, 600, 700 */
+   Newsreader: 400 (display/headings)
+   Geist: 400, 500 (body)
+   Geist Mono: 400, 500 (code/mono) */
 
 @font-face {
-  font-family: 'DM Sans';
+  font-family: 'Newsreader';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/fonts/dm-sans-400.woff2') format('woff2');
+  src: url('/fonts/newsreader-400.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
-    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
     U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @font-face {
-  font-family: 'DM Sans';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('/fonts/dm-sans-500.woff2') format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
-    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
-    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-@font-face {
-  font-family: 'DM Sans';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('/fonts/dm-sans-700.woff2') format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
-    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
-    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-@font-face {
-  font-family: 'JetBrains Mono';
+  font-family: 'Geist';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/fonts/jetbrains-mono-400.woff2') format('woff2');
+  src: url('/fonts/geist-400.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
-    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
     U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @font-face {
-  font-family: 'JetBrains Mono';
+  font-family: 'Geist';
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url('/fonts/jetbrains-mono-500.woff2') format('woff2');
+  src: url('/fonts/geist-500.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
-    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
     U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @font-face {
-  font-family: 'Space Grotesk';
+  font-family: 'Geist Mono';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/fonts/space-grotesk-400.woff2') format('woff2');
+  src: url('/fonts/geist-mono-400.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
-    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
     U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @font-face {
-  font-family: 'Space Grotesk';
+  font-family: 'Geist Mono';
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url('/fonts/space-grotesk-500.woff2') format('woff2');
+  src: url('/fonts/geist-mono-500.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
-    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
-    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-@font-face {
-  font-family: 'Space Grotesk';
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url('/fonts/space-grotesk-600.woff2') format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
-    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
-    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-@font-face {
-  font-family: 'Space Grotesk';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('/fonts/space-grotesk-700.woff2') format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
-    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC,
+    U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
     U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 /* =====================================================
-   Hassette Design System — Components
-   All values reference --ht-* tokens from tokens.css.
-   No raw hex values allowed in this file.
+   Hassette Design System — Base + Components
+   All values reference Ink tokens from tokens.css.
+   No raw hex or pixel values in base styles.
    ===================================================== */
 
 /* — Reset ——————————————————————————————————————————————— */
@@ -124,16 +80,14 @@ html {
 
 body {
   margin: 0;
-  line-height: 1.5;
 }
 
-h1, h2, h3, h4, h5, h6 {
-  margin: 0 0 0.5em;
-  line-height: 1.25;
+h1, h2, h3, h4 {
+  margin: 0;
 }
 
-p, ul, ol, table, pre, blockquote {
-  margin: 0 0 1em;
+p, ul, ol, blockquote {
+  margin: 0;
 }
 
 img, svg {
@@ -143,6 +97,7 @@ img, svg {
 
 button {
   cursor: pointer;
+  font-family: inherit;
 }
 
 table {
@@ -154,56 +109,111 @@ table {
 /* — Global Focus Indicator ————————————————————————————— */
 /* Zero specificity via :where() — component-level overrides win cleanly */
 :where(:focus-visible) {
-  outline: 2px solid var(--ht-accent);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
 /* — Base Typography ———————————————————————————————————— */
 body {
-  font-family: var(--ht-font-body);
-  font-size: var(--ht-text-base);
-  color: var(--ht-text);
-  background: var(--ht-bg);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink-1);
+  background: var(--bg-page);
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--ht-font-heading);
-  font-weight: var(--ht-weight-semibold);
-  color: var(--ht-text);
+h1 {
+  font-family: var(--font-display);
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  letter-spacing: var(--tr-h1);
+  font-weight: 400;
+  color: var(--ink-1);
 }
 
-code, pre {
-  font-family: var(--ht-font-mono);
-  font-size: 0.9em;
-  color: var(--ht-text);
+h2 {
+  font-family: var(--font-display);
+  font-size: var(--fs-h2);
+  line-height: var(--lh-h2);
+  letter-spacing: var(--tr-h2);
+  font-weight: 400;
+  color: var(--ink-1);
+}
+
+h3 {
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  line-height: var(--lh-h3);
+  letter-spacing: var(--tr-h3);
+  font-weight: 400;
+  color: var(--ink-1);
+}
+
+h4 {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: 500;
+  color: var(--ink-1);
+}
+
+code, pre, kbd {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-md);
+}
+
+code {
+  background: var(--code-bg);
+  color: var(--ink-1);
+  padding: 0.1em 0.35em;
+  border-radius: var(--r-sm);
+}
+
+pre {
+  background: var(--code-bg);
+  color: var(--ink-1);
+  padding: var(--sp-4);
+  border-radius: var(--r-md);
+  overflow-x: auto;
+}
+
+pre code {
+  background: none;
+  padding: 0;
 }
 
 a {
-  color: var(--ht-link);
+  color: var(--accent);
   text-decoration: none;
 }
 
 a:hover {
-  color: var(--ht-link-hover);
-  text-decoration: underline;
-}
-
-a code {
-  color: var(--ht-link);
-}
-
-a:hover code {
+  color: var(--accent-hover);
   text-decoration: underline;
 }
 
 strong {
-  font-weight: var(--ht-weight-semibold);
+  font-weight: 500;
 }
 
-/* — Layout ————————————————————————————————————————————— */
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink-1);
+}
+
+/* — Reduced motion ————————————————————————————————————— */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* — Layout grid (240px sidebar + 1fr main) ————————————— */
 .ht-layout {
   display: grid;
-  grid-template-columns: 56px 1fr;
+  grid-template-columns: 240px 1fr;
   min-height: 100vh;
   min-height: 100dvh;
   position: relative;
@@ -211,21 +221,21 @@ strong {
 
 .ht-main {
   grid-column: 2;
-  background: var(--ht-bg);
+  background: var(--bg-page);
   overflow-y: auto;
   min-width: 0;
-  padding: var(--ht-sp-6);
+  padding: var(--sp-6);
 }
 
 .ht-section {
-  padding: var(--ht-sp-6);
+  padding: var(--sp-6);
 }
 
 /* 12-column CSS grid */
 .ht-grid {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
-  gap: var(--ht-sp-6);
+  gap: var(--sp-6);
 }
 
 .ht-grid-col-5  { grid-column: span 5; }
@@ -238,20 +248,20 @@ strong {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--ht-sp-4);
+  gap: var(--sp-4);
 }
 
 .ht-level-start {
   display: flex;
   align-items: center;
-  gap: var(--ht-sp-3);
+  gap: var(--sp-3);
   flex-wrap: wrap;
 }
 
 .ht-level-end {
   display: flex;
   align-items: center;
-  gap: var(--ht-sp-3);
+  gap: var(--sp-3);
   flex-wrap: wrap;
 }
 

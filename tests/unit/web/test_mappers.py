@@ -244,32 +244,30 @@ def test_system_status_response_from_empty_services():
 
 
 def test_connected_payload_from_uses_system_status_fields():
-    """entity_count and app_count from SystemStatus, session_id from parameter."""
-    domain = _make_system_status(entity_count=100, app_count=5)
+    """entity_count, app_count, and uptime_seconds come from SystemStatus."""
+    domain = _make_system_status(entity_count=100, app_count=5, uptime_seconds=300.0)
 
-    result = connected_payload_from(domain, session_id=42)
+    result = connected_payload_from(domain)
 
     assert isinstance(result, ConnectedPayload)
     assert result.entity_count == 100
     assert result.app_count == 5
-    assert result.session_id == 42
+    assert result.uptime_seconds == 300.0
 
 
-def test_connected_payload_from_none_session_id():
-    """session_id=None passes through."""
+def test_connected_payload_from_uptime_seconds_from_status():
+    """uptime_seconds is derived from SystemStatus, not a separate parameter."""
+    domain = _make_system_status(uptime_seconds=42.5)
+
+    result = connected_payload_from(domain)
+
+    assert result.uptime_seconds == 42.5
+
+
+def test_connected_payload_from_no_session_id():
+    """ConnectedPayload no longer carries session_id."""
     domain = _make_system_status()
 
-    result = connected_payload_from(domain, session_id=None)
+    result = connected_payload_from(domain)
 
-    assert result.session_id is None
-
-
-def test_connected_payload_from_session_id_is_separate_parameter():
-    """session_id is not part of SystemStatus — must come from parameter."""
-    domain = _make_system_status()
-    # Verify SystemStatus has no session_id attribute
-    assert not hasattr(domain, "session_id")
-
-    result = connected_payload_from(domain, session_id=99)
-
-    assert result.session_id == 99
+    assert not hasattr(result, "session_id")

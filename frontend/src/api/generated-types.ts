@@ -416,8 +416,7 @@ export interface paths {
          * Dashboard Framework Summary
          * @description Framework error counts for the System Health badge.
          *
-         *     Always scoped to the last 24 hours. When session_id is provided,
-         *     further narrows to errors from that session.
+         *     Always scoped to the last 24 hours.
          */
         get: operations["dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get"];
         put?: never;
@@ -1458,7 +1457,7 @@ export interface operations {
             query?: {
                 app_key?: string | null;
                 instance_index?: number;
-                session_id?: number | null;
+                since?: number | null;
             };
             header?: never;
             path?: never;
@@ -1570,7 +1569,7 @@ export interface operations {
         parameters: {
             query?: {
                 instance_index?: number;
-                session_id?: number | null;
+                since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
                 source_tier?: ("app" | "framework" | "all") | null;
             };
@@ -1607,7 +1606,7 @@ export interface operations {
         parameters: {
             query?: {
                 instance_index?: number;
-                session_id?: number | null;
+                since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
                 source_tier?: ("app" | "framework" | "all") | null;
             };
@@ -1644,7 +1643,7 @@ export interface operations {
         parameters: {
             query?: {
                 instance_index?: number;
-                session_id?: number | null;
+                since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
                 source_tier?: ("app" | "framework" | "all") | null;
             };
@@ -1681,7 +1680,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
-                session_id?: number | null;
+                since?: number | null;
             };
             header?: never;
             path: {
@@ -1715,7 +1714,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
-                session_id?: number | null;
+                since?: number | null;
             };
             header?: never;
             path: {
@@ -1748,7 +1747,7 @@ export interface operations {
     dashboard_kpis_api_telemetry_dashboard_kpis_get: {
         parameters: {
             query?: {
-                session_id?: number | null;
+                since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
                 source_tier?: ("app" | "framework" | "all") | null;
             };
@@ -1781,7 +1780,7 @@ export interface operations {
     dashboard_app_grid_api_telemetry_dashboard_app_grid_get: {
         parameters: {
             query?: {
-                session_id?: number | null;
+                since?: number | null;
             };
             header?: never;
             path?: never;
@@ -1812,7 +1811,6 @@ export interface operations {
     dashboard_errors_api_telemetry_dashboard_errors_get: {
         parameters: {
             query?: {
-                session_id?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
                 source_tier?: ("app" | "framework" | "all") | null;
             };
@@ -1844,9 +1842,7 @@ export interface operations {
     };
     dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get: {
         parameters: {
-            query?: {
-                session_id?: number | null;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -1860,15 +1856,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FrameworkSummaryResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

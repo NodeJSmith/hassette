@@ -10,7 +10,7 @@ import "./global.css";
 migrateKey("ht-theme", "theme");
 
 // Apply persisted theme before first render to avoid FOUC.
-const savedTheme = getStoredValue("theme", "dark" as const, isTheme);
+const savedTheme = getStoredValue("theme", "light" as const, isTheme);
 document.documentElement.setAttribute("data-theme", savedTheme);
 
 render(<App />, document.getElementById("app")!);

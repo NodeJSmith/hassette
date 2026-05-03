@@ -236,28 +236,25 @@ class TestGetListenerSummary:
         assert row.successful == 0
         assert row.failed == 0
 
-    async def test_get_listener_summary_session_scoped(
+    async def test_get_listener_summary_since_scoped(
         self,
         svc: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """2 invocations in session A, 1 in session B — session filter returns A only."""
-        db_svc, session_a = db
+        """2 invocations after since, 1 before — since filter returns only the 2 recent ones."""
+        db_svc, session_id = db
 
-        # Create a second session
-        cursor = await db_svc.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'stopped')",
-            (time.time(), time.time()),
-        )
-        session_b = cursor.lastrowid
-        await db_svc.db.commit()
+        base_ts = 1_000_000.0
+        since_ts = base_ts + 5.0
 
         listener_id = await _insert_listener(db_svc, handler_method="on_event")
-        await _insert_invocation(db_svc, listener_id, session_a, status="success")
-        await _insert_invocation(db_svc, listener_id, session_a, status="success")
-        await _insert_invocation(db_svc, listener_id, session_b, status="error")
+        # Two invocations after since_ts — should count
+        await _insert_invocation(db_svc, listener_id, session_id, status="success", execution_start_ts=base_ts + 10.0)
+        await _insert_invocation(db_svc, listener_id, session_id, status="success", execution_start_ts=base_ts + 20.0)
+        # One invocation before since_ts — should NOT count
+        await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 1.0)
 
-        rows = await svc.get_listener_summary("test_app", 0, session_id=session_a)
+        rows = await svc.get_listener_summary("test_app", 0, since=since_ts)
         assert len(rows) == 1
         row = rows[0]
         assert row.total_invocations == 2
@@ -609,34 +606,30 @@ class TestGetAllAppSummaries:
         result = await svc.get_all_app_summaries()
         assert result == {}
 
-    async def test_get_all_app_summaries_session_scoped(
+    async def test_get_all_app_summaries_since_scoped(
         self,
         svc: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """Session filter restricts invocation/execution counts."""
-        db_svc, session_a = db
+        """since filter restricts invocation/execution counts to records after the threshold."""
+        db_svc, session_id = db
 
-        cursor = await db_svc.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'stopped')",
-            (time.time(), time.time()),
-        )
-        session_b = cursor.lastrowid
-        await db_svc.db.commit()
+        base_ts = 1_000_000.0
+        since_ts = base_ts + 5.0
 
         l1 = await _insert_listener(db_svc, app_key="app_x", handler_method="on_a")
         j1 = await _insert_job(db_svc, app_key="app_x", job_name="job_a")
 
-        # Session A: 2 invocations (1 error), 1 execution
-        await _insert_invocation(db_svc, l1, session_a, status="success")
-        await _insert_invocation(db_svc, l1, session_a, status="error")
-        await _insert_execution(db_svc, j1, session_a, status="success")
+        # After since_ts: 2 invocations (1 error), 1 execution — should count
+        await _insert_invocation(db_svc, l1, session_id, status="success", execution_start_ts=base_ts + 10.0)
+        await _insert_invocation(db_svc, l1, session_id, status="error", execution_start_ts=base_ts + 20.0)
+        await _insert_execution(db_svc, j1, session_id, status="success", execution_start_ts=base_ts + 15.0)
 
-        # Session B: 1 invocation, 1 execution (error)
-        await _insert_invocation(db_svc, l1, session_b, status="success")
-        await _insert_execution(db_svc, j1, session_b, status="error")
+        # Before since_ts: 1 invocation, 1 execution (error) — should NOT count
+        await _insert_invocation(db_svc, l1, session_id, status="success", execution_start_ts=base_ts + 1.0)
+        await _insert_execution(db_svc, j1, session_id, status="error", execution_start_ts=base_ts + 2.0)
 
-        result = await svc.get_all_app_summaries(session_id=session_a)
+        result = await svc.get_all_app_summaries(since=since_ts)
         assert "app_x" in result
         x = result["app_x"]
         assert x.total_invocations == 2
@@ -744,20 +737,16 @@ class TestGetAllAppSummaries:
         assert s.total_job_errors == 0
         assert s.avg_duration_ms == pytest.approx(20.0, abs=0.001)
 
-    async def test_get_all_app_summaries_multi_instance_session_scoped(
+    async def test_get_all_app_summaries_multi_instance_since_scoped(
         self,
         svc: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """Multi-instance data across sessions: session-scoped variant aggregates correctly."""
-        db_svc, session_a = db
+        """Multi-instance data with since filter: only records after threshold count."""
+        db_svc, session_id = db
 
-        cursor = await db_svc.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'stopped')",
-            (time.time(), time.time()),
-        )
-        session_b = cursor.lastrowid
-        await db_svc.db.commit()
+        base_ts = 1_000_000.0
+        since_ts = base_ts + 5.0
 
         # Instance 0: listener + job
         l0 = await _insert_listener(db_svc, app_key="app_ms", instance_index=0, handler_method="on_a")
@@ -767,18 +756,26 @@ class TestGetAllAppSummaries:
         l1 = await _insert_listener(db_svc, app_key="app_ms", instance_index=1, handler_method="on_a")
         j1 = await _insert_job(db_svc, app_key="app_ms", instance_index=1, job_name="cron_a")
 
-        # Session A: instance 0 gets 2 invocations, instance 1 gets 1 invocation
-        await _insert_invocation(db_svc, l0, session_a, status="success", duration_ms=10.0)
-        await _insert_invocation(db_svc, l0, session_a, status="error", duration_ms=20.0)
-        await _insert_invocation(db_svc, l1, session_a, status="success", duration_ms=30.0)
-        await _insert_execution(db_svc, j0, session_a, status="success")
-        await _insert_execution(db_svc, j1, session_a, status="error")
+        # After since_ts: instance 0 gets 2 invocations, instance 1 gets 1 invocation
+        await _insert_invocation(
+            db_svc, l0, session_id, status="success", duration_ms=10.0, execution_start_ts=base_ts + 10.0
+        )
+        await _insert_invocation(
+            db_svc, l0, session_id, status="error", duration_ms=20.0, execution_start_ts=base_ts + 20.0
+        )
+        await _insert_invocation(
+            db_svc, l1, session_id, status="success", duration_ms=30.0, execution_start_ts=base_ts + 30.0
+        )
+        await _insert_execution(db_svc, j0, session_id, status="success", execution_start_ts=base_ts + 10.0)
+        await _insert_execution(db_svc, j1, session_id, status="error", execution_start_ts=base_ts + 20.0)
 
-        # Session B: instance 0 gets 1 invocation (should NOT be counted for session A)
-        await _insert_invocation(db_svc, l0, session_b, status="success", duration_ms=100.0)
-        await _insert_execution(db_svc, j0, session_b, status="error")
+        # Before since_ts: 1 invocation + 1 execution per instance — should NOT be counted
+        await _insert_invocation(
+            db_svc, l0, session_id, status="success", duration_ms=100.0, execution_start_ts=base_ts + 1.0
+        )
+        await _insert_execution(db_svc, j0, session_id, status="error", execution_start_ts=base_ts + 2.0)
 
-        result = await svc.get_all_app_summaries(session_id=session_a)
+        result = await svc.get_all_app_summaries(since=since_ts)
         assert "app_ms" in result
         ms = result["app_ms"]
 
@@ -786,15 +783,15 @@ class TestGetAllAppSummaries:
         assert ms.handler_count == 1
         # job_count from instance 0 only
         assert ms.job_count == 1
-        # total_invocations: session A across all instances = 2 + 1 = 3
+        # total_invocations: after since_ts across all instances = 2 + 1 = 3
         assert ms.total_invocations == 3
-        # total_errors: session A across all instances = 1
+        # total_errors: after since_ts across all instances = 1
         assert ms.total_errors == 1
-        # total_executions: session A across all instances = 1 + 1 = 2
+        # total_executions: after since_ts across all instances = 1 + 1 = 2
         assert ms.total_executions == 2
-        # total_job_errors: session A across all instances = 1
+        # total_job_errors: after since_ts across all instances = 1
         assert ms.total_job_errors == 1
-        # avg_duration_ms: session A across all instances = (10+20+30)/3 = 20.0
+        # avg_duration_ms: after since_ts across all instances = (10+20+30)/3 = 20.0
         assert ms.avg_duration_ms == pytest.approx(20.0)
 
 
@@ -1415,35 +1412,37 @@ class TestSourceTierClause:
 
 
 # ---------------------------------------------------------------------------
-# Tests: get_job_summary with session_id — uncovered lines 175-176
+# Tests: get_job_summary with since — time-window filter
 # ---------------------------------------------------------------------------
 
 
-class TestGetJobSummarySessionScoped:
-    async def test_get_job_summary_session_scoped(
+class TestGetJobSummarySinceScoped:
+    async def test_get_job_summary_since_scoped(
         self,
         svc: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """session_id restricts job execution counts to a single session."""
-        db_svc, session_a = db
+        """since filter restricts job execution counts to records after the threshold."""
+        db_svc, session_id = db
 
-        cursor = await db_svc.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'stopped')",
-            (time.time(), time.time()),
-        )
-        session_b = cursor.lastrowid
-        await db_svc.db.commit()
+        base_ts = 1_000_000.0
+        since_ts = base_ts + 5.0
 
         j1 = await _insert_job(db_svc, job_name="job_a")
 
-        # Session A: 2 executions
-        await _insert_execution(db_svc, j1, session_a, status="success", duration_ms=10.0)
-        await _insert_execution(db_svc, j1, session_a, status="error", duration_ms=20.0)
-        # Session B: 1 execution (should NOT be counted)
-        await _insert_execution(db_svc, j1, session_b, status="success", duration_ms=30.0)
+        # 2 executions after since_ts — should count
+        await _insert_execution(
+            db_svc, j1, session_id, status="success", duration_ms=10.0, execution_start_ts=base_ts + 10.0
+        )
+        await _insert_execution(
+            db_svc, j1, session_id, status="error", duration_ms=20.0, execution_start_ts=base_ts + 20.0
+        )
+        # 1 execution before since_ts — should NOT be counted
+        await _insert_execution(
+            db_svc, j1, session_id, status="success", duration_ms=30.0, execution_start_ts=base_ts + 1.0
+        )
 
-        rows = await svc.get_job_summary("test_app", 0, session_id=session_a)
+        rows = await svc.get_job_summary("test_app", 0, since=since_ts)
         assert len(rows) == 1
         row = rows[0]
         assert row.total_executions == 2
@@ -1547,30 +1546,37 @@ class TestGetGlobalSummaryFrameworkTier:
         assert result.listeners.total_listeners == 1
         assert result.jobs.total_jobs == 1
 
-    async def test_get_global_summary_framework_tier_with_session(
+    async def test_get_global_summary_framework_tier_with_since(
         self,
         svc: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
-        """get_global_summary(source_tier='framework', session_id=...) uses WHERE session_id + framework filter."""
-        db_svc, session_a = db
+        """get_global_summary(source_tier='framework', since=...) uses since + framework filter."""
+        db_svc, session_id = db
 
-        cursor = await db_svc.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'stopped')",
-            (time.time(), time.time()),
-        )
-        session_b = cursor.lastrowid
-        await db_svc.db.commit()
+        base_ts = 1_000_000.0
+        since_ts = base_ts + 5.0
 
         fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
 
-        # Session A: 2 framework invocations
-        await _insert_invocation(db_svc, fw_listener, session_a, status="success", source_tier="framework")
-        await _insert_invocation(db_svc, fw_listener, session_a, status="error", source_tier="framework")
-        # Session B: 1 framework invocation (must NOT count)
-        await _insert_invocation(db_svc, fw_listener, session_b, status="success", source_tier="framework")
+        # After since_ts: 2 framework invocations — should count
+        await _insert_invocation(
+            db_svc,
+            fw_listener,
+            session_id,
+            status="success",
+            source_tier="framework",
+            execution_start_ts=base_ts + 10.0,
+        )
+        await _insert_invocation(
+            db_svc, fw_listener, session_id, status="error", source_tier="framework", execution_start_ts=base_ts + 20.0
+        )
+        # Before since_ts: 1 framework invocation — must NOT count
+        await _insert_invocation(
+            db_svc, fw_listener, session_id, status="success", source_tier="framework", execution_start_ts=base_ts + 1.0
+        )
 
-        result = await svc.get_global_summary(source_tier="framework", session_id=session_a)
+        result = await svc.get_global_summary(source_tier="framework", since=since_ts)
         assert result.listeners.total_invocations == 2
         assert result.listeners.total_errors == 1
 
