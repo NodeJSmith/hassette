@@ -360,7 +360,9 @@ class BusService(Service):
             # FR4: handler receives the original triggering event (the synthetic event
             # built from current state at registration time).  The recheck at fire time
             # validates current state but does not change what event the handler receives.
-            invoke_fn = self._make_tracked_invoke_fn(synthetic_event.topic, synthetic_event, listener)
+            invoke_fn = self._make_tracked_invoke_fn(
+                synthetic_event.topic, synthetic_event, listener, is_synthetic=True
+            )
 
             if listener.duration is not None and listener._duration_timer is not None:
                 elapsed = 0.0
@@ -665,7 +667,7 @@ class BusService(Service):
                 self.remove_listener(listener)
 
     def _make_tracked_invoke_fn(
-        self, topic: str, event: "Event[Any]", listener: "Listener"
+        self, topic: str, event: "Event[Any]", listener: "Listener", *, is_synthetic: bool = False
     ) -> Callable[[], "Awaitable[None]"]:
         """Build an invoke function for all listeners with telemetry.
 
@@ -704,6 +706,7 @@ class BusService(Service):
                 source_tier=listener.source_tier,
                 effective_timeout=effective_timeout,
                 app_level_error_handler=app_level_error_handler,
+                is_synthetic=is_synthetic,
             )
             await self._executor.execute(cmd)
 

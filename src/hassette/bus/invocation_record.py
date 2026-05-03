@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from hassette.types.types import SourceTier
 
+SYNTHETIC_ORIGIN = "HASSETTE_SYNTHETIC"
+
 
 @dataclass(frozen=True)
 class HandlerInvocationRecord:
@@ -46,7 +48,16 @@ class HandlerInvocationRecord:
     """UUID4 string identifying the specific execution instance. None when not populated."""
 
     trigger_context_id: str | None = None
-    """event_id from the triggering event payload. None for non-event-triggered invocations."""
+    """event_id from the triggering event payload.
+
+    None for non-event-triggered invocations and for synthetic events
+    (immediate=True initial fire) whose context IDs have no HA counterpart.
+    """
 
     trigger_origin: str | None = None
-    """Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'). None when not available."""
+    """Origin of the triggering event.
+
+    Values: 'LOCAL', 'REMOTE', 'HASSETTE', 'HASSETTE_SYNTHETIC'. None when not available.
+    'HASSETTE_SYNTHETIC' marks immediate=True initial-fire invocations where the
+    event was synthesized by the framework and has no corresponding HA log entry.
+    """

@@ -200,16 +200,21 @@ class TypeRegistry:
         if key not in self.conversion_map and to_type is not type(None):
             try:
                 new_value = to_type(value)
-                LOGGER.debug(
-                    "Converted %r (%s) to %r (%s) using constructor",
-                    value,
-                    type(value).__name__,
-                    new_value,
-                    to_type.__name__,
-                )
-                return new_value
             except Exception as e:
                 raise UnableToConvertValueError(f"Unable to convert {value!r} to {to_type}") from e
+            TypeRegistry.register(
+                TypeConverterEntry(
+                    func=to_type, from_type=from_type, to_type=to_type, error_types=(ValueError, TypeError)
+                )
+            )
+            LOGGER.debug(
+                "Converted %r (%s) to %r (%s) using constructor (auto-registered)",
+                value,
+                type(value).__name__,
+                new_value,
+                to_type.__name__,
+            )
+            return new_value
 
         fn = self.conversion_map[key]
 

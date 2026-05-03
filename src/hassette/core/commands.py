@@ -49,6 +49,13 @@ class InvokeHandler:
     has no per-registration error handler. None when the Bus has no app-level handler set.
     """
 
+    is_synthetic: bool = False
+    """True when the event was synthesized by hassette (e.g., immediate=True initial fire).
+
+    Synthetic events have no corresponding entry in HA logs, so trigger_context_id
+    should not be recorded — it would be a misleading UUID.
+    """
+
 
 @dataclass(frozen=True)
 class ExecuteJob:

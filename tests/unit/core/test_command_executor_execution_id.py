@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import whenever
 
+from hassette.bus.invocation_record import SYNTHETIC_ORIGIN
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.commands import ExecuteJob, InvokeHandler
@@ -109,6 +110,7 @@ def _make_invoke_handler_cmd(
     cmd.event = event
     cmd.effective_timeout = None
     cmd.app_level_error_handler = app_level_error_handler
+    cmd.is_synthetic = False
     return cmd
 
 
@@ -358,6 +360,30 @@ class TestHandlerRecordTriggerFields:
         record = executor._write_queue.get_nowait()
         assert record.trigger_context_id == event.payload.event_id
         assert _is_valid_uuid4(record.trigger_context_id)
+
+    async def test_synthetic_event_nulls_trigger_context_id(self) -> None:
+        """Synthetic events (immediate=True) should have trigger_context_id=None."""
+        executor = _make_executor()
+        event = _make_hass_event()
+        cmd = _make_invoke_handler_cmd(event=event)
+        cmd.is_synthetic = True
+
+        await executor._execute_handler(cmd)
+
+        record = executor._write_queue.get_nowait()
+        assert record.trigger_context_id is None
+
+    async def test_synthetic_event_uses_hassette_synthetic_origin(self) -> None:
+        """Synthetic events should have trigger_origin='HASSETTE_SYNTHETIC'."""
+        executor = _make_executor()
+        event = _make_hass_event(origin="LOCAL")
+        cmd = _make_invoke_handler_cmd(event=event)
+        cmd.is_synthetic = True
+
+        await executor._execute_handler(cmd)
+
+        record = executor._write_queue.get_nowait()
+        assert record.trigger_origin == SYNTHETIC_ORIGIN
 
 
 # ---------------------------------------------------------------------------

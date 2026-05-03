@@ -1483,23 +1483,23 @@ class TestAppKeyValidation:
         response = await client.post(f"/api/apps/{app_key}/reload")
         assert response.status_code == 400
 
-    async def test_nonexistent_app_key_start_returns_500(self, client: "AsyncClient", mock_hassette) -> None:
-        """Non-existent app_key on start returns 500 when service raises KeyError."""
-        mock_hassette._app_handler.start_app = AsyncMock(side_effect=KeyError("unknown_app"))
+    async def test_nonexistent_app_key_start_returns_404(self, client: "AsyncClient", mock_hassette) -> None:
+        """Non-existent app_key returns 404 when registry has no manifest."""
+        mock_hassette._app_handler.registry.get_manifest.return_value = None
         response = await client.post("/api/apps/unknown_app/start")
-        assert response.status_code == 500
+        assert response.status_code == 404
 
-    async def test_nonexistent_app_key_stop_returns_500(self, client: "AsyncClient", mock_hassette) -> None:
-        """Non-existent app_key on stop returns 500 when service raises KeyError."""
-        mock_hassette._app_handler.stop_app = AsyncMock(side_effect=KeyError("unknown_app"))
+    async def test_nonexistent_app_key_stop_returns_404(self, client: "AsyncClient", mock_hassette) -> None:
+        """Non-existent app_key returns 404 when registry has no manifest."""
+        mock_hassette._app_handler.registry.get_manifest.return_value = None
         response = await client.post("/api/apps/unknown_app/stop")
-        assert response.status_code == 500
+        assert response.status_code == 404
 
-    async def test_nonexistent_app_key_reload_returns_500(self, client: "AsyncClient", mock_hassette) -> None:
-        """Non-existent app_key on reload returns 500 when service raises KeyError."""
-        mock_hassette._app_handler.reload_app = AsyncMock(side_effect=KeyError("unknown_app"))
+    async def test_nonexistent_app_key_reload_returns_404(self, client: "AsyncClient", mock_hassette) -> None:
+        """Non-existent app_key returns 404 when registry has no manifest."""
+        mock_hassette._app_handler.registry.get_manifest.return_value = None
         response = await client.post("/api/apps/unknown_app/reload")
-        assert response.status_code == 500
+        assert response.status_code == 404
 
     async def test_valid_app_key_with_dots_and_underscores_accepted(self, client: "AsyncClient") -> None:
         """app_key with dots and underscores is valid per the regex."""
