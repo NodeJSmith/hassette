@@ -209,6 +209,55 @@ async def test_same_state_no_transition():
 
 
 # ---------------------------------------------------------------------------
+# Mutation testing: survivors from mutation testing pass
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_hasattr_guard_invalid_transition_no_hassette():
+    """Invalid transition on an object without hassette attribute should not raise AttributeError."""
+    from hassette.resources.mixins import LifecycleMixin
+
+    mixin = LifecycleMixin.__new__(LifecycleMixin)
+    mixin._status = ResourceStatus.NOT_STARTED
+    mixin._previous_status = ResourceStatus.NOT_STARTED
+
+    assert not hasattr(mixin, "hassette")
+    mixin.status = ResourceStatus.RUNNING
+    assert mixin.status == ResourceStatus.RUNNING
+
+
+@pytest.mark.asyncio
+async def test_is_true_identity_check_mock_safe():
+    """MagicMock's truthy strict_lifecycle must NOT trigger strict mode (is True identity check)."""
+    from unittest.mock import AsyncMock
+
+    hassette = AsyncMock()
+    hassette.config.log_level = "DEBUG"
+    resource = _SimpleResource(hassette)
+
+    assert resource.hassette.config.strict_lifecycle
+    assert resource.hassette.config.strict_lifecycle is not True
+
+    resource.status = ResourceStatus.RUNNING
+    assert resource.status == ResourceStatus.RUNNING
+
+
+@pytest.mark.asyncio
+async def test_same_state_setter_no_raise():
+    """Direct same-state assignment via setter should not raise or re-validate."""
+    hassette = _make_hassette_stub(strict_lifecycle=True)
+    resource = _SimpleResource(hassette)
+    resource._status = ResourceStatus.RUNNING
+    resource._previous_status = ResourceStatus.STARTING
+
+    resource.status = ResourceStatus.RUNNING
+
+    assert resource.status == ResourceStatus.RUNNING
+    assert resource._previous_status == ResourceStatus.STARTING
+
+
+# ---------------------------------------------------------------------------
 # WP02: shutdown() sets STOPPING before hooks run
 # ---------------------------------------------------------------------------
 

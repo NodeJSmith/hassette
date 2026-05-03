@@ -156,6 +156,20 @@ class TestInvalidTransitions:
         assert websocket_service_strict.connection_state == ConnectionState.CONNECTED
 
 
+class TestHasattrGuard:
+    async def test_invalid_transition_no_hassette_no_crash(self) -> None:
+        """Invalid WS transition on an object without hassette must not AttributeError."""
+        import logging
+
+        ws = WebsocketService.__new__(WebsocketService)
+        ws._connection_state = ConnectionState.DISCONNECTED
+        ws.logger = logging.getLogger("test")
+
+        assert not hasattr(ws, "hassette")
+        ws._set_connection_state(ConnectionState.CONNECTED)
+        assert ws._connection_state == ConnectionState.CONNECTED
+
+
 class TestValidConnectSequence:
     async def test_valid_connect_sequence(self, websocket_service: WebsocketService) -> None:
         """DISCONNECTED → CONNECTING → CONNECTED transition sequence via serve()."""
