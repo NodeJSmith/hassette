@@ -136,6 +136,7 @@ class LifecycleMixin(_LifecycleHostStubs):
         """
         if not self.ready_event.is_set():
             self.logger.debug("%s already not ready, skipping reason %s", self.unique_name, reason)
+            return
 
         self._ready_reason = reason
         self.ready_event.clear()

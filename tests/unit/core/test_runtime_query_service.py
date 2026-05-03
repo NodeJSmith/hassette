@@ -389,3 +389,45 @@ class TestWebSocketClientManagement:
         assert queue.qsize() == 256  # still full, message was dropped
 
         await runtime.unregister_ws_client(queue)
+
+
+class TestServiceStatusMapping:
+    async def test_on_service_status_maps_ready_fields(self, runtime: RuntimeQueryService) -> None:
+        from hassette.events.hassette import HassetteServiceEvent
+        from hassette.types.enums import ResourceRole
+
+        broadcast_calls: list[dict] = []
+        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+
+        event = HassetteServiceEvent.from_data(
+            resource_name="WebsocketService",
+            role=ResourceRole.SERVICE,
+            status=ResourceStatus.RUNNING,
+            ready=True,
+            ready_phase="Connected and authenticated",
+        )
+        await runtime._on_service_status(event)
+
+        assert len(broadcast_calls) == 1
+        data = broadcast_calls[0]["data"]
+        assert data["ready"] is True
+        assert data["ready_phase"] == "Connected and authenticated"
+
+    async def test_on_service_status_defaults_ready_false(self, runtime: RuntimeQueryService) -> None:
+        from hassette.events.hassette import HassetteServiceEvent
+        from hassette.types.enums import ResourceRole
+
+        broadcast_calls: list[dict] = []
+        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+
+        event = HassetteServiceEvent.from_data(
+            resource_name="SomeService",
+            role=ResourceRole.SERVICE,
+            status=ResourceStatus.STARTING,
+        )
+        await runtime._on_service_status(event)
+
+        assert len(broadcast_calls) == 1
+        data = broadcast_calls[0]["data"]
+        assert data["ready"] is False
+        assert data["ready_phase"] is None

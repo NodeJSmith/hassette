@@ -584,9 +584,29 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         Call this from an async context (e.g., inside ``serve()``) after calling
         ``mark_ready()`` or ``mark_not_ready()`` to propagate mid-operation
         readiness changes to the frontend.
+
+        This method is intended for mid-operation readiness changes while the service
+        status is RUNNING. Do not call after handle_failed(), handle_stop(), or
+        handle_crash() — those lifecycle methods emit their own status events including
+        the current readiness state. Calling this method after a lifecycle transition
+        will emit a duplicate event.
+
+        Callers should wrap with ``with suppress(Exception):`` — event emission failures
+        must not abort readiness transitions or reconnect loops.
         """
-        event = self._create_service_status_event(self._status, ready=self.is_ready(), ready_phase=self._ready_reason)
-        await self.hassette.send_event(event.topic, event)
+        try:
+            event = self._create_service_status_event(
+                self._status, ready=self.is_ready(), ready_phase=self._ready_reason
+            )
+            await self.hassette.send_event(event.topic, event)
+        except Exception:
+            self.logger.warning(
+                "%s failed to emit readiness event (ready=%s, phase=%s)",
+                self.unique_name,
+                self.is_ready(),
+                self._ready_reason,
+                exc_info=True,
+            )
 
     async def restart(self) -> None:
         """Restart the instance by shutting it down and re-initializing it."""

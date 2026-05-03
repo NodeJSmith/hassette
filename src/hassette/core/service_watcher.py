@@ -151,6 +151,8 @@ class ServiceWatcher(Resource):
             topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
             payload=HassettePayload(
                 event_type=str(status),
+                # ready=False is always correct for ServiceWatcher-synthesized events: this method
+                # only fires for CRASHED/EXHAUSTED states where the service loop has already exited.
                 data=ServiceStatusPayload(
                     resource_name=name,
                     role=role,  # pyright: ignore[reportArgumentType]

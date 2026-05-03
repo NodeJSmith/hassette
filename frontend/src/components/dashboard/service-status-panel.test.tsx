@@ -130,6 +130,19 @@ describe("ServiceStatusPanel", () => {
       const row = getByTestId("service-status-row-cooling_svc");
       expect(row.className).toContain("ht-ssp__row--warning");
     });
+
+    it("renders 'retrying now' when retry_at is in the past", () => {
+      const PAST_RETRY_AT = Date.now() / 1000 - 60;
+      const serviceStatus = makeServiceStatus([
+        makeEntry({ resource_name: "cooling_svc", status: "exhausted_cooling", retry_at: PAST_RETRY_AT }),
+      ]);
+      const { container } = renderWithAppState(<ServiceStatusPanel />, {
+        stateOverrides: { serviceStatus },
+      });
+      const detail = container.querySelector(".ht-ssp__detail--cooling");
+      expect(detail).not.toBeNull();
+      expect(detail!.textContent).toContain("retrying now");
+    });
   });
 
   describe("failed/crashed rendering", () => {

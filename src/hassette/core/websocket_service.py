@@ -204,16 +204,14 @@ class WebsocketService(Service):
                             # Send event before marking not-ready so the idempotency guard passes
                             await self._send_connection_lost_event()
                             self.mark_not_ready(reason="Early drop detected")
-                            with suppress(Exception):
-                                await self._emit_readiness_event()
+                            await self._emit_readiness_event()
                             await self._partial_cleanup()
                             await self._early_drop_backoff(early_drop_attempts)
                             continue
                         # Genuine failure — propagate to _serve_wrapper
                         await self._send_connection_lost_event()
                         self.mark_not_ready(reason="WebSocket recv loop failed")
-                        with suppress(Exception):
-                            await self._emit_readiness_event()
+                        await self._emit_readiness_event()
                         raise
 
     async def _connect_ws(self, session: aiohttp.ClientSession) -> None:
@@ -254,8 +252,7 @@ class WebsocketService(Service):
         self._subscription_ids.add(await self._subscribe_events())
 
         self.mark_ready(reason="WebSocket connected, authenticated, and subscribed")
-        with suppress(Exception):
-            await self._emit_readiness_event()
+        await self._emit_readiness_event()
         self._connected_at = time.monotonic()
         return recv_task
 
