@@ -76,30 +76,30 @@ export function ConfirmDialog({
   }, [onCancel]);
 
   const idRef = useRef(Math.random().toString(36).slice(2, 8));
-  const titleId = `confirm-dialog-title-${idRef.current}`;
-  const bodyId = `confirm-dialog-body-${idRef.current}`;
+  const titleId = `ht-confirm-dialog-title-${idRef.current}`;
+  const bodyId = `ht-confirm-dialog-body-${idRef.current}`;
 
   return (
     <>
-      <div class="confirm-dialog__backdrop" onClick={onCancel} aria-hidden="true" />
+      <div class="ht-confirm-dialog__backdrop" onClick={onCancel} aria-hidden="true" />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={bodyId}
-        class="confirm-dialog"
+        class="ht-confirm-dialog"
       >
-        <h2 id={titleId} class="confirm-dialog__title">
+        <h2 id={titleId} class="ht-confirm-dialog__title">
           {title}
         </h2>
-        <p id={bodyId} class="confirm-dialog__body">
+        <p id={bodyId} class="ht-confirm-dialog__body">
           {body}
         </p>
-        <div class="confirm-dialog__actions">
+        <div class="ht-confirm-dialog__actions">
           <button
             type="button"
             ref={cancelRef}
-            class="confirm-dialog__cancel"
+            class="ht-confirm-dialog__cancel"
             onClick={onCancel}
           >
             Cancel
@@ -107,7 +107,7 @@ export function ConfirmDialog({
           <button
             type="button"
             ref={confirmRef}
-            class={`confirm-dialog__confirm${tone === "danger" ? " confirm-dialog__confirm--danger" : ""}`}
+            class={`ht-confirm-dialog__confirm${tone === "danger" ? " ht-confirm-dialog__confirm--danger" : ""}`}
             onClick={onConfirm}
           >
             {confirmLabel}

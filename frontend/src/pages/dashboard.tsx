@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "preact/hooks";
-import { useSignal } from "@preact/signals";
+import { useSignal, type Signal } from "@preact/signals";
+import type { UseApiResult } from "../hooks/use-api";
 import {
   getDashboardAppGrid,
   getDashboardErrors,
   getDashboardKpis,
 } from "../api/endpoints";
-import type { SourceTier, DashboardAppGridEntry, DashboardKpis } from "../api/endpoints";
+import type { SourceTier, DashboardAppGridEntry, DashboardKpis, DashboardErrorEntry } from "../api/endpoints";
 import { AppGrid } from "../components/dashboard/app-grid";
 import { ErrorFeed } from "../components/dashboard/error-feed";
 import { FrameworkHealth } from "../components/dashboard/framework-health";
@@ -140,6 +141,69 @@ function HeroCard({ state, apps }: HeroCardProps) {
   return <HeroCardMultipleFailures apps={apps ?? []} />;
 }
 
+// ---- Recent Errors Section -------------------------------------------------
+
+function RecentErrorsSection({
+  errors,
+  tierFilter,
+  filterInteracted,
+}: {
+  errors: UseApiResult<DashboardErrorEntry[]>;
+  tierFilter: Signal<SourceTier>;
+  filterInteracted: Signal<boolean>;
+}) {
+  if (errors.error.value) {
+    return (
+      <div class="ht-empty-section ht-mb-6">
+        <IconWarning />
+        <span class="ht-text-danger ht-text-xs">Failed to load errors: {errors.error.value}</span>
+      </div>
+    );
+  }
+
+  const hasErrors = errors.data.value && errors.data.value.length > 0;
+  const showCard = errors.loading.value || hasErrors || tierFilter.value !== "all" || filterInteracted.value;
+
+  if (!showCard) {
+    return (
+      <div class="ht-empty-section ht-mb-6">
+        <IconCheck />
+        <span class="ht-text-muted ht-text-xs">No recent errors. All systems healthy.</span>
+      </div>
+    );
+  }
+
+  const headingIcon = errors.loading.value ? null : hasErrors ? <IconWarning /> : <IconCheck />;
+
+  return (
+    <div class={`ht-card${hasErrors ? " ht-card--urgent" : ""} ht-mb-6`}>
+      <h2 class="ht-heading-5">
+        {headingIcon}
+        <span>Recent Errors</span>
+        <span class="ht-info-hint" title="Showing errors from the last 24 hours" aria-label="Showing errors from the last 24 hours"><IconInfo /></span>
+        <div class="ht-tier-toggle">
+          {TIER_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              class={`ht-tier-toggle__btn${tierFilter.value === opt.value ? " ht-tier-toggle__btn--active" : ""}`}
+              onClick={() => { tierFilter.value = opt.value; filterInteracted.value = true; }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </h2>
+      {errors.loading.value ? (
+        <Spinner />
+      ) : hasErrors ? (
+        <ErrorFeed errors={errors.data.value!} />
+      ) : (
+        <p class="ht-text-muted ht-text-xs">No errors for this filter.</p>
+      )}
+    </div>
+  );
+}
+
 // ---- Dashboard Page --------------------------------------------------------
 
 export function DashboardPage() {
@@ -229,43 +293,11 @@ export function DashboardPage() {
         <AppGrid apps={appGrid.data.value} />
       </div>
 
-      {errors.error.value ? (
-        <div class="ht-empty-section ht-mb-6">
-          <IconWarning />
-          <span class="ht-text-danger ht-text-xs">Failed to load errors: {errors.error.value}</span>
-        </div>
-      ) : errors.loading.value || (errors.data.value && errors.data.value.length > 0) || errorTierFilter.value !== "all" || errorFilterInteracted.value ? (
-        <div class={`ht-card${errors.data.value && errors.data.value.length > 0 ? " ht-card--urgent" : ""} ht-mb-6`}>
-          <h2 class="ht-heading-5">
-            {errors.loading.value ? null : errors.data.value && errors.data.value.length > 0 ? <IconWarning /> : <IconCheck />}
-            <span>Recent Errors</span>
-            <span class="ht-info-hint" title="Showing errors from the last 24 hours" aria-label="Showing errors from the last 24 hours"><IconInfo /></span>
-            <div class="ht-tier-toggle">
-              {TIER_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  class={`ht-tier-toggle__btn${errorTierFilter.value === opt.value ? " ht-tier-toggle__btn--active" : ""}`}
-                  onClick={() => { errorTierFilter.value = opt.value; errorFilterInteracted.value = true; }}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </h2>
-          {errors.loading.value ? (
-            <Spinner />
-          ) : errors.data.value && errors.data.value.length > 0 ? (
-            <ErrorFeed errors={errors.data.value} />
-          ) : (
-            <p class="ht-text-muted ht-text-xs">No errors for this filter.</p>
-          )}
-        </div>
-      ) : (
-        <div class="ht-empty-section ht-mb-6">
-          <IconCheck />
-          <span class="ht-text-muted ht-text-xs">No recent errors. All systems healthy.</span>
-        </div>
-      )}
+      <RecentErrorsSection
+        errors={errors}
+        tierFilter={errorTierFilter}
+        filterInteracted={errorFilterInteracted}
+      />
 
       <ServiceStatusPanel />
       <FrameworkHealth />

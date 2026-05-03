@@ -54,7 +54,7 @@ describe("Sidebar — structure", () => {
 
   it("renders the Cmd-K button", () => {
     const { container } = renderWithAppState(<Sidebar />);
-    const btn = container.querySelector(".sidebar__cmdkey");
+    const btn = container.querySelector(".ht-sidebar__cmdkey");
     expect(btn).not.toBeNull();
     expect((btn as HTMLButtonElement).disabled).toBe(false);
   });
@@ -62,7 +62,7 @@ describe("Sidebar — structure", () => {
   it("Cmd-K button calls onOpenPalette when clicked", () => {
     const onOpenPalette = vi.fn();
     const { container } = renderWithAppState(<Sidebar onOpenPalette={onOpenPalette} />);
-    const btn = container.querySelector(".sidebar__cmdkey")! as HTMLButtonElement;
+    const btn = container.querySelector(".ht-sidebar__cmdkey")! as HTMLButtonElement;
     fireEvent.click(btn);
     expect(onOpenPalette).toHaveBeenCalledOnce();
   });
@@ -203,7 +203,7 @@ describe("Sidebar — app list", () => {
     const { findByText, container } = renderWithAppState(<Sidebar />);
     expect(await findByText("Failed App")).toBeDefined();
     expect(await findByText("Running App")).toBeDefined();
-    const names = Array.from(container.querySelectorAll(".sidebar__app-name")).map((el) => el.textContent);
+    const names = Array.from(container.querySelectorAll(".ht-sidebar__app-name")).map((el) => el.textContent);
     const failedIdx = names.indexOf("Failed App");
     const runningIdx = names.indexOf("Running App");
     expect(failedIdx).toBeLessThan(runningIdx);
@@ -221,7 +221,7 @@ describe("Sidebar — app list", () => {
     );
     const { findByText } = renderWithAppState(<Sidebar />);
     const nameEl = await findByText("Blocked App");
-    const item = nameEl.closest(".sidebar__app-item");
+    const item = nameEl.closest(".ht-sidebar__app-item");
     expect(item?.className).toContain("is-blocked");
   });
 });

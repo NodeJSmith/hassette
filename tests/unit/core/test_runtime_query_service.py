@@ -103,6 +103,8 @@ def runtime(mock_hassette):
     svc._pending_invocations = []
     svc._pending_executions = []
     svc._flush_scheduled = False
+    svc.task_bucket = MagicMock()
+    svc.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: coro.close())
     return svc
 
 

@@ -16,7 +16,7 @@ import { DashboardPage } from "./pages/dashboard";
 import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
 import { AppStateContext } from "./state/context";
-import { createAppState } from "./state/create-app-state";
+import { createAppState, RELATIVE_TIME_TICK_MS } from "./state/create-app-state";
 
 export function App() {
   const state = useMemo(() => createAppState(), []);
@@ -28,7 +28,7 @@ export function App() {
   if (drawerOpen && !drawerMounted) setDrawerMounted(true);
 
   useEffect(() => {
-    const id = setInterval(() => { if (!document.hidden) state.tick.value++; }, 30_000);
+    const id = setInterval(() => { if (!document.hidden) state.tick.value++; }, RELATIVE_TIME_TICK_MS);
     return () => clearInterval(id);
   }, [state]);
 

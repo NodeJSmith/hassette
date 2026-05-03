@@ -84,7 +84,7 @@ describe("ConfirmDialog — interactions", () => {
 
   it("calls onCancel when backdrop is clicked", () => {
     const { container, props } = renderDialog();
-    const backdrop = container.querySelector(".confirm-dialog__backdrop");
+    const backdrop = container.querySelector(".ht-confirm-dialog__backdrop");
     expect(backdrop).not.toBeNull();
     fireEvent.click(backdrop!);
     expect(props.onCancel).toHaveBeenCalledTimes(1);
@@ -95,13 +95,13 @@ describe("ConfirmDialog — tone", () => {
   it("default tone does not apply danger class to confirm button", () => {
     const { getByText } = renderDialog({ tone: "default" });
     const confirmBtn = getByText("Delete");
-    expect(confirmBtn.className).not.toContain("confirm-dialog__confirm--danger");
+    expect(confirmBtn.className).not.toContain("ht-confirm-dialog__confirm--danger");
   });
 
   it("danger tone applies danger class to confirm button", () => {
     const { getByText } = renderDialog({ tone: "danger" });
     const confirmBtn = getByText("Delete");
-    expect(confirmBtn.className).toContain("confirm-dialog__confirm--danger");
+    expect(confirmBtn.className).toContain("ht-confirm-dialog__confirm--danger");
   });
 });
 

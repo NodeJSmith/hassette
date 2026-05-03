@@ -1,7 +1,5 @@
 import type { StatusKind } from "../../utils/status";
 
-export type { StatusKind };
-
 interface Props {
   kind: StatusKind;
   size?: number;

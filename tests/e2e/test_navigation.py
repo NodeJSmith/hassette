@@ -239,7 +239,7 @@ def test_sidebar_multi_instance_expand(page: Page, base_url: str) -> None:
     expand_btn.click()
     page.wait_for_timeout(300)
     # Instance list should now be visible
-    expect(page.locator("ul.sidebar__instance-list")).to_be_visible()
+    expect(page.locator("ul.ht-sidebar__instance-list")).to_be_visible()
 
 
 def test_breadcrumb_navigation_on_instance_detail(page: Page, base_url: str) -> None:

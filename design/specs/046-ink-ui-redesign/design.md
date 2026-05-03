@@ -1,7 +1,7 @@
 # Design: Ink UI Redesign
 
 **Date:** 2026-05-02
-**Status:** approved
+**Status:** archived
 **Research:** /tmp/ink-redesign-research-brief.md, /tmp/sessions-prior-art-brief.md
 
 ## Problem

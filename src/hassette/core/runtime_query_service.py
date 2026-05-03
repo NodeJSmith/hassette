@@ -279,6 +279,8 @@ class RuntimeQueryService(Resource):
         covers the full set persisted in one ``_drain_and_persist()`` cycle — one message per
         drain, not one message per record.
         """
+        # Reset BEFORE the awaits so new events arriving during broadcast land in
+        # the fresh pending lists and _schedule_flush re-arms correctly.
         self._flush_scheduled = False
         now = time.time()
 

@@ -61,7 +61,7 @@ export function StatusBar() {
           <span
             class="ht-ws-indicator is-degraded"
             aria-label={`${droppedTotal} telemetry event${droppedTotal !== 1 ? "s" : ""} dropped`}
-            title={`Overflow: ${overflow}, Exhausted: ${exhausted}, No-session: ${noSession}, Shutdown: ${shutdown}`}
+            title={`Overflow: ${overflow}, Exhausted: ${exhausted}, Late: ${noSession}, Shutdown: ${shutdown}`}
             data-testid="dropped-events-indicator"
           >
             <span class="ht-pulse-dot degraded" />

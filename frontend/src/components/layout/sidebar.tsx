@@ -9,6 +9,8 @@ import type { components } from "../../api/generated-types";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
 
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
+
 /** Status sort priority: failing first, disabled/not_started last. */
 const STATUS_ORDER: Record<string, number> = {
   failed: 0,
@@ -61,23 +63,23 @@ function AppEntry({ manifest, location }: AppEntryProps) {
   const isActive = location.startsWith(appPath);
 
   return (
-    <li class="sidebar__app-entry">
-      <div class={`sidebar__app-item${isActive ? " is-active" : ""}${isBlocked ? " is-blocked" : ""}`}>
+    <li class="ht-sidebar__app-entry">
+      <div class={`ht-sidebar__app-item${isActive ? " is-active" : ""}${isBlocked ? " is-blocked" : ""}`}>
         <Link
           href={appPath}
-          class="sidebar__app-link"
+          class="ht-sidebar__app-link"
           aria-current={isActive ? "page" : undefined}
         >
           <StatusShape kind={kind} size={10} />
-          <span class="sidebar__app-name">{manifest.display_name}</span>
+          <span class="ht-sidebar__app-name">{manifest.display_name}</span>
           {manifest.auto_loaded && (
-            <span class="sidebar__auto-badge" title="Auto-loaded">auto</span>
+            <span class="ht-sidebar__auto-badge" title="Auto-loaded">auto</span>
           )}
         </Link>
         {isMulti && (
           <button
             type="button"
-            class="sidebar__app-expand"
+            class="ht-sidebar__app-expand"
             aria-label={expanded ? `Collapse ${manifest.display_name}` : `Expand ${manifest.display_name}`}
             aria-expanded={expanded}
             onClick={() => setExpanded(!expanded)}
@@ -94,20 +96,20 @@ function AppEntry({ manifest, location }: AppEntryProps) {
         )}
       </div>
       {isMulti && expanded && (
-        <ul class="sidebar__instance-list">
+        <ul class="ht-sidebar__instance-list">
           {(manifest.instances ?? []).map((inst) => {
             const instPath = `/apps/${manifest.app_key}/${inst.index}`;
             const instActive = location === instPath || location.startsWith(instPath + "/");
             return (
-              <li key={inst.index} class="sidebar__instance-item">
-                <span class="sidebar__app-connector">└</span>
+              <li key={inst.index} class="ht-sidebar__instance-item">
+                <span class="ht-sidebar__app-connector">└</span>
                 <Link
                   href={instPath}
-                  class={`sidebar__instance-link${instActive ? " is-active" : ""}`}
+                  class={`ht-sidebar__instance-link${instActive ? " is-active" : ""}`}
                   aria-current={instActive ? "page" : undefined}
                 >
                   <StatusShape kind={statusToKind(inst.status)} size={8} />
-                  <span class="sidebar__instance-name">{inst.instance_name}</span>
+                  <span class="ht-sidebar__instance-name">{inst.instance_name}</span>
                 </Link>
               </li>
             );
@@ -159,21 +161,21 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
       </div>
 
       {/* Connection status */}
-      <div class="sidebar__ws-status" aria-label={`WebSocket: ${wsStatus}`}>
+      <div class="ht-sidebar__ws-status" aria-label={`WebSocket: ${wsStatus}`}>
         <StatusShape kind={wsKind} size={8} />
-        <span class="sidebar__ws-label">{wsStatus}</span>
+        <span class="ht-sidebar__ws-label">{wsStatus}</span>
       </div>
 
       {/* Cmd-K trigger */}
       <button
         type="button"
-        class="sidebar__cmdkey"
-        title={`Command palette (${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl+K"})`}
+        class="ht-sidebar__cmdkey"
+        title={`Command palette (${IS_MAC ? "⌘K" : "Ctrl+K"})`}
         aria-label="Open command palette"
         onClick={onOpenPalette}
       >
         <span>Search</span>
-        <kbd class="sidebar__cmdkey-hint">{/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl+K"}</kbd>
+        <kbd class="ht-sidebar__cmdkey-hint">{IS_MAC ? "⌘K" : "Ctrl+K"}</kbd>
       </button>
 
       {/* Top-level navigation */}
@@ -199,11 +201,11 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
       </nav>
 
       {/* App search + list */}
-      <div class="sidebar__app-nav">
-        <div class="sidebar__search-wrap">
+      <div class="ht-sidebar__app-nav">
+        <div class="ht-sidebar__search-wrap">
           <input
             type="search"
-            class="sidebar__app-search"
+            class="ht-sidebar__app-search"
             placeholder="Filter apps…"
             value={search}
             aria-label="Filter apps"
@@ -211,12 +213,12 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
           />
         </div>
 
-        <ul class="sidebar__app-list" aria-label="App list">
+        <ul class="ht-sidebar__app-list" aria-label="App list">
           {manifests.loading.value && (
-            <li class="sidebar__loading">Loading…</li>
+            <li class="ht-sidebar__loading">Loading…</li>
           )}
           {!manifests.loading.value && sorted.length === 0 && (
-            <li class="sidebar__empty">No apps</li>
+            <li class="ht-sidebar__empty">No apps</li>
           )}
           {sorted.map((m) => (
             <AppEntry key={m.app_key} manifest={m} location={location} />

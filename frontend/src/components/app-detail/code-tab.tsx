@@ -36,6 +36,9 @@ function getHighlighter() {
     highlighterPromise = createHighlighter({
       langs: ["python"],
       themes: ["github-light", "github-dark"],
+    }).catch((e) => {
+      highlighterPromise = null;
+      throw e;
     });
   }
   return highlighterPromise;

@@ -103,7 +103,7 @@ export function ConfigTab({ appKey }: Props) {
 
     void load();
     return () => { cancelled = true; };
-  }, [appKey, loading, error, configData]);
+  }, [appKey]);
 
   if (loading.value) {
     return (

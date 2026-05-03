@@ -20,7 +20,6 @@ const APP_STATUS_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, Statu
   // Service exhaustion statuses
   ["exhausted_dead", "danger"],     // Permanent failure — budget exhausted, no further restarts
   ["exhausted_cooling", "warning"], // Long cooldown in progress — will retry after cooldown period
-  // Session statuses (shared map so StatusBadge works for both apps and sessions)
   ["success", "success"],
   ["failure", "danger"],
   ["unknown", "neutral"],
@@ -74,6 +73,14 @@ export function levelToVariant(level: string): StatusVariant {
   return LOG_LEVEL_MAP.get(level) ?? "neutral";
 }
 
+/**
+ * StatusKind: semantic shape/color for StatusShape SVG indicators.
+ * Use StatusKind (via statusToKind) for shape indicators (dots, triangles, squares).
+ * Use StatusVariant (via statusToVariant) for text badges and CSS class suffixes.
+ *
+ * These two systems intentionally diverge for some statuses — e.g. "stopped" maps
+ * to "warning" (amber badge = needs attention) but "mute" (grey dot = inactive).
+ */
 export type StatusKind = "ok" | "warn" | "err" | "mute";
 
 const LOG_LEVEL_KIND_MAP: ReadonlyMap<string, StatusKind> = new Map<string, StatusKind>([
@@ -107,6 +114,25 @@ const STATUS_KIND_MAP: ReadonlyMap<string, StatusKind> = new Map<string, StatusK
 
 export function statusToKind(status: string): StatusKind {
   return STATUS_KIND_MAP.get(status) ?? "mute";
+}
+
+/** Derive a display chip label from handler/job metadata.
+ * Listeners use their topic to determine kind; jobs use trigger_type.
+ */
+export function handlerKindLabel(
+  kind: "listener" | "job",
+  topic: string | null | undefined,
+  triggerType: string | null | undefined,
+): string {
+  if (kind === "job") {
+    const t = triggerType?.toLowerCase() ?? "";
+    if (t === "cron" || t.includes("cron")) return "cron";
+    return "svc";
+  }
+  const lower = topic?.toLowerCase() ?? "";
+  if (lower.includes("state_changed") || lower.includes("state")) return "state";
+  if (lower.includes("call_service") || lower.includes("service")) return "svc";
+  return "event";
 }
 
 /**

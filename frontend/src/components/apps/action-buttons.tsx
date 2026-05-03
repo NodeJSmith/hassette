@@ -1,16 +1,20 @@
 import { signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 import { reloadApp, startApp, stopApp } from "../../api/endpoints";
+import { ConfirmDialog } from "../shared/confirm-dialog";
 import { IconPlay, IconRefresh, IconSquare } from "../shared/icons";
 
 interface Props {
   appKey: string;
   status: string;
+  variant?: "icon" | "text";
+  confirmStop?: boolean;
 }
 
-export function ActionButtons({ appKey, status }: Props) {
+export function ActionButtons({ appKey, status, variant = "icon", confirmStop = false }: Props) {
   const loading = useRef(signal(false)).current;
   const error = useRef(signal<string | null>(null)).current;
+  const showStopConfirm = useRef(signal(false)).current;
 
   const exec = async (action: (key: string) => Promise<unknown>) => {
     if (loading.value) return;
@@ -33,45 +37,69 @@ export function ActionButtons({ appKey, status }: Props) {
   const canStop = status === "running";
   const canReload = status === "running";
 
+  const handleStop = () => {
+    if (confirmStop) {
+      showStopConfirm.value = true;
+    } else {
+      void exec(stopApp);
+    }
+  };
+
+  const isIcon = variant === "icon";
+  const btnBase = isIcon ? "ht-btn ht-btn--icon ht-btn--ghost" : "ht-btn ht-btn--sm";
+
   return (<>
-    <div class="ht-btn-group">
+    <div class="ht-btn-group" data-testid="action-buttons">
       {canStart && (
         <button
-          class="ht-btn ht-btn--icon ht-btn--ghost ht-btn--success"
+          class={`${btnBase} ht-btn--success`}
           data-testid={`btn-start-${appKey}`}
           disabled={loading.value}
           onClick={() => void exec(startApp)}
-          title="Start"
+          title={isIcon ? "Start" : undefined}
           aria-label="Start app"
         >
-          <IconPlay />
-        </button>
-      )}
-      {canStop && (
-        <button
-          class="ht-btn ht-btn--icon ht-btn--ghost ht-btn--warning"
-          data-testid={`btn-stop-${appKey}`}
-          disabled={loading.value}
-          onClick={() => void exec(stopApp)}
-          title="Stop"
-          aria-label="Stop app"
-        >
-          <IconSquare />
+          {isIcon ? <IconPlay /> : "Start"}
         </button>
       )}
       {canReload && (
         <button
-          class="ht-btn ht-btn--icon ht-btn--ghost ht-btn--info"
+          class={`${btnBase}${isIcon ? " ht-btn--info" : ""}`}
           data-testid={`btn-reload-${appKey}`}
           disabled={loading.value}
           onClick={() => void exec(reloadApp)}
-          title="Reload"
+          title={isIcon ? "Reload" : undefined}
           aria-label="Reload app"
         >
-          <IconRefresh />
+          {isIcon ? <IconRefresh /> : "Reload"}
+        </button>
+      )}
+      {canStop && (
+        <button
+          class={`${btnBase} ht-btn--warning`}
+          data-testid={`btn-stop-${appKey}`}
+          disabled={loading.value}
+          onClick={handleStop}
+          title={isIcon ? "Stop" : undefined}
+          aria-label="Stop app"
+        >
+          {isIcon ? <IconSquare /> : "Stop"}
         </button>
       )}
     </div>
+    {confirmStop && showStopConfirm.value && (
+      <ConfirmDialog
+        title="Stop app?"
+        body={`Stop "${appKey}"? It will stop processing events until restarted.`}
+        confirmLabel="Stop"
+        tone="danger"
+        onConfirm={() => {
+          showStopConfirm.value = false;
+          void exec(stopApp);
+        }}
+        onCancel={() => { showStopConfirm.value = false; }}
+      />
+    )}
     {error.value && <p class="ht-text-danger ht-text-sm">{error.value}</p>}
   </>
   );

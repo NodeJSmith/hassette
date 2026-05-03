@@ -143,7 +143,7 @@ export function createAppState() {
      */
     reconnectVersion: signal(0),
 
-    /** Monotonic counter incremented every 30s to trigger relative-time re-renders. */
+    /** Monotonic counter incremented every RELATIVE_TIME_TICK_MS to trigger relative-time re-renders. */
     tick: signal(0),
 
     /**
@@ -200,5 +200,7 @@ export function createAppState() {
     },
   };
 }
+
+export const RELATIVE_TIME_TICK_MS = 30_000;
 
 export type AppState = ReturnType<typeof createAppState>;

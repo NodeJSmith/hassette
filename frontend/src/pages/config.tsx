@@ -88,7 +88,7 @@ export function ConfigPage() {
 
   return (
     <div class="ht-config-page">
-      <h1 class="ht-heading-4 ht-mb-4">Configuration</h1>
+      <h2 class="ht-heading-4 ht-mb-4">Configuration</h2>
 
       {loading && (
         <div class="ht-spinner" role="status" aria-label="Loading configuration" />

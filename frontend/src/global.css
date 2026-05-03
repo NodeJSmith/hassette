@@ -323,7 +323,7 @@ strong {
 }
 
 /* Connection status in sidebar */
-.sidebar__ws-status {
+.ht-sidebar__ws-status {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -332,13 +332,13 @@ strong {
   color: var(--ink-3);
 }
 
-.sidebar__ws-label {
+.ht-sidebar__ws-label {
   font-size: var(--fs-micro);
   color: var(--ink-3);
 }
 
 /* Cmd-K trigger */
-.sidebar__cmdkey {
+.ht-sidebar__cmdkey {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -353,12 +353,12 @@ strong {
   transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 
-.sidebar__cmdkey:hover {
+.ht-sidebar__cmdkey:hover {
   background: var(--bg-active);
   border-color: var(--line-strong);
 }
 
-.sidebar__cmdkey-hint {
+.ht-sidebar__cmdkey-hint {
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
   color: var(--ink-4);
@@ -398,13 +398,13 @@ strong {
 }
 
 /* Sidebar app search */
-.sidebar__search-wrap {
+.ht-sidebar__search-wrap {
   padding: var(--sp-2) var(--sp-3);
   border-top: 1px solid var(--line-2);
   margin-top: var(--sp-1);
 }
 
-.sidebar__app-search {
+.ht-sidebar__app-search {
   width: 100%;
   padding: var(--sp-1) var(--sp-2);
   font-family: var(--font-body);
@@ -417,22 +417,22 @@ strong {
   transition: border-color var(--t-fast) var(--ease);
 }
 
-.sidebar__app-search:focus {
+.ht-sidebar__app-search:focus {
   border-color: var(--accent);
 }
 
-.sidebar__app-search::placeholder {
+.ht-sidebar__app-search::placeholder {
   color: var(--ink-4);
 }
 
 /* App nav section */
-.sidebar__app-nav {
+.ht-sidebar__app-nav {
   flex: 1;
   overflow-y: auto;
   padding: var(--sp-1) 0 var(--sp-4);
 }
 
-.sidebar__app-list {
+.ht-sidebar__app-list {
   list-style: none;
   margin: 0;
   padding: 0 var(--sp-2);
@@ -441,34 +441,34 @@ strong {
   gap: 1px;
 }
 
-.sidebar__loading,
-.sidebar__empty {
+.ht-sidebar__loading,
+.ht-sidebar__empty {
   display: block;
   padding: var(--sp-3) var(--sp-4);
   font-size: var(--fs-micro);
   color: var(--ink-4);
 }
 
-.sidebar__app-entry {
+.ht-sidebar__app-entry {
   /* wrapper li */
 }
 
-.sidebar__app-item {
+.ht-sidebar__app-item {
   display: flex;
   align-items: center;
   border-radius: var(--r-md);
   transition: background var(--t-fast) var(--ease);
 }
 
-.sidebar__app-item.is-active {
+.ht-sidebar__app-item.is-active {
   background: var(--bg-active);
 }
 
-.sidebar__app-item.is-blocked {
+.ht-sidebar__app-item.is-blocked {
   opacity: 0.5;
 }
 
-.sidebar__app-link {
+.ht-sidebar__app-link {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -482,12 +482,12 @@ strong {
   transition: color var(--t-fast) var(--ease);
 }
 
-.sidebar__app-link:hover {
+.ht-sidebar__app-link:hover {
   color: var(--ink-1);
   text-decoration: none;
 }
 
-.sidebar__app-name {
+.ht-sidebar__app-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -495,7 +495,7 @@ strong {
   white-space: nowrap;
 }
 
-.sidebar__auto-badge {
+.ht-sidebar__auto-badge {
   flex-shrink: 0;
   font-size: var(--fs-micro);
   color: var(--ink-4);
@@ -506,7 +506,7 @@ strong {
   line-height: 1.6;
 }
 
-.sidebar__app-expand {
+.ht-sidebar__app-expand {
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -522,12 +522,12 @@ strong {
   transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
 }
 
-.sidebar__app-expand:hover {
+.ht-sidebar__app-expand:hover {
   color: var(--ink-1);
   background: var(--bg-active);
 }
 
-.sidebar__app-expand svg {
+.ht-sidebar__app-expand svg {
   stroke: currentColor;
   fill: none;
   stroke-width: 2;
@@ -536,7 +536,7 @@ strong {
 }
 
 /* Instance children */
-.sidebar__instance-list {
+.ht-sidebar__instance-list {
   list-style: none;
   margin: 0;
   padding: 0 0 0 var(--sp-4);
@@ -545,13 +545,13 @@ strong {
   gap: 1px;
 }
 
-.sidebar__instance-item {
+.ht-sidebar__instance-item {
   display: flex;
   align-items: center;
   gap: var(--sp-1);
 }
 
-.sidebar__app-connector {
+.ht-sidebar__app-connector {
   flex-shrink: 0;
   color: var(--ink-4);
   font-size: var(--fs-micro);
@@ -559,7 +559,7 @@ strong {
   user-select: none;
 }
 
-.sidebar__instance-link {
+.ht-sidebar__instance-link {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -572,12 +572,12 @@ strong {
   transition: color var(--t-fast) var(--ease);
 }
 
-.sidebar__instance-link:hover {
+.ht-sidebar__instance-link:hover {
   color: var(--ink-1);
   text-decoration: none;
 }
 
-.sidebar__instance-name {
+.ht-sidebar__instance-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -912,7 +912,7 @@ strong {
 }
 
 /* — Confirm Dialog ————————————————————————————————————— */
-.confirm-dialog__backdrop {
+.ht-confirm-dialog__backdrop {
   position: fixed;
   inset: 0;
   background: var(--overlay-bg);
@@ -923,7 +923,7 @@ strong {
   backdrop-filter: blur(2px);
 }
 
-.confirm-dialog {
+.ht-confirm-dialog {
   background: var(--bg-surface);
   border: 1px solid var(--line-1);
   border-radius: var(--r-xl);
@@ -934,7 +934,7 @@ strong {
   width: calc(100% - var(--sp-8));
 }
 
-.confirm-dialog__title {
+.ht-confirm-dialog__title {
   font-family: var(--font-display);
   font-size: var(--fs-h3);
   font-weight: 400;
@@ -942,20 +942,20 @@ strong {
   margin-bottom: var(--sp-3);
 }
 
-.confirm-dialog__body {
+.ht-confirm-dialog__body {
   font-size: var(--fs-body);
   color: var(--ink-2);
   margin-bottom: var(--sp-6);
   line-height: var(--lh-body);
 }
 
-.confirm-dialog__actions {
+.ht-confirm-dialog__actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--sp-3);
 }
 
-.confirm-dialog__cancel {
+.ht-confirm-dialog__cancel {
   padding: var(--sp-2) var(--sp-4);
   font-family: var(--font-body);
   font-size: var(--fs-body);
@@ -967,12 +967,12 @@ strong {
   transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 
-.confirm-dialog__cancel:hover {
+.ht-confirm-dialog__cancel:hover {
   background: var(--bg-active);
   color: var(--ink-1);
 }
 
-.confirm-dialog__confirm {
+.ht-confirm-dialog__confirm {
   padding: var(--sp-2) var(--sp-4);
   font-family: var(--font-body);
   font-size: var(--fs-body);
@@ -984,16 +984,16 @@ strong {
   transition: background var(--t-fast) var(--ease);
 }
 
-.confirm-dialog__confirm:hover {
+.ht-confirm-dialog__confirm:hover {
   background: var(--accent-hover);
 }
 
-.confirm-dialog__confirm--danger {
+.ht-confirm-dialog__confirm--danger {
   color: var(--bg-page);
   background: var(--err);
 }
 
-.confirm-dialog__confirm--danger:hover {
+.ht-confirm-dialog__confirm--danger:hover {
   background: var(--err-dark);
 }
 
@@ -1591,6 +1591,9 @@ strong {
 
 /* Width */
 .ht-w-full { width: 100%; }
+
+/* Display */
+.ht-block { display: block; }
 
 /* Nowrap */
 .ht-nowrap { white-space: nowrap; }

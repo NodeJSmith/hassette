@@ -1,14 +1,14 @@
 import { signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 import { useSearch, useLocation } from "wouter";
-import { getAppHealth, getAppJobs, getAppListeners, getManifests, reloadApp, startApp, stopApp } from "../api/endpoints";
+import { getAppHealth, getAppJobs, getAppListeners, getManifests } from "../api/endpoints";
 import type { AppInstance } from "../api/endpoints";
+import { ActionButtons } from "../components/apps/action-buttons";
 import { CodeTab } from "../components/app-detail/code-tab";
 import { ConfigTab } from "../components/app-detail/config-tab";
 import { ErrorDisplay } from "../components/app-detail/error-display";
 import { HandlersTab } from "../components/app-detail/handlers-tab";
 import { HealthStrip } from "../components/app-detail/health-strip";
-import { ConfirmDialog } from "../components/shared/confirm-dialog";
 import { LogTable } from "../components/shared/log-table";
 import { Spinner } from "../components/shared/spinner";
 import { useApi } from "../hooks/use-api";
@@ -23,84 +23,6 @@ interface Props {
   params: { key: string; index?: string };
 }
 
-function ActionButtons({ appKey, status }: { appKey: string; status: string }) {
-  const loading = useRef(signal(false)).current;
-  const error = useRef(signal<string | null>(null)).current;
-  const showStopConfirm = useRef(signal(false)).current;
-
-  const exec = async (action: (key: string) => Promise<unknown>) => {
-    if (loading.value) return;
-    error.value = null;
-    loading.value = true;
-    try {
-      await action(appKey);
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err);
-    } finally {
-      loading.value = false;
-    }
-  };
-
-  useEffect(() => { error.value = null; }, [status, error]);
-
-  const canStart = status === "stopped" || status === "failed" || status === "disabled";
-  const canStop = status === "running";
-  const canReload = status === "running";
-
-  return (
-    <>
-      <div class="ht-btn-group" data-testid="action-buttons">
-        {canStart && (
-          <button
-            class="ht-btn ht-btn--sm ht-btn--success"
-            data-testid={`btn-start-${appKey}`}
-            disabled={loading.value}
-            onClick={() => void exec(startApp)}
-            aria-label="Start app"
-          >
-            Start
-          </button>
-        )}
-        {canReload && (
-          <button
-            class="ht-btn ht-btn--sm"
-            data-testid={`btn-reload-${appKey}`}
-            disabled={loading.value}
-            onClick={() => void exec(reloadApp)}
-            aria-label="Reload app"
-          >
-            Reload
-          </button>
-        )}
-        {canStop && (
-          <button
-            class="ht-btn ht-btn--sm ht-btn--warning"
-            data-testid={`btn-stop-${appKey}`}
-            disabled={loading.value}
-            onClick={() => { showStopConfirm.value = true; }}
-            aria-label="Stop app"
-          >
-            Stop
-          </button>
-        )}
-      </div>
-      {showStopConfirm.value && (
-        <ConfirmDialog
-          title="Stop app?"
-          body={`Stop "${appKey}"? It will stop processing events until restarted.`}
-          confirmLabel="Stop"
-          tone="danger"
-          onConfirm={() => {
-            showStopConfirm.value = false;
-            void exec(stopApp);
-          }}
-          onCancel={() => { showStopConfirm.value = false; }}
-        />
-      )}
-      {error.value && <p class="ht-text-danger ht-text-sm">{error.value}</p>}
-    </>
-  );
-}
 
 /** Instance switcher: horizontal tab strip showing siblings with status dots. */
 function InstanceSwitcher({
@@ -183,13 +105,13 @@ function MultiInstanceOverview({
     <div class="ht-multi-overview" data-testid="multi-instance-overview">
       <div class="ht-level ht-mb-4">
         <div class="ht-level-start">
-          <h1 class="ht-heading-4">{displayName}</h1>
+          <h2 class="ht-heading-4">{displayName}</h2>
           <span class="ht-badge ht-badge--neutral" data-testid="instance-count-badge">
             ×{instanceCount} instances
           </span>
         </div>
       </div>
-      <code class="ht-text-mono ht-text-sm ht-mb-4" style="display:block">{appKey}</code>
+      <code class="ht-text-mono ht-text-sm ht-mb-4 ht-block">{appKey}</code>
       <div class="ht-instance-grid" data-testid="instance-grid">
         {instances.map((inst) => (
           <InstanceCard
@@ -213,9 +135,10 @@ export function AppDetailPage({ params }: Props) {
 
   const activeTab = useRef(signal<TabId>("handlers")).current;
 
-  // Parse focus query param for auto-selecting a handler
+  // Parse focus query param for auto-selecting a handler (strip from URL once read)
   const focusMethod = useRef<string | null>(null);
-  if (focusMethod.current === null) {
+  useEffect(() => {
+    if (focusMethod.current !== null) return;
     const params_ = new URLSearchParams(searchString);
     focusMethod.current = params_.get("focus");
     if (focusMethod.current) {
@@ -224,7 +147,7 @@ export function AppDetailPage({ params }: Props) {
       const cleanPath = next.toString() ? `${window.location.pathname}?${next}` : window.location.pathname;
       navigate(cleanPath, { replace: true });
     }
-  }
+  }, []);
 
   const manifests = useApi(getManifests);
 
@@ -353,14 +276,14 @@ export function AppDetailPage({ params }: Props) {
       <div class="ht-level ht-mb-2">
         <div class="ht-level-start">
           <div class="ht-level-item">
-            <h1 class="ht-heading-4" data-testid="app-title">
+            <h2 class="ht-heading-4" data-testid="app-title">
               <StatusShape kind={statusToKind(liveStatus)} size={14} />
-              <span style="margin-left:0.5rem">{manifest?.display_name ?? appKey}</span>
-            </h1>
+              <span class="ht-ml-2">{manifest?.display_name ?? appKey}</span>
+            </h2>
           </div>
         </div>
         <div class="ht-level-end">
-          <ActionButtons appKey={appKey} status={liveStatus} />
+          <ActionButtons appKey={appKey} status={liveStatus} variant="text" confirmStop />
         </div>
       </div>
 
