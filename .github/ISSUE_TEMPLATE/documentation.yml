@@ -1,6 +1,6 @@
 name: Documentation
 description: Report missing, incorrect, or unclear documentation
-labels: ["documentation"]
+labels: ["type:documentation"]
 body:
   - type: textarea
     id: description
