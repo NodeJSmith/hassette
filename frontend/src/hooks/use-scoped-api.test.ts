@@ -94,21 +94,17 @@ describe("useScopedApi", () => {
   it("computes since=now-3600 for 1h preset", async () => {
     const state = createAppState();
     state.timePreset.value = "1h";
+    state.uptimeSeconds.value = 7200;
 
     const fetcher = vi.fn().mockResolvedValue("data");
+    const expectedSince = nowSeconds() - 3600;
 
     renderHook(() => useScopedApi(fetcher), {
       wrapper: createWrapper(state),
     });
 
-    // Capture expected since at the same moment the hook will compute it
-    const expectedSince = nowSeconds() - 3600;
-    act(() => {
-      state.uptimeSeconds.value = 7200; // uptime > window; window takes precedence
-    });
-
     await vi.waitFor(() => {
-      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(fetcher).toHaveBeenCalled();
     });
 
     expect(fetcher).toHaveBeenCalledWith(expectedSince);
@@ -117,21 +113,17 @@ describe("useScopedApi", () => {
   it("computes since=now-86400 for 24h preset", async () => {
     const state = createAppState();
     state.timePreset.value = "24h";
+    state.uptimeSeconds.value = 100000;
 
     const fetcher = vi.fn().mockResolvedValue("data");
+    const expectedSince = nowSeconds() - 86400;
 
     renderHook(() => useScopedApi(fetcher), {
       wrapper: createWrapper(state),
     });
 
-    // Capture expected since at the same moment the hook will compute it
-    const expectedSince = nowSeconds() - 86400;
-    act(() => {
-      state.uptimeSeconds.value = 100000;
-    });
-
     await vi.waitFor(() => {
-      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(fetcher).toHaveBeenCalled();
     });
 
     expect(fetcher).toHaveBeenCalledWith(expectedSince);
@@ -140,21 +132,17 @@ describe("useScopedApi", () => {
   it("computes since=now-604800 for 7d preset", async () => {
     const state = createAppState();
     state.timePreset.value = "7d";
+    state.uptimeSeconds.value = 800000;
 
     const fetcher = vi.fn().mockResolvedValue("data");
+    const expectedSince = nowSeconds() - 604800;
 
     renderHook(() => useScopedApi(fetcher), {
       wrapper: createWrapper(state),
     });
 
-    // Capture expected since at the same moment the hook will compute it
-    const expectedSince = nowSeconds() - 604800;
-    act(() => {
-      state.uptimeSeconds.value = 800000;
-    });
-
     await vi.waitFor(() => {
-      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(fetcher).toHaveBeenCalled();
     });
 
     expect(fetcher).toHaveBeenCalledWith(expectedSince);

@@ -33,15 +33,15 @@ def test_spa_navigates_without_full_reload(page: Page, base_url: str) -> None:
     # Set a marker to detect full reload
     page.evaluate("window.__test_marker = true")
 
-    # Navigate to Apps page via sidebar
-    page.locator("[data-testid='nav-apps']").click()
-    expect(page.locator("body")).to_contain_text("App Management")
+    # Navigate to Logs page via sidebar
+    page.locator("[data-testid='nav-logs']").click()
+    expect(page.locator("body")).to_contain_text("Log Viewer")
 
     # Page was NOT reloaded — marker survives
     assert page.evaluate("window.__test_marker") is True
 
     # Navigate back to Dashboard
-    page.locator("[data-testid='nav-dashboard']").click()
+    page.locator("[data-testid='nav-overview']").click()
     expect(page.locator("body")).to_contain_text("App Health")
 
     # Still no full reload

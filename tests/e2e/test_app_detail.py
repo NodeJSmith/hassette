@@ -1,13 +1,15 @@
-"""E2E tests for the App Detail page."""
+"""E2E tests for the App Detail page in the new Ink UI.
+
+Tests handler list with human_description, modifier chips, timed_out count,
+master/detail layout, action buttons, code tab, config tab.
+"""
 
 import pytest
 from playwright.sync_api import Page, expect
 
 from tests.e2e.mock_fixtures import (
-    JOB_MY_APP_1_SOURCE_LOCATION,
     JOB_MY_APP_1_TOTAL_EXECUTIONS,
     JOB_MY_APP_2_TOTAL_EXECUTIONS,
-    LISTENER_MY_APP_1_SOURCE_LOCATION,
     LISTENER_MY_APP_1_TOTAL_INVOCATIONS,
     LISTENER_MY_APP_2_TOTAL_INVOCATIONS,
 )
@@ -15,207 +17,274 @@ from tests.e2e.mock_fixtures import (
 pytestmark = pytest.mark.e2e
 
 
+# ── Health strip ─────────────────────────────────────────────────────
+
+
 def test_app_detail_renders_health_strip(page: Page, base_url: str) -> None:
-    """4 health cards visible with correct labels."""
+    """Health strip is visible with correct labels."""
     page.goto(base_url + "/apps/my_app")
     strip = page.locator("[data-testid='health-strip']")
     expect(strip).to_be_visible()
-    expect(strip).to_contain_text("Status")
     expect(strip).to_contain_text("Error Rate")
     expect(strip).to_contain_text("Handler Avg")
     expect(strip).to_contain_text("Job Avg")
+    expect(strip).to_contain_text("Last Activity")
 
 
-def test_app_detail_renders_handler_rows(page: Page, base_url: str) -> None:
-    """Handler rows visible with method names and invocation counts."""
+# ── Action buttons ───────────────────────────────────────────────────
+
+
+def test_running_app_shows_stop_and_reload_buttons(page: Page, base_url: str) -> None:
+    """Running app shows Stop and Reload buttons."""
+    page.goto(base_url + "/apps/my_app")
+    expect(page.get_by_label("Stop app")).to_be_visible()
+    expect(page.get_by_label("Reload app")).to_be_visible()
+
+
+def test_failed_app_shows_start_button(page: Page, base_url: str) -> None:
+    """Failed app shows Start button."""
+    page.goto(base_url + "/apps/broken_app")
+    expect(page.get_by_label("Start app")).to_be_visible()
+
+
+def test_stop_button_shows_confirm_dialog(page: Page, base_url: str) -> None:
+    """Clicking Stop opens a confirmation dialog."""
+    page.goto(base_url + "/apps/my_app")
+    stop_btn = page.get_by_label("Stop app")
+    expect(stop_btn).to_be_visible()
+    stop_btn.click()
+    # Confirm dialog should appear
+    dialog = page.locator(".ht-confirm-dialog, [role='alertdialog'], [role='dialog']")
+    expect(dialog.first).to_be_visible()
+    expect(dialog.first).to_contain_text("Stop")
+
+
+def test_failed_app_shows_error_message(page: Page, base_url: str) -> None:
+    """Failed app detail shows its error message."""
+    page.goto(base_url + "/apps/broken_app")
+    expect(page.locator("body")).to_contain_text("Init error: bad config")
+
+
+# ── Handler list (master list) ───────────────────────────────────────
+
+
+def test_app_detail_renders_handler_list(page: Page, base_url: str) -> None:
+    """Handler list renders with handler names and invocation counts."""
     page.goto(base_url + "/apps/my_app")
     handler_list = page.locator("[data-testid='handler-list']")
     expect(handler_list).to_be_visible()
-    # Handler method names from seed data
-    expect(handler_list).to_contain_text("on_light_change")
-    expect(handler_list).to_contain_text("on_temp_update")
+    # Handler summaries from seed data (unified list shows handler_summary, not handler_method)
+    expect(handler_list).to_contain_text("light.kitchen")
+    expect(handler_list).to_contain_text("sensor.temperature")
     # Invocation counts
-    expect(handler_list).to_contain_text(f"{LISTENER_MY_APP_1_TOTAL_INVOCATIONS} calls")
-    expect(handler_list).to_contain_text(f"{LISTENER_MY_APP_2_TOTAL_INVOCATIONS} calls")
+    expect(handler_list).to_contain_text(f"{LISTENER_MY_APP_1_TOTAL_INVOCATIONS}")
+    expect(handler_list).to_contain_text(f"{LISTENER_MY_APP_2_TOTAL_INVOCATIONS}")
 
 
-def test_handler_row_expand_loads_invocations(page: Page, base_url: str) -> None:
-    """Click handler row, invocation history appears."""
+def test_handler_row_shows_human_description(page: Page, base_url: str) -> None:
+    """Handler row with human_description shows it as a subtitle."""
     page.goto(base_url + "/apps/my_app")
-    # Click the first handler row
-    handler_main = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
-    handler_main.click()
-    # Wait for invocation table to load
-    invocation_table = page.locator("[data-testid='invocation-table-1']")
-    expect(invocation_table).to_be_visible(timeout=5000)
-    # Should show invocation rows
-    expect(invocation_table).to_contain_text("success")
+    handler_list = page.locator("[data-testid='handler-list']")
+    # Listener 2 (on_temp_update) has human_description
+    expect(handler_list).to_contain_text("React to temperature sensor changes above threshold")
 
 
-def test_handler_invocation_shows_error_trace(page: Page, base_url: str) -> None:
-    """Expanded row with error shows traceback."""
+def test_handler_row_shows_modifier_chips(page: Page, base_url: str) -> None:
+    """Handler rows show modifier chips for debounce/throttle/once."""
     page.goto(base_url + "/apps/my_app")
-    # Click the first handler row to expand
-    handler_main = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
-    handler_main.click()
-    # Wait for invocations to load
-    invocation_table = page.locator("[data-testid='invocation-table-1']")
-    expect(invocation_table).to_be_visible(timeout=5000)
-    # Tracebacks are collapsed by default — click toggle to reveal
-    traceback_toggle = page.get_by_label("Show traceback").first
-    expect(traceback_toggle).to_be_visible(timeout=5000)
-    traceback_toggle.click()
-    traceback = page.locator("[data-testid='invocation-traceback']")
-    expect(traceback.first).to_be_visible()
-    expect(traceback.first).to_contain_text("ValueError")
-    expect(traceback.first).to_contain_text("Bad state value")
+    # Click the on_light_change row (listener 1, has debounce=0.5)
+    row = page.locator("[data-testid='unified-row-listener-1']")
+    expect(row).to_be_visible()
+    row.click()
+    page.wait_for_timeout(300)
+    # Modifier chips visible in detail pane
+    modifier_chips = page.locator("[data-testid='modifier-chips']")
+    expect(modifier_chips).to_be_visible()
+    expect(modifier_chips).to_contain_text("debounce")
+
+
+def test_handler_row_shows_timed_out_count(page: Page, base_url: str) -> None:
+    """Handler row shows timed_out count when > 0 (listener 1 has timed_out=1)."""
+    page.goto(base_url + "/apps/my_app")
+    # Listener 1 has timed_out=1 in seed data
+    row = page.locator("[data-testid='unified-row-listener-1']")
+    expect(row).to_be_visible()
+    expect(row).to_contain_text("timed out")
+
+
+# ── Job list ─────────────────────────────────────────────────────────
 
 
 def test_app_detail_renders_job_rows(page: Page, base_url: str) -> None:
-    """Job rows visible with run counts."""
-    page.goto(base_url + "/apps/my_app")
-    job_list = page.locator("[data-testid='job-list']")
-    expect(job_list).to_be_visible()
-    # Job names from seed data
-    expect(job_list).to_contain_text("check_lights")
-    expect(job_list).to_contain_text("morning_routine")
-    # Execution counts
-    expect(job_list).to_contain_text(f"{JOB_MY_APP_1_TOTAL_EXECUTIONS} runs")
-    expect(job_list).to_contain_text(f"{JOB_MY_APP_2_TOTAL_EXECUTIONS} runs")
-
-
-def test_job_row_expand_loads_executions(page: Page, base_url: str) -> None:
-    """Click job row, execution history appears."""
-    page.goto(base_url + "/apps/my_app")
-    # Click the first job row
-    job_main = page.locator("[data-testid='job-row-1'] .ht-item-row__main")
-    job_main.click()
-    # Wait for execution table to load
-    execution_table = page.locator("[data-testid='execution-table-1']")
-    expect(execution_table).to_be_visible(timeout=5000)
-    expect(execution_table).to_contain_text("success")
-
-
-def test_app_detail_logs_section(page: Page, base_url: str) -> None:
-    """Log entries visible, filtered to app."""
-    page.goto(base_url + "/apps/my_app")
-    logs_section = page.locator("[data-testid='logs-section']")
-    expect(logs_section).to_be_visible()
-    # Wait for log entries to load
-    entries_badge = page.locator("text=/\\d+ entries/")
-    expect(entries_badge).to_be_visible(timeout=5000)
-    body = page.locator("body")
-    # App-specific log messages should be present
-    expect(body).to_contain_text("MyApp initialized")
-    # Core-only messages should NOT appear
-    expect(body).not_to_contain_text("Hassette started successfully")
-
-
-def test_app_detail_identity_model_fixed(page: Page, base_url: str) -> None:
-    """Stopped app still shows its jobs (regression test for router.py:105 bug).
-
-    The old code filtered jobs by owner_id, which is None for stopped apps.
-    The fix uses app_key + instance_index from the telemetry database.
-    """
-    page.goto(base_url + "/apps/other_app")
-    # other_app is stopped (no instances, owner_id=None)
-    # The page should render without error (the old code would break)
-    body = page.locator("body")
-    expect(body).to_contain_text("Other App")
-    # Logs section is always visible (handlers/jobs sections hidden when empty)
-    expect(page.locator("[data-testid='logs-section']")).to_be_visible()
-
-
-def test_registration_source_link(page: Page, base_url: str) -> None:
-    """Expanded handler detail shows source_location and registration_source."""
-    page.goto(base_url + "/apps/my_app")
-    handler_main = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
-    handler_main.click()
-    detail = page.locator("#handler-1-detail")
-    expect(detail).to_be_visible(timeout=5000)
-    # Source display block should be present with actual content from fixture
-    source_display = detail.locator("[data-testid='source-display']")
-    expect(source_display).to_be_visible()
-    expect(source_display).to_contain_text(LISTENER_MY_APP_1_SOURCE_LOCATION)
-    expect(source_display).to_contain_text("on_initialize")
-
-
-def test_job_registration_source_display(page: Page, base_url: str) -> None:
-    """Expanded job detail shows source_location and registration_source."""
-    page.goto(base_url + "/apps/my_app")
-    job_main = page.locator("[data-testid='job-row-1'] .ht-item-row__main")
-    job_main.click()
-    detail = page.locator("#job-1-detail")
-    expect(detail).to_be_visible(timeout=5000)
-    source_display = detail.locator("[data-testid='source-display']")
-    expect(source_display).to_be_visible()
-    expect(source_display).to_contain_text(JOB_MY_APP_1_SOURCE_LOCATION)
-    expect(source_display).to_contain_text("on_initialize")
-
-
-def test_source_display_hidden_when_empty(page: Page, base_url: str) -> None:
-    """No source section renders when source_location is empty and registration_source is null."""
-    page.goto(base_url + "/apps/my_app")
-    # Handler 1 has source data — expand it and verify source-display IS present
-    handler_main = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
-    handler_main.click()
-    detail = page.locator("#handler-1-detail")
-    expect(detail).to_be_visible(timeout=5000)
-    expect(detail.locator("[data-testid='source-display']")).to_be_visible()
-
-    # Navigate to the nosource_app whose handler/job have empty source fields
-    page.goto(base_url + "/apps/nosource_app")
-    handler_main_ns = page.locator("[data-testid='handler-row-100'] .ht-item-row__main")
-    handler_main_ns.click()
-    detail_ns = page.locator("#handler-100-detail")
-    expect(detail_ns).to_be_visible(timeout=5000)
-    # Source display should NOT be present
-    expect(detail_ns.locator("[data-testid='source-display']")).to_have_count(0)
-
-
-# ── Expand/collapse state ────────────────────────────────────────────
-
-
-def test_expanded_row_preserves_state_across_signals(page: Page, base_url: str) -> None:
-    """Expand a handler row, verify it stays expanded.
-
-    In the Preact SPA, expand/collapse state is managed by local signals
-    inside HandlerRow. Since there's no DOM replacement (unlike htmx morphing),
-    expand state naturally survives parent re-renders.
-    """
-    page.goto(base_url + "/apps/my_app")
-
-    # Expand handler row 1
-    handler_main = page.locator("[data-testid='handler-row-1'] .ht-item-row__main")
-    handler_main.click()
-    detail = page.locator("#handler-1-detail")
-    expect(detail).to_be_visible(timeout=5000)
-    expect(handler_main).to_have_attribute("aria-expanded", "true")
-
-    # Verify counts are correct
-    calls_el = page.locator("[data-testid='handler-row-1'] .ht-meta-item[title='Total invocations']")
-    expect(calls_el).to_have_text(f"{LISTENER_MY_APP_1_TOTAL_INVOCATIONS} calls")
-
-    # Verify dot color: listener 1 has failures -> danger
-    dot_1 = page.locator("[data-testid='handler-row-1'] .ht-item-row__dot")
-    expect(dot_1).to_have_class("ht-item-row__dot ht-item-row__dot--danger")
-
-    # Verify dot color: listener 2 has no failures, has invocations -> success
-    dot_2 = page.locator("[data-testid='handler-row-2'] .ht-item-row__dot")
-    expect(dot_2).to_have_class("ht-item-row__dot ht-item-row__dot--success")
-
-
-def test_handler_list_is_not_live_morph_target(page: Page, base_url: str) -> None:
-    """Verify handler and job lists don't have data-live-on-app attribute.
-
-    In the SPA, lists are managed by Preact component state, not HTMX morphing.
-    The health strip gets its own data from the API.
-    """
+    """Job rows visible with run counts in the unified handler list."""
     page.goto(base_url + "/apps/my_app")
     handler_list = page.locator("[data-testid='handler-list']")
     expect(handler_list).to_be_visible()
-    # Should NOT have data-live-on-app (SPA doesn't use HTMX morphing)
-    assert handler_list.get_attribute("data-live-on-app") is None
-    # Job list also should not have it
-    job_list = page.locator("[data-testid='job-list']")
-    assert job_list.get_attribute("data-live-on-app") is None
+    # Job names from seed data
+    expect(handler_list).to_contain_text("check_lights")
+    expect(handler_list).to_contain_text("morning_routine")
+    # Execution counts
+    expect(handler_list).to_contain_text(f"{JOB_MY_APP_1_TOTAL_EXECUTIONS}")
+    expect(handler_list).to_contain_text(f"{JOB_MY_APP_2_TOTAL_EXECUTIONS}")
+
+
+# ── Master/detail layout ─────────────────────────────────────────────
+
+
+def test_clicking_handler_row_shows_detail_pane(page: Page, base_url: str) -> None:
+    """Clicking a handler row loads invocation history in the detail pane."""
+    page.goto(base_url + "/apps/my_app")
+    row = page.locator("[data-testid='unified-row-listener-1']")
+    expect(row).to_be_visible()
+    row.click()
+    # Detail pane shows invocations for listener 1
+    detail = page.locator("[data-testid='listener-detail-1']")
+    expect(detail).to_be_visible(timeout=5000)
+
+
+def test_clicking_job_row_shows_detail_pane(page: Page, base_url: str) -> None:
+    """Clicking a job row loads execution history in the detail pane."""
+    page.goto(base_url + "/apps/my_app")
+    # Job row (job_id=1)
+    job_row = page.locator("[data-testid='unified-row-job-1']")
+    expect(job_row).to_be_visible()
+    job_row.click()
+    detail = page.locator("[data-testid='job-detail-1']")
+    expect(detail).to_be_visible(timeout=5000)
+
+
+def test_detail_pane_shows_invocation_history(page: Page, base_url: str) -> None:
+    """Detail pane shows success and error invocations after selecting a handler."""
+    page.goto(base_url + "/apps/my_app")
+    row = page.locator("[data-testid='unified-row-listener-1']")
+    row.click()
+    detail = page.locator("[data-testid='listener-detail-1']")
+    expect(detail).to_be_visible(timeout=5000)
+    # Should show invocation results from seed data
+    expect(detail).to_contain_text("success")
+
+
+def test_empty_detail_placeholder_visible_by_default(page: Page, base_url: str) -> None:
+    """Detail pane shows placeholder text before any row is selected."""
+    page.goto(base_url + "/apps/my_app")
+    placeholder = page.locator("[data-testid='detail-placeholder']")
+    expect(placeholder).to_be_visible()
+
+
+def test_stats_strip_renders(page: Page, base_url: str) -> None:
+    """Stats strip above handler list shows handler count and call totals."""
+    page.goto(base_url + "/apps/my_app")
+    stats_strip = page.locator("[data-testid='stats-strip']")
+    expect(stats_strip).to_be_visible()
+    expect(stats_strip).to_contain_text("handler")
+
+
+# ── Code tab ─────────────────────────────────────────────────────────
+
+
+def test_code_tab_renders_source(page: Page, base_url: str) -> None:
+    """Code tab renders the source file content."""
+    page.goto(base_url + "/apps/my_app")
+    # Click Code tab
+    code_tab_btn = page.locator("button[role='tab']", has_text="Code")
+    expect(code_tab_btn).to_be_visible()
+    code_tab_btn.click()
+    page.wait_for_timeout(500)
+    # Code tab content should be visible
+    code_content = page.locator("[data-testid='code-tab-content']")
+    expect(code_content).to_be_visible(timeout=5000)
+    # Filename shown in header
+    expect(code_content).to_contain_text("my_app.py")
+
+
+def test_code_tab_nosource_shows_not_found(page: Page, base_url: str) -> None:
+    """Code tab for app with missing source file shows 'not found' message."""
+    page.goto(base_url + "/apps/nosource_app")
+    code_tab_btn = page.locator("button[role='tab']", has_text="Code")
+    expect(code_tab_btn).to_be_visible()
+    code_tab_btn.click()
+    page.wait_for_timeout(500)
+    # Should show error, not content
+    error_display = page.locator("[data-testid='code-tab-error']")
+    expect(error_display).to_be_visible(timeout=5000)
+    expect(error_display).to_contain_text("not found")
+
+
+# ── Config tab ───────────────────────────────────────────────────────
+
+
+def test_config_tab_renders(page: Page, base_url: str) -> None:
+    """Config tab renders app configuration values."""
+    page.goto(base_url + "/apps/my_app")
+    config_tab_btn = page.locator("button[role='tab']", has_text="Config")
+    expect(config_tab_btn).to_be_visible()
+    config_tab_btn.click()
+    config_content = page.locator("[data-testid='config-values-table']")
+    expect(config_content).to_be_visible(timeout=5000)
+
+
+def test_config_tab_shows_filename(page: Page, base_url: str) -> None:
+    """Config tab shows the app filename."""
+    page.goto(base_url + "/apps/my_app")
+    config_tab_btn = page.locator("button[role='tab']", has_text="Config")
+    config_tab_btn.click()
+    config_content = page.locator(".ht-config-tab")
+    expect(config_content).to_be_visible(timeout=5000)
+    expect(config_content).to_contain_text("my_app.py")
+
+
+# ── Logs tab ─────────────────────────────────────────────────────────
+
+
+def test_app_detail_logs_tab(page: Page, base_url: str) -> None:
+    """Logs tab renders log entries filtered to the app."""
+    page.goto(base_url + "/apps/my_app")
+    logs_tab_btn = page.locator("button[role='tab']", has_text="Logs")
+    expect(logs_tab_btn).to_be_visible()
+    logs_tab_btn.click()
+    page.wait_for_timeout(500)
+    logs_section = page.locator("[data-testid='logs-section']")
+    expect(logs_section).to_be_visible()
+    # App-specific log messages should be present
+    entries_badge = page.locator("text=/\\d+ entries/")
+    expect(entries_badge).to_be_visible(timeout=5000)
+    body = page.locator("body")
+    expect(body).to_contain_text("MyApp initialized")
+    # Core-only messages should NOT appear (filtered by app_key)
+    expect(body).not_to_contain_text("Hassette started successfully")
+
+
+# ── Stopped/disabled app ─────────────────────────────────────────────
+
+
+def test_stopped_app_renders_without_error(page: Page, base_url: str) -> None:
+    """Stopped app detail page renders without errors."""
+    page.goto(base_url + "/apps/other_app")
+    expect(page.locator("body")).to_contain_text("Other App")
+
+
+def test_app_detail_shows_display_name(page: Page, base_url: str) -> None:
+    """App detail header shows the app's display name."""
+    page.goto(base_url + "/apps/my_app")
+    expect(page.locator("[data-testid='app-title']")).to_contain_text("My App")
+
+
+# ── Multi-instance ───────────────────────────────────────────────────
+
+
+def test_multi_instance_app_shows_overview(page: Page, base_url: str) -> None:
+    """Multi-instance app at /apps/multi_app shows instance overview grid."""
+    page.goto(base_url + "/apps/multi_app")
+    page.wait_for_load_state("networkidle")
+    overview = page.locator("[data-testid='multi-instance-overview']")
+    expect(overview).to_be_visible()
+    instance_grid = page.locator("[data-testid='instance-grid']")
+    expect(instance_grid).to_be_visible()
+
+
+def test_multi_instance_detail_shows_switcher(page: Page, base_url: str) -> None:
+    """Multi-instance detail at /apps/multi_app/0 shows instance switcher."""
+    page.goto(base_url + "/apps/multi_app/0")
+    page.wait_for_load_state("networkidle")
+    switcher = page.locator("[data-testid='instance-switcher']")
+    expect(switcher).to_be_visible()

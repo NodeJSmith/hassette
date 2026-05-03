@@ -13,54 +13,59 @@ TABLET_VIEWPORT = {"width": 768, "height": 1024}
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Bottom nav visibility
+# Off-canvas drawer visibility (mobile nav)
 # ──────────────────────────────────────────────────────────────────────
 
 
-def test_bottom_nav_visible_at_375px(page: Page, base_url: str) -> None:
-    """Bottom navigation bar is visible on mobile with 4 items."""
+def test_hamburger_visible_at_375px(page: Page, base_url: str) -> None:
+    """Hamburger button is visible on mobile viewport."""
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/")
-    nav = page.locator(".ht-bottom-nav")
-    expect(nav).to_be_visible()
-    items = nav.locator(".ht-bottom-nav__item")
-    expect(items).to_have_count(4)
+    hamburger = page.locator(".ht-hamburger")
+    expect(hamburger).to_be_visible()
 
 
-def test_bottom_nav_hidden_at_1024px(page: Page, base_url: str) -> None:
-    """Bottom navigation bar is hidden on desktop viewports."""
+def test_hamburger_opens_drawer_at_mobile(page: Page, base_url: str) -> None:
+    """Tapping the hamburger opens the off-canvas drawer."""
+    page.set_viewport_size(MOBILE_VIEWPORT)
+    page.goto(base_url + "/")
+    page.locator(".ht-hamburger").click()
+    drawer = page.locator(".ht-drawer")
+    expect(drawer).to_have_class(re.compile(r"\bis-open\b"))
+
+
+def test_drawer_closes_on_backdrop_click(page: Page, base_url: str) -> None:
+    """Tapping the backdrop closes the off-canvas drawer."""
+    page.set_viewport_size(MOBILE_VIEWPORT)
+    page.goto(base_url + "/")
+    page.locator(".ht-hamburger").click()
+    expect(page.locator(".ht-drawer")).to_have_class(re.compile(r"\bis-open\b"))
+    page.locator(".ht-drawer-backdrop").click()
+    expect(page.locator(".ht-drawer")).not_to_have_class(re.compile(r"\bis-open\b"))
+
+
+def test_sidebar_hidden_at_mobile(page: Page, base_url: str) -> None:
+    """Desktop sidebar is hidden on mobile viewports."""
+    page.set_viewport_size(MOBILE_VIEWPORT)
+    page.goto(base_url + "/")
+    sidebar = page.locator(".ht-layout > .ht-sidebar")
+    expect(sidebar).not_to_be_visible()
+
+
+def test_sidebar_visible_at_desktop(page: Page, base_url: str) -> None:
+    """Sidebar is visible on desktop viewports."""
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/")
-    nav = page.locator(".ht-bottom-nav")
-    expect(nav).not_to_be_visible()
+    sidebar = page.locator(".ht-sidebar")
+    expect(sidebar).to_be_visible()
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Bottom nav navigation
-# ──────────────────────────────────────────────────────────────────────
-
-BOTTOM_NAV_TABS = [
-    ("nav-dashboard-mobile", "/"),
-    ("nav-apps-mobile", "/apps"),
-    ("nav-logs-mobile", "/logs"),
-    ("nav-sessions-mobile", "/sessions"),
-]
-
-
-@pytest.mark.parametrize(
-    ("testid", "expected_path"),
-    BOTTOM_NAV_TABS,
-    ids=[t for t, _ in BOTTOM_NAV_TABS],
-)
-def test_bottom_nav_navigation(page: Page, base_url: str, testid: str, expected_path: str) -> None:
-    """Clicking bottom nav tabs navigates to the correct page."""
-    page.set_viewport_size(MOBILE_VIEWPORT)
+def test_hamburger_hidden_at_desktop(page: Page, base_url: str) -> None:
+    """Hamburger button is hidden on desktop viewports."""
+    page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/")
-    page.locator(f'[data-testid="{testid}"]').click()
-    if expected_path == "/":
-        expect(page).to_have_url(base_url + "/")
-    else:
-        expect(page).to_have_url(re.compile(re.escape(expected_path.rstrip("/")) + r"/?$"))
+    hamburger = page.locator(".ht-hamburger")
+    expect(hamburger).not_to_be_visible()
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -112,13 +117,6 @@ def test_touch_targets_44px(page: Page, base_url: str) -> None:
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/")
 
-    # Scope toggle buttons
-    scope_toggle = page.locator('[data-testid="scope-toggle"] button').first
-    expect(scope_toggle).to_be_visible()
-    box = scope_toggle.bounding_box()
-    assert box is not None
-    assert box["height"] >= 44, f"Scope toggle height {box['height']}px < 44px"
-
     # Theme toggle button
     theme_toggle = page.locator('[data-testid="theme-toggle"]')
     expect(theme_toggle).to_be_visible()
@@ -126,48 +124,12 @@ def test_touch_targets_44px(page: Page, base_url: str) -> None:
     assert box is not None
     assert box["height"] >= 44, f"Theme toggle height {box['height']}px < 44px"
 
-    # Bottom nav items
-    nav_items = page.locator(".ht-bottom-nav__item")
-    for i in range(nav_items.count()):
-        box = nav_items.nth(i).bounding_box()
-        assert box is not None
-        assert box["height"] >= 44, f"Bottom nav item {i} height {box['height']}px < 44px"
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Bottom nav does not overlap content
-# ──────────────────────────────────────────────────────────────────────
-
-
-def test_bottom_nav_no_content_overlap(page: Page, base_url: str) -> None:
-    """Content does not visually overlap with the fixed bottom nav."""
-    page.set_viewport_size(MOBILE_VIEWPORT)
-    page.goto(base_url + "/")
-    page.wait_for_timeout(500)
-
-    # Scroll the window to the bottom — .ht-main uses min-height (not height),
-    # so it grows to fit content and the actual scroll container is the viewport.
-    page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
-    page.wait_for_timeout(300)
-
-    # Use getBoundingClientRect for both elements so coordinates are in the same
-    # viewport-relative system (bounding_box uses document coordinates which
-    # differ from viewport coordinates after scrolling).
-    overlap = page.evaluate("""
-        () => {
-            const main = document.querySelector('.ht-main');
-            if (!main || !main.lastElementChild) return null;
-            const nav = document.querySelector('.ht-bottom-nav');
-            if (!nav) return null;
-            const contentBottom = main.lastElementChild.getBoundingClientRect().bottom;
-            const navTop = nav.getBoundingClientRect().top;
-            return { contentBottom, navTop };
-        }
-    """)
-    assert overlap is not None, "Could not find .ht-main content or .ht-bottom-nav"
-    assert overlap["contentBottom"] <= overlap["navTop"] + 1, (
-        f"Last content element bottom ({overlap['contentBottom']}px) overlaps bottom nav top ({overlap['navTop']}px)"
-    )
+    # Hamburger button
+    hamburger = page.locator(".ht-hamburger")
+    expect(hamburger).to_be_visible()
+    box = hamburger.bounding_box()
+    assert box is not None
+    assert box["height"] >= 44, f"Hamburger height {box['height']}px < 44px"
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -194,7 +156,10 @@ def test_log_table_app_tag_at_375px(page: Page, base_url: str) -> None:
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/logs")
 
-    # App column header should not be visible
+    # Wait for log entries to load
+    page.locator("text=/\\d+ entr/").wait_for(timeout=5000)
+
+    # App column header should not be visible at mobile breakpoint
     headers = page.locator(".ht-table-log th")
     header_texts = [headers.nth(i).text_content() for i in range(headers.count())]
     assert not any("App" in (t or "") for t in header_texts), f"App header found in: {header_texts}"
@@ -204,3 +169,21 @@ def test_log_table_app_tag_at_375px(page: Page, base_url: str) -> None:
     assert app_tags.count() > 0, "Expected at least one .ht-log-app-tag element"
     expect(app_tags.first).to_be_visible()
     expect(app_tags.first).to_have_class(re.compile(r"ht-tag"))
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Handler detail drill-down on narrow viewport
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_handler_detail_accessible_on_narrow_viewport(page: Page, base_url: str) -> None:
+    """Handler row click opens detail pane even on narrow viewport."""
+    page.set_viewport_size({"width": 800, "height": 600})
+    page.goto(base_url + "/apps/my_app")
+
+    row = page.locator("[data-testid='unified-row-listener-1']")
+    expect(row).to_be_visible()
+    row.click()
+
+    detail = page.locator("[data-testid='listener-detail-1']")
+    expect(detail).to_be_visible(timeout=5000)

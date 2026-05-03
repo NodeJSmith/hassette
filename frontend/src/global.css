@@ -1004,8 +1004,8 @@ strong {
   top: var(--sp-3);
   left: var(--sp-3);
   z-index: 50;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--line-1);
@@ -2061,7 +2061,7 @@ strong {
   .ht-main {
     grid-column: 1;
     padding: var(--sp-4);
-    padding-top: calc(var(--sp-3) * 2 + 36px);
+    padding-top: calc(var(--sp-3) * 2 + 44px);
   }
 
   .ht-section {

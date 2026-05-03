@@ -33,13 +33,13 @@ const PRESET_WINDOW_SECONDS: Record<Exclude<TimePreset, "since-restart">, number
 /**
  * Compute the `since` timestamp (Unix epoch seconds) for the given preset.
  *
- * Returns undefined when uptimeSeconds is null (not yet connected) — the
- * caller uses this as a signal to block the fetch.
+ * Returns undefined only for "since-restart" when uptimeSeconds is null
+ * (WS connected message not yet received). Fixed-window presets (1h, 24h, 7d)
+ * are independent of uptime and never block.
  */
 function resolveSince(preset: TimePreset, uptimeSeconds: number | null): number | undefined {
-  if (uptimeSeconds === null) return undefined;
-
   if (preset === "since-restart") {
+    if (uptimeSeconds === null) return undefined;
     return Date.now() / 1000 - uptimeSeconds;
   }
 

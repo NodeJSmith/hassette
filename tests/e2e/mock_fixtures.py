@@ -5,8 +5,9 @@ These build the seed data used by the ``mock_hassette`` session fixture in
 fixture scaffolding only and makes individual seed builders reusable.
 """
 
+from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from hassette.core.app_registry import AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
 from hassette.core.telemetry_models import (
@@ -223,8 +224,9 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
             source_location="my_app.py:15",
             registration_source="on_initialize",
             total_invocations=10,
-            successful=9,
+            successful=8,
             failed=1,
+            timed_out=1,
             di_failures=0,
             cancelled=0,
             total_duration_ms=20.0,
@@ -720,6 +722,41 @@ def wire_global_summary(
     )
 
 
+def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> None:
+    """Wire get_manifest on the mock registry so /apps/{key}/config and /apps/{key}/source work.
+
+    The config and source endpoints call ``hassette.app_handler.registry.get_manifest(app_key)``
+    and expect an ``AppManifest`` (the config class) with ``app_config``, ``full_path``, etc.
+    We return simple MagicMock objects whose attributes match what the route code reads.
+    """
+    # Build a stub AppManifest for each manifest — source endpoint reads full_path and app_dir.
+    # We create a temp-like path pointing to a real file to avoid 404 errors in source tests;
+    # for the "nosource_app" we deliberately point at a non-existent path.
+    _stubs: dict[str, MagicMock] = {}
+
+    for m in manifests:
+        stub = MagicMock()
+        stub.app_key = m.app_key
+        stub.filename = m.filename
+        stub.class_name = m.class_name
+        stub.enabled = m.enabled
+        # Use a real Python file for apps that should have source, None path for nosource_app.
+        if m.app_key == "nosource_app":
+            stub.full_path.resolve.return_value = Path("/nonexistent/nosource_app.py")
+            stub.app_dir.resolve.return_value = Path("/nonexistent")
+            stub.full_path.exists.return_value = False
+        else:
+            # Point at the test file itself so the source endpoint returns real content.
+            real_path = Path(__file__).resolve()
+            stub.full_path.resolve.return_value = real_path
+            stub.app_dir.resolve.return_value = real_path.parent
+            stub.full_path.exists.return_value = True
+        stub.app_config = {"instance_name": f"{m.class_name}.0", "env_prefix": m.app_key + "_"}
+        _stubs[m.app_key] = stub
+
+    hassette._app_handler.registry.get_manifest.side_effect = lambda app_key: _stubs.get(app_key)
+
+
 def wire_owner_resolution(hassette) -> None:
     """Wire app instance owner resolution onto the mock app handler."""
     hassette._app_handler.registry.iter_all_instances.return_value = [
@@ -731,6 +768,54 @@ def wire_owner_resolution(hassette) -> None:
     hassette._app_handler.registry.get.side_effect = lambda app_key, index=0: (
         SimpleNamespace(unique_name="MyApp.MyApp[0]") if app_key == "my_app" and index == 0 else None
     )
+
+
+def wire_config(hassette) -> None:
+    """Wire a realistic config stub on mock_hassette so GET /config works.
+
+    The config route calls ``hassette.config.model_dump(include=...)`` then reads
+    ``hassette.config.app_dir``, ``.data_dir``, and ``.config_dir`` via str().
+    A plain MagicMock fails Pydantic validation, so we replace it with a
+    SimpleNamespace whose ``model_dump`` method returns a real dict and whose
+    path attributes are Path objects.
+    """
+    _safe_fields_values: dict[str, object] = {
+        "dev_mode": False,
+        "log_level": "INFO",
+        "base_url": "http://localhost:8126",
+        "run_web_api": True,
+        "run_web_ui": True,
+        "web_api_host": "0.0.0.0",
+        "web_api_port": 8126,
+        "web_api_cors_origins": [],
+        "web_api_event_buffer_size": 500,
+        "web_api_log_buffer_size": 2000,
+        "web_api_job_history_size": 1000,
+        "web_api_log_level": "INFO",
+        "autodetect_apps": True,
+        "startup_timeout_seconds": 10,
+        "app_startup_timeout_seconds": 20,
+        "app_shutdown_timeout_seconds": 10,
+        "watch_files": True,
+        "file_watcher_debounce_milliseconds": 3000,
+        "scheduler_min_delay_seconds": 1,
+        "scheduler_max_delay_seconds": 30,
+        "scheduler_default_delay_seconds": 15,
+        "asyncio_debug_mode": False,
+        "allow_reload_in_prod": False,
+        "web_ui_hot_reload": False,
+    }
+
+    config_stub = SimpleNamespace(
+        **_safe_fields_values,
+        app_dir=Path("/srv/hassette/apps"),
+        data_dir=Path("/srv/hassette/data"),
+        config_dir=Path("/srv/hassette/config"),
+    )
+    config_stub.model_dump = lambda include=None, **_kwargs: (
+        {k: v for k, v in _safe_fields_values.items() if include is None or k in include}
+    )
+    hassette.config = config_stub
 
 
 # ──────────────────────────────────────────────────────────────────────
