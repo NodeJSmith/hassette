@@ -44,24 +44,24 @@ Three subsystems rely on implicit state — boolean flags, null-checks, and idem
 
 ### Resource Lifecycle Fixes
 
-20. `Resource.shutdown()` and `Service.shutdown()` SHALL set `self.status = ResourceStatus.STOPPING` at entry, after re-entry guards, before hooks run
-21. `ServiceWatcher` SHALL set the service instance's `.status` to `EXHAUSTED_COOLING` or `EXHAUSTED_DEAD` when transitioning to those states, not just emit events with those statuses in the payload
-22. `_force_terminal()` SHALL use direct attribute assignment (`self._status = ...`) instead of the property setter to bypass transition validation
+21. `Resource.shutdown()` and `Service.shutdown()` SHALL set `self.status = ResourceStatus.STOPPING` at entry, after re-entry guards, before hooks run
+22. `ServiceWatcher` SHALL set the service instance's `.status` to `EXHAUSTED_COOLING` or `EXHAUSTED_DEAD` when transitioning to those states, not just emit events with those statuses in the payload
+23. `_force_terminal()` SHALL use direct attribute assignment (`self._status = ...`) instead of the property setter to bypass transition validation
 
 ### Startup Registry Validation (#666)
 
-11. `validate_registries()` SHALL run during `Hassette.wire_services()` after all service children are added
-12. An empty STATE_REGISTRY (zero entries) SHALL be reported as a validation error — the framework ships ~35 built-in state models; zero entries means the models package was not imported
-13. An empty TYPE_REGISTRY (zero entries) SHALL be reported as a validation error — the module registers ~20 converters at import time; zero entries means the conversion module did not load
-14. In strict mode, any validation issue SHALL raise `RegistryValidationError` with a summary of all issues found (not fail-fast on the first issue)
-15. In non-strict mode, validation issues SHALL be logged as warnings with a single summary line at the end
-16. `validate_registries()` SHALL return a list of `RegistryValidationIssue` dataclasses regardless of mode, for testability
+12. `validate_registries()` SHALL run during `Hassette.wire_services()` after all service children are added
+13. An empty STATE_REGISTRY (zero entries) SHALL be reported as a validation error — the framework ships ~35 built-in state models; zero entries means the models package was not imported
+14. An empty TYPE_REGISTRY (zero entries) SHALL be reported as a validation error — the module registers ~20 converters at import time; zero entries means the conversion module did not load
+15. In strict mode, any validation issue SHALL raise `RegistryValidationError` with a summary of all issues found (not fail-fast on the first issue)
+16. In non-strict mode, validation issues SHALL be logged as warnings with a single summary line at the end
+17. `validate_registries()` SHALL return a list of `RegistryValidationIssue` dataclasses regardless of mode, for testability
 
 ### Strict Lifecycle Toggle
 
-17. `HassetteConfig` SHALL accept a `strict_lifecycle: bool` field (default `False`)
-18. `HassetteHarness` SHALL set `strict_lifecycle = True` by default
-19. The toggle SHALL control behavior for all three subsystems uniformly
+18. `HassetteConfig` SHALL accept a `strict_lifecycle: bool` field (default `False`)
+19. `HassetteHarness` SHALL set `strict_lifecycle = True` by default
+20. The toggle SHALL control behavior for all three subsystems uniformly
 
 ## Non-Goals
 
