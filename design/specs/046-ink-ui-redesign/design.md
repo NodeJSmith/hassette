@@ -332,11 +332,17 @@ The pre-push hook (`tools/check_schemas_fresh.py`) validates freshness.
 
 ### Test Strategy
 
-**Component tests:** Each new or rewritten component ships with a co-located `.test.tsx` file using `@testing-library/preact` + MSW. Test factories in `test/factories.ts` are extended with builders for new response types. MSW handlers in `test/handlers.ts` are updated for new endpoints.
+Three test layers, each with a distinct boundary:
 
-**E2E tests:** Playwright tests in `tests/e2e/` are rewritten to match the new page structure. The session-scoped mock fixture infrastructure (`mock_fixtures.py`, `conftest.py`) is retained and extended. Seed data builders are updated for new endpoints and response shapes.
+**Component tests** (WP04–10): Individual component render + interaction via `@testing-library/preact` + Vitest + MSW. API calls are mocked at the HTTP boundary — MSW intercepts fetch requests and returns fixture data. These tests verify that components render correct content, respond to user interactions, and update signals correctly. They do NOT test backend behavior or real API integration. Each new or rewritten component ships with a co-located `.test.tsx` file. Test factories in `test/factories.ts` are extended with builders for new response types. MSW handlers in `test/handlers.ts` are updated for new endpoints.
 
-**Coverage targets:** Component tests cover primary render paths, error states, empty states, and key interactions (expand/collapse, navigation, filtering). E2E tests cover full user workflows: dashboard overview, app navigation, handler drill-down, job drill-down, log filtering, config display, theme switching, mobile drawer, and command palette.
+**Backend integration tests** (WP02–03): Route-level tests against the real FastAPI app with a mock hassette stub (`create_hassette_stub()`). These tests verify endpoint contracts (correct status codes, response shapes, error handling), query method behavior (the `since` parameter filters correctly, `timed_out` appears in responses), and WS message delivery (completion events broadcast with correct payloads). They do NOT test frontend rendering or user workflows.
+
+**E2E tests** (WP11): Full browser tests via Playwright against a live uvicorn server with mock fixtures. These tests are the only layer that verifies complete user workflows spanning frontend + backend: dashboard renders correct state → click app in sidebar → handler detail loads with real-time updates → log filtering works. The session-scoped mock fixture infrastructure (`mock_fixtures.py`, `conftest.py`) is retained and extended. Seed data builders are updated for new endpoints and response shapes.
+
+**What automated tests do not cover:** Visual design compliance — correct token usage, font rendering, spacing, status shape appearance, contrast ratios. These are verified by visual review via screenshot comparison during implementation (Visual Verification sections in WPs) and the pre-ship Playwright screenshot pass.
+
+**Cross-boundary flow not unit-testable:** The real-time update pipeline (invocation completes → bus topic → RuntimeQueryService resolves app_key → WS broadcast → frontend signal → debounced refetch → table updates) spans 6 components across backend and frontend. Component tests with MSW verify the frontend half (signal fires → refetch → render). Backend integration tests verify the backend half (persist → topic → broadcast). Only E2E tests verify the full flow end-to-end.
 
 ## Alternatives Considered
 
