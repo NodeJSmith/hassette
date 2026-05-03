@@ -23,6 +23,10 @@ export interface ServiceStatusEntry {
   previous_status?: string | null;
   exception?: string | null;
   retry_at: number | null;
+  /** Whether the service has called mark_ready(). False during startup phases. */
+  ready: boolean;
+  /** Human-readable description of the current startup phase, or null when ready. */
+  ready_phase: string | null;
 }
 
 export interface LogStore {

@@ -2,17 +2,18 @@
  * ServiceStatusPanel — displays degraded internal service statuses on the dashboard.
  *
  * Subscribes to the global serviceStatus signal (populated from WebSocket
- * service_status messages). Only shows services in a non-healthy state:
+ * service_status messages). Shows services that need attention:
+ *   - RUNNING but not ready: amber "Starting" row with optional phase detail text
  *   - EXHAUSTED_DEAD: permanent failure indicator (red/danger)
  *   - EXHAUSTED_COOLING: countdown timer until next retry (amber/warning)
  *   - FAILED / CRASHED: active failure
- * Healthy statuses (running, starting, stopped, etc.) are filtered out.
+ * Services that are running and ready, or in other healthy statuses, are hidden.
  */
 
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useAppState } from "../../state/context";
 import type { ServiceStatusEntry } from "../../state/create-app-state";
-import { statusToVariant } from "../../utils/status";
+import { readinessVariant } from "../../utils/status";
 
 const HEALTHY_STATUSES = new Set(["running", "starting", "not_started", "stopping", "stopped"]);
 
@@ -74,14 +75,17 @@ const STATUS_LABELS: Record<string, string> = {
   crashed: "Crashed",
 };
 
+const STARTING_LABEL = "Starting";
+
 interface ServiceRowProps {
   entry: ServiceStatusEntry;
 }
 
 function ServiceRow({ entry }: ServiceRowProps) {
-  const { status, resource_name, retry_at } = entry;
-  const variant = statusToVariant(status);
-  const label = STATUS_LABELS[status] ?? status;
+  const { status, resource_name, retry_at, ready, ready_phase } = entry;
+  const isStarting = status === "running" && !ready;
+  const variant = readinessVariant(status, ready);
+  const label = isStarting ? STARTING_LABEL : (STATUS_LABELS[status] ?? status);
 
   return (
     <li class={`ht-ssp__row ht-ssp__row--${variant}`} data-testid={`service-status-row-${resource_name}`}>
@@ -91,6 +95,9 @@ function ServiceRow({ entry }: ServiceRowProps) {
         {label}
       </span>
       {status === "exhausted_cooling" && retry_at !== null && <CountdownTimer retryAt={retry_at} />}
+      {isStarting && ready_phase !== null && (
+        <span class="ht-ssp__detail">{ready_phase}</span>
+      )}
     </li>
   );
 }
@@ -98,7 +105,7 @@ function ServiceRow({ entry }: ServiceRowProps) {
 export function ServiceStatusPanel() {
   const { serviceStatus } = useAppState();
   const entries = Object.values(serviceStatus.value).filter(
-    (e) => !HEALTHY_STATUSES.has(e.status),
+    (e) => !HEALTHY_STATUSES.has(e.status) || (e.status === "running" && !e.ready),
   );
 
   if (entries.length === 0) {

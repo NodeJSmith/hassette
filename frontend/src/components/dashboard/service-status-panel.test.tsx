@@ -20,6 +20,8 @@ function makeEntry(overrides: Partial<ServiceStatusEntry> = {}): ServiceStatusEn
     previous_status: null,
     exception: null,
     retry_at: null,
+    ready: false,
+    ready_phase: null,
     ...overrides,
   };
 }
@@ -35,7 +37,7 @@ describe("ServiceStatusPanel", () => {
 
     it("renders nothing when all services are healthy", () => {
       const serviceStatus = makeServiceStatus([
-        makeEntry({ resource_name: "svc1", status: "running" }),
+        makeEntry({ resource_name: "svc1", status: "running", ready: true }),
         makeEntry({ resource_name: "svc2", status: "starting" }),
         makeEntry({ resource_name: "svc3", status: "stopped" }),
       ]);
@@ -47,7 +49,7 @@ describe("ServiceStatusPanel", () => {
 
     it("shows only degraded services, filtering out healthy ones", () => {
       const serviceStatus = makeServiceStatus([
-        makeEntry({ resource_name: "healthy_svc", status: "running" }),
+        makeEntry({ resource_name: "healthy_svc", status: "running", ready: true }),
         makeEntry({ resource_name: "broken_svc", status: "failed" }),
       ]);
       const { container } = renderWithAppState(<ServiceStatusPanel />, {
@@ -151,6 +153,92 @@ describe("ServiceStatusPanel", () => {
       });
       const label = getByTestId("service-status-label-crashed_svc");
       expect(label.textContent).toBe("Crashed");
+    });
+  });
+
+  describe("readiness rendering", () => {
+    it("renders nothing when all services are running and ready", () => {
+      const serviceStatus = makeServiceStatus([
+        makeEntry({ resource_name: "svc1", status: "running", ready: true }),
+        makeEntry({ resource_name: "svc2", status: "running", ready: true }),
+      ]);
+      const { container } = renderWithAppState(<ServiceStatusPanel />, {
+        stateOverrides: { serviceStatus },
+      });
+      expect(container.querySelector("[data-testid='service-status-panel']")).toBeNull();
+    });
+
+    it("shows starting row for running-but-not-ready service", () => {
+      const serviceStatus = makeServiceStatus([
+        makeEntry({ resource_name: "starting_svc", status: "running", ready: false }),
+      ]);
+      const { getByTestId } = renderWithAppState(<ServiceStatusPanel />, {
+        stateOverrides: { serviceStatus },
+      });
+      const label = getByTestId("service-status-label-starting_svc");
+      expect(label.textContent).toBe("Starting");
+      const row = getByTestId("service-status-row-starting_svc");
+      expect(row.className).toContain("ht-ssp__row--warning");
+    });
+
+    it("shows phase detail text when ready_phase is non-null", () => {
+      const serviceStatus = makeServiceStatus([
+        makeEntry({
+          resource_name: "starting_svc",
+          status: "running",
+          ready: false,
+          ready_phase: "Connecting to HA...",
+        }),
+      ]);
+      const { container } = renderWithAppState(<ServiceStatusPanel />, {
+        stateOverrides: { serviceStatus },
+      });
+      const detail = container.querySelector(".ht-ssp__detail");
+      expect(detail).not.toBeNull();
+      expect(detail!.textContent).toBe("Connecting to HA...");
+    });
+
+    it("renders no phase detail when ready_phase is null", () => {
+      const serviceStatus = makeServiceStatus([
+        makeEntry({ resource_name: "starting_svc", status: "running", ready: false, ready_phase: null }),
+      ]);
+      const { container } = renderWithAppState(<ServiceStatusPanel />, {
+        stateOverrides: { serviceStatus },
+      });
+      // No .ht-ssp__detail span when ready_phase is null
+      const details = container.querySelectorAll(".ht-ssp__detail:not(.ht-ssp__detail--cooling)");
+      expect(details.length).toBe(0);
+    });
+
+    it("existing exhausted_dead service still renders correctly after readiness changes", () => {
+      const serviceStatus = makeServiceStatus([
+        makeEntry({ resource_name: "dead_svc", status: "exhausted_dead", ready: false }),
+      ]);
+      const { getByTestId } = renderWithAppState(<ServiceStatusPanel />, {
+        stateOverrides: { serviceStatus },
+      });
+      const label = getByTestId("service-status-label-dead_svc");
+      expect(label.textContent).toBe("Permanently failed");
+      const row = getByTestId("service-status-row-dead_svc");
+      expect(row.className).toContain("ht-ssp__row--danger");
+    });
+
+    it("existing exhausted_cooling service still renders countdown after readiness changes", () => {
+      const FUTURE_RETRY_AT = Date.now() / 1000 + 300;
+      const serviceStatus = makeServiceStatus([
+        makeEntry({
+          resource_name: "cooling_svc",
+          status: "exhausted_cooling",
+          retry_at: FUTURE_RETRY_AT,
+          ready: false,
+        }),
+      ]);
+      const { container } = renderWithAppState(<ServiceStatusPanel />, {
+        stateOverrides: { serviceStatus },
+      });
+      const countdown = container.querySelector(".ht-ssp__detail--cooling");
+      expect(countdown).not.toBeNull();
+      expect(countdown!.textContent).toMatch(/Retrying in \d+m/);
     });
   });
 });
