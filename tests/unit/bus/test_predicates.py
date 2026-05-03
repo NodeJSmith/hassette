@@ -622,3 +622,70 @@ def test_predicate_summarize_golden_service_data_where_callable_condition() -> N
     assert "brightness = <callable>" in result
     # Literal condition shows as-is
     assert "entity_id = light.kitchen" in result
+
+
+# ---------------------------------------------------------------------------
+# Composed / nested summarize() tests
+# ---------------------------------------------------------------------------
+
+
+def test_predicate_summarize_allof_realistic_combo() -> None:
+    pred = AllOf(
+        predicates=(
+            EntityMatches("sensor.temperature"),
+            StateDidChange(),
+            StateTo("on"),
+        )
+    )
+    assert pred.summarize() == "entity sensor.temperature and state changed and → on"
+
+
+def test_predicate_summarize_anyof_many_predicates() -> None:
+    pred = AnyOf(
+        predicates=(
+            StateTo("on"),
+            StateTo("off"),
+            StateTo("unavailable"),
+        )
+    )
+    assert pred.summarize() == "→ on or → off or → unavailable"
+
+
+def test_predicate_summarize_allof_with_state_comparison() -> None:
+    from hassette.event_handling.conditions import Increased
+
+    pred = AllOf(
+        predicates=(
+            EntityMatches("zone.home"),
+            StateComparison(condition=Increased()),
+        )
+    )
+    assert pred.summarize() == "entity zone.home and state increased"
+
+
+def test_predicate_summarize_nested_allof_containing_anyof() -> None:
+    pred = AllOf(
+        predicates=(
+            EntityMatches("light.kitchen"),
+            AnyOf(predicates=(StateTo("on"), StateTo("off"))),
+        )
+    )
+    assert pred.summarize() == "entity light.kitchen and → on or → off"
+
+
+def test_predicate_summarize_not_wrapping_allof() -> None:
+    inner = AllOf(predicates=(EntityMatches("light.kitchen"), StateTo("on")))
+    pred = Not(predicate=inner)
+    assert pred.summarize() == "not entity light.kitchen and → on"
+
+
+def test_predicate_summarize_allof_with_attr_comparison_and_condition() -> None:
+    from hassette.event_handling.conditions import Comparison
+
+    pred = AllOf(
+        predicates=(
+            EntityMatches("light.office"),
+            AttrComparison(attr_name="brightness", condition=Comparison(">=", 200)),
+        )
+    )
+    assert pred.summarize() == "entity light.office and attr brightness >= 200"
