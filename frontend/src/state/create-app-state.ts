@@ -25,7 +25,7 @@ export interface ServiceStatusEntry {
   retry_at: number | null;
   /** Whether the service has called mark_ready(). False during startup phases. */
   ready: boolean;
-  /** Human-readable description of the current startup phase, or null when ready. */
+  /** Human-readable description of the current readiness or startup phase, or null if not available. */
   ready_phase: string | null;
 }
 

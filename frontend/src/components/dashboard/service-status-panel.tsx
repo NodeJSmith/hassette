@@ -73,9 +73,8 @@ const STATUS_LABELS: Record<string, string> = {
   exhausted_cooling: "Cooling down",
   failed: "Failed",
   crashed: "Crashed",
+  running_not_ready: "Starting",
 };
-
-const STARTING_LABEL = "Starting";
 
 interface ServiceRowProps {
   entry: ServiceStatusEntry;
@@ -85,7 +84,7 @@ function ServiceRow({ entry }: ServiceRowProps) {
   const { status, resource_name, retry_at, ready, ready_phase } = entry;
   const isStarting = status === "running" && !ready;
   const variant = readinessVariant(status, ready);
-  const label = isStarting ? STARTING_LABEL : (STATUS_LABELS[status] ?? status);
+  const label = isStarting ? STATUS_LABELS["running_not_ready"] : (STATUS_LABELS[status] ?? status);
 
   return (
     <li class={`ht-ssp__row ht-ssp__row--${variant}`} data-testid={`service-status-row-${resource_name}`}>

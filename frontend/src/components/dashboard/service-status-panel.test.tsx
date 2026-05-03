@@ -133,7 +133,7 @@ describe("ServiceStatusPanel", () => {
   });
 
   describe("failed/crashed rendering", () => {
-    it("renders failed services with label", () => {
+    it("renders failed services with label and danger variant", () => {
       const serviceStatus = makeServiceStatus([
         makeEntry({ resource_name: "broken_svc", status: "failed" }),
       ]);
@@ -142,9 +142,11 @@ describe("ServiceStatusPanel", () => {
       });
       const label = getByTestId("service-status-label-broken_svc");
       expect(label.textContent).toBe("Failed");
+      const row = getByTestId("service-status-row-broken_svc");
+      expect(row.className).toContain("ht-ssp__row--danger");
     });
 
-    it("renders crashed services with label", () => {
+    it("renders crashed services with label and danger variant", () => {
       const serviceStatus = makeServiceStatus([
         makeEntry({ resource_name: "crashed_svc", status: "crashed" }),
       ]);
@@ -153,6 +155,8 @@ describe("ServiceStatusPanel", () => {
       });
       const label = getByTestId("service-status-label-crashed_svc");
       expect(label.textContent).toBe("Crashed");
+      const row = getByTestId("service-status-row-crashed_svc");
+      expect(row.className).toContain("ht-ssp__row--danger");
     });
   });
 
