@@ -68,7 +68,7 @@ from .accessors import (
     get_state_value_old,
     get_state_value_old_new,
 )
-from .conditions import Glob, Present
+from .conditions import ARROW, Glob, Present
 
 if typing.TYPE_CHECKING:
     from hassette import RawStateChangeEvent
@@ -119,6 +119,35 @@ def _summarize_condition(condition: Any) -> str:
     return repr(condition)
 
 
+def _strip_outer_parens(s: str) -> str:
+    """Strip balanced outer parentheses from a summary string.
+
+    Only strips when the opening ``(`` at index 0 is matched by the
+    closing ``)`` at the final index — i.e. the parens wrap the entire
+    string.  Unbalanced or non-wrapping parens are left untouched.
+    """
+    if len(s) < 2 or s[0] != "(" or s[-1] != ")":
+        return s
+    depth = 0
+    for i, ch in enumerate(s):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        if depth == 0 and i < len(s) - 1:
+            return s
+    return s[1:-1]
+
+
+def summarize_top_level(predicate: "Predicate") -> str:
+    """Return a human-readable summary suitable for display as a top-level label.
+
+    Calls ``summarize()`` on the predicate, then strips balanced outer
+    parentheses so top-level combinators don't produce redundant wrapping.
+    """
+    return _strip_outer_parens(_summarize_predicate(predicate))
+
+
 @dataclass(frozen=True)
 class AllOf:
     """Predicate that evaluates to True if all of the contained predicates evaluate to True."""
@@ -130,7 +159,10 @@ class AllOf:
         return all(p(value) for p in self.predicates)
 
     def summarize(self) -> str:
-        return " and ".join(_summarize_predicate(p) for p in self.predicates)
+        joined = " and ".join(_summarize_predicate(p) for p in self.predicates)
+        if len(self.predicates) >= 2:
+            return f"({joined})"
+        return joined
 
     @classmethod
     def ensure_iterable(cls, where: "Predicate | Sequence[Predicate] | list[Predicate]") -> "AllOf":
@@ -148,7 +180,10 @@ class AnyOf:
         return any(p(event) for p in self.predicates)
 
     def summarize(self) -> str:
-        return " or ".join(_summarize_predicate(p) for p in self.predicates)
+        joined = " or ".join(_summarize_predicate(p) for p in self.predicates)
+        if len(self.predicates) >= 2:
+            return f"({joined})"
+        return joined
 
     @classmethod
     def ensure_iterable(cls, where: "Predicate | Sequence[Predicate]") -> "AnyOf":
@@ -267,7 +302,7 @@ class StateTo:
         return ValueIs(source=get_state_value_new, condition=self.condition)(value)
 
     def summarize(self) -> str:
-        return f"\u2192 {self.condition}"
+        return f"{ARROW} {self.condition}"
 
 
 @dataclass(frozen=True)
@@ -313,7 +348,7 @@ class AttrTo:
         return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(value)
 
     def summarize(self) -> str:
-        return f"attr {self.attr_name} \u2192 {self.condition}"
+        return f"attr {self.attr_name} {ARROW} {self.condition}"
 
 
 @dataclass(frozen=True)

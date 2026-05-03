@@ -577,12 +577,22 @@ def test_predicate_summarize_golden_guard() -> None:
 
 def test_predicate_summarize_golden_all_of() -> None:
     pred = AllOf(predicates=(EntityMatches("light.kitchen"), StateTo("on")))
-    assert pred.summarize() == "entity light.kitchen and \u2192 on"
+    assert pred.summarize() == "(entity light.kitchen and \u2192 on)"
+
+
+def test_predicate_summarize_golden_all_of_single() -> None:
+    pred = AllOf(predicates=(StateTo("on"),))
+    assert pred.summarize() == "\u2192 on"
 
 
 def test_predicate_summarize_golden_any_of() -> None:
     pred = AnyOf(predicates=(StateTo("on"), StateTo("off")))
-    assert pred.summarize() == "\u2192 on or \u2192 off"
+    assert pred.summarize() == "(\u2192 on or \u2192 off)"
+
+
+def test_predicate_summarize_golden_any_of_single() -> None:
+    pred = AnyOf(predicates=(StateTo("on"),))
+    assert pred.summarize() == "\u2192 on"
 
 
 def test_predicate_summarize_golden_not() -> None:
@@ -637,7 +647,7 @@ def test_predicate_summarize_allof_realistic_combo() -> None:
             StateTo("on"),
         )
     )
-    assert pred.summarize() == "entity sensor.temperature and state changed and → on"
+    assert pred.summarize() == "(entity sensor.temperature and state changed and → on)"
 
 
 def test_predicate_summarize_anyof_many_predicates() -> None:
@@ -648,7 +658,7 @@ def test_predicate_summarize_anyof_many_predicates() -> None:
             StateTo("unavailable"),
         )
     )
-    assert pred.summarize() == "→ on or → off or → unavailable"
+    assert pred.summarize() == "(→ on or → off or → unavailable)"
 
 
 def test_predicate_summarize_allof_with_state_comparison() -> None:
@@ -660,7 +670,7 @@ def test_predicate_summarize_allof_with_state_comparison() -> None:
             StateComparison(condition=Increased()),
         )
     )
-    assert pred.summarize() == "entity zone.home and state increased"
+    assert pred.summarize() == "(entity zone.home and state increased)"
 
 
 def test_predicate_summarize_nested_allof_containing_anyof() -> None:
@@ -670,13 +680,13 @@ def test_predicate_summarize_nested_allof_containing_anyof() -> None:
             AnyOf(predicates=(StateTo("on"), StateTo("off"))),
         )
     )
-    assert pred.summarize() == "entity light.kitchen and → on or → off"
+    assert pred.summarize() == "(entity light.kitchen and (→ on or → off))"
 
 
 def test_predicate_summarize_not_wrapping_allof() -> None:
     inner = AllOf(predicates=(EntityMatches("light.kitchen"), StateTo("on")))
     pred = Not(predicate=inner)
-    assert pred.summarize() == "not entity light.kitchen and → on"
+    assert pred.summarize() == "not (entity light.kitchen and → on)"
 
 
 def test_predicate_summarize_allof_with_attr_comparison_and_condition() -> None:
@@ -688,4 +698,30 @@ def test_predicate_summarize_allof_with_attr_comparison_and_condition() -> None:
             AttrComparison(attr_name="brightness", condition=Comparison(">=", 200)),
         )
     )
-    assert pred.summarize() == "entity light.office and attr brightness >= 200"
+    assert pred.summarize() == "(entity light.office and attr brightness >= 200)"
+
+
+def test_predicate_summarize_top_level_strips_outer_parens() -> None:
+    from hassette.event_handling.predicates import summarize_top_level
+
+    pred = AllOf(predicates=(EntityMatches("light.kitchen"), StateTo("on")))
+    assert summarize_top_level(pred) == "entity light.kitchen and → on"
+
+
+def test_predicate_summarize_top_level_preserves_inner_parens() -> None:
+    from hassette.event_handling.predicates import summarize_top_level
+
+    pred = AllOf(
+        predicates=(
+            EntityMatches("light.kitchen"),
+            AnyOf(predicates=(StateTo("on"), StateTo("off"))),
+        )
+    )
+    assert summarize_top_level(pred) == "entity light.kitchen and (→ on or → off)"
+
+
+def test_predicate_summarize_top_level_no_parens_passthrough() -> None:
+    from hassette.event_handling.predicates import summarize_top_level
+
+    pred = StateTo("on")
+    assert summarize_top_level(pred) == "→ on"

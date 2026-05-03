@@ -211,8 +211,8 @@ class Bus(Resource):
     def _listener_natural_key(self, listener: "Listener") -> tuple[str, int, str, str, str]:
         """Compute the natural key tuple for a listener (for collision tracking)."""
         human_description: str = ""
-        if listener.predicate is not None and hasattr(listener.predicate, "summarize"):
-            human_description = listener.predicate.summarize() or ""  # pyright: ignore[reportAttributeAccessIssue]
+        if listener.predicate is not None:
+            human_description = P.summarize_top_level(listener.predicate)
         return (
             listener.app_key,
             listener.instance_index,

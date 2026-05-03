@@ -61,6 +61,9 @@ from hassette.utils.glob_utils import matches_globs
 OPS = Literal[">", "<", ">=", "<=", "==", "!=", "gt", "lt", "ge", "le", "eq", "ne"]
 OP_LIST = list(OPS.__args__)
 
+ARROW = "→"
+ELLIPSIS_CHAR = "…"
+
 _OP_DISPLAY: dict[str, str] = {"gt": ">", "lt": "<", "ge": ">=", "le": "<=", "eq": "==", "ne": "!="}
 
 _COLLECTION_DISPLAY_LIMIT = 3
@@ -70,7 +73,7 @@ def _format_collection(items: Sequence[Any]) -> str:
     if len(items) <= _COLLECTION_DISPLAY_LIMIT:
         return "[" + ", ".join(str(i) for i in items) + "]"
     shown = ", ".join(str(i) for i in items[:_COLLECTION_DISPLAY_LIMIT])
-    return f"[{shown}, …]"
+    return f"[{shown}, {ELLIPSIS_CHAR}]"
 
 
 @dataclass(frozen=True)
