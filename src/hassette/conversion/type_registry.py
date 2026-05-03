@@ -203,9 +203,7 @@ class TypeRegistry:
             except Exception as e:
                 raise UnableToConvertValueError(f"Unable to convert {value!r} to {to_type}") from e
             TypeRegistry.register(
-                TypeConverterEntry(
-                    func=to_type, from_type=from_type, to_type=to_type, error_types=(ValueError, TypeError)
-                )
+                TypeConverterEntry(func=to_type, from_type=from_type, to_type=to_type, error_types=(Exception,))
             )
             LOGGER.debug(
                 "Converted %r (%s) to %r (%s) using constructor (auto-registered)",
