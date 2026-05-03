@@ -1,7 +1,7 @@
 # Design: Lifecycle State Machines and Startup Validation
 
 **Date:** 2026-05-03
-**Status:** approved
+**Status:** archived
 **Issues:** #675, #668, #666
 <!-- Gap check 2026-05-03: 4 gaps included — app_lifecycle_service.py:158,168 direct status assignment → WP02 subtask 5, core.py:586 direct status assignment → WP02 subtask 5, harness.py:710 test utility bypass → WP02 subtask 5, web_mocks.py:102 test utility bypass → WP02 subtask 5 -->
 **Research:** design/research/2026-05-01-app-loading-reloading/research.md, design/research/2026-05-01-websocket-client-mgmt/research.md, design/research/2026-05-01-type-state-registries/research.md
