@@ -2,6 +2,7 @@ from .annotation_converter import AnnotationConverter
 from .state_registry import StateKey, StateRegistry, convert_state_dict_to_model, register_state_converter
 from .type_matcher import TypeMatcher
 from .type_registry import TypeConverterEntry, TypeRegistry, register_simple_type_converter, register_type_converter_fn
+from .validation import RegistryValidationIssue, validate_registries
 
 TYPE_MATCHER = TypeMatcher()
 TYPE_REGISTRY = TypeRegistry()
@@ -15,6 +16,7 @@ __all__ = [
     "TYPE_MATCHER",
     "TYPE_REGISTRY",
     "AnnotationConverter",
+    "RegistryValidationIssue",
     "StateKey",
     "StateRegistry",
     "TypeConverterEntry",
@@ -24,4 +26,5 @@ __all__ = [
     "register_simple_type_converter",
     "register_state_converter",
     "register_type_converter_fn",
+    "validate_registries",
 ]

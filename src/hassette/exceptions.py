@@ -322,4 +322,19 @@ class RegistryValidationError(HassetteError):
 
     Only raised when ``HassetteConfig.strict_lifecycle`` is True. In non-strict
     mode the same condition logs a WARNING instead.
+
+    Attributes:
+        issues: The full list of validation issues found. Always contains at least
+            one error-severity issue when this exception is raised.
     """
+
+    def __init__(self, issues: list[Any]) -> None:
+        self.issues = issues
+        error_count = sum(1 for i in issues if getattr(i, "severity", None) == "error")
+        warning_count = sum(1 for i in issues if getattr(i, "severity", None) == "warning")
+        total = len(issues)
+        summary_lines = [f"Registry validation failed: {error_count} error(s), {warning_count} warning(s)"]
+        summary_lines.extend(f"  [{i.severity.upper()}] {i.registry}: {i.message}" for i in issues[:5])
+        if total > 5:
+            summary_lines.append(f"  ... and {total - 5} more issue(s)")
+        super().__init__("\n".join(summary_lines))
