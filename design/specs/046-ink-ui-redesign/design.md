@@ -180,8 +180,8 @@ The monitoring UI was a functional first pass that got the framework working, bu
 ### Data Surfacing
 
 42. Handler rows display the human-readable description from the backend's handler summary field
-43. Handler detail shows the predicate description as a chip (e.g., "only when entity_id == binary_sensor.garage_door")
-44. Handler detail shows modifier chips for: debounce (with millisecond value), throttle (with value), once, priority (with level), immediate, and registration source (decorator vs programmatic)
+43. ~~Predicate description chip deferred~~ — the backend currently returns raw `repr()` strings (e.g., `AllOf(predicates=(EntityMatches(...)))`) that are not suitable for chip display. Issue #692 tracks producing human-readable strings. Once that ships, the chip can be added.
+44. Handler detail shows modifier chips for: debounce (with millisecond value), throttle (with value), once, priority (with level), and immediate. Registration source chip (decorator vs programmatic) is deferred — decorator registration is not yet implemented, so the value is always "programmatic" and the chip would be visual noise.
 45. Handler and job rows separately display timed-out count distinct from failed count. Note: `ListenerWithSummary` is currently missing the `timed_out` field (the SQL computes it and `ListenerSummary` carries it, but the response model and mapper omit it). Add `timed_out: int = 0` to `ListenerWithSummary` and wire it in `to_listener_with_summary()` as a prerequisite.
 46. The dashboard shows a framework error chip in the system health section, separate from app errors, using the framework summary endpoint
 47. When telemetry drop counters are non-zero, a degraded-telemetry banner appears indicating data may be incomplete
