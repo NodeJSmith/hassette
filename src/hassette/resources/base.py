@@ -591,8 +591,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         the current readiness state. Calling this method after a lifecycle transition
         will emit a duplicate event.
 
-        Callers should wrap with ``with suppress(Exception):`` — event emission failures
-        must not abort readiness transitions or reconnect loops.
+        Exceptions are caught internally and logged as warnings — callers do not need
+        to wrap with ``suppress(Exception)``.
         """
         try:
             event = self._create_service_status_event(
