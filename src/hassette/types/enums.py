@@ -106,6 +106,19 @@ class ResourceStatus(StrEnum):
     """The service's restart budget is exhausted and a long cooldown is in progress."""
 
 
+class ConnectionState(StrEnum):
+    """Enumeration for WebSocket connection states."""
+
+    DISCONNECTED = auto()
+    """The WebSocket connection is not established."""
+
+    CONNECTING = auto()
+    """The WebSocket connection is being established."""
+
+    CONNECTED = auto()
+    """The WebSocket connection is established and active."""
+
+
 class ResourceRole(StrEnum):
     """Enumeration for resource roles."""
 

@@ -305,6 +305,13 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     default_cache_size: int = Field(default=100 * 1024 * 1024)
     """Default size limit for caches in bytes. Defaults to 100 MiB."""
 
+    strict_lifecycle: bool = Field(default=False)
+    """Whether to enable strict lifecycle transition validation.
+
+    When True, invalid ResourceStatus transitions raise InvalidLifecycleTransitionError.
+    When False (default), invalid transitions log a WARNING but still proceed.
+    Intended to be set to True in test harnesses to catch lifecycle bugs early."""
+
     asyncio_debug_mode: bool = Field(default=False)
     """Whether to enable asyncio debug mode."""
 

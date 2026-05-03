@@ -1,14 +1,61 @@
 import asyncio
+import logging
+import traceback
 import typing
 from typing import Any, Protocol
 
+from hassette.exceptions import InvalidLifecycleTransitionError
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import CoroLikeT
 
+LOGGER = logging.getLogger(__name__)
+
 if typing.TYPE_CHECKING:
-    import logging
+    import logging as _logging_typing
 
     from hassette.events import HassetteServiceEvent
+
+
+# Valid ResourceStatus transitions. This is the authoritative table for the entire framework.
+# All code paths that change status must go through the setter (or use _status directly to bypass,
+# e.g. _force_terminal). WP02 adds the code paths that exercise STOPPING and EXHAUSTED states;
+# the table is complete from day one so the validation is correct for all future paths.
+VALID_TRANSITIONS: dict[ResourceStatus, frozenset[ResourceStatus]] = {
+    ResourceStatus.NOT_STARTED: frozenset({ResourceStatus.STARTING}),
+    ResourceStatus.STARTING: frozenset({ResourceStatus.RUNNING, ResourceStatus.FAILED, ResourceStatus.STOPPED}),
+    ResourceStatus.RUNNING: frozenset(
+        {
+            ResourceStatus.STOPPING,
+            ResourceStatus.STOPPED,  # pre-WP02: remove when WP02 adds STOPPING to shutdown()
+            ResourceStatus.FAILED,
+            ResourceStatus.CRASHED,
+        }
+    ),
+    ResourceStatus.STOPPING: frozenset({ResourceStatus.STOPPED, ResourceStatus.FAILED}),
+    ResourceStatus.STOPPED: frozenset({ResourceStatus.STARTING}),  # restart
+    ResourceStatus.FAILED: frozenset(
+        {
+            ResourceStatus.STARTING,  # restart
+            ResourceStatus.STOPPED,  # shutdown after failure
+            ResourceStatus.EXHAUSTED_COOLING,  # budget exhausted, transient
+            ResourceStatus.EXHAUSTED_DEAD,  # budget exhausted, temporary
+        }
+    ),
+    ResourceStatus.CRASHED: frozenset(
+        {
+            ResourceStatus.STARTING,  # restart
+            ResourceStatus.STOPPED,  # shutdown after crash
+            ResourceStatus.EXHAUSTED_DEAD,  # fatal, permanent
+        }
+    ),
+    ResourceStatus.EXHAUSTED_COOLING: frozenset(
+        {
+            ResourceStatus.STARTING,  # restart after cooldown
+            ResourceStatus.EXHAUSTED_DEAD,  # cooldown cycles exceeded
+        }
+    ),
+    ResourceStatus.EXHAUSTED_DEAD: frozenset(),  # terminal — no transitions out
+}
 
 
 class _TaskBucketP(Protocol):
@@ -17,7 +64,13 @@ class _TaskBucketP(Protocol):
     async def cancel_all(self) -> None: ...
 
 
+class _HassetteConfigP(Protocol):
+    strict_lifecycle: bool
+
+
 class _HassetteP(Protocol):
+    config: _HassetteConfigP
+
     async def send_event(self, topic: str, payload: Any) -> None: ...
 
 
@@ -26,7 +79,7 @@ class _HassetteP(Protocol):
 if typing.TYPE_CHECKING:
 
     class _LifecycleHostStubs(Protocol):
-        logger: logging.Logger
+        logger: _logging_typing.Logger
         hassette: _HassetteP
         role: Any
         class_name: str
@@ -86,7 +139,32 @@ class LifecycleMixin(_LifecycleHostStubs):
 
     @status.setter
     def status(self, value: ResourceStatus) -> None:
-        self._previous_status = self._status
+        old = self._status
+        if old == value:
+            return
+
+        # Guard: skip validation when the object is not fully constructed (hassette not yet set).
+        if hasattr(self, "hassette"):
+            allowed = VALID_TRANSITIONS.get(old, frozenset())
+            if value not in allowed:
+                if getattr(self.hassette.config, "strict_lifecycle", False) is True:
+                    raise InvalidLifecycleTransitionError(
+                        from_status=old,
+                        to_status=value,
+                        resource_name=getattr(self, "unique_name", repr(self)),
+                    )
+                frame_summary = "".join(traceback.format_stack(limit=3)[:-1]).strip()
+                LOGGER.warning(
+                    "Invalid lifecycle transition for '%s': %r → %r\n%s",
+                    getattr(self, "unique_name", repr(self)),
+                    old,
+                    value,
+                    frame_summary,
+                )
+
+        LOGGER.debug("%s: %s → %s", getattr(self, "unique_name", repr(self)), old, value)
+
+        self._previous_status = old
         self._status = value
 
     @property

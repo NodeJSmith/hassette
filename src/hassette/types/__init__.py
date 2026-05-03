@@ -1,4 +1,4 @@
-from .enums import ResourceRole, ResourceStatus, Topic
+from .enums import ConnectionState, ResourceRole, ResourceStatus, Topic
 from .types import (
     FRAMEWORK_APP_KEY,
     FRAMEWORK_APP_KEY_PREFIX,
@@ -32,6 +32,7 @@ __all__ = [
     "BusErrorHandlerType",
     "ChangeType",
     "ComparisonCondition",
+    "ConnectionState",
     "EventT",
     "HandlerType",
     "JobCallable",

@@ -418,7 +418,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.task_bucket.cancel_all_sync()
         self._shutting_down = False
         self._shutdown_completed = True
-        self.status = ResourceStatus.STOPPED
+        self._status = ResourceStatus.STOPPED  # bypass setter to skip validation
         self.mark_not_ready("shutdown timed out")
         for child in self.children:
             child._force_terminal()
