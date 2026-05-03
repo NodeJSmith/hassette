@@ -870,24 +870,7 @@ strong {
 /* — Status Shape SVG ——————————————————————————————————— */
 /* StatusShape renders inline SVG — no CSS class needed, color is via style attr */
 
-@media (max-width: 768px) {
-  .ht-hamburger {
-    display: flex;
-  }
-
-  .ht-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .ht-layout > aside.ht-sidebar {
-    display: none;
-  }
-
-  .ht-main {
-    grid-column: 1;
-    padding-top: calc(var(--sp-3) * 2 + 36px);
-  }
-}
+/* Hamburger + drawer visibility managed in the responsive block below (line ~1890) */
 
 /* — Cards —————————————————————————————————————————————— */
 .ht-card {
@@ -1888,6 +1871,10 @@ strong {
 /* — Responsive: sidebar hidden below 768px ————————————— */
 /* sync: BREAKPOINT_MOBILE in use-media-query.ts */
 @media screen and (max-width: 768px) {
+  .ht-hamburger {
+    display: flex;
+  }
+
   .ht-layout {
     grid-template-columns: 1fr;
   }
@@ -1896,9 +1883,14 @@ strong {
     display: none;
   }
 
+  .ht-layout > aside.ht-sidebar {
+    display: none;
+  }
+
   .ht-main {
     grid-column: 1;
     padding: var(--ht-sp-4);
+    padding-top: calc(var(--sp-3) * 2 + 36px);
   }
 
   .ht-section {

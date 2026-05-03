@@ -1,5 +1,6 @@
 import { useAppState } from "../../state/context";
 import { setStoredValue } from "../../utils/local-storage";
+import { TimePresetSelector } from "./time-preset-selector";
 
 export function StatusBar() {
   const {
@@ -42,62 +43,68 @@ export function StatusBar() {
 
   return (
     <div class="ht-status-bar">
-      <span class={`ht-ws-indicator ${className}`} aria-label={label}>
-        <span class={dotClass} />
-        {status !== "connected" && <span class="ht-text-xs">{label}</span>}
-      </span>
-      {showDegraded && (
-        <span class="ht-ws-indicator is-degraded" aria-label="DB degraded">
-          <span class="ht-pulse-dot degraded" />
-          <span class="ht-text-xs">DB degraded</span>
+      <div class="ht-status-bar__left">
+        <TimePresetSelector />
+      </div>
+      <div class="ht-status-bar__right">
+        <span class={`ht-ws-indicator ${className}`} aria-label={label}>
+          <span class={dotClass} />
+          {status !== "connected" && <span class="ht-text-xs">{label}</span>}
         </span>
-      )}
-      {droppedTotal > 0 && (
-        <span
-          class="ht-ws-indicator is-degraded"
-          aria-label={`${droppedTotal} telemetry event${droppedTotal !== 1 ? "s" : ""} dropped`}
-          title={`Overflow: ${overflow}, Exhausted: ${exhausted}, No-session: ${noSession}, Shutdown: ${shutdown}`}
-          data-testid="dropped-events-indicator"
-        >
-          <span class="ht-pulse-dot degraded" />
-          <span class="ht-text-xs">{droppedTotal} dropped</span>
-        </span>
-      )}
-      {ehFailures > 0 && (
-        <span
-          class="ht-ws-indicator is-degraded"
-          aria-label={`${ehFailures} error handler failure${ehFailures !== 1 ? "s" : ""}`}
-          title={`${ehFailures} user error handler invocation${ehFailures !== 1 ? "s" : ""} raised or timed out`}
-          data-testid="error-handler-failures-indicator"
-        >
-          <span class="ht-pulse-dot degraded" />
-          <span class="ht-text-xs">{ehFailures} handler err{ehFailures !== 1 ? "s" : ""}</span>
-        </span>
-      )}
-      <button
-        class="ht-theme-toggle"
-        data-testid="theme-toggle"
-        aria-label={`Switch to ${theme.value === "dark" ? "light" : "dark"} mode`}
-        onClick={toggleTheme}
-      >
-        {theme.value === "dark" ? (
-          <svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="5" />
-            <line x1="12" y1="1" x2="12" y2="3" />
-            <line x1="12" y1="21" x2="12" y2="23" />
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-            <line x1="1" y1="12" x2="3" y2="12" />
-            <line x1="21" y1="12" x2="23" y2="12" />
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-          </svg>
-        ) : (
-          <svg viewBox="0 0 24 24">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-          </svg>
+        {showDegraded && (
+          <span class="ht-ws-indicator is-degraded" aria-label="DB degraded">
+            <span class="ht-pulse-dot degraded" />
+            <span class="ht-text-xs">DB degraded</span>
+          </span>
         )}
-      </button>
+        {droppedTotal > 0 && (
+          <span
+            class="ht-ws-indicator is-degraded"
+            aria-label={`${droppedTotal} telemetry event${droppedTotal !== 1 ? "s" : ""} dropped`}
+            title={`Overflow: ${overflow}, Exhausted: ${exhausted}, No-session: ${noSession}, Shutdown: ${shutdown}`}
+            data-testid="dropped-events-indicator"
+          >
+            <span class="ht-pulse-dot degraded" />
+            <span class="ht-text-xs">{droppedTotal} dropped</span>
+          </span>
+        )}
+        {ehFailures > 0 && (
+          <span
+            class="ht-ws-indicator is-degraded"
+            aria-label={`${ehFailures} error handler failure${ehFailures !== 1 ? "s" : ""}`}
+            title={`${ehFailures} user error handler invocation${ehFailures !== 1 ? "s" : ""} raised or timed out`}
+            data-testid="error-handler-failures-indicator"
+          >
+            <span class="ht-pulse-dot degraded" />
+            <span class="ht-text-xs">{ehFailures} handler err{ehFailures !== 1 ? "s" : ""}</span>
+          </span>
+        )}
+        <button
+          type="button"
+          class="ht-theme-toggle"
+          data-testid="theme-toggle"
+          aria-label={`Switch to ${theme.value === "dark" ? "light" : "dark"} mode`}
+          onClick={toggleTheme}
+        >
+          {theme.value === "dark" ? (
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
