@@ -142,12 +142,11 @@ The monitoring UI was a functional first pass that got the framework working, bu
 ### App Detail Pages
 
 18. Single-instance and per-instance detail pages show: app metadata (key, class, file, uptime), lifecycle status with action buttons (start/stop/reload), health strip (error rate, handler avg duration, job avg duration, last activity), and tabbed content
-19. The Handlers tab uses a master/detail layout: scrollable handler list on the left, selected handler's invocation history on the right. On narrow viewports, this collapses to a drill-down pattern.
-20. Each handler row shows: status indicator, kind glyph (state/event/schedule/service), name, human-readable description, invocation count, and last-error preview if errored
-21. The handler detail pane shows: full registration signature, modifier chips (debounce, throttle, once, priority, immediate, registration source), predicate description, and an invocation history table
-22. Each invocation row shows: status, timestamp, trigger description, duration, and error note. Expandable to show event payload and full traceback.
+19. The Handlers tab uses a master/detail layout: scrollable handler list on the left, selected handler's detail on the right. On narrow viewports, this collapses to a drill-down pattern. Event handlers and scheduled jobs appear in a single unified list, differentiated by kind chip.
+20. Each handler row shows: status indicator, kind chip (state/event/cron/svc), name, human-readable description, invocation or execution count, and last-error preview if errored
+21. The handler detail pane shows kind-appropriate content. For state/event handlers: full registration signature, modifier chips (debounce, throttle, once, priority, immediate, registration source), predicate description, and an invocation history table. For scheduled jobs: trigger schedule chips (cron expression, human-readable label, next run, jitter, group), and an execution history table.
+22. Each invocation/execution row shows: status, timestamp, trigger description, duration, and error note. Expandable to show event payload and full traceback.
 23. Invocation rows include a link to the triggering event (via trigger context ID) for future cross-linking
-24. The Jobs tab mirrors the Handlers tab pattern: master list of scheduled jobs with detail pane showing execution history, trigger schedule (cron expression, human-readable label), next run time, jitter, and group
 25. The Code tab displays the app's source file with syntax highlighting and line numbers. Handler names are annotated in the gutter for quick navigation.
 26. The Config tab displays the app's configuration: filename, class name, enabled state, and per-instance config values in a structured format
 27. Multi-instance parent pages show an instance grid with per-instance status cards, shared code, and aggregate metrics. Each instance card links to its detail page.
