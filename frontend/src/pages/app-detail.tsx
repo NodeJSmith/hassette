@@ -388,6 +388,13 @@ export function AppDetailPage({ params }: Props) {
         />
       )}
 
+      {/* Block reason banner for blocked apps */}
+      {manifest?.block_reason && (
+        <div class="ht-alert ht-alert--warning ht-mb-4" role="alert" data-testid="block-reason-banner">
+          <strong>Blocked:</strong> {manifest.block_reason}
+        </div>
+      )}
+
       {/* Health strip */}
       <div class="ht-mb-6">
         <HealthStrip health={health.data.value} />
