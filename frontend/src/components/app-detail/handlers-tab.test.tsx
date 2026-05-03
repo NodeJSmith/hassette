@@ -23,8 +23,6 @@ function renderHandlersTab(
 ) {
   return renderWithAppState(
     <HandlersTab
-      appKey="test_app"
-      instanceIndex={0}
       listeners={listeners}
       jobs={jobs}
       focusMethod={null}
@@ -45,7 +43,7 @@ describe("HandlersTab", () => {
 
   it("renders empty state when no listeners or jobs", () => {
     const { getByTestId } = renderWithAppState(
-      <HandlersTab appKey="test_app" instanceIndex={0} listeners={[]} jobs={[]} focusMethod={null} />,
+      <HandlersTab listeners={[]} jobs={[]} focusMethod={null} />,
       { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
     );
     expect(getByTestId("handlers-empty")).toBeDefined();
@@ -119,8 +117,6 @@ describe("HandlersTab", () => {
     ];
     const { getByTestId } = renderWithAppState(
       <HandlersTab
-        appKey="test_app"
-        instanceIndex={0}
         listeners={listeners}
         jobs={[]}
         focusMethod="on_motion"

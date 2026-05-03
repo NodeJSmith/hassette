@@ -14,11 +14,8 @@ import { useRelativeTime } from "../../hooks/use-relative-time";
 const MOBILE_BREAKPOINT = 768;
 
 interface Props {
-  appKey: string;
-  instanceIndex: number;
   listeners: ListenerData[];
   jobs: JobData[];
-  /** If set, auto-select the handler whose method name contains this string. */
   focusMethod: string | null;
 }
 
@@ -58,14 +55,14 @@ function ScheduleChips({ job }: { job: JobData }) {
 
   return (
     <div class="ht-chip-row" data-testid="schedule-chips">
-      {chips.map((c) => (
-        <span key={c.label} class="ht-chip ht-chip--schedule">{c.label}</span>
+      {chips.map((c, i) => (
+        <span key={i} class="ht-chip ht-chip--schedule">{c.label}</span>
       ))}
       {nextRunLabel && (
-        <span class="ht-chip ht-chip--schedule">next: {nextRunLabel}</span>
+        <span key="next-run" class="ht-chip ht-chip--schedule">next: {nextRunLabel}</span>
       )}
       {fireAtLabel && (
-        <span class="ht-chip ht-chip--schedule">fire at: {fireAtLabel}</span>
+        <span key="fire-at" class="ht-chip ht-chip--schedule">fire at: {fireAtLabel}</span>
       )}
     </div>
   );
@@ -157,7 +154,7 @@ function JobDetail({ job }: JobDetailProps) {
   );
 }
 
-export function HandlersTab({ appKey: _appKey, instanceIndex: _instanceIndex, listeners, jobs, focusMethod }: Props) {
+export function HandlersTab({ listeners, jobs, focusMethod }: Props) {
   // Selected item in master list
   const selectedId = useRef(signal<SelectedHandlerId | null>(null)).current;
   // Mobile mode: show detail instead of list

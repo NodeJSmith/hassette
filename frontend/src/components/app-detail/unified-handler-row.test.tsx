@@ -64,9 +64,7 @@ describe("UnifiedHandlerRow — listener", () => {
   });
 
   it("renders invocation count in stats", () => {
-    const listener = createListener({ total_invocations: 7, listener_id: 1 });
     const item = makeListenerItem({ total_invocations: 7, listener_id: 1 });
-    void listener;
     const { getByText } = render(
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
     );

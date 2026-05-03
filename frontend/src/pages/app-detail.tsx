@@ -114,12 +114,11 @@ export function AppDetailPage({ params }: Props) {
   if (focusMethod.current === null) {
     const params_ = new URLSearchParams(searchString);
     focusMethod.current = params_.get("focus");
-    // Clear focus param from URL to avoid stale auto-select on re-navigation
     if (focusMethod.current) {
       const next = new URLSearchParams(searchString);
       next.delete("focus");
-      const newSearch = next.toString();
-      history.replaceState(null, "", newSearch ? `?${newSearch}` : window.location.pathname);
+      const cleanPath = next.toString() ? `${window.location.pathname}?${next}` : window.location.pathname;
+      navigate(cleanPath, { replace: true });
     }
   }
 
@@ -253,8 +252,6 @@ export function AppDetailPage({ params }: Props) {
       {/* Tab content */}
       {activeTab.value === "handlers" && (
         <HandlersTab
-          appKey={appKey}
-          instanceIndex={instanceIndex}
           listeners={listeners.data.value ?? []}
           jobs={jobs.data.value ?? []}
           focusMethod={focusMethod.current}
