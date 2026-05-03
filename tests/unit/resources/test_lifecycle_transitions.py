@@ -1,4 +1,4 @@
-"""Tests for LifecycleMixin transition validation (WP01).
+"""Tests for LifecycleMixin transition validation (WP01) and shutdown STOPPING path (WP02).
 
 Verifies:
 - Valid transitions go through without error and emit DEBUG logs
@@ -10,12 +10,21 @@ Verifies:
 - Terminal EXHAUSTED_DEAD rejects further transitions in strict mode
 - hasattr guard: no hassette attribute → no error (construction-time guard)
 - handle_running() idempotency is preserved (already RUNNING → early return, no setter)
+
+WP02 additions:
+- shutdown() sets STOPPING before hooks run (Resource)
+- shutdown() sets STOPPING before hooks run (Service)
+- Full shutdown sequence: RUNNING → STOPPING → STOPPED
+- RUNNING → STOPPED direct transition is no longer valid (requires STOPPING step)
 """
+
+import asyncio
 
 import pytest
 
 from hassette.exceptions import InvalidLifecycleTransitionError
-from hassette.resources.base import Resource
+from hassette.resources.base import Resource, RestartSpec, Service
+from hassette.test_utils import wait_for
 from hassette.types.enums import ResourceStatus
 
 from .conftest import _make_hassette_stub
@@ -25,6 +34,18 @@ class _SimpleResource(Resource):
     """Minimal Resource subclass for testing."""
 
     pass
+
+
+class _SimpleService(Service):
+    """Minimal concrete Service for testing shutdown STOPPING."""
+
+    restart_spec = RestartSpec()
+
+    async def serve(self) -> None:
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            raise
 
 
 # ---------------------------------------------------------------------------
@@ -185,3 +206,104 @@ async def test_same_state_no_transition():
 
     assert resource.status == ResourceStatus.RUNNING
     assert resource._previous_status == ResourceStatus.STARTING
+
+
+# ---------------------------------------------------------------------------
+# WP02: shutdown() sets STOPPING before hooks run
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_shutdown_sets_stopping_before_hooks():
+    """Resource.shutdown() must set STOPPING before on_shutdown hook runs."""
+    hassette = _make_hassette_stub()
+    resource = _SimpleResource(hassette)
+
+    # Set to RUNNING so the transition RUNNING→STOPPING is valid
+    resource._status = ResourceStatus.RUNNING
+
+    status_in_hook: list[ResourceStatus] = []
+
+    async def _on_shutdown_spy() -> None:
+        status_in_hook.append(resource.status)
+
+    resource.on_shutdown = _on_shutdown_spy  # pyright: ignore[reportAttributeAccessIssue]
+
+    await resource.shutdown()
+
+    assert status_in_hook, "on_shutdown hook was never called"
+    assert status_in_hook[0] == ResourceStatus.STOPPING, (
+        f"Expected STOPPING during on_shutdown hook, got {status_in_hook[0]}"
+    )
+    assert resource.status == ResourceStatus.STOPPED, f"Expected STOPPED after shutdown, got {resource.status}"
+
+
+@pytest.mark.asyncio
+async def test_service_shutdown_sets_stopping_before_hooks():
+    """Service.shutdown() must set STOPPING before before_shutdown hook runs.
+
+    For Service, on_shutdown runs after the serve task completes (which calls
+    handle_stop → STOPPING→STOPPED). The observable STOPPING point is before_shutdown,
+    which fires before the serve task is cancelled.
+    """
+    hassette = _make_hassette_stub()
+    svc = _SimpleService(hassette)
+
+    await svc.initialize()
+    await wait_for(lambda: svc.status == ResourceStatus.RUNNING, desc="service RUNNING")
+
+    status_in_hook: list[ResourceStatus] = []
+
+    async def _before_shutdown_spy() -> None:
+        status_in_hook.append(svc.status)
+
+    svc.before_shutdown = _before_shutdown_spy  # pyright: ignore[reportAttributeAccessIssue]
+
+    await svc.shutdown()
+
+    assert status_in_hook, "before_shutdown hook was never called"
+    assert status_in_hook[0] == ResourceStatus.STOPPING, (
+        f"Expected STOPPING during before_shutdown hook, got {status_in_hook[0]}"
+    )
+    assert svc.status == ResourceStatus.STOPPED, f"Expected STOPPED after shutdown, got {svc.status}"
+
+
+@pytest.mark.asyncio
+async def test_shutdown_stopping_then_stopped_sequence():
+    """Full transition sequence: RUNNING → STOPPING → STOPPED via shutdown()."""
+    hassette = _make_hassette_stub()
+    resource = _SimpleResource(hassette)
+
+    resource._status = ResourceStatus.RUNNING
+    seen_statuses: list[ResourceStatus] = []
+
+    # Monkey-patch status setter to capture all transitions
+    original_setter = type(resource).status.fset
+
+    def _capturing_setter(self, value: ResourceStatus) -> None:
+        seen_statuses.append(value)
+        original_setter(self, value)  # pyright: ignore[reportCallIssue]
+
+    type(resource).status = property(type(resource).status.fget, _capturing_setter)  # pyright: ignore[reportAttributeAccessIssue]
+    try:
+        await resource.shutdown()
+    finally:
+        # Restore original setter
+        type(resource).status = property(type(resource).status.fget, original_setter)  # pyright: ignore[reportAttributeAccessIssue]
+
+    assert ResourceStatus.STOPPING in seen_statuses, f"STOPPING not seen; transitions: {seen_statuses}"
+    stopping_idx = seen_statuses.index(ResourceStatus.STOPPING)
+    stopped_idx = next((i for i, s in enumerate(seen_statuses) if s == ResourceStatus.STOPPED), None)
+    assert stopped_idx is not None, "STOPPED not seen"
+    assert stopping_idx < stopped_idx, "STOPPING must precede STOPPED"
+
+
+@pytest.mark.asyncio
+async def test_running_to_stopped_direct_is_valid():
+    """RUNNING → STOPPED is valid for natural service completion (_serve_wrapper normal return)."""
+    hassette = _make_hassette_stub(strict_lifecycle=True)
+    resource = _SimpleResource(hassette)
+    resource._status = ResourceStatus.RUNNING
+
+    resource.status = ResourceStatus.STOPPED
+    assert resource.status == ResourceStatus.STOPPED

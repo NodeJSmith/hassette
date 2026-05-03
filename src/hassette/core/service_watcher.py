@@ -215,6 +215,11 @@ class ServiceWatcher(Resource):
                 retry_at=retry_at,
             )
             await self.hassette.send_event(Topic.HASSETTE_EVENT_SERVICE_STATUS, cooling_event)
+            services = self._get_service(name, role)
+            if not services:
+                self.logger.warning("No %s found for '%s' after EXHAUSTED_COOLING, skipping status set", role, name)
+            else:
+                services[0].status = ResourceStatus.EXHAUSTED_COOLING
             # Cancel existing cooldown for this service if any
             existing = self._cooldown_tasks.get(key)
             if existing and not existing.done():
@@ -241,6 +246,11 @@ class ServiceWatcher(Resource):
                 exception_traceback=original_data.exception_traceback,
             )
             await self.hassette.send_event(Topic.HASSETTE_EVENT_SERVICE_STATUS, dead_event)
+            services = self._get_service(name, role)
+            if not services:
+                self.logger.warning("No %s found for '%s' after EXHAUSTED_DEAD, skipping status set", role, name)
+            else:
+                services[0].status = ResourceStatus.EXHAUSTED_DEAD
 
     async def _cooldown_and_retry(self, name: str, role: object, key: str, spec: RestartSpec) -> None:
         """Long-cooldown sleep followed by budget reset and restart attempt.
@@ -265,6 +275,13 @@ class ServiceWatcher(Resource):
                 previous_status=ResourceStatus.EXHAUSTED_COOLING,
             )
             await self.hassette.send_event(Topic.HASSETTE_EVENT_SERVICE_STATUS, dead_event)
+            services = self._get_service(name, role)
+            if not services:
+                self.logger.warning(
+                    "No %s found for '%s' after cooldown cycle limit, skipping EXHAUSTED_DEAD status set", role, name
+                )
+            else:
+                services[0].status = ResourceStatus.EXHAUSTED_DEAD
             return
 
         self.logger.info(

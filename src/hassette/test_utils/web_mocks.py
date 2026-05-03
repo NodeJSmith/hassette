@@ -99,7 +99,7 @@ def create_hassette_stub(
 
     # --- WebSocket service ---
     hassette.websocket_service = hassette._websocket_service
-    hassette._websocket_service.status = ResourceStatus.RUNNING
+    hassette._websocket_service._status = ResourceStatus.RUNNING
     hassette._websocket_service.is_ready.return_value = is_ready
 
     # --- App handler ---

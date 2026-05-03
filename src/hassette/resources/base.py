@@ -555,6 +555,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if self._shutting_down:
             return
         self._shutting_down = True
+        self.status = ResourceStatus.STOPPING
         self.request_shutdown(f"{self.unique_name} shutdown")
 
         try:
@@ -753,6 +754,7 @@ class Service(Resource):
         if self._shutting_down:
             return
         self._shutting_down = True
+        self.status = ResourceStatus.STOPPING
         self.request_shutdown(f"{self.unique_name} shutdown")
         try:
             await self._run_hooks([self.before_shutdown], continue_on_error=True)

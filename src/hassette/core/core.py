@@ -583,7 +583,8 @@ class Hassette(Resource):
             if self._event_stream_service is not None:
                 with suppress(Exception):
                     await self._event_stream_service.close_streams()
-            self.status = ResourceStatus.STOPPED
+            if self.status != ResourceStatus.STOPPED:
+                self.status = ResourceStatus.STOPPED
             self.mark_not_ready("shutdown complete")
 
     async def before_shutdown(self) -> None:

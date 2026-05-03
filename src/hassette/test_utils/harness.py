@@ -707,7 +707,7 @@ class HassetteHarness:
         self.hassette._command_executor.reconcile_registrations = AsyncMock()
         self.hassette._app_handler = self.hassette.add_child(AppHandler)
         self.hassette._websocket_service = Mock()
-        self.hassette._websocket_service.status = ResourceStatus.RUNNING
+        self.hassette._websocket_service._status = ResourceStatus.RUNNING
 
     async def _start_api_mock(self) -> None:
         if not self.api_base_url:
