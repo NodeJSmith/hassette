@@ -84,7 +84,7 @@ function ErrorEntry({ err }: { err: DashboardErrorEntry }) {
             <span class="ht-text-mono ht-text-xs">{subtitle}</span>
           </>
         )}
-        <span class="ht-text-secondary ht-text-xs">
+        <span class="ht-text-secondary ht-text-xs ht-text-mono">
           {relativeTime}
         </span>
       </div>

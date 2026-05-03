@@ -75,8 +75,9 @@ export function ConfirmDialog({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onCancel]);
 
-  const titleId = "confirm-dialog-title";
-  const bodyId = "confirm-dialog-body";
+  const idRef = useRef(Math.random().toString(36).slice(2, 8));
+  const titleId = `confirm-dialog-title-${idRef.current}`;
+  const bodyId = `confirm-dialog-body-${idRef.current}`;
 
   return (
     <>

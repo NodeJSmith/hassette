@@ -75,14 +75,14 @@ describe("AlertBanner", () => {
 describe("TelemetryDegradedBanner", () => {
   it("renders nothing when telemetryDegraded is false", () => {
     const { container } = renderWithAppState(<TelemetryDegradedBanner />, {
-      stateOverrides: { telemetryDegraded: signal(false), droppedOverflow: signal(0) },
+      stateOverrides: { telemetryDegraded: signal(false), droppedOverflow: signal(0), droppedExhausted: signal(0) },
     });
     expect(container.firstChild).toBeNull();
   });
 
   it("renders banner when telemetryDegraded is true", () => {
     const { getByTestId } = renderWithAppState(<TelemetryDegradedBanner />, {
-      stateOverrides: { telemetryDegraded: signal(true), droppedOverflow: signal(0) },
+      stateOverrides: { telemetryDegraded: signal(true), droppedOverflow: signal(0), droppedExhausted: signal(0) },
     });
     expect(getByTestId("telemetry-degraded-banner")).toBeDefined();
   });
@@ -96,7 +96,7 @@ describe("TelemetryDegradedBanner", () => {
 
   it("has role=alert for screen reader announcement", () => {
     const { container } = renderWithAppState(<TelemetryDegradedBanner />, {
-      stateOverrides: { telemetryDegraded: signal(true), droppedOverflow: signal(0) },
+      stateOverrides: { telemetryDegraded: signal(true), droppedOverflow: signal(0), droppedExhausted: signal(0) },
     });
     const banner = container.querySelector("[role='alert']");
     expect(banner).not.toBeNull();

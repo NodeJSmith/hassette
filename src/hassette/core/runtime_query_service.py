@@ -326,6 +326,11 @@ class RuntimeQueryService(Resource):
         """
         self._job_meta[job_db_id] = (app_key, instance_index)
 
+    def prune_meta(self, live_listener_ids: set[int], live_job_ids: set[int]) -> None:
+        """Remove stale entries from the meta dicts after reconciliation."""
+        self._listener_meta = {k: v for k, v in self._listener_meta.items() if k in live_listener_ids}
+        self._job_meta = {k: v for k, v in self._job_meta.items() if k in live_job_ids}
+
     # --- App status ---
 
     def get_app_status_snapshot(self) -> AppStatusSnapshot:

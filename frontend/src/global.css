@@ -2308,6 +2308,7 @@ strong {
   gap: var(--ht-sp-1);
   padding: var(--ht-sp-2) var(--ht-sp-3);
   border-bottom: 1px solid var(--ht-border);
+  background: var(--err-bg);
 }
 
 .ht-error-entry:last-child {

@@ -192,9 +192,13 @@ describe("Sidebar — app list", () => {
         ),
       ),
     );
-    const { findByText } = renderWithAppState(<Sidebar />);
+    const { findByText, container } = renderWithAppState(<Sidebar />);
     expect(await findByText("Failed App")).toBeDefined();
     expect(await findByText("Running App")).toBeDefined();
+    const names = Array.from(container.querySelectorAll(".sidebar__app-name")).map((el) => el.textContent);
+    const failedIdx = names.indexOf("Failed App");
+    const runningIdx = names.indexOf("Running App");
+    expect(failedIdx).toBeLessThan(runningIdx);
   });
 
   it("applies is-blocked class to blocked apps", async () => {

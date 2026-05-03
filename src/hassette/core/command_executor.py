@@ -606,6 +606,9 @@ class CommandExecutor(Service):
                 session_id=session_id,
             )
         )
+        rqs = self.hassette._runtime_query_service
+        if rqs is not None:
+            rqs.prune_meta(set(live_listener_ids), set(live_job_ids))
 
     # ------------------------------------------------------------------
     # Queue persistence

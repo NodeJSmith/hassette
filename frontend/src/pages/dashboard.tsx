@@ -167,23 +167,26 @@ export function DashboardPage() {
   const initialLoadDone = !kpis.loading.value && !appGrid.loading.value;
   const statusVersionRef = useRef(0);
   const prevStatusRef = useRef(appStatus.value);
-  if (initialLoadDone && appStatus.value !== prevStatusRef.current) {
-    prevStatusRef.current = appStatus.value;
-    statusVersionRef.current += 1;
-  }
-
-  // Also track invocationCompleted/executionCompleted signals for real-time refresh.
-  // Combine all triggers into a single version counter.
   const prevInvRef = useRef(invocationCompleted.value);
   const prevExecRef = useRef(executionCompleted.value);
-  if (initialLoadDone && invocationCompleted.value !== prevInvRef.current) {
-    prevInvRef.current = invocationCompleted.value;
-    statusVersionRef.current += 1;
-  }
-  if (initialLoadDone && executionCompleted.value !== prevExecRef.current) {
-    prevExecRef.current = executionCompleted.value;
-    statusVersionRef.current += 1;
-  }
+
+  useEffect(() => {
+    if (!initialLoadDone) return;
+    let bumped = false;
+    if (appStatus.value !== prevStatusRef.current) {
+      prevStatusRef.current = appStatus.value;
+      bumped = true;
+    }
+    if (invocationCompleted.value !== prevInvRef.current) {
+      prevInvRef.current = invocationCompleted.value;
+      bumped = true;
+    }
+    if (executionCompleted.value !== prevExecRef.current) {
+      prevExecRef.current = executionCompleted.value;
+      bumped = true;
+    }
+    if (bumped) statusVersionRef.current += 1;
+  });
 
   useDebouncedEffect(
     () => statusVersionRef.current,

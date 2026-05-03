@@ -24,7 +24,7 @@ export function FrameworkHealth() {
 
   const badgeVariant = isLoading || hasError ? "neutral" : hasErrors ? "danger" : "success";
   const badgeText = isLoading ? "…" : hasError ? "?" : String(totalFrameworkErrors);
-  const icon = isLoading || hasError ? <IconWarning /> : hasErrors ? <IconWarning /> : <IconCheck />;
+  const icon = isLoading || hasError ? null : hasErrors ? <IconWarning /> : <IconCheck />;
 
   return (
     <div class="ht-card ht-card--receded" data-testid="framework-health">

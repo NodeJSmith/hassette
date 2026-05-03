@@ -634,7 +634,7 @@ class TelemetryQueryService(Resource):
     async def get_error_counts(
         self,
         since_ts: float,
-        session_id: int | None = None,
+        session_id: int | None = None,  # Internal test seam only — not exposed via routes
         source_tier: QuerySourceTier = "app",
     ) -> tuple[int, int]:
         """Return (handler_error_count, job_error_count) since a given timestamp.
@@ -677,7 +677,7 @@ class TelemetryQueryService(Resource):
         self,
         since_ts: float,
         limit: int = 50,
-        session_id: int | None = None,
+        session_id: int | None = None,  # Internal test seam only — not exposed via routes
         source_tier: QuerySourceTier = "app",
     ) -> list[HandlerErrorRecord | JobErrorRecord]:
         """Return recent error records since a given timestamp.
@@ -689,7 +689,7 @@ class TelemetryQueryService(Resource):
         Args:
             since_ts: Only return records with ``execution_start_ts > since_ts``.
             limit: Maximum number of records to return (applied globally).
-            session_id: When provided, restrict to this session only.
+            session_id: Internal test seam — not exposed via routes.
             source_tier: Filter by ``source_tier`` column on the invocation/execution
                 table. ``'app'`` (default) excludes framework internals.
                 ``'all'`` disables the filter entirely.
