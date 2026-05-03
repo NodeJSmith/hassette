@@ -21,6 +21,11 @@ def _validate_app_key(app_key: str) -> None:
         raise HTTPException(status_code=400, detail=f"Invalid app_key: {app_key!r}")
 
 
+def _require_known_app(app_key: str, hassette: HassetteDep) -> None:
+    if hassette.app_handler.registry.get_manifest(app_key) is None:
+        raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
+
+
 @router.get("/apps", response_model=AppStatusResponse)
 async def get_apps(runtime: RuntimeDep) -> AppStatusResponse:
     return app_status_response_from(runtime.get_app_status_snapshot())
@@ -34,9 +39,10 @@ async def get_app_manifests(runtime: RuntimeDep) -> AppManifestListResponse:
 @router.post("/apps/{app_key}/start", status_code=202, response_model=ActionResponse)
 async def start_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
     _validate_app_key(app_key)
+    _require_known_app(app_key, hassette)
     try:
         await hassette.app_handler.start_app(app_key)
-    except (KeyError, ValueError, RuntimeError) as exc:
+    except (ValueError, RuntimeError) as exc:
         LOGGER.warning("Failed to start app %s", app_key, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to start app") from exc
     return ActionResponse(status="accepted", app_key=app_key, action="start")
@@ -45,9 +51,10 @@ async def start_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
 @router.post("/apps/{app_key}/stop", status_code=202, response_model=ActionResponse)
 async def stop_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
     _validate_app_key(app_key)
+    _require_known_app(app_key, hassette)
     try:
         await hassette.app_handler.stop_app(app_key)
-    except (KeyError, ValueError, RuntimeError) as exc:
+    except (ValueError, RuntimeError) as exc:
         LOGGER.warning("Failed to stop app %s", app_key, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to stop app") from exc
     return ActionResponse(status="accepted", app_key=app_key, action="stop")
@@ -56,9 +63,10 @@ async def stop_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
 @router.post("/apps/{app_key}/reload", status_code=202, response_model=ActionResponse)
 async def reload_app(app_key: str, hassette: HassetteDep) -> ActionResponse:
     _validate_app_key(app_key)
+    _require_known_app(app_key, hassette)
     try:
         await hassette.app_handler.reload_app(app_key)
-    except (KeyError, ValueError, RuntimeError) as exc:
+    except (ValueError, RuntimeError) as exc:
         LOGGER.warning("Failed to reload app %s", app_key, exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to reload app") from exc
     return ActionResponse(status="accepted", app_key=app_key, action="reload")

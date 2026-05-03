@@ -7,7 +7,7 @@ Tests cover the snapshot-semantics and filtering guarantees of
 - Returns only non-completed tasks that are currently running
 - Excludes tasks that have already completed
 - Excludes tasks that have been cancelled
-- Returns a new list (snapshot) each call — not a reference to the internal WeakSet
+- Returns a new list (snapshot) each call — not a reference to the internal set
 """
 
 import asyncio
@@ -115,7 +115,7 @@ async def test_pending_tasks_excludes_cancelled_tasks(bucket: TaskBucket) -> Non
 
 
 async def test_pending_tasks_returns_snapshot_not_reference(bucket: TaskBucket) -> None:
-    """pending_tasks() returns a new list each call, not the internal WeakSet.
+    """pending_tasks() returns a new list each call, not the internal set.
 
     This is the snapshot-semantics guarantee: mutating the returned list or
     completing tasks between calls must not affect a previously-returned result.
