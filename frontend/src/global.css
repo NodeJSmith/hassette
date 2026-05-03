@@ -1,3 +1,8 @@
+/* Naming convention: all classes use `ht-` prefix with BEM structure.
+   Pattern: ht-block__element--modifier (e.g. ht-sidebar__app-link--active).
+   Some WP05 components use unprefixed BEM — to be aligned in a post-WP11 cleanup.
+   TODO: split into per-component CSS files after the redesign lands. */
+
 /* Self-hosted fonts — Latin subset
    Newsreader: 400 (display/headings)
    Geist: 400, 500 (body)
