@@ -15,6 +15,7 @@ from hassette.bus.listeners import Listener, Subscription
 from hassette.core.commands import InvokeHandler
 from hassette.core.registration import ListenerRegistration
 from hassette.core.registration_tracker import RegistrationTracker
+from hassette.event_handling.predicates import summarize_top_level
 from hassette.events import Event, HassPayload
 from hassette.events.base import HassContext
 from hassette.events.hass.hass import RawStateChangeEvent, RawStateChangePayload
@@ -228,8 +229,8 @@ class BusService(Service):
         source_location = listener.source_location
         registration_source: str | None = listener.registration_source or None
         human_description: str | None = None
-        if listener.predicate is not None and hasattr(listener.predicate, "summarize"):
-            human_description = listener.predicate.summarize()  # pyright: ignore[reportAttributeAccessIssue]
+        if listener.predicate is not None:
+            human_description = summarize_top_level(listener.predicate)
         reg = ListenerRegistration(
             app_key=listener.app_key,
             instance_index=listener.instance_index,

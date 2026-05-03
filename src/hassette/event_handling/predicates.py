@@ -68,7 +68,7 @@ from .accessors import (
     get_state_value_old,
     get_state_value_old_new,
 )
-from .conditions import Glob, Present
+from .conditions import ARROW, Glob, Present
 
 if typing.TYPE_CHECKING:
     from hassette import RawStateChangeEvent
@@ -101,11 +101,56 @@ def _summarize_predicate(predicate: "Predicate") -> str:
     """Return a human-readable summary of a predicate.
 
     Delegates to the predicate's ``summarize()`` method when available,
-    otherwise falls back to ``"custom condition"``.
+    otherwise falls back to a stable callable name.
     """
     if hasattr(predicate, "summarize"):
         return predicate.summarize()  # pyright: ignore[reportAttributeAccessIssue]
-    return "custom condition"
+    if callable(predicate):
+        return callable_name(predicate)
+    return repr(predicate)
+
+
+def _summarize_condition(condition: Any) -> str:
+    """Return a human-readable summary of a condition.
+
+    Delegates to the condition's ``summarize()`` method when available,
+    falls back to a stable callable name for callables, or ``repr()``
+    for non-callable literals.
+    """
+    if hasattr(condition, "summarize"):
+        return condition.summarize()
+    if callable(condition):
+        return callable_name(condition)
+    return str(condition)
+
+
+def _strip_outer_parens(s: str) -> str:
+    """Strip balanced outer parentheses from a summary string.
+
+    Only strips when the opening ``(`` at index 0 is matched by the
+    closing ``)`` at the final index — i.e. the parens wrap the entire
+    string.  Unbalanced or non-wrapping parens are left untouched.
+    """
+    if len(s) < 2 or s[0] != "(" or s[-1] != ")":
+        return s
+    depth = 0
+    for i, ch in enumerate(s):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        if depth == 0 and i < len(s) - 1:
+            return s
+    return s[1:-1]
+
+
+def summarize_top_level(predicate: "Predicate") -> str:
+    """Return a human-readable summary suitable for display as a top-level label.
+
+    Calls ``summarize()`` on the predicate, then strips balanced outer
+    parentheses so top-level combinators don't produce redundant wrapping.
+    """
+    return _strip_outer_parens(_summarize_predicate(predicate))
 
 
 @dataclass(frozen=True)
@@ -119,7 +164,10 @@ class AllOf:
         return all(p(value) for p in self.predicates)
 
     def summarize(self) -> str:
-        return " and ".join(_summarize_predicate(p) for p in self.predicates)
+        joined = " and ".join(_summarize_predicate(p) for p in self.predicates)
+        if len(self.predicates) >= 2:
+            return f"({joined})"
+        return joined
 
     @classmethod
     def ensure_iterable(cls, where: "Predicate | Sequence[Predicate] | list[Predicate]") -> "AllOf":
@@ -137,7 +185,10 @@ class AnyOf:
         return any(p(event) for p in self.predicates)
 
     def summarize(self) -> str:
-        return " or ".join(_summarize_predicate(p) for p in self.predicates)
+        joined = " or ".join(_summarize_predicate(p) for p in self.predicates)
+        if len(self.predicates) >= 2:
+            return f"({joined})"
+        return joined
 
     @classmethod
     def ensure_iterable(cls, where: "Predicate | Sequence[Predicate]") -> "AnyOf":
@@ -243,7 +294,7 @@ class StateFrom:
         return ValueIs(source=get_state_value_old, condition=self.condition)(value)
 
     def summarize(self) -> str:
-        return f"from {self.condition}"
+        return f"from {_summarize_condition(self.condition)}"
 
 
 @dataclass(frozen=True)
@@ -256,7 +307,7 @@ class StateTo:
         return ValueIs(source=get_state_value_new, condition=self.condition)(value)
 
     def summarize(self) -> str:
-        return f"\u2192 {self.condition}"
+        return f"{ARROW} {_summarize_condition(self.condition)}"
 
 
 @dataclass(frozen=True)
@@ -274,7 +325,7 @@ class StateComparison:
         return self.condition(get_state_value_old(value), get_state_value_new(value))
 
     def summarize(self) -> str:
-        return f"state {self.condition!r}"
+        return f"state {_summarize_condition(self.condition)}"
 
 
 @dataclass(frozen=True)
@@ -288,7 +339,7 @@ class AttrFrom:
         return ValueIs(source=get_attr_old(self.attr_name), condition=self.condition)(value)
 
     def summarize(self) -> str:
-        return f"attr {self.attr_name} from {self.condition}"
+        return f"attr {self.attr_name} from {_summarize_condition(self.condition)}"
 
 
 @dataclass(frozen=True)
@@ -302,7 +353,7 @@ class AttrTo:
         return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(value)
 
     def summarize(self) -> str:
-        return f"attr {self.attr_name} \u2192 {self.condition}"
+        return f"attr {self.attr_name} {ARROW} {_summarize_condition(self.condition)}"
 
 
 @dataclass(frozen=True)
@@ -323,7 +374,7 @@ class AttrComparison:
         return self.condition(old_attr, new_attr)
 
     def summarize(self) -> str:
-        return f"attr {self.attr_name} {self.condition!r}"
+        return f"attr {self.attr_name} {_summarize_condition(self.condition)}"
 
 
 @dataclass(frozen=True)
@@ -468,8 +519,13 @@ class ServiceDataWhere:
         return all(p(value) for p in self._predicates)
 
     def summarize(self) -> str:
-        parts = [f"{k} = {callable_name(v) if callable(v) else v}" for k, v in self.spec.items()]
-        return "service data where " + ", ".join(parts)
+        def _fmt(v: Any) -> str:
+            if callable(v):
+                return _summarize_condition(v) if hasattr(v, "summarize") else callable_name(v)
+            return str(v)
+
+        parts = [f"{k} = {_fmt(v)}" for k, v in self.spec.items()]
+        return ", ".join(parts)
 
     @classmethod
     def from_kwargs(cls, *, auto_glob: bool = True, **spec: "ChangeType") -> "ServiceDataWhere":
