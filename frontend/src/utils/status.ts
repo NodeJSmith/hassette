@@ -76,6 +76,20 @@ export function levelToVariant(level: string): StatusVariant {
 
 export type StatusKind = "ok" | "warn" | "err" | "mute";
 
+const LOG_LEVEL_KIND_MAP: ReadonlyMap<string, StatusKind> = new Map<string, StatusKind>([
+  ["DEBUG", "mute"],
+  ["INFO", "ok"],
+  ["WARNING", "warn"],
+  ["ERROR", "err"],
+  ["CRITICAL", "err"],
+]);
+
+/** Map a log level string to a StatusKind for use with StatusShape.
+ * Unknown levels return "mute". */
+export function levelToKind(level: string): StatusKind {
+  return LOG_LEVEL_KIND_MAP.get(level) ?? "mute";
+}
+
 const STATUS_KIND_MAP: ReadonlyMap<string, StatusKind> = new Map<string, StatusKind>([
   ["running", "ok"],
   ["starting", "ok"],

@@ -513,9 +513,9 @@ describe("LogTable", () => {
     expect(sourceCell.getAttribute("title")).toBe("hassette.bus:dispatch:42");
   });
 
-  // -- Level badge variants --
+  // -- Level badge variants (StatusShape-based) --
 
-  it("renders danger badge for error level", () => {
+  it("renders err StatusShape for ERROR level", () => {
     state.logs.push(createLogEntry({ level: "ERROR" }));
 
     const { container } = render(
@@ -523,12 +523,15 @@ describe("LogTable", () => {
       { wrapper: createWrapper(state) },
     );
 
-    const badge = container.querySelector(".ht-badge--danger");
+    // The level badge wraps a StatusShape SVG and the level text
+    const badge = container.querySelector(".ht-log-level-badge");
     expect(badge).not.toBeNull();
-    expect(badge!.textContent).toBe("ERROR");
+    expect(badge!.textContent).toContain("ERROR");
+    // err kind renders a rect (rounded square) SVG element
+    expect(badge!.querySelector("rect")).not.toBeNull();
   });
 
-  it("renders warning badge for warning level", () => {
+  it("renders warn StatusShape for WARNING level", () => {
     state.logs.push(createLogEntry({ level: "WARNING" }));
 
     const { container } = render(
@@ -536,9 +539,45 @@ describe("LogTable", () => {
       { wrapper: createWrapper(state) },
     );
 
-    const badge = container.querySelector(".ht-badge--warning");
+    const badge = container.querySelector(".ht-log-level-badge");
     expect(badge).not.toBeNull();
-    expect(badge!.textContent).toBe("WARNING");
+    expect(badge!.textContent).toContain("WARNING");
+    // warn kind renders a triangle (polygon) SVG element
+    expect(badge!.querySelector("polygon")).not.toBeNull();
+  });
+
+  it("renders ok StatusShape for INFO level", () => {
+    state.logs.push(createLogEntry({ level: "INFO" }));
+
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const badge = container.querySelector(".ht-log-level-badge");
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toContain("INFO");
+    // ok kind renders a filled circle SVG element
+    expect(badge!.querySelector("circle")).not.toBeNull();
+  });
+
+  it("renders mute StatusShape for DEBUG level", () => {
+    state.logs.push(createLogEntry({ level: "DEBUG" }));
+
+    const { container, getByTestId } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // Need to show DEBUG — default filter is INFO
+    fireEvent.change(getByTestId("filter-level"), { target: { value: "" } });
+
+    const badge = container.querySelector(".ht-log-level-badge");
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toContain("DEBUG");
+    // mute kind renders a stroke-only circle (no filled rect/polygon)
+    expect(badge!.querySelector("rect")).toBeNull();
+    expect(badge!.querySelector("polygon")).toBeNull();
   });
 });
 
@@ -1035,8 +1074,8 @@ describe("Mobile responsive rendering", () => {
     );
     fireEvent.change(getByTestId("filter-level"), { target: { value: "" } });
 
-    const badges = container.querySelectorAll(".ht-badge");
-    const badgeTexts = Array.from(badges).map((b) => b.textContent);
+    const levelBadges = container.querySelectorAll(".ht-log-level-badge__text");
+    const badgeTexts = Array.from(levelBadges).map((b) => b.textContent);
     expect(badgeTexts).toContain("I");
     expect(badgeTexts).toContain("W");
     expect(badgeTexts).toContain("E");

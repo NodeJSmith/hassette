@@ -6,7 +6,8 @@ import { useMediaQuery, BREAKPOINT_MOBILE, BREAKPOINT_TABLET } from "../../hooks
 import { useSubscribe } from "../../hooks/use-subscribe";
 import { useAppState } from "../../state/context";
 import { formatTimestamp, formatRelativeTime, pluralize } from "../../utils/format";
-import { levelToVariant } from "../../utils/status";
+import { levelToKind } from "../../utils/status";
+import { StatusShape } from "./status-shape";
 
 const LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] as const;
 
@@ -75,14 +76,19 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   const showSourceColumn = !isTablet;
   const { logs, updateLogSubscription, reconnectVersion, tick } = useAppState();
   useSubscribe(isMobile && tick, logs.version);
-  const minLevel = useRef(signal("INFO")).current; // default = INFO (matches WS subscription)
-  const appFilter = useRef(signal("")).current; // "" = All Apps
+  const minLevel = useRef(signal("INFO")).current;
+  const appFilter = useRef(signal("")).current;
   const search = useRef(signal("")).current;
   const initialEntries = useRef(signal<LogEntry[]>([])).current;
   const sortConfig = useRef(signal<SortConfig>({ column: "timestamp", asc: false })).current;
   const expandedRows = useRef(signal<Set<string>>(new Set())).current;
 
   const watermarkRef = useRef(0);
+
+  // Sync WS subscription to component's initial level on mount
+  useEffect(() => {
+    updateLogSubscription(minLevel.value || "DEBUG");
+  }, []);
 
   // Fetch initial entries on mount and after reconnect
   const rv = reconnectVersion.value;
@@ -338,8 +344,11 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
               const rows = [
               <tr key={rowKey} data-level={entry.level}>
                 <td>
-                  <span class={`ht-badge ht-badge--sm ht-badge--${levelToVariant(entry.level)}`}>
-                    {isMobile ? (LEVEL_ABBREV[entry.level] ?? entry.level) : entry.level}
+                  <span class="ht-log-level-badge">
+                    <StatusShape kind={levelToKind(entry.level)} size={10} />
+                    <span class="ht-log-level-badge__text">
+                      {isMobile ? (LEVEL_ABBREV[entry.level] ?? entry.level) : entry.level}
+                    </span>
                   </span>
                 </td>
                 <td class="ht-text-mono">{isMobile ? formatRelativeTime(entry.timestamp) : formatTimestamp(entry.timestamp)}</td>

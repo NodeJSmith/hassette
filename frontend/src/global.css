@@ -2334,13 +2334,13 @@ strong {
 .ht-log-table-container {
   display: flex;
   flex-direction: column;
-  gap: var(--ht-sp-3);
+  gap: var(--sp-3);
 }
 
 .ht-log-table-scroll {
   max-height: var(--ht-log-scroll-height, 600px);
   overflow: auto;
-  padding-right: var(--ht-sp-2);
+  padding-right: var(--sp-2);
 }
 
 .ht-table-log {
@@ -2351,8 +2351,9 @@ strong {
 .ht-table-log thead {
   position: sticky;
   top: 0;
-  /* --ht-surface-sticky must remain opaque or scrolled rows show through */
-  background: var(--ht-surface-sticky, var(--ht-bg));
+  /* Must remain opaque or scrolled rows show through */
+  background: var(--bg-surface);
+  z-index: 1;
 }
 
 .ht-table-log .ht-text-mono {
@@ -2366,9 +2367,9 @@ strong {
 /* Message column: no width set — takes all remaining space */
 
 /* Severity row tinting — visible at scroll speed, not just badge-reading speed */
-.ht-table-log tr[data-level="WARNING"] { background: var(--ht-warning-light); }
+.ht-table-log tr[data-level="WARNING"] { background: var(--warn-bg); }
 .ht-table-log tr[data-level="ERROR"],
-.ht-table-log tr[data-level="CRITICAL"] { background: var(--ht-danger-light); }
+.ht-table-log tr[data-level="CRITICAL"] { background: var(--err-bg); }
 
 @media screen and (max-width: 1024px) {
   .ht-table-log .ht-col-source {
@@ -3361,4 +3362,116 @@ strong {
   max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* =====================================================
+   WP09 — Logs Page & Config Page
+   All classes use ht- prefix with BEM structure.
+   ===================================================== */
+
+/* — Log Level Badge (StatusShape + label) ————————————— */
+.ht-log-level-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-mono-sm);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.ht-log-level-badge__text {
+  color: var(--ink-2);
+  font-size: var(--fs-mono-sm);
+}
+
+/* Severity: color the label text to match the shape */
+.ht-table-log tr[data-level="WARNING"] .ht-log-level-badge__text {
+  color: var(--warn);
+}
+.ht-table-log tr[data-level="ERROR"] .ht-log-level-badge__text,
+.ht-table-log tr[data-level="CRITICAL"] .ht-log-level-badge__text {
+  color: var(--err);
+}
+.ht-table-log tr[data-level="DEBUG"] .ht-log-level-badge__text {
+  color: var(--mute);
+}
+.ht-table-log tr[data-level="INFO"] .ht-log-level-badge__text {
+  color: var(--ok);
+}
+
+/* — Logs Page — full-height card override ————————————— */
+.ht-logs-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.ht-card--logs-full {
+  flex: 1;
+  padding: var(--sp-3);
+}
+
+/* Make log scroll fill available vertical space on the Logs page */
+.ht-logs-page .ht-log-table-scroll {
+  --ht-log-scroll-height: calc(100vh - 220px);
+}
+
+/* — Config Page — key-value groups ——————————————————— */
+.ht-config-groups {
+  display: flex;
+  flex-direction: column;
+}
+
+.ht-config-group {
+  /* margin-bottom handled by ht-mb-6 utility */
+}
+
+.ht-config-group__label {
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  font-weight: 400;
+  color: var(--ink-2);
+  letter-spacing: var(--tr-h3);
+  margin-bottom: var(--sp-2);
+}
+
+.ht-card--config {
+  padding: 0;
+  overflow: hidden;
+}
+
+.ht-config-table {
+  table-layout: auto;
+}
+
+.ht-config-table td {
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--line-2);
+  vertical-align: top;
+}
+
+.ht-config-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ht-config-table__key {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-2);
+  white-space: nowrap;
+  width: 320px;
+  min-width: 200px;
+}
+
+.ht-config-table__value {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-1);
+  word-break: break-all;
+}
+
+/* Dim placeholder dash values */
+.ht-config-table__value--empty {
+  color: var(--ink-4);
 }

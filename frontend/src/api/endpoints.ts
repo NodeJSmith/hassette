@@ -90,6 +90,12 @@ export const getDashboardErrors = (since?: number | null, sourceTier?: SourceTie
 export const getTelemetryStatus = (signal?: AbortSignal) =>
   apiFetch<TelemetryStatus>("/telemetry/status", signal ? { signal } : undefined);
 
+// ---- System config ----
+
+export type SystemConfig = components["schemas"]["ConfigResponse"];
+
+export const getConfig = () => apiFetch<SystemConfig>("/config");
+
 // ---- Logs ----
 
 export const getRecentLogs = (params?: { level?: string; app_key?: string; limit?: number }) =>

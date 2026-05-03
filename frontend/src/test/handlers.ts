@@ -12,6 +12,7 @@ import type { components } from "../api/generated-types";
 // ---- Type aliases (keep in sync with endpoints.ts) ----
 
 type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
+type ConfigResponse = components["schemas"]["ConfigResponse"];
 type AppHealthResponse = components["schemas"]["AppHealthResponse"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
@@ -173,6 +174,39 @@ export const handlers = [
       class_name: "TestApp",
       enabled: true,
       app_config: {},
+    });
+  }),
+
+  // GET /api/config
+  http.get("/api/config", () => {
+    return HttpResponse.json<ConfigResponse>({
+      dev_mode: false,
+      log_level: "INFO",
+      base_url: "",
+      run_web_api: true,
+      run_web_ui: true,
+      web_api_host: "0.0.0.0",
+      web_api_port: 8126,
+      web_api_cors_origins: [],
+      web_api_event_buffer_size: 500,
+      web_api_log_buffer_size: 2000,
+      web_api_job_history_size: 1000,
+      web_api_log_level: "INFO",
+      autodetect_apps: true,
+      startup_timeout_seconds: 10,
+      app_startup_timeout_seconds: 20,
+      app_shutdown_timeout_seconds: 10,
+      watch_files: true,
+      file_watcher_debounce_milliseconds: 3000,
+      scheduler_min_delay_seconds: 1,
+      scheduler_max_delay_seconds: 30,
+      scheduler_default_delay_seconds: 15,
+      asyncio_debug_mode: false,
+      allow_reload_in_prod: false,
+      web_ui_hot_reload: false,
+      app_dir: "/home/user/apps",
+      data_dir: "/home/user/.hassette/data",
+      config_dir: "/home/user/.hassette",
     });
   }),
 ];
