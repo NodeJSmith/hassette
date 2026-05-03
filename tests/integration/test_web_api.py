@@ -247,6 +247,9 @@ class TestBusEndpoints:
         # ListenerWithSummary-specific fields present
         assert "source_location" in entry
         assert "human_description" in entry
+        # timed_out field must be present (WP03)
+        assert "timed_out" in entry
+        assert entry["timed_out"] == 0
         # ListenerMetricsResponse-only fields absent (that class is deleted)
         # Verify key fields are correct
         assert entry["listener_id"] == 1
@@ -371,7 +374,7 @@ class TestServicesEndpoint:
 
 class TestConfigEndpointExpanded:
     async def test_response_keys_are_subset_of_safe_fields(self, client: "AsyncClient", mock_hassette) -> None:
-        """All returned keys must be in the allowlist."""
+        """All returned keys must be in the allowlist plus the explicit dir fields."""
         mock_hassette.config.model_dump.return_value = {
             "dev_mode": True,
             "web_api_port": 8126,
@@ -380,7 +383,8 @@ class TestConfigEndpointExpanded:
         response = await client.get("/api/config")
         assert response.status_code == 200
         data = response.json()
-        assert set(data.keys()) <= _CONFIG_SAFE_FIELDS
+        allowed = _CONFIG_SAFE_FIELDS | {"app_dir", "data_dir", "config_dir"}
+        assert set(data.keys()) <= allowed
 
     async def test_model_dump_called_with_safe_fields_include(self, client: "AsyncClient", mock_hassette) -> None:
         """Verify model_dump is called with include=_CONFIG_SAFE_FIELDS to enforce allowlist."""
@@ -399,6 +403,19 @@ class TestConfigEndpointExpanded:
         data = response.json()
         assert "dev_mode" in data
         assert data["dev_mode"] is True
+
+    async def test_dir_fields_present_as_strings(self, client: "AsyncClient", mock_hassette) -> None:
+        """app_dir, data_dir, config_dir are present and are strings (WP03)."""
+        mock_hassette.config.model_dump.return_value = {"dev_mode": False}
+        mock_hassette.config.app_dir = "/srv/hassette/apps"
+        mock_hassette.config.data_dir = "/srv/hassette/data"
+        mock_hassette.config.config_dir = "/srv/hassette/config"
+        response = await client.get("/api/config")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["app_dir"] == "/srv/hassette/apps"
+        assert data["data_dir"] == "/srv/hassette/data"
+        assert data["config_dir"] == "/srv/hassette/config"
 
 
 class TestOpenApiDocs:

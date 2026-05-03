@@ -61,6 +61,8 @@ class TestSchemaFreshness:
             "ConnectivityWsMessage",
             "StateChangedWsMessage",
             "ServiceStatusWsMessage",
+            "InvocationCompletedWsMessage",
+            "ExecutionCompletedWsMessage",
         ],
     )
     def test_all_ws_message_types_have_timestamp(self, msg_type: str) -> None:

@@ -202,6 +202,152 @@
       "title": "ConnectivityWsMessage",
       "type": "object"
     },
+    "ExecutionCompletedData": {
+      "description": "Payload for execution_completed WebSocket messages.",
+      "properties": {
+        "job_id": {
+          "title": "Job Id",
+          "type": "integer"
+        },
+        "app_key": {
+          "title": "App Key",
+          "type": "string"
+        },
+        "instance_index": {
+          "title": "Instance Index",
+          "type": "integer"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "duration_ms": {
+          "title": "Duration Ms",
+          "type": "number"
+        },
+        "error_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Type"
+        }
+      },
+      "required": [
+        "job_id",
+        "app_key",
+        "instance_index",
+        "status",
+        "duration_ms"
+      ],
+      "title": "ExecutionCompletedData",
+      "type": "object"
+    },
+    "ExecutionCompletedWsMessage": {
+      "properties": {
+        "type": {
+          "const": "execution_completed",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "items": {
+            "$ref": "#/$defs/ExecutionCompletedData"
+          },
+          "title": "Data",
+          "type": "array"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "timestamp"
+      ],
+      "title": "ExecutionCompletedWsMessage",
+      "type": "object"
+    },
+    "InvocationCompletedData": {
+      "description": "Payload for invocation_completed WebSocket messages.",
+      "properties": {
+        "listener_id": {
+          "title": "Listener Id",
+          "type": "integer"
+        },
+        "app_key": {
+          "title": "App Key",
+          "type": "string"
+        },
+        "instance_index": {
+          "title": "Instance Index",
+          "type": "integer"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        },
+        "duration_ms": {
+          "title": "Duration Ms",
+          "type": "number"
+        },
+        "error_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Type"
+        }
+      },
+      "required": [
+        "listener_id",
+        "app_key",
+        "instance_index",
+        "status",
+        "duration_ms"
+      ],
+      "title": "InvocationCompletedData",
+      "type": "object"
+    },
+    "InvocationCompletedWsMessage": {
+      "properties": {
+        "type": {
+          "const": "invocation_completed",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "items": {
+            "$ref": "#/$defs/InvocationCompletedData"
+          },
+          "title": "Data",
+          "type": "array"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "timestamp"
+      ],
+      "title": "InvocationCompletedWsMessage",
+      "type": "object"
+    },
     "LogEntryResponse": {
       "properties": {
         "seq": {
@@ -485,6 +631,8 @@
       "app_status_changed": "#/$defs/AppStatusChangedWsMessage",
       "connected": "#/$defs/ConnectedWsMessage",
       "connectivity": "#/$defs/ConnectivityWsMessage",
+      "execution_completed": "#/$defs/ExecutionCompletedWsMessage",
+      "invocation_completed": "#/$defs/InvocationCompletedWsMessage",
       "log": "#/$defs/LogWsMessage",
       "service_status": "#/$defs/ServiceStatusWsMessage",
       "state_changed": "#/$defs/StateChangedWsMessage"
@@ -509,6 +657,12 @@
     },
     {
       "$ref": "#/$defs/ServiceStatusWsMessage"
+    },
+    {
+      "$ref": "#/$defs/InvocationCompletedWsMessage"
+    },
+    {
+      "$ref": "#/$defs/ExecutionCompletedWsMessage"
     }
   ]
 }

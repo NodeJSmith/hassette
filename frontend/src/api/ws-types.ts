@@ -21,7 +21,7 @@ export interface WsAppStatusChangedPayload {
 }
 
 export interface WsConnectedPayload {
-  session_id: number | null;
+  uptime_seconds: number;
   entity_count: number;
   app_count: number;
 }
@@ -65,6 +65,24 @@ export interface WsLogPayload {
   app_key: string | null;
 }
 
+export interface WsInvocationCompletedPayload {
+  listener_id: number;
+  app_key: string;
+  instance_index: number;
+  status: string;
+  duration_ms: number;
+  error_type: string | null;
+}
+
+export interface WsExecutionCompletedPayload {
+  job_id: number;
+  app_key: string;
+  instance_index: number;
+  status: string;
+  duration_ms: number;
+  error_type: string | null;
+}
+
 // Discriminated union of all server-to-client messages
 
 export interface AppStatusChangedMessage {
@@ -103,10 +121,26 @@ export interface ServiceStatusMessage {
   timestamp: number;
 }
 
+export interface InvocationCompletedMessage {
+  type: "invocation_completed";
+  /** Per-drain batch: all invocations persisted in one _drain_and_persist() cycle. */
+  data: WsInvocationCompletedPayload[];
+  timestamp: number;
+}
+
+export interface ExecutionCompletedMessage {
+  type: "execution_completed";
+  /** Per-drain batch: all executions persisted in one _drain_and_persist() cycle. */
+  data: WsExecutionCompletedPayload[];
+  timestamp: number;
+}
+
 export type WsServerMessage =
   | AppStatusChangedMessage
   | LogMessage
   | ConnectedMessage
   | ConnectivityMessage
   | StateChangedMessage
-  | ServiceStatusMessage;
+  | ServiceStatusMessage
+  | InvocationCompletedMessage
+  | ExecutionCompletedMessage;

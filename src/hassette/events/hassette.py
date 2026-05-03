@@ -160,3 +160,79 @@ class HassetteAppStateEvent(Event[HassettePayload[AppStateChangePayload]]):
             topic=Topic.HASSETTE_EVENT_APP_STATE_CHANGED,
             payload=HassettePayload(event_type=str(payload.status), data=payload),
         )
+
+
+@dataclass(slots=True, frozen=True)
+class InvocationCompletedPayload:
+    """Lightweight payload for handler invocation completed events.
+
+    Carries only the DB-level IDs and execution result.  ``app_key`` and
+    ``instance_index`` are intentionally absent — ``RuntimeQueryService``
+    resolves them from its own listener-meta registry at broadcast time.
+    """
+
+    listener_id: int | None
+    status: str
+    duration_ms: float
+    error_type: str | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class ExecutionCompletedPayload:
+    """Lightweight payload for scheduled job execution completed events.
+
+    Carries only the DB-level IDs and execution result.  ``app_key`` and
+    ``instance_index`` are intentionally absent — ``RuntimeQueryService``
+    resolves them from its own job-meta registry at broadcast time.
+    """
+
+    job_id: int | None
+    status: str
+    duration_ms: float
+    error_type: str | None = None
+
+
+class HassetteInvocationCompletedEvent(Event[HassettePayload[InvocationCompletedPayload]]):
+    """Event emitted after a handler invocation is persisted to telemetry."""
+
+    @classmethod
+    def from_record(
+        cls,
+        listener_id: int | None,
+        status: str,
+        duration_ms: float,
+        error_type: str | None = None,
+    ) -> "HassetteInvocationCompletedEvent":
+        payload = InvocationCompletedPayload(
+            listener_id=listener_id,
+            status=status,
+            duration_ms=duration_ms,
+            error_type=error_type,
+        )
+        return cls(
+            topic=Topic.HASSETTE_EVENT_INVOCATION_COMPLETED,
+            payload=HassettePayload(event_type="invocation_completed", data=payload),
+        )
+
+
+class HassetteExecutionCompletedEvent(Event[HassettePayload[ExecutionCompletedPayload]]):
+    """Event emitted after a scheduled job execution is persisted to telemetry."""
+
+    @classmethod
+    def from_record(
+        cls,
+        job_id: int | None,
+        status: str,
+        duration_ms: float,
+        error_type: str | None = None,
+    ) -> "HassetteExecutionCompletedEvent":
+        payload = ExecutionCompletedPayload(
+            job_id=job_id,
+            status=status,
+            duration_ms=duration_ms,
+            error_type=error_type,
+        )
+        return cls(
+            topic=Topic.HASSETTE_EVENT_EXECUTION_COMPLETED,
+            payload=HassettePayload(event_type="execution_completed", data=payload),
+        )

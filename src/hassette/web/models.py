@@ -150,13 +150,51 @@ class ServiceStatusWsMessage(BaseModel):
     timestamp: float
 
 
+class InvocationCompletedData(BaseModel):
+    """Payload for invocation_completed WebSocket messages."""
+
+    listener_id: int
+    app_key: str
+    instance_index: int
+    status: str
+    duration_ms: float
+    error_type: str | None = None
+
+
+class ExecutionCompletedData(BaseModel):
+    """Payload for execution_completed WebSocket messages."""
+
+    job_id: int
+    app_key: str
+    instance_index: int
+    status: str
+    duration_ms: float
+    error_type: str | None = None
+
+
+class InvocationCompletedWsMessage(BaseModel):
+    type: Literal["invocation_completed"]
+    data: list[InvocationCompletedData]
+    """Per-drain batch: all invocations persisted in one ``_drain_and_persist()`` cycle."""
+    timestamp: float
+
+
+class ExecutionCompletedWsMessage(BaseModel):
+    type: Literal["execution_completed"]
+    data: list[ExecutionCompletedData]
+    """Per-drain batch: all executions persisted in one ``_drain_and_persist()`` cycle."""
+    timestamp: float
+
+
 WsServerMessage = Annotated[
     AppStatusChangedWsMessage
     | LogWsMessage
     | ConnectedWsMessage
     | ConnectivityWsMessage
     | StateChangedWsMessage
-    | ServiceStatusWsMessage,
+    | ServiceStatusWsMessage
+    | InvocationCompletedWsMessage
+    | ExecutionCompletedWsMessage,
     Field(discriminator="type"),
 ]
 
@@ -236,6 +274,7 @@ class ListenerWithSummary(BaseModel):
     last_invoked_at: float | None = None
     last_error_message: str | None = None
     last_error_type: str | None = None
+    timed_out: int = 0
     source_location: str = ""
     registration_source: str | None = None
     handler_summary: str = ""
@@ -361,3 +400,25 @@ class ConfigResponse(BaseModel):
     asyncio_debug_mode: bool = False
     allow_reload_in_prod: bool = False
     web_ui_hot_reload: bool = False
+    app_dir: str = ""
+    data_dir: str = ""
+    config_dir: str = ""
+
+
+class AppConfigResponse(BaseModel):
+    """Response model for GET /apps/{app_key}/config."""
+
+    app_key: str
+    filename: str
+    class_name: str
+    enabled: bool
+    app_config: dict[str, Any] | list[dict[str, Any]]
+
+
+class AppSourceResponse(BaseModel):
+    """Response model for GET /apps/{app_key}/source."""
+
+    app_key: str
+    filename: str
+    content: str
+    line_count: int

@@ -106,6 +106,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/apps/{app_key}/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get App Config
+         * @description Return the raw app configuration for the given app key.
+         */
+        get: operations["get_app_config_api_apps__app_key__config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/apps/{app_key}/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get App Source
+         * @description Return the source code of the app file for the given app key.
+         */
+        get: operations["get_app_source_api_apps__app_key__source_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/services": {
         parameters: {
             query?: never;
@@ -444,6 +484,26 @@ export interface components {
             action: string;
         };
         /**
+         * AppConfigResponse
+         * @description Response model for GET /apps/{app_key}/config.
+         */
+        AppConfigResponse: {
+            /** App Key */
+            app_key: string;
+            /** Filename */
+            filename: string;
+            /** Class Name */
+            class_name: string;
+            /** Enabled */
+            enabled: boolean;
+            /** App Config */
+            app_config: {
+                [key: string]: unknown;
+            } | {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
          * AppHealthResponse
          * @description Health metrics for a single app instance.
          */
@@ -529,6 +589,20 @@ export interface components {
             error_message?: string | null;
             /** Error Traceback */
             error_traceback?: string | null;
+        };
+        /**
+         * AppSourceResponse
+         * @description Response model for GET /apps/{app_key}/source.
+         */
+        AppSourceResponse: {
+            /** App Key */
+            app_key: string;
+            /** Filename */
+            filename: string;
+            /** Content */
+            content: string;
+            /** Line Count */
+            line_count: number;
         };
         /** AppStatusResponse */
         AppStatusResponse: {
@@ -665,6 +739,21 @@ export interface components {
              * @default false
              */
             web_ui_hot_reload: boolean;
+            /**
+             * App Dir
+             * @default
+             */
+            app_dir: string;
+            /**
+             * Data Dir
+             * @default
+             */
+            data_dir: string;
+            /**
+             * Config Dir
+             * @default
+             */
+            config_dir: string;
         };
         /**
          * DashboardAppGridEntry
@@ -1044,6 +1133,11 @@ export interface components {
             /** Last Error Type */
             last_error_type?: string | null;
             /**
+             * Timed Out
+             * @default 0
+             */
+            timed_out: number;
+            /**
              * Source Location
              * @default
              */
@@ -1351,6 +1445,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_app_config_api_apps__app_key__config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppConfigResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_app_source_api_apps__app_key__source_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppSourceResponse"];
                 };
             };
             /** @description Validation Error */

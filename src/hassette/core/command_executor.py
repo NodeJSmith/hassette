@@ -20,11 +20,12 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.error_context import ErrorContext
+from hassette.events.hassette import HassetteExecutionCompletedEvent, HassetteInvocationCompletedEvent
 from hassette.exceptions import DependencyError, HassetteError
 from hassette.resources.base import Resource, RestartSpec, Service
 from hassette.scheduler.classes import JobExecutionRecord
 from hassette.scheduler.error_context import SchedulerErrorContext
-from hassette.types.enums import RestartType
+from hassette.types.enums import RestartType, Topic
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.execution import ExecutionResult, track_execution
 
@@ -544,7 +545,11 @@ class CommandExecutor(Service):
             The row ID of the inserted row.
         """
         await self.hassette.wait_for_ready([self.hassette.database_service])
-        return await self.hassette.database_service.submit(self.repository.register_listener(registration))
+        listener_id = await self.hassette.database_service.submit(self.repository.register_listener(registration))
+        rqs = self.hassette._runtime_query_service
+        if rqs is not None and listener_id != 0:
+            rqs.register_listener_meta(listener_id, registration.app_key, registration.instance_index)
+        return listener_id
 
     async def register_job(self, registration: ScheduledJobRegistration) -> int:
         """Insert a scheduled job registration into the scheduled_jobs table.
@@ -556,7 +561,11 @@ class CommandExecutor(Service):
             The row ID of the inserted row.
         """
         await self.hassette.wait_for_ready([self.hassette.database_service])
-        return await self.hassette.database_service.submit(self.repository.register_job(registration))
+        job_id = await self.hassette.database_service.submit(self.repository.register_job(registration))
+        rqs = self.hassette._runtime_query_service
+        if rqs is not None and job_id != 0:
+            rqs.register_job_meta(job_id, registration.app_key, registration.instance_index)
+        return job_id
 
     async def mark_job_cancelled(self, db_id: int) -> None:
         """Set ``cancelled_at`` on the scheduled_jobs row to persist durable cancellation state.
@@ -783,6 +792,7 @@ class CommandExecutor(Service):
 
         try:
             await self.hassette.database_service.submit(self.repository.persist_batch(invocations, job_executions))
+            await self._emit_completion_events(invocations, job_executions)
         except sqlite3.OperationalError as exc:
             # Retryable — transient DB error (disk I/O, locked, etc.)
             if retry_count >= _MAX_RETRY_COUNT:
@@ -843,6 +853,43 @@ class CommandExecutor(Service):
                 exc,
             )
 
+    async def _emit_completion_events(
+        self,
+        invocations: list[HandlerInvocationRecord],
+        job_executions: list[JobExecutionRecord],
+    ) -> None:
+        """Emit lightweight bus topic events for persisted invocation and execution records.
+
+        Fires ``HASSETTE_EVENT_INVOCATION_COMPLETED`` for each handler invocation
+        and ``HASSETTE_EVENT_EXECUTION_COMPLETED`` for each job execution.
+
+        The payloads carry only ``listener_id``/``job_id`` plus execution result fields.
+        ``RuntimeQueryService`` resolves ``app_key`` and ``instance_index`` from its own
+        listener/job-meta registry at broadcast time — ``CommandExecutor`` has no enrichment
+        responsibility.
+
+        Errors are suppressed so that emission failures never affect telemetry persistence.
+        """
+        try:
+            for record in invocations:
+                inv_event = HassetteInvocationCompletedEvent.from_record(
+                    listener_id=record.listener_id,
+                    status=record.status,
+                    duration_ms=record.duration_ms,
+                    error_type=record.error_type,
+                )
+                await self.hassette.send_event(Topic.HASSETTE_EVENT_INVOCATION_COMPLETED, inv_event)
+            for record in job_executions:
+                exec_event = HassetteExecutionCompletedEvent.from_record(
+                    job_id=record.job_id,
+                    status=record.status,
+                    duration_ms=record.duration_ms,
+                    error_type=record.error_type,
+                )
+                await self.hassette.send_event(Topic.HASSETTE_EVENT_EXECUTION_COMPLETED, exec_event)
+        except Exception:
+            self.logger.debug("Failed to emit completion events — ignoring", exc_info=True)
+
     async def _handle_fk_violation(
         self,
         invocations: list[HandlerInvocationRecord],
@@ -869,6 +916,8 @@ class CommandExecutor(Service):
                     dropped,
                     self._dropped_exhausted,
                 )
+            else:
+                await self._emit_completion_events(invocations, job_executions)
         except Exception as exc:
             drop_count = len(invocations) + len(job_executions)
             self._dropped_exhausted += drop_count

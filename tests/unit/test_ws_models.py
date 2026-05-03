@@ -180,6 +180,92 @@ class TestWsServerMessageDiscriminates:
             self.adapter.validate_python(raw)
 
 
+class TestCompletionWsMessages:
+    """invocation_completed and execution_completed carry list payloads (per-drain batching)."""
+
+    adapter = TypeAdapter(WsServerMessage)
+
+    def test_invocation_completed_discriminates(self) -> None:
+        from hassette.web.models import InvocationCompletedWsMessage
+
+        raw = {
+            "type": "invocation_completed",
+            "data": [
+                {
+                    "listener_id": 1,
+                    "app_key": "my_app",
+                    "instance_index": 0,
+                    "status": "success",
+                    "duration_ms": 12.5,
+                    "error_type": None,
+                }
+            ],
+            "timestamp": 1234567890.0,
+        }
+        msg = self.adapter.validate_python(raw)
+        assert isinstance(msg, InvocationCompletedWsMessage)
+        assert len(msg.data) == 1
+        assert msg.data[0].listener_id == 1
+        assert msg.data[0].app_key == "my_app"
+        assert msg.data[0].status == "success"
+        assert msg.data[0].error_type is None
+
+    def test_execution_completed_discriminates(self) -> None:
+        from hassette.web.models import ExecutionCompletedWsMessage
+
+        raw = {
+            "type": "execution_completed",
+            "data": [
+                {
+                    "job_id": 7,
+                    "app_key": "scheduler_app",
+                    "instance_index": 1,
+                    "status": "failed",
+                    "duration_ms": 99.9,
+                    "error_type": "TimeoutError",
+                }
+            ],
+            "timestamp": 1234567890.0,
+        }
+        msg = self.adapter.validate_python(raw)
+        assert isinstance(msg, ExecutionCompletedWsMessage)
+        assert len(msg.data) == 1
+        assert msg.data[0].job_id == 7
+        assert msg.data[0].error_type == "TimeoutError"
+
+    def test_invocation_completed_empty_batch_valid(self) -> None:
+        """An empty batch list is valid (flush with nothing to emit never happens, but schema must accept it)."""
+        from hassette.web.models import InvocationCompletedWsMessage
+
+        raw = {"type": "invocation_completed", "data": [], "timestamp": 1234567890.0}
+        msg = self.adapter.validate_python(raw)
+        assert isinstance(msg, InvocationCompletedWsMessage)
+        assert msg.data == []
+
+    def test_invocation_completed_multi_record_batch(self) -> None:
+        from hassette.web.models import InvocationCompletedWsMessage
+
+        raw = {
+            "type": "invocation_completed",
+            "data": [
+                {"listener_id": 1, "app_key": "a", "instance_index": 0, "status": "success", "duration_ms": 1.0},
+                {
+                    "listener_id": 2,
+                    "app_key": "b",
+                    "instance_index": 1,
+                    "status": "failed",
+                    "duration_ms": 2.0,
+                    "error_type": "ValueError",
+                },
+            ],
+            "timestamp": 1234567890.0,
+        }
+        msg = self.adapter.validate_python(raw)
+        assert isinstance(msg, InvocationCompletedWsMessage)
+        assert len(msg.data) == 2
+        assert msg.data[1].error_type == "ValueError"
+
+
 class TestServiceStatusDataRetryAt:
     """Verify ServiceStatusData includes retry_at field for exhausted service states."""
 

@@ -29,6 +29,7 @@ from hassette.types.types import LOG_LEVEL_TYPE
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Subscription
+    from hassette.events.hassette import ExecutionCompletedPayload, InvocationCompletedPayload
 
 LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
 
@@ -49,6 +50,28 @@ class RuntimeQueryService(Resource):
     _start_time: float
     _subscriptions: "list[Subscription]"
 
+    _listener_meta: dict[int, tuple[str, int]]
+    """Maps listener DB-ID → (app_key, instance_index) for completion event enrichment.
+
+    Populated by :meth:`register_listener_meta` (called from ``CommandExecutor`` at
+    registration time).  Entries are never pruned — the dict grows by one per
+    registered listener per session, which is bounded by app reload frequency and
+    app count.  At typical deployment scale (hundreds of listeners, dozens of reloads)
+    this is negligible.
+    """
+
+    _job_meta: dict[int, tuple[str, int]]
+    """Maps job DB-ID → (app_key, instance_index) for completion event enrichment."""
+
+    _pending_invocations: list[dict]
+    """Invocation completion dicts accumulated within the current drain tick, flushed as a batch."""
+
+    _pending_executions: list[dict]
+    """Execution completion dicts accumulated within the current drain tick, flushed as a batch."""
+
+    _flush_scheduled: bool
+    """True when an asyncio.sleep(0) flush has been scheduled for the current tick."""
+
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self.bus = self.add_child(Bus)
@@ -60,6 +83,11 @@ class RuntimeQueryService(Resource):
         self._ws_drops_last_logged: float = 0.0
         self._start_time = time.time()
         self._subscriptions = []
+        self._listener_meta: dict[int, tuple[str, int]] = {}
+        self._job_meta: dict[int, tuple[str, int]] = {}
+        self._pending_invocations: list[dict] = []
+        self._pending_executions: list[dict] = []
+        self._flush_scheduled = False
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -88,6 +116,18 @@ class RuntimeQueryService(Resource):
         )
         self._subscriptions.append(self.bus.on_websocket_connected(handler=self._on_ws_connected))
         self._subscriptions.append(self.bus.on_websocket_disconnected(handler=self._on_ws_disconnected))
+        self._subscriptions.append(
+            self.bus.on(
+                topic=Topic.HASSETTE_EVENT_INVOCATION_COMPLETED,
+                handler=self._on_invocation_completed,
+            )
+        )
+        self._subscriptions.append(
+            self.bus.on(
+                topic=Topic.HASSETTE_EVENT_EXECUTION_COMPLETED,
+                handler=self._on_execution_completed,
+            )
+        )
 
         # Wire up log capture handler for WS broadcast
         handler = get_log_capture_handler()
@@ -180,6 +220,111 @@ class RuntimeQueryService(Resource):
         entry = {"type": "connectivity", "data": payload.model_dump(), "timestamp": time.time()}
         self._event_buffer.append(entry)
         await self.broadcast(entry)
+
+    async def _on_invocation_completed(self, event: Event[Any]) -> None:
+        """Accumulate an invocation completion into the pending batch for this drain tick."""
+        if not hasattr(event, "payload"):
+            return
+        data: InvocationCompletedPayload = event.payload.data
+        lid = data.listener_id if data.listener_id is not None else 0
+        app_key, instance_index = self._listener_meta.get(lid, ("", 0))
+        self._pending_invocations.append(
+            {
+                "listener_id": lid,
+                "app_key": app_key,
+                "instance_index": instance_index,
+                "status": data.status,
+                "duration_ms": data.duration_ms,
+                "error_type": data.error_type,
+            }
+        )
+        await self._schedule_flush()
+
+    async def _on_execution_completed(self, event: Event[Any]) -> None:
+        """Accumulate a job execution completion into the pending batch for this drain tick."""
+        if not hasattr(event, "payload"):
+            return
+        data: ExecutionCompletedPayload = event.payload.data
+        jid = data.job_id if data.job_id is not None else 0
+        app_key, instance_index = self._job_meta.get(jid, ("", 0))
+        self._pending_executions.append(
+            {
+                "job_id": jid,
+                "app_key": app_key,
+                "instance_index": instance_index,
+                "status": data.status,
+                "duration_ms": data.duration_ms,
+                "error_type": data.error_type,
+            }
+        )
+        await self._schedule_flush()
+
+    async def _schedule_flush(self) -> None:
+        """Schedule a single flush task for the current event-loop tick if not already scheduled.
+
+        All completion events arriving within the same drain cycle are collected in
+        ``_pending_invocations`` / ``_pending_executions`` before a single WS message
+        is broadcast — one message per ``_drain_and_persist()`` cycle, not one per record.
+        """
+        if self._flush_scheduled:
+            return
+        self._flush_scheduled = True
+        self.task_bucket.spawn(self._flush_completions(), name="rqs:flush_completions")
+
+    async def _flush_completions(self) -> None:
+        """Broadcast one WS message per type summarising all completions from the current drain tick.
+
+        Emits an ``invocation_completed`` message (with a list payload) if any invocations are
+        pending, and an ``execution_completed`` message if any executions are pending.  Each
+        covers the full set persisted in one ``_drain_and_persist()`` cycle — one message per
+        drain, not one message per record.
+        """
+        self._flush_scheduled = False
+        now = time.time()
+
+        invocations = self._pending_invocations
+        executions = self._pending_executions
+        self._pending_invocations = []
+        self._pending_executions = []
+
+        if invocations:
+            entry = {"type": "invocation_completed", "data": invocations, "timestamp": now}
+            self._event_buffer.append(entry)
+            await self.broadcast(entry)
+
+        if executions:
+            entry = {"type": "execution_completed", "data": executions, "timestamp": now}
+            self._event_buffer.append(entry)
+            await self.broadcast(entry)
+
+    # --- Listener/job meta registration ---
+
+    def register_listener_meta(self, listener_db_id: int, app_key: str, instance_index: int) -> None:
+        """Record the (app_key, instance_index) for a newly registered listener DB row.
+
+        Called by ``CommandExecutor.register_listener`` immediately after the DB insert so that
+        ``RuntimeQueryService`` can enrich completion WS messages with app identity without the
+        ``CommandExecutor`` needing to know about the web layer.
+
+        Args:
+            listener_db_id: The ``id`` of the newly inserted ``listeners`` row.
+            app_key: The app key that owns this listener.
+            instance_index: The instance index within the app.
+        """
+        self._listener_meta[listener_db_id] = (app_key, instance_index)
+
+    def register_job_meta(self, job_db_id: int, app_key: str, instance_index: int) -> None:
+        """Record the (app_key, instance_index) for a newly registered scheduled job DB row.
+
+        Called by ``CommandExecutor.register_job`` immediately after the DB insert so that
+        ``RuntimeQueryService`` can enrich completion WS messages with app identity.
+
+        Args:
+            job_db_id: The ``id`` of the newly inserted ``scheduled_jobs`` row.
+            app_key: The app key that owns this job.
+            instance_index: The instance index within the app.
+        """
+        self._job_meta[job_db_id] = (app_key, instance_index)
 
     # --- App status ---
 

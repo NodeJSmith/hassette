@@ -110,6 +110,7 @@ export function createListener(overrides: Partial<ListenerWithSummary> = {}): Li
     failed: 0,
     di_failures: 0,
     cancelled: 0,
+    timed_out: 0,
     avg_duration_ms: 0,
     min_duration_ms: 0,
     max_duration_ms: 0,

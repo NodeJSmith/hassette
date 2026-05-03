@@ -204,6 +204,92 @@
         }
       }
     },
+    "/api/apps/{app_key}/config": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Get App Config",
+        "description": "Return the raw app configuration for the given app key.",
+        "operationId": "get_app_config_api_apps__app_key__config_get",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppConfigResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/apps/{app_key}/source": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Get App Source",
+        "description": "Return the source code of the app file for the given app key.",
+        "operationId": "get_app_source_api_apps__app_key__source_get",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppSourceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/services": {
       "get": {
         "tags": [
@@ -1210,6 +1296,52 @@
         "title": "ActionResponse",
         "description": "Response for app mutation endpoints (start/stop/reload)."
       },
+      "AppConfigResponse": {
+        "properties": {
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "class_name": {
+            "type": "string",
+            "title": "Class Name"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "app_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "App Config"
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_key",
+          "filename",
+          "class_name",
+          "enabled",
+          "app_config"
+        ],
+        "title": "AppConfigResponse",
+        "description": "Response model for GET /apps/{app_key}/config."
+      },
       "AppHealthResponse": {
         "properties": {
           "error_rate": {
@@ -1468,6 +1600,35 @@
         ],
         "title": "AppManifestResponse"
       },
+      "AppSourceResponse": {
+        "properties": {
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "line_count": {
+            "type": "integer",
+            "title": "Line Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_key",
+          "filename",
+          "content",
+          "line_count"
+        ],
+        "title": "AppSourceResponse",
+        "description": "Response model for GET /apps/{app_key}/source."
+      },
       "AppStatusResponse": {
         "properties": {
           "total": {
@@ -1633,6 +1794,21 @@
             "type": "boolean",
             "title": "Web Ui Hot Reload",
             "default": false
+          },
+          "app_dir": {
+            "type": "string",
+            "title": "App Dir",
+            "default": ""
+          },
+          "data_dir": {
+            "type": "string",
+            "title": "Data Dir",
+            "default": ""
+          },
+          "config_dir": {
+            "type": "string",
+            "title": "Config Dir",
+            "default": ""
           }
         },
         "type": "object",
@@ -2622,6 +2798,11 @@
               }
             ],
             "title": "Last Error Type"
+          },
+          "timed_out": {
+            "type": "integer",
+            "title": "Timed Out",
+            "default": 0
           },
           "source_location": {
             "type": "string",
