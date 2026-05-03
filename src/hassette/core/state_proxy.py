@@ -298,6 +298,7 @@ class StateProxy(Resource):
 
         # mark the proxy as not ready
         self.mark_not_ready(reason="Disconnected")
+        await self._emit_readiness_event()
 
     async def on_reconnect(self) -> None:
         """Handle Home Assistant start events to trigger state resync.
@@ -311,9 +312,11 @@ class StateProxy(Resource):
 
             self.subscribe_to_events()
             self.mark_ready(reason="Connected")
+            await self._emit_readiness_event()
         except Exception as e:
             self.logger.exception("Failed to resync states after HA restart: %s", e)
             self.mark_not_ready(reason="Failed to resync states after HA restart")
+            await self._emit_readiness_event()
 
     async def _load_cache(self) -> None:
         """Load the state cache from Home Assistant.

@@ -73,3 +73,15 @@ const LOG_LEVEL_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, Status
 export function levelToVariant(level: string): StatusVariant {
   return LOG_LEVEL_MAP.get(level) ?? "neutral";
 }
+
+/**
+ * Map a status + readiness pair to a StatusVariant.
+ *
+ * A RUNNING service that is not yet ready is treated as a warning state
+ * (amber "Starting"). All other status+ready combinations delegate to
+ * statusToVariant.
+ */
+export function readinessVariant(status: string, ready: boolean): StatusVariant {
+  if (status === "running" && !ready) return "warning";
+  return statusToVariant(status);
+}
