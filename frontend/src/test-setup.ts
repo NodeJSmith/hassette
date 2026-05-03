@@ -22,6 +22,13 @@ globalThis.cancelAnimationFrame = (id: number): void => {
   clearTimeout(id);
 };
 
+// jsdom does not provide ResizeObserver — stub it for components that use it.
+globalThis.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
 beforeAll(() => {
   server.listen({ onUnhandledRequest: "error" });
 });

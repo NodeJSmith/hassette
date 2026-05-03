@@ -2766,3 +2766,301 @@ strong {
   margin-left: auto;
   color: var(--ink-3);
 }
+
+/* =====================================================
+   WP07 — App Detail: Handlers Tab + Master/Detail
+   ===================================================== */
+
+/* — Tab strip (Handlers | Code | Logs | Config) ———————— */
+.ht-tab-strip {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--ht-border);
+}
+
+.ht-tab-btn {
+  padding: var(--ht-sp-2) var(--ht-sp-4);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  font-family: var(--ht-font-body);
+  font-size: var(--ht-text-sm);
+  font-weight: var(--ht-weight-medium);
+  color: var(--ht-text-secondary);
+  cursor: pointer;
+  transition: color var(--ht-motion-micro), border-color var(--ht-motion-micro);
+  white-space: nowrap;
+}
+
+.ht-tab-btn:hover {
+  color: var(--ht-text);
+}
+
+.ht-tab-btn:focus-visible {
+  outline: 2px solid var(--ht-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--ht-radius-sm);
+}
+
+.ht-tab-btn--active {
+  color: var(--ht-text);
+  border-bottom-color: var(--ht-accent);
+  font-weight: var(--ht-weight-semibold);
+}
+
+/* — Master/Detail layout ——————————————————————————————— */
+.ht-master-detail {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 0;
+  border: 1px solid var(--ht-border);
+  border-radius: var(--ht-radius-md);
+  overflow: hidden;
+  min-height: 300px;
+  max-height: 70vh;
+}
+
+.ht-master-detail--mobile {
+  display: block;
+}
+
+.ht-master-detail__list {
+  border-right: 1px solid var(--ht-border);
+  overflow-y: auto;
+  background: var(--ht-surface-sunken, var(--ht-surface-recessed));
+}
+
+.ht-master-detail--mobile .ht-master-detail__list {
+  border-right: none;
+}
+
+.ht-master-detail__detail {
+  overflow-y: auto;
+  background: var(--ht-surface);
+}
+
+/* — Handlers tab container ————————————————————————————— */
+.ht-handlers-tab {
+  /* no extra padding — master-detail provides structure */
+}
+
+/* — Stats strip (above handler list) ——————————————————— */
+.ht-stats-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-3);
+  padding: var(--ht-sp-2) var(--ht-sp-3);
+  background: var(--ht-surface-recessed);
+  border-bottom: 1px solid var(--ht-border);
+  font-size: var(--ht-text-xs);
+  color: var(--ht-text-secondary);
+  flex-wrap: wrap;
+}
+
+.ht-stats-strip__item {
+  white-space: nowrap;
+}
+
+.ht-stats-strip__item--err {
+  color: var(--ht-danger);
+  font-weight: var(--ht-weight-medium);
+}
+
+.ht-stats-strip__item--warn {
+  color: var(--ht-warning);
+  font-weight: var(--ht-weight-medium);
+}
+
+/* — Unified handler row ————————————————————————————————— */
+.ht-unified-row {
+  display: grid;
+  grid-template-columns: var(--ht-sp-3) 1fr;
+  align-items: start;
+  gap: var(--ht-sp-2);
+  padding: var(--ht-sp-3);
+  cursor: pointer;
+  transition: background var(--ht-motion-micro);
+  border-bottom: 1px solid var(--ht-border);
+  background: var(--ht-surface);
+}
+
+.ht-unified-row:last-child {
+  border-bottom: none;
+}
+
+.ht-unified-row:hover {
+  background: var(--ht-surface-recessed);
+}
+
+.ht-unified-row:focus-visible {
+  outline: 2px solid var(--ht-focus-ring);
+  outline-offset: -2px;
+}
+
+.ht-unified-row--selected {
+  background: color-mix(in srgb, var(--ht-accent) 8%, var(--ht-surface));
+  border-left: 3px solid var(--ht-accent);
+}
+
+.ht-unified-row__status {
+  padding-top: 3px;
+  flex-shrink: 0;
+}
+
+.ht-unified-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ht-sp-1);
+  min-width: 0;
+}
+
+.ht-unified-row__header {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-2);
+  min-width: 0;
+}
+
+.ht-unified-row__kind-chip {
+  flex-shrink: 0;
+  font-family: var(--ht-font-mono);
+  font-size: 10px;
+  font-weight: var(--ht-weight-medium);
+  background: var(--ht-surface-recessed);
+  border: 1px solid var(--ht-border);
+  border-radius: var(--ht-radius-xs, 2px);
+  padding: 1px 4px;
+  color: var(--ht-text-secondary);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
+.ht-unified-row__name {
+  font-size: var(--ht-text-sm);
+  font-weight: var(--ht-weight-medium);
+  color: var(--ht-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.ht-unified-row__desc {
+  font-size: var(--ht-text-xs);
+  color: var(--ht-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ht-unified-row__stats {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-3);
+  font-size: var(--ht-text-xs);
+  color: var(--ht-text-dim);
+  flex-wrap: wrap;
+}
+
+.ht-unified-row__stats--err {
+  color: var(--ht-danger);
+  font-weight: var(--ht-weight-medium);
+}
+
+.ht-unified-row__stats--warn {
+  color: var(--ht-warning);
+  font-weight: var(--ht-weight-medium);
+}
+
+.ht-unified-row__error-preview {
+  font-size: var(--ht-text-xs);
+  color: var(--ht-danger);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+}
+
+/* — Detail pane ————————————————————————————————————————— */
+.ht-detail-pane__content {
+  padding: var(--ht-sp-4);
+}
+
+.ht-detail-pane__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ht-sp-8);
+  color: var(--ht-text-dim);
+  text-align: center;
+}
+
+.ht-detail-pane__meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ht-sp-2);
+  margin-bottom: var(--ht-sp-3);
+  flex-wrap: wrap;
+}
+
+/* — Modifier and schedule chips ————————————————————————— */
+.ht-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ht-sp-2);
+  margin-bottom: var(--ht-sp-3);
+}
+
+.ht-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--ht-sp-2);
+  border-radius: var(--ht-radius-sm);
+  font-size: var(--ht-text-xs);
+  font-weight: var(--ht-weight-medium);
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+.ht-chip--modifier {
+  background: color-mix(in srgb, var(--ht-accent) 12%, transparent);
+  color: var(--ht-accent-text, var(--ht-text));
+  border: 1px solid color-mix(in srgb, var(--ht-accent) 30%, transparent);
+  font-family: var(--ht-font-mono);
+}
+
+.ht-chip--schedule {
+  background: color-mix(in srgb, var(--ht-success) 10%, transparent);
+  color: var(--ht-text-secondary);
+  border: 1px solid color-mix(in srgb, var(--ht-success) 25%, transparent);
+  font-family: var(--ht-font-mono);
+}
+
+/* — Responsive: mobile (max-width: 768px) ——————————————— */
+@media screen and (max-width: 768px) {
+  .ht-master-detail {
+    display: block;
+    border: none;
+    border-radius: 0;
+  }
+
+  .ht-master-detail__list {
+    border-right: none;
+  }
+
+  .ht-tab-strip {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ht-tab-btn {
+    min-height: 44px;
+    padding: var(--ht-sp-2) var(--ht-sp-3);
+  }
+
+  .ht-unified-row {
+    padding: var(--ht-sp-3);
+  }
+}
