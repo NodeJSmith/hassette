@@ -66,8 +66,8 @@ class TaskBucket(Resource):
         def _done(t: asyncio.Task[Any]) -> None:
             try:
                 exc = t.exception()
-            except asyncio.CancelledError:
-                return
+            except asyncio.CancelledError:  # noqa: ASYNC103 — cancelled task is expected, not an error
+                return  # noqa: ASYNC104
             except Exception:
                 return
             if exc:
