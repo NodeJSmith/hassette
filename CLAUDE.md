@@ -177,21 +177,36 @@ Every issue should have:
 
 1. **Type label** (exactly one): `bug`, `enhancement`, `documentation`, `CICD`, `tests`
 2. **Area label** (at least one, unless cross-cutting):
+   - `area:api` — HA REST/WebSocket API
+   - `area:apps` — App lifecycle / AppHandler
+   - `area:bus` — Event bus
+   - `area:config` — Configuration / settings
+   - `area:core` — Internal framework plumbing, not necessarily user-facing
+   - `area:database` — Telemetry DB schema, migrations, retention
+   - `area:scheduler` — Scheduler service
+   - `area:testing` — Test infrastructure, coverage, test helpers
    - `area:ui` — Web UI / dashboard
    - `area:websocket` — WebSocket service
-   - `area:scheduler` — Scheduler service
-   - `area:bus` — Event bus
-   - `area:api` — HA REST/WebSocket API
-   - `area:config` — Configuration / settings
-   - `area:apps` — App lifecycle / AppHandler
-3. **Size label** (one): `size:small` (< 1 hour, quick win) or `size:large` (significant effort)
+3. **Size label** (one): `size:small` (< 1 hour), `size:medium` (a few hours), or `size:large` (significant effort)
 
-Optional labels applied when clearly warranted:
-- `priority:high` — security issues, blockers, data loss risks
-- `priority:low` — nice-to-haves, cosmetic
-- `core` — internal framework plumbing, not user-facing
-- `dx` — improves developer experience
-- `good first issue` — suitable for newcomers
+### Optional Labels
+
+Apply when clearly warranted:
+
+- **Priority**: `priority:high` (blockers, data loss), `priority:low` (nice-to-haves)
+- **Descriptors**: `core`, `dx`, `good first issue`
+- **Topic labels** — cross-cutting domain concerns (an issue can have multiple):
+   - `topic:cli` — hassette CLI commands (init, build, migrate)
+   - `topic:concurrency` — Semaphores, rate limiting, timeouts, task management
+   - `topic:errors` — Error handling, retries, error display, exception design
+   - `topic:events` — Event system design, signals, dispatch, filtering, backpressure
+   - `topic:lifecycle` — Startup/shutdown sequences, state machines, readiness, cleanup
+   - `topic:telemetry` — Observability, invocation/execution tracking, retention, statistics
+- **Epic labels** — initiative-level grouping:
+   - `epic:ha-addon` — Home Assistant add-on and monitoring UI initiative
+   - `epic:hacs` — Custom integration for persistent entities/services
+- **Release labels** — release gates:
+   - `release:v1.0.0` — Must ship before 1.0 release
 
 ### Required Body Sections
 
@@ -200,14 +215,6 @@ Every non-bug issue (e.g., feature requests, tasks) must have at minimum:
 - **Acceptance Criteria** — checklist of done conditions
 
 Bug reports should instead focus on: Steps to Reproduce, Expected Behavior, Actual Behavior, and version info. Acceptance criteria for bug fixes may be captured later during triage or in follow-up tasks.
-
-### Milestones
-
-Every open issue must be assigned to a milestone:
-- **Stability** — stable API and usability, aligned with 1.0.0
-- **HA Addon and UI** — Add-on for HA + monitoring UI
-- **HACS Integration** — custom integration for persistent entities/services
-- **Enhancements** — DX improvements and nice-to-have features
 
 ### Issue Templates
 
