@@ -175,7 +175,7 @@ When fixing or modifying any test, run that test locally and confirm it passes b
 
 Every issue should have:
 
-1. **Type label** (exactly one): `bug`, `enhancement`, `documentation`, `CICD`, `tests`
+1. **Type label** (exactly one): `bug`, `enhancement`, `documentation`, `CICD`
 2. **Area label** (at least one, unless cross-cutting):
    - `area:api` — HA REST/WebSocket API
    - `area:apps` — App lifecycle / AppHandler
@@ -194,7 +194,7 @@ Every issue should have:
 Apply when clearly warranted:
 
 - **Priority**: `priority:high` (blockers, data loss), `priority:low` (nice-to-haves)
-- **Descriptors**: `core`, `dx`, `good first issue`
+- **Descriptors**: `good first issue`
 - **Topic labels** — cross-cutting domain concerns (an issue can have multiple):
    - `topic:cli` — hassette CLI commands (init, build, migrate)
    - `topic:concurrency` — Semaphores, rate limiting, timeouts, task management
