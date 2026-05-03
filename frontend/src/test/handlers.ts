@@ -154,4 +154,25 @@ export const handlers = [
   http.get("/api/logs/recent", () => {
     return HttpResponse.json<LogEntryResponse[]>([]);
   }),
+
+  // GET /api/apps/:app_key/source
+  http.get("/api/apps/:app_key/source", ({ params }) => {
+    return HttpResponse.json({
+      app_key: String(params["app_key"]),
+      filename: "test_app.py",
+      content: "class TestApp:\n    pass\n",
+      line_count: 2,
+    });
+  }),
+
+  // GET /api/apps/:app_key/config
+  http.get("/api/apps/:app_key/config", ({ params }) => {
+    return HttpResponse.json({
+      app_key: String(params["app_key"]),
+      filename: "test_app.py",
+      class_name: "TestApp",
+      enabled: true,
+      app_config: {},
+    });
+  }),
 ];

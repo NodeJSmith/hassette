@@ -20,6 +20,8 @@ export type HandlerInvocationData = components["schemas"]["HandlerInvocation"];
 export type JobExecutionData = components["schemas"]["JobExecution"];
 export type TelemetryStatus = components["schemas"]["TelemetryStatusResponse"];
 export type LogEntry = components["schemas"]["LogEntryResponse"];
+export type AppConfigData = components["schemas"]["AppConfigResponse"];
+export type AppSourceData = components["schemas"]["AppSourceResponse"];
 
 // ---- Query string helpers ----
 
@@ -41,10 +43,10 @@ export const stopApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${
 export const reloadApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${appKey}/reload`);
 
 export const getAppConfig = (appKey: string) =>
-  apiFetch<{ app_key: string; filename: string; class_name: string; enabled: boolean; app_config: unknown }>(`/apps/${appKey}/config`);
+  apiFetch<AppConfigData>(`/apps/${appKey}/config`);
 
 export const getAppSource = (appKey: string) =>
-  apiFetch<{ app_key: string; filename: string; content: string; line_count: number }>(`/apps/${appKey}/source`);
+  apiFetch<AppSourceData>(`/apps/${appKey}/source`);
 
 // ---- Telemetry ----
 

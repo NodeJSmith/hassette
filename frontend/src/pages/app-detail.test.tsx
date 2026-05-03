@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/preact";
+import { render, fireEvent } from "@testing-library/preact";
 import { signal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
 import { AppDetailPage } from "./app-detail";
@@ -23,6 +23,12 @@ vi.mock("../components/app-detail/health-strip", () => ({
 }));
 vi.mock("../components/app-detail/handlers-tab", () => ({
   HandlersTab: () => <div data-testid="handlers-tab" />,
+}));
+vi.mock("../components/app-detail/code-tab", () => ({
+  CodeTab: () => <div data-testid="code-tab" />,
+}));
+vi.mock("../components/app-detail/config-tab", () => ({
+  ConfigTab: () => <div data-testid="config-tab" />,
 }));
 vi.mock("../components/shared/log-table", () => ({
   LogTable: () => <div data-testid="log-table" />,
@@ -84,6 +90,22 @@ describe("AppDetailPage", () => {
       .mockReturnValueOnce(fakeApiResult(null))        // health
       .mockReturnValueOnce(fakeApiResult(listeners))   // listeners
       .mockReturnValueOnce(fakeApiResult(jobs));        // jobs
+  }
+
+  /** Like setupUseApi but uses persistent mockReturnValue so re-renders after interactions don't exhaust the mock. */
+  function setupUseApiPersistent(
+    manifest: AppManifest,
+    listeners: ListenerData[] = [],
+    jobs: JobData[] = [],
+  ) {
+    useApi.mockReturnValue(fakeApiResult(createManifestListResponse(manifest)));
+    useScopedApi.mockReturnValue(fakeApiResult(listeners));
+    // Override first three calls to get health/listeners/jobs in correct order
+    useScopedApi
+      .mockReturnValueOnce(fakeApiResult(null))        // health
+      .mockReturnValueOnce(fakeApiResult(listeners))   // listeners
+      .mockReturnValueOnce(fakeApiResult(jobs))         // jobs
+      .mockReturnValue(fakeApiResult(null));            // subsequent re-renders
   }
 
   it("renders app display name in the header", () => {
@@ -245,5 +267,113 @@ describe("AppDetailPage", () => {
       { wrapper: createWrapper(state) },
     );
     expect(getByTestId("instance-meta").textContent).not.toContain("PID");
+  });
+
+  it("renders multi-instance parent overview when instance_count > 1 and no index param", () => {
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
+      ],
+    });
+    setupUseApi(manifest);
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(getByTestId("instance-grid")).toBeDefined();
+  });
+
+  it("renders instance grid cards with instance names", () => {
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
+      ],
+    });
+    setupUseApi(manifest);
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(getByTestId("instance-card-0")).toBeDefined();
+    expect(getByTestId("instance-card-1")).toBeDefined();
+  });
+
+  it("renders instance count badge in parent overview header", () => {
+    const manifest = createManifest({
+      instance_count: 3,
+      instances: [
+        createInstance({ index: 0, instance_name: "a", status: "running" }),
+        createInstance({ index: 1, instance_name: "b", status: "running" }),
+        createInstance({ index: 2, instance_name: "c", status: "stopped" }),
+      ],
+    });
+    setupUseApi(manifest);
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(getByTestId("instance-count-badge").textContent).toContain("3");
+  });
+
+  it("renders instance switcher in detail header when on instance view with siblings", () => {
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
+      ],
+    });
+    setupUseApi(manifest);
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app", index: "0" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(getByTestId("instance-switcher")).toBeDefined();
+  });
+
+  it("renders breadcrumb with parent link when viewing instance detail", () => {
+    const manifest = createManifest({
+      display_name: "Multi App",
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+      ],
+    });
+    setupUseApi(manifest);
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app", index: "0" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(getByTestId("breadcrumb-parent")).toBeDefined();
+    expect(getByTestId("breadcrumb-parent").textContent).toContain("Multi App");
+  });
+
+  it("renders CodeTab when Code tab is clicked", () => {
+    const manifest = createManifest();
+    setupUseApiPersistent(manifest);
+    const { getByRole, getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    const codeTab = getByRole("tab", { name: /code/i });
+    fireEvent.click(codeTab);
+    expect(getByTestId("code-tab")).toBeDefined();
+  });
+
+  it("renders ConfigTab when Config tab is clicked", () => {
+    const manifest = createManifest();
+    setupUseApiPersistent(manifest);
+    const { getByRole, getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    const configTab = getByRole("tab", { name: /config/i });
+    fireEvent.click(configTab);
+    expect(getByTestId("config-tab")).toBeDefined();
   });
 });

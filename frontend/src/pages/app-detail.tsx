@@ -2,6 +2,9 @@ import { signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 import { useSearch, useLocation } from "wouter";
 import { getAppHealth, getAppJobs, getAppListeners, getManifests, reloadApp, startApp, stopApp } from "../api/endpoints";
+import type { AppInstance } from "../api/endpoints";
+import { CodeTab } from "../components/app-detail/code-tab";
+import { ConfigTab } from "../components/app-detail/config-tab";
 import { ErrorDisplay } from "../components/app-detail/error-display";
 import { HandlersTab } from "../components/app-detail/handlers-tab";
 import { HealthStrip } from "../components/app-detail/health-strip";
@@ -11,7 +14,7 @@ import { Spinner } from "../components/shared/spinner";
 import { useApi } from "../hooks/use-api";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { useAppState } from "../state/context";
-import { statusToKind } from "../utils/status";
+import { statusToKind, statusToVariant } from "../utils/status";
 import { StatusShape } from "../components/shared/status-shape";
 
 type TabId = "handlers" | "code" | "logs" | "config";
@@ -99,10 +102,111 @@ function ActionButtons({ appKey, status }: { appKey: string; status: string }) {
   );
 }
 
+/** Instance switcher: horizontal tab strip showing siblings with status dots. */
+function InstanceSwitcher({
+  instances,
+  currentIndex,
+  onNavigate,
+}: {
+  instances: AppInstance[];
+  currentIndex: number;
+  onNavigate: (index: number) => void;
+}) {
+  return (
+    <div class="ht-instance-switcher" data-testid="instance-switcher" role="tablist" aria-label="Instance">
+      {instances.map((inst) => {
+        const isActive = inst.index === currentIndex;
+        return (
+          <button
+            key={inst.index}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            class={`ht-instance-switcher__btn${isActive ? " ht-instance-switcher__btn--active" : ""}`}
+            data-testid={`switcher-instance-${inst.index}`}
+            onClick={() => { if (!isActive) onNavigate(inst.index); }}
+          >
+            <StatusShape kind={statusToKind(inst.status)} size={8} />
+            <span class="ht-instance-switcher__label">{inst.instance_name}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Single instance card for the multi-instance parent overview grid. */
+function InstanceCard({
+  instance,
+  onNavigate,
+}: {
+  instance: AppInstance;
+  onNavigate: (index: number) => void;
+}) {
+  return (
+    <button
+      type="button"
+      class="ht-instance-card"
+      data-testid={`instance-card-${instance.index}`}
+      onClick={() => { onNavigate(instance.index); }}
+      aria-label={`View ${instance.instance_name}`}
+    >
+      <div class="ht-instance-card__header">
+        <StatusShape kind={statusToKind(instance.status)} size={10} />
+        <span class="ht-instance-card__name">{instance.instance_name}</span>
+        <span class={`ht-badge ht-badge--sm ht-instance-card__status-badge ht-badge--${statusToVariant(instance.status)}`}>
+          {instance.status}
+        </span>
+      </div>
+      {instance.error_message && (
+        <p class="ht-instance-card__error-preview">{instance.error_message}</p>
+      )}
+    </button>
+  );
+}
+
+/** Multi-instance parent overview: shows instance grid. */
+function MultiInstanceOverview({
+  appKey,
+  displayName,
+  instances,
+  instanceCount,
+  onNavigate,
+}: {
+  appKey: string;
+  displayName: string;
+  instances: AppInstance[];
+  instanceCount: number;
+  onNavigate: (index: number) => void;
+}) {
+  return (
+    <div class="ht-multi-overview" data-testid="multi-instance-overview">
+      <div class="ht-level ht-mb-4">
+        <div class="ht-level-start">
+          <h1 class="ht-heading-4">{displayName}</h1>
+          <span class="ht-badge ht-badge--neutral" data-testid="instance-count-badge">
+            ×{instanceCount} instances
+          </span>
+        </div>
+      </div>
+      <code class="ht-text-mono ht-text-sm ht-mb-4" style="display:block">{appKey}</code>
+      <div class="ht-instance-grid" data-testid="instance-grid">
+        {instances.map((inst) => (
+          <InstanceCard
+            key={inst.index}
+            instance={inst}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
-  const parsed = params.index !== undefined ? parseInt(params.index, 10) : 0;
-  const instanceIndex = Number.isFinite(parsed) ? parsed : 0;
+  const parsed = params.index !== undefined ? parseInt(params.index, 10) : undefined;
+  const instanceIndex = parsed !== undefined && Number.isFinite(parsed) ? parsed : undefined;
   const { appStatus } = useAppState();
   const [, navigate] = useLocation();
   const searchString = useSearch();
@@ -123,11 +227,21 @@ export function AppDetailPage({ params }: Props) {
   }
 
   const manifests = useApi(getManifests);
-  const health = useScopedApi((since) => getAppHealth(appKey, instanceIndex, since), { deps: [appKey, instanceIndex] });
-  const listeners = useScopedApi(
-    (since) => getAppListeners(appKey, instanceIndex, since), { deps: [appKey, instanceIndex] },
+
+  // For instance detail view: fetch health, listeners, jobs
+  const resolvedInstanceIndex = instanceIndex ?? 0;
+  const health = useScopedApi(
+    (since) => getAppHealth(appKey, resolvedInstanceIndex, since),
+    { deps: [appKey, resolvedInstanceIndex] },
   );
-  const jobs = useScopedApi((since) => getAppJobs(appKey, instanceIndex, since), { deps: [appKey, instanceIndex] });
+  const listeners = useScopedApi(
+    (since) => getAppListeners(appKey, resolvedInstanceIndex, since),
+    { deps: [appKey, resolvedInstanceIndex] },
+  );
+  const jobs = useScopedApi(
+    (since) => getAppJobs(appKey, resolvedInstanceIndex, since),
+    { deps: [appKey, resolvedInstanceIndex] },
+  );
 
   // Immediate fallback title on mount
   useEffect(() => { document.title = "App - Hassette"; }, []);
@@ -142,7 +256,11 @@ export function AppDetailPage({ params }: Props) {
   }, [displayName]);
 
   const isMultiInstance = (manifest?.instance_count ?? 0) > 1;
-  const currentInstance = manifest?.instances?.find((i) => i.index === instanceIndex);
+
+  // If multi-instance and no instance index in URL → show parent overview
+  const showParentOverview = isMultiInstance && instanceIndex === undefined;
+
+  const currentInstance = manifest?.instances?.find((i) => i.index === resolvedInstanceIndex);
   const liveStatus = appStatus.value[appKey]?.status ?? currentInstance?.status ?? manifest?.status ?? "unknown";
 
   const hasData = manifests.data.value !== null && health.data.value !== null
@@ -163,16 +281,73 @@ export function AppDetailPage({ params }: Props) {
     </button>
   );
 
+  // Multi-instance parent overview
+  if (showParentOverview && manifest) {
+    return (
+      <div>
+        {/* Breadcrumb */}
+        <nav class="ht-breadcrumb ht-mb-3" aria-label="Breadcrumb">
+          <a href="/apps">Apps</a>
+          <span class="ht-breadcrumb__separator" aria-hidden="true">/</span>
+          <span class="ht-breadcrumb__current" aria-current="page">
+            {manifest.display_name ?? appKey}
+          </span>
+        </nav>
+        <MultiInstanceOverview
+          appKey={appKey}
+          displayName={manifest.display_name ?? appKey}
+          instances={manifest.instances ?? []}
+          instanceCount={manifest.instance_count}
+          onNavigate={(idx) => { navigate(`/apps/${appKey}/${idx}`); }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* Breadcrumb */}
       <nav class="ht-breadcrumb ht-mb-3" aria-label="Breadcrumb">
-        <a href="/apps">Apps</a>
-        <span class="ht-breadcrumb__separator" aria-hidden="true">/</span>
-        <span class="ht-breadcrumb__current" aria-current="page">
-          {manifest?.display_name ?? appKey}
-        </span>
+        {isMultiInstance ? (
+          <>
+            <a href="/apps">Apps</a>
+            <span class="ht-breadcrumb__separator" aria-hidden="true">/</span>
+            <a
+              href={`/apps/${appKey}`}
+              data-testid="breadcrumb-parent"
+              onClick={(e) => {
+                e.preventDefault();
+                navigate(`/apps/${appKey}`);
+              }}
+            >
+              {manifest?.display_name ?? appKey}
+            </a>
+            <span class="ht-breadcrumb__separator" aria-hidden="true">/</span>
+            <span class="ht-breadcrumb__current" aria-current="page">
+              {currentInstance?.instance_name ?? `Instance ${resolvedInstanceIndex}`}
+            </span>
+          </>
+        ) : (
+          <>
+            <a href="/apps">Apps</a>
+            <span class="ht-breadcrumb__separator" aria-hidden="true">/</span>
+            <span class="ht-breadcrumb__current" aria-current="page">
+              {manifest?.display_name ?? appKey}
+            </span>
+          </>
+        )}
       </nav>
+
+      {/* Instance switcher (multi-instance detail view only) */}
+      {isMultiInstance && manifest?.instances && manifest.instances.length > 0 && (
+        <div class="ht-mb-3">
+          <InstanceSwitcher
+            instances={manifest.instances}
+            currentIndex={resolvedInstanceIndex}
+            onNavigate={(idx) => { navigate(`/apps/${appKey}/${idx}`); }}
+          />
+        </div>
+      )}
 
       {/* App header */}
       <div class="ht-level ht-mb-2">
@@ -200,39 +375,16 @@ export function AppDetailPage({ params }: Props) {
       {/* Instance metadata */}
       {manifest && (
         <p class="ht-text-muted ht-text-sm ht-mb-3" data-testid="instance-meta">
-          Instance {instanceIndex}
+          Instance {resolvedInstanceIndex}
           {currentInstance?.owner_id && <> &middot; PID {currentInstance.owner_id}</>}
         </p>
       )}
 
-      {/* Instance switcher (multi-instance only) */}
-      {isMultiInstance && manifest?.instances && (
-        <div class="ht-mb-4">
-          <label class="ht-detail-label ht-mr-2" htmlFor="instance-select">Instance</label>
-          <div class="ht-select ht-select--sm ht-select--inline">
-            <select
-              id="instance-select"
-              value={instanceIndex}
-              onChange={(e) => {
-                const idx = (e.target as HTMLSelectElement).value;
-                navigate(`/apps/${appKey}/${idx}`);
-              }}
-            >
-              {manifest.instances.map((inst) => (
-                <option key={inst.index} value={inst.index}>
-                  {inst.instance_name} ({inst.status})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
-
       {/* Error banner for failed/crashed apps */}
-      {manifest?.error_message && (
+      {(currentInstance?.error_message ?? manifest?.error_message) && (
         <ErrorDisplay
-          errorMessage={manifest.error_message}
-          errorTraceback={manifest.error_traceback ?? null}
+          errorMessage={(currentInstance?.error_message ?? manifest?.error_message)!}
+          errorTraceback={manifest?.error_traceback ?? null}
         />
       )}
 
@@ -258,9 +410,10 @@ export function AppDetailPage({ params }: Props) {
         />
       )}
       {activeTab.value === "code" && (
-        <div class="ht-card ht-text-muted ht-text-sm" data-testid="code-tab-placeholder">
-          Code viewer — coming in WP08.
-        </div>
+        <CodeTab
+          appKey={appKey}
+          listeners={listeners.data.value ?? []}
+        />
       )}
       {activeTab.value === "logs" && (
         <div class="ht-card" data-testid="logs-section">
@@ -268,9 +421,7 @@ export function AppDetailPage({ params }: Props) {
         </div>
       )}
       {activeTab.value === "config" && (
-        <div class="ht-card ht-text-muted ht-text-sm" data-testid="config-tab-placeholder">
-          Config editor — coming in WP08.
-        </div>
+        <ConfigTab appKey={appKey} />
       )}
     </div>
   );

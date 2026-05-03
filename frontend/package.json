@@ -17,6 +17,7 @@
   "dependencies": {
     "@preact/signals": "^2.8.2",
     "preact": "^10.29.0",
+    "shiki": "^4.0.2",
     "wouter": "^3.9.0"
   },
   "devDependencies": {

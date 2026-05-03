@@ -3065,3 +3065,300 @@ strong {
     padding: var(--ht-sp-3);
   }
 }
+
+/* =====================================================
+   WP08 — Code Tab
+   ===================================================== */
+
+.ht-code-tab {
+  border: 1px solid var(--ht-border);
+  border-radius: var(--ht-radius-md);
+  overflow: hidden;
+  background: var(--ht-surface);
+}
+
+.ht-code-tab__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ht-sp-2) var(--ht-sp-4);
+  border-bottom: 1px solid var(--ht-border);
+  background: var(--ht-surface-recessed, var(--bg-sunken));
+}
+
+.ht-code-tab__body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  overflow-x: auto;
+}
+
+/* Gutter: line numbers + handler annotations */
+.ht-code-tab__gutter {
+  display: flex;
+  flex-direction: column;
+  background: var(--ht-surface-recessed, var(--bg-sunken));
+  border-right: 1px solid var(--ht-border);
+  padding: var(--ht-sp-3) 0;
+  user-select: none;
+  min-width: 48px;
+}
+
+.ht-code-tab__gutter-line {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-2);
+  padding: 0 var(--ht-sp-3);
+  line-height: 1.6;
+  min-height: 1.6em;
+  font-family: var(--ht-font-mono, var(--font-mono));
+  font-size: var(--ht-text-xs, var(--fs-small));
+}
+
+.ht-code-tab__gutter-line--annotated {
+  background: color-mix(in srgb, var(--ht-accent, var(--accent)) 8%, transparent);
+}
+
+.ht-code-tab__line-num {
+  color: var(--ht-text-dim, var(--ink-4));
+  text-align: right;
+  min-width: 2ch;
+  flex-shrink: 0;
+}
+
+.ht-code-tab__annotation {
+  color: var(--ht-accent, var(--accent));
+  font-size: var(--ht-text-xs, var(--fs-small));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+  font-style: italic;
+}
+
+/* Shiki output overrides */
+.ht-code-tab__source {
+  overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+}
+
+.ht-code-tab__source .shiki {
+  margin: 0;
+  padding: var(--ht-sp-3) var(--ht-sp-4);
+  background: transparent !important;
+  border-radius: 0;
+  font-size: var(--ht-text-sm, var(--fs-mono-md));
+  line-height: 1.6;
+}
+
+.ht-code-tab__source .shiki code {
+  background: none;
+  padding: 0;
+}
+
+.ht-code-tab__loading,
+.ht-code-tab__error {
+  padding: var(--ht-sp-6);
+}
+
+/* =====================================================
+   WP08 — Config Tab
+   ===================================================== */
+
+.ht-config-tab { padding: var(--sp-4) 0; }
+.ht-config-tab__loading,
+.ht-config-tab__error { padding: var(--sp-6); }
+
+.ht-multi-overview { padding: var(--sp-4) 0; }
+
+.ht-config-tab__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ht-sp-4);
+  padding: var(--ht-sp-4) 0 var(--ht-sp-4);
+  border-bottom: 1px solid var(--ht-border);
+  margin-bottom: var(--ht-sp-4);
+}
+
+.ht-config-tab__meta-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-2);
+}
+
+.ht-config-tab__divider {
+  display: none; /* meta already has border-bottom */
+}
+
+.ht-config-tab__table {
+  table-layout: auto;
+}
+
+.ht-config-tab__col-key {
+  width: 30%;
+  white-space: nowrap;
+}
+
+.ht-config-tab__col-value {
+  width: 55%;
+}
+
+.ht-config-tab__col-action {
+  width: 15%;
+  text-align: right;
+}
+
+.ht-config-tab__redacted {
+  font-family: var(--ht-font-mono, var(--font-mono));
+  font-size: var(--ht-text-sm, var(--fs-mono-md));
+  color: var(--ht-text-secondary, var(--ink-3));
+  letter-spacing: 0.1em;
+}
+
+.ht-config-tab__value code {
+  word-break: break-all;
+}
+
+.ht-config-tab__instances {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ht-sp-6);
+}
+
+.ht-config-tab__instance-block {
+  border: 1px solid var(--ht-border);
+  border-radius: var(--ht-radius-md);
+  overflow: hidden;
+}
+
+.ht-config-tab__instance-heading {
+  font-family: var(--ht-font-body, var(--font-body));
+  font-size: var(--ht-text-sm);
+  font-weight: var(--ht-weight-semibold);
+  padding: var(--ht-sp-2) var(--ht-sp-4);
+  background: var(--ht-surface-recessed, var(--bg-sunken));
+  border-bottom: 1px solid var(--ht-border);
+  margin: 0;
+}
+
+.ht-config-tab__empty {
+  padding: var(--ht-sp-6);
+}
+
+/* =====================================================
+   WP08 — Instance Grid (multi-instance parent overview)
+   ===================================================== */
+
+.ht-instance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--ht-sp-4);
+}
+
+.ht-instance-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ht-sp-2);
+  padding: var(--ht-sp-4);
+  background: var(--ht-surface, var(--bg-surface));
+  border: 1px solid var(--ht-border);
+  border-radius: var(--ht-radius-md);
+  box-shadow: var(--ht-shadow-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--ht-motion-micro, var(--t-fast)), box-shadow var(--ht-motion-micro, var(--t-fast));
+  font-family: inherit;
+  font-size: var(--ht-text-sm);
+  color: var(--ht-text, var(--ink-1));
+}
+
+.ht-instance-card:hover {
+  border-color: var(--ht-border-strong, var(--line-strong));
+  box-shadow: var(--ht-shadow-md, var(--shadow-2));
+}
+
+.ht-instance-card:focus-visible {
+  outline: 2px solid var(--ht-focus-ring, var(--accent));
+  outline-offset: 2px;
+}
+
+.ht-instance-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--ht-sp-2);
+  flex-wrap: wrap;
+}
+
+.ht-instance-card__name {
+  font-weight: var(--ht-weight-medium);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ht-instance-card__status-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.ht-instance-card__error-preview {
+  font-size: var(--ht-text-xs);
+  color: var(--ht-danger);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+}
+
+/* =====================================================
+   WP08 — Instance Switcher (sibling navigation in header)
+   ===================================================== */
+
+.ht-instance-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ht-sp-1);
+  align-items: center;
+}
+
+.ht-instance-switcher__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ht-sp-2);
+  padding: var(--ht-sp-1) var(--ht-sp-3);
+  background: none;
+  border: 1px solid var(--ht-border);
+  border-radius: var(--ht-radius-sm);
+  font-family: var(--ht-font-mono, var(--font-mono));
+  font-size: var(--ht-text-xs);
+  color: var(--ht-text-secondary, var(--ink-2));
+  cursor: pointer;
+  transition: color var(--ht-motion-micro, var(--t-fast)), background var(--ht-motion-micro, var(--t-fast));
+  white-space: nowrap;
+}
+
+.ht-instance-switcher__btn:hover {
+  color: var(--ht-text, var(--ink-1));
+  background: var(--ht-surface-active, var(--bg-active));
+}
+
+.ht-instance-switcher__btn--active {
+  background: var(--ht-surface-active, var(--bg-active));
+  border-color: var(--ht-border-strong, var(--line-strong));
+  color: var(--ht-text, var(--ink-1));
+  font-weight: var(--ht-weight-medium);
+  cursor: default;
+}
+
+.ht-instance-switcher__btn:focus-visible {
+  outline: 2px solid var(--ht-focus-ring, var(--accent));
+  outline-offset: 2px;
+}
+
+.ht-instance-switcher__label {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
