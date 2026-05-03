@@ -69,8 +69,9 @@ export function useWebSocket(state: AppState): void {
               state.sessionId.value = msg.data.session_id;
 
               if (hasConnectedRef.current) {
-                // Reconnection — clear stale log buffer before re-subscribing
+                // Reconnection — clear stale log buffer and service status before re-subscribing
                 state.logs.clear();
+                state.serviceStatus.value = {};
                 // Signal all useApi instances to refetch
                 state.reconnectVersion.value = state.reconnectVersion.value + 1;
               } else {
@@ -125,6 +126,8 @@ export function useWebSocket(state: AppState): void {
                   previous_status: msg.data.previous_status,
                   exception: msg.data.exception,
                   retry_at: msg.data.retry_at,
+                  ready: msg.data.ready ?? false,
+                  ready_phase: msg.data.ready_phase ?? null,
                 },
               };
               break;

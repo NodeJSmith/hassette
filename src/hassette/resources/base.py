@@ -578,6 +578,36 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         """Optional: last-chance actions after on_shutdown, before cleanup/STOPPED."""
         pass
 
+    async def _emit_readiness_event(self) -> None:
+        """Emit a service_status event reflecting the current readiness state.
+
+        Call this from an async context (e.g., inside ``serve()``) after calling
+        ``mark_ready()`` or ``mark_not_ready()`` to propagate mid-operation
+        readiness changes to the frontend.
+
+        This method is intended for mid-operation readiness changes while the service
+        status is RUNNING. Do not call after handle_failed(), handle_stop(), or
+        handle_crash() — those lifecycle methods emit their own status events including
+        the current readiness state. Calling this method after a lifecycle transition
+        will emit a duplicate event.
+
+        Exceptions are caught internally and logged as warnings — callers do not need
+        to wrap with ``suppress(Exception)``.
+        """
+        try:
+            event = self._create_service_status_event(
+                self._status, ready=self.is_ready(), ready_phase=self._ready_reason
+            )
+            await self.hassette.send_event(event.topic, event)
+        except Exception:
+            self.logger.warning(
+                "%s failed to emit readiness event (ready=%s, phase=%s)",
+                self.unique_name,
+                self.is_ready(),
+                self._ready_reason,
+                exc_info=True,
+            )
+
     async def restart(self) -> None:
         """Restart the instance by shutting it down and re-initializing it."""
         self.logger.debug("Restarting '%s' %s", self.class_name, self.role)

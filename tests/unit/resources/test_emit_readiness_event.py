@@ -1,0 +1,76 @@
+"""Tests for Resource._emit_readiness_event and readiness in lifecycle transitions."""
+
+from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock
+
+import pytest
+
+from hassette.resources.base import Resource
+from hassette.types.enums import ResourceStatus
+
+if TYPE_CHECKING:
+    from hassette.events.hassette import ServiceStatusPayload
+from tests.unit.resources.conftest import _make_hassette_stub
+
+
+class _ConcreteResource(Resource):
+    """Minimal concrete Resource subclass for testing."""
+
+    async def on_initialize(self) -> None:
+        pass
+
+
+async def _make_resource() -> tuple[_ConcreteResource, AsyncMock]:
+    """Create a Resource instance with a stubbed hassette."""
+    hassette = _make_hassette_stub()
+    resource = _ConcreteResource(hassette=hassette)
+    return resource, hassette
+
+
+class TestEmitReadinessEvent:
+    """Tests for Resource._emit_readiness_event()."""
+
+    @pytest.mark.asyncio
+    async def test_emit_readiness_event_sends_service_status(self) -> None:
+        """_emit_readiness_event sends a service_status event with current readiness state."""
+        resource, hassette = await _make_resource()
+
+        # Set up RUNNING state + readiness
+        resource._status = ResourceStatus.RUNNING
+        resource.mark_ready("test reason")
+
+        await resource._emit_readiness_event()
+
+        # hassette.send_event should have been called
+        assert hassette.send_event.called
+
+        # Extract the event payload from the call
+        call_args = hassette.send_event.call_args
+        event = call_args[0][1]
+        payload: ServiceStatusPayload = event.payload.data
+
+        assert payload.ready is True
+        assert payload.ready_phase == "test reason"
+        assert payload.status == ResourceStatus.RUNNING
+
+    @pytest.mark.asyncio
+    async def test_handle_running_includes_readiness(self) -> None:
+        """handle_running emits an event carrying the current readiness state."""
+        resource, hassette = await _make_resource()
+
+        # Resource is not ready before handle_running
+        assert resource.is_ready() is False
+
+        resource._previous_status = ResourceStatus.STARTING
+        resource._status = ResourceStatus.STARTING
+
+        await resource.handle_running()
+
+        # Event should have been sent
+        assert hassette.send_event.called
+        call_args = hassette.send_event.call_args
+        event = call_args[0][1]
+        payload: ServiceStatusPayload = event.payload.data
+
+        assert payload.ready is False
+        assert payload.status == ResourceStatus.RUNNING

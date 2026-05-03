@@ -445,6 +445,55 @@ class TestStateProxyWebsocketListeners:
         mock_mark_not_ready.assert_not_called()
 
 
+class TestStateProxyReadinessEvents:
+    """Tests that on_disconnect/on_reconnect emit readiness events via _emit_readiness_event()."""
+
+    async def test_on_disconnect_emits_not_ready_event(self, state_proxy: "StateProxy") -> None:
+        """on_disconnect emits a service_status event with ready=False after mark_not_ready()."""
+        state_proxy.mark_ready(reason="Test setup")
+
+        with patch.object(state_proxy, "_emit_readiness_event", new_callable=AsyncMock) as mock_emit:
+            await state_proxy.on_disconnect()
+
+        mock_emit.assert_called_once()
+        assert not state_proxy.is_ready()
+
+    async def test_on_reconnect_emits_ready_event(self, state_proxy: "StateProxy") -> None:
+        """on_reconnect emits a service_status event with ready=True after mark_ready()."""
+        state_proxy.states.clear()
+        state_proxy.mark_not_ready(reason="HA stopped")
+
+        mock_states = [
+            make_light_state_dict("light.kitchen", "on"),
+        ]
+        state_proxy.hassette.api.get_states_raw = AsyncMock(return_value=mock_states)
+
+        with patch.object(state_proxy, "_emit_readiness_event", new_callable=AsyncMock) as mock_emit:
+            await state_proxy.on_reconnect()
+
+        mock_emit.assert_called_once()
+        assert state_proxy.is_ready()
+
+    async def test_on_reconnect_failure_emits_not_ready_event(
+        self, hassette_with_state_proxy: "HassetteHarness"
+    ) -> None:
+        """on_reconnect emits a service_status event with ready=False when resync fails."""
+        proxy = hassette_with_state_proxy.state_proxy
+        proxy.mark_not_ready(reason="HA stopped")
+
+        with (
+            patch.object(hassette_with_state_proxy.api, "get_states_raw", new_callable=AsyncMock) as mock_get_states,
+            patch.object(proxy, "_emit_readiness_event", new_callable=AsyncMock) as mock_emit,
+        ):
+            mock_get_states.side_effect = Exception("API error during resync")
+            await proxy.on_reconnect()
+
+        mock_emit.assert_called_once()
+        assert not proxy.is_ready()
+
+        await proxy.on_initialize()
+
+
 class TestStateProxyShutdown:
     """Tests for shutdown behavior."""
 

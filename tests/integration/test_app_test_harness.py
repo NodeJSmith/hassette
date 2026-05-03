@@ -603,6 +603,27 @@ async def test_simulate_hassette_service_started():
         assert len(my_events) == 1
 
 
+async def test_simulate_hassette_service_ready():
+    """simulate_hassette_service_ready fires with ready=True and RUNNING status."""
+    from hassette.events.hassette import HassetteServiceEvent
+
+    received: list[HassetteServiceEvent] = []
+
+    class ServiceReadyApp(App[SensorConfig]):
+        async def on_initialize(self) -> None:
+            self.bus.on_hassette_service_status(handler=self._on_status)
+
+        async def _on_status(self, event: HassetteServiceEvent) -> None:
+            received.append(event)
+
+    async with AppTestHarness(ServiceReadyApp, config={}) as harness:
+        await harness.simulate_hassette_service_ready("MyService")
+        my_events = [e for e in received if e.payload.data.resource_name == "MyService"]
+        assert len(my_events) == 1
+        assert my_events[0].payload.data.ready is True
+        assert my_events[0].payload.data.status == ResourceStatus.RUNNING
+
+
 # ---------------------------------------------------------------------------
 # simulate_websocket_connected / disconnected
 # ---------------------------------------------------------------------------

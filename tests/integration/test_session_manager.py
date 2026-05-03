@@ -36,6 +36,8 @@ def _make_crashed_event(
                 exception=exception,
                 exception_type=exception_type,
                 exception_traceback=exception_traceback,
+                ready=False,
+                ready_phase=None,
             ),
         ),
     )

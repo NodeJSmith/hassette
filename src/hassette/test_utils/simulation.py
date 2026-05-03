@@ -249,6 +249,8 @@ class SimulationMixin:
         role: ResourceRole = ResourceRole.SERVICE,
         previous_status: ResourceStatus | None = None,
         exception: Exception | None = None,
+        ready: bool = False,
+        ready_phase: str | None = None,
         timeout: float = 2.0,
     ) -> None:
         """Create a Hassette service status event and send it through the bus.
@@ -259,6 +261,8 @@ class SimulationMixin:
             role: The resource role. Defaults to ``ResourceRole.SERVICE``.
             previous_status: The previous status, if known.
             exception: An exception associated with the status change, if any.
+            ready: Whether the service is ready. Defaults to ``False``.
+            ready_phase: Human-readable description of the readiness phase, if any.
             timeout: Maximum seconds to wait for handlers to complete.
 
         Raises:
@@ -278,9 +282,39 @@ class SimulationMixin:
             status=status,
             previous_status=previous_status,
             exception=exception,
+            ready=ready,
+            ready_phase=ready_phase,
         )
         await harness.hassette.send_event(event.topic, event)
         await self._drain_task_bucket(timeout=timeout)
+
+    async def simulate_hassette_service_ready(
+        self,
+        resource_name: str,
+        *,
+        ready_phase: str | None = None,
+        timeout: float = 2.0,
+    ) -> None:
+        """Convenience: simulate a service reaching RUNNING status with ready=True.
+
+        Delegates to :meth:`simulate_hassette_service_status`.
+
+        Args:
+            resource_name: Name of the service (e.g., "WebSocketService").
+            ready_phase: Human-readable description of the readiness phase, if any.
+            timeout: Maximum seconds to wait for handlers to complete.
+
+        Raises:
+            DrainError: If any handler raised an exception.
+            DrainTimeout: If drain does not reach quiescence within ``timeout``.
+        """
+        await self.simulate_hassette_service_status(
+            resource_name,
+            ResourceStatus.RUNNING,
+            ready=True,
+            ready_phase=ready_phase,
+            timeout=timeout,
+        )
 
     async def simulate_hassette_service_failed(
         self,

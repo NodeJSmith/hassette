@@ -373,6 +373,23 @@
           ],
           "default": null,
           "title": "Retry At"
+        },
+        "ready": {
+          "default": false,
+          "title": "Ready",
+          "type": "boolean"
+        },
+        "ready_phase": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ready Phase"
         }
       },
       "required": [

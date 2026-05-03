@@ -317,6 +317,127 @@ describe("useWebSocket", () => {
     expect(ws.sent).toHaveLength(0);
   });
 
+  it("maps service_status ready and ready_phase into serviceStatus state", () => {
+    const state = createAppState();
+
+    renderHook(() => useWebSocket(state));
+
+    const ws = MockWebSocket.instances[0];
+    act(() => {
+      ws.simulateOpen();
+      ws.simulateMessage({ type: "connected", data: { session_id: 1 } });
+    });
+
+    act(() => {
+      ws.simulateMessage({
+        type: "service_status",
+        data: {
+          resource_name: "WebsocketService",
+          role: "service",
+          status: "running",
+          previous_status: "starting",
+          exception: null,
+          exception_type: null,
+          exception_traceback: null,
+          retry_at: null,
+          ready: true,
+          ready_phase: "Connected and authenticated",
+        },
+        timestamp: 1000,
+      });
+    });
+
+    const entry = state.serviceStatus.value["WebsocketService"];
+    expect(entry).toBeDefined();
+    expect(entry.ready).toBe(true);
+    expect(entry.ready_phase).toBe("Connected and authenticated");
+    expect(entry.status).toBe("running");
+  });
+
+  it("defaults ready to false and ready_phase to null for pre-schema events", () => {
+    const state = createAppState();
+
+    renderHook(() => useWebSocket(state));
+
+    const ws = MockWebSocket.instances[0];
+    act(() => {
+      ws.simulateOpen();
+      ws.simulateMessage({ type: "connected", data: { session_id: 1 } });
+    });
+
+    act(() => {
+      ws.simulateMessage({
+        type: "service_status",
+        data: {
+          resource_name: "OldService",
+          role: "service",
+          status: "running",
+          previous_status: null,
+          exception: null,
+          exception_type: null,
+          exception_traceback: null,
+          retry_at: null,
+        },
+        timestamp: 1000,
+      });
+    });
+
+    const entry = state.serviceStatus.value["OldService"];
+    expect(entry).toBeDefined();
+    expect(entry.ready).toBe(false);
+    expect(entry.ready_phase).toBeNull();
+  });
+
+  it("clears serviceStatus on reconnect", () => {
+    vi.useFakeTimers();
+    const state = createAppState();
+
+    renderHook(() => useWebSocket(state));
+
+    const ws1 = MockWebSocket.instances[0];
+    act(() => {
+      ws1.simulateOpen();
+      ws1.simulateMessage({ type: "connected", data: { session_id: 1 } });
+    });
+
+    act(() => {
+      ws1.simulateMessage({
+        type: "service_status",
+        data: {
+          resource_name: "StaleSvc",
+          role: "service",
+          status: "running",
+          previous_status: null,
+          exception: null,
+          exception_type: null,
+          exception_traceback: null,
+          retry_at: null,
+          ready: false,
+          ready_phase: "Connecting...",
+        },
+        timestamp: 1000,
+      });
+    });
+
+    expect(Object.keys(state.serviceStatus.value)).toHaveLength(1);
+
+    act(() => {
+      ws1.onclose?.();
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    const ws2 = MockWebSocket.instances[1];
+    act(() => {
+      ws2.simulateOpen();
+      ws2.simulateMessage({ type: "connected", data: { session_id: 2 } });
+    });
+
+    expect(Object.keys(state.serviceStatus.value)).toHaveLength(0);
+  });
+
   it("clears log store on reconnect", () => {
     vi.useFakeTimers();
     const state = createAppState();
