@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "preact/hooks";
 import { Route, Switch, useLocation } from "wouter";
 import { getManifests } from "./api/endpoints";
 import { AlertBanner } from "./components/layout/alert-banner";
+import { CommandPalette } from "./components/layout/command-palette";
 import { ErrorBoundary } from "./components/layout/error-boundary";
 import { Sidebar } from "./components/layout/sidebar";
 import { StatusBar } from "./components/layout/status-bar";
@@ -22,6 +23,7 @@ export function App() {
   const [location] = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMounted, setDrawerMounted] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   if (drawerOpen && !drawerMounted) setDrawerMounted(true);
 
@@ -34,7 +36,7 @@ export function App() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        // TODO WP10: open command palette
+        setPaletteOpen((prev) => !prev);
       }
       if (e.key === "Escape" && drawerOpen) {
         setDrawerOpen(false);
@@ -48,6 +50,7 @@ export function App() {
     <AppStateContext.Provider value={state}>
       <WebSocketProvider state={state} />
       <TelemetryHealthProvider state={state} />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
 
       {/* Skip link */}
       <a href="#main-content" class="ht-skip-link">Skip to main content</a>
@@ -72,7 +75,7 @@ export function App() {
         class={`ht-drawer${drawerOpen ? " is-open" : ""}`}
         aria-hidden={!drawerOpen}
       >
-        {drawerMounted && <Sidebar />}
+        {drawerMounted && <Sidebar onOpenPalette={() => setPaletteOpen(true)} />}
       </div>
       {drawerOpen && (
         <div
@@ -84,7 +87,7 @@ export function App() {
 
       {/* Desktop layout */}
       <div class="ht-layout">
-        <Sidebar />
+        <Sidebar onOpenPalette={() => setPaletteOpen(true)} />
         <main class="ht-main" id="main-content" tabIndex={-1}>
           <StatusBar />
           <FailedAppsAlert />

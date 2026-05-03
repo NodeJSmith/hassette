@@ -118,7 +118,11 @@ function AppEntry({ manifest, location }: AppEntryProps) {
   );
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  onOpenPalette?: () => void;
+}
+
+export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   const [location] = useLocation();
   const { connection } = useAppState();
   const manifests = useApi(getManifests);
@@ -160,16 +164,16 @@ export function Sidebar() {
         <span class="sidebar__ws-label">{wsStatus}</span>
       </div>
 
-      {/* Cmd-K trigger (placeholder for WP10) */}
+      {/* Cmd-K trigger */}
       <button
         type="button"
         class="sidebar__cmdkey"
-        title="Command palette (WP10)"
-        disabled
+        title={`Command palette (${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl+K"})`}
         aria-label="Open command palette"
+        onClick={onOpenPalette}
       >
         <span>Search</span>
-        <kbd class="sidebar__cmdkey-hint">⌘K</kbd>
+        <kbd class="sidebar__cmdkey-hint">{/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl+K"}</kbd>
       </button>
 
       {/* Top-level navigation */}

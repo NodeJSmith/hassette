@@ -177,6 +177,11 @@ export const handlers = [
     });
   }),
 
+  // GET /api/bus/listeners
+  http.get("/api/bus/listeners", () => {
+    return HttpResponse.json<ListenerWithSummary[]>([]);
+  }),
+
   // GET /api/config
   http.get("/api/config", () => {
     return HttpResponse.json<ConfigResponse>({

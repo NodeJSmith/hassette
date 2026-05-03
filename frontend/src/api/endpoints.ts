@@ -104,3 +104,7 @@ export const getRecentLogs = (params?: { level?: string; app_key?: string; limit
     app_key: params?.app_key,
     limit: params?.limit,
   }));
+
+// ---- Bus ----
+
+export const getAllListeners = () => apiFetch<ListenerData[]>("/bus/listeners");

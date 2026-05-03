@@ -734,6 +734,183 @@ strong {
   border-left: 1px solid var(--line-2);
 }
 
+/* — Command Palette ———————————————————————————————————— */
+
+/* Backdrop: full-screen overlay with blur */
+.ht-cmd-palette__backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  backdrop-filter: blur(2px);
+  z-index: 200;
+}
+
+/* Panel: centered floating surface */
+.ht-cmd-palette {
+  position: fixed;
+  top: 15vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(620px, 90%);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-3);
+  z-index: 201;
+  overflow: hidden;
+}
+
+/* Input row */
+.ht-cmd-palette__input-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--line-1);
+  flex-shrink: 0;
+}
+
+.ht-cmd-palette__search-icon {
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.ht-cmd-palette__input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--ink-1);
+  padding: 0;
+}
+
+.ht-cmd-palette__input::placeholder {
+  color: var(--ink-4);
+}
+
+/* Results area: scrollable */
+.ht-cmd-palette__results {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-2) 0;
+  min-height: 0;
+}
+
+/* Empty state */
+.ht-cmd-palette__empty {
+  padding: var(--sp-4) var(--sp-5);
+  font-size: var(--fs-body);
+  color: var(--ink-3);
+  text-align: center;
+}
+
+/* Section grouping */
+.ht-cmd-palette__section {
+  margin-bottom: var(--sp-1);
+}
+
+.ht-cmd-palette__section-header {
+  padding: var(--sp-1) var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--ink-4);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Individual result row */
+.ht-cmd-palette__result {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-4);
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--ink-1);
+  transition: background var(--t-fast) var(--ease);
+}
+
+.ht-cmd-palette__result:hover {
+  background: var(--bg-active);
+}
+
+.ht-cmd-palette__result--active {
+  background: var(--bg-active);
+  font-weight: 600;
+}
+
+/* Label + status shape */
+.ht-cmd-palette__result-label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sub-label (app_key, topic, etc.) */
+.ht-cmd-palette__result-sub {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  flex-shrink: 1;
+}
+
+/* Kind chip */
+.ht-cmd-palette__chip {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-4);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  padding: 1px var(--sp-2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Footer: keyboard hints */
+.ht-cmd-palette__footer {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--line-1);
+  font-size: var(--fs-micro);
+  color: var(--ink-4);
+  flex-shrink: 0;
+}
+
+.ht-cmd-palette__footer kbd {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  padding: 1px var(--sp-1);
+  color: var(--ink-3);
+  margin-right: var(--sp-1);
+}
+
 /* — Confirm Dialog ————————————————————————————————————— */
 .confirm-dialog__backdrop {
   position: fixed;

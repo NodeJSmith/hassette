@@ -52,11 +52,19 @@ describe("Sidebar — structure", () => {
     expect(brandLink.getAttribute("href")).toBe("/");
   });
 
-  it("renders the Cmd-K button (disabled)", () => {
+  it("renders the Cmd-K button", () => {
     const { container } = renderWithAppState(<Sidebar />);
     const btn = container.querySelector(".sidebar__cmdkey");
     expect(btn).not.toBeNull();
-    expect((btn as HTMLButtonElement).disabled).toBe(true);
+    expect((btn as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("Cmd-K button calls onOpenPalette when clicked", () => {
+    const onOpenPalette = vi.fn();
+    const { container } = renderWithAppState(<Sidebar onOpenPalette={onOpenPalette} />);
+    const btn = container.querySelector(".sidebar__cmdkey")! as HTMLButtonElement;
+    fireEvent.click(btn);
+    expect(onOpenPalette).toHaveBeenCalledOnce();
   });
 });
 
