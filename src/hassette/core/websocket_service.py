@@ -313,12 +313,14 @@ class WebsocketService(Service):
         recv_task = self.task_bucket.spawn(self._recv_loop(), name="ws:recv")
         self._recv_task = recv_task
 
+        # CONNECTED before subscribe — send_json() gates on self.connected
+        self._set_connection_state(ConnectionState.CONNECTED)
+
         await self._send_connection_established_event()
         self._subscription_ids.add(await self._subscribe_events())
 
         self.mark_ready(reason="WebSocket connected, authenticated, and subscribed")
         await self._emit_readiness_event()
-        self._set_connection_state(ConnectionState.CONNECTED)
         self._connected_at = time.monotonic()
         return recv_task
 

@@ -39,7 +39,7 @@ Three subsystems rely on implicit state — boolean flags, null-checks, and idem
 7. `WebsocketService` SHALL expose a `connection_state` read-only property returning a `ConnectionState` enum value
 8. `ConnectionState` transitions SHALL be validated against a static transition table with the same strict/non-strict behavior as lifecycle guards
 9. The existing `connected` property SHALL return `True` if and only if `connection_state == ConnectionState.CONNECTED`
-10. Connection state SHALL transition to CONNECTING before any WebSocket handshake attempt, to CONNECTED after successful authentication and subscription, and to DISCONNECTED on non-retryable failure, max retries exhausted, or clean shutdown
+10. Connection state SHALL transition to CONNECTING before any WebSocket handshake attempt, to CONNECTED after successful authentication (before subscription, since subscription itself requires CONNECTED to send), and to DISCONNECTED on non-retryable failure, max retries exhausted, or clean shutdown
 11. `_partial_cleanup()` SHALL NOT change connection state — it is resource cleanup, not a state transition
 
 ### Resource Lifecycle Fixes
