@@ -44,7 +44,7 @@ export const getAppConfig = (appKey: string) =>
   apiFetch<{ app_key: string; filename: string; class_name: string; enabled: boolean; app_config: unknown }>(`/apps/${appKey}/config`);
 
 export const getAppSource = (appKey: string) =>
-  apiFetch<{ app_key: string; filename: string; source: string }>(`/apps/${appKey}/source`);
+  apiFetch<{ app_key: string; filename: string; content: string; line_count: number }>(`/apps/${appKey}/source`);
 
 // ---- Telemetry ----
 
