@@ -131,9 +131,8 @@ class DurationTimer:
         async def delayed_fire() -> None:
             try:
                 await asyncio.sleep(sleep_duration)
-            except asyncio.CancelledError:
-                # Cancellation is expected — either start() replaced us or cancel() ran.
-                return
+            except asyncio.CancelledError:  # noqa: ASYNC103 — expected: start() replaced us or cancel() ran
+                return  # noqa: ASYNC104
             # Guard: if the timer was cancelled while sleeping, do not fire.
             if self._cancelled:
                 return

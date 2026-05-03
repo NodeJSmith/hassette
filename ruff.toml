@@ -35,6 +35,7 @@ indent-width = 4
 target-version = "py311"
 
 [lint]
+external = ["ASYNC103", "ASYNC104"]
 select = [
     # "ANN",
     "E",      # pycodestyle (error)
