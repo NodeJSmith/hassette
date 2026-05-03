@@ -1,7 +1,7 @@
 # Design: Surface Service Readiness in the Frontend
 
 **Date:** 2026-05-02
-**Status:** approved
+**Status:** archived
 **Research:** design/research/2026-04-26-resource-service-lifecycle/research.md, design/research/2026-04-26-loading-splash-screen/research.md, design/research/2026-04-28-service-supervision/research.md
 
 ## Problem
