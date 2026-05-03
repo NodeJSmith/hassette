@@ -4,8 +4,7 @@ These symbols are not part of the public API and may change without notice.
 External users should use the Tier 1 API from ``hassette.test_utils`` instead.
 
 This package exists solely to provide backward-compatible re-exports so that
-hassette's own 200+ internal tests continue to work after the public API
-restructure in WP05.
+hassette's own internal tests continue to work after the public API restructure.
 """
 
 from hassette.test_utils.fixtures import (

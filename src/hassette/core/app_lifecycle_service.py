@@ -1,8 +1,4 @@
-"""AppLifecycleService — owns app lifecycle orchestration and change handling.
-
-Absorbs all methods from AppLifecycleManager (folded in) plus implementation
-methods that will be delegated from AppHandler (WP02).
-"""
+"""AppLifecycleService — owns app lifecycle orchestration and change handling."""
 
 import asyncio
 import typing
@@ -244,7 +240,7 @@ class AppLifecycleService(Resource):
         await self.hassette.send_event(Topic.HASSETTE_EVENT_APP_STATE_CHANGED, event)
 
     # ------------------------------------------------------------------
-    # Implementation methods (from AppHandler, to be delegated in WP02)
+    # Implementation methods
     # ------------------------------------------------------------------
 
     async def bootstrap_apps(self) -> None:

@@ -143,7 +143,7 @@ class Listener:
 
     error_handler: "BusErrorHandlerType | None" = None
     """Optional per-listener error handler. Stored as the raw callable for reliable identity comparison.
-    Normalization via make_async_adapter happens at invocation time (WP04)."""
+    Normalization via make_async_adapter happens at invocation time."""
 
     _app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None" = field(
         default=None, init=False, repr=False

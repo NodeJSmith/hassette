@@ -489,8 +489,7 @@ class WebsocketService(Service):
             fut.set_result(message.get("result"))
 
         else:
-            # HA error envelope shape (verified in WP01, see
-            # design/specs/2037-helper-crud-api/design.md §"HA WebSocket Commands"):
+            # HA error envelope shape (see design/specs/2037-helper-crud-api/design.md):
             #   {"type": "result", "success": false, "error": {"code": "<code>", "message": "<msg>"}}
             error_envelope = message.get("error") or {}
             err = error_envelope.get("message", "Unknown error")
