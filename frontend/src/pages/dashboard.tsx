@@ -261,9 +261,8 @@ export function DashboardPage() {
     2000,
   );
 
-  const isLoading = kpis.loading.value || appGrid.loading.value;
-
-  if (isLoading) {
+  const hasData = kpis.data.value !== null && appGrid.data.value !== null;
+  if (!hasData && (kpis.loading.value || appGrid.loading.value)) {
     return <Spinner />;
   }
 

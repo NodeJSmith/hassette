@@ -1060,7 +1060,6 @@ strong {
   border: 1px solid var(--line-1);
   border-top: 1px solid var(--line-2);
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-1);
   padding: var(--sp-5);
 }
 
@@ -1068,15 +1067,12 @@ strong {
   height: 100%;
 }
 
-/* Urgent card — left border accent for active errors/warnings */
 .ht-card--urgent {
-  border-left: 3px solid var(--err);
-  padding-left: calc(var(--sp-5) - 2px);
+  background: color-mix(in oklch, var(--err) 4%, var(--bg-surface));
+  border-color: var(--err);
 }
 
-/* Receded card — reduced weight for secondary affordances (System Health) */
 .ht-card--receded {
-  box-shadow: none;
   border-top-color: var(--line-1);
 }
 
@@ -1784,9 +1780,9 @@ strong {
 }
 
 .ht-health-card__value {
-  font-family: var(--font-mono);
+  font-family: var(--font-display);
   font-size: var(--fs-h2);
-  font-weight: 700;
+  font-weight: 400;
   color: var(--ink-1);
   line-height: 1.2;
   white-space: nowrap;
@@ -1828,7 +1824,6 @@ strong {
 .ht-item-list {
   border: 1px solid var(--line-1);
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-1);
   overflow: hidden;
 }
 
@@ -2609,13 +2604,11 @@ strong {
 [data-theme="light"] .ht-card {
   border: 1px solid var(--line-1);
   border-top: 1px solid var(--line-2);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
-/* Light mode .ht-card resets border via shorthand — modifiers must reapply */
 [data-theme="light"] .ht-card--urgent {
-  border-left: 3px solid var(--err);
-  padding-left: calc(var(--sp-5) - 2px);
+  background: color-mix(in oklch, var(--err) 4%, var(--bg-surface));
+  border-color: var(--err);
 }
 
 [data-theme="light"] .ht-card--receded {
@@ -3017,7 +3010,6 @@ strong {
 
 .ht-unified-row--selected {
   background: color-mix(in srgb, var(--accent) 8%, var(--bg-surface));
-  border-left: 3px solid var(--accent);
 }
 
 .ht-unified-row__status {

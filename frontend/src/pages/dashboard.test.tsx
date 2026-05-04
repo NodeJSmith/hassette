@@ -82,13 +82,13 @@ describe("DashboardPage — loading state", () => {
   });
 
   it("shows spinner while kpis are loading", () => {
-    setupScopedApi({ kpisLoading: true });
+    setupScopedApi({ kpisLoading: true, kpisData: null });
     const { getByTestId } = renderWithAppState(<DashboardPage />);
     expect(getByTestId("spinner")).toBeDefined();
   });
 
   it("shows spinner while app grid is loading", () => {
-    setupScopedApi({ appGridLoading: true });
+    setupScopedApi({ appGridLoading: true, appGridData: null });
     const { getByTestId } = renderWithAppState(<DashboardPage />);
     expect(getByTestId("spinner")).toBeDefined();
   });
