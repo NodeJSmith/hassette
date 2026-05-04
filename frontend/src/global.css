@@ -3008,7 +3008,6 @@ strong {
 
 .ht-master-detail__detail {
   overflow-y: auto;
-  background: var(--bg-surface);
 }
 
 /* — Handlers tab container ————————————————————————————— */
@@ -3188,6 +3187,14 @@ strong {
   background: var(--bg-surface);
   border: 1px solid var(--line-1);
   border-radius: var(--r-md);
+}
+
+.ht-detail-pane__panel-heading {
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--ink-1);
+  margin: 0 0 var(--sp-3);
 }
 
 .ht-detail-pane__empty {

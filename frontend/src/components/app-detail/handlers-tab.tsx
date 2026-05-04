@@ -230,6 +230,9 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
         </div>
       )}
 
+      {/* Stats row */}
+      <HandlerStatsRow listener={listener} />
+
       {/* View in code button */}
       {onSwitchToCode && listener.source_location && (
         <button
@@ -243,9 +246,9 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
       )}
     </div>
 
-    {/* Invocations panel — separate from handler details */}
+    {/* Invocations panel */}
     <div class="ht-detail-pane__invocations-panel">
-      <HandlerStatsRow listener={listener} />
+      <h3 class="ht-detail-pane__panel-heading">Invocations</h3>
       {loading.value && !invocations.value ? (
         <p class="ht-text-muted ht-text-xs">Loading invocations…</p>
       ) : (
@@ -338,6 +341,9 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
         </div>
       )}
 
+      {/* Stats row */}
+      <JobStatsRow job={job} />
+
       {/* View in code button */}
       {onSwitchToCode && job.source_location && (
         <button
@@ -351,9 +357,9 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
       )}
     </div>
 
-    {/* Executions panel — separate from job details */}
+    {/* Executions panel */}
     <div class="ht-detail-pane__invocations-panel">
-      <JobStatsRow job={job} />
+      <h3 class="ht-detail-pane__panel-heading">Executions</h3>
       {loading.value && !executions.value ? (
         <p class="ht-text-muted ht-text-xs">Loading executions…</p>
       ) : (
