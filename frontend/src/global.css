@@ -2956,7 +2956,7 @@ strong {
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
   font-family: var(--font-body);
-  font-size: var(--fs-small);
+  font-size: 13px;
   font-weight: 500;
   color: var(--ink-3);
   cursor: pointer;
@@ -2977,7 +2977,7 @@ strong {
 .ht-tab-btn--active {
   color: var(--ink-1);
   border-bottom-color: var(--accent);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* — Master/Detail layout ——————————————————————————————— */
