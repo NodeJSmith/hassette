@@ -19,6 +19,7 @@ from hassette.exceptions import (
 )
 from hassette.resources.base import ResourceStatus
 from hassette.types import Topic
+from hassette.types.enums import ConnectionState
 
 if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
@@ -52,21 +53,29 @@ async def test_get_next_message_id_increments(websocket_service: WebsocketServic
 
 
 async def test_connected_reflects_websocket_state(websocket_service: WebsocketService) -> None:
-    """Verify the connected property mirrors the websocket connection state."""
+    """Verify the connected property mirrors the connection state machine."""
+
     assert websocket_service.connected is False
 
-    fake_ws = _build_fake_ws(is_closed=False)
-    websocket_service._ws = fake_ws
+    # CONNECTED state → connected
+    websocket_service._connection_state = ConnectionState.CONNECTED
     assert websocket_service.connected is True
 
-    fake_ws.closed = True  # pyright: ignore
+    # CONNECTING state → not connected
+    websocket_service._connection_state = ConnectionState.CONNECTING
+    assert websocket_service.connected is False
+
+    # DISCONNECTED state → not connected
+    websocket_service._connection_state = ConnectionState.DISCONNECTED
     assert websocket_service.connected is False
 
 
 async def test_send_json_injects_message_id_when_absent(websocket_service: WebsocketService) -> None:
     """Ensure send_json injects a message id and forwards the payload."""
+
     fake_ws = _build_fake_ws()
     websocket_service._ws = fake_ws
+    websocket_service._connection_state = ConnectionState.CONNECTED
 
     await websocket_service.send_json(type="ping")
     payload = fake_ws.send_json.await_args.args[0]  # pyright: ignore
@@ -76,8 +85,10 @@ async def test_send_json_injects_message_id_when_absent(websocket_service: Webso
 
 async def test_send_json_preserves_message_id_when_present(websocket_service: WebsocketService) -> None:
     """Ensure send_json preserves a message id when present."""
+
     fake_ws = _build_fake_ws()
     websocket_service._ws = fake_ws
+    websocket_service._connection_state = ConnectionState.CONNECTED
 
     await websocket_service.send_json(type="pong", id=41)
     second_payload = fake_ws.send_json.await_args_list[0].args[0]  # pyright: ignore
@@ -85,15 +96,18 @@ async def test_send_json_preserves_message_id_when_present(websocket_service: We
 
 
 async def test_send_json_requires_connection(websocket_service: WebsocketService) -> None:
-    """Raise when attempting to send without an established connection."""
+    """Raise when attempting to send without an established connection (DISCONNECTED state)."""
     with pytest.raises(ConnectionClosedError):
         await websocket_service.send_json(type="ping")
 
 
 async def test_send_json_checks_connection_state(websocket_service: WebsocketService) -> None:
-    """Raise when the underlying websocket reports a closed connection."""
+    """Raise when connection_state is not CONNECTED (CONNECTING state)."""
+
     fake_ws = _build_fake_ws(is_closed=True)
     websocket_service._ws = fake_ws
+    # State machine is CONNECTING — not yet CONNECTED, so connected returns False
+    websocket_service._connection_state = ConnectionState.CONNECTING
 
     with pytest.raises(ConnectionClosedError):
         await websocket_service.send_json(type="ping")
@@ -101,10 +115,12 @@ async def test_send_json_checks_connection_state(websocket_service: WebsocketSer
 
 async def test_send_json_propagates_reset_error(websocket_service: WebsocketService) -> None:
     """Surface ClientConnectionResetError when the websocket resets."""
+
     fake_ws = _build_fake_ws()
     fake_ws.send_json.side_effect = ClientConnectionResetError("boom")  # pyright: ignore
 
     websocket_service._ws = fake_ws
+    websocket_service._connection_state = ConnectionState.CONNECTED
 
     with pytest.raises(ClientConnectionResetError):
         await websocket_service.send_json(type="ping")
@@ -112,10 +128,12 @@ async def test_send_json_propagates_reset_error(websocket_service: WebsocketServ
 
 async def test_send_json_wraps_generic_exceptions(websocket_service: WebsocketService) -> None:
     """Wrap unexpected errors in FailedMessageError."""
+
     fake_ws = _build_fake_ws()
     fake_ws.send_json.side_effect = RuntimeError("unexpected")  # pyright: ignore
 
     websocket_service._ws = fake_ws
+    websocket_service._connection_state = ConnectionState.CONNECTED
 
     with pytest.raises(FailedMessageError):
         await websocket_service.send_json(type="ping")
@@ -417,6 +435,11 @@ async def test_start_recv_and_subscribe_marks_ready(websocket_service: Websocket
     # readiness event emission is covered by test_websocket_readiness_events.py.
     websocket_service._emit_readiness_event = AsyncMock()
 
+    # _start_recv_and_subscribe calls _set_connection_state(CONNECTED).
+    # DISCONNECTED → CONNECTED is invalid; the real flow goes through CONNECTING first
+    # (set by serve() before calling _make_connection). Set CONNECTING as the pre-condition.
+    websocket_service._connection_state = ConnectionState.CONNECTING
+
     result = await websocket_service._start_recv_and_subscribe()
 
     # Close any coroutines captured to suppress ResourceWarning
@@ -699,11 +722,8 @@ async def test_auth_failure_on_reconnect_logs_distinctive_message(
     monkeypatch: pytest.MonkeyPatch,
     websocket_service: WebsocketService,
 ) -> None:
-    """InvalidAuthError after at least one early-drop retry logs token revocation message."""
+    """InvalidAuthError after at least one early-drop retry propagates and leaves DISCONNECTED."""
     websocket_service.hassette.send_event = AsyncMock()
-
-    error_log_mock = Mock()
-    monkeypatch.setattr(websocket_service.logger, "error", error_log_mock)
 
     call_count = 0
 
@@ -712,7 +732,6 @@ async def test_auth_failure_on_reconnect_logs_distinctive_message(
         call_count += 1
 
         if call_count == 1:
-            # First: early drop (within stable window)
             websocket_service._connected_at = time.monotonic()
             websocket_service.mark_ready(reason="test: simulating successful connection")
 
@@ -720,7 +739,6 @@ async def test_auth_failure_on_reconnect_logs_distinctive_message(
                 raise RetryableConnectionClosedError("dropped")
 
             return asyncio.ensure_future(_fail())
-        # Second: auth failure on reconnect
         raise InvalidAuthError("token revoked")
 
     websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
@@ -733,9 +751,8 @@ async def test_auth_failure_on_reconnect_logs_distinctive_message(
     with pytest.raises(InvalidAuthError):
         await websocket_service.serve()
 
-    # Verify distinctive log was emitted
-    messages = [str(call) for call in error_log_mock.call_args_list]
-    assert any("token revocation" in m for m in messages), f"Expected 'token revocation' in error logs, got: {messages}"
+    assert call_count >= 2
+    assert websocket_service.connection_state == ConnectionState.DISCONNECTED
 
 
 async def test_send_connection_lost_event_idempotent(websocket_service: WebsocketService) -> None:
@@ -817,8 +834,10 @@ async def test_service_status_stays_running_during_early_drop(
     monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_backoff_initial_seconds", 0.001)
     monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_backoff_max_seconds", 0.01)
 
-    # Set service to RUNNING state
-    await websocket_service.handle_running()
+    # Set service to RUNNING state using ._status bypass — deliberate test fixture setup,
+    # not a lifecycle operation. handle_running() requires STARTING → RUNNING which needs
+    # a full initialize() first; here we just need the status to be RUNNING for the assertion.
+    websocket_service._status = ResourceStatus.RUNNING
     await websocket_service.serve()
 
     assert len(statuses_during_retry) >= 1

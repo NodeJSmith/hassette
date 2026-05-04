@@ -3,6 +3,7 @@ import json
 import logging
 import random
 import time
+import traceback
 import typing
 from contextlib import AsyncExitStack, suppress
 from itertools import count
@@ -28,11 +29,12 @@ from hassette.exceptions import (
     CouldNotFindHomeAssistantError,
     FailedMessageError,
     InvalidAuthError,
+    InvalidLifecycleTransitionError,
     RetryableConnectionClosedError,
 )
 from hassette.resources.base import RestartSpec, Service
 from hassette.types import Topic
-from hassette.types.enums import RestartType
+from hassette.types.enums import ConnectionState, RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
@@ -41,6 +43,18 @@ if typing.TYPE_CHECKING:
     from hassette.resources.base import Resource
 
 LOGGER = getLogger(__name__)
+
+# Valid WebSocket connection state transitions.
+# DISCONNECTED → CONNECTING: serve() begins first connection attempt
+# CONNECTING → CONNECTED: handshake + auth + subscribe succeeded
+# CONNECTING → DISCONNECTED: non-retryable failure or max retries exhausted
+# CONNECTED → CONNECTING: connection lost, retrying (implies reconnect)
+# CONNECTED → DISCONNECTED: clean shutdown
+WS_VALID_TRANSITIONS: dict[ConnectionState, frozenset[ConnectionState]] = {
+    ConnectionState.DISCONNECTED: frozenset({ConnectionState.CONNECTING}),
+    ConnectionState.CONNECTING: frozenset({ConnectionState.CONNECTED, ConnectionState.DISCONNECTED}),
+    ConnectionState.CONNECTED: frozenset({ConnectionState.CONNECTING, ConnectionState.DISCONNECTED}),
+}
 
 # classify errors once (easy to audit/change later)
 NON_RETRYABLE = (InvalidAuthError, asyncio.CancelledError)
@@ -107,11 +121,55 @@ class WebsocketService(Service):
         self._subscription_ids = set()
         self._connect_lock = asyncio.Lock()
         self._connected_at = None
+        self._connection_state: ConnectionState = ConnectionState.DISCONNECTED
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
         return self.hassette.config.websocket_log_level
+
+    @property
+    def connection_state(self) -> ConnectionState:
+        """Return the current WebSocket connection state (read-only)."""
+        return self._connection_state
+
+    def _set_connection_state(self, new: ConnectionState) -> None:
+        """Transition to a new connection state with validation.
+
+        Validates the transition against WS_VALID_TRANSITIONS. In strict lifecycle mode
+        raises InvalidLifecycleTransitionError for invalid transitions; in non-strict
+        (default) mode logs WARNING. Logs every valid transition at DEBUG with previous state.
+
+        Args:
+            new: The new connection state to transition to.
+
+        Raises:
+            InvalidLifecycleTransitionError: If the transition is invalid and strict_lifecycle is True.
+        """
+        old = self._connection_state
+        if old == new:
+            return
+
+        if hasattr(self, "hassette"):
+            allowed = WS_VALID_TRANSITIONS.get(old, frozenset())
+            if new not in allowed:
+                if getattr(self.hassette.config, "strict_lifecycle", False) is True:
+                    raise InvalidLifecycleTransitionError(
+                        from_status=old,
+                        to_status=new,
+                        resource_name=self.unique_name,
+                    )
+                frame_summary = "".join(traceback.format_stack(limit=3)[:-1]).strip()
+                self.logger.warning(
+                    "Invalid WebSocket connection state transition for '%s': %r → %r\n%s",
+                    self.unique_name,
+                    old,
+                    new,
+                    frame_summary,
+                )
+
+        self.logger.debug("WebSocket: %s → %s", old, new)
+        self._connection_state = new
 
     @property
     def resp_timeout_seconds(self) -> int:
@@ -135,7 +193,7 @@ class WebsocketService(Service):
 
     @property
     def connected(self) -> bool:
-        return self._ws is not None and not self._ws.closed
+        return self._connection_state == ConnectionState.CONNECTED
 
     def get_next_message_id(self) -> int:
         """Get the next message ID."""
@@ -167,6 +225,9 @@ class WebsocketService(Service):
                 stable_window = config.websocket_early_drop_stable_window_seconds
                 recovery_started_at: float | None = None
 
+                # Set CONNECTING before the first connection attempt
+                self._set_connection_state(ConnectionState.CONNECTING)
+
                 while True:
                     try:
                         self._recv_task = await self._make_connection(session)
@@ -175,6 +236,7 @@ class WebsocketService(Service):
                     except InvalidAuthError:
                         if early_drop_attempts > 0:
                             self.logger.error("Authentication failed on reconnect — possible token revocation")
+                        self._set_connection_state(ConnectionState.DISCONNECTED)
                         raise
                     except Exception as exc:
                         elapsed = (
@@ -207,8 +269,11 @@ class WebsocketService(Service):
                             await self._emit_readiness_event()
                             await self._partial_cleanup()
                             await self._early_drop_backoff(early_drop_attempts)
+                            # Set CONNECTING before the next retry
+                            self._set_connection_state(ConnectionState.CONNECTING)
                             continue
                         # Genuine failure — propagate to _serve_wrapper
+                        self._set_connection_state(ConnectionState.DISCONNECTED)
                         await self._send_connection_lost_event()
                         self.mark_not_ready(reason="WebSocket recv loop failed")
                         await self._emit_readiness_event()
@@ -247,6 +312,9 @@ class WebsocketService(Service):
         # so _partial_cleanup can cancel it if a later step (subscribe, event) raises
         recv_task = self.task_bucket.spawn(self._recv_loop(), name="ws:recv")
         self._recv_task = recv_task
+
+        # CONNECTED before subscribe — send_json() gates on self.connected
+        self._set_connection_state(ConnectionState.CONNECTED)
 
         await self._send_connection_established_event()
         self._subscription_ids.add(await self._subscribe_events())
@@ -336,6 +404,7 @@ class WebsocketService(Service):
 
     async def cleanup(self) -> None:
         """Cleanup resources after the WebSocket connection is closed."""
+        self._set_connection_state(ConnectionState.DISCONNECTED)
 
         # Set exceptions for all pending response futures
         for fut in list(self._response_futures.values()):
@@ -420,8 +489,7 @@ class WebsocketService(Service):
             fut.set_result(message.get("result"))
 
         else:
-            # HA error envelope shape (verified in WP01, see
-            # design/specs/2037-helper-crud-api/design.md §"HA WebSocket Commands"):
+            # HA error envelope shape (see design/specs/2037-helper-crud-api/design.md):
             #   {"type": "result", "success": false, "error": {"code": "<code>", "message": "<msg>"}}
             error_envelope = message.get("error") or {}
             err = error_envelope.get("message", "Unknown error")

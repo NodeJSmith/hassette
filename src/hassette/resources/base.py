@@ -13,7 +13,7 @@ from anyio import ClosedResourceError
 from diskcache import Cache
 
 from hassette.exceptions import CannotOverrideFinalError, FatalError
-from hassette.types.enums import ResourceRole, ResourceStatus, RestartType
+from hassette.types.enums import TERMINAL_STATUSES, ResourceRole, ResourceStatus, RestartType
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, SourceTier
 from hassette.utils.service_utils import wait_for_ready
 
@@ -418,7 +418,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         self.task_bucket.cancel_all_sync()
         self._shutting_down = False
         self._shutdown_completed = True
-        self.status = ResourceStatus.STOPPED
+        self._status = ResourceStatus.STOPPED  # bypass setter to skip validation
         self.mark_not_ready("shutdown timed out")
         for child in self.children:
             child._force_terminal()
@@ -555,6 +555,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if self._shutting_down:
             return
         self._shutting_down = True
+        if self._status not in TERMINAL_STATUSES:
+            self.status = ResourceStatus.STOPPING
         self.request_shutdown(f"{self.unique_name} shutdown")
 
         try:
@@ -753,6 +755,8 @@ class Service(Resource):
         if self._shutting_down:
             return
         self._shutting_down = True
+        if self._status not in TERMINAL_STATUSES:
+            self.status = ResourceStatus.STOPPING
         self.request_shutdown(f"{self.unique_name} shutdown")
         try:
             await self._run_hooks([self.before_shutdown], continue_on_error=True)

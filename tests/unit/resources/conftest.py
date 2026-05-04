@@ -5,10 +5,11 @@ import threading
 from unittest.mock import AsyncMock, Mock
 
 
-def _make_hassette_stub() -> AsyncMock:
+def _make_hassette_stub(*, strict_lifecycle: bool = False) -> AsyncMock:
     """Minimal stub that satisfies Resource.__init__ and TaskBucket.spawn."""
     hassette = AsyncMock()
     hassette.config.log_level = "DEBUG"
+    hassette.config.strict_lifecycle = strict_lifecycle
     hassette.config.data_dir = "/tmp/hassette-test"
     hassette.config.default_cache_size = 1024
     hassette.config.resource_shutdown_timeout_seconds = 1

@@ -1,4 +1,4 @@
-from .enums import ResourceRole, ResourceStatus, Topic
+from .enums import ACTIVE_STATUSES, TERMINAL_STATUSES, ConnectionState, ResourceRole, ResourceStatus, Topic
 from .types import (
     FRAMEWORK_APP_KEY,
     FRAMEWORK_APP_KEY_PREFIX,
@@ -25,13 +25,16 @@ from .types import (
 )
 
 __all__ = [
+    "ACTIVE_STATUSES",
     "FRAMEWORK_APP_KEY",
     "FRAMEWORK_APP_KEY_PREFIX",
+    "TERMINAL_STATUSES",
     "AppConfigT",
     "AsyncHandlerType",
     "BusErrorHandlerType",
     "ChangeType",
     "ComparisonCondition",
+    "ConnectionState",
     "EventT",
     "HandlerType",
     "JobCallable",

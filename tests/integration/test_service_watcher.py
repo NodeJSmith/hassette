@@ -662,8 +662,11 @@ async def test_max_cooldown_cycles_exceeded(get_service_watcher_mock: ServiceWat
 
     key = watcher._service_key(dummy_service.class_name, dummy_service.role)
 
-    # Set cycle count to max+1 to simulate exceeding max
+    # Set cycle count to max+1 to simulate exceeding max.
+    # Also put the service in EXHAUSTED_COOLING — the valid pre-condition for _cooldown_and_retry
+    # (in production, _handle_exhaustion sets this before spawning the cooldown task).
     watcher._cooldown_cycles[key] = 2  # already exceeded max_cooldown_cycles=1
+    dummy_service._status = ResourceStatus.EXHAUSTED_COOLING
 
     emitted_events: list = []
 
@@ -801,8 +804,9 @@ async def test_bus_recovery_reconciliation(get_service_watcher_mock: ServiceWatc
     hassette.children.append(dummy_service)
 
     # Simulate the service being in FAILED state with no budget entry
-    # (as if FAILED event was dropped during BusService restart)
-    dummy_service.status = ResourceStatus.FAILED
+    # (as if FAILED event was dropped during BusService restart).
+    # Use ._status bypass — this is deliberate test fixture setup, not a lifecycle operation.
+    dummy_service._status = ResourceStatus.FAILED
     key = watcher._service_key(dummy_service.class_name, dummy_service.role)
     assert key not in watcher._budgets  # no budget entry — dropped during blind window
 

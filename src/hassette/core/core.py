@@ -12,7 +12,7 @@ from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.bus import Bus
 from hassette.config import HassetteConfig
-from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry
+from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry, validate_registries
 from hassette.exceptions import AppPrecheckFailedError
 from hassette.logging_ import enable_logging
 from hassette.resources.base import Resource, Service
@@ -208,6 +208,10 @@ class Hassette(Resource):
         ]
         if dep_lines:
             self.logger.info("Resource dependency graph:\n%s", "\n".join(dep_lines))
+
+        # Validate STATE_REGISTRY and TYPE_REGISTRY after all service children are added
+        # (importing service modules may register additional state/type converters).
+        validate_registries(STATE_REGISTRY, TYPE_REGISTRY, strict=self.config.strict_lifecycle)
 
         self.logger.info("All components registered...", stacklevel=2)
 
@@ -583,7 +587,8 @@ class Hassette(Resource):
             if self._event_stream_service is not None:
                 with suppress(Exception):
                     await self._event_stream_service.close_streams()
-            self.status = ResourceStatus.STOPPED
+            if self.status != ResourceStatus.STOPPED:
+                self.status = ResourceStatus.STOPPED
             self.mark_not_ready("shutdown complete")
 
     async def before_shutdown(self) -> None:

@@ -278,6 +278,9 @@ class HassetteHarness:
         self.unused_tcp_port = unused_tcp_port
         self._components: set[str] = set()
 
+        if not config.strict_lifecycle:
+            config.strict_lifecycle = True
+
         self.logger = logging.getLogger("hassette")
         # _TestableHassette.__init__ calls enable_logging() which sets propagate=False and clears handlers.
         # We restore propagate=True afterwards so pytest's caplog fixture can capture hassette log records.
@@ -707,7 +710,7 @@ class HassetteHarness:
         self.hassette._command_executor.reconcile_registrations = AsyncMock()
         self.hassette._app_handler = self.hassette.add_child(AppHandler)
         self.hassette._websocket_service = Mock()
-        self.hassette._websocket_service.status = ResourceStatus.RUNNING
+        self.hassette._websocket_service._status = ResourceStatus.RUNNING
 
     async def _start_api_mock(self) -> None:
         if not self.api_base_url:

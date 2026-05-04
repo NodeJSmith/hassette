@@ -106,6 +106,28 @@ class ResourceStatus(StrEnum):
     """The service's restart budget is exhausted and a long cooldown is in progress."""
 
 
+TERMINAL_STATUSES: frozenset[ResourceStatus] = frozenset({ResourceStatus.STOPPED, ResourceStatus.EXHAUSTED_DEAD})
+"""Resource has reached an end state — shutdown can skip the STOPPING transition."""
+
+ACTIVE_STATUSES: frozenset[ResourceStatus] = frozenset(
+    {ResourceStatus.NOT_STARTED, ResourceStatus.STARTING, ResourceStatus.RUNNING}
+)
+"""Resource is in normal lifecycle progression (not failed, stopped, or exhausted)."""
+
+
+class ConnectionState(StrEnum):
+    """Enumeration for WebSocket connection states."""
+
+    DISCONNECTED = auto()
+    """The WebSocket connection is not established."""
+
+    CONNECTING = auto()
+    """The WebSocket connection is being established."""
+
+    CONNECTED = auto()
+    """The WebSocket connection is established and active."""
+
+
 class ResourceRole(StrEnum):
     """Enumeration for resource roles."""
 

@@ -296,3 +296,46 @@ class InvalidEntityIdError(StateRegistryError):
 
 class UnableToConvertValueError(HassetteError):
     """Raised when a raw value cannot be converted from one type to another via the TypeRegistry."""
+
+
+class InvalidLifecycleTransitionError(HassetteError):
+    """Raised when a ResourceStatus transition is invalid in strict lifecycle mode.
+
+    Only raised when ``HassetteConfig.strict_lifecycle`` is True. In non-strict
+    mode the same condition logs a WARNING instead.
+
+    Attributes:
+        from_status: The status the resource was in before the attempted transition.
+        to_status: The status the resource was attempting to transition to.
+        resource_name: The unique_name of the resource that made the invalid transition.
+    """
+
+    def __init__(self, from_status: Any, to_status: Any, resource_name: str) -> None:
+        self.from_status = from_status
+        self.to_status = to_status
+        self.resource_name = resource_name
+        super().__init__(f"Invalid lifecycle transition for '{resource_name}': {from_status!r} → {to_status!r}")
+
+
+class RegistryValidationError(HassetteError):
+    """Raised when startup registry validation finds error-level issues.
+
+    Raised by ``validate_registries(strict=True)`` after collecting all issues.
+    ``Hassette.wire_services()`` passes ``strict=config.strict_lifecycle``, so in
+    production this only fires when the user explicitly enables strict mode.
+
+    Attributes:
+        issues: The full list of validation issues found. Always contains at least
+            one error-severity issue when this exception is raised.
+    """
+
+    def __init__(self, issues: list[Any]) -> None:
+        self.issues = issues
+        error_count = sum(1 for i in issues if getattr(i, "severity", None) == "error")
+        warning_count = sum(1 for i in issues if getattr(i, "severity", None) == "warning")
+        total = len(issues)
+        summary_lines = [f"Registry validation failed: {error_count} error(s), {warning_count} warning(s)"]
+        summary_lines.extend(f"  [{i.severity.upper()}] {i.registry}: {i.message}" for i in issues[:5])
+        if total > 5:
+            summary_lines.append(f"  ... and {total - 5} more issue(s)")
+        super().__init__("\n".join(summary_lines))
