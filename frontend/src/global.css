@@ -3170,8 +3170,24 @@ strong {
 }
 
 /* — Detail pane ————————————————————————————————————————— */
+.ht-detail-pane__wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
 .ht-detail-pane__content {
   padding: var(--sp-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+}
+
+.ht-detail-pane__invocations-panel {
+  padding: var(--sp-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
 }
 
 .ht-detail-pane__empty {

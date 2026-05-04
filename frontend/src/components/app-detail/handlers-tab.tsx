@@ -171,7 +171,8 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
   const { filename: sourceFilename, line: sourceLine } = parseSourceLocation(listener.source_location);
 
   return (
-    <div class="ht-detail-pane__content" data-testid={`listener-detail-${listener.listener_id}`}>
+    <div class="ht-detail-pane__wrapper" data-testid={`listener-detail-${listener.listener_id}`}>
+    <div class="ht-detail-pane__content">
       {/* Header: kind badge + name + status pill */}
       <div class="ht-detail-pane__header">
         <span class={`ht-kind-badge ht-kind-badge--${listenerKind}`} aria-label={`kind: ${kindLabel}`}>
@@ -229,19 +230,6 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
         </div>
       )}
 
-      {/* Stats row */}
-      <HandlerStatsRow listener={listener} />
-
-      {/* Invocations table */}
-      {loading.value && !invocations.value ? (
-        <p class="ht-text-muted ht-text-xs">Loading invocations…</p>
-      ) : (
-        <HandlerInvocations
-          invocations={invocations.value ?? []}
-          listenerId={listener.listener_id}
-        />
-      )}
-
       {/* View in code button */}
       {onSwitchToCode && listener.source_location && (
         <button
@@ -253,6 +241,20 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
           view in code →
         </button>
       )}
+    </div>
+
+    {/* Invocations panel — separate from handler details */}
+    <div class="ht-detail-pane__invocations-panel">
+      <HandlerStatsRow listener={listener} />
+      {loading.value && !invocations.value ? (
+        <p class="ht-text-muted ht-text-xs">Loading invocations…</p>
+      ) : (
+        <HandlerInvocations
+          invocations={invocations.value ?? []}
+          listenerId={listener.listener_id}
+        />
+      )}
+    </div>
     </div>
   );
 }
@@ -298,7 +300,8 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
   const jobKind = job.cancelled ? statusToKind("disabled") : (job.failed > 0 ? statusToKind("failed") : statusToKind("running"));
 
   return (
-    <div class="ht-detail-pane__content" data-testid={`job-detail-${job.job_id}`}>
+    <div class="ht-detail-pane__wrapper" data-testid={`job-detail-${job.job_id}`}>
+    <div class="ht-detail-pane__content">
       {/* Header: kind badge + name + status pill */}
       <div class="ht-detail-pane__header">
         <span class={`ht-kind-badge ht-kind-badge--${jobKind}`} aria-label={`kind: ${kindLabel}`}>
@@ -335,19 +338,6 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
         </div>
       )}
 
-      {/* Stats row */}
-      <JobStatsRow job={job} />
-
-      {/* Executions table */}
-      {loading.value && !executions.value ? (
-        <p class="ht-text-muted ht-text-xs">Loading executions…</p>
-      ) : (
-        <JobExecutions
-          executions={executions.value ?? []}
-          jobId={job.job_id}
-        />
-      )}
-
       {/* View in code button */}
       {onSwitchToCode && job.source_location && (
         <button
@@ -359,6 +349,20 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
           view in code →
         </button>
       )}
+    </div>
+
+    {/* Executions panel — separate from job details */}
+    <div class="ht-detail-pane__invocations-panel">
+      <JobStatsRow job={job} />
+      {loading.value && !executions.value ? (
+        <p class="ht-text-muted ht-text-xs">Loading executions…</p>
+      ) : (
+        <JobExecutions
+          executions={executions.value ?? []}
+          jobId={job.job_id}
+        />
+      )}
+    </div>
     </div>
   );
 }
