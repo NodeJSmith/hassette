@@ -2165,46 +2165,6 @@ strong {
   }
 }
 
-/* — KPI Strip — 5 cards: error-rate (prominent, 1.4fr) + 4 standard (1fr)
-   Update repeat() count when cards are added/removed.
-   data-kpi="error-rate" drives the prominence rules below. */
-.ht-kpi-strip {
-  display: grid;
-  grid-template-columns: 1.4fr repeat(4, 1fr);
-  gap: var(--sp-4);
-  margin-bottom: var(--sp-8);
-}
-
-.ht-kpi-strip > [data-kpi="error-rate"] .ht-health-card__value {
-  font-size: var(--fs-h1);
-}
-
-.ht-kpi-strip > [data-kpi="error-rate"] .ht-health-card__detail {
-  color: var(--ink-3);
-}
-
-/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
-@media screen and (max-width: 768px) {
-  .ht-kpi-strip {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .ht-kpi-strip > [data-kpi="error-rate"] {
-    grid-column: 1 / -1;
-  }
-}
-
-@media screen and (max-width: 480px) {
-  .ht-kpi-strip {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* — Dashboard Section (unwrapped — heading + content, no card border) */
-.ht-dashboard-section {
-  padding: var(--sp-5) 0;
-}
-
 /* — App Grid (dashboard card grid) ————————————————————— */
 .ht-app-grid {
   display: grid;
@@ -2782,19 +2742,9 @@ strong {
   background: var(--bg-surface);
 }
 
-.ht-hero-card--healthy {
-  border-color: var(--ok);
-  background: var(--ok-bg);
-}
-
-.ht-hero-card--quiet {
-  border-color: var(--line-1);
-  background: var(--bg-sunken);
-}
-
 .ht-hero-card--failure {
+  background: color-mix(in oklch, var(--err) 4%, var(--bg-surface));
   border-color: var(--err);
-  background: var(--err-bg);
 }
 
 .ht-hero-card--first-install {
@@ -3579,4 +3529,645 @@ strong {
 /* Dim placeholder dash values */
 .ht-config-table__value--empty {
   color: var(--ink-4);
+}
+
+/* =====================================================
+   WP12 — Overview rebuild: greeting, three-card layout,
+   framework error banner, error table, activity feed
+   ===================================================== */
+
+/* — Dashboard page wrapper ————————————————————————————— */
+.ht-dashboard {
+  padding: var(--sp-7);
+}
+
+/* — Greeting header ———————————————————————————————————— */
+.ht-dashboard-header {
+  margin-bottom: var(--sp-6);
+}
+
+.ht-dashboard-header__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-1);
+}
+
+.ht-dashboard-greeting {
+  /* h1 inherits font-display from base h1 styles */
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.ht-dashboard-meta {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.ht-dashboard-subtitle {
+  font-size: var(--fs-body);
+  color: var(--ink-2);
+  margin: 0;
+}
+
+/* — Framework error banner ————————————————————————————— */
+.ht-framework-error-banner {
+  background: color-mix(in oklch, var(--err) 4%, var(--bg-surface));
+  border-color: var(--err);
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
+}
+
+.ht-framework-error-banner__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.ht-framework-error-banner__icon {
+  font-size: var(--fs-body);
+  color: var(--err);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.ht-framework-error-banner__count {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--err);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.ht-framework-error-banner__detail {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+  flex: 1;
+  min-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ht-framework-error-banner__link {
+  font-size: var(--fs-small);
+  color: var(--err);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ht-framework-error-banner__link:hover {
+  color: var(--err);
+}
+
+/* — Hero card enrichments for WP12 ————————————————————— */
+
+.ht-hero-card__title--err {
+  color: var(--err);
+}
+
+.ht-hero-card__error-type {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--err);
+  font-weight: 600;
+}
+
+.ht-hero-card__location {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+}
+
+.ht-hero-card__actions {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+/* Multi-failure hero layout */
+.ht-hero-card--multi {
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.ht-hero-card__multi-header {
+  display: flex;
+  gap: var(--sp-4);
+  align-items: flex-start;
+}
+
+.ht-hero-card__failure-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) 0;
+  border-top: 1px solid var(--line-1);
+  border-bottom: 1px solid var(--line-1);
+}
+
+.ht-hero-card__failure-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.ht-hero-card__failure-name {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--ink-1);
+  flex: 1;
+}
+
+.ht-hero-card__multi-actions {
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+}
+
+/* First-install hero */
+.ht-hero-card--first-install {
+  display: block;
+  padding: var(--sp-6);
+}
+
+.ht-first-install__layout {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: var(--sp-5);
+}
+
+.ht-first-install__code-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.ht-first-install__section-title {
+  /* inherits font-display from h3 base styles */
+  margin: 0 0 var(--sp-2);
+}
+
+.ht-first-install__hint {
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.ht-first-install__note {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.ht-first-install__snippet {
+  background: var(--bg-sunken);
+  padding: var(--sp-3);
+}
+
+.ht-first-install__pre {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  white-space: pre;
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  overflow-x: auto;
+  margin: 0;
+}
+
+.ht-first-install__pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.ht-first-install__sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.ht-first-install__system-card,
+.ht-first-install__appdaemon-card {
+  /* inherits from .ht-card */
+}
+
+.ht-first-install__service-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-top: var(--sp-2);
+}
+
+.ht-first-install__service-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-body);
+}
+
+.ht-first-install__service-name {
+  flex: 1;
+}
+
+.ht-first-install__service-meta {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+}
+
+/* — Three summary cards ———————————————————————————————— */
+.ht-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-5);
+}
+
+.ht-summary-card {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.ht-summary-card__title {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  font-weight: 500;
+  color: var(--ink-2);
+  text-transform: lowercase;
+  letter-spacing: 0.01em;
+  margin: 0 0 var(--sp-3);
+  display: block;
+}
+
+.ht-summary-card__title--link {
+  text-decoration: none;
+  color: var(--ink-2);
+}
+
+.ht-summary-card__title--link:hover {
+  color: var(--ink-1);
+}
+
+.ht-summary-card__empty {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.ht-summary-card__link {
+  display: inline-block;
+  margin-top: var(--sp-3);
+  font-size: var(--fs-small);
+  color: var(--accent);
+}
+
+/* Your apps card */
+.ht-app-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.ht-app-list__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-body);
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--radius-sm, 4px);
+  padding: 2px 4px;
+  margin: 0 -4px;
+}
+
+.ht-app-list__row:hover {
+  background: var(--bg-active);
+}
+
+.ht-app-list__name {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--ink-1);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ht-app-list__instances {
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+}
+
+.ht-app-list__runs {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+/* Activity card */
+.ht-activity-quiet {
+  text-align: center;
+  padding: var(--sp-4) 0;
+}
+
+.ht-activity-quiet__count {
+  font-family: var(--font-display);
+  font-size: var(--fs-h2);
+  color: var(--ink-3);
+  margin: 0 0 var(--sp-2);
+}
+
+.ht-activity-quiet__note {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.ht-activity-big-number {
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  line-height: 1;
+  color: var(--ink-1);
+  margin: var(--sp-1) 0 var(--sp-1);
+}
+
+.ht-activity-label {
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+  margin: 0 0 var(--sp-2);
+}
+
+.ht-sparkline {
+  display: block;
+  margin: var(--sp-2) 0;
+}
+
+.ht-activity-breakdown {
+  display: flex;
+  gap: var(--sp-4);
+  margin-top: var(--sp-2);
+}
+
+.ht-activity-breakdown__ok,
+.ht-activity-breakdown__err {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+}
+
+/* System card */
+.ht-system-service-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
+.ht-system-service-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-body);
+}
+
+.ht-system-service-name {
+  flex: 1;
+}
+
+.ht-system-service-meta {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+}
+
+/* — Recent errors table ———————————————————————————————— */
+.ht-recent-errors {
+  margin-bottom: var(--sp-5);
+}
+
+.ht-recent-errors__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-3);
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.ht-recent-errors__title {
+  color: var(--err);
+}
+
+.ht-recent-errors__table {
+  /* inherits .ht-table */
+}
+
+/* Column widths */
+.ht-recent-errors__col-time     { width: 70px; }
+.ht-recent-errors__col-app      { width: 15%; }
+.ht-recent-errors__col-location { width: 22%; }
+.ht-recent-errors__col-exception { /* takes remaining space */ }
+.ht-recent-errors__col-age      { width: 50px; text-align: right; }
+
+.ht-recent-errors__time,
+.ht-recent-errors__age {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+}
+
+.ht-recent-errors__age {
+  text-align: right;
+}
+
+.ht-recent-errors__app {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ht-recent-errors__app-link {
+  color: var(--ink-1);
+}
+
+.ht-recent-errors__location {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ht-recent-errors__location-fn {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ht-recent-errors__location-file {
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ht-recent-errors__exception {
+  font-size: var(--fs-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ht-recent-errors__error-type {
+  font-family: var(--font-mono);
+  color: var(--err);
+  font-weight: 600;
+}
+
+.ht-recent-errors__error-msg {
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+}
+
+/* — Recent activity feed ——————————————————————————————— */
+.ht-recent-activity {
+  /* inherits .ht-card */
+}
+
+.ht-recent-activity__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--sp-3);
+}
+
+.ht-recent-activity__link {
+  font-size: var(--fs-small);
+}
+
+.ht-recent-activity__quiet {
+  text-align: center;
+  padding: var(--sp-4) 0;
+}
+
+.ht-recent-activity__quiet-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  color: var(--ink-3);
+  margin: 0 0 var(--sp-2);
+}
+
+.ht-recent-activity__quiet-note {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  margin: 0;
+}
+
+.ht-recent-activity__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.ht-activity-row {
+  display: grid;
+  grid-template-columns: 12px 80px 1fr 1fr;
+  gap: var(--sp-2);
+  align-items: center;
+  font-size: var(--fs-small);
+}
+
+.ht-activity-row__time {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+}
+
+.ht-activity-row__label {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ht-activity-row__detail {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ht-activity-row__detail--err {
+  color: var(--err);
+}
+
+/* — Responsive overrides ——————————————————————————————— */
+@media screen and (max-width: 900px) {
+  .ht-summary-cards {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ht-first-install__layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .ht-summary-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .ht-dashboard {
+    padding: var(--sp-4);
+  }
+
+  .ht-activity-row {
+    grid-template-columns: 12px 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  .ht-activity-row__time {
+    display: none;
+  }
+
+  .ht-activity-row__detail {
+    grid-column: 2;
+  }
+}
+
+/* — Visually hidden (accessibility) ———————————————————— */
+.ht-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

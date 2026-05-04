@@ -108,3 +108,17 @@ export const getRecentLogs = (params?: { level?: string; app_key?: string; limit
 // ---- Bus ----
 
 export const getAllListeners = () => apiFetch<ListenerData[]>("/bus/listeners");
+
+// ---- System status ----
+
+export type SystemStatus = components["schemas"]["SystemStatusResponse"];
+export type BootIssue = components["schemas"]["BootIssueResponse"];
+
+export const getSystemStatus = () => apiFetch<SystemStatus>("/health");
+
+// ---- Activity feed ----
+
+export type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
+
+export const getDashboardActivity = (limit = 20) =>
+  apiFetch<ActivityFeedEntry[]>(buildUrl("/telemetry/dashboard/activity", { limit }));

@@ -15,6 +15,7 @@ from hassette.core.domain_models import (
     AppStatusChangedData,
     BootIssue,
     ConnectivityData,
+    ServiceInfo,
     ServiceStatusData,
     StateChangedData,
     SystemStatus,
@@ -388,6 +389,15 @@ class RuntimeQueryService(Resource):
             if hasattr(child, "status") and child.status == ResourceStatus.RUNNING
         ]
 
+        services = [
+            ServiceInfo(
+                name=child.class_name,
+                status=child.status.value if hasattr(child, "status") else "unknown",
+            )
+            for child in self.hassette.children
+            if hasattr(child, "status")
+        ]
+
         try:
             proxy_ready = self.hassette.state_proxy.is_ready()
         except (AttributeError, RuntimeError):
@@ -409,6 +419,7 @@ class RuntimeQueryService(Resource):
             entity_count=entity_count,
             app_count=app_count,
             services_running=services_running,
+            services=services,
             boot_issues=boot_issues,
         )
 

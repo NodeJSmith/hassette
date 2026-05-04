@@ -3180,6 +3180,25 @@
         ],
         "title": "LogEntryResponse"
       },
+      "ServiceInfoResponse": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "status"
+        ],
+        "title": "ServiceInfoResponse",
+        "description": "Structured info for one internal service."
+      },
       "SessionRecord": {
         "properties": {
           "id": {
@@ -3300,6 +3319,13 @@
             },
             "type": "array",
             "title": "Services Running"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceInfoResponse"
+            },
+            "type": "array",
+            "title": "Services"
           },
           "version": {
             "type": "string",

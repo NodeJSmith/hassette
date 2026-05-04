@@ -42,6 +42,7 @@ function worstStatus(manifests: AppManifest): string {
 
 const NAV_ITEMS = [
   { path: "/", label: "Overview", testId: "nav-overview" },
+  { path: "/apps", label: "Apps", testId: "nav-apps" },
   { path: "/logs", label: "Logs", testId: "nav-logs" },
   { path: "/config", label: "Config", testId: "nav-config" },
 ] as const;

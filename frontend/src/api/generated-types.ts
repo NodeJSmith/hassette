@@ -1266,6 +1266,16 @@ export interface components {
             app_key?: string | null;
         };
         /**
+         * ServiceInfoResponse
+         * @description Structured info for one internal service.
+         */
+        ServiceInfoResponse: {
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+        };
+        /**
          * SessionRecord
          * @description Single session record returned by ``get_session_list()``.
          */
@@ -1319,6 +1329,8 @@ export interface components {
             app_count: number;
             /** Services Running */
             services_running: string[];
+            /** Services */
+            services?: components["schemas"]["ServiceInfoResponse"][];
             /**
              * Version
              * @default

@@ -17,6 +17,13 @@ class BootIssueResponse(BaseModel):
     detail: str
 
 
+class ServiceInfoResponse(BaseModel):
+    """Structured info for one internal service."""
+
+    name: str
+    status: str
+
+
 class SystemStatusResponse(BaseModel):
     status: str
     websocket_connected: bool
@@ -24,6 +31,7 @@ class SystemStatusResponse(BaseModel):
     entity_count: int
     app_count: int
     services_running: list[str]
+    services: list[ServiceInfoResponse] = Field(default_factory=list)
     version: str = ""
     boot_issues: list[BootIssueResponse] = Field(default_factory=list)
 

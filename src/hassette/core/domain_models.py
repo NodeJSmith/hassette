@@ -43,6 +43,13 @@ class BootIssue(BaseModel):
     """Longer description or context for the issue."""
 
 
+class ServiceInfo(BaseModel):
+    """Structured info for one internal service."""
+
+    name: str
+    status: str
+
+
 class SystemStatus(BaseModel):
     """Live system status snapshot returned by ``RuntimeQueryService.get_system_status()``."""
 
@@ -62,7 +69,10 @@ class SystemStatus(BaseModel):
     """Number of running app instances."""
 
     services_running: list[str]
-    """Names of internal services currently in RUNNING state."""
+    """Names of internal services currently in RUNNING state (deprecated — use services)."""
+
+    services: list[ServiceInfo] = Field(default_factory=list)
+    """Structured info for all tracked services."""
 
     version: str = Field(default_factory=_get_hassette_version)
     """Installed hassette package version."""

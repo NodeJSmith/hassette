@@ -23,6 +23,7 @@ from hassette.web.models import (
     BootIssueResponse,
     ConnectedPayload,
     ListenerWithSummary,
+    ServiceInfoResponse,
     SystemStatusResponse,
 )
 from hassette.web.telemetry_helpers import format_handler_summary
@@ -103,6 +104,7 @@ def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
         BootIssueResponse(severity=issue.severity, label=issue.label, detail=issue.detail)
         for issue in status.boot_issues
     ]
+    services = [ServiceInfoResponse(name=svc.name, status=svc.status) for svc in status.services]
     return SystemStatusResponse(
         status=status.status,
         websocket_connected=status.websocket_connected,
@@ -110,6 +112,7 @@ def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
         entity_count=status.entity_count,
         app_count=status.app_count,
         services_running=status.services_running,
+        services=services,
         version=status.version,
         boot_issues=boot_issues,
     )

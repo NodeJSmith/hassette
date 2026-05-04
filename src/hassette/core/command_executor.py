@@ -874,7 +874,8 @@ class CommandExecutor(Service):
         Errors are suppressed so that emission failures never affect telemetry persistence.
         """
         try:
-            for record in invocations:
+            app_invocations = [r for r in invocations if r.source_tier == "app"]
+            for record in app_invocations:
                 inv_event = HassetteInvocationCompletedEvent.from_record(
                     listener_id=record.listener_id,
                     status=record.status,
