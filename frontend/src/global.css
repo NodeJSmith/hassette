@@ -2599,6 +2599,7 @@ strong {
 .ht-table-log .ht-col-time    { width: 170px; }
 .ht-table-log .ht-col-app     { width: 13%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ht-table-log .ht-col-source  { width: 15%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ht-table-log .ht-col-age     { width: 50px; text-align: right; white-space: nowrap; }
 /* Message column: no width set — takes all remaining space */
 
 /* Severity row tinting — visible at scroll speed, not just badge-reading speed */

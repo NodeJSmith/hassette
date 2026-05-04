@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  formatAge,
   formatDuration,
   formatRelativeTime,
   formatTimestamp,
@@ -193,5 +194,57 @@ describe("formatRelativeTime", () => {
 
   it("test_formatRelativeTime_days: multiple days", () => {
     expect(formatRelativeTime(BASE_TIME_S - 432000)).toBe("5d ago");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatAge
+// ---------------------------------------------------------------------------
+describe("formatAge", () => {
+  const BASE_TIME_S = 1_700_000_000;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(BASE_TIME_S * 1000);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns seconds for < 60s", () => {
+    expect(formatAge(BASE_TIME_S - 12)).toBe("12s");
+  });
+
+  it("returns 0s for current time", () => {
+    expect(formatAge(BASE_TIME_S)).toBe("0s");
+  });
+
+  it("clamps future timestamps to 0s", () => {
+    expect(formatAge(BASE_TIME_S + 100)).toBe("0s");
+  });
+
+  it("returns minutes at 60s boundary", () => {
+    expect(formatAge(BASE_TIME_S - 60)).toBe("1m");
+  });
+
+  it("returns minutes for < 3600s", () => {
+    expect(formatAge(BASE_TIME_S - 300)).toBe("5m");
+  });
+
+  it("returns hours at 3600s boundary", () => {
+    expect(formatAge(BASE_TIME_S - 3600)).toBe("1h");
+  });
+
+  it("returns hours for < 86400s", () => {
+    expect(formatAge(BASE_TIME_S - 7200)).toBe("2h");
+  });
+
+  it("returns days at 86400s boundary", () => {
+    expect(formatAge(BASE_TIME_S - 86400)).toBe("1d");
+  });
+
+  it("returns days for large values", () => {
+    expect(formatAge(BASE_TIME_S - 432000)).toBe("5d");
   });
 });

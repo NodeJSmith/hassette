@@ -66,3 +66,13 @@ export function formatRelativeTime(ts: number): string {
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
+
+/** Format a Unix timestamp as a compact age string (e.g., "12s", "3m", "1h", "2d"). */
+export function formatAge(ts: number): string {
+  const now = Date.now() / 1000;
+  const diff = Math.max(0, now - ts);
+  if (diff < 60) return `${Math.floor(diff)}s`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}

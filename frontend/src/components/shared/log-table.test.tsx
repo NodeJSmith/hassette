@@ -1133,3 +1133,101 @@ describe("Mobile responsive rendering", () => {
     expect(tsCell).not.toBeNull();
   });
 });
+
+// -- Age column --
+
+describe("Age column", () => {
+  let state: AppState;
+
+  beforeEach(() => {
+    state = createAppState();
+    vi.clearAllMocks();
+    entrySeq = 0;
+    mockUseMediaQuery.mockReturnValue(false); // desktop by default
+  });
+
+  afterEach(() => {
+    mockUseMediaQuery.mockReturnValue(false);
+  });
+
+  it("renders Age column header on desktop", () => {
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const headers = container.querySelectorAll("th");
+    const headerTexts = Array.from(headers).map((h) => h.textContent ?? "");
+    expect(headerTexts.some((t) => t.includes("Age"))).toBe(true);
+  });
+
+  it("renders age cell with compact relative time (seconds)", () => {
+    const ts = Date.now() / 1000 - 30; // 30 seconds ago
+    state.logs.push(createLogEntry({ timestamp: ts, message: "recent entry" }));
+
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const ageCells = container.querySelectorAll("td.ht-col-age");
+    expect(ageCells.length).toBe(1);
+    expect(ageCells[0].textContent).toMatch(/^\d+s$/);
+  });
+
+  it("renders age cell with compact relative time (minutes)", () => {
+    const ts = Date.now() / 1000 - 300; // 5 minutes ago
+    state.logs.push(createLogEntry({ timestamp: ts, message: "5min entry" }));
+
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const ageCells = container.querySelectorAll("td.ht-col-age");
+    expect(ageCells.length).toBe(1);
+    expect(ageCells[0].textContent).toMatch(/^\d+m$/);
+  });
+
+  it("renders age cell with compact relative time (hours)", () => {
+    const ts = Date.now() / 1000 - 7200; // 2 hours ago
+    state.logs.push(createLogEntry({ timestamp: ts, message: "old entry" }));
+
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const ageCells = container.querySelectorAll("td.ht-col-age");
+    expect(ageCells.length).toBe(1);
+    expect(ageCells[0].textContent).toMatch(/^\d+h$/);
+  });
+
+  it("does not render Age column header on mobile", () => {
+    mockUseMediaQuery.mockReturnValue(true); // mobile
+
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const headers = container.querySelectorAll("th");
+    const headerTexts = Array.from(headers).map((h) => h.textContent ?? "");
+    expect(headerTexts.some((t) => t.includes("Age"))).toBe(false);
+  });
+
+  it("shows Timestamp column header on mobile (not Age)", () => {
+    mockUseMediaQuery.mockReturnValue(true); // mobile
+    state.logs.push(createLogEntry({ message: "mobile entry" }));
+
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const headers = container.querySelectorAll("th");
+    const headerTexts = Array.from(headers).map((h) => h.textContent ?? "");
+    // Timestamp header (showing relative time) is still present on mobile
+    expect(headerTexts.some((t) => t.includes("Timestamp"))).toBe(true);
+  });
+});

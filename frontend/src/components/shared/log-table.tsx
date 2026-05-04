@@ -5,7 +5,7 @@ import { getRecentLogs } from "../../api/endpoints";
 import { useMediaQuery, BREAKPOINT_MOBILE, BREAKPOINT_TABLET } from "../../hooks/use-media-query";
 import { useSubscribe } from "../../hooks/use-subscribe";
 import { useAppState } from "../../state/context";
-import { formatTimestamp, formatRelativeTime, pluralize } from "../../utils/format";
+import { formatTimestamp, formatRelativeTime, formatAge, pluralize } from "../../utils/format";
 import { levelToKind } from "../../utils/status";
 import { StatusShape } from "./status-shape";
 
@@ -75,7 +75,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   const isTablet = useMediaQuery(BREAKPOINT_TABLET);
   const showSourceColumn = !isTablet;
   const { logs, updateLogSubscription, reconnectVersion, tick } = useAppState();
-  useSubscribe(isMobile && tick, logs.version);
+  useSubscribe(tick, logs.version);
   const minLevel = useRef(signal("INFO")).current;
   const appFilter = useRef(signal("")).current;
   const search = useRef(signal("")).current;
@@ -317,12 +317,13 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                   <span>Message</span>{" "}<span aria-hidden="true">{sortArrow("message")}</span>
                 </button>
               </th>
+              {!isMobile && <th class="ht-col-age">Age</th>}
             </tr>
           </thead>
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={isMobile ? 3 : (showAppColumn ? (showSourceColumn ? 5 : 4) : (showSourceColumn ? 4 : 3))} class="ht-text-center ht-text-muted">
+                <td colSpan={isMobile ? 3 : (showAppColumn ? (showSourceColumn ? 6 : 5) : (showSourceColumn ? 5 : 4))} class="ht-text-center ht-text-muted">
                   No log entries.
                 </td>
               </tr>
@@ -339,7 +340,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
               };
               const mobileColCount = 3; // level + time + message (source hidden, app hidden on mobile)
               const sourceAdjust = showSourceColumn ? 0 : -1;
-              const desktopColCount = (showAppColumn ? 5 : 4) + sourceAdjust;
+              const desktopColCount = (showAppColumn ? 6 : 5) + sourceAdjust; // +1 for age column
               const colCount = isMobile ? mobileColCount : desktopColCount;
               const rows = [
               <tr key={rowKey} data-level={entry.level}>
@@ -380,6 +381,11 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                     {entry.message}
                   </div>
                 </td>
+                {!isMobile && (
+                  <td class="ht-col-age ht-text-mono ht-text-xs ht-text-muted">
+                    {formatAge(entry.timestamp)}
+                  </td>
+                )}
               </tr>,
               ];
               if (isMobile && isExpanded) {
