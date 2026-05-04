@@ -2984,12 +2984,8 @@ strong {
 .ht-master-detail {
   display: grid;
   grid-template-columns: 300px 1fr;
-  gap: 0;
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-md);
-  overflow: hidden;
-  min-height: 300px;
-  max-height: 70vh;
+  align-items: start;
+  gap: var(--sp-4);
 }
 
 .ht-master-detail--mobile {
@@ -2997,13 +2993,15 @@ strong {
 }
 
 .ht-master-detail__list {
-  border-right: 1px solid var(--line-1);
   overflow-y: auto;
-  background: var(--bg-sunken);
+  max-height: 70vh;
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
 }
 
 .ht-master-detail--mobile .ht-master-detail__list {
-  border-right: none;
+  max-height: none;
 }
 
 .ht-master-detail__detail {
@@ -3204,6 +3202,9 @@ strong {
   padding: var(--sp-8);
   color: var(--ink-3);
   text-align: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
 }
 
 .ht-detail-pane__header {
@@ -3392,12 +3393,11 @@ strong {
 @media screen and (max-width: 768px) {
   .ht-master-detail {
     display: block;
-    border: none;
-    border-radius: 0;
   }
 
   .ht-master-detail__list {
-    border-right: none;
+    max-height: none;
+    margin-bottom: var(--sp-4);
   }
 
   .ht-tab-strip {
