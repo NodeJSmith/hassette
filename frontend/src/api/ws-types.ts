@@ -24,6 +24,7 @@ export interface WsConnectedPayload {
   uptime_seconds: number;
   entity_count: number;
   app_count: number;
+  version?: string;
 }
 
 export interface WsConnectivityPayload {

@@ -296,8 +296,9 @@ strong {
 
 .ht-sidebar-brand {
   display: flex;
-  align-items: center;
-  padding: var(--sp-4) var(--sp-4);
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--sp-4) 0 var(--sp-2);
   border-bottom: 1px solid var(--line-2);
   flex-shrink: 0;
 }
@@ -307,6 +308,7 @@ strong {
   align-items: center;
   gap: var(--sp-2);
   text-decoration: none;
+  padding: 0 var(--sp-4);
 }
 
 .ht-brand-link:hover {
@@ -320,21 +322,6 @@ strong {
   font-weight: 400;
   color: var(--ink-1);
   letter-spacing: var(--tr-h3);
-}
-
-/* Connection status in sidebar */
-.ht-sidebar__ws-status {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-4);
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-}
-
-.ht-sidebar__ws-label {
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
 }
 
 /* Cmd-K trigger */
@@ -581,6 +568,129 @@ strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Version display below wordmark */
+.ht-sidebar__version {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-4) var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  flex-wrap: nowrap;
+}
+
+.ht-sidebar__version-text {
+  color: var(--ink-3);
+}
+
+.ht-sidebar__version-sep {
+  color: var(--ink-4);
+}
+
+.ht-sidebar__version-status {
+  color: var(--ink-3);
+}
+
+/* APPS section header */
+.ht-sidebar__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-4) var(--sp-1);
+  margin-top: var(--sp-1);
+}
+
+.ht-sidebar__section-label {
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--ink-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ht-sidebar__section-count {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-4);
+}
+
+/* Status group container */
+.ht-sidebar__group {
+  margin-bottom: 2px;
+}
+
+/* Status group header (collapsible) */
+.ht-sidebar__group-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  margin: 0 var(--sp-2);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--t-fast) var(--ease);
+}
+
+.ht-sidebar__group-header:hover {
+  background: var(--bg-active);
+}
+
+.ht-sidebar__group-header:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.ht-sidebar__group-chevron {
+  flex-shrink: 0;
+  color: var(--ink-4);
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ht-sidebar__group-label {
+  flex: 1;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--ink-3);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ht-sidebar__group-count {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-4);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  padding: 0 4px;
+  line-height: 1.6;
+  flex-shrink: 0;
+}
+
+/* Tone modifiers for group header labels */
+.ht-sidebar__group-header--err .ht-sidebar__group-label {
+  color: var(--err);
+}
+
+.ht-sidebar__group-header--warn .ht-sidebar__group-label {
+  color: var(--warn);
+}
+
+/* Invocation count badge on app entries */
+.ht-sidebar__app-count {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-4);
+  margin-left: auto;
 }
 
 /* Sidebar footer with pulse dot (legacy — kept for compatibility) */

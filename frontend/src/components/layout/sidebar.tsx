@@ -11,41 +11,93 @@ type AppManifest = components["schemas"]["AppManifestResponse"];
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
 
-/** Status sort priority: failing first, disabled/not_started last. */
+// ──────────────────────────────────────────────────────────────────────────────
+// Status group definitions
+// ──────────────────────────────────────────────────────────────────────────────
+
+type GroupKey = "err" | "blocked" | "warn" | "ok" | "stopped" | "disabled";
+
+interface GroupDef {
+  key: GroupKey;
+  label: string;
+  tone: "err" | "warn" | "ok" | "mute";
+  defaultOpen: boolean;
+}
+
+const GROUP_DEFS: GroupDef[] = [
+  { key: "err",      label: "FAILING",  tone: "err",  defaultOpen: true  },
+  { key: "blocked",  label: "BLOCKED",  tone: "err",  defaultOpen: true  },
+  { key: "warn",     label: "SLOW",     tone: "warn", defaultOpen: true  },
+  { key: "ok",       label: "RUNNING",  tone: "ok",   defaultOpen: false },
+  { key: "stopped",  label: "STOPPED",  tone: "mute", defaultOpen: true  },
+  { key: "disabled", label: "DISABLED", tone: "mute", defaultOpen: false },
+];
+
+const DEFAULT_GROUP_OPEN: Record<GroupKey, boolean> = Object.fromEntries(
+  GROUP_DEFS.map((g) => [g.key, g.defaultOpen]),
+) as Record<GroupKey, boolean>;
+
+/** Statuses with warn tone (not ok, not err, but needs attention) */
+const WARN_STATUSES = new Set(["exhausted_cooling", "stopping", "shutting_down"]);
+
+/** STATUS_ORDER for worst-of-children resolution (lower = worse) */
 const STATUS_ORDER: Record<string, number> = {
   failed: 0,
   crashed: 0,
   exhausted_dead: 0,
   blocked: 1,
   exhausted_cooling: 2,
-  starting: 2,
-  running: 3,
-  stopping: 4,
-  shutting_down: 4,
-  stopped: 5,
-  disabled: 6,
-  not_started: 7,
+  starting: 3,
+  running: 4,
+  stopping: 5,
+  shutting_down: 5,
+  stopped: 6,
+  disabled: 7,
+  not_started: 8,
 };
 
 function statusSortKey(status: string): number {
-  return STATUS_ORDER[status] ?? 4;
+  return STATUS_ORDER[status] ?? 99;
 }
 
 /** Return the worst-of-children status for a multi-instance app. */
-function worstStatus(manifests: AppManifest): string {
-  const instances = manifests.instances ?? [];
-  if (instances.length === 0) return manifests.status;
+function worstStatus(manifest: AppManifest): string {
+  const instances = manifest.instances ?? [];
+  if (instances.length === 0) return manifest.status;
   return instances.reduce((worst, inst) => {
     return statusSortKey(inst.status) < statusSortKey(worst) ? inst.status : worst;
-  }, manifests.status);
+  }, manifest.status);
 }
+
+function isMultiInstance(m: AppManifest): boolean {
+  return m.instance_count > 1;
+}
+
+/** Map an app manifest to its group key. Uses worst-of-children for multi-instance. */
+function getGroupKey(manifest: AppManifest): GroupKey {
+  const status = isMultiInstance(manifest) ? worstStatus(manifest) : manifest.status;
+
+  if (status === "blocked") return "blocked";
+  if (status === "disabled") return "disabled";
+  if (status === "failed" || status === "crashed" || status === "exhausted_dead") return "err";
+  if (WARN_STATUSES.has(status)) return "warn";
+  if (status === "stopped" || status === "not_started") return "stopped";
+  return "ok";
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Nav items
+// ──────────────────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
   { path: "/", label: "Overview", testId: "nav-overview" },
-  { path: "/apps", label: "Apps", testId: "nav-apps" },
   { path: "/logs", label: "Logs", testId: "nav-logs" },
   { path: "/config", label: "Config", testId: "nav-config" },
 ] as const;
+
+// ──────────────────────────────────────────────────────────────────────────────
+// AppEntry component
+// ──────────────────────────────────────────────────────────────────────────────
 
 interface AppEntryProps {
   manifest: AppManifest;
@@ -57,11 +109,13 @@ function AppEntry({ manifest, location }: AppEntryProps) {
   const isMulti = manifest.instance_count > 1;
   const displayStatus = isMulti ? worstStatus(manifest) : manifest.status;
   const kind = statusToKind(displayStatus);
-  const isBlocked = manifest.status === "blocked";
+  const isBlocked = displayStatus === "blocked";
 
   // Active when on any sub-path of this app
   const appPath = `/apps/${manifest.app_key}`;
   const isActive = location.startsWith(appPath);
+
+  const invocationCount = manifest.recent_invocations_1h;
 
   return (
     <li class="ht-sidebar__app-entry">
@@ -75,6 +129,9 @@ function AppEntry({ manifest, location }: AppEntryProps) {
           <span class="ht-sidebar__app-name">{manifest.display_name}</span>
           {manifest.auto_loaded && (
             <span class="ht-sidebar__auto-badge" title="Auto-loaded">auto</span>
+          )}
+          {invocationCount > 0 && (
+            <span class="ht-sidebar__app-count">{invocationCount}</span>
           )}
         </Link>
         {isMulti && (
@@ -121,36 +178,120 @@ function AppEntry({ manifest, location }: AppEntryProps) {
   );
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// StatusGroupHeader component
+// ──────────────────────────────────────────────────────────────────────────────
+
+interface StatusGroupHeaderProps {
+  def: GroupDef;
+  count: number;
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+function StatusGroupHeader({ def, count, isOpen, onToggle }: StatusGroupHeaderProps) {
+  function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onToggle();
+    }
+  }
+
+  return (
+    <div
+      class={`ht-sidebar__group-header ht-sidebar__group-header--${def.tone}`}
+      role="button"
+      tabIndex={0}
+      aria-expanded={isOpen}
+      onClick={onToggle}
+      onKeyDown={handleKeyDown}
+    >
+      <svg
+        class="ht-sidebar__group-chevron"
+        viewBox="0 0 12 12"
+        width="10"
+        height="10"
+        aria-hidden="true"
+      >
+        <polyline
+          points={isOpen ? "2,8 6,4 10,8" : "2,4 6,8 10,4"}
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        />
+      </svg>
+      <StatusShape kind={def.tone} size={7} />
+      <span class="ht-sidebar__group-label">{def.label}</span>
+      <span class="ht-sidebar__group-count">{count}</span>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Sidebar component
+// ──────────────────────────────────────────────────────────────────────────────
+
 interface SidebarProps {
   onOpenPalette?: () => void;
 }
 
 export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   const [location] = useLocation();
-  const { connection } = useAppState();
+  const { connection, systemVersion } = useAppState();
   const manifests = useApi(getManifests);
   const [search, setSearch] = useState("");
 
+  const [groupOpen, setGroupOpen] = useState<Record<GroupKey, boolean>>(DEFAULT_GROUP_OPEN);
+
   const wsStatus = connection.value;
-  const wsKind = wsStatus === "connected" ? "ok"
-    : wsStatus === "connecting" ? "mute"
-    : "warn";
+  const version = systemVersion.value;
+
+  // Connection status label
+  const isConnected = wsStatus === "connected";
+  const wsLabel = isConnected ? "connected" : "reconnecting…";
+  const wsKind = isConnected ? "ok" : "warn";
 
   const allManifests = manifests.data.value?.manifests ?? [];
-  const filtered = search.trim()
+  const isFiltering = search.trim().length > 0;
+  const filtered = isFiltering
     ? allManifests.filter((m) =>
         m.display_name.toLowerCase().includes(search.toLowerCase()) ||
         m.app_key.toLowerCase().includes(search.toLowerCase()),
       )
     : allManifests;
 
-  // Sort by status priority, then alphabetically
-  const sorted = [...filtered].sort((a, b) => {
-    const aKey = isMultiInstance(a) ? statusSortKey(worstStatus(a)) : statusSortKey(a.status);
-    const bKey = isMultiInstance(b) ? statusSortKey(worstStatus(b)) : statusSortKey(b.status);
-    if (aKey !== bKey) return aKey - bKey;
-    return a.display_name.localeCompare(b.display_name);
-  });
+  // Group apps by status
+  const groups = new Map<GroupKey, AppManifest[]>(
+    GROUP_DEFS.map((g) => [g.key, []]),
+  );
+  for (const m of filtered) {
+    const key = getGroupKey(m);
+    groups.get(key)!.push(m);
+  }
+
+  // Sort each group alphabetically
+  for (const [, apps] of groups) {
+    apps.sort((a, b) => a.display_name.localeCompare(b.display_name));
+  }
+
+  // "All healthy" check: only ok group has apps (force RUNNING open)
+  const allHealthy =
+    (groups.get("err")?.length ?? 0) === 0 &&
+    (groups.get("blocked")?.length ?? 0) === 0 &&
+    (groups.get("warn")?.length ?? 0) === 0 &&
+    (groups.get("stopped")?.length ?? 0) === 0;
+
+  function isGroupOpen(key: GroupKey): boolean {
+    if (key === "ok" && allHealthy) return true; // force open when all healthy
+    return groupOpen[key];
+  }
+
+  function toggleGroup(key: GroupKey) {
+    setGroupOpen((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  const totalCount = allManifests.length;
+  const filteredCount = filtered.length;
 
   return (
     <aside class="ht-sidebar">
@@ -159,12 +300,14 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         <Link href="/" class="ht-brand-link" aria-label="Hassette home">
           <span class="ht-wordmark">hassette</span>
         </Link>
-      </div>
-
-      {/* Connection status */}
-      <div class="ht-sidebar__ws-status" aria-label={`WebSocket: ${wsStatus}`}>
-        <StatusShape kind={wsKind} size={8} />
-        <span class="ht-sidebar__ws-label">{wsStatus}</span>
+        {version !== null && (
+          <div class="ht-sidebar__version">
+            <span class="ht-sidebar__version-text">v{version}</span>
+            <span class="ht-sidebar__version-sep">·</span>
+            <StatusShape kind={wsKind} size={7} />
+            <span class="ht-sidebar__version-status">{wsLabel}</span>
+          </div>
+        )}
       </div>
 
       {/* Cmd-K trigger */}
@@ -201,8 +344,17 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         </ul>
       </nav>
 
-      {/* App search + list */}
+      {/* App section */}
       <div class="ht-sidebar__app-nav">
+        {/* APPS section header */}
+        <div class="ht-sidebar__section-header">
+          <span class="ht-sidebar__section-label">APPS</span>
+          <span class="ht-sidebar__section-count">
+            {isFiltering ? `${filteredCount}/${totalCount}` : totalCount}
+          </span>
+        </div>
+
+        {/* Search */}
         <div class="ht-sidebar__search-wrap">
           <input
             type="search"
@@ -214,22 +366,36 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
           />
         </div>
 
-        <ul class="ht-sidebar__app-list" aria-label="App list">
-          {manifests.loading.value && (
-            <li class="ht-sidebar__loading">Loading…</li>
-          )}
-          {!manifests.loading.value && sorted.length === 0 && (
-            <li class="ht-sidebar__empty">No apps</li>
-          )}
-          {sorted.map((m) => (
-            <AppEntry key={m.app_key} manifest={m} location={location} />
-          ))}
-        </ul>
+        {/* Status groups */}
+        {manifests.loading.value && (
+          <div class="ht-sidebar__loading">Loading…</div>
+        )}
+        {!manifests.loading.value && filtered.length === 0 && (
+          <div class="ht-sidebar__empty">No apps</div>
+        )}
+        {GROUP_DEFS.map((def) => {
+          const apps = groups.get(def.key) ?? [];
+          if (apps.length === 0) return null;
+          const open = isGroupOpen(def.key);
+          return (
+            <div key={def.key} class="ht-sidebar__group">
+              <StatusGroupHeader
+                def={def}
+                count={apps.length}
+                isOpen={open}
+                onToggle={() => toggleGroup(def.key)}
+              />
+              {open && (
+                <ul class="ht-sidebar__app-list" aria-label={`${def.label} apps`}>
+                  {apps.map((m) => (
+                    <AppEntry key={m.app_key} manifest={m} location={location} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
       </div>
     </aside>
   );
-}
-
-function isMultiInstance(m: AppManifest): boolean {
-  return m.instance_count > 1;
 }

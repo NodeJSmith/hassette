@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent } from "@testing-library/preact";
 import { h } from "preact";
+import { signal } from "@preact/signals";
 import { Sidebar } from "./sidebar";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
@@ -187,7 +188,7 @@ describe("Sidebar — app list", () => {
     expect(queryByTitle("Auto-loaded")).toBeNull();
   });
 
-  it("groups apps so failed apps appear before running ones", async () => {
+  it("groups apps so FAILING group header appears before RUNNING group header in DOM", async () => {
     server.use(
       http.get("/api/apps/manifests", () =>
         HttpResponse.json<ManifestListResponse>(
@@ -201,12 +202,16 @@ describe("Sidebar — app list", () => {
       ),
     );
     const { findByText, container } = renderWithAppState(<Sidebar />);
+    // Failed App is visible in expanded FAILING group
     expect(await findByText("Failed App")).toBeDefined();
-    expect(await findByText("Running App")).toBeDefined();
-    const names = Array.from(container.querySelectorAll(".ht-sidebar__app-name")).map((el) => el.textContent);
-    const failedIdx = names.indexOf("Failed App");
-    const runningIdx = names.indexOf("Running App");
-    expect(failedIdx).toBeLessThan(runningIdx);
+    // Group headers are in DOM order: FAILING before RUNNING
+    const groupHeaders = Array.from(container.querySelectorAll(".ht-sidebar__group-header"))
+      .map((el) => el.textContent);
+    const failingIdx = groupHeaders.findIndex((t) => t?.includes("FAILING"));
+    const runningIdx = groupHeaders.findIndex((t) => t?.includes("RUNNING"));
+    expect(failingIdx).toBeGreaterThanOrEqual(0);
+    expect(runningIdx).toBeGreaterThanOrEqual(0);
+    expect(failingIdx).toBeLessThan(runningIdx);
   });
 
   it("applies is-blocked class to blocked apps", async () => {
@@ -306,5 +311,325 @@ describe("Sidebar — multi-instance apps", () => {
     fireEvent.click(expandBtn);
     expect(await findByText("inst_0")).toBeDefined();
     expect(await findByText("inst_1")).toBeDefined();
+  });
+});
+
+describe("Sidebar — version display", () => {
+  it("renders version string below wordmark when systemVersion is set", () => {
+    const { container } = renderWithAppState(<Sidebar />, {
+      stateOverrides: { systemVersion: signal("1.2.3") },
+    });
+    const versionEl = container.querySelector(".ht-sidebar__version");
+    expect(versionEl).not.toBeNull();
+    expect(versionEl!.textContent).toContain("v1.2.3");
+  });
+
+  it("shows 'connected' status when WS is connected", () => {
+    const { container } = renderWithAppState(<Sidebar />, {
+      stateOverrides: {
+        systemVersion: signal("1.0.0"),
+        connection: signal("connected"),
+      },
+    });
+    const versionEl = container.querySelector(".ht-sidebar__version");
+    expect(versionEl!.textContent).toContain("connected");
+  });
+
+  it("shows 'reconnecting…' when WS is reconnecting", () => {
+    const { container } = renderWithAppState(<Sidebar />, {
+      stateOverrides: {
+        systemVersion: signal("1.0.0"),
+        connection: signal("reconnecting"),
+      },
+    });
+    const versionEl = container.querySelector(".ht-sidebar__version");
+    expect(versionEl!.textContent).toContain("reconnecting");
+  });
+
+  it("omits version line when systemVersion is null", () => {
+    const { container } = renderWithAppState(<Sidebar />, {
+      stateOverrides: { systemVersion: signal(null) },
+    });
+    expect(container.querySelector(".ht-sidebar__version")).toBeNull();
+  });
+});
+
+describe("Sidebar — APPS section header", () => {
+  it("renders APPS header above the search input", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({ manifests: [createManifest({ display_name: "My App" })] }),
+        ),
+      ),
+    );
+    const { findByText } = renderWithAppState(<Sidebar />);
+    expect(await findByText(/^APPS/)).toBeDefined();
+  });
+
+  it("APPS header shows total count", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({ app_key: "a1", display_name: "App One" }),
+              createManifest({ app_key: "a2", display_name: "App Two" }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { container, findByText } = renderWithAppState(<Sidebar />);
+    await findByText("App One");
+    const header = container.querySelector(".ht-sidebar__section-header");
+    expect(header?.textContent).toContain("2");
+  });
+
+  it("shows filtered/total counts when search is active", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({ app_key: "a1", display_name: "Alpha App" }),
+              createManifest({ app_key: "a2", display_name: "Beta App" }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { container, findByText } = renderWithAppState(<Sidebar />);
+    await findByText("Alpha App");
+    const input = container.querySelector("input[type='search']")!;
+    fireEvent.input(input, { target: { value: "Alpha" } });
+    const header = container.querySelector(".ht-sidebar__section-header");
+    expect(header?.textContent).toContain("1/2");
+  });
+});
+
+describe("Sidebar — status groups", () => {
+  it("groups failed apps under FAILING header", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { findByText } = renderWithAppState(<Sidebar />);
+    expect(await findByText("FAILING")).toBeDefined();
+    expect(await findByText("Failed App")).toBeDefined();
+  });
+
+  it("groups running apps under RUNNING header", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({ app_key: "running_app", display_name: "Running App", status: "running" }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { findByText } = renderWithAppState(<Sidebar />);
+    expect(await findByText("RUNNING")).toBeDefined();
+  });
+
+  it("groups disabled apps under DISABLED header", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({ app_key: "dis_app", display_name: "Disabled App", status: "disabled" }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { findByText } = renderWithAppState(<Sidebar />);
+    expect(await findByText("DISABLED")).toBeDefined();
+  });
+
+  it("hides empty groups", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({ app_key: "running_app", display_name: "Running App", status: "running" }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { container, findByText } = renderWithAppState(<Sidebar />);
+    await findByText("Running App");
+    const groupHeaders = Array.from(container.querySelectorAll(".ht-sidebar__group-header")).map(
+      (el) => el.textContent,
+    );
+    expect(groupHeaders.some((t) => t?.includes("FAILING"))).toBe(false);
+    expect(groupHeaders.some((t) => t?.includes("RUNNING"))).toBe(true);
+  });
+
+  it("clicking group header collapses the group", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { findByText, queryByText } = renderWithAppState(<Sidebar />);
+    const header = await findByText("FAILING");
+    // Failed App visible before collapse
+    expect(await findByText("Failed App")).toBeDefined();
+    // Click header to collapse
+    fireEvent.click(header.closest(".ht-sidebar__group-header")!);
+    // Failed App hidden after collapse
+    expect(queryByText("Failed App")).toBeNull();
+  });
+
+  it("pressing Enter on group header toggles collapse", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { findByText, queryByText } = renderWithAppState(<Sidebar />);
+    const header = await findByText("FAILING");
+    expect(await findByText("Failed App")).toBeDefined();
+    // Keyboard collapse
+    fireEvent.keyDown(header.closest(".ht-sidebar__group-header")!, { key: "Enter" });
+    expect(queryByText("Failed App")).toBeNull();
+    // Keyboard re-expand
+    fireEvent.keyDown(header.closest(".ht-sidebar__group-header")!, { key: "Enter" });
+    expect(queryByText("Failed App")).not.toBeNull();
+  });
+
+  it("maps exhausted_dead to FAILING group", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({
+                app_key: "dead_app",
+                display_name: "Dead App",
+                status: "exhausted_dead",
+              }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { findByText, container } = renderWithAppState(<Sidebar />);
+    expect(await findByText("FAILING")).toBeDefined();
+    expect(await findByText("Dead App")).toBeDefined();
+    const groupHeaders = Array.from(container.querySelectorAll(".ht-sidebar__group-header"))
+      .map((el) => el.textContent);
+    expect(groupHeaders.some((t) => t?.includes("RUNNING"))).toBe(false);
+  });
+
+  it("pressing Space on group header toggles collapse", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { findByText, queryByText } = renderWithAppState(<Sidebar />);
+    const header = await findByText("FAILING");
+    expect(await findByText("Failed App")).toBeDefined();
+    fireEvent.keyDown(header.closest(".ht-sidebar__group-header")!, { key: " " });
+    expect(queryByText("Failed App")).toBeNull();
+    fireEvent.keyDown(header.closest(".ht-sidebar__group-header")!, { key: " " });
+    expect(queryByText("Failed App")).not.toBeNull();
+  });
+
+  it("forces RUNNING group open when all apps are healthy", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({ app_key: "app1", display_name: "App One", status: "running" }),
+              createManifest({ app_key: "app2", display_name: "App Two", status: "running" }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { findByText } = renderWithAppState(<Sidebar />);
+    expect(await findByText("App One")).toBeDefined();
+    expect(await findByText("App Two")).toBeDefined();
+  });
+});
+
+describe("Sidebar — invocation counts", () => {
+  it("shows invocation count next to app name", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({
+                app_key: "my_app",
+                display_name: "My App",
+                status: "running",
+                recent_invocations_1h: 42,
+              }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { findByText } = renderWithAppState(<Sidebar />);
+    expect(await findByText("42")).toBeDefined();
+  });
+
+  it("does not show invocation count when zero", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({
+                app_key: "my_app",
+                display_name: "My App",
+                status: "running",
+                recent_invocations_1h: 0,
+              }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { findByText, container } = renderWithAppState(<Sidebar />);
+    await findByText("My App");
+    const countEl = container.querySelector(".ht-sidebar__app-count");
+    expect(countEl).toBeNull();
   });
 });

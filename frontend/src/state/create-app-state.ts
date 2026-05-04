@@ -121,6 +121,13 @@ export function createAppState() {
     uptimeSeconds: signal<number | null>(null),
 
     /**
+     * Hassette version string, received from the WS connected message.
+     * Null until the first WS connected message is received.
+     * Used by the sidebar version display.
+     */
+    systemVersion: signal<string | null>(null),
+
+    /**
      * Latest batch of invocation_completed WS events.
      * Written by useWebSocket when an invocation_completed message arrives.
      * Consumers subscribe to this signal to trigger debounced refetches.

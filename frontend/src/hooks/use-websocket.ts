@@ -68,6 +68,10 @@ export function useWebSocket(state: AppState): void {
               state.connection.value = "connected";
               // uptime_seconds is the loading gate for useScopedApi
               state.uptimeSeconds.value = msg.data.uptime_seconds;
+              // version from backend (WP16 backend field)
+              if (msg.data.version !== undefined) {
+                state.systemVersion.value = msg.data.version;
+              }
 
               if (hasConnectedRef.current) {
                 // Reconnection — clear stale log buffer and service status before re-subscribing
