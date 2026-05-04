@@ -125,9 +125,7 @@ export function handlerKindLabel(
   triggerType: string | null | undefined,
 ): string {
   if (kind === "job") {
-    const t = triggerType?.toLowerCase() ?? "";
-    if (t === "cron" || t.includes("cron")) return "cron";
-    return "svc";
+    return triggerType?.toLowerCase() || "schedule";
   }
   const lower = topic?.toLowerCase() ?? "";
   if (lower.includes("state_changed") || lower.includes("state")) return "state change";

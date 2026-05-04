@@ -184,14 +184,14 @@ describe("UnifiedHandlerRow — kind glyph", () => {
     expect(glyph?.textContent).toBe("⏱");
   });
 
-  it("renders ☎ glyph for service-type job", () => {
+  it("renders ⏱ glyph for interval job", () => {
     const job = createJob({ job_id: 2, trigger_type: "Every" });
     const item = { kind: "job" as const, id: 2, name: "poll_job", humanDescription: null, statusKind: "ok" as const, data: job };
     const { container } = render(
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
     );
     const glyph = container.querySelector(".ht-unified-row__kind-glyph");
-    expect(glyph?.textContent).toBe("☎");
+    expect(glyph?.textContent).toBe("⏱");
   });
 });
 
