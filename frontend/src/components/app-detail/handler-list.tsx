@@ -1,7 +1,6 @@
 import type { ListenerData, JobData } from "../../api/endpoints";
 import { UnifiedHandlerRow, type UnifiedItem, type UnifiedItemKind } from "./unified-handler-row";
 import { statusToKind } from "../../utils/status";
-import { computeHandlerStats } from "../../utils/handler-stats";
 
 export interface SelectedHandlerId {
   kind: UnifiedItemKind;
@@ -56,29 +55,8 @@ export function HandlerList({ listeners, jobs, selectedId, onSelect }: Props) {
 
   const items = buildItems(listeners, jobs);
 
-  const { totalFailed, totalTimedOut, totalInvocations, totalExecutions } =
-    computeHandlerStats(listeners, jobs);
-
   return (
     <div>
-      <div class="ht-stats-strip" data-testid="stats-strip">
-        <span class="ht-stats-strip__item">
-          <strong>{items.length}</strong> handler{items.length !== 1 ? "s" : ""}
-        </span>
-        <span class="ht-stats-strip__item">
-          {totalInvocations + totalExecutions} calls/runs
-        </span>
-        {totalFailed > 0 && (
-          <span class="ht-stats-strip__item ht-stats-strip__item--err">
-            {totalFailed} failed
-          </span>
-        )}
-        {totalTimedOut > 0 && (
-          <span class="ht-stats-strip__item ht-stats-strip__item--warn">
-            {totalTimedOut} timed out
-          </span>
-        )}
-      </div>
       <div class="ht-item-list" data-testid="handler-list">
         {items.map((item) => (
           <UnifiedHandlerRow

@@ -107,26 +107,6 @@ describe("HandlerList", () => {
     expect(getByTestId("unified-row-listener-2").getAttribute("data-selected")).toBe("false");
   });
 
-  it("renders stats strip with total count, failed count, timed_out count", () => {
-    const listeners = [
-      createListener({ listener_id: 1, total_invocations: 10, failed: 2, timed_out: 1 }),
-    ];
-    const jobs = [
-      createJob({ job_id: 5, total_executions: 5, failed: 1, timed_out: 0 }),
-    ];
-    const { getByTestId } = render(
-      <HandlerList listeners={listeners} jobs={jobs} selectedId={null} onSelect={() => {}} />,
-    );
-    const strip = getByTestId("stats-strip");
-    expect(strip).toBeDefined();
-    // 2 handlers total (1 listener + 1 job)
-    expect(strip.textContent).toContain("2");
-    // 3 failed total
-    expect(strip.textContent).toContain("3 failed");
-    // 1 timed out (separate from failed)
-    expect(strip.textContent).toContain("1 timed out");
-  });
-
   it("listeners are rendered before jobs in the list", () => {
     const listeners = [createListener({ listener_id: 1, handler_method: "on_motion" })];
     const jobs = [createJob({ job_id: 5, job_name: "cleanup" })];

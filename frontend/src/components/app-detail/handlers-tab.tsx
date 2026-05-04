@@ -15,6 +15,13 @@ import { StatusShape } from "../shared/status-shape";
 
 const MOBILE_BREAKPOINT = 768;
 
+const TIME_PRESET_LABELS: Record<string, string> = {
+  "since-restart": "since restart",
+  "1h": "in 1h",
+  "24h": "in 24h",
+  "7d": "in 7d",
+};
+
 interface Props {
   listeners: ListenerData[];
   jobs: JobData[];
@@ -65,6 +72,8 @@ function ScheduleChips({ job }: { job: JobData }) {
 
 /** Stats row: CALLS · 1H, LAST, FAILED, TIMED OUT, AVG */
 function HandlerStatsRow({ listener }: { listener: ListenerData }) {
+  const { timePreset } = useAppState();
+  const timeLabel = TIME_PRESET_LABELS[timePreset.value] ?? "";
   const lastLabel = listener.last_invoked_at
     ? formatRelativeTime(listener.last_invoked_at)
     : "—";
@@ -72,7 +81,7 @@ function HandlerStatsRow({ listener }: { listener: ListenerData }) {
   return (
     <div class="ht-detail-stats-row" data-testid="handler-stats-row">
       <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Calls · 1H</span>
+        <span class="ht-detail-stats-row__label">Calls{timeLabel ? ` · ${timeLabel}` : ""}</span>
         <span class="ht-detail-stats-row__value">{listener.total_invocations}</span>
       </div>
       <div class="ht-detail-stats-row__cell">
@@ -103,6 +112,8 @@ function HandlerStatsRow({ listener }: { listener: ListenerData }) {
 
 /** Stats row for scheduled jobs */
 function JobStatsRow({ job }: { job: JobData }) {
+  const { timePreset } = useAppState();
+  const timeLabel = TIME_PRESET_LABELS[timePreset.value] ?? "";
   const lastLabel = job.last_executed_at
     ? formatRelativeTime(job.last_executed_at)
     : "—";
@@ -110,7 +121,7 @@ function JobStatsRow({ job }: { job: JobData }) {
   return (
     <div class="ht-detail-stats-row" data-testid="job-stats-row">
       <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Runs · 1H</span>
+        <span class="ht-detail-stats-row__label">Runs{timeLabel ? ` · ${timeLabel}` : ""}</span>
         <span class="ht-detail-stats-row__value">{job.total_executions}</span>
       </div>
       <div class="ht-detail-stats-row__cell">
@@ -322,6 +333,14 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
         <p class="ht-detail-pane__subtitle">{job.trigger_label}</p>
       )}
 
+      {/* Registration source */}
+      {job.registration_source && (
+        <div class="ht-detail-pane__registration" data-testid="job-registration-source">
+          <span class="ht-detail-label">Registration</span>
+          <pre class="ht-detail-pane__code-snippet"><code>{job.registration_source}</code></pre>
+        </div>
+      )}
+
       {/* Schedule chips */}
       <ScheduleChips job={job} />
 
@@ -372,13 +391,6 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
     </div>
   );
 }
-
-const TIME_PRESET_LABELS: Record<string, string> = {
-  "since-restart": "since restart",
-  "1h": "in 1h",
-  "24h": "in 24h",
-  "7d": "in 7d",
-};
 
 export function HandlersTab({ listeners, jobs, focusMethod, onSwitchToCode }: Props) {
   const { timePreset } = useAppState();
