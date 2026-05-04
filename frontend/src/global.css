@@ -3466,6 +3466,26 @@ strong {
   padding: 0;
 }
 
+.ht-code-tab__source .shiki span {
+  color: var(--shiki-light);
+}
+
+[data-theme="dark"] .ht-code-tab__source .shiki span {
+  color: var(--shiki-dark);
+}
+
+.ht-code-tab__source .shiki {
+  background-color: var(--shiki-light-bg) !important;
+}
+
+[data-theme="dark"] .ht-code-tab__source .shiki {
+  background-color: var(--shiki-dark-bg) !important;
+}
+
+.ht-code-tab__gutter-line--focus {
+  background: var(--accent-soft);
+}
+
 .ht-code-tab__loading,
 .ht-code-tab__error {
   padding: var(--sp-6);

@@ -133,6 +133,7 @@ export function AppDetailPage({ params }: Props) {
   const searchString = useSearch();
 
   const activeTab = useRef(signal<TabId>("handlers")).current;
+  const codeFocusLine = useRef(signal<number | undefined>(undefined)).current;
 
   // Parse focus query param for auto-selecting a handler (strip from URL once read)
   const focusMethod = useRef<string | null>(null);
@@ -327,13 +328,14 @@ export function AppDetailPage({ params }: Props) {
           listeners={listeners.data.value ?? []}
           jobs={jobs.data.value ?? []}
           focusMethod={focusMethod.current}
-          onSwitchToCode={() => { activeTab.value = "code"; }}
+          onSwitchToCode={(line) => { codeFocusLine.value = line; activeTab.value = "code"; }}
         />
       )}
       {activeTab.value === "code" && (
         <CodeTab
           appKey={appKey}
           listeners={listeners.data.value ?? []}
+          focusLine={codeFocusLine.value}
         />
       )}
       {activeTab.value === "logs" && (

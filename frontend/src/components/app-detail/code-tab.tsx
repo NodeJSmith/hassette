@@ -8,6 +8,7 @@ import { parseSourceLocation } from "../../utils/format";
 interface Props {
   appKey: string;
   listeners: ListenerData[];
+  focusLine?: number;
 }
 
 /**
@@ -44,7 +45,7 @@ function getHighlighter() {
   return highlighterPromise;
 }
 
-export function CodeTab({ appKey, listeners }: Props) {
+export function CodeTab({ appKey, listeners, focusLine }: Props) {
   const loading = useRef(signal(true)).current;
   const error = useRef(signal<string | null>(null)).current;
   const source = useRef(signal<AppSourceData | null>(null)).current;
@@ -108,6 +109,15 @@ export function CodeTab({ appKey, listeners }: Props) {
       </div>
     );
   }
+
+  useEffect(() => {
+    if (!focusLine || loading.value) return;
+    const el = document.querySelector(`[data-testid="code-line-${focusLine}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ht-code-tab__gutter-line--focus");
+    }
+  }, [focusLine, loading.value]);
 
   if (!source.value) return null;
 

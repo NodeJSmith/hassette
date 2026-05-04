@@ -32,7 +32,7 @@ function buildItems(listeners: ListenerData[], jobs: JobData[]): UnifiedItem[] {
   const listenerItems: UnifiedItem[] = listeners.map((l) => ({
     kind: "listener" as const,
     id: l.listener_id,
-    name: l.handler_summary || (l.handler_method.split(".").pop() ?? l.handler_method),
+    name: l.handler_method.split(".").pop() ?? l.handler_method,
     humanDescription: l.human_description ?? null,
     statusKind: listenerStatusKind(l),
     data: l,

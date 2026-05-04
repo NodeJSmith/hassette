@@ -19,7 +19,7 @@ interface Props {
   listeners: ListenerData[];
   jobs: JobData[];
   focusMethod: string | null;
-  onSwitchToCode?: () => void;
+  onSwitchToCode?: (line?: number) => void;
 }
 
 /** Inline chips for listener modifier options. */
@@ -150,7 +150,7 @@ function JobStatsRow({ job }: { job: JobData }) {
 
 interface ListenerDetailProps {
   listener: ListenerData;
-  onSwitchToCode?: () => void;
+  onSwitchToCode?: (line?: number) => void;
 }
 
 function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
@@ -182,7 +182,7 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
       {/* Header: kind badge + name */}
       <div class="ht-detail-pane__header">
         <span class="ht-chip ht-chip--modifier" aria-label={`kind: ${kindLabel}`}>{kindLabel}</span>
-        <span class="ht-detail-pane__handler-name">{listener.handler_summary || listener.handler_method}</span>
+        <span class="ht-detail-pane__handler-name">{listener.handler_method.split(".").pop() ?? listener.handler_method}</span>
         {isFailing && (
           <span class="ht-badge ht-badge--danger ht-badge--sm" data-testid="handler-status-pill">failing</span>
         )}
@@ -252,7 +252,7 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
           type="button"
           class="ht-btn ht-btn--ghost ht-btn--sm ht-detail-pane__view-in-code"
           data-testid="view-in-code-btn"
-          onClick={onSwitchToCode}
+          onClick={() => onSwitchToCode(sourceLine ?? undefined)}
         >
           view in code →
         </button>
@@ -263,7 +263,7 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
 
 interface JobDetailProps {
   job: JobData;
-  onSwitchToCode?: () => void;
+  onSwitchToCode?: (line?: number) => void;
 }
 
 function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
@@ -353,7 +353,7 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
           type="button"
           class="ht-btn ht-btn--ghost ht-btn--sm ht-detail-pane__view-in-code"
           data-testid="view-in-code-btn"
-          onClick={onSwitchToCode}
+          onClick={() => onSwitchToCode(sourceLine ?? undefined)}
         >
           view in code →
         </button>
