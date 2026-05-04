@@ -48,6 +48,15 @@ export function truncateId(id: string | null | undefined): string {
   return id.slice(0, 8) + "…";
 }
 
+/** Parse source_location "filename.py:LINE" into { filename, line }. */
+export function parseSourceLocation(sourceLocation: string): { filename: string; line: number | null } {
+  const colonIdx = sourceLocation.lastIndexOf(":");
+  if (colonIdx <= 0) return { filename: sourceLocation, line: null };
+  const filename = sourceLocation.slice(0, colonIdx);
+  const n = parseInt(sourceLocation.slice(colonIdx + 1), 10);
+  return { filename, line: Number.isFinite(n) ? n : null };
+}
+
 /** Format a Unix timestamp as a relative time string (e.g., "2m ago"). */
 export function formatRelativeTime(ts: number): string {
   const now = Date.now() / 1000;

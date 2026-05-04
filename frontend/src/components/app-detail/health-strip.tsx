@@ -1,44 +1,70 @@
-import type { AppHealthData } from "../../api/endpoints";
-import { formatDuration } from "../../utils/format";
-import { errorRateToVariant } from "../../utils/status";
-import { useRelativeTime } from "../../hooks/use-relative-time";
+import type { ListenerData, JobData } from "../../api/endpoints";
+import { computeHandlerStats } from "../../utils/handler-stats";
 
-interface Props {
-  health: AppHealthData | null;
+interface HandlersHealthStripProps {
+  listeners: ListenerData[];
+  jobs: JobData[];
 }
 
-function LastActivityValue({ ts }: { ts: number | null }) {
-  const label = useRelativeTime(ts);
-  if (!ts) return <span class="ht-health-card__value">—</span>;
-  return <span class="ht-health-card__value">{label}</span>;
-}
+export function HandlersHealthStrip({ listeners, jobs }: HandlersHealthStripProps) {
+  const handlerCount = listeners.length;
+  const jobCount = jobs.length;
 
-export function HealthStrip({ health }: Props) {
-  if (!health) return null;
+  const { totalInvocations, totalExecutions, totalFailed, totalTimedOut } =
+    computeHandlerStats(listeners, jobs);
+
+  const totalAll = totalInvocations + totalExecutions;
+  const totalErrors = totalFailed + totalTimedOut;
+  const successRate = totalAll > 0
+    ? Math.round(((totalAll - totalErrors) / totalAll) * 100)
+    : 100;
+
+  const hasErrors = totalErrors > 0;
 
   return (
-    <div class="ht-health-strip" data-testid="health-strip">
+    <div class="ht-health-strip" data-testid="handlers-health-strip">
+      {/* Column 1: HANDLERS */}
       <div class="ht-health-card">
-        <span class="ht-health-card__label">Error Rate</span>
-        <span class={`ht-health-card__value ht-health-card__value--${errorRateToVariant(health.error_rate_class)}`}>
-          {health.error_rate.toFixed(1)}%
-        </span>
-      </div>
-      <div class="ht-health-card">
-        <span class="ht-health-card__label">Handler Avg</span>
+        <span class="ht-health-card__label">Handlers</span>
         <span class="ht-health-card__value">
-          {health.handler_avg_duration > 0 ? formatDuration(health.handler_avg_duration) : "—"}
+          {handlerCount}
+          <span class="ht-health-card__detail"> +{jobCount} jobs</span>
         </span>
       </div>
+
+      {/* Column 2: INVOCATIONS · 1H */}
       <div class="ht-health-card">
-        <span class="ht-health-card__label">Job Avg</span>
+        <span class="ht-health-card__label">Invocations · 1H</span>
         <span class="ht-health-card__value">
-          {health.job_avg_duration > 0 ? formatDuration(health.job_avg_duration) : "—"}
+          {totalInvocations}
+          {totalExecutions > 0 && (
+            <span class="ht-health-card__detail"> +{totalExecutions}</span>
+          )}
         </span>
       </div>
+
+      {/* Column 3: SUCCESS RATE */}
       <div class="ht-health-card">
-        <span class="ht-health-card__label">Last Activity</span>
-        <LastActivityValue ts={health.last_activity_ts} />
+        <span class="ht-health-card__label">Success Rate</span>
+        <span class={`ht-health-card__value${hasErrors ? " ht-health-card__value--warning" : ""}`}>
+          {successRate}%
+        </span>
+      </div>
+
+      {/* Column 4: FAILED */}
+      <div class="ht-health-card">
+        <span class="ht-health-card__label">Failed</span>
+        <span class={`ht-health-card__value${totalFailed > 0 ? " ht-health-card__value--danger" : ""}`}>
+          {totalFailed > 0 ? totalFailed : "—"}
+        </span>
+      </div>
+
+      {/* Column 5: TIMED OUT */}
+      <div class="ht-health-card">
+        <span class="ht-health-card__label">Timed Out</span>
+        <span class={`ht-health-card__value${totalTimedOut > 0 ? " ht-health-card__value--warning" : ""}`}>
+          {totalTimedOut > 0 ? totalTimedOut : "—"}
+        </span>
       </div>
     </div>
   );

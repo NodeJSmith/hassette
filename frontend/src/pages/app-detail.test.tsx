@@ -18,9 +18,6 @@ vi.mock("wouter", () => ({
 vi.mock("../components/app-detail/error-display", () => ({
   ErrorDisplay: () => <div data-testid="error-display" />,
 }));
-vi.mock("../components/app-detail/health-strip", () => ({
-  HealthStrip: () => <div data-testid="health-strip" />,
-}));
 vi.mock("../components/app-detail/handlers-tab", () => ({
   HandlersTab: () => <div data-testid="handlers-tab" />,
 }));
@@ -87,7 +84,6 @@ describe("AppDetailPage", () => {
   ) {
     useApi.mockReturnValueOnce(fakeApiResult(createManifestListResponse(manifest)));
     useScopedApi
-      .mockReturnValueOnce(fakeApiResult(null))        // health
       .mockReturnValueOnce(fakeApiResult(listeners))   // listeners
       .mockReturnValueOnce(fakeApiResult(jobs));        // jobs
   }
@@ -100,9 +96,8 @@ describe("AppDetailPage", () => {
   ) {
     useApi.mockReturnValue(fakeApiResult(createManifestListResponse(manifest)));
     useScopedApi.mockReturnValue(fakeApiResult(listeners));
-    // Override first three calls to get health/listeners/jobs in correct order
+    // Override first two calls to get listeners/jobs in correct order
     useScopedApi
-      .mockReturnValueOnce(fakeApiResult(null))        // health
       .mockReturnValueOnce(fakeApiResult(listeners))   // listeners
       .mockReturnValueOnce(fakeApiResult(jobs))         // jobs
       .mockReturnValue(fakeApiResult(null));            // subsequent re-renders
@@ -127,13 +122,14 @@ describe("AppDetailPage", () => {
     expect(getByTestId("action-buttons")).toBeDefined();
   });
 
-  it("renders health strip", () => {
+  it("renders handlers tab by default (health strip is inside HandlersTab)", () => {
     setupUseApi(createManifest());
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
     );
-    expect(getByTestId("health-strip")).toBeDefined();
+    // HandlersTab (which contains the health strip) is rendered by default
+    expect(getByTestId("handlers-tab")).toBeDefined();
   });
 
   it("renders tab strip with Handlers tab", () => {

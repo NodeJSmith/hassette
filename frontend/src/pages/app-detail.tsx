@@ -1,14 +1,13 @@
 import { signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 import { useSearch, useLocation } from "wouter";
-import { getAppHealth, getAppJobs, getAppListeners, getManifests } from "../api/endpoints";
+import { getAppJobs, getAppListeners, getManifests } from "../api/endpoints";
 import type { AppInstance } from "../api/endpoints";
 import { ActionButtons } from "../components/apps/action-buttons";
 import { CodeTab } from "../components/app-detail/code-tab";
 import { ConfigTab } from "../components/app-detail/config-tab";
 import { ErrorDisplay } from "../components/app-detail/error-display";
 import { HandlersTab } from "../components/app-detail/handlers-tab";
-import { HealthStrip } from "../components/app-detail/health-strip";
 import { LogTable } from "../components/shared/log-table";
 import { Spinner } from "../components/shared/spinner";
 import { useApi } from "../hooks/use-api";
@@ -151,12 +150,8 @@ export function AppDetailPage({ params }: Props) {
 
   const manifests = useApi(getManifests);
 
-  // For instance detail view: fetch health, listeners, jobs
+  // For instance detail view: fetch listeners, jobs
   const resolvedInstanceIndex = instanceIndex ?? 0;
-  const health = useScopedApi(
-    (since) => getAppHealth(appKey, resolvedInstanceIndex, since),
-    { deps: [appKey, resolvedInstanceIndex] },
-  );
   const listeners = useScopedApi(
     (since) => getAppListeners(appKey, resolvedInstanceIndex, since),
     { deps: [appKey, resolvedInstanceIndex] },
@@ -186,9 +181,9 @@ export function AppDetailPage({ params }: Props) {
   const currentInstance = manifest?.instances?.find((i) => i.index === resolvedInstanceIndex);
   const liveStatus = appStatus.value[appKey]?.status ?? currentInstance?.status ?? manifest?.status ?? "unknown";
 
-  const hasData = manifests.data.value !== null && health.data.value !== null
+  const hasData = manifests.data.value !== null
     && listeners.data.value !== null && jobs.data.value !== null;
-  const initialLoading = !hasData && (health.loading.value || listeners.loading.value
+  const initialLoading = !hasData && (listeners.loading.value
     || jobs.loading.value || manifests.loading.value);
   if (initialLoading) return <Spinner />;
 
@@ -318,11 +313,6 @@ export function AppDetailPage({ params }: Props) {
         </div>
       )}
 
-      {/* Health strip */}
-      <div class="ht-mb-6">
-        <HealthStrip health={health.data.value} />
-      </div>
-
       {/* Tab strip */}
       <div class="ht-tab-strip ht-mb-4" role="tablist" aria-label="App sections">
         <Tab id="handlers" label="Handlers" />
@@ -337,6 +327,7 @@ export function AppDetailPage({ params }: Props) {
           listeners={listeners.data.value ?? []}
           jobs={jobs.data.value ?? []}
           focusMethod={focusMethod.current}
+          onSwitchToCode={() => { activeTab.value = "code"; }}
         />
       )}
       {activeTab.value === "code" && (

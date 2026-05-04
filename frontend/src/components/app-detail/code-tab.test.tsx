@@ -70,6 +70,31 @@ describe("CodeTab", () => {
     );
   });
 
+  it("shows line count in header", async () => {
+    render(<CodeTab appKey="test_app" listeners={[]} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("code-tab-content")).toBeDefined();
+    });
+    // "class TestApp:\n    def on_state_change(self):\n        pass\n" = 3 lines
+    expect(screen.getByTestId("code-tab-header").textContent).toContain("3 lines");
+  });
+
+  it("shows read-only label in header", async () => {
+    render(<CodeTab appKey="test_app" listeners={[]} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("code-tab-content")).toBeDefined();
+    });
+    expect(screen.getByTestId("code-tab-header").textContent).toContain("read-only");
+  });
+
+  it("shows copy path button in header", async () => {
+    render(<CodeTab appKey="test_app" listeners={[]} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("code-tab-content")).toBeDefined();
+    });
+    expect(screen.getByTestId("copy-path-btn")).toBeDefined();
+  });
+
   it("annotates handler lines with handler name in gutter", async () => {
     const listeners = [
       {

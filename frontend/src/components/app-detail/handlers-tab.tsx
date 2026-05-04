@@ -5,11 +5,13 @@ import { getHandlerInvocations, getJobExecutions } from "../../api/endpoints";
 import { HandlerList, type SelectedHandlerId } from "./handler-list";
 import { HandlerInvocations } from "./handler-invocations";
 import { JobExecutions } from "./job-executions";
+import { HandlersHealthStrip } from "./health-strip";
 import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useAppState } from "../../state/context";
 import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
-import { formatTriggerDetail } from "../../utils/format";
+import { formatTriggerDetail, formatDuration, formatRelativeTime, parseSourceLocation } from "../../utils/format";
 import { useRelativeTime } from "../../hooks/use-relative-time";
+import { handlerKindLabel } from "../../utils/status";
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -17,6 +19,7 @@ interface Props {
   listeners: ListenerData[];
   jobs: JobData[];
   focusMethod: string | null;
+  onSwitchToCode?: () => void;
 }
 
 /** Inline chips for listener modifier options. */
@@ -68,11 +71,89 @@ function ScheduleChips({ job }: { job: JobData }) {
   );
 }
 
-interface ListenerDetailProps {
-  listener: ListenerData;
+/** Stats row: CALLS · 1H, LAST, FAILED, TIMED OUT, AVG */
+function HandlerStatsRow({ listener }: { listener: ListenerData }) {
+  const lastLabel = listener.last_invoked_at
+    ? formatRelativeTime(listener.last_invoked_at)
+    : "—";
+
+  return (
+    <div class="ht-detail-stats-row" data-testid="handler-stats-row">
+      <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Calls · 1H</span>
+        <span class="ht-detail-stats-row__value">{listener.total_invocations}</span>
+      </div>
+      <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Last</span>
+        <span class="ht-detail-stats-row__value">{lastLabel}</span>
+      </div>
+      <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Failed</span>
+        <span class={`ht-detail-stats-row__value${listener.failed > 0 ? " ht-detail-stats-row__value--err" : ""}`}>
+          {listener.failed > 0 ? listener.failed : "—"}
+        </span>
+      </div>
+      <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Timed Out</span>
+        <span class={`ht-detail-stats-row__value${listener.timed_out > 0 ? " ht-detail-stats-row__value--warn" : ""}`}>
+          {listener.timed_out > 0 ? listener.timed_out : "—"}
+        </span>
+      </div>
+      <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Avg</span>
+        <span class="ht-detail-stats-row__value">
+          {listener.avg_duration_ms > 0 ? formatDuration(listener.avg_duration_ms) : "—"}
+        </span>
+      </div>
+    </div>
+  );
 }
 
-function ListenerDetail({ listener }: ListenerDetailProps) {
+/** Stats row for scheduled jobs */
+function JobStatsRow({ job }: { job: JobData }) {
+  const lastLabel = job.last_executed_at
+    ? formatRelativeTime(job.last_executed_at)
+    : "—";
+
+  return (
+    <div class="ht-detail-stats-row" data-testid="job-stats-row">
+      <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Runs · 1H</span>
+        <span class="ht-detail-stats-row__value">{job.total_executions}</span>
+      </div>
+      <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Last</span>
+        <span class="ht-detail-stats-row__value">{lastLabel}</span>
+      </div>
+      <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Failed</span>
+        <span class={`ht-detail-stats-row__value${job.failed > 0 ? " ht-detail-stats-row__value--err" : ""}`}>
+          {job.failed > 0 ? job.failed : "—"}
+        </span>
+      </div>
+      <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Timed Out</span>
+        <span class={`ht-detail-stats-row__value${job.timed_out > 0 ? " ht-detail-stats-row__value--warn" : ""}`}>
+          {job.timed_out > 0 ? job.timed_out : "—"}
+        </span>
+      </div>
+      <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Avg</span>
+        <span class="ht-detail-stats-row__value">
+          {job.avg_duration_ms > 0 ? formatDuration(job.avg_duration_ms) : "—"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+
+interface ListenerDetailProps {
+  listener: ListenerData;
+  onSwitchToCode?: () => void;
+}
+
+function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
   const { data: invocations, loading, refetch } = useScopedApi(
     (since) => getHandlerInvocations(listener.listener_id, 50, since),
     { deps: [listener.listener_id] },
@@ -92,13 +173,70 @@ function ListenerDetail({ listener }: ListenerDetailProps) {
     },
   );
 
+  const kindLabel = handlerKindLabel("listener", listener.topic, null);
+  const isFailing = listener.failed > 0 || listener.timed_out > 0;
+  const { filename: sourceFilename, line: sourceLine } = parseSourceLocation(listener.source_location);
+
   return (
     <div class="ht-detail-pane__content" data-testid={`listener-detail-${listener.listener_id}`}>
-      <div class="ht-detail-pane__meta">
-        <span class="ht-detail-label">Handler</span>
+      {/* Header: kind badge + name */}
+      <div class="ht-detail-pane__header">
+        <span class="ht-chip ht-chip--modifier" aria-label={`kind: ${kindLabel}`}>{kindLabel}</span>
+        <span class="ht-detail-pane__handler-name">{listener.handler_summary || listener.handler_method}</span>
+        {isFailing && (
+          <span class="ht-badge ht-badge--danger ht-badge--sm" data-testid="handler-status-pill">failing</span>
+        )}
+      </div>
+
+      {/* Subtitle: human_description */}
+      {listener.human_description && (
+        <p class="ht-detail-pane__subtitle" data-testid="handler-human-description">
+          {listener.human_description}
+        </p>
+      )}
+
+      {/* FIRES WHEN: predicate_description */}
+      {listener.predicate_description && (
+        <div class="ht-detail-pane__fires-when" data-testid="handler-fires-when">
+          <span class="ht-detail-label">Fires when</span>
+          <span class="ht-text-muted ht-text-sm">{listener.predicate_description}</span>
+        </div>
+      )}
+
+      {/* Modifier chips */}
+      <ModifierChips listener={listener} />
+
+      {/* Method handler: code block */}
+      <div class="ht-detail-pane__meta" data-testid="handler-method-block">
+        <span class="ht-detail-label">Method Handler</span>
         <code class="ht-text-mono">{listener.handler_method}</code>
       </div>
-      <ModifierChips listener={listener} />
+
+      {/* Source file location */}
+      {listener.source_location && (
+        <div class="ht-detail-pane__source-loc" data-testid="handler-source-location">
+          <span class="ht-text-mono ht-text-sm ht-text-muted">
+            {sourceFilename}{sourceLine ? `:${sourceLine}` : ""}
+          </span>
+        </div>
+      )}
+
+      {/* Error banner */}
+      {isFailing && (listener.last_error_message || listener.last_error_type) && (
+        <div class="ht-detail-pane__error-banner" data-testid="handler-error-banner">
+          <span class="ht-detail-pane__error-banner-heading">
+            Last Error{listener.last_error_type ? ` — ${listener.last_error_type}` : ""}
+          </span>
+          {listener.last_error_message && (
+            <p class="ht-detail-pane__error-banner-message">{listener.last_error_message}</p>
+          )}
+        </div>
+      )}
+
+      {/* Stats row */}
+      <HandlerStatsRow listener={listener} />
+
+      {/* Invocations table */}
       {loading.value && !invocations.value ? (
         <p class="ht-text-muted ht-text-xs">Loading invocations…</p>
       ) : (
@@ -107,15 +245,28 @@ function ListenerDetail({ listener }: ListenerDetailProps) {
           listenerId={listener.listener_id}
         />
       )}
+
+      {/* View in code button */}
+      {onSwitchToCode && listener.source_location && (
+        <button
+          type="button"
+          class="ht-btn ht-btn--ghost ht-btn--sm ht-detail-pane__view-in-code"
+          data-testid="view-in-code-btn"
+          onClick={onSwitchToCode}
+        >
+          view in code →
+        </button>
+      )}
     </div>
   );
 }
 
 interface JobDetailProps {
   job: JobData;
+  onSwitchToCode?: () => void;
 }
 
-function JobDetail({ job }: JobDetailProps) {
+function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
   const { data: executions, loading, refetch } = useScopedApi(
     (since) => getJobExecutions(job.job_id, 50, since),
     { deps: [job.job_id] },
@@ -135,13 +286,58 @@ function JobDetail({ job }: JobDetailProps) {
     },
   );
 
+  const kindLabel = handlerKindLabel("job", null, job.trigger_type);
+
+  // Next-run strip
+  const nextRunText = job.cancelled
+    ? "cancelled"
+    : job.next_run
+    ? `next ${formatRelativeTime(job.next_run)}`
+    : job.fire_at
+    ? `fire at ${formatRelativeTime(job.fire_at)}`
+    : null;
+
+  const { filename: sourceFilename, line: sourceLine } = parseSourceLocation(job.source_location);
+
   return (
     <div class="ht-detail-pane__content" data-testid={`job-detail-${job.job_id}`}>
-      <div class="ht-detail-pane__meta">
-        <span class="ht-detail-label">Job</span>
-        <code class="ht-text-mono">{job.job_name}</code>
+      {/* Header: kind badge + name */}
+      <div class="ht-detail-pane__header">
+        <span class="ht-chip ht-chip--schedule" aria-label={`kind: ${kindLabel}`}>{kindLabel}</span>
+        <span class="ht-detail-pane__handler-name">{job.job_name}</span>
+        {job.cancelled && (
+          <span class="ht-badge ht-badge--neutral ht-badge--sm" data-testid="job-status-pill">cancelled</span>
+        )}
       </div>
+
+      {/* Subtitle: human_description */}
+      {job.trigger_label && (
+        <p class="ht-detail-pane__subtitle">{job.trigger_label}</p>
+      )}
+
+      {/* Schedule chips */}
       <ScheduleChips job={job} />
+
+      {/* Next-run strip */}
+      {nextRunText && (
+        <div class="ht-detail-pane__next-run" data-testid="job-next-run">
+          <code class="ht-text-mono ht-text-sm ht-text-muted">{nextRunText}</code>
+        </div>
+      )}
+
+      {/* Source file location */}
+      {job.source_location && (
+        <div class="ht-detail-pane__source-loc" data-testid="job-source-location">
+          <span class="ht-text-mono ht-text-sm ht-text-muted">
+            {sourceFilename}{sourceLine ? `:${sourceLine}` : ""}
+          </span>
+        </div>
+      )}
+
+      {/* Stats row */}
+      <JobStatsRow job={job} />
+
+      {/* Executions table */}
       {loading.value && !executions.value ? (
         <p class="ht-text-muted ht-text-xs">Loading executions…</p>
       ) : (
@@ -150,11 +346,23 @@ function JobDetail({ job }: JobDetailProps) {
           jobId={job.job_id}
         />
       )}
+
+      {/* View in code button */}
+      {onSwitchToCode && job.source_location && (
+        <button
+          type="button"
+          class="ht-btn ht-btn--ghost ht-btn--sm ht-detail-pane__view-in-code"
+          data-testid="view-in-code-btn"
+          onClick={onSwitchToCode}
+        >
+          view in code →
+        </button>
+      )}
     </div>
   );
 }
 
-export function HandlersTab({ listeners, jobs, focusMethod }: Props) {
+export function HandlersTab({ listeners, jobs, focusMethod, onSwitchToCode }: Props) {
   // Selected item in master list
   const selectedId = useRef(signal<SelectedHandlerId | null>(null)).current;
   // Mobile mode: show detail instead of list
@@ -221,6 +429,9 @@ export function HandlersTab({ listeners, jobs, focusMethod }: Props) {
 
   return (
     <div class="ht-handlers-tab" ref={containerRef}>
+      {/* Health strip — above master/detail layout */}
+      <HandlersHealthStrip listeners={listeners} jobs={jobs} />
+
       {/* Mobile: back button in detail view */}
       {showMobileDetail && (
         <button
@@ -251,9 +462,9 @@ export function HandlersTab({ listeners, jobs, focusMethod }: Props) {
         {showDetailPane && (
           <div class="ht-master-detail__detail">
             {selectedListener ? (
-              <ListenerDetail listener={selectedListener} />
+              <ListenerDetail listener={selectedListener} onSwitchToCode={onSwitchToCode} />
             ) : selectedJob ? (
-              <JobDetail job={selectedJob} />
+              <JobDetail job={selectedJob} onSwitchToCode={onSwitchToCode} />
             ) : (
               <div class="ht-detail-pane__empty" data-testid="detail-placeholder">
                 <p class="ht-text-muted">Select a handler or job to see details.</p>

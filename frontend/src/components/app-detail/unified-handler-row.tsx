@@ -2,7 +2,7 @@ import { StatusShape } from "../shared/status-shape";
 import type { StatusKind } from "../../utils/status";
 import { handlerKindLabel } from "../../utils/status";
 import type { ListenerData, JobData } from "../../api/endpoints";
-import { pluralize } from "../../utils/format";
+import { pluralize, formatRelativeTime } from "../../utils/format";
 
 export type UnifiedItemKind = "listener" | "job";
 
@@ -17,6 +17,16 @@ interface Props {
   onSelect: () => void;
 }
 
+/** Map a handler kind label to a visual glyph character. */
+function kindGlyph(label: string): string {
+  switch (label) {
+    case "state": return "◇";
+    case "svc": return "☎";
+    case "cron": return "⏱";
+    default: return "⚡"; // event
+  }
+}
+
 /**
  * A single row in the unified handlers+jobs master list.
  *
@@ -27,8 +37,10 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
   let invocationsOrRuns: number;
   let failed: number;
   let timedOut: number;
-  let lastErrorPreview: string | null = null;
   let chipLabel: string;
+  let isFailing: boolean;
+  let lastErrorMessage: string | null = null;
+  let nextRunLabel: string | null = null;
 
   if (item.kind === "listener") {
     const l = item.data;
@@ -36,16 +48,27 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
     invocationsOrRuns = l.total_invocations;
     failed = l.failed;
     timedOut = l.timed_out;
-    lastErrorPreview = (failed > 0 || timedOut > 0) ? (l.last_error_message ?? null) : null;
+    isFailing = failed > 0 || timedOut > 0;
+    lastErrorMessage = isFailing ? (l.last_error_message ?? null) : null;
   } else {
     const j = item.data;
     chipLabel = handlerKindLabel("job", null, j.trigger_type);
     invocationsOrRuns = j.total_executions;
     failed = j.failed;
     timedOut = j.timed_out;
+    isFailing = failed > 0 || timedOut > 0;
+    // Next-run line for schedule jobs
+    if (j.cancelled) {
+      nextRunLabel = "cancelled";
+    } else if (j.next_run) {
+      nextRunLabel = `next ${formatRelativeTime(j.next_run)}`;
+    } else if (j.fire_at) {
+      nextRunLabel = `fire at ${formatRelativeTime(j.fire_at)}`;
+    }
   }
 
   const callLabel = item.kind === "listener" ? "call" : "run";
+  const glyph = kindGlyph(chipLabel);
 
   return (
     <div
@@ -66,6 +89,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
       <span class="ht-unified-row__status" aria-hidden="true">
         <StatusShape kind={item.statusKind} size={10} />
       </span>
+      <span class="ht-unified-row__kind-glyph" aria-hidden="true">{glyph}</span>
       <div class="ht-unified-row__body">
         <div class="ht-unified-row__header">
           <span class="ht-unified-row__kind-chip" aria-label={`kind: ${chipLabel}`}>
@@ -73,8 +97,17 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
           </span>
           <span class="ht-unified-row__name">{item.name}</span>
         </div>
-        {item.humanDescription && (
+        {/* Subline: error message (when failing) or human description (otherwise) */}
+        {isFailing && lastErrorMessage ? (
+          <span class="ht-unified-row__subline--err" title={lastErrorMessage}>
+            {lastErrorMessage}
+          </span>
+        ) : item.humanDescription ? (
           <span class="ht-unified-row__desc">{item.humanDescription}</span>
+        ) : null}
+        {/* Next-run line for schedule jobs */}
+        {nextRunLabel !== null && (
+          <span class="ht-unified-row__next-run">{nextRunLabel}</span>
         )}
         <div class="ht-unified-row__stats">
           <span title={`Total ${callLabel}s`}>{pluralize(invocationsOrRuns, callLabel)}</span>
@@ -85,11 +118,6 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
             <span class="ht-unified-row__stats--warn">{timedOut} timed out</span>
           )}
         </div>
-        {lastErrorPreview && (
-          <span class="ht-unified-row__error-preview" title={lastErrorPreview}>
-            {lastErrorPreview}
-          </span>
-        )}
       </div>
     </div>
   );

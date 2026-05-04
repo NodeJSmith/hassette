@@ -144,6 +144,113 @@ describe("UnifiedHandlerRow — listener", () => {
   });
 });
 
+describe("UnifiedHandlerRow — kind glyph", () => {
+  it("renders kind glyph for state listener", () => {
+    const listener = createListener({ listener_id: 1, topic: "state_changed" });
+    const item = { kind: "listener" as const, id: 1, name: "on_state", humanDescription: null, statusKind: "ok" as const, data: listener };
+    const { container } = render(
+      <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
+    );
+    expect(container.querySelector(".ht-unified-row__kind-glyph")).not.toBeNull();
+  });
+
+  it("renders ⚡ glyph for event kind", () => {
+    const listener = createListener({ listener_id: 1, topic: "some_event" });
+    const item = { kind: "listener" as const, id: 1, name: "on_event", humanDescription: null, statusKind: "ok" as const, data: listener };
+    const { container } = render(
+      <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
+    );
+    const glyph = container.querySelector(".ht-unified-row__kind-glyph");
+    expect(glyph?.textContent).toBe("⚡");
+  });
+
+  it("renders ◇ glyph for state kind", () => {
+    const listener = createListener({ listener_id: 1, topic: "state_changed" });
+    const item = { kind: "listener" as const, id: 1, name: "on_state", humanDescription: null, statusKind: "ok" as const, data: listener };
+    const { container } = render(
+      <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
+    );
+    const glyph = container.querySelector(".ht-unified-row__kind-glyph");
+    expect(glyph?.textContent).toBe("◇");
+  });
+
+  it("renders ⏱ glyph for cron job", () => {
+    const job = createJob({ job_id: 1, trigger_type: "Cron" });
+    const item = { kind: "job" as const, id: 1, name: "my_job", humanDescription: null, statusKind: "ok" as const, data: job };
+    const { container } = render(
+      <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
+    );
+    const glyph = container.querySelector(".ht-unified-row__kind-glyph");
+    expect(glyph?.textContent).toBe("⏱");
+  });
+
+  it("renders ☎ glyph for service-type job", () => {
+    const job = createJob({ job_id: 2, trigger_type: "Every" });
+    const item = { kind: "job" as const, id: 2, name: "poll_job", humanDescription: null, statusKind: "ok" as const, data: job };
+    const { container } = render(
+      <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
+    );
+    const glyph = container.querySelector(".ht-unified-row__kind-glyph");
+    expect(glyph?.textContent).toBe("☎");
+  });
+});
+
+describe("UnifiedHandlerRow — subline switching", () => {
+  it("shows last_error_message when handler has errors", () => {
+    const listener = createListener({
+      listener_id: 1,
+      failed: 2,
+      last_error_message: "KeyError: 'foo'",
+      human_description: "When something changes",
+    });
+    const item = { kind: "listener" as const, id: 1, name: "on_change", humanDescription: "When something changes", statusKind: "err" as const, data: listener };
+    const { container } = render(
+      <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
+    );
+    // Error message shown
+    const errSubline = container.querySelector(".ht-unified-row__subline--err");
+    expect(errSubline).not.toBeNull();
+    expect(errSubline?.textContent).toContain("KeyError");
+  });
+
+  it("shows human_description in dim when handler has no errors", () => {
+    const listener = createListener({
+      listener_id: 1,
+      failed: 0,
+      timed_out: 0,
+      last_error_message: null,
+      human_description: "Fires on door open",
+    });
+    const item = { kind: "listener" as const, id: 1, name: "on_door", humanDescription: "Fires on door open", statusKind: "ok" as const, data: listener };
+    const { container } = render(
+      <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
+    );
+    const descSubline = container.querySelector(".ht-unified-row__desc");
+    expect(descSubline).not.toBeNull();
+    expect(descSubline?.textContent).toContain("Fires on door open");
+    expect(container.querySelector(".ht-unified-row__subline--err")).toBeNull();
+  });
+
+  it("shows next-run line for schedule jobs", () => {
+    const job = createJob({ job_id: 1, next_run: Math.floor(Date.now() / 1000) + 60 });
+    const item = { kind: "job" as const, id: 1, name: "my_job", humanDescription: null, statusKind: "ok" as const, data: job };
+    const { container } = render(
+      <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
+    );
+    expect(container.querySelector(".ht-unified-row__next-run")).not.toBeNull();
+  });
+
+  it("shows 'cancelled' for cancelled schedule jobs", () => {
+    const job = createJob({ job_id: 1, cancelled: true });
+    const item = { kind: "job" as const, id: 1, name: "my_job", humanDescription: null, statusKind: "mute" as const, data: job };
+    const { container } = render(
+      <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
+    );
+    const nextRun = container.querySelector(".ht-unified-row__next-run");
+    expect(nextRun?.textContent).toBe("cancelled");
+  });
+});
+
 describe("UnifiedHandlerRow — job", () => {
   it("renders with data-testid containing kind='job' and job id", () => {
     const item = makeJobItem({ job_id: 7 });

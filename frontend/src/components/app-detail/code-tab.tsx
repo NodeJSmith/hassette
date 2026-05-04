@@ -3,6 +3,7 @@ import { signal } from "@preact/signals";
 import { createHighlighter } from "shiki";
 import { getAppSource } from "../../api/endpoints";
 import type { AppSourceData, ListenerData } from "../../api/endpoints";
+import { parseSourceLocation } from "../../utils/format";
 
 interface Props {
   appKey: string;
@@ -18,12 +19,11 @@ function buildAnnotationMap(listeners: ListenerData[]): Map<number, string[]> {
   const map = new Map<number, string[]>();
   for (const l of listeners) {
     if (!l.source_location) continue;
-    const parts = l.source_location.split(":");
-    const lineNum = parts.length >= 2 ? parseInt(parts[parts.length - 1], 10) : NaN;
-    if (!Number.isFinite(lineNum)) continue;
-    const existing = map.get(lineNum) ?? [];
+    const { line } = parseSourceLocation(l.source_location);
+    if (line === null) continue;
+    const existing = map.get(line) ?? [];
     existing.push(l.handler_method);
-    map.set(lineNum, existing);
+    map.set(line, existing);
   }
   return map;
 }
@@ -115,10 +115,29 @@ export function CodeTab({ appKey, listeners }: Props) {
   // Remove trailing empty line from split if present
   const lineCount = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
 
+  const handleCopyPath = () => {
+    if (source.value?.filename) {
+      void navigator.clipboard.writeText(source.value.filename);
+    }
+  };
+
   return (
     <div class="ht-code-tab" data-testid="code-tab-content">
-      <div class="ht-code-tab__header">
+      <div class="ht-code-tab__header" data-testid="code-tab-header">
         <span class="ht-text-mono ht-text-sm ht-text-muted">{source.value.filename}</span>
+        <div class="ht-code-tab__header-meta">
+          <span class="ht-text-muted ht-text-sm">{lineCount} lines</span>
+          <span class="ht-code-tab__readonly-label">read-only</span>
+          <button
+            type="button"
+            class="ht-btn ht-btn--ghost ht-btn--sm"
+            data-testid="copy-path-btn"
+            onClick={handleCopyPath}
+            aria-label="Copy file path"
+          >
+            copy path
+          </button>
+        </div>
       </div>
       <div class="ht-code-tab__body">
         {/* Gutter with line numbers and annotations */}

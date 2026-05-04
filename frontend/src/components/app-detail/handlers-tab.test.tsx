@@ -78,7 +78,7 @@ describe("HandlersTab", () => {
   it("renders modifier chips for listener in detail pane", async () => {
     const listener = createListener({
       listener_id: 3,
-      debounce: 500,
+      debounce: 0.5,
       throttle: null,
       once: 0,
       immediate: 0,
@@ -109,6 +109,90 @@ describe("HandlersTab", () => {
   it("does not show back button on desktop layout", () => {
     const { queryByTestId } = renderHandlersTab();
     expect(queryByTestId("back-to-list")).toBeNull();
+  });
+
+  it("handler detail: shows method handler block when listener is selected", async () => {
+    const listener = createListener({
+      listener_id: 7,
+      handler_method: "on_door_opened",
+      source_location: "garage_alerts.py:42",
+    });
+    const { getByTestId } = renderHandlersTab([listener], []);
+    fireEvent.click(getByTestId("unified-row-listener-7"));
+    await waitFor(() => {
+      expect(getByTestId("listener-detail-7")).toBeDefined();
+    });
+    expect(getByTestId("handler-method-block")).toBeDefined();
+    expect(getByTestId("handler-method-block").textContent).toContain("on_door_opened");
+  });
+
+  it("handler detail: shows source location when available", async () => {
+    const listener = createListener({
+      listener_id: 8,
+      source_location: "garage_alerts.py:42",
+    });
+    const { getByTestId } = renderHandlersTab([listener], []);
+    fireEvent.click(getByTestId("unified-row-listener-8"));
+    await waitFor(() => {
+      expect(getByTestId("handler-source-location")).toBeDefined();
+    });
+    expect(getByTestId("handler-source-location").textContent).toContain("garage_alerts.py");
+    expect(getByTestId("handler-source-location").textContent).toContain("42");
+  });
+
+  it("handler detail: stats row renders with counts", async () => {
+    const listener = createListener({
+      listener_id: 9,
+      total_invocations: 15,
+      failed: 2,
+      timed_out: 1,
+    });
+    const { getByTestId } = renderHandlersTab([listener], []);
+    fireEvent.click(getByTestId("unified-row-listener-9"));
+    await waitFor(() => {
+      expect(getByTestId("handler-stats-row")).toBeDefined();
+    });
+    const statsRow = getByTestId("handler-stats-row");
+    expect(statsRow.textContent).toContain("15");
+    expect(statsRow.textContent).toContain("2");
+    expect(statsRow.textContent).toContain("1");
+  });
+
+  it("handler detail: shows error banner when listener has errors", async () => {
+    const listener = createListener({
+      listener_id: 11,
+      failed: 1,
+      last_error_type: "KeyError",
+      last_error_message: "missing key 'state'",
+    });
+    const { getByTestId } = renderHandlersTab([listener], []);
+    fireEvent.click(getByTestId("unified-row-listener-11"));
+    await waitFor(() => {
+      expect(getByTestId("handler-error-banner")).toBeDefined();
+    });
+    expect(getByTestId("handler-error-banner").textContent).toContain("KeyError");
+  });
+
+  it("handler detail: shows fires-when when predicate_description is set", async () => {
+    const listener = createListener({
+      listener_id: 12,
+      predicate_description: "entity_id == 'light.kitchen'",
+    });
+    const { getByTestId } = renderHandlersTab([listener], []);
+    fireEvent.click(getByTestId("unified-row-listener-12"));
+    await waitFor(() => {
+      expect(getByTestId("handler-fires-when")).toBeDefined();
+    });
+  });
+
+  it("handler detail: does not show fires-when when predicate_description is null", async () => {
+    const listener = createListener({ listener_id: 13, predicate_description: null });
+    const { getByTestId, queryByTestId } = renderHandlersTab([listener], []);
+    fireEvent.click(getByTestId("unified-row-listener-13"));
+    await waitFor(() => {
+      expect(getByTestId("listener-detail-13")).toBeDefined();
+    });
+    expect(queryByTestId("handler-fires-when")).toBeNull();
   });
 
   it("selects first item automatically when focusMethod matches a handler", () => {
