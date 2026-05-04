@@ -20,18 +20,17 @@ describe("HandlersHealthStrip", () => {
     expect(text.toLowerCase()).toContain("timed out");
   });
 
-  it("renders handler + job count in HANDLERS column", () => {
+  it("renders combined handler + job count in HANDLERS column", () => {
     const listeners = [createListener({ listener_id: 1 }), createListener({ listener_id: 2 })];
     const jobs = [createJob({ job_id: 10 })];
     const { container } = render(
       <HandlersHealthStrip listeners={listeners} jobs={jobs} />,
     );
     const cards = container.querySelectorAll(".ht-health-card");
-    expect(cards[0].textContent).toContain("2");
-    expect(cards[0].textContent).toContain("1");
+    expect(cards[0].textContent).toContain("3");
   });
 
-  it("renders total invocations + executions in INVOCATIONS column", () => {
+  it("renders combined invocations + executions in INVOCATIONS column", () => {
     const listeners = [createListener({ listener_id: 1, total_invocations: 10 })];
     const jobs = [createJob({ job_id: 1, total_executions: 5 })];
     const { container } = render(
@@ -39,8 +38,7 @@ describe("HandlersHealthStrip", () => {
     );
     const cards = container.querySelectorAll(".ht-health-card");
     const text = cards[1].textContent ?? "";
-    expect(text).toContain("10");
-    expect(text).toContain("5");
+    expect(text).toContain("15");
   });
 
   it("renders 100% success rate when no errors", () => {

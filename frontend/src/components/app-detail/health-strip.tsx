@@ -26,21 +26,13 @@ export function HandlersHealthStrip({ listeners, jobs }: HandlersHealthStripProp
       {/* Column 1: HANDLERS */}
       <div class="ht-health-card">
         <span class="ht-health-card__label">Handlers</span>
-        <span class="ht-health-card__value">
-          {handlerCount}
-          <span class="ht-health-card__detail"> +{jobCount} jobs</span>
-        </span>
+        <span class="ht-health-card__value">{handlerCount + jobCount}</span>
       </div>
 
       {/* Column 2: INVOCATIONS · 1H */}
       <div class="ht-health-card">
         <span class="ht-health-card__label">Invocations · 1H</span>
-        <span class="ht-health-card__value">
-          {totalInvocations}
-          {totalExecutions > 0 && (
-            <span class="ht-health-card__detail"> +{totalExecutions}</span>
-          )}
-        </span>
+        <span class="ht-health-card__value">{totalAll}</span>
       </div>
 
       {/* Column 3: SUCCESS RATE */}
