@@ -173,26 +173,27 @@ describe("HandlersTab", () => {
     expect(getByTestId("handler-error-banner").textContent).toContain("KeyError");
   });
 
-  it("handler detail: shows fires-when when predicate_description is set", async () => {
+  it("handler detail: shows registration source when available", async () => {
     const listener = createListener({
       listener_id: 12,
-      predicate_description: "entity_id == 'light.kitchen'",
+      registration_source: "self.bus.on_state_change('light.kitchen', handler=self.on_light)",
     });
     const { getByTestId } = renderHandlersTab([listener], []);
     fireEvent.click(getByTestId("unified-row-listener-12"));
     await waitFor(() => {
-      expect(getByTestId("handler-fires-when")).toBeDefined();
+      expect(getByTestId("handler-registration-source")).toBeDefined();
     });
+    expect(getByTestId("handler-registration-source").textContent).toContain("on_state_change");
   });
 
-  it("handler detail: does not show fires-when when predicate_description is null", async () => {
-    const listener = createListener({ listener_id: 13, predicate_description: null });
+  it("handler detail: omits registration source when null", async () => {
+    const listener = createListener({ listener_id: 13, registration_source: null });
     const { getByTestId, queryByTestId } = renderHandlersTab([listener], []);
     fireEvent.click(getByTestId("unified-row-listener-13"));
     await waitFor(() => {
       expect(getByTestId("listener-detail-13")).toBeDefined();
     });
-    expect(queryByTestId("handler-fires-when")).toBeNull();
+    expect(queryByTestId("handler-registration-source")).toBeNull();
   });
 
   it("selects first item automatically when focusMethod matches a handler", () => {

@@ -11,7 +11,8 @@ import { useAppState } from "../../state/context";
 import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
 import { formatTriggerDetail, formatDuration, formatRelativeTime, parseSourceLocation } from "../../utils/format";
 import { useRelativeTime } from "../../hooks/use-relative-time";
-import { handlerKindLabel } from "../../utils/status";
+import { handlerKindLabel, statusToKind } from "../../utils/status";
+import { StatusShape } from "../shared/status-shape";
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -175,13 +176,17 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
 
   const kindLabel = handlerKindLabel("listener", listener.topic, null);
   const isFailing = listener.failed > 0 || listener.timed_out > 0;
+  const listenerKind = isFailing ? statusToKind("failed") : statusToKind("running");
   const { filename: sourceFilename, line: sourceLine } = parseSourceLocation(listener.source_location);
 
   return (
     <div class="ht-detail-pane__content" data-testid={`listener-detail-${listener.listener_id}`}>
-      {/* Header: kind badge + name */}
+      {/* Header: kind badge + name + status pill */}
       <div class="ht-detail-pane__header">
-        <span class="ht-chip ht-chip--modifier" aria-label={`kind: ${kindLabel}`}>{kindLabel}</span>
+        <span class={`ht-kind-badge ht-kind-badge--${listenerKind}`} aria-label={`kind: ${kindLabel}`}>
+          <StatusShape kind={listenerKind} size={8} />
+          {kindLabel}
+        </span>
         <span class="ht-detail-pane__handler-name">{listener.handler_method.split(".").pop() ?? listener.handler_method}</span>
         {isFailing && (
           <span class="ht-badge ht-badge--danger ht-badge--sm" data-testid="handler-status-pill">failing</span>
@@ -195,21 +200,21 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
         </p>
       )}
 
-      {/* FIRES WHEN: predicate_description */}
-      {listener.predicate_description && (
-        <div class="ht-detail-pane__fires-when" data-testid="handler-fires-when">
-          <span class="ht-detail-label">Fires when</span>
-          <span class="ht-text-muted ht-text-sm">{listener.predicate_description}</span>
+      {/* Registration source: actual code snippet */}
+      {listener.registration_source && (
+        <div class="ht-detail-pane__registration" data-testid="handler-registration-source">
+          <span class="ht-detail-label">Registration</span>
+          <pre class="ht-detail-pane__code-snippet"><code>{listener.registration_source}</code></pre>
         </div>
       )}
 
       {/* Modifier chips */}
       <ModifierChips listener={listener} />
 
-      {/* Method handler: code block */}
+      {/* Source file location + method */}
       <div class="ht-detail-pane__meta" data-testid="handler-method-block">
-        <span class="ht-detail-label">Method Handler</span>
-        <code class="ht-text-mono">{listener.handler_method}</code>
+        <span class="ht-detail-label">Handler</span>
+        <code class="ht-text-mono ht-text-sm">{listener.handler_method}</code>
       </div>
 
       {/* Source file location */}
@@ -299,11 +304,16 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
 
   const { filename: sourceFilename, line: sourceLine } = parseSourceLocation(job.source_location);
 
+  const jobKind = job.cancelled ? statusToKind("disabled") : (job.failed > 0 ? statusToKind("failed") : statusToKind("running"));
+
   return (
     <div class="ht-detail-pane__content" data-testid={`job-detail-${job.job_id}`}>
-      {/* Header: kind badge + name */}
+      {/* Header: kind badge + name + status pill */}
       <div class="ht-detail-pane__header">
-        <span class="ht-chip ht-chip--schedule" aria-label={`kind: ${kindLabel}`}>{kindLabel}</span>
+        <span class={`ht-kind-badge ht-kind-badge--${jobKind}`} aria-label={`kind: ${kindLabel}`}>
+          <StatusShape kind={jobKind} size={8} />
+          {kindLabel}
+        </span>
         <span class="ht-detail-pane__handler-name">{job.job_name}</span>
         {job.cancelled && (
           <span class="ht-badge ht-badge--neutral ht-badge--sm" data-testid="job-status-pill">cancelled</span>

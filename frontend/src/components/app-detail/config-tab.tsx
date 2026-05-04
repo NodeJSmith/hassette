@@ -12,10 +12,13 @@ type ConfigRecord = Record<string, unknown>;
 /**
  * Single config key-value table for an object config.
  */
-function ConfigTable({ config }: { config: ConfigRecord }) {
-  // revealed[key] = true when revealed
-  const revealed = useRef(signal<Record<string, boolean>>({})).current;
+function formatConfigValue(val: unknown): string {
+  if (val === null || val === undefined) return "—";
+  if (typeof val === "object") return JSON.stringify(val);
+  return String(val);
+}
 
+function ConfigTable({ config }: { config: ConfigRecord }) {
   const entries = Object.entries(config);
   if (entries.length === 0) {
     return (
@@ -31,47 +34,22 @@ function ConfigTable({ config }: { config: ConfigRecord }) {
         <tr>
           <th class="ht-config-tab__col-key">Key</th>
           <th class="ht-config-tab__col-value">Value</th>
-          <th class="ht-config-tab__col-action"></th>
         </tr>
       </thead>
       <tbody>
-        {entries.map(([key, val]) => {
-          const isRevealed = revealed.value[key] ?? false;
-
-          return (
-            <tr key={key}>
-              <td>
-                <code class="ht-text-mono ht-text-sm">{key}</code>
-              </td>
-              <td
-                class="ht-config-tab__value"
-                data-testid={`config-value-${key}`}
-              >
-                {isRevealed ? (
-                  <code class="ht-text-mono ht-text-sm">{String(val ?? "")}</code>
-                ) : (
-                  <span class="ht-config-tab__redacted">••••••</span>
-                )}
-              </td>
-              <td>
-                <button
-                  type="button"
-                  class="ht-btn ht-btn--ghost ht-btn--xs"
-                  data-testid={`reveal-btn-${key}`}
-                  aria-label={isRevealed ? `Redact ${key}` : `Reveal ${key}`}
-                  onClick={() => {
-                    revealed.value = {
-                      ...revealed.value,
-                      [key]: !isRevealed,
-                    };
-                  }}
-                >
-                  {isRevealed ? "Redact" : "Reveal"}
-                </button>
-              </td>
-            </tr>
-          );
-        })}
+        {entries.map(([key, val]) => (
+          <tr key={key}>
+            <td>
+              <code class="ht-text-mono ht-text-sm">{key}</code>
+            </td>
+            <td
+              class="ht-config-tab__value"
+              data-testid={`config-value-${key}`}
+            >
+              <code class="ht-text-mono ht-text-sm">{formatConfigValue(val)}</code>
+            </td>
+          </tr>
+        ))}
       </tbody>
     </table>
   );

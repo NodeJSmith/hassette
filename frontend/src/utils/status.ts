@@ -130,8 +130,8 @@ export function handlerKindLabel(
     return "svc";
   }
   const lower = topic?.toLowerCase() ?? "";
-  if (lower.includes("state_changed") || lower.includes("state")) return "state";
-  if (lower.includes("call_service") || lower.includes("service")) return "svc";
+  if (lower.includes("state_changed") || lower.includes("state")) return "state change";
+  if (lower.includes("call_service") || lower.includes("service")) return "service call";
   return "event";
 }
 

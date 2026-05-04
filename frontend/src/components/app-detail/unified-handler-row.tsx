@@ -20,10 +20,11 @@ interface Props {
 /** Map a handler kind label to a visual glyph character. */
 function kindGlyph(label: string): string {
   switch (label) {
-    case "state": return "◇";
+    case "state change": return "◇";
+    case "service call": return "☎";
     case "svc": return "☎";
     case "cron": return "⏱";
-    default: return "⚡"; // event
+    default: return "⚡";
   }
 }
 
