@@ -4,9 +4,10 @@ import { computeHandlerStats } from "../../utils/handler-stats";
 interface HandlersHealthStripProps {
   listeners: ListenerData[];
   jobs: JobData[];
+  timeLabel?: string;
 }
 
-export function HandlersHealthStrip({ listeners, jobs }: HandlersHealthStripProps) {
+export function HandlersHealthStrip({ listeners, jobs, timeLabel }: HandlersHealthStripProps) {
   const handlerCount = listeners.length;
   const jobCount = jobs.length;
 
@@ -31,7 +32,7 @@ export function HandlersHealthStrip({ listeners, jobs }: HandlersHealthStripProp
 
       {/* Column 2: INVOCATIONS · 1H */}
       <div class="ht-health-card">
-        <span class="ht-health-card__label">Invocations · 1H</span>
+        <span class="ht-health-card__label">Invocations{timeLabel ? ` · ${timeLabel}` : ""}</span>
         <span class="ht-health-card__value">{totalAll}</span>
       </div>
 
@@ -39,7 +40,7 @@ export function HandlersHealthStrip({ listeners, jobs }: HandlersHealthStripProp
       <div class="ht-health-card">
         <span class="ht-health-card__label">Success Rate</span>
         <span class={`ht-health-card__value${hasErrors ? " ht-health-card__value--warning" : ""}`}>
-          {successRate}%
+          {totalAll > 0 ? `${successRate}%` : "—"}
         </span>
       </div>
 

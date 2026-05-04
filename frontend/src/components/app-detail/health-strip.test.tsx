@@ -14,7 +14,6 @@ describe("HandlersHealthStrip", () => {
     const text = container.textContent ?? "";
     expect(text.toLowerCase()).toContain("handlers");
     expect(text.toLowerCase()).toContain("invocations");
-    expect(text).toContain("1H");
     expect(text.toLowerCase()).toContain("success rate");
     expect(text.toLowerCase()).toContain("failed");
     expect(text.toLowerCase()).toContain("timed out");

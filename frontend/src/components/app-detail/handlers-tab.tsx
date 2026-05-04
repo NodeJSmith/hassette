@@ -10,7 +10,6 @@ import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useAppState } from "../../state/context";
 import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
 import { formatTriggerDetail, formatDuration, formatRelativeTime, parseSourceLocation } from "../../utils/format";
-import { useRelativeTime } from "../../hooks/use-relative-time";
 import { handlerKindLabel, statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 
@@ -47,9 +46,6 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
 
 /** Inline chips for job schedule configuration. */
 function ScheduleChips({ job }: { job: JobData }) {
-  const nextRunLabel = useRelativeTime(job.next_run ?? null);
-  const fireAtLabel = useRelativeTime(job.fire_at ?? null);
-
   const chips: Array<{ label: string }> = [];
 
   if (job.trigger_label) chips.push({ label: job.trigger_label });
@@ -57,17 +53,12 @@ function ScheduleChips({ job }: { job: JobData }) {
   if (job.jitter) chips.push({ label: `±${job.jitter}s jitter` });
   if (job.group) chips.push({ label: `group: ${job.group}` });
 
+  if (chips.length === 0) return null;
   return (
     <div class="ht-chip-row" data-testid="schedule-chips">
       {chips.map((c) => (
         <span key={c.label} class="ht-chip ht-chip--schedule">{c.label}</span>
       ))}
-      {nextRunLabel && (
-        <span key="next-run" class="ht-chip ht-chip--schedule">next: {nextRunLabel}</span>
-      )}
-      {fireAtLabel && (
-        <span key="fire-at" class="ht-chip ht-chip--schedule">fire at: {fireAtLabel}</span>
-      )}
     </div>
   );
 }
@@ -372,7 +363,15 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
   );
 }
 
+const TIME_PRESET_LABELS: Record<string, string> = {
+  "since-restart": "since restart",
+  "1h": "in 1h",
+  "24h": "in 24h",
+  "7d": "in 7d",
+};
+
 export function HandlersTab({ listeners, jobs, focusMethod, onSwitchToCode }: Props) {
+  const { timePreset } = useAppState();
   // Selected item in master list
   const selectedId = useRef(signal<SelectedHandlerId | null>(null)).current;
   // Mobile mode: show detail instead of list
@@ -440,7 +439,7 @@ export function HandlersTab({ listeners, jobs, focusMethod, onSwitchToCode }: Pr
   return (
     <div class="ht-handlers-tab" ref={containerRef}>
       {/* Health strip — above master/detail layout */}
-      <HandlersHealthStrip listeners={listeners} jobs={jobs} />
+      <HandlersHealthStrip listeners={listeners} jobs={jobs} timeLabel={TIME_PRESET_LABELS[timePreset.value] ?? ""} />
 
       {/* Mobile: back button in detail view */}
       {showMobileDetail && (
