@@ -258,26 +258,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/telemetry/sessions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Sessions
-         * @description List recent sessions with lifecycle data.
-         */
-        get: operations["sessions_api_telemetry_sessions_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/telemetry/app/{app_key}/health": {
         parameters: {
             query?: never;
@@ -681,8 +661,11 @@ export interface components {
          * @description A boot-time issue entry in the system status response.
          */
         BootIssueResponse: {
-            /** Severity */
-            severity: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "err" | "warn";
             /** Label */
             label: string;
             /** Detail */
@@ -1275,46 +1258,6 @@ export interface components {
             /** Status */
             status: string;
         };
-        /**
-         * SessionRecord
-         * @description Single session record returned by ``get_session_list()``.
-         */
-        SessionRecord: {
-            /** Id */
-            id: number;
-            /** Started At */
-            started_at: number;
-            /** Stopped At */
-            stopped_at: number | null;
-            /** Status */
-            status: string;
-            /** Error Type */
-            error_type: string | null;
-            /** Error Message */
-            error_message: string | null;
-            /** Duration Seconds */
-            duration_seconds: number | null;
-            /**
-             * Dropped Overflow
-             * @default 0
-             */
-            dropped_overflow: number;
-            /**
-             * Dropped Exhausted
-             * @default 0
-             */
-            dropped_exhausted: number;
-            /**
-             * Dropped No Session
-             * @default 0
-             */
-            dropped_no_session: number;
-            /**
-             * Dropped Shutdown
-             * @default 0
-             */
-            dropped_shutdown: number;
-        };
         /** SystemStatusResponse */
         SystemStatusResponse: {
             /** Status */
@@ -1784,37 +1727,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TelemetryStatusResponse"];
-                };
-            };
-        };
-    };
-    sessions_api_telemetry_sessions_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SessionRecord"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -174,7 +174,7 @@ export function createAppState() {
     droppedExhausted: signal(0),
 
     /**
-     * Count of telemetry events dropped because session_id was unavailable at drain time.
+     * Count of telemetry events dropped due to missing write prerequisite at drain time.
      * Startup-transient — typically ignorable unless chronic.
      */
     droppedNoSession: signal(0),

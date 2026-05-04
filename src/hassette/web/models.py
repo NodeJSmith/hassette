@@ -12,7 +12,7 @@ from hassette.types.types import SourceTier
 class BootIssueResponse(BaseModel):
     """A boot-time issue entry in the system status response."""
 
-    severity: str
+    severity: Literal["err", "warn"]
     label: str
     detail: str
 

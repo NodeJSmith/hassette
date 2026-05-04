@@ -19,7 +19,6 @@ from hassette.core.telemetry_models import (
     JobErrorRecord,
     JobExecution,
     JobSummary,
-    SessionRecord,
 )
 from hassette.types.types import QuerySourceTier
 from hassette.web.dependencies import HassetteDep, RuntimeDep, SchedulerDep, TelemetryDep
@@ -35,7 +34,6 @@ from hassette.web.models import (
     HandlerErrorEntry,
     JobErrorEntry,
     ListenerWithSummary,
-    SessionListEntry,
     TelemetryStatusResponse,
 )
 from hassette.web.telemetry_helpers import (
@@ -105,19 +103,6 @@ async def telemetry_status(
         dropped_shutdown=shutdown,
         error_handler_failures=error_handler_failures,
     )
-
-
-@router.get("/sessions", response_model=list[SessionListEntry])
-async def sessions(
-    telemetry: TelemetryDep,
-    limit: int = Query(default=50, ge=1, le=200),  # pyright: ignore[reportCallInDefaultInitializer]
-) -> list[SessionRecord]:
-    """List recent sessions with lifecycle data."""
-    try:
-        return list(await telemetry.get_session_list(limit=limit))
-    except DB_ERRORS:
-        LOGGER.warning("Failed to fetch session list", exc_info=True)
-        return []
 
 
 def _health_status_from_summary(summary: AppHealthSummary) -> str:

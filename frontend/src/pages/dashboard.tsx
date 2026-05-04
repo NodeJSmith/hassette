@@ -25,14 +25,7 @@ import { useDebouncedEffect } from "../hooks/use-debounced-effect";
 import { useAppState } from "../state/context";
 import { statusToKind } from "../utils/status";
 import { formatRelativeTime } from "../utils/format";
-import type { TimePreset } from "../state/create-app-state";
-
-const TIME_LABELS: Record<TimePreset, string> = {
-  "since-restart": "since restart",
-  "1h": "in last hour",
-  "24h": "in last 24h",
-  "7d": "in last 7 days",
-};
+import { TIME_PRESET_LABELS } from "../utils/format";
 
 const TIER_OPTIONS: { value: SourceTier; label: string }[] = [
   { value: "all", label: "All" },
@@ -223,7 +216,7 @@ function HeroCardSingleFailure({ apps, errors }: HeroCardSingleFailureProps) {
       <div class="ht-hero-card__icon ht-hero-card__icon--err">!</div>
       <div class="ht-hero-card__body">
         <h3 class="ht-hero-card__title ht-hero-card__title--err">
-          {failedApp?.app_key ?? failedApp?.display_name ?? "an app"} is failing
+          {failedApp?.display_name ?? failedApp?.app_key ?? "an app"} is failing
         </h3>
         {latestError && (
           <p class="ht-hero-card__subtitle">
@@ -630,7 +623,7 @@ export function DashboardPage() {
     (since) => getDashboardErrors(since, errorTierFilter.value).then((r) => r.errors),
     { deps: [errorTierFilter.value] },
   );
-  const activityFeed = useScopedApi((_since) => getDashboardActivity(20));
+  const activityFeed = useScopedApi((since) => getDashboardActivity(20, since));
 
   // System status for boot issues (uses useApi — not time-scoped)
   const systemStatus = useApi(() => getSystemStatus());
@@ -718,7 +711,7 @@ export function DashboardPage() {
       {/* Three summary cards */}
       <div class="ht-summary-cards" data-testid="summary-cards">
         <YourAppsCard apps={appGrid.data.value} />
-        <ActivityCard kpis={kpis.data.value} isQuiet={isQuiet} timeLabel={TIME_LABELS[timePreset.value]} />
+        <ActivityCard kpis={kpis.data.value} isQuiet={isQuiet} timeLabel={TIME_PRESET_LABELS[timePreset.value]} />
         <SystemCard services={systemStatus.data.value?.services ?? []} />
       </div>
 

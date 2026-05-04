@@ -283,7 +283,7 @@ describe("DashboardPage — hero card variants", () => {
     });
     const { getByTestId } = renderWithAppState(<DashboardPage />);
     const hero = getByTestId("hero-card-single-failure");
-    expect(hero.textContent).toContain("my_broken_app");
+    expect(hero.textContent).toContain("My Broken App");
   });
 
   it("shows multiple-failures hero when 2+ apps have failed", () => {

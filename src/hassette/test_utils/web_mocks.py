@@ -49,7 +49,7 @@ def _wire_telemetry_stubs(hassette: MagicMock) -> None:
     ts.check_health = AsyncMock(return_value=None)
     ts.get_activity_feed = AsyncMock(return_value=[])
     ts.get_activity_buckets = AsyncMock(return_value=[(0, 0)] * 12)
-    ts.get_recent_invocations_1h = AsyncMock(return_value=0)
+    ts.get_recent_invocations_1h_all_apps = AsyncMock(return_value={})
     hassette.telemetry_query_service = ts
 
 

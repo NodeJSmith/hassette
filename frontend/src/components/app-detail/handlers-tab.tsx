@@ -9,18 +9,11 @@ import { HandlersHealthStrip } from "./health-strip";
 import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useAppState } from "../../state/context";
 import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
-import { formatTriggerDetail, formatDuration, formatRelativeTime, parseSourceLocation } from "../../utils/format";
+import { formatTriggerDetail, formatDuration, formatRelativeTime, parseSourceLocation, TIME_PRESET_LABELS } from "../../utils/format";
 import { handlerKindLabel, statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 
 const MOBILE_BREAKPOINT = 768;
-
-const TIME_PRESET_LABELS: Record<string, string> = {
-  "since-restart": "since restart",
-  "1h": "in 1h",
-  "24h": "in 24h",
-  "7d": "in 7d",
-};
 
 interface Props {
   listeners: ListenerData[];

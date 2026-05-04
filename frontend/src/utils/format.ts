@@ -67,6 +67,14 @@ export function formatRelativeTime(ts: number): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+/** Canonical display labels for time presets. */
+export const TIME_PRESET_LABELS: Record<string, string> = {
+  "since-restart": "since restart",
+  "1h": "in last hour",
+  "24h": "in last 24h",
+  "7d": "in last 7 days",
+};
+
 /** Format a Unix timestamp as a compact age string (e.g., "12s", "3m", "1h", "2d"). */
 export function formatAge(ts: number): string {
   const now = Date.now() / 1000;
