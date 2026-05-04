@@ -1596,8 +1596,8 @@ strong {
 
 .ht-heading-4 {
   font-family: var(--font-display);
-  font-size: var(--fs-h3);
-  font-weight: 600;
+  font-size: var(--fs-h2);
+  font-weight: 400;
   display: flex;
   align-items: center;
   gap: 0.35em;
@@ -3189,8 +3189,8 @@ strong {
 
 .ht-detail-pane__panel-heading {
   font-family: var(--font-display);
-  font-size: var(--fs-body);
-  font-weight: 600;
+  font-size: var(--fs-h3);
+  font-weight: 400;
   color: var(--ink-1);
   margin: 0 0 var(--sp-3);
 }
@@ -3234,7 +3234,7 @@ strong {
 
 .ht-detail-pane__handler-name {
   font-family: var(--font-mono);
-  font-size: var(--fs-body);
+  font-size: var(--fs-h3);
   font-weight: 600;
   color: var(--ink-1);
 }
@@ -3332,7 +3332,7 @@ strong {
 
 .ht-detail-stats-row__label {
   font-size: var(--fs-micro);
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--ink-3);
@@ -4131,7 +4131,7 @@ strong {
 
 .ht-summary-card__title {
   font-family: var(--font-body);
-  font-size: var(--fs-body);
+  font-size: var(--fs-small);
   font-weight: 500;
   color: var(--ink-2);
   text-transform: lowercase;
