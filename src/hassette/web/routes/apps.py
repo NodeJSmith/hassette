@@ -5,7 +5,7 @@ from logging import getLogger
 
 from fastapi import APIRouter, HTTPException
 
-from hassette.web.dependencies import HassetteDep, RuntimeDep
+from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
 from hassette.web.mappers import app_manifest_list_response_from, app_status_response_from
 from hassette.web.models import (
     ActionResponse,
@@ -14,6 +14,7 @@ from hassette.web.models import (
     AppSourceResponse,
     AppStatusResponse,
 )
+from hassette.web.routes.telemetry import DB_ERRORS
 
 LOGGER = getLogger(__name__)
 
@@ -38,8 +39,21 @@ async def get_apps(runtime: RuntimeDep) -> AppStatusResponse:
 
 
 @router.get("/apps/manifests", response_model=AppManifestListResponse)
-async def get_app_manifests(runtime: RuntimeDep) -> AppManifestListResponse:
-    return app_manifest_list_response_from(runtime.get_all_manifests_snapshot())
+async def get_app_manifests(runtime: RuntimeDep, telemetry: TelemetryDep) -> AppManifestListResponse:
+    snapshot = runtime.get_all_manifests_snapshot()
+    manifest_list = app_manifest_list_response_from(snapshot)
+
+    invocations_by_key: dict[str, int] = {}
+    try:
+        invocations_by_key = await telemetry.get_recent_invocations_1h_all_apps()
+    except DB_ERRORS:
+        LOGGER.warning("Failed to fetch recent_invocations_1h for app manifests", exc_info=True)
+
+    enriched_manifests = [
+        m.model_copy(update={"recent_invocations_1h": invocations_by_key.get(m.app_key, 0)})
+        for m in manifest_list.manifests
+    ]
+    return manifest_list.model_copy(update={"manifests": enriched_manifests})
 
 
 @router.post("/apps/{app_key}/start", status_code=202, response_model=ActionResponse)

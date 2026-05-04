@@ -12,6 +12,7 @@ from logging import getLogger
 from fastapi import APIRouter, Path, Query, Response
 
 from hassette.core.telemetry_models import (
+    ActivityFeedEntry,
     AppHealthSummary,
     HandlerErrorRecord,
     HandlerInvocation,
@@ -24,6 +25,7 @@ from hassette.types.types import QuerySourceTier
 from hassette.web.dependencies import HassetteDep, RuntimeDep, SchedulerDep, TelemetryDep
 from hassette.web.mappers import to_listener_with_summary
 from hassette.web.models import (
+    ActivityBucket,
     AppHealthResponse,
     DashboardAppGridEntry,
     DashboardAppGridResponse,
@@ -336,6 +338,31 @@ async def job_executions(
         return []
 
 
+def _compute_runs_per_hour(
+    total_invocations: int,
+    total_executions: int,
+    since: float | None,
+) -> float | None:
+    """Compute runs per hour from total counts and a time window.
+
+    Returns None when:
+    - ``since`` is not provided (no time window defined)
+    - The window is less than 1 minute (would produce a misleading rate)
+    """
+    if since is None:
+        return None
+    window_seconds = time.time() - since
+    window_hours = window_seconds / 3600.0
+    min_window_hours = 1.0 / 60.0  # 1 minute
+    if window_hours < min_window_hours:
+        return None
+    total = total_invocations + total_executions
+    return total / window_hours
+
+
+_NUM_SPARKLINE_BUCKETS = 12
+
+
 @router.get("/dashboard/kpis", response_model=DashboardKpisResponse)
 async def dashboard_kpis(
     runtime: RuntimeDep,
@@ -375,6 +402,26 @@ async def dashboard_kpis(
 
     status = runtime.get_system_status()
 
+    runs_per_hour = _compute_runs_per_hour(
+        total_invocations=summary.listeners.total_invocations,
+        total_executions=summary.jobs.total_executions,
+        since=since,
+    )
+
+    # Compute sparkline buckets when a time window is given
+    activity_buckets: list[ActivityBucket] = []
+    if since is not None:
+        try:
+            raw_buckets = await telemetry.get_activity_buckets(
+                since=since,
+                now=time.time(),
+                num_buckets=_NUM_SPARKLINE_BUCKETS,
+                source_tier=effective_tier,
+            )
+            activity_buckets = [ActivityBucket(ok=ok, err=err) for ok, err in raw_buckets]
+        except DB_ERRORS:
+            LOGGER.warning("Failed to fetch activity buckets for dashboard KPIs", exc_info=True)
+
     return DashboardKpisResponse(
         total_handlers=summary.listeners.total_listeners,
         total_jobs=summary.jobs.total_jobs,
@@ -389,7 +436,29 @@ async def dashboard_kpis(
         error_rate=error_rate,
         error_rate_class=classify_error_rate(error_rate),
         uptime_seconds=status.uptime_seconds,
+        runs_per_hour=runs_per_hour,
+        activity_buckets=activity_buckets,
     )
+
+
+@router.get("/dashboard/activity", response_model=list[ActivityFeedEntry])
+async def dashboard_activity(
+    telemetry: TelemetryDep,
+    limit: int = Query(default=20, ge=1, le=200),  # pyright: ignore[reportCallInDefaultInitializer]
+    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    source_tier: QuerySourceTier | None = _SOURCE_TIER_PARAM,
+) -> list[ActivityFeedEntry]:
+    """Recent cross-app activity feed (handler invocations + job executions), sorted by timestamp descending."""
+    effective_tier = source_tier if source_tier is not None else "app"
+    try:
+        return await telemetry.get_activity_feed(
+            limit=limit,
+            since=since,
+            source_tier=effective_tier,
+        )
+    except DB_ERRORS:
+        LOGGER.warning("Failed to fetch activity feed for dashboard", exc_info=True)
+        return []
 
 
 @router.get("/dashboard/app-grid", response_model=DashboardAppGridResponse)
@@ -474,12 +543,13 @@ async def dashboard_errors(
                 JobErrorEntry(
                     job_id=err.job_id,
                     job_name=err.job_name,
-                    error_message=err.error_message or "",
-                    error_type=err.error_type or "",
+                    error_message=err.error_message,
+                    error_type=err.error_type,
                     execution_start_ts=err.execution_start_ts,
                     app_key=err.app_key,
                     source_tier=err.source_tier,
                     error_traceback=err.error_traceback,
+                    source_location=err.source_location,
                 )
             )
         elif isinstance(err, HandlerErrorRecord):
@@ -488,12 +558,13 @@ async def dashboard_errors(
                     listener_id=err.listener_id,
                     topic=err.topic,
                     handler_method=err.handler_method,
-                    error_message=err.error_message or "",
-                    error_type=err.error_type or "",
+                    error_message=err.error_message,
+                    error_type=err.error_type,
                     execution_start_ts=err.execution_start_ts,
                     app_key=err.app_key,
                     source_tier=err.source_tier,
                     error_traceback=err.error_traceback,
+                    source_location=err.source_location,
                 )
             )
 

@@ -16,9 +16,31 @@ models via ``hassette.web.mappers``. Core services must NOT import from
 ``hassette.web``.
 """
 
+import importlib.metadata
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+def _get_hassette_version() -> str:
+    """Return the installed hassette package version, or 'unknown' if unavailable."""
+    try:
+        return importlib.metadata.version("hassette")
+    except importlib.metadata.PackageNotFoundError:
+        return "unknown"
+
+
+class BootIssue(BaseModel):
+    """A single boot-time issue collected during startup."""
+
+    severity: Literal["err", "warn"]
+    """Severity level: 'err' for errors, 'warn' for warnings."""
+
+    label: str
+    """Short human-readable label (e.g. 'App blocked', 'Config invalid')."""
+
+    detail: str
+    """Longer description or context for the issue."""
 
 
 class SystemStatus(BaseModel):
@@ -41,6 +63,12 @@ class SystemStatus(BaseModel):
 
     services_running: list[str]
     """Names of internal services currently in RUNNING state."""
+
+    version: str = Field(default_factory=_get_hassette_version)
+    """Installed hassette package version."""
+
+    boot_issues: list[BootIssue] = Field(default_factory=list)
+    """Boot-time issues collected during startup (config errors, blocked apps)."""
 
 
 class StateChangedData(BaseModel):

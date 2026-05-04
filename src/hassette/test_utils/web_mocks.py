@@ -47,6 +47,9 @@ def _wire_telemetry_stubs(hassette: MagicMock) -> None:
     ts.get_slow_handlers = AsyncMock(return_value=[])
     ts.get_session_list = AsyncMock(return_value=[])
     ts.check_health = AsyncMock(return_value=None)
+    ts.get_activity_feed = AsyncMock(return_value=[])
+    ts.get_activity_buckets = AsyncMock(return_value=[(0, 0)] * 12)
+    ts.get_recent_invocations_1h = AsyncMock(return_value=0)
     hassette.telemetry_query_service = ts
 
 
@@ -169,6 +172,16 @@ def create_mock_runtime_query_service(
     svc._lock = asyncio.Lock() if use_real_lock else MagicMock()
     svc._start_time = start_time
     svc._subscriptions = []
+    svc._ws_drops = 0
+    svc._ws_drops_since_last_log = 0
+    svc._ws_drops_last_logged = 0.0
+    svc._pending_invocations: list[dict] = []
+    svc._pending_executions: list[dict] = []
+    svc._flush_scheduled = False
+    svc._listener_meta: dict[int, tuple[str, int]] = {}
+    svc._job_meta: dict[int, tuple[str, int]] = {}
+    svc.task_bucket = MagicMock()
+    svc.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: coro.close())
     svc.logger = MagicMock()
     mock_hassette._runtime_query_service = svc
     mock_hassette.runtime_query_service = svc

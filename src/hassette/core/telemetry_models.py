@@ -231,6 +231,8 @@ class HandlerErrorRecord(BaseModel):
     error_type: str | None
     error_message: str | None
     error_traceback: str | None = None
+    source_location: str | None = None
+    """Source file location of the handler (e.g. 'my_app.py:42')."""
 
 
 class JobErrorRecord(BaseModel):
@@ -247,6 +249,25 @@ class JobErrorRecord(BaseModel):
     error_type: str | None
     error_message: str | None
     error_traceback: str | None = None
+    source_location: str | None = None
+    """Source file location of the job handler (e.g. 'my_app.py:99')."""
+
+
+class ActivityFeedEntry(BaseModel):
+    """A single activity entry for the cross-app recent activity feed."""
+
+    status: str
+    """Invocation/execution status (e.g. 'success', 'error', 'timed_out')."""
+
+    timestamp: float
+    """Unix epoch float for when the invocation/execution started."""
+
+    app_key: str
+    handler_name: str
+    duration_ms: float | None = None
+    error_type: str | None = None
+    kind: Literal["handler", "job"]
+    """Whether this is a handler invocation or a job execution."""
 
 
 class SlowHandlerRecord(BaseModel):

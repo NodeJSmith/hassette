@@ -402,6 +402,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/telemetry/dashboard/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dashboard Activity
+         * @description Recent cross-app activity feed (handler invocations + job executions), sorted by timestamp descending.
+         */
+        get: operations["dashboard_activity_api_telemetry_dashboard_activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/telemetry/dashboard/app-grid": {
         parameters: {
             query?: never;
@@ -482,6 +502,39 @@ export interface components {
             app_key: string;
             /** Action */
             action: string;
+        };
+        /**
+         * ActivityBucket
+         * @description A single time-window bucket for the sparkline chart.
+         */
+        ActivityBucket: {
+            /** Ok */
+            ok: number;
+            /** Err */
+            err: number;
+        };
+        /**
+         * ActivityFeedEntry
+         * @description A single activity entry for the cross-app recent activity feed.
+         */
+        ActivityFeedEntry: {
+            /** Status */
+            status: string;
+            /** Timestamp */
+            timestamp: number;
+            /** App Key */
+            app_key: string;
+            /** Handler Name */
+            handler_name: string;
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /** Error Type */
+            error_type?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "handler" | "job";
         };
         /**
          * AppConfigResponse
@@ -589,6 +642,12 @@ export interface components {
             error_message?: string | null;
             /** Error Traceback */
             error_traceback?: string | null;
+            /**
+             * Recent Invocations 1H
+             * @description Total handler invocations in the last hour across all instances.
+             * @default 0
+             */
+            recent_invocations_1h: number;
         };
         /**
          * AppSourceResponse
@@ -616,6 +675,18 @@ export interface components {
             apps: components["schemas"]["AppInstanceResponse"][];
             /** Only App */
             only_app?: string | null;
+        };
+        /**
+         * BootIssueResponse
+         * @description A boot-time issue entry in the system status response.
+         */
+        BootIssueResponse: {
+            /** Severity */
+            severity: string;
+            /** Label */
+            label: string;
+            /** Detail */
+            detail: string;
         };
         /**
          * ConfigResponse
@@ -852,6 +923,10 @@ export interface components {
             error_rate_class: string;
             /** Uptime Seconds */
             uptime_seconds?: number | null;
+            /** Runs Per Hour */
+            runs_per_hour?: number | null;
+            /** Activity Buckets */
+            activity_buckets?: components["schemas"]["ActivityBucket"][];
         };
         /**
          * FrameworkSummaryResponse
@@ -902,6 +977,8 @@ export interface components {
             source_tier: "app" | "framework";
             /** Error Traceback */
             error_traceback?: string | null;
+            /** Source Location */
+            source_location?: string | null;
         };
         /**
          * HandlerInvocation
@@ -961,6 +1038,8 @@ export interface components {
             source_tier: "app" | "framework";
             /** Error Traceback */
             error_traceback?: string | null;
+            /** Source Location */
+            source_location?: string | null;
         };
         /**
          * JobExecution
@@ -1240,6 +1319,13 @@ export interface components {
             app_count: number;
             /** Services Running */
             services_running: string[];
+            /**
+             * Version
+             * @default
+             */
+            version: string;
+            /** Boot Issues */
+            boot_issues?: components["schemas"]["BootIssueResponse"][];
         };
         /**
          * TelemetryStatusResponse
@@ -1920,6 +2006,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DashboardKpisResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dashboard_activity_api_telemetry_dashboard_activity_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                since?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityFeedEntry"][];
                 };
             };
             /** @description Validation Error */

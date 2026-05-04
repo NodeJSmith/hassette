@@ -58,6 +58,7 @@ export function createManifest(overrides: Partial<AppManifestResponse> = {}): Ap
     instances: [],
     error_message: null,
     error_traceback: null,
+    recent_invocations_1h: 0,
     ...overrides,
   } satisfies AppManifestResponse;
 }

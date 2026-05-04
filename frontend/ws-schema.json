@@ -132,6 +132,11 @@
         "app_count": {
           "title": "App Count",
           "type": "integer"
+        },
+        "version": {
+          "default": "",
+          "title": "Version",
+          "type": "string"
         }
       },
       "required": [

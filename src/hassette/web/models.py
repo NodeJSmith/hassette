@@ -9,6 +9,14 @@ from hassette.core.telemetry_models import SessionRecord
 from hassette.types.types import SourceTier
 
 
+class BootIssueResponse(BaseModel):
+    """A boot-time issue entry in the system status response."""
+
+    severity: str
+    label: str
+    detail: str
+
+
 class SystemStatusResponse(BaseModel):
     status: str
     websocket_connected: bool
@@ -16,6 +24,8 @@ class SystemStatusResponse(BaseModel):
     entity_count: int
     app_count: int
     services_running: list[str]
+    version: str = ""
+    boot_issues: list[BootIssueResponse] = Field(default_factory=list)
 
 
 class EntityStateResponse(BaseModel):
@@ -66,6 +76,10 @@ class AppManifestResponse(BaseModel):
     instances: list[AppInstanceResponse] = Field(default_factory=list)
     error_message: str | None = None
     error_traceback: str | None = None
+    recent_invocations_1h: int = Field(
+        default=0,
+        description="Total handler invocations in the last hour across all instances.",
+    )
 
 
 class AppManifestListResponse(BaseModel):
@@ -112,6 +126,7 @@ class ConnectedPayload(BaseModel):
     uptime_seconds: float
     entity_count: int
     app_count: int
+    version: str = ""
 
 
 class AppStatusChangedWsMessage(BaseModel):
@@ -215,6 +230,8 @@ class HandlerErrorEntry(BaseModel):
     app_key: str | None
     source_tier: SourceTier = "app"
     error_traceback: str | None = None
+    source_location: str | None = None
+    """Source file location of the handler (e.g. 'my_app.py:42')."""
 
 
 class JobErrorEntry(BaseModel):
@@ -227,6 +244,8 @@ class JobErrorEntry(BaseModel):
     app_key: str | None
     source_tier: SourceTier = "app"
     error_traceback: str | None = None
+    source_location: str | None = None
+    """Source file location of the job handler (e.g. 'my_app.py:99')."""
 
 
 RecentErrorEntry = Annotated[HandlerErrorEntry | JobErrorEntry, Field(discriminator="kind")]
@@ -284,6 +303,16 @@ class ListenerWithSummary(BaseModel):
     entity_id: str | None = None
 
 
+class ActivityBucket(BaseModel):
+    """A single time-window bucket for the sparkline chart."""
+
+    ok: int
+    """Number of successful invocations/executions in this bucket."""
+
+    err: int
+    """Number of error/timed-out invocations/executions in this bucket."""
+
+
 class DashboardKpisResponse(BaseModel):
     """Global KPI metrics for the dashboard strip."""
 
@@ -300,6 +329,10 @@ class DashboardKpisResponse(BaseModel):
     error_rate: float
     error_rate_class: str
     uptime_seconds: float | None = None
+    runs_per_hour: float | None = None
+    """Combined handler + job runs per hour. None when the window is too short (< 1 min)."""
+    activity_buckets: list[ActivityBucket] = Field(default_factory=list)
+    """12 equal-width time buckets of ok/err counts for the sparkline chart."""
 
 
 class DashboardAppGridEntry(BaseModel):

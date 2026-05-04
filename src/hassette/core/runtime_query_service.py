@@ -13,6 +13,7 @@ from hassette.core.app_registry import AppFullSnapshot, AppStatusSnapshot
 from hassette.core.bus_service import BusService
 from hassette.core.domain_models import (
     AppStatusChangedData,
+    BootIssue,
     ConnectivityData,
     ServiceStatusData,
     StateChangedData,
@@ -399,6 +400,8 @@ class RuntimeQueryService(Resource):
         else:
             status = "starting"
 
+        boot_issues = self._collect_boot_issues()
+
         return SystemStatus(
             status=status,
             websocket_connected=ws_connected,
@@ -406,7 +409,41 @@ class RuntimeQueryService(Resource):
             entity_count=entity_count,
             app_count=app_count,
             services_running=services_running,
+            boot_issues=boot_issues,
         )
+
+    def _collect_boot_issues(self) -> list[BootIssue]:
+        """Collect boot-time issues from blocked apps and failed app instances.
+
+        Returns a list of ``BootIssue`` objects derived from:
+        - Apps that are blocked (e.g. import error, pre-check failure) — severity ``warn``
+        - Apps that failed to start — severity ``err``
+        """
+        issues: list[BootIssue] = []
+        try:
+            full_snapshot = self.hassette.app_handler.registry.get_full_snapshot()
+        except (AttributeError, RuntimeError):
+            return issues
+
+        for manifest in full_snapshot.manifests:
+            if manifest.status == "blocked" and manifest.block_reason:
+                issues.append(
+                    BootIssue(
+                        severity="warn",
+                        label=f"App blocked: {manifest.display_name}",
+                        detail=manifest.block_reason,
+                    )
+                )
+            elif manifest.status == "failed" and manifest.error_message:
+                issues.append(
+                    BootIssue(
+                        severity="err",
+                        label=f"App failed: {manifest.display_name}",
+                        detail=manifest.error_message,
+                    )
+                )
+
+        return issues
 
     # --- WebSocket client management ---
 

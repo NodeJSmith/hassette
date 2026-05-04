@@ -20,6 +20,7 @@ from hassette.web.models import (
     AppManifestListResponse,
     AppManifestResponse,
     AppStatusResponse,
+    BootIssueResponse,
     ConnectedPayload,
     ListenerWithSummary,
     SystemStatusResponse,
@@ -98,6 +99,10 @@ def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListRes
 
 def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
     """Convert a ``SystemStatus`` domain object to ``SystemStatusResponse``."""
+    boot_issues = [
+        BootIssueResponse(severity=issue.severity, label=issue.label, detail=issue.detail)
+        for issue in status.boot_issues
+    ]
     return SystemStatusResponse(
         status=status.status,
         websocket_connected=status.websocket_connected,
@@ -105,6 +110,8 @@ def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
         entity_count=status.entity_count,
         app_count=status.app_count,
         services_running=status.services_running,
+        version=status.version,
+        boot_issues=boot_issues,
     )
 
 
@@ -118,6 +125,7 @@ def connected_payload_from(status: SystemStatus) -> ConnectedPayload:
         uptime_seconds=status.uptime_seconds,
         entity_count=status.entity_count,
         app_count=status.app_count,
+        version=status.version,
     )
 
 

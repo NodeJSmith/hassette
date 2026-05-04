@@ -1140,6 +1140,95 @@
         }
       }
     },
+    "/api/telemetry/dashboard/activity": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "Dashboard Activity",
+        "description": "Recent cross-app activity feed (handler invocations + job executions), sorted by timestamp descending.",
+        "operationId": "dashboard_activity_api_telemetry_dashboard_activity_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "name": "source_tier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "app",
+                    "framework",
+                    "all"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "title": "Source Tier"
+            },
+            "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ActivityFeedEntry"
+                  },
+                  "title": "Response Dashboard Activity Api Telemetry Dashboard Activity Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/telemetry/dashboard/app-grid": {
       "get": {
         "tags": [
@@ -1295,6 +1384,85 @@
         ],
         "title": "ActionResponse",
         "description": "Response for app mutation endpoints (start/stop/reload)."
+      },
+      "ActivityBucket": {
+        "properties": {
+          "ok": {
+            "type": "integer",
+            "title": "Ok"
+          },
+          "err": {
+            "type": "integer",
+            "title": "Err"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "err"
+        ],
+        "title": "ActivityBucket",
+        "description": "A single time-window bucket for the sparkline chart."
+      },
+      "ActivityFeedEntry": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "timestamp": {
+            "type": "number",
+            "title": "Timestamp"
+          },
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "handler_name": {
+            "type": "string",
+            "title": "Handler Name"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "error_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Type"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "handler",
+              "job"
+            ],
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "timestamp",
+          "app_key",
+          "handler_name",
+          "kind"
+        ],
+        "title": "ActivityFeedEntry",
+        "description": "A single activity entry for the cross-app recent activity feed."
       },
       "AppConfigResponse": {
         "properties": {
@@ -1586,6 +1754,12 @@
               }
             ],
             "title": "Error Traceback"
+          },
+          "recent_invocations_1h": {
+            "type": "integer",
+            "title": "Recent Invocations 1H",
+            "description": "Total handler invocations in the last hour across all instances.",
+            "default": 0
           }
         },
         "type": "object",
@@ -1670,6 +1844,30 @@
           "apps"
         ],
         "title": "AppStatusResponse"
+      },
+      "BootIssueResponse": {
+        "properties": {
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "severity",
+          "label",
+          "detail"
+        ],
+        "title": "BootIssueResponse",
+        "description": "A boot-time issue entry in the system status response."
       },
       "ConfigResponse": {
         "properties": {
@@ -2018,6 +2216,24 @@
               }
             ],
             "title": "Uptime Seconds"
+          },
+          "runs_per_hour": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runs Per Hour"
+          },
+          "activity_buckets": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityBucket"
+            },
+            "type": "array",
+            "title": "Activity Buckets"
           }
         },
         "type": "object",
@@ -2167,6 +2383,17 @@
               }
             ],
             "title": "Error Traceback"
+          },
+          "source_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Location"
           }
         },
         "type": "object",
@@ -2368,6 +2595,17 @@
               }
             ],
             "title": "Error Traceback"
+          },
+          "source_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Location"
           }
         },
         "type": "object",
@@ -3062,6 +3300,18 @@
             },
             "type": "array",
             "title": "Services Running"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "default": ""
+          },
+          "boot_issues": {
+            "items": {
+              "$ref": "#/components/schemas/BootIssueResponse"
+            },
+            "type": "array",
+            "title": "Boot Issues"
           }
         },
         "type": "object",

@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import time
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, ClassVar, assert_never
 
@@ -9,6 +10,7 @@ import aiosqlite
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_models import (
+    ActivityFeedEntry,
     AppHealthSummary,
     GlobalSummary,
     HandlerErrorRecord,
@@ -189,6 +191,7 @@ def _parse_error_record(d: dict[str, Any]) -> HandlerErrorRecord | JobErrorRecor
             error_type=d["error_type"],
             error_message=d["error_message"],
             error_traceback=d["error_traceback"],
+            source_location=d.get("source_location"),
         )
     return JobErrorRecord(
         job_id=d["record_id"],
@@ -201,6 +204,7 @@ def _parse_error_record(d: dict[str, Any]) -> HandlerErrorRecord | JobErrorRecor
         error_type=d["error_type"],
         error_message=d["error_message"],
         error_traceback=d["error_traceback"],
+        source_location=d.get("source_location"),
     )
 
 
@@ -714,7 +718,8 @@ class TelemetryQueryService(Resource):
                 hi.source_tier,
                 hi.error_type,
                 hi.error_message,
-                hi.error_traceback
+                hi.error_traceback,
+                l.source_location
             FROM handler_invocations hi
             LEFT JOIN listeners l ON l.id = hi.listener_id
             WHERE hi.status IN ('error', 'timed_out')
@@ -736,7 +741,8 @@ class TelemetryQueryService(Resource):
                 je.source_tier,
                 je.error_type,
                 je.error_message,
-                je.error_traceback
+                je.error_traceback,
+                sj.source_location
             FROM job_executions je
             LEFT JOIN scheduled_jobs sj ON sj.id = je.job_id
             WHERE je.status IN ('error', 'timed_out')
@@ -815,6 +821,198 @@ class TelemetryQueryService(Resource):
         async with self._db.execute(query, {"limit": limit}) as cursor:
             rows = await cursor.fetchall()
         return [SessionRecord.model_validate(_row_to_dict(row)) for row in rows]
+
+    async def get_activity_feed(
+        self,
+        limit: int = 20,
+        since: float | None = None,
+        source_tier: QuerySourceTier = "app",
+    ) -> list[ActivityFeedEntry]:
+        """Return recent cross-app activity (handler invocations + job executions), merged and sorted by timestamp.
+
+        Args:
+            limit: Maximum number of entries to return.
+            since: When provided, restrict to records with ``execution_start_ts >= since``.
+            source_tier: Filter by source tier. ``'app'`` (default) excludes framework internals.
+        """
+        tier_hi_clause, tier_hi_params = _source_tier_clause(source_tier, "hi")
+        tier_je_clause, _ = _source_tier_clause(source_tier, "je")
+        since_hi_clause, since_params = _since_clause(since, "hi.execution_start_ts")
+        since_je_clause, _ = _since_clause(since, "je.execution_start_ts")
+
+        query = f"""
+            SELECT
+                hi.status,
+                hi.execution_start_ts AS timestamp,
+                COALESCE(l.app_key, '') AS app_key,
+                COALESCE(l.handler_method, '') AS handler_name,
+                hi.duration_ms,
+                hi.error_type,
+                'handler' AS kind
+            FROM handler_invocations hi
+            LEFT JOIN listeners l ON l.id = hi.listener_id
+            WHERE 1=1 {since_hi_clause} {tier_hi_clause}
+
+            UNION ALL
+
+            SELECT
+                je.status,
+                je.execution_start_ts AS timestamp,
+                COALESCE(sj.app_key, '') AS app_key,
+                COALESCE(sj.handler_method, '') AS handler_name,
+                je.duration_ms,
+                je.error_type,
+                'job' AS kind
+            FROM job_executions je
+            LEFT JOIN scheduled_jobs sj ON sj.id = je.job_id
+            WHERE 1=1 {since_je_clause} {tier_je_clause}
+
+            ORDER BY timestamp DESC
+            LIMIT :limit
+        """
+
+        params: dict[str, Any] = {"limit": limit, **tier_hi_params, **since_params}
+        async with self._db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+
+        return [
+            ActivityFeedEntry(
+                status=row["status"],
+                timestamp=row["timestamp"],
+                app_key=row["app_key"],
+                handler_name=row["handler_name"],
+                duration_ms=row["duration_ms"],
+                error_type=row["error_type"],
+                kind=row["kind"],
+            )
+            for row in rows
+        ]
+
+    async def get_activity_buckets(
+        self,
+        since: float,
+        now: float,
+        num_buckets: int = 12,
+        source_tier: QuerySourceTier = "app",
+    ) -> list[tuple[int, int]]:
+        """Return bucketed ok/err counts for the sparkline chart.
+
+        Divides the time window [since, now] into ``num_buckets`` equal buckets.
+        Each bucket contains counts of successful (ok) and failed (err) invocations
+        and executions combined.
+
+        Args:
+            since: Start of the time window (Unix epoch float).
+            now: End of the time window (Unix epoch float).
+            num_buckets: Number of equal-width buckets (default 12).
+            source_tier: Filter by source tier.
+
+        Returns:
+            List of ``(ok, err)`` tuples, one per bucket, ordered chronologically (oldest first).
+        """
+        if now <= since or num_buckets <= 0:
+            return [(0, 0)] * max(num_buckets, 0)
+
+        bucket_width = (now - since) / num_buckets
+        tier_hi_clause, tier_hi_params = _source_tier_clause(source_tier, "hi")
+        tier_je_clause, _ = _source_tier_clause(source_tier, "je")
+
+        query = f"""
+            SELECT
+                CAST((execution_start_ts - :since) / :bucket_width AS INTEGER) AS bucket_idx,
+                SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS ok,
+                SUM(CASE WHEN status IN ('error', 'timed_out') THEN 1 ELSE 0 END) AS err
+            FROM (
+                SELECT hi.execution_start_ts, hi.status
+                FROM handler_invocations hi
+                WHERE hi.execution_start_ts >= :since AND hi.execution_start_ts < :now
+                    {tier_hi_clause}
+
+                UNION ALL
+
+                SELECT je.execution_start_ts, je.status
+                FROM job_executions je
+                WHERE je.execution_start_ts >= :since AND je.execution_start_ts < :now
+                    {tier_je_clause}
+            ) combined
+            GROUP BY bucket_idx
+            HAVING bucket_idx >= 0 AND bucket_idx < :num_buckets
+        """
+
+        params: dict[str, Any] = {
+            "since": since,
+            "now": now,
+            "bucket_width": bucket_width,
+            "num_buckets": num_buckets,
+            **tier_hi_params,
+        }
+
+        async with self._db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+
+        buckets: list[list[int]] = [[0, 0] for _ in range(num_buckets)]
+        for row in rows:
+            idx = int(row["bucket_idx"])
+            if 0 <= idx < num_buckets:
+                buckets[idx][0] = int(row["ok"] or 0)
+                buckets[idx][1] = int(row["err"] or 0)
+
+        return [(b[0], b[1]) for b in buckets]
+
+    async def get_recent_invocations_1h(
+        self,
+        app_key: str,
+        source_tier: QuerySourceTier = "app",
+    ) -> int:
+        """Return total handler invocations for a specific app in the last hour.
+
+        Args:
+            app_key: The app to query.
+            source_tier: Filter by source tier.
+
+        Returns:
+            Count of handler invocations in the last 3600 seconds.
+        """
+        one_hour_ago = time.time() - 3600.0
+        tier_clause, tier_params = _source_tier_clause(source_tier, "hi")
+
+        query = f"""
+            SELECT COUNT(hi.rowid) AS invocation_count
+            FROM handler_invocations hi
+            JOIN listeners l ON l.id = hi.listener_id
+            WHERE l.app_key = :app_key
+                AND hi.execution_start_ts >= :since
+                {tier_clause}
+        """
+        params: dict[str, Any] = {"app_key": app_key, "since": one_hour_ago, **tier_params}
+        async with self._db.execute(query, params) as cursor:
+            row = await cursor.fetchone()
+        return int(row[0]) if row else 0
+
+    async def get_recent_invocations_1h_all_apps(
+        self,
+        source_tier: QuerySourceTier = "app",
+    ) -> dict[str, int]:
+        """Return handler invocation counts per app_key in the last hour.
+
+        Returns:
+            Dict mapping app_key to invocation count. Apps with zero invocations are omitted.
+        """
+        one_hour_ago = time.time() - 3600.0
+        tier_clause, tier_params = _source_tier_clause(source_tier, "hi")
+
+        query = f"""
+            SELECT l.app_key, COUNT(hi.rowid) AS invocation_count
+            FROM handler_invocations hi
+            JOIN listeners l ON l.id = hi.listener_id
+            WHERE hi.execution_start_ts >= :since
+                {tier_clause}
+            GROUP BY l.app_key
+        """
+        params: dict[str, Any] = {"since": one_hour_ago, **tier_params}
+        async with self._db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+        return {row[0]: int(row[1]) for row in rows}
 
     async def check_health(self) -> None:
         """Verify the database connection is alive.
