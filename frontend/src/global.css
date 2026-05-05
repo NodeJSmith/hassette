@@ -2582,21 +2582,110 @@ strong {
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
-  padding-bottom: var(--sp-3);
-  border-bottom: 1px solid var(--line-1);
   margin-bottom: var(--sp-3);
   flex-wrap: wrap;
 }
 
-.ht-log-toolbar .ht-summary-card__title {
+.ht-log-toolbar__title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+
+.ht-log-toolbar__title .ht-summary-card__title {
   margin-bottom: 0;
+}
+
+.ht-log-toolbar__note {
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
 }
 
 .ht-log-toolbar__controls {
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
   flex-wrap: wrap;
+}
+
+/* Pill filter controls */
+.ht-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+}
+
+.ht-pill--accent {
+  color: var(--ok);
+  background: var(--ok-bg);
+  border: 1px solid color-mix(in srgb, var(--ok) 25%, transparent);
+}
+
+.ht-pill--mute {
+  color: var(--ink-2);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+}
+
+.ht-pill--interactive {
+  cursor: pointer;
+  position: relative;
+}
+
+.ht-pill__select {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+/* Log source column (two-line: function + file:line) */
+.ht-log-source__fn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ht-log-source__loc {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-4);
+}
+
+/* Log empty state */
+.ht-log-empty {
+  text-align: center;
+  padding: var(--sp-6) !important;
+}
+
+.ht-log-empty__icon {
+  font-size: 28px;
+  color: var(--ink-4);
+  margin-bottom: var(--sp-2);
+}
+
+.ht-log-empty__title {
+  font-size: var(--fs-small);
+  font-weight: 500;
+  color: var(--ink-2);
+  margin-bottom: var(--sp-1);
+}
+
+.ht-log-empty__body {
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  max-width: 320px;
+  margin: 0 auto;
 }
 
 .ht-log-table-container {
@@ -2628,11 +2717,10 @@ strong {
   white-space: nowrap;
 }
 
-.ht-table-log .ht-col-level   { width: 75px; }
-.ht-table-log .ht-col-time    { width: 170px; }
-.ht-table-log .ht-col-app     { width: 13%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ht-table-log .ht-col-source  { width: 15%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ht-table-log .ht-col-age     { width: 50px; text-align: right; white-space: nowrap; }
+.ht-table-log .ht-col-level   { width: 55px; }
+.ht-table-log .ht-col-time    { width: 150px; }
+.ht-table-log .ht-col-app     { width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ht-table-log .ht-col-source  { width: 200px; overflow: hidden; text-overflow: ellipsis; }
 /* Message column: no width set — takes all remaining space */
 
 /* Severity row tinting — visible at scroll speed, not just badge-reading speed */

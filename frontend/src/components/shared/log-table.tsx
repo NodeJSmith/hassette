@@ -5,7 +5,7 @@ import { getRecentLogs } from "../../api/endpoints";
 import { useMediaQuery, BREAKPOINT_MOBILE, BREAKPOINT_TABLET } from "../../hooks/use-media-query";
 import { useSubscribe } from "../../hooks/use-subscribe";
 import { useAppState } from "../../state/context";
-import { formatTimestamp, formatRelativeTime, formatAge, pluralize } from "../../utils/format";
+import { formatTimestamp, formatRelativeTime, pluralize } from "../../utils/format";
 import { levelToKind } from "../../utils/status";
 import { StatusShape } from "./status-shape";
 
@@ -228,13 +228,25 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
       ? sortConfig.value.asc ? "↑" : "↓"
       : "⇅";
 
+  const levelLabel = minLevel.value ? `level: ${minLevel.value}+` : "level: all";
+  const appLabel = appFilter.value ? `app: ${appFilter.value}` : "app: all";
+
   return (
     <div class="ht-log-table-container" ref={tableContainerRef}>
       <div class="ht-log-toolbar">
-        <h2 class="ht-summary-card__title">logs</h2>
+        <div class="ht-log-toolbar__title">
+          <h2 class="ht-summary-card__title">logs</h2>
+          <span class="ht-log-toolbar__note">{pluralize(filtered.length, "entry", "entries")}</span>
+        </div>
         <div class="ht-log-toolbar__controls">
-          <div class="ht-select ht-select--sm">
+          <span class={`ht-pill ${livePaused ? "ht-pill--mute" : "ht-pill--accent"}`}>
+            <StatusShape kind={livePaused ? "mute" : "ok"} size={6} />
+            {livePaused ? "paused" : "live"}
+          </span>
+          <label class="ht-pill ht-pill--mute ht-pill--interactive">
+            {levelLabel}
             <select
+              class="ht-pill__select"
               aria-label="Minimum log level"
               data-testid="filter-level"
               value={minLevel.value}
@@ -244,17 +256,19 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                 updateLogSubscription(newLevel || "DEBUG");
               }}
             >
-              <option value="">All Levels</option>
+              <option value="">all</option>
               {LEVELS.map((level) => (
                 <option key={level} value={level}>
-                  {level}
+                  {level}+
                 </option>
               ))}
             </select>
-          </div>
+          </label>
           {showAppColumn && appKeys && appKeys.length > 0 && (
-            <div class="ht-select ht-select--sm">
+            <label class="ht-pill ht-pill--mute ht-pill--interactive">
+              {appLabel}
               <select
+                class="ht-pill__select"
                 aria-label="Filter by app"
                 data-testid="filter-app"
                 value={appFilter.value}
@@ -262,14 +276,14 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                   appFilter.value = (e.target as HTMLSelectElement).value;
                 }}
               >
-                <option value="">All Apps</option>
+                <option value="">all</option>
                 {appKeys.map((key) => (
                   <option key={key} value={key}>
                     {key}
                   </option>
                 ))}
               </select>
-            </div>
+            </label>
           )}
           <input
             class="ht-input ht-input--sm"
@@ -281,14 +295,10 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
               search.value = (e.target as HTMLInputElement).value;
             }}
           />
-          <span class="ht-text-secondary ht-text-xs">{pluralize(filtered.length, "entry", "entries")}</span>
           {livePaused && (
-            <span class="ht-text-xs ht-text-warning">
-              Live updates paused{" "}
-              <button type="button" class="ht-btn ht-btn--xs ht-btn--ghost" onClick={handleResume}>
-                Resume
-              </button>
-            </span>
+            <button type="button" class="ht-btn ht-btn--xs ht-btn--ghost" onClick={handleResume}>
+              resume
+            </button>
           )}
         </div>
       </div>
@@ -313,20 +323,21 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                   </button>
                 </th>
               )}
-              <th class="ht-col-source">Source</th>
+              <th class="ht-col-source">source</th>
               <th aria-sort={ariaSortFor("message")} data-testid="sort-message">
                 <button type="button" class="ht-sortable" onClick={() => handleSort("message")}>
                   <span>Message</span>{" "}<span aria-hidden="true">{sortArrow("message")}</span>
                 </button>
               </th>
-              {!isMobile && <th class="ht-col-age">Age</th>}
             </tr>
           </thead>
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={isMobile ? 3 : (showAppColumn ? (showSourceColumn ? 6 : 5) : (showSourceColumn ? 5 : 4))} class="ht-text-center ht-text-muted">
-                  No log entries.
+                <td colSpan={isMobile ? 3 : (showAppColumn ? (showSourceColumn ? 5 : 4) : (showSourceColumn ? 4 : 3))} class="ht-log-empty">
+                  <div class="ht-log-empty__icon">∅</div>
+                  <div class="ht-log-empty__title">no log lines in window</div>
+                  <div class="ht-log-empty__body">nothing has been logged recently. change the level filter or extend the time window to see older lines.</div>
                 </td>
               </tr>
             )}
@@ -340,9 +351,9 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                 if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
                 expandedRows.value = next;
               };
-              const mobileColCount = 3; // level + time + message (source hidden, app hidden on mobile)
+              const mobileColCount = 3;
               const sourceAdjust = showSourceColumn ? 0 : -1;
-              const desktopColCount = (showAppColumn ? 6 : 5) + sourceAdjust; // +1 for age column
+              const desktopColCount = (showAppColumn ? 5 : 4) + sourceAdjust;
               const colCount = isMobile ? mobileColCount : desktopColCount;
               const rows = [
               <tr key={rowKey} data-level={entry.level}>
@@ -366,8 +377,9 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                     )}
                   </td>
                 )}
-                <td class="ht-col-source ht-text-mono ht-text-xs ht-text-muted" title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
-                  {entry.func_name}:{entry.lineno}
+                <td class="ht-col-source" title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
+                  <div class="ht-log-source__fn">{entry.app_key ? `${entry.app_key}.` : ""}<b>{entry.func_name}</b>()</div>
+                  <div class="ht-log-source__loc">{entry.logger_name}:{entry.lineno}</div>
                 </td>
                 <td
                   class={`ht-log-message-cell${canExpand ? " is-expandable" : ""}${isExpanded ? " is-expanded" : ""}${isMobile && isExpanded ? " is-mobile-expanded" : ""}`}
@@ -383,11 +395,6 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
                     {entry.message}
                   </div>
                 </td>
-                {!isMobile && (
-                  <td class="ht-col-age ht-text-mono ht-text-xs ht-text-muted">
-                    {formatAge(entry.timestamp)}
-                  </td>
-                )}
               </tr>,
               ];
               if (isMobile && isExpanded) {

@@ -136,7 +136,7 @@ describe("LogTable", () => {
       { wrapper: createWrapper(state) },
     );
 
-    expect(getByText("No log entries.")).toBeDefined();
+    expect(getByText("no log lines in window")).toBeDefined();
   });
 
   // -- Rendering WS log entries --
@@ -485,7 +485,7 @@ describe("LogTable", () => {
 
     const headers = container.querySelectorAll("th");
     const headerTexts = Array.from(headers).map((h) => h.textContent);
-    expect(headerTexts).toContain("Source");
+    expect(headerTexts).toContain("source");
   });
 
   it("renders source location with func_name and lineno", () => {
@@ -498,7 +498,8 @@ describe("LogTable", () => {
 
     const sourceCells = container.querySelectorAll("td.ht-col-source");
     expect(sourceCells.length).toBe(1);
-    expect(sourceCells[0].textContent).toBe("on_initialize:99");
+    expect(sourceCells[0].textContent).toContain("on_initialize");
+    expect(sourceCells[0].textContent).toContain("99");
   });
 
   it("renders full logger path in source column title attribute", () => {
@@ -953,7 +954,7 @@ describe("Live streaming pause", () => {
     const sortBtn = getByTestId("sort-level").querySelector("button") as HTMLElement;
     fireEvent.click(sortBtn);
 
-    expect(getByText("Live updates paused")).toBeDefined();
+    expect(getByText("paused")).toBeDefined();
   });
 
   it("hides paused indicator when sorting by timestamp", () => {
@@ -966,11 +967,11 @@ describe("Live streaming pause", () => {
 
     // Sort by level (paused)
     fireEvent.click(getByTestId("sort-level").querySelector("button") as HTMLElement);
-    expect(queryByText("Live updates paused")).not.toBeNull();
+    expect(queryByText("paused")).not.toBeNull();
 
     // Sort by timestamp (resumes)
     fireEvent.click(getByTestId("sort-timestamp").querySelector("button") as HTMLElement);
-    expect(queryByText("Live updates paused")).toBeNull();
+    expect(queryByText("paused")).toBeNull();
   });
 
   it("Resume button resets sort to timestamp descending", () => {
@@ -984,13 +985,13 @@ describe("Live streaming pause", () => {
 
     // Sort by level to pause
     fireEvent.click(getByTestId("sort-level").querySelector("button") as HTMLElement);
-    expect(queryByText("Live updates paused")).not.toBeNull();
+    expect(queryByText("paused")).not.toBeNull();
 
     // Click Resume
-    fireEvent.click(getByText("Resume"));
+    fireEvent.click(getByText("resume"));
 
     // Paused indicator gone
-    expect(queryByText("Live updates paused")).toBeNull();
+    expect(queryByText("paused")).toBeNull();
 
     // Sort is back to timestamp descending
     expect(getByTestId("sort-timestamp").getAttribute("aria-sort")).toBe("descending");
@@ -1131,103 +1132,5 @@ describe("Mobile responsive rendering", () => {
       return text.includes("ago") || text.includes("just now");
     });
     expect(tsCell).not.toBeNull();
-  });
-});
-
-// -- Age column --
-
-describe("Age column", () => {
-  let state: AppState;
-
-  beforeEach(() => {
-    state = createAppState();
-    vi.clearAllMocks();
-    entrySeq = 0;
-    mockUseMediaQuery.mockReturnValue(false); // desktop by default
-  });
-
-  afterEach(() => {
-    mockUseMediaQuery.mockReturnValue(false);
-  });
-
-  it("renders Age column header on desktop", () => {
-    const { container } = render(
-      <LogTable />,
-      { wrapper: createWrapper(state) },
-    );
-
-    const headers = container.querySelectorAll("th");
-    const headerTexts = Array.from(headers).map((h) => h.textContent ?? "");
-    expect(headerTexts.some((t) => t.includes("Age"))).toBe(true);
-  });
-
-  it("renders age cell with compact relative time (seconds)", () => {
-    const ts = Date.now() / 1000 - 30; // 30 seconds ago
-    state.logs.push(createLogEntry({ timestamp: ts, message: "recent entry" }));
-
-    const { container } = render(
-      <LogTable />,
-      { wrapper: createWrapper(state) },
-    );
-
-    const ageCells = container.querySelectorAll("td.ht-col-age");
-    expect(ageCells.length).toBe(1);
-    expect(ageCells[0].textContent).toMatch(/^\d+s$/);
-  });
-
-  it("renders age cell with compact relative time (minutes)", () => {
-    const ts = Date.now() / 1000 - 300; // 5 minutes ago
-    state.logs.push(createLogEntry({ timestamp: ts, message: "5min entry" }));
-
-    const { container } = render(
-      <LogTable />,
-      { wrapper: createWrapper(state) },
-    );
-
-    const ageCells = container.querySelectorAll("td.ht-col-age");
-    expect(ageCells.length).toBe(1);
-    expect(ageCells[0].textContent).toMatch(/^\d+m$/);
-  });
-
-  it("renders age cell with compact relative time (hours)", () => {
-    const ts = Date.now() / 1000 - 7200; // 2 hours ago
-    state.logs.push(createLogEntry({ timestamp: ts, message: "old entry" }));
-
-    const { container } = render(
-      <LogTable />,
-      { wrapper: createWrapper(state) },
-    );
-
-    const ageCells = container.querySelectorAll("td.ht-col-age");
-    expect(ageCells.length).toBe(1);
-    expect(ageCells[0].textContent).toMatch(/^\d+h$/);
-  });
-
-  it("does not render Age column header on mobile", () => {
-    mockUseMediaQuery.mockReturnValue(true); // mobile
-
-    const { container } = render(
-      <LogTable />,
-      { wrapper: createWrapper(state) },
-    );
-
-    const headers = container.querySelectorAll("th");
-    const headerTexts = Array.from(headers).map((h) => h.textContent ?? "");
-    expect(headerTexts.some((t) => t.includes("Age"))).toBe(false);
-  });
-
-  it("shows Timestamp column header on mobile (not Age)", () => {
-    mockUseMediaQuery.mockReturnValue(true); // mobile
-    state.logs.push(createLogEntry({ message: "mobile entry" }));
-
-    const { container } = render(
-      <LogTable />,
-      { wrapper: createWrapper(state) },
-    );
-
-    const headers = container.querySelectorAll("th");
-    const headerTexts = Array.from(headers).map((h) => h.textContent ?? "");
-    // Timestamp header (showing relative time) is still present on mobile
-    expect(headerTexts.some((t) => t.includes("Timestamp"))).toBe(true);
   });
 });
