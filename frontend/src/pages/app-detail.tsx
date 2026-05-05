@@ -179,7 +179,7 @@ export function AppDetailPage({ params }: Props) {
   // Update title when manifest loads; reset on unmount
   const displayName = manifest?.display_name;
   useEffect(() => {
-    if (displayName) document.title = `${displayName} - Hassette`;
+    if (displayName) document.title = `${appKey} - Hassette`;
     return () => { document.title = "Hassette"; };
   }, [displayName]);
 
@@ -225,7 +225,7 @@ export function AppDetailPage({ params }: Props) {
         </nav>
         <MultiInstanceOverview
           appKey={appKey}
-          displayName={manifest.display_name ?? appKey}
+          displayName={appKey}
           instances={manifest.instances ?? []}
           instanceCount={manifest.instance_count}
           onNavigate={(idx) => { navigate(`/apps/${appKey}/${idx}`); }}
@@ -250,7 +250,7 @@ export function AppDetailPage({ params }: Props) {
                 navigate(`/apps/${appKey}`);
               }}
             >
-              {manifest?.display_name ?? appKey}
+              {appKey}
             </a>
             <span class="ht-breadcrumb__separator" aria-hidden="true">/</span>
             <span class="ht-breadcrumb__current" aria-current="page">
@@ -262,7 +262,7 @@ export function AppDetailPage({ params }: Props) {
             <a href="/apps">Apps</a>
             <span class="ht-breadcrumb__separator" aria-hidden="true">/</span>
             <span class="ht-breadcrumb__current" aria-current="page">
-              {manifest?.display_name ?? appKey}
+              {appKey}
             </span>
           </>
         )}
@@ -285,7 +285,7 @@ export function AppDetailPage({ params }: Props) {
           <div class="ht-level-item">
             <h2 class="ht-heading-4" data-testid="app-title">
               <StatusShape kind={statusToKind(liveStatus)} size={14} />
-              <span class="ht-ml-2">{manifest?.display_name ?? appKey}</span>
+              <span class="ht-ml-2">{appKey}</span>
             </h2>
           </div>
         </div>
@@ -304,12 +304,11 @@ export function AppDetailPage({ params }: Props) {
 
       {/* Subtitle meta line */}
       <p class="ht-text-mono ht-text-sm ht-text-muted ht-mb-3" data-testid="app-subtitle-meta">
-        {appKey}
-        {manifest?.display_name && manifest.display_name !== appKey && (
-          <> &middot; class: {manifest.display_name}</>
+        {manifest?.filename ?? appKey}
+        {manifest?.class_name && manifest.class_name !== appKey && (
+          <> &middot; {manifest.class_name}</>
         )}
-        {manifest && <> &middot; Instance {resolvedInstanceIndex}</>}
-        {currentInstance?.owner_id && <> &middot; PID {currentInstance.owner_id}</>}
+        {manifest && manifest.instance_count > 1 && <> &middot; instance {resolvedInstanceIndex}</>}
         {manifest?.auto_loaded && (
           <> &middot; <span class="ht-badge ht-badge--neutral ht-badge--xs" data-testid="auto-loaded-badge">auto</span></>
         )}

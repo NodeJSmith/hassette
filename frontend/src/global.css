@@ -3836,9 +3836,9 @@ strong {
 }
 
 .ht-detail-pane__panel-heading {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: var(--fs-h3);
-  font-weight: 400;
+  font-weight: 500;
   color: var(--ink-1);
   margin: 0 0 var(--sp-3);
 }
@@ -4538,9 +4538,9 @@ strong {
 }
 
 .ht-config-group__label {
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-size: var(--fs-h3);
-  font-weight: 400;
+  font-weight: 500;
   color: var(--ink-2);
   letter-spacing: var(--tr-h3);
   margin-bottom: var(--sp-2);

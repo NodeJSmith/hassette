@@ -483,16 +483,17 @@ function RecentErrorsTable({
   const staleRef = useRef<DashboardErrorEntry[] | null>(null);
   const currentData = errors.data.value;
   const hasFreshData = currentData !== null && currentData.length > 0;
+  const isLoading = errors.loading.value;
 
   useEffect(() => {
-    if (currentData !== null) {
-      staleRef.current = currentData.length > 0 ? currentData : null;
+    if (currentData !== null && currentData.length > 0) {
+      staleRef.current = currentData;
     }
   }, [currentData]);
 
-  const displayErrors = hasFreshData ? currentData : staleRef.current;
+  const displayErrors = hasFreshData ? currentData : (isLoading ? staleRef.current : currentData);
   if (!displayErrors || displayErrors.length === 0) return null;
-  const isRefetching = errors.loading.value && !hasFreshData;
+  const isRefetching = isLoading && !hasFreshData;
 
   return (
     <div

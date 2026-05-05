@@ -25,10 +25,10 @@ describe("ConfigPage", () => {
     vi.clearAllMocks();
   });
 
-  it("renders 'Configuration' heading", () => {
+  it("renders 'config' heading", () => {
     useApi.mockReturnValue(fakeApiResult(createSystemConfig()));
     const { getByRole } = renderWithAppState(<ConfigPage />);
-    expect(getByRole("heading", { name: /configuration/i })).toBeDefined();
+    expect(getByRole("heading", { name: /config/i })).toBeDefined();
   });
 
   it("renders a table of config key-value pairs", () => {

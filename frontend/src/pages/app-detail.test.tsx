@@ -103,14 +103,14 @@ describe("AppDetailPage", () => {
       .mockReturnValue(fakeApiResult(null));            // subsequent re-renders
   }
 
-  it("renders app display name in the header", () => {
-    const manifest = createManifest({ display_name: "Motion Sensor App" });
+  it("renders app_key in the header", () => {
+    const manifest = createManifest({ app_key: "test_app", display_name: "Motion Sensor App" });
     setupUseApi(manifest);
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
     );
-    expect(getByTestId("app-title").textContent).toContain("Motion Sensor App");
+    expect(getByTestId("app-title").textContent).toContain("test_app");
   });
 
   it("renders action buttons", () => {
@@ -211,14 +211,14 @@ describe("AppDetailPage", () => {
     expect(queryByTestId("error-display")).toBeNull();
   });
 
-  it("renders app_key in mono below the title", () => {
-    const manifest = createManifest({ app_key: "motion_sensor_app" });
+  it("renders filename in subtitle meta", () => {
+    const manifest = createManifest({ app_key: "motion_sensor_app", filename: "apps/motion_sensor.py" });
     setupUseApi(manifest);
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "motion_sensor_app" }} />,
       { wrapper: createWrapper(state) },
     );
-    expect(getByTestId("app-subtitle-meta").textContent).toContain("motion_sensor_app");
+    expect(getByTestId("app-subtitle-meta").textContent).toContain("apps/motion_sensor.py");
   });
 
   it("renders auto-loaded badge when auto_loaded is true", () => {
@@ -241,28 +241,19 @@ describe("AppDetailPage", () => {
     expect(queryByTestId("auto-loaded-badge")).toBeNull();
   });
 
-  it("shows owner_id as PID when owner_id is present", () => {
+  it("shows filename in subtitle meta", () => {
     const manifest = createManifest({
-      instances: [createInstance({ owner_id: "MyApp.office_button.0" })],
+      app_key: "test_app",
+      filename: "apps/test_app.py",
+      class_name: "TestApp",
     });
     setupUseApi(manifest);
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
     );
-    expect(getByTestId("app-subtitle-meta").textContent).toContain("PID MyApp.office_button.0");
-  });
-
-  it("omits PID portion when owner_id is null", () => {
-    const manifest = createManifest({
-      instances: [createInstance({ owner_id: null })],
-    });
-    setupUseApi(manifest);
-    const { getByTestId } = render(
-      <AppDetailPage params={{ key: "test_app" }} />,
-      { wrapper: createWrapper(state) },
-    );
-    expect(getByTestId("app-subtitle-meta").textContent).not.toContain("PID");
+    expect(getByTestId("app-subtitle-meta").textContent).toContain("apps/test_app.py");
+    expect(getByTestId("app-subtitle-meta").textContent).toContain("TestApp");
   });
 
   it("renders multi-instance parent overview when instance_count > 1 and no index param", () => {
@@ -346,7 +337,7 @@ describe("AppDetailPage", () => {
       { wrapper: createWrapper(state) },
     );
     expect(getByTestId("breadcrumb-parent")).toBeDefined();
-    expect(getByTestId("breadcrumb-parent").textContent).toContain("Multi App");
+    expect(getByTestId("breadcrumb-parent").textContent).toContain("test_app");
   });
 
   it("renders CodeTab when Code tab is clicked", () => {
