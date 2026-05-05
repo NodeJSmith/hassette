@@ -1798,6 +1798,17 @@ strong {
   background: transparent;
 }
 
+.ht-invocation-note--expandable {
+  cursor: pointer;
+}
+
+.ht-col-note {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
 /* — Detail Label ——————————————————————————————————————— */
 .ht-detail-label {
   font-size: var(--fs-micro);
@@ -3424,7 +3435,7 @@ strong {
   margin: var(--sp-1) 0 0;
   padding: var(--sp-3);
   background: var(--bg-sunken);
-  border: 1px solid var(--line-1);
+  border: 1px dashed var(--line-1);
   border-radius: var(--r-sm);
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
@@ -3481,6 +3492,23 @@ strong {
   margin-top: var(--sp-4);
   color: var(--accent);
   font-size: var(--fs-small);
+}
+
+.ht-detail-stats-footer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.ht-detail-stats-footer .ht-detail-stats-row {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.ht-detail-stats-footer .ht-detail-pane__view-in-code {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 /* — Detail pane stats row —————————————————————————————— */
@@ -3653,6 +3681,7 @@ strong {
 
 .ht-code-tab__body .shiki span.line--annotated {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
+  box-shadow: inset 3px 0 0 var(--ink-3);
 }
 
 .ht-code-tab__body .shiki span.line--focus {
@@ -4147,29 +4176,61 @@ strong {
 .ht-hero-card__failure-list {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-3) 0;
-  border-top: 1px solid var(--line-1);
-  border-bottom: 1px solid var(--line-1);
 }
 
 .ht-hero-card__failure-row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto auto;
+  gap: var(--sp-3);
+  align-items: baseline;
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--line-1);
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--t-fast) var(--ease);
+}
+
+.ht-hero-card__failure-row:hover {
+  background: var(--bg-sunken);
+}
+
+.ht-hero-card__failure-detail {
+  min-width: 0;
+}
+
+.ht-hero-card__failure-name-line {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--sp-2);
+  margin-bottom: 1px;
 }
 
 .ht-hero-card__failure-name {
   font-family: var(--font-mono);
-  font-size: var(--fs-small);
+  font-size: 14px;
+  font-weight: 600;
   color: var(--ink-1);
-  flex: 1;
+}
+
+.ht-hero-card__failure-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.ht-hero-card__failure-arrow {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--ink-4);
 }
 
 .ht-hero-card__multi-actions {
   display: flex;
   gap: var(--sp-2);
   justify-content: flex-end;
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--bg-sunken);
 }
 
 /* First-install hero */

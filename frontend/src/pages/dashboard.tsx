@@ -269,15 +269,23 @@ function HeroCardMultipleFailures({ apps }: HeroCardMultipleFailuresProps) {
       </div>
       <div class="ht-hero-card__failure-list">
         {failedApps.map((app) => (
-          <div key={app.app_key} class="ht-hero-card__failure-row">
+          <a key={app.app_key} href={`/apps/${app.app_key}`} class="ht-hero-card__failure-row">
             <StatusShape kind="err" size={10} />
-            <span class="ht-hero-card__failure-name">{app.app_key}</span>
+            <div class="ht-hero-card__failure-detail">
+              <div class="ht-hero-card__failure-name-line">
+                <span class="ht-hero-card__failure-name">{app.app_key}</span>
+                <span class="ht-hero-card__failure-meta">
+                  · {app.total_errors} error{app.total_errors !== 1 ? "s" : ""}
+                </span>
+              </div>
+            </div>
             <span class="ht-badge ht-badge--danger ht-badge--sm">failing</span>
-          </div>
+            <span class="ht-hero-card__failure-arrow">→</span>
+          </a>
         ))}
       </div>
       <div class="ht-hero-card__multi-actions">
-        <a href="/apps" class="ht-btn ht-btn--xs ht-btn--ghost">view all in apps →</a>
+        <a href="/logs" class="ht-btn ht-btn--xs ht-btn--ghost">view all in logs →</a>
       </div>
     </div>
   );
@@ -343,7 +351,9 @@ interface YourAppsCardProps {
 }
 
 function YourAppsCard({ apps }: YourAppsCardProps) {
-  const allApps = apps ?? [];
+  const allApps = [...(apps ?? [])].sort((a, b) =>
+    (b.total_invocations + b.total_executions) - (a.total_invocations + a.total_executions),
+  );
 
   return (
     <div class="ht-card ht-summary-card" data-testid="your-apps-card">

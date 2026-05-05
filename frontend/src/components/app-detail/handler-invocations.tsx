@@ -2,12 +2,11 @@ import { signal } from "@preact/signals";
 import { useRef } from "preact/hooks";
 import type { HandlerInvocationData } from "../../api/endpoints";
 import { ShowMoreButton } from "../shared/show-more-button";
-import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
+import { formatDuration, formatTimestamp } from "../../utils/format";
 import { executionStatusVariant } from "../../utils/status";
-import { ErrorCell } from "./error-cell";
 
 const INITIAL_ROWS = 5;
-const COL_COUNT = 7;
+const COL_COUNT = 5;
 
 interface Props {
   invocations: HandlerInvocationData[];
@@ -19,7 +18,13 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
   const expandedTracebacks = useRef(signal<Set<number>>(new Set())).current;
 
   if (invocations.length === 0) {
-    return <p class="ht-text-muted ht-text-xs">No invocations recorded.</p>;
+    return (
+      <div class="ht-log-empty">
+        <div class="ht-log-empty__icon">◌</div>
+        <div class="ht-log-empty__title">no invocations recorded</div>
+        <div class="ht-log-empty__body">this handler hasn't been called yet in the current time window.</div>
+      </div>
+    );
   }
   const visible = showAll.value ? invocations : invocations.slice(0, INITIAL_ROWS);
   const hasMore = invocations.length > INITIAL_ROWS;
@@ -36,35 +41,48 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
         <thead>
           <tr>
             <th class="ht-col-status">Status</th>
-            <th class="ht-col-time">Timestamp</th>
-            <th class="ht-col-duration">Duration</th>
-            <th>Error</th>
-            <th>Trace ID</th>
+            <th class="ht-col-time">Time</th>
             <th>Trigger</th>
-            <th>Origin</th>
+            <th class="ht-col-duration">Duration</th>
+            <th>Note</th>
           </tr>
         </thead>
         <tbody>
           {visible.map((inv, i) => {
             const isExpanded = expandedTracebacks.value.has(i);
+            const hasTraceback = !!inv.error_traceback;
+            const noteContent = inv.error_message || (inv.trigger_origin ? `origin: ${inv.trigger_origin}` : "—");
+            const isError = inv.status === "error" || inv.status === "timed_out";
             return [
               <tr key={i}>
                 <td>
                   <span class={`ht-badge ht-badge--sm ht-badge--${executionStatusVariant(inv.status)}`}>{inv.status}</span>
+                  {isError && inv.error_message && <span class="ht-exec-error-mobile">{inv.error_message}</span>}
                 </td>
                 <td class="ht-text-mono ht-text-xs">{formatTimestamp(inv.execution_start_ts)}</td>
-                <td>{formatDuration(inv.duration_ms)}</td>
-                <td class="ht-text-secondary ht-text-sm">
-                  <ErrorCell
-                    traceback={inv.error_traceback}
-                    message={inv.error_message}
-                    expanded={isExpanded}
-                    onToggle={() => toggleTraceback(i)}
-                  />
+                <td class="ht-col-trigger ht-text-mono ht-text-xs">
+                  {inv.trigger_context_id ? (
+                    <span title={inv.trigger_context_id}>{inv.trigger_origin ?? "LOCAL"}</span>
+                  ) : (
+                    <span class="ht-text-muted">—</span>
+                  )}
                 </td>
-                <td class="ht-text-mono ht-text-xs" title={inv.execution_id ?? undefined}>{truncateId(inv.execution_id)}</td>
-                <td class="ht-text-mono ht-text-xs" title={inv.trigger_context_id ?? undefined}>{truncateId(inv.trigger_context_id)}</td>
-                <td class="ht-text-secondary ht-text-sm">{inv.trigger_origin ?? "—"}</td>
+                <td>{formatDuration(inv.duration_ms)}</td>
+                <td class={`ht-col-note ht-text-sm${isError ? " ht-text-danger" : " ht-text-secondary"}`}>
+                  {isError && inv.error_message ? (
+                    <span
+                      class={hasTraceback ? "ht-invocation-note--expandable" : ""}
+                      onClick={hasTraceback ? () => toggleTraceback(i) : undefined}
+                      role={hasTraceback ? "button" : undefined}
+                      tabIndex={hasTraceback ? 0 : undefined}
+                    >
+                      {inv.error_message}
+                      {hasTraceback && <span class="ht-text-xs ht-text-muted"> {isExpanded ? "▾" : "▸"}</span>}
+                    </span>
+                  ) : (
+                    <span class="ht-text-muted">{noteContent}</span>
+                  )}
+                </td>
               </tr>,
               isExpanded && inv.error_traceback && (
                 <tr key={`${i}-tb`} class="ht-traceback-row">

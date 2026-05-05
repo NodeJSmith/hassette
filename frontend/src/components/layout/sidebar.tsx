@@ -319,7 +319,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         aria-label="Open command palette"
         onClick={onOpenPalette}
       >
-        <span>Search</span>
+        <span>jump to…</span>
         <kbd class="ht-sidebar__cmdkey-hint">{IS_MAC ? "⌘K" : "Ctrl+K"}</kbd>
       </button>
 

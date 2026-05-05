@@ -234,20 +234,20 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
         </div>
       )}
 
-      {/* Stats row */}
-      <HandlerStatsRow listener={listener} />
-
-      {/* View in code button */}
-      {onSwitchToCode && listener.source_location && (
-        <button
-          type="button"
-          class="ht-btn ht-btn--ghost ht-btn--sm ht-detail-pane__view-in-code"
-          data-testid="view-in-code-btn"
-          onClick={() => onSwitchToCode(sourceLine ?? undefined)}
-        >
-          view in code →
-        </button>
-      )}
+      {/* Stats row + view in code */}
+      <div class="ht-detail-stats-footer">
+        <HandlerStatsRow listener={listener} />
+        {onSwitchToCode && listener.source_location && (
+          <button
+            type="button"
+            class="ht-btn ht-btn--ghost ht-btn--sm ht-detail-pane__view-in-code"
+            data-testid="view-in-code-btn"
+            onClick={() => onSwitchToCode(sourceLine ?? undefined)}
+          >
+            view in code →
+          </button>
+        )}
+      </div>
     </div>
 
     {/* Invocations panel */}
@@ -353,20 +353,20 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
         </div>
       )}
 
-      {/* Stats row */}
-      <JobStatsRow job={job} />
-
-      {/* View in code button */}
-      {onSwitchToCode && job.source_location && (
-        <button
-          type="button"
-          class="ht-btn ht-btn--ghost ht-btn--sm ht-detail-pane__view-in-code"
-          data-testid="view-in-code-btn"
-          onClick={() => onSwitchToCode(sourceLine ?? undefined)}
-        >
-          view in code →
-        </button>
-      )}
+      {/* Stats row + view in code */}
+      <div class="ht-detail-stats-footer">
+        <JobStatsRow job={job} />
+        {onSwitchToCode && job.source_location && (
+          <button
+            type="button"
+            class="ht-btn ht-btn--ghost ht-btn--sm ht-detail-pane__view-in-code"
+            data-testid="view-in-code-btn"
+            onClick={() => onSwitchToCode(sourceLine ?? undefined)}
+          >
+            view in code →
+          </button>
+        )}
+      </div>
     </div>
 
     {/* Executions panel */}
