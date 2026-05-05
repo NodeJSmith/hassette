@@ -464,6 +464,24 @@ async def dashboard_app_grid(
         LOGGER.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}
 
+    per_app_buckets: dict[str, list[tuple[int, int]]] = {}
+    per_app_errors: dict[str, tuple[str, str | None, float]] = {}
+    if since is not None:
+        now = time.time()
+        try:
+            per_app_buckets = await telemetry.get_per_app_activity_buckets(
+                since,
+                now,
+                num_buckets=12,
+                source_tier="app",
+            )
+        except DB_ERRORS:
+            LOGGER.warning("Failed to fetch per-app activity buckets", exc_info=True)
+        try:
+            per_app_errors = await telemetry.get_per_app_last_errors(since=since, source_tier="app")
+        except DB_ERRORS:
+            LOGGER.warning("Failed to fetch per-app last errors", exc_info=True)
+
     empty = AppHealthSummary(
         handler_count=0,
         job_count=0,
@@ -479,6 +497,8 @@ async def dashboard_app_grid(
     for manifest in snapshot.manifests:
         health = summaries.get(manifest.app_key, empty)
         rate = _error_rate_from_summary(health)
+        buckets = per_app_buckets.get(manifest.app_key, [])
+        err_info = per_app_errors.get(manifest.app_key)
         entries.append(
             DashboardAppGridEntry(
                 app_key=manifest.app_key,
@@ -498,6 +518,10 @@ async def dashboard_app_grid(
                 health_status=_health_status_from_summary(health),
                 error_rate=rate,
                 error_rate_class=classify_error_rate(rate),
+                last_error_message=err_info[0] if err_info else None,
+                last_error_type=err_info[1] if err_info else None,
+                last_error_ts=err_info[2] if err_info else None,
+                activity_buckets=[ActivityBucket(ok=ok, err=err) for ok, err in buckets],
             )
         )
 

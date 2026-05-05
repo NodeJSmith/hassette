@@ -862,6 +862,14 @@ export interface components {
             error_rate: number;
             /** Error Rate Class */
             error_rate_class: string;
+            /** Activity Buckets */
+            activity_buckets?: components["schemas"]["ActivityBucket"][];
+            /** Last Error Message */
+            last_error_message?: string | null;
+            /** Last Error Type */
+            last_error_type?: string | null;
+            /** Last Error Ts */
+            last_error_ts?: number | null;
         };
         /**
          * DashboardAppGridResponse

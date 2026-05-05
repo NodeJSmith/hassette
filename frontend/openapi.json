@@ -2075,6 +2075,46 @@
           "error_rate_class": {
             "type": "string",
             "title": "Error Rate Class"
+          },
+          "activity_buckets": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityBucket"
+            },
+            "type": "array",
+            "title": "Activity Buckets"
+          },
+          "last_error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Message"
+          },
+          "last_error_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Type"
+          },
+          "last_error_ts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Ts"
           }
         },
         "type": "object",

@@ -960,6 +960,127 @@ class TelemetryQueryService(Resource):
 
         return [(b[0], b[1]) for b in buckets]
 
+    async def get_per_app_activity_buckets(
+        self,
+        since: float,
+        now: float,
+        num_buckets: int = 12,
+        source_tier: QuerySourceTier = "app",
+    ) -> dict[str, list[tuple[int, int]]]:
+        """Return bucketed ok/err counts per app_key for sparkline charts.
+
+        Same bucketing logic as ``get_activity_buckets()`` but grouped by app_key.
+        Joins through listeners/scheduled_jobs to resolve the app_key for each
+        invocation/execution.
+
+        Returns:
+            Dict mapping app_key to a list of ``(ok, err)`` tuples per bucket.
+            Only app_keys with at least one event in the window are included.
+        """
+        if now <= since or num_buckets <= 0:
+            return {}
+
+        bucket_width = (now - since) / num_buckets
+        tier_hi_clause, tier_params = _source_tier_clause(source_tier, "hi")
+        # _source_tier_clause always binds :source_tier — same key for both branches
+        tier_je_clause, _ = _source_tier_clause(source_tier, "je")
+
+        query = f"""
+            SELECT app_key, bucket_idx,
+                SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS ok,
+                SUM(CASE WHEN status IN ('error', 'timed_out') THEN 1 ELSE 0 END) AS err
+            FROM (
+                SELECT l.app_key, hi.status,
+                    CAST((hi.execution_start_ts - :since) / :bucket_width AS INTEGER) AS bucket_idx
+                FROM handler_invocations hi
+                JOIN listeners l ON l.id = hi.listener_id
+                WHERE hi.execution_start_ts >= :since AND hi.execution_start_ts < :now
+                    {tier_hi_clause}
+
+                UNION ALL
+
+                SELECT sj.app_key, je.status,
+                    CAST((je.execution_start_ts - :since) / :bucket_width AS INTEGER) AS bucket_idx
+                FROM job_executions je
+                JOIN scheduled_jobs sj ON sj.id = je.job_id
+                WHERE je.execution_start_ts >= :since AND je.execution_start_ts < :now
+                    {tier_je_clause}
+            ) combined
+            WHERE bucket_idx >= 0 AND bucket_idx < :num_buckets
+            GROUP BY app_key, bucket_idx
+        """
+
+        params: dict[str, Any] = {
+            "since": since,
+            "now": now,
+            "bucket_width": bucket_width,
+            "num_buckets": num_buckets,
+            **tier_params,
+        }
+
+        async with self._db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+
+        result: dict[str, list[list[int]]] = {}
+        for row in rows:
+            app_key = row["app_key"]
+            if app_key not in result:
+                result[app_key] = [[0, 0] for _ in range(num_buckets)]
+            idx = int(row["bucket_idx"])
+            if 0 <= idx < num_buckets:
+                result[app_key][idx][0] = int(row["ok"] or 0)
+                result[app_key][idx][1] = int(row["err"] or 0)
+
+        return {k: [(b[0], b[1]) for b in v] for k, v in result.items()}
+
+    async def get_per_app_last_errors(
+        self,
+        since: float | None = None,
+        source_tier: QuerySourceTier = "app",
+    ) -> dict[str, tuple[str, str | None, float]]:
+        """Return the most recent error per app_key.
+
+        Returns:
+            Dict mapping app_key to (error_message, error_type, timestamp).
+            Only apps with at least one error in the window are included.
+        """
+        since_hi_clause, since_params = _since_clause(since, "hi.execution_start_ts")
+        since_je_clause, _ = _since_clause(since, "je.execution_start_ts")
+        # _source_tier_clause always binds :source_tier — same key for both branches
+        tier_hi_clause, tier_params = _source_tier_clause(source_tier, "hi")
+        tier_je_clause, _ = _source_tier_clause(source_tier, "je")
+
+        query = f"""
+            SELECT app_key, error_message, error_type, execution_start_ts
+            FROM (
+                SELECT
+                    app_key, error_message, error_type, execution_start_ts,
+                    ROW_NUMBER() OVER (PARTITION BY app_key ORDER BY execution_start_ts DESC) AS rn
+                FROM (
+                    SELECT l.app_key, hi.error_message, hi.error_type, hi.execution_start_ts
+                    FROM handler_invocations hi
+                    JOIN listeners l ON l.id = hi.listener_id
+                    WHERE hi.status IN ('error', 'timed_out')
+                        {since_hi_clause} {tier_hi_clause}
+
+                    UNION ALL
+
+                    SELECT sj.app_key, je.error_message, je.error_type, je.execution_start_ts
+                    FROM job_executions je
+                    JOIN scheduled_jobs sj ON sj.id = je.job_id
+                    WHERE je.status IN ('error', 'timed_out')
+                        {since_je_clause} {tier_je_clause}
+                ) combined_inner
+            )
+            WHERE rn = 1
+        """
+        params: dict[str, Any] = {**since_params, **tier_params}
+        async with self._db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+        return {
+            row["app_key"]: (row["error_message"] or "", row["error_type"], row["execution_start_ts"]) for row in rows
+        }
+
     async def get_recent_invocations_1h(
         self,
         app_key: str,

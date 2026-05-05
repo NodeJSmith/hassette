@@ -366,6 +366,11 @@ class DashboardAppGridEntry(BaseModel):
     health_status: str
     error_rate: float
     error_rate_class: str
+    activity_buckets: list[ActivityBucket] = Field(default_factory=list)
+    """Per-app sparkline buckets (ok/err counts per time window)."""
+    last_error_message: str | None = None
+    last_error_type: str | None = None
+    last_error_ts: float | None = None
 
 
 class DashboardAppGridResponse(BaseModel):

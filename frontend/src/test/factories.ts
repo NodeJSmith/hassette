@@ -96,6 +96,10 @@ export function createAppGridEntry(overrides: Partial<DashboardAppGridEntry> = {
     health_status: "good",
     error_rate: 0,
     error_rate_class: "good",
+    activity_buckets: [],
+    last_error_message: null,
+    last_error_type: null,
+    last_error_ts: null,
     ...overrides,
   } satisfies DashboardAppGridEntry;
 }

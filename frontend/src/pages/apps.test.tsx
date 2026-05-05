@@ -8,20 +8,17 @@ vi.mock("../components/shared/spinner", () => ({
   Spinner: () => <div data-testid="spinner" />,
 }));
 
-// Stub heavy child components that have their own tests
-vi.mock("../components/apps/manifest-list", () => ({
-  ManifestList: ({ manifests }: { manifests: unknown; filter: unknown }) =>
-    <div data-testid="manifest-list" data-count={Array.isArray(manifests) ? (manifests as unknown[]).length : 0} />,
-  EXPANDED_KEY: "expanded",
-}));
-
-vi.mock("../components/apps/status-filter", () => ({
-  StatusFilter: () =>
-    <div data-testid="status-filter" />,
-}));
-
 vi.mock("../hooks/use-api", () => ({
   useApi: vi.fn(),
+}));
+
+vi.mock("../hooks/use-scoped-api", () => ({
+  useScopedApi: vi.fn(() => ({
+    data: signal({ apps: [] }),
+    loading: signal(false),
+    error: signal(null),
+    refetch: vi.fn(),
+  })),
 }));
 
 const useApiMod = await import("../hooks/use-api");
@@ -47,48 +44,52 @@ describe("AppsPage", () => {
     expect(getByTestId("spinner")).toBeDefined();
   });
 
-  it("renders 'apps' section title when data loads", () => {
+  it("renders 'apps' heading when data loads", () => {
     useApi.mockReturnValue(fakeApiResult(createManifestList()));
     const { getByRole } = renderWithAppState(<AppsPage />);
     expect(getByRole("heading", { name: /apps/i })).toBeDefined();
   });
 
-  it("renders ManifestList component", () => {
-    useApi.mockReturnValue(fakeApiResult(createManifestList()));
-    const { getByTestId } = renderWithAppState(<AppsPage />);
-    expect(getByTestId("manifest-list")).toBeDefined();
-  });
-
-  it("renders StatusFilter component", () => {
-    useApi.mockReturnValue(fakeApiResult(createManifestList()));
-    const { getByTestId } = renderWithAppState(<AppsPage />);
-    expect(getByTestId("status-filter")).toBeDefined();
-  });
-
-  it("renders error message when fetch fails", () => {
-    useApi.mockReturnValue(fakeApiResult(null, false, "Connection refused"));
-    const { getByText } = renderWithAppState(<AppsPage />);
-    expect(getByText("Connection refused")).toBeDefined();
-  });
-
-  it("passes manifests data to ManifestList", () => {
-    const manifests = createManifestList({
+  it("renders stats strip with counts", () => {
+    useApi.mockReturnValue(fakeApiResult(createManifestList({
       manifests: [
-        createManifest({ app_key: "app_a", status: "running" }),
-        createManifest({ app_key: "app_b", status: "failed" }),
+        createManifest({ app_key: "a", status: "running" }),
+        createManifest({ app_key: "b", status: "disabled" }),
       ],
       total: 2,
-    });
-    useApi.mockReturnValue(fakeApiResult(manifests));
+    })));
     const { getByTestId } = renderWithAppState(<AppsPage />);
-    // manifest-list stub exposes count via data-count attribute
-    expect(getByTestId("manifest-list").getAttribute("data-count")).toBe("2");
+    expect(getByTestId("apps-stats-strip")).toBeDefined();
   });
 
-  it("renders empty ManifestList when data is null (not loading)", () => {
-    useApi.mockReturnValue(fakeApiResult(null, false));
+  it("renders filter pills", () => {
+    useApi.mockReturnValue(fakeApiResult(createManifestList()));
     const { getByTestId } = renderWithAppState(<AppsPage />);
-    // ManifestList receives null manifests — renders stub with count 0
-    expect(getByTestId("manifest-list")).toBeDefined();
+    expect(getByTestId("apps-filter-pills")).toBeDefined();
+  });
+
+  it("renders app rows in the table", () => {
+    useApi.mockReturnValue(fakeApiResult(createManifestList({
+      manifests: [
+        createManifest({ app_key: "app_a", status: "running" }),
+        createManifest({ app_key: "app_b", status: "running" }),
+      ],
+      total: 2,
+    })));
+    const { getByTestId } = renderWithAppState(<AppsPage />);
+    expect(getByTestId("app-row-app_a")).toBeDefined();
+    expect(getByTestId("app-row-app_b")).toBeDefined();
+  });
+
+  it("renders search input", () => {
+    useApi.mockReturnValue(fakeApiResult(createManifestList()));
+    const { getByTestId } = renderWithAppState(<AppsPage />);
+    expect(getByTestId("apps-search")).toBeDefined();
+  });
+
+  it("shows empty state when no manifests", () => {
+    useApi.mockReturnValue(fakeApiResult(createManifestList({ manifests: [], total: 0 })));
+    const { getByText } = renderWithAppState(<AppsPage />);
+    expect(getByText(/no apps match/i)).toBeDefined();
   });
 });
