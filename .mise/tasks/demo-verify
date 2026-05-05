@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+#MISE description="Verify the demo environment starts and all apps reach running"
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+SCRIPT="$REPO_ROOT/scripts/hassette_demo.py"
+TIMEOUT=120
+POLL_TIMEOUT=30
+
+# Expected app instance count — derived from hassette.toml config sections
+EXPECTED_APPS=7
+
+cleanup() {
+    if [[ -n "${DEMO_PID:-}" ]]; then
+        kill -TERM "$DEMO_PID" 2>/dev/null || true
+        timeout 15 tail --pid="$DEMO_PID" -f /dev/null 2>/dev/null || kill -9 "$DEMO_PID" 2>/dev/null || true
+    fi
+    rm -f "${FIFO:-}" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+# Start the orchestrator in the background, capture its output
+FIFO=$(mktemp -u)
+mkfifo "$FIFO"
+uv run python "$SCRIPT" > "$FIFO" 2>/dev/null &
+DEMO_PID=$!
+
+# Read structured output until DEMO_READY=true
+declare -A DEMO_VARS
+DEADLINE=$((SECONDS + TIMEOUT))
+while IFS='=' read -r key value; do
+    DEMO_VARS["$key"]="$value"
+    [[ "$key" == "DEMO_READY" ]] && break
+    if ((SECONDS >= DEADLINE)); then
+        echo "FAIL: DEMO_READY not received within ${TIMEOUT}s"
+        exit 1
+    fi
+done < <(timeout "$TIMEOUT" cat "$FIFO")
+rm -f "$FIFO"
+
+if [[ "${DEMO_VARS[DEMO_READY]:-}" != "true" ]]; then
+    echo "FAIL: orchestrator exited without DEMO_READY=true"
+    exit 1
+fi
+
+HASSETTE_URL="${DEMO_VARS[DEMO_HASSETTE_URL]}"
+echo "Demo ready: frontend=${DEMO_VARS[DEMO_FRONTEND_URL]} hassette=$HASSETTE_URL ha=${DEMO_VARS[DEMO_HA_URL]}"
+
+# Poll /api/apps until all instances are running
+RUNNING=0
+DEADLINE=$((SECONDS + POLL_TIMEOUT))
+while ((SECONDS < DEADLINE)); do
+    RESPONSE=$(curl -sf "$HASSETTE_URL/api/apps" 2>/dev/null) || { sleep 1; continue; }
+    RUNNING=$(echo "$RESPONSE" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+running = [a for a in data.get('apps', []) if a.get('status') == 'running']
+print(len(running))
+") || { echo "FAIL: failed to parse /api/apps response"; exit 1; }
+    if ((RUNNING >= EXPECTED_APPS)); then
+        break
+    fi
+    sleep 1
+done
+
+if ((RUNNING < EXPECTED_APPS)); then
+    echo "FAIL: only $RUNNING/$EXPECTED_APPS apps running after ${POLL_TIMEOUT}s"
+    echo "$RESPONSE" | python3 -c "
+import json, sys
+for a in json.load(sys.stdin).get('apps', []):
+    print(f\"  {a.get('instance_name')}: {a.get('status')}\")
+" || true
+    exit 1
+fi
+
+# Verify listeners exist (framework wiring)
+LISTENERS=$(curl -sf "$HASSETTE_URL/api/bus/listeners" 2>/dev/null) || {
+    echo "FAIL: GET /api/bus/listeners failed"
+    exit 1
+}
+LISTENER_COUNT=$(echo "$LISTENERS" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")
+
+if ((LISTENER_COUNT == 0)); then
+    echo "FAIL: no listeners registered — framework wiring broken"
+    exit 1
+fi
+
+echo "PASS: $EXPECTED_APPS/$EXPECTED_APPS apps running, $LISTENER_COUNT listeners registered"

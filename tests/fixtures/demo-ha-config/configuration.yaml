@@ -1,0 +1,12 @@
+# Demo environment fixture — shares JWT/auth with tests/fixtures/ha-config/.
+homeassistant:
+  name: Hassette Demo
+  unit_system: metric
+  time_zone: America/New_York
+demo:
+recorder:
+history:
+input_boolean:
+  test_toggle:
+    name: Test Toggle
+    initial: false

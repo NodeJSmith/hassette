@@ -1,6 +1,8 @@
 import preact from "@preact/preset-vite";
 import { defineConfig } from "vite";
 
+const apiTarget = process.env.VITE_PROXY_TARGET || "http://localhost:8126";
+
 export default defineConfig({
   plugins: [preact()],
   build: {
@@ -11,11 +13,11 @@ export default defineConfig({
     proxy: {
       // WebSocket must come before generic /api to avoid being caught by the prefix match
       "/api/ws": {
-        target: "http://localhost:8126",
+        target: apiTarget,
         ws: true,
       },
       "/api": {
-        target: "http://localhost:8126",
+        target: apiTarget,
       },
     },
   },

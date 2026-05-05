@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+#MISE description="Start the one-command visual QA environment (HA + hassette + Vite)"
+exec uv run python scripts/hassette_demo.py "$@"

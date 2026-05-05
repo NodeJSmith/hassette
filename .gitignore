@@ -232,3 +232,6 @@ frontend/dist/
 !frontend/public/hassette-logo.png
 !src/hassette/web/static/img/hassette-logo.png
 .playwright-mcp/
+
+# Demo environment data directory
+.demo-data/
