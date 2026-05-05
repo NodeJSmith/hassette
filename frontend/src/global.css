@@ -3504,6 +3504,17 @@ strong {
   color: var(--ink-1);
 }
 
+.ht-detail-pane__name-auto-hint {
+  display: inline-block;
+  margin-left: var(--sp-1);
+  font-family: var(--font-body);
+  font-size: var(--fs-micro);
+  font-weight: 400;
+  color: var(--ink-4);
+  cursor: help;
+  vertical-align: middle;
+}
+
 .ht-detail-pane__subtitle {
   font-size: var(--fs-small);
   color: var(--ink-3);

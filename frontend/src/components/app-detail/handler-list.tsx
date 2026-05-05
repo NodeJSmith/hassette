@@ -1,6 +1,7 @@
 import type { ListenerData, JobData } from "../../api/endpoints";
 import { UnifiedHandlerRow, type UnifiedItem, type UnifiedItemKind } from "./unified-handler-row";
 import { statusToKind } from "../../utils/status";
+import { formatTriggerDetail } from "../../utils/format";
 
 export interface SelectedHandlerId {
   kind: UnifiedItemKind;
@@ -41,7 +42,7 @@ function buildItems(listeners: ListenerData[], jobs: JobData[]): UnifiedItem[] {
     kind: "job" as const,
     id: j.job_id,
     name: j.job_name,
-    humanDescription: j.trigger_label !== "" ? j.trigger_label : null,
+    humanDescription: [j.trigger_label || null, j.trigger_detail ? formatTriggerDetail(j.trigger_detail) : null].filter(Boolean).join(" ") || null,
     statusKind: jobStatusKind(j),
     data: j,
   }));

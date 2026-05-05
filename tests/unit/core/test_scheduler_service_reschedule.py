@@ -74,7 +74,7 @@ def _make_interval_trigger(*, next_returns=None, next_raises=None):
     """Create a mock trigger."""
     trig = MagicMock()
     trig.trigger_db_type.return_value = "interval"
-    trig.trigger_label.return_value = "interval"
+    trig.trigger_label.return_value = "every"
     trig.trigger_detail.return_value = "3600s"
     trig.trigger_id.return_value = "every:3600"
     if next_raises is not None:
@@ -433,7 +433,7 @@ class TestEnqueueThenRegisterUsesProtocol:
         reg = captured_registrations[0]
         # trigger_type must come from trigger.trigger_db_type()
         assert reg.trigger_type == "interval", f"Expected 'interval', got {reg.trigger_type!r}"
-        assert reg.trigger_label == "interval"
+        assert reg.trigger_label == "every"
         assert reg.trigger_detail == "3600s"
 
     async def test_enqueue_then_register_no_isinstance_import(self) -> None:

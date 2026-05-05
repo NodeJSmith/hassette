@@ -364,6 +364,7 @@ class TelemetryQueryService(Resource):
                 sj.registration_source,
                 sj.source_tier,
                 sj."group" AS "group",
+                sj.name_auto,
                 CASE WHEN sj.cancelled_at IS NOT NULL THEN 1 ELSE 0 END AS cancelled,
                 COUNT(je.rowid) AS total_executions,
                 SUM(CASE WHEN je.status = 'success' THEN 1 ELSE 0 END) AS successful,

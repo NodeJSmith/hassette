@@ -144,6 +144,8 @@ class JobSummary(BaseModel):
     """Seconds of random jitter offset; sourced from live heap."""
     cancelled: bool = False
     """True when the job is cancelled; derived solely from ``cancelled_at IS NOT NULL`` in the DB."""
+    name_auto: bool = False
+    """True when the job name was auto-generated from the callable and trigger ID."""
 
 
 class JobExecution(BaseModel):

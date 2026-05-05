@@ -228,7 +228,7 @@ class Every:
         return result.round(unit="second")
 
     def trigger_label(self) -> str:
-        return "interval"
+        return "every"
 
     def trigger_detail(self) -> str | None:
         return f"{int(self.interval_seconds)}s"
@@ -288,17 +288,9 @@ class Daily:
         return self._cron.next_run_time(previous_run, current_time)
 
     def trigger_label(self) -> str:
-        # Returns "cron" because Daily is implemented via CronTrigger internally.
-        # Daily jobs surface identically to Cron jobs in `trigger_label`/`trigger_db_type`;
-        # distinction only visible to the user via constructor choice. See design.md TENSION resolution.
-        return "cron"
+        return "daily"
 
     def trigger_detail(self) -> str | None:
-        # Return the user-written "HH:MM" so the UI can display "Daily at 07:00"
-        # directly without parsing the underlying cron expression. Cron-backed
-        # siblings return their full expression, letting the UI differentiate
-        # Daily from Cron on the display surface even though trigger_label/db_type
-        # are both "cron".
         return self._at_str
 
     def trigger_db_type(self) -> Literal["cron"]:

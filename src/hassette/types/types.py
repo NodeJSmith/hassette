@@ -132,13 +132,14 @@ class TriggerProtocol(Protocol):
         ...
 
     def trigger_label(self) -> str:
-        """Short stable label for telemetry / UI display.
+        """Human-readable display label for the UI.
 
         Custom triggers (those returning ``"custom"`` from ``trigger_db_type()``)
-        MUST NOT return one of the built-in reserved names (``"interval"``,
-        ``"cron"``, ``"once"``, ``"after"``) from this method. Doing so creates
-        misleading telemetry and UI rows where the ``trigger_type`` column is
-        ``"custom"`` but the label implies a built-in trigger kind.
+        MUST NOT return one of the built-in reserved names (``"after"``,
+        ``"once"``, ``"every"``, ``"daily"``, ``"cron"``) from this method.
+        Doing so creates misleading telemetry and UI rows where the
+        ``trigger_type`` column is ``"custom"`` but the label implies a
+        built-in trigger kind.
         """
         ...
 

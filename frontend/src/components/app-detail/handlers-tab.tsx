@@ -48,8 +48,6 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
 function ScheduleChips({ job }: { job: JobData }) {
   const chips: Array<{ label: string }> = [];
 
-  if (job.trigger_label) chips.push({ label: job.trigger_label });
-  if (job.trigger_detail) chips.push({ label: formatTriggerDetail(job.trigger_detail) });
   if (job.jitter) chips.push({ label: `±${job.jitter}s jitter` });
   if (job.group) chips.push({ label: `group: ${job.group}` });
 
@@ -207,12 +205,6 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
       {/* Modifier chips */}
       <ModifierChips listener={listener} />
 
-      {/* Handler method */}
-      <div class="ht-detail-pane__registration" data-testid="handler-method-block">
-        <span class="ht-detail-label">Handler</span>
-        <pre class="ht-detail-pane__code-snippet"><code>{listener.handler_method}</code></pre>
-      </div>
-
       {/* Source file location */}
       {listener.source_location && (
         <div class="ht-detail-pane__source-loc" data-testid="handler-source-location">
@@ -315,15 +307,26 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
           <StatusShape kind={jobKind} size={8} />
           {kindLabel}
         </span>
-        <span class="ht-detail-pane__handler-name">{job.job_name}</span>
+        <span class="ht-detail-pane__handler-name">
+          {job.job_name}
+          {job.name_auto && (
+            <span
+              class="ht-detail-pane__name-auto-hint"
+              title={`Auto-generated name. Pass name="..." when scheduling for something descriptive.`}
+              aria-label="Auto-generated name"
+            >ⓘ</span>
+          )}
+        </span>
         {job.cancelled && (
           <span class="ht-badge ht-badge--neutral ht-badge--sm" data-testid="job-status-pill">cancelled</span>
         )}
       </div>
 
-      {/* Subtitle: human_description */}
-      {job.trigger_label && (
-        <p class="ht-detail-pane__subtitle">{job.trigger_label}</p>
+      {/* Subtitle: combined trigger label + detail */}
+      {(job.trigger_label || job.trigger_detail) && (
+        <p class="ht-detail-pane__subtitle">
+          {[job.trigger_label, job.trigger_detail ? formatTriggerDetail(job.trigger_detail) : null].filter(Boolean).join(" ")}
+        </p>
       )}
 
       {/* Registration source */}

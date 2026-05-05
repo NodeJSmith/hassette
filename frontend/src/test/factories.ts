@@ -164,6 +164,7 @@ export function createJob(overrides: Partial<JobSummary> = {}): JobSummary {
     fire_at: null,
     jitter: null,
     cancelled: false,
+    name_auto: false,
     ...overrides,
   } satisfies JobSummary;
 }

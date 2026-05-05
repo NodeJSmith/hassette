@@ -196,6 +196,9 @@ class ScheduledJob:
     name: str = field(default="", compare=False)
     """Optional name for the job for easier identification."""
 
+    name_auto: bool = field(default=False, compare=False)
+    """Whether the name was auto-generated from the callable and trigger ID."""
+
     args: tuple[Any, ...] = field(default_factory=tuple, compare=False)
     """Positional arguments to pass to the job callable."""
 
@@ -263,9 +266,9 @@ class ScheduledJob:
 
         if not self.name:
             callable_name = self.job.__name__ if hasattr(self.job, "__name__") else str(self.job)
-            # All triggers implement TriggerProtocol and expose trigger_id() for unique naming.
             trigger_str = self.trigger.trigger_id() if self.trigger is not None else None
             self.name = f"{callable_name}:{trigger_str}" if self.trigger else callable_name
+            self.name_auto = True
 
         self.args = tuple(self.args)
         self.kwargs = dict(self.kwargs)

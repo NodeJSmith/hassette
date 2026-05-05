@@ -1125,6 +1125,11 @@ export interface components {
              * @default false
              */
             cancelled: boolean;
+            /**
+             * Name Auto
+             * @default false
+             */
+            name_auto: boolean;
         };
         /**
          * ListenerWithSummary

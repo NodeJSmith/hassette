@@ -106,24 +106,39 @@ describe("HandlersTab", () => {
     expect(getAllByText("every 30s").length).toBeGreaterThanOrEqual(1);
   });
 
+  it("job detail: shows combined trigger label and detail in subtitle", async () => {
+    const job = createJob({
+      job_id: 9,
+      trigger_label: "every",
+      trigger_detail: "300s",
+      trigger_type: "interval",
+    });
+    const { getByTestId, getAllByText } = renderHandlersTab([], [job]);
+    fireEvent.click(getByTestId("unified-row-job-9"));
+    await waitFor(() => {
+      expect(getByTestId("job-detail-9")).toBeDefined();
+    });
+    expect(getAllByText("every 5m").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("job detail: shows only detail when trigger_label is empty", async () => {
+    const job = createJob({
+      job_id: 10,
+      trigger_label: "",
+      trigger_detail: "300s",
+      trigger_type: "interval",
+    });
+    const { getByTestId, getAllByText } = renderHandlersTab([], [job]);
+    fireEvent.click(getByTestId("unified-row-job-10"));
+    await waitFor(() => {
+      expect(getByTestId("job-detail-10")).toBeDefined();
+    });
+    expect(getAllByText("5m").length).toBeGreaterThanOrEqual(1);
+  });
+
   it("does not show back button on desktop layout", () => {
     const { queryByTestId } = renderHandlersTab();
     expect(queryByTestId("back-to-list")).toBeNull();
-  });
-
-  it("handler detail: shows method handler block when listener is selected", async () => {
-    const listener = createListener({
-      listener_id: 7,
-      handler_method: "on_door_opened",
-      source_location: "garage_alerts.py:42",
-    });
-    const { getByTestId } = renderHandlersTab([listener], []);
-    fireEvent.click(getByTestId("unified-row-listener-7"));
-    await waitFor(() => {
-      expect(getByTestId("listener-detail-7")).toBeDefined();
-    });
-    expect(getByTestId("handler-method-block")).toBeDefined();
-    expect(getByTestId("handler-method-block").textContent).toContain("on_door_opened");
   });
 
   it("handler detail: shows source location when available", async () => {

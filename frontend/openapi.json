@@ -2845,6 +2845,11 @@
             "type": "boolean",
             "title": "Cancelled",
             "default": false
+          },
+          "name_auto": {
+            "type": "boolean",
+            "title": "Name Auto",
+            "default": false
           }
         },
         "type": "object",
