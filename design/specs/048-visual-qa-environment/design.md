@@ -1,7 +1,7 @@
 # Design: One-Command Visual QA Environment
 
 **Date:** 2026-05-05
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-05-05-example-apps-demo-env/research.md
 
