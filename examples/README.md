@@ -37,7 +37,7 @@ Monitors lock service calls (lock, unlock) and moisture sensor alerts using sync
 ## Running the Demo Environment
 
 ```bash
-uv run nox -s demo
+mise run demo
 ```
 
 This starts Home Assistant (Docker), the hassette backend, and the Vite frontend dev server. All three URLs are printed when the environment is ready. Press Ctrl+C to tear everything down.

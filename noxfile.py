@@ -19,12 +19,6 @@ def frontend(session: "Session"):
 
 
 @nox.session(python=False)
-def demo(session: "Session"):
-    """Start a one-command visual QA environment: HA + hassette + Vite dev server."""
-    session.run("uv", "run", "python", "scripts/hassette_demo.py", *session.posargs, external=True)
-
-
-@nox.session(python=False)
 def dev(session: "Session"):
     """Fast local test run — uses the current interpreter, no reinstall."""
     if not _SPA_INDEX.exists():

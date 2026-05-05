@@ -15,10 +15,6 @@ run = "uv sync"
 run = "mkdocs serve --livereload"
 depends = ["install"]
 
-[tasks.demo]
-description = "Start the one-command visual QA environment (HA + hassette + Vite)"
-run = "uv run nox -s demo"
-
 [tasks."npm:install"]
 description = "Install Node.js dependencies"
 run = "npm ci"
