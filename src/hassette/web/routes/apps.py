@@ -1,6 +1,5 @@
 """App management endpoints."""
 
-import contextlib
 import re
 from logging import getLogger
 
@@ -103,8 +102,10 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
     schema = None
     app_instance = hassette.app_handler.registry.get(app_key)
     if app_instance is not None:
-        with contextlib.suppress(Exception):
+        try:
             schema = type(app_instance).app_config_cls.model_json_schema()
+        except Exception:
+            LOGGER.warning("Failed to generate config schema for %s", app_key, exc_info=True)
 
     return AppConfigResponse(
         app_key=app_key,
