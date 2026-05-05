@@ -59,7 +59,7 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
           title={isIcon ? "Start" : undefined}
           aria-label="Start app"
         >
-          {isIcon ? <IconPlay /> : "Start"}
+          {isIcon ? <IconPlay /> : <><IconPlay /> Start</>}
         </button>
       )}
       {canReload && (
@@ -71,19 +71,19 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
           title={isIcon ? "Reload" : undefined}
           aria-label="Reload app"
         >
-          {isIcon ? <IconRefresh /> : "Reload"}
+          {isIcon ? <IconRefresh /> : <><IconRefresh /> Reload</>}
         </button>
       )}
       {canStop && (
         <button
-          class={`${btnBase} ht-btn--warning`}
+          class={`${btnBase} ${isIcon ? "ht-btn--warning" : "ht-btn--danger"}`}
           data-testid={`btn-stop-${appKey}`}
           disabled={loading.value}
           onClick={handleStop}
           title={isIcon ? "Stop" : undefined}
           aria-label="Stop app"
         >
-          {isIcon ? <IconSquare /> : "Stop"}
+          {isIcon ? <IconSquare /> : <><IconSquare /> Stop</>}
         </button>
       )}
     </div>

@@ -2201,11 +2201,12 @@ strong {
 /* — Button: danger variant ———————————————————————————— */
 .ht-btn--danger {
   border-color: var(--err);
-  color: var(--err);
+  color: var(--bg-surface);
+  background: var(--err);
 }
 
 .ht-btn--danger:hover {
-  background: var(--err-bg);
+  opacity: 0.9;
 }
 
 /* — Icon SVGs (inline Lucide replacements) ———————————— */
@@ -3715,7 +3716,8 @@ strong {
 }
 
 .ht-unified-row--selected {
-  background: color-mix(in srgb, var(--accent) 8%, var(--bg-surface));
+  background: var(--bg-active);
+  box-shadow: inset 3px 0 0 var(--ink-1);
 }
 
 .ht-unified-row__status {
@@ -4111,20 +4113,21 @@ strong {
 }
 
 .ht-code-tab__body {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: 520px;
 }
 
 .ht-code-tab__body .shiki {
   margin: 0;
   padding: var(--sp-3) 0;
-  background-color: var(--bg-sunken) !important;
+  background-color: var(--bg-page) !important;
   border-radius: 0;
   font-size: var(--fs-small);
   line-height: 1.6;
 }
 
 [data-theme="dark"] .ht-code-tab__body .shiki {
-  background-color: var(--bg-sunken) !important;
+  background-color: var(--bg-page) !important;
 }
 
 .ht-code-tab__body .shiki code {
@@ -4140,12 +4143,21 @@ strong {
 }
 
 .ht-code-tab__body .shiki span.line--annotated {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  background: rgba(0, 0, 0, 0.025);
   box-shadow: inset 3px 0 0 var(--ink-3);
 }
 
 .ht-code-tab__body .shiki span.line--focus {
-  background: var(--accent-soft);
+  background: rgba(212, 165, 90, 0.15);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+[data-theme="dark"] .ht-code-tab__body .shiki span.line--annotated {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="dark"] .ht-code-tab__body .shiki span.line--focus {
+  background: rgba(212, 165, 90, 0.12);
 }
 
 .ht-code-tab__body .shiki .line-num {
@@ -4629,6 +4641,39 @@ strong {
   color: var(--ink-2);
   margin: 0;
 }
+
+.ht-dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+
+.ht-dashboard-stats__cell {
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+}
+
+.ht-dashboard-stats__label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.ht-dashboard-stats__value {
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: var(--ink-1);
+  margin-top: 2px;
+}
+
+.ht-dashboard-stats__value--warn { color: var(--warn); }
+.ht-dashboard-stats__value--err { color: var(--err); }
 
 /* — Framework error banner ————————————————————————————— */
 .ht-framework-error-banner {
