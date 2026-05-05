@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Create demo HA fixture and docker-compose file"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#3"]
 ---

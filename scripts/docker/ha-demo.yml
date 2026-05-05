@@ -1,0 +1,15 @@
+services:
+  homeassistant:
+    image: homeassistant/home-assistant:2025.3
+    container_name: "hassette-demo-ha-${HA_PORT:-8123}"
+    ports:
+      - "${HA_PORT:-8123}:8123"
+    volumes:
+      - "${HA_CONFIG_PATH:-../../tests/fixtures/demo-ha-config}:/config"
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8123/api/", "-H", "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMyIsImlhdCI6MTczNTY4OTYwMCwiZXhwIjoyMDUxMDQ5NjAwfQ.q-p85dOe-MMnKQhSNh_LEWnWJGK-GA3xdmqb4LKvkU0"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
