@@ -145,7 +145,7 @@ describe("JobExecutions", () => {
     expect(getByText("Trace ID")).toBeDefined();
   });
 
-  it("renders execution_id truncated to 8 chars with full value in title", () => {
+  it("renders full execution_id on desktop", () => {
     const uuid = "abc12345-6789-abcd-ef01-234567890abc";
     const { container } = render(
       <JobExecutions
@@ -153,9 +153,7 @@ describe("JobExecutions", () => {
         jobId={1}
       />,
     );
-    const cell = container.querySelector("[title='" + uuid + "']");
-    expect(cell).not.toBeNull();
-    expect(cell!.textContent).toBe("abc12345…");
+    expect(container.textContent).toContain(uuid);
   });
 
   it("renders dash for null execution_id", () => {

@@ -78,6 +78,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   useSubscribe(tick, logs.version);
   const minLevel = useRef(signal("INFO")).current;
   const appFilter = useRef(signal("")).current;
+  const tierFilter = useRef(signal<"all" | "app" | "framework">("all")).current;
   const search = useRef(signal("")).current;
   const initialEntries = useRef(signal<LogEntry[]>([])).current;
   const sortConfig = useRef(signal<SortConfig>({ column: "timestamp", asc: false })).current;
@@ -124,10 +125,17 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
       })
     : allEntries; // "" = All Levels — show everything
 
+  // Apply source tier filter
+  const tierFiltered = tierFilter.value === "all"
+    ? levelFiltered
+    : tierFilter.value === "app"
+      ? levelFiltered.filter((e) => !!e.app_key)
+      : levelFiltered.filter((e) => !e.app_key);
+
   // Apply app filter (only for global logs)
   const appFiltered = appFilter.value
-    ? levelFiltered.filter((e) => e.app_key === appFilter.value)
-    : levelFiltered;
+    ? tierFiltered.filter((e) => e.app_key === appFilter.value)
+    : tierFiltered;
 
   // Apply search filter
   const filtered = search.value
@@ -239,10 +247,24 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
           <span class="ht-log-toolbar__note">{pluralize(filtered.length, "entry", "entries")}</span>
         </div>
         <div class="ht-log-toolbar__controls">
-          <span class={`ht-pill ${livePaused ? "ht-pill--mute" : "ht-pill--accent"}`}>
-            <StatusShape kind={livePaused ? "mute" : "ok"} size={6} />
-            {livePaused ? "paused" : "live"}
-          </span>
+          {!appKey && (
+            <div class="ht-tier-toggle" data-testid="log-tier-toggle">
+              {(["all", "app", "framework"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  class={`ht-tier-toggle__btn${tierFilter.value === t ? " ht-tier-toggle__btn--active" : ""}`}
+                  onClick={() => { tierFilter.value = t; }}
+                >{t === "all" ? "All" : t === "app" ? "Apps" : "Framework"}</button>
+              ))}
+            </div>
+          )}
+          {!appKey && (
+            <span class={`ht-pill ${livePaused ? "ht-pill--mute" : "ht-pill--accent"}`}>
+              <StatusShape kind={livePaused ? "mute" : "ok"} size={6} />
+              {livePaused ? "paused" : "live"}
+            </span>
+          )}
           <label class="ht-pill ht-pill--mute ht-pill--interactive">
             {levelLabel}
             <select

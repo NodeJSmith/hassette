@@ -2810,10 +2810,11 @@ strong {
   white-space: nowrap;
 }
 
-.ht-table-log .ht-col-level   { width: 55px; }
+.ht-table-log td { padding: var(--sp-2) var(--sp-3); vertical-align: top; }
+.ht-table-log .ht-col-level   { width: 80px; }
 .ht-table-log .ht-col-time    { width: 150px; }
 .ht-table-log .ht-col-app     { width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ht-table-log .ht-col-source  { width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.ht-table-log .ht-col-source  { width: 220px; overflow: hidden; text-overflow: ellipsis; }
 /* Message column: no width set — takes all remaining space */
 
 /* Severity row tinting — visible at scroll speed, not just badge-reading speed */
@@ -3576,23 +3577,6 @@ strong {
   font-size: var(--fs-small);
 }
 
-.ht-detail-stats-footer {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
-}
-
-.ht-detail-stats-footer .ht-detail-stats-row {
-  flex: 1;
-  margin-bottom: 0;
-}
-
-.ht-detail-stats-footer .ht-detail-pane__view-in-code {
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
 /* — Detail pane stats row —————————————————————————————— */
 .ht-detail-stats-row {
   display: flex;
@@ -3961,6 +3945,7 @@ strong {
 .ht-config-field__value {
   font-family: var(--font-mono);
   font-size: 12px;
+  color: var(--ink-2);
 }
 
 .ht-config-field__value--missing {

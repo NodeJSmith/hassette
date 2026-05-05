@@ -134,6 +134,7 @@ export function AppDetailPage({ params }: Props) {
 
   const activeTab = useRef(signal<TabId>("handlers")).current;
   const codeFocusLine = useRef(signal<number | undefined>(undefined)).current;
+  const cameFromHandlers = useRef(signal(false)).current;
 
   // Parse focus query param for auto-selecting a handler (strip from URL once read)
   const focusMethod = useRef<string | null>(null);
@@ -335,15 +336,26 @@ export function AppDetailPage({ params }: Props) {
           listeners={listeners.data.value ?? []}
           jobs={jobs.data.value ?? []}
           focusMethod={focusMethod.current}
-          onSwitchToCode={(line) => { codeFocusLine.value = line; activeTab.value = "code"; }}
+          onSwitchToCode={(line) => { codeFocusLine.value = line; cameFromHandlers.value = true; activeTab.value = "code"; }}
         />
       )}
       {activeTab.value === "code" && (
-        <CodeTab
-          appKey={appKey}
-          listeners={listeners.data.value ?? []}
-          focusLine={codeFocusLine.value}
-        />
+        <>
+          {cameFromHandlers.value && (
+            <button
+              type="button"
+              class="ht-btn ht-btn--ghost ht-btn--sm ht-mb-3"
+              onClick={() => { cameFromHandlers.value = false; activeTab.value = "handlers"; }}
+            >
+              ← back to handlers
+            </button>
+          )}
+          <CodeTab
+            appKey={appKey}
+            listeners={listeners.data.value ?? []}
+            focusLine={codeFocusLine.value}
+          />
+        </>
       )}
       {activeTab.value === "logs" && (
         <div class="ht-card" data-testid="logs-section">
