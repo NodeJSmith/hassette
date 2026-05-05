@@ -45,6 +45,7 @@ HA_TOKEN = (
 # ---------------------------------------------------------------------------
 
 _ha_compose_file: Path | None = None
+_ha_project_name: str | None = None
 _ha_env: dict[str, str] | None = None
 _hassette_proc: "subprocess.Popen[bytes] | None" = None
 _vite_proc: "subprocess.Popen[bytes] | None" = None
@@ -159,12 +160,12 @@ def teardown() -> None:
 
     # 3. docker compose down
     if _ha_compose_file is not None and _ha_env is not None:
+        cmd = ["docker", "compose", "-f", str(_ha_compose_file)]
+        if _ha_project_name is not None:
+            cmd += ["-p", _ha_project_name]
+        cmd.append("down")
         with contextlib.suppress(Exception):
-            subprocess.run(
-                ["docker", "compose", "-f", str(_ha_compose_file), "down"],
-                check=False,
-                env=_ha_env,
-            )
+            subprocess.run(cmd, check=False, env=_ha_env)
 
     # 4. Remove temp directory
     if _tmp_dir is not None:
@@ -182,7 +183,7 @@ def _signal_handler(_signum: int, _frame: object) -> None:
 
 
 def main() -> None:
-    global _ha_compose_file, _ha_env, _hassette_proc, _vite_proc, _tmp_dir
+    global _ha_compose_file, _ha_project_name, _ha_env, _hassette_proc, _vite_proc, _tmp_dir
 
     # Register cleanup handlers early so partial startup is also cleaned up.
     atexit.register(teardown)
@@ -235,7 +236,7 @@ def main() -> None:
     compose_file = repo_root / "scripts" / "docker" / "ha-demo.yml"
     _ha_compose_file = compose_file
 
-    # Check Docker availability first
+    # Check tool availability
     docker_check = subprocess.run(
         ["docker", "compose", "version"],
         capture_output=True,
@@ -245,6 +246,10 @@ def main() -> None:
         print("DEMO_ERROR=Docker is not running or not installed", flush=True)
         sys.exit(1)
 
+    if shutil.which("uv") is None:
+        print("DEMO_ERROR=uv is not installed or not on PATH", flush=True)
+        sys.exit(1)
+
     ha_env = {
         **os.environ,
         "HA_PORT": str(ha_port),
@@ -252,8 +257,9 @@ def main() -> None:
     }
     _ha_env = ha_env
 
+    _ha_project_name = f"hassette-demo-{ha_port}"
     result = subprocess.run(
-        ["docker", "compose", "-f", str(compose_file), "up", "-d"],
+        ["docker", "compose", "-f", str(compose_file), "-p", _ha_project_name, "up", "-d"],
         check=False,
         capture_output=True,
         env=ha_env,
