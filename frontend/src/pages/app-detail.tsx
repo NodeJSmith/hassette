@@ -163,6 +163,14 @@ export function AppDetailPage({ params }: Props) {
     { deps: [appKey, resolvedInstanceIndex] },
   );
 
+  // Preserve stale handler/job data during refetch to avoid losing selection
+  const staleListeners = useRef<typeof listeners.data.value>(null);
+  const staleJobs = useRef<typeof jobs.data.value>(null);
+  if (listeners.data.value) staleListeners.current = listeners.data.value;
+  if (jobs.data.value) staleJobs.current = jobs.data.value;
+  const displayListeners = listeners.data.value ?? staleListeners.current ?? [];
+  const displayJobs = jobs.data.value ?? staleJobs.current ?? [];
+
   // Immediate fallback title on mount
   useEffect(() => { document.title = "App - Hassette"; }, []);
 
@@ -333,8 +341,8 @@ export function AppDetailPage({ params }: Props) {
       {/* Tab content */}
       {activeTab.value === "handlers" && (
         <HandlersTab
-          listeners={listeners.data.value ?? []}
-          jobs={jobs.data.value ?? []}
+          listeners={displayListeners}
+          jobs={displayJobs}
           focusMethod={focusMethod.current}
           onSwitchToCode={(line) => { codeFocusLine.value = line; cameFromHandlers.value = true; activeTab.value = "code"; }}
         />
@@ -352,7 +360,7 @@ export function AppDetailPage({ params }: Props) {
           )}
           <CodeTab
             appKey={appKey}
-            listeners={listeners.data.value ?? []}
+            listeners={displayListeners}
             focusLine={codeFocusLine.value}
           />
         </>
