@@ -108,6 +108,9 @@ def _poll_http(
                 else:
                     consecutive = 0
         except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                print(f"DEMO_ERROR=HTTP {exc.code} from {url} (check credentials)", flush=True)
+                return False
             if exc.code not in (503, 404):
                 print(f"DEMO_WARN=HTTP {exc.code} from {url}", flush=True)
             consecutive = 0
@@ -206,7 +209,7 @@ def main() -> None:
     # Step 3: Copy demo HA fixture to temp directory
     # ------------------------------------------------------------------
     fixture_src = repo_root / "tests" / "fixtures" / "demo-ha-config"
-    # Keep in sync with tests/system/conftest.py (same HA runtime artifact exclusions)
+    # Keep in sync with tests/system/conftest.py ha_container fixture (same ignore list)
     _ignore = shutil.ignore_patterns(
         ".HA_VERSION",
         "home-assistant.log*",
@@ -363,7 +366,7 @@ def main() -> None:
     print("DEMO_READY=true", flush=True)
     sys.stdout.flush()
 
-    # Block until signaled (SIGINT or SIGTERM will call _signal_handler)
+    # Block until signaled — signal.pause() is Unix-only; Windows is rejected at startup.
     signal.pause()
 
 

@@ -1,5 +1,4 @@
-# Demo environment fixture — shares JWT/auth with tests/fixtures/ha-config/
-# but uses a distinct name and input_boolean for visual identification.
+# Demo environment fixture — shares JWT/auth with tests/fixtures/ha-config/.
 homeassistant:
   name: Hassette Demo
   unit_system: metric

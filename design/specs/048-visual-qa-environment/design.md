@@ -102,7 +102,7 @@ Additionally, the project's example apps live in a separate repository that has 
 - **AC#2** Two simultaneous instances started from different worktrees both run without port conflicts (validates FR#2, FR#11)
 - **AC#3** The dashboard shows active automation app instances with listeners, scheduled jobs, and event activity (validates FR#4)
 - **AC#4** Sending SIGTERM or pressing Ctrl+C results in all processes exiting and no containers remaining in `docker ps` (validates FR#7)
-- **AC#5** The smoke system test passes in CI, confirming all app instances reach running state (validates FR#9)
+- **AC#5** The verification script (`mise run demo-verify`) passes locally, confirming all app instances reach running state (validates FR#9). CI wiring is deferred — requires Docker-in-CI support.
 - **AC#6** The legacy `examples/apps/` directory is removed and replaced by the consolidated example apps (validates FR#10)
 - **AC#7** Frontend hot reload works — saving a frontend source file updates the browser without restarting the environment (validates FR#5)
 
@@ -159,7 +159,7 @@ A Python script at `scripts/hassette_demo.py` is the main entry point. Startup s
 9. Print structured ready message with all three URLs
 10. Block on `signal.pause()`
 
-Teardown on SIGINT/SIGTERM: terminate Vite → terminate hassette → `docker compose down` → remove temp directory. Each subprocess is started with `os.setsid()` so the process group can be killed cleanly. An `atexit` handler covers normal Python exit.
+Teardown on SIGINT/SIGTERM: terminate Vite → terminate hassette → `docker compose down` → remove temp directory. Each subprocess is started with `start_new_session=True` so the process group can be killed cleanly. An `atexit` handler covers normal Python exit.
 
 Structured output format for machine parsing:
 ```
@@ -169,19 +169,20 @@ DEMO_FRONTEND_URL=http://localhost:{vite_port}
 DEMO_READY=true
 ```
 
-### Nox session and mise task
+### Mise file-based tasks
 
-A `python=False` nox session named `demo` wraps the orchestrator script, following the established pattern from the `frontend` and `dev` sessions. A corresponding mise task provides `mise run demo` as an alias.
+A file-based mise task at `.mise/tasks/demo` wraps the orchestrator script as the primary entry point (`mise run demo`). No nox session — mise auto-discovers the executable.
 
-### Smoke system test
+### Verification script
 
-A new test file in `tests/system/` that:
-1. Starts the demo environment using the same orchestrator logic (or by invoking the script as a subprocess)
+A bash script at `.mise/tasks/demo-verify` that:
+1. Starts the demo environment by invoking the orchestrator as a subprocess
 2. Waits for the `DEMO_READY=true` signal
-3. Queries `GET /api/apps` on the hassette backend and asserts all 7 app instances have status `RUNNING`
-4. Tears down the environment
+3. Polls `GET /api/apps` on the hassette backend until all 7 app instances have status `running`
+4. Verifies listeners are registered (framework wiring)
+5. Tears down the environment
 
-This test runs as part of `nox -s system` with a dedicated marker so it can be run in isolation.
+Run via `mise run demo-verify`. Not yet wired into CI — AC#5 is partially met (the verification script exists and passes locally but is not automated in the CI pipeline).
 
 ### .gitignore
 
@@ -203,7 +204,7 @@ Instead of dynamic allocation, use fixed default ports (e.g., 28123, 28126, 2517
 
 ## Test Strategy
 
-- **Smoke system test** (new): Validates the full stack starts and all 7 app instances reach RUNNING status. Runs as part of `nox -s system`.
+- **Verification script** (`mise run demo-verify`): Validates the full stack starts, all 7 app instances reach running status, and listeners are registered. Runs locally; CI wiring deferred pending Docker-in-CI support.
 - **Existing system tests**: Must continue to pass unchanged — the demo environment uses separate fixtures, container names, and ports.
 - **Existing e2e tests**: Unaffected — they use their own mock data, not the demo environment.
 - **Manual verification**: Start the demo, confirm dashboard shows live data, Ctrl+C tears down cleanly. Verify two simultaneous instances from different worktrees don't conflict.
@@ -211,22 +212,20 @@ Instead of dynamic allocation, use fixed default ports (e.g., 28123, 28126, 2517
 ## Documentation Updates
 
 - `examples/README.md` — New file describing the demo apps, what patterns they demonstrate, and how to run the demo environment
-- Nox session docstring — Clear one-line description of what `nox -s demo` does
 
 ## Impact
 
 **Files added:**
-- `examples/` — 5 app files + `__init__.py` + `hassette.toml` (replacing existing `examples/apps/`)
+- `examples/` — 5 app files + `hassette.toml` (replacing existing `examples/apps/`)
 - `scripts/hassette_demo.py` — orchestrator
 - `scripts/docker/ha-demo.yml` — demo docker-compose
 - `tests/fixtures/demo-ha-config/` — HA fixture with demo integration
-- `tests/system/test_demo_smoke.py` — smoke test
+- `.mise/tasks/demo` — file-based mise task
+- `.mise/tasks/demo-verify` — verification script
 - `examples/README.md`
 
 **Files modified:**
 - `frontend/vite.config.ts` — env var for proxy target
-- `noxfile.py` — `demo` session
-- `mise.toml` — `demo` task
 - `.gitignore` — `.demo-data/`
 
 **Files removed:**

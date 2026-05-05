@@ -77,8 +77,9 @@ class ClimateController(App[ClimateControllerConfig]):
         Uses D.StateOld (not D.MaybeStateOld) — if there is no previous state
         (e.g. entity first appears), the handler is skipped entirely. This is
         useful when your handler logic requires the old state to be meaningful.
-        Note that a skipped invocation due to missing old state will log an error;
-        for a quieter approach see on_temp_decreased which uses changed_from instead.
+        A skipped invocation logs an error (without traceback) and is recorded
+        in the telemetry DB as a DI failure. For a cleaner approach see
+        on_temp_decreased which uses changed_from instead.
         """
         self.logger.info("%s temperature increased: %s -> %s", entity_id, old_state.value, new_state.value)
 

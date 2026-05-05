@@ -42,6 +42,8 @@ mise run demo
 
 This starts Home Assistant (Docker), the hassette backend, and the Vite frontend dev server. All three URLs are printed when the environment is ready. Press Ctrl+C to tear everything down.
 
+The demo environment uses a pre-seeded long-lived access token for API authentication — no login required. The hassette frontend at the reported URL is the primary interface.
+
 ## App Registry
 
 `hassette.toml` registers all 5 apps with 7 total instances:

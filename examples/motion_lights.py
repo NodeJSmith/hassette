@@ -71,13 +71,13 @@ class MotionLights(App[MotionLightsConfig]):
         self.logger.debug("Light state after turn_on: %s (brightness=%s)", updated.value, updated.attributes.brightness)
 
     async def on_motion_cleared(self) -> None:
-        """Motion cleared — dim down or turn off."""
+        """Motion cleared — turn off the light."""
         cfg = self.app_config
         self.logger.info("Motion cleared on %s", cfg.motion_entity)
 
-        light_state = self.states.light.get(cfg.light_entity)
-        if light_state and light_state.value == "on":
+        light = await self.api.get_entity(cfg.light_entity, entities.LightEntity)
+        if light.value == "on":
             self.logger.info("Turning off %s", cfg.light_entity)
-            await self.api.turn_off(cfg.light_entity, domain="light")
+            await light.turn_off()
         else:
             self.logger.debug("%s is already off", cfg.light_entity)
