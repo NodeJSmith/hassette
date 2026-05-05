@@ -14,6 +14,7 @@ from fastapi import APIRouter, Path, Query, Response
 from hassette.core.telemetry_models import (
     ActivityFeedEntry,
     AppHealthSummary,
+    AppLastError,
     HandlerErrorRecord,
     HandlerInvocation,
     JobErrorRecord,
@@ -465,7 +466,7 @@ async def dashboard_app_grid(
         summaries = {}
 
     per_app_buckets: dict[str, list[tuple[int, int]]] = {}
-    per_app_errors: dict[str, tuple[str, str | None, float]] = {}
+    per_app_errors: dict[str, AppLastError] = {}
     if since is not None:
         now = time.time()
         try:
@@ -518,9 +519,9 @@ async def dashboard_app_grid(
                 health_status=_health_status_from_summary(health),
                 error_rate=rate,
                 error_rate_class=classify_error_rate(rate),
-                last_error_message=err_info[0] if err_info else None,
-                last_error_type=err_info[1] if err_info else None,
-                last_error_ts=err_info[2] if err_info else None,
+                last_error_message=err_info.error_message if err_info else None,
+                last_error_type=err_info.error_type if err_info else None,
+                last_error_ts=err_info.timestamp if err_info else None,
                 activity_buckets=[ActivityBucket(ok=ok, err=err) for ok, err in buckets],
             )
         )

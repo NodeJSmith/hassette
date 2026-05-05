@@ -39,8 +39,8 @@ export function sortEntries(entries: readonly LogEntry[], column: SortColumn, as
       case "app": {
         const aKey = a.app_key;
         const bKey = b.app_key;
-        const aMissing = aKey === null || aKey === undefined || aKey === "";
-        const bMissing = bKey === null || bKey === undefined || bKey === "";
+        const aMissing = !aKey;
+        const bMissing = !bKey;
         if (aMissing && bMissing) return 0;
         if (aMissing) return 1;  // nulls always last
         if (bMissing) return -1; // nulls always last

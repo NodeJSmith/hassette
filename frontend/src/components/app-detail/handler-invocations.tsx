@@ -7,7 +7,7 @@ import { statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 
 const INITIAL_ROWS = 5;
-const COL_COUNT = 5;
+const COL_COUNT = 6;
 
 interface Props {
   invocations: HandlerInvocationData[];
@@ -77,7 +77,7 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
               </tr>,
               isOpen && (
                 <tr key={`${i}-detail`}>
-                  <td colSpan={COL_COUNT + 1} class="ht-inv-detail-cell" style={{ padding: 0 }}>
+                  <td colSpan={COL_COUNT} class="ht-inv-detail-cell" style={{ padding: 0 }}>
                     <InvocationDetail inv={inv} />
                   </td>
                 </tr>

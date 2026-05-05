@@ -883,7 +883,8 @@ class CommandExecutor(Service):
                     error_type=record.error_type,
                 )
                 await self.hassette.send_event(Topic.HASSETTE_EVENT_INVOCATION_COMPLETED, inv_event)
-            for record in job_executions:
+            app_executions = [r for r in job_executions if r.source_tier == "app"]
+            for record in app_executions:
                 exec_event = HassetteExecutionCompletedEvent.from_record(
                     job_id=record.job_id,
                     status=record.status,

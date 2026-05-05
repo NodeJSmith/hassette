@@ -15,6 +15,7 @@ Enum coercion note
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
 from hassette.core.domain_models import SystemStatus
 from hassette.core.telemetry_models import ListenerSummary
+from hassette.types.enums import Topic
 from hassette.web.models import (
     AppInstanceResponse,
     AppManifestListResponse,
@@ -132,6 +133,16 @@ def connected_payload_from(status: SystemStatus) -> ConnectedPayload:
     )
 
 
+_TOPIC_KIND_MAP: dict[str, str] = {
+    Topic.HASS_EVENT_STATE_CHANGED: "state change",
+    Topic.HASS_EVENT_CALL_SERVICE: "service call",
+}
+
+
+def _listener_kind_from_topic(topic: str) -> str:
+    return _TOPIC_KIND_MAP.get(topic, "event")
+
+
 def to_listener_with_summary(ls: ListenerSummary) -> ListenerWithSummary:
     """Convert a ``ListenerSummary`` to a ``ListenerWithSummary`` response model.
 
@@ -143,6 +154,7 @@ def to_listener_with_summary(ls: ListenerSummary) -> ListenerWithSummary:
         app_key=ls.app_key,
         instance_index=ls.instance_index,
         topic=ls.topic,
+        listener_kind=_listener_kind_from_topic(ls.topic),
         handler_method=ls.handler_method,
         total_invocations=ls.total_invocations,
         successful=ls.successful,

@@ -1,7 +1,7 @@
 import type { AppManifest } from "../../api/endpoints";
 import { StatusBadge } from "../shared/status-badge";
 import { pluralize } from "../../utils/format";
-import { ActionButtons } from "./action-buttons";
+import { ActionButtons } from "../shared/action-buttons";
 
 interface Props {
   manifest: AppManifest;

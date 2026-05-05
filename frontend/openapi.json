@@ -2933,6 +2933,11 @@
             "type": "string",
             "title": "Topic"
           },
+          "listener_kind": {
+            "type": "string",
+            "title": "Listener Kind",
+            "default": "event"
+          },
           "handler_method": {
             "type": "string",
             "title": "Handler Method"

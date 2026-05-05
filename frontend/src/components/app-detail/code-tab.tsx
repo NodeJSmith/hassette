@@ -107,6 +107,17 @@ export function CodeTab({ appKey, listeners, focusLine }: Props) {
     return () => { cancelled = true; };
   }, [appKey]);
 
+  useEffect(() => {
+    if (!focusLine || loading.value) return;
+    const prev = document.querySelector(".line--focus");
+    prev?.classList.remove("line--focus");
+    const el = document.querySelector(`[data-testid="code-line-${focusLine}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("line--focus");
+    }
+  }, [focusLine, loading.value]);
+
   if (loading.value) {
     return (
       <div class="ht-code-tab__loading" data-testid="code-tab-loading">
@@ -122,15 +133,6 @@ export function CodeTab({ appKey, listeners, focusLine }: Props) {
       </div>
     );
   }
-
-  useEffect(() => {
-    if (!focusLine || loading.value) return;
-    const el = document.querySelector(`[data-testid="code-line-${focusLine}"]`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("line--focus");
-    }
-  }, [focusLine, loading.value]);
 
   if (!source.value || !highlightedHtml.value) return null;
 

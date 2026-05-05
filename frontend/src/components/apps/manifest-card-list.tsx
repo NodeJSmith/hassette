@@ -2,7 +2,7 @@ import type { Signal } from "@preact/signals";
 import type { AppManifest } from "../../api/endpoints";
 import type { AppStatusEntry } from "../../state/create-app-state";
 import { StatusBadge } from "../shared/status-badge";
-import { ActionButtons } from "./action-buttons";
+import { ActionButtons } from "../shared/action-buttons";
 import { pluralize } from "../../utils/format";
 
 interface Props {

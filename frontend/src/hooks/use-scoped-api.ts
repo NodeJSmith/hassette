@@ -24,7 +24,7 @@ export interface UseScopedApiOptions extends UseApiOptions {
 }
 
 /** Window sizes in seconds for the fixed-window presets. */
-const PRESET_WINDOW_SECONDS: Record<Exclude<TimePreset, "since-restart">, number> = {
+export const PRESET_WINDOW_SECONDS: Record<Exclude<TimePreset, "since-restart">, number> = {
   "1h": 3600,
   "24h": 86400,
   "7d": 604800,

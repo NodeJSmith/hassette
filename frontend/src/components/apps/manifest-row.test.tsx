@@ -4,7 +4,7 @@ import { ManifestRow } from "./manifest-row";
 import { createManifest, createInstance } from "../../test/factories";
 
 // Mock ActionButtons to avoid API call setup — we're testing ManifestRow rendering
-vi.mock("./action-buttons", () => ({
+vi.mock("../shared/action-buttons", () => ({
   ActionButtons: ({ appKey, status }: { appKey: string; status: string }) => (
     <div data-testid={`action-buttons-${appKey}`} data-status={status} />
   ),

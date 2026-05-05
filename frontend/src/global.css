@@ -1,6 +1,5 @@
 /* Naming convention: all classes use `ht-` prefix with BEM structure.
    Pattern: ht-block__element--modifier (e.g. ht-sidebar__app-link--active).
-   Some WP05 components use unprefixed BEM — to be aligned in a post-WP11 cleanup.
    TODO: split into per-component CSS files after the redesign lands. */
 
 /* Self-hosted fonts — Latin subset
@@ -4183,13 +4182,14 @@ strong {
   margin-right: var(--sp-2);
 }
 
-/* --shiki-light/--shiki-dark are inline style attrs set by Shiki (defaultColor: false) */
+/* --shiki-light/--shiki-dark are inline style attrs set by Shiki (defaultColor: false).
+   Fallback to --ink-1 so text remains visible if Shiki output format changes. */
 .ht-code-tab__body .shiki span:not(.line):not(.line-num):not(.line-annotation) {
-  color: var(--shiki-light);
+  color: var(--shiki-light, var(--ink-1));
 }
 
 [data-theme="dark"] .ht-code-tab__body .shiki span:not(.line):not(.line-num):not(.line-annotation) {
-  color: var(--shiki-dark);
+  color: var(--shiki-dark, var(--ink-1));
 }
 
 .ht-code-tab__loading,

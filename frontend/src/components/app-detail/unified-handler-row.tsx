@@ -17,7 +17,8 @@ interface Props {
   onSelect: () => void;
 }
 
-/** Map a handler kind label to a visual glyph character. */
+/** Map a handler kind label to a visual glyph character.
+ * Listener kind values come from _TOPIC_KIND_MAP in web/mappers.py. */
 function kindGlyph(label: string): string {
   switch (label) {
     case "state change": return "◇";
@@ -45,7 +46,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
 
   if (item.kind === "listener") {
     const l = item.data;
-    chipLabel = handlerKindLabel("listener", l.topic, null);
+    chipLabel = handlerKindLabel("listener", l.listener_kind, null);
     invocationsOrRuns = l.total_invocations;
     failed = l.failed;
     timedOut = l.timed_out;

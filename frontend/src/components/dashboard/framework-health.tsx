@@ -8,11 +8,11 @@
 
 import { useSignal } from "@preact/signals";
 import { getFrameworkSummary } from "../../api/endpoints";
-import { useScopedApi } from "../../hooks/use-scoped-api";
+import { useApi } from "../../hooks/use-api";
 import { IconWarning, IconCheck } from "../shared/icons";
 
 export function FrameworkHealth() {
-  const fwSummary = useScopedApi((since) => getFrameworkSummary(since));
+  const fwSummary = useApi(getFrameworkSummary);
   const expanded = useSignal(false);
 
   const isLoading = fwSummary.loading.value;

@@ -3,7 +3,7 @@ import { useEffect, useRef } from "preact/hooks";
 import { useSearch, useLocation } from "wouter";
 import { getAppJobs, getAppListeners, getManifests } from "../api/endpoints";
 import type { AppInstance } from "../api/endpoints";
-import { ActionButtons } from "../components/apps/action-buttons";
+import { ActionButtons } from "../components/shared/action-buttons";
 import { CodeTab } from "../components/app-detail/code-tab";
 import { ConfigTab } from "../components/app-detail/config-tab";
 import { ErrorDisplay } from "../components/app-detail/error-display";
@@ -179,7 +179,7 @@ export function AppDetailPage({ params }: Props) {
   // Update title when manifest loads; reset on unmount
   const displayName = manifest?.display_name;
   useEffect(() => {
-    if (displayName) document.title = `${appKey} - Hassette`;
+    if (displayName) document.title = `${displayName} - Hassette`;
     return () => { document.title = "Hassette"; };
   }, [displayName]);
 
@@ -225,7 +225,7 @@ export function AppDetailPage({ params }: Props) {
         </nav>
         <MultiInstanceOverview
           appKey={appKey}
-          displayName={appKey}
+          displayName={manifest.display_name ?? appKey}
           instances={manifest.instances ?? []}
           instanceCount={manifest.instance_count}
           onNavigate={(idx) => { navigate(`/apps/${appKey}/${idx}`); }}

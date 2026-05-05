@@ -12,6 +12,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_models import (
     ActivityFeedEntry,
     AppHealthSummary,
+    AppLastError,
     GlobalSummary,
     HandlerErrorRecord,
     HandlerInvocation,
@@ -1037,11 +1038,11 @@ class TelemetryQueryService(Resource):
         self,
         since: float | None = None,
         source_tier: QuerySourceTier = "app",
-    ) -> dict[str, tuple[str, str | None, float]]:
+    ) -> dict[str, AppLastError]:
         """Return the most recent error per app_key.
 
         Returns:
-            Dict mapping app_key to (error_message, error_type, timestamp).
+            Dict mapping app_key to ``AppLastError``.
             Only apps with at least one error in the window are included.
         """
         since_hi_clause, since_params = _since_clause(since, "hi.execution_start_ts")
@@ -1078,7 +1079,8 @@ class TelemetryQueryService(Resource):
         async with self._db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return {
-            row["app_key"]: (row["error_message"] or "", row["error_type"], row["execution_start_ts"]) for row in rows
+            row["app_key"]: AppLastError(row["error_message"] or "", row["error_type"], row["execution_start_ts"])
+            for row in rows
         }
 
     async def get_recent_invocations_1h(

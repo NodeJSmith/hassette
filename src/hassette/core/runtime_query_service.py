@@ -223,8 +223,6 @@ class RuntimeQueryService(Resource):
 
     async def _on_invocation_completed(self, event: Event[Any]) -> None:
         """Accumulate an invocation completion into the pending batch for this drain tick."""
-        if not hasattr(event, "payload"):
-            return
         data: InvocationCompletedPayload = event.payload.data
         lid = data.listener_id if data.listener_id is not None else 0
         app_key, instance_index = self._listener_meta.get(lid, ("", 0))
@@ -242,8 +240,6 @@ class RuntimeQueryService(Resource):
 
     async def _on_execution_completed(self, event: Event[Any]) -> None:
         """Accumulate a job execution completion into the pending batch for this drain tick."""
-        if not hasattr(event, "payload"):
-            return
         data: ExecutionCompletedPayload = event.payload.data
         jid = data.job_id if data.job_id is not None else 0
         app_key, instance_index = self._job_meta.get(jid, ("", 0))
@@ -383,12 +379,6 @@ class RuntimeQueryService(Resource):
         except (AttributeError, RuntimeError):
             app_count = 0
 
-        services_running = [
-            child.class_name
-            for child in self.hassette.children
-            if hasattr(child, "status") and child.status == ResourceStatus.RUNNING
-        ]
-
         services = [
             ServiceInfo(
                 name=child.class_name,
@@ -397,6 +387,7 @@ class RuntimeQueryService(Resource):
             for child in self.hassette.children
             if hasattr(child, "status")
         ]
+        services_running = [s.name for s in services if s.status == ResourceStatus.RUNNING.value]
 
         try:
             proxy_ready = self.hassette.state_proxy.is_ready()

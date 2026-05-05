@@ -15,12 +15,12 @@ export function StatusBar() {
   } = useAppState();
   const status = connection.value;
   const isDegraded = telemetryDegraded.value;
-  const overflow = droppedOverflow.value ?? 0;
-  const exhausted = droppedExhausted.value ?? 0;
-  const noSession = droppedNoSession.value ?? 0;
-  const shutdown = droppedShutdown.value ?? 0;
+  const overflow = droppedOverflow.value;
+  const exhausted = droppedExhausted.value;
+  const noSession = droppedNoSession.value;
+  const shutdown = droppedShutdown.value;
   const droppedTotal = overflow + exhausted + noSession + shutdown;
-  const ehFailures = errorHandlerFailures.value ?? 0;
+  const ehFailures = errorHandlerFailures.value;
 
   const toggleTheme = () => {
     const next = theme.value === "dark" ? "light" : "dark";

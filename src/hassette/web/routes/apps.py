@@ -2,6 +2,7 @@
 
 import re
 from logging import getLogger
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
@@ -19,6 +20,18 @@ from hassette.web.routes.telemetry import DB_ERRORS
 LOGGER = getLogger(__name__)
 
 _VALID_APP_KEY = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]{0,127}$")
+_SECRET_KEYS = re.compile(r"(token|password|secret|api_key|apikey|credential)", re.IGNORECASE)
+
+
+def _redact_secrets(config: dict[str, Any] | list[dict[str, Any]]) -> dict[str, Any] | list[dict[str, Any]]:
+    if isinstance(config, list):
+        return [_redact_dict(c) for c in config]
+    return _redact_dict(config)
+
+
+def _redact_dict(d: dict[str, Any]) -> dict[str, Any]:
+    return {k: "***REDACTED***" if _SECRET_KEYS.search(k) else v for k, v in d.items()}
+
 
 router = APIRouter(tags=["apps"])
 
@@ -112,7 +125,7 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
         filename=manifest.filename,
         class_name=manifest.class_name,
         enabled=manifest.enabled,
-        app_config=manifest.app_config,
+        app_config=_redact_secrets(manifest.app_config),
         config_schema=schema,
     )
 

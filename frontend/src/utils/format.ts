@@ -91,3 +91,9 @@ export function formatAge(ts: number): string {
   if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
   return `${Math.floor(diff / 86400)}d`;
 }
+
+/** Extract the last segment after the final dot (e.g. "foo.bar.Baz" → "Baz"). */
+export function lastDotSegment(s: string): string {
+  const idx = s.lastIndexOf(".");
+  return idx === -1 ? s : s.slice(idx + 1);
+}

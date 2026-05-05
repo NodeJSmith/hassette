@@ -11,11 +11,17 @@ Separation rationale
 - ``domain_models.py`` — live state snapshots and WS event payloads
 """
 
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from pydantic import BaseModel
 
 from hassette.types.types import SourceTier
+
+
+class AppLastError(NamedTuple):
+    error_message: str
+    error_type: str | None
+    timestamp: float
 
 
 class AppHealthSummary(BaseModel):

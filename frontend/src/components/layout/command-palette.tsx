@@ -59,7 +59,7 @@ function buildActionItems(
       label: "Reload all apps",
       action: () => {
         const running = manifests.filter((m) => m.status === "running");
-        for (const m of running) void reloadApp(m.app_key);
+        void Promise.allSettled(running.map((m) => reloadApp(m.app_key)));
         onClose();
       },
     },
@@ -69,7 +69,7 @@ function buildActionItems(
       label: "Stop all failing",
       action: () => {
         const failing = manifests.filter((m) => m.status === "failed" || m.status === "crashed");
-        for (const m of failing) void stopApp(m.app_key);
+        void Promise.allSettled(failing.map((m) => stopApp(m.app_key)));
         onClose();
       },
     },

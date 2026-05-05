@@ -1,8 +1,8 @@
 import { signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 import { reloadApp, startApp, stopApp } from "../../api/endpoints";
-import { ConfirmDialog } from "../shared/confirm-dialog";
-import { IconPlay, IconRefresh, IconSquare } from "../shared/icons";
+import { ConfirmDialog } from "./confirm-dialog";
+import { IconPlay, IconRefresh, IconSquare } from "./icons";
 
 interface Props {
   appKey: string;

@@ -78,8 +78,13 @@ export function levelToVariant(level: string): StatusVariant {
  * Use StatusKind (via statusToKind) for shape indicators (dots, triangles, squares).
  * Use StatusVariant (via statusToVariant) for text badges and CSS class suffixes.
  *
- * These two systems intentionally diverge for some statuses — e.g. "stopped" maps
- * to "warning" (amber badge = needs attention) but "mute" (grey dot = inactive).
+ * These two systems intentionally diverge for some statuses:
+ * - "stopped": warning badge (needs attention) vs mute shape (inactive)
+ * - "starting": neutral badge vs ok shape (healthy progress)
+ * - "stopping"/"shutting_down": neutral badge vs warn shape (transitional)
+ *
+ * APP_STATUS_MAP and STATUS_KIND_MAP share a key-set — new ResourceStatus
+ * variants must be added to both.
  */
 export type StatusKind = "ok" | "warn" | "err" | "mute";
 
@@ -117,20 +122,17 @@ export function statusToKind(status: string): StatusKind {
 }
 
 /** Derive a display chip label from handler/job metadata.
- * Listeners use their topic to determine kind; jobs use trigger_type.
+ * Listeners use backend-provided `listener_kind`; jobs use trigger_type.
  */
 export function handlerKindLabel(
   kind: "listener" | "job",
-  topic: string | null | undefined,
+  listenerKind: string | null | undefined,
   triggerType: string | null | undefined,
 ): string {
   if (kind === "job") {
     return triggerType?.toLowerCase() || "schedule";
   }
-  const lower = topic?.toLowerCase() ?? "";
-  if (lower.includes("state_changed") || lower.includes("state")) return "state change";
-  if (lower.includes("call_service") || lower.includes("service")) return "service call";
-  return "event";
+  return listenerKind || "event";
 }
 
 /**

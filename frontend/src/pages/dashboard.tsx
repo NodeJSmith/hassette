@@ -24,8 +24,7 @@ import { useScopedApi } from "../hooks/use-scoped-api";
 import { useDebouncedEffect } from "../hooks/use-debounced-effect";
 import { useAppState } from "../state/context";
 import { statusToKind } from "../utils/status";
-import { formatRelativeTime } from "../utils/format";
-import { TIME_PRESET_LABELS } from "../utils/format";
+import { formatRelativeTime, lastDotSegment, TIME_PRESET_LABELS } from "../utils/format";
 
 const TIER_OPTIONS: { value: SourceTier; label: string }[] = [
   { value: "all", label: "All" },
@@ -60,6 +59,7 @@ function detectSystemState(
 
 // ---- Greeting helpers -------------------------------------------------------
 
+/** Intentionally recomputed on each render so greeting updates across noon. */
 function getGreeting(): string {
   const h = new Date().getHours();
   if (h < 12) return "Good morning.";
@@ -463,8 +463,7 @@ function SystemCard({ services }: SystemCardProps) {
 
 function shortErrorType(t: string | null | undefined): string {
   if (!t) return "";
-  const lastDot = t.lastIndexOf(".");
-  return lastDot === -1 ? t : t.substring(lastDot + 1);
+  return lastDotSegment(t);
 }
 
 function getHandlerMethod(err: DashboardErrorEntry): string | null {
@@ -482,18 +481,15 @@ function RecentErrorsTable({
 }) {
   const staleRef = useRef<DashboardErrorEntry[] | null>(null);
   const currentData = errors.data.value;
-  const hasFreshData = currentData !== null && currentData.length > 0;
   const isLoading = errors.loading.value;
 
-  useEffect(() => {
-    if (currentData !== null && currentData.length > 0) {
-      staleRef.current = currentData;
-    }
-  }, [currentData]);
+  if (currentData && currentData.length > 0) {
+    staleRef.current = currentData;
+  }
 
-  const displayErrors = hasFreshData ? currentData : (isLoading ? staleRef.current : currentData);
+  const displayErrors = currentData ?? staleRef.current;
   if (!displayErrors || displayErrors.length === 0) return null;
-  const isRefetching = isLoading && !hasFreshData;
+  const isRefetching = isLoading && currentData === null;
 
   return (
     <div
@@ -661,23 +657,20 @@ export function DashboardPage() {
   const prevInvRef = useRef(invocationCompleted.value);
   const prevExecRef = useRef(executionCompleted.value);
 
-  useEffect(() => {
-    if (!initialLoadDone) return;
-    let bumped = false;
+  if (initialLoadDone) {
     if (appStatus.value !== prevStatusRef.current) {
       prevStatusRef.current = appStatus.value;
-      bumped = true;
+      statusVersionRef.current += 1;
     }
     if (invocationCompleted.value !== prevInvRef.current) {
       prevInvRef.current = invocationCompleted.value;
-      bumped = true;
+      statusVersionRef.current += 1;
     }
     if (executionCompleted.value !== prevExecRef.current) {
       prevExecRef.current = executionCompleted.value;
-      bumped = true;
+      statusVersionRef.current += 1;
     }
-    if (bumped) statusVersionRef.current += 1;
-  }, []);
+  }
 
   useDebouncedEffect(
     () => statusVersionRef.current,

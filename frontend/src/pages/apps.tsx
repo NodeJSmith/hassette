@@ -6,13 +6,13 @@ import {
   type AppManifest,
   type DashboardAppGridEntry,
 } from "../api/endpoints";
-import { useScopedApi } from "../hooks/use-scoped-api";
+import { useScopedApi, PRESET_WINDOW_SECONDS } from "../hooks/use-scoped-api";
 import { useApi } from "../hooks/use-api";
 import { useAppState } from "../state/context";
 import { statusToKind, INACTIVE_STATUSES, type StatusKind } from "../utils/status";
 import { formatRelativeTime, formatTimestamp } from "../utils/format";
 import { StatusShape } from "../components/shared/status-shape";
-import { ActionButtons } from "../components/apps/action-buttons";
+import { ActionButtons } from "../components/shared/action-buttons";
 import { Spinner } from "../components/shared/spinner";
 
 // ---- Merged app row type ----
@@ -382,10 +382,7 @@ export function AppsPage() {
   const allApps = mergeData(manifests, gridEntries);
 
   const windowSeconds = uptimeSeconds.value !== null && uptimeSeconds.value !== undefined
-    ? (timePreset.value === "since-restart" ? uptimeSeconds.value
-      : timePreset.value === "1h" ? 3600
-      : timePreset.value === "24h" ? 86400
-      : 604800)
+    ? (timePreset.value === "since-restart" ? uptimeSeconds.value : PRESET_WINDOW_SECONDS[timePreset.value])
     : null;
 
   // Status counts from all apps (unfiltered)

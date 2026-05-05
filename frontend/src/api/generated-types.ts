@@ -1155,6 +1155,11 @@ export interface components {
             instance_index: number;
             /** Topic */
             topic: string;
+            /**
+             * Listener Kind
+             * @default event
+             */
+            listener_kind: string;
             /** Handler Method */
             handler_method: string;
             /** Total Invocations */

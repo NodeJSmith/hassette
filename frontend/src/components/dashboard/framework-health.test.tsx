@@ -4,11 +4,11 @@ import { signal } from "@preact/signals";
 import { FrameworkHealth } from "./framework-health";
 import type { FrameworkSummary } from "../../api/endpoints";
 
-vi.mock("../../hooks/use-scoped-api", () => ({
-  useScopedApi: vi.fn(),
+vi.mock("../../hooks/use-api", () => ({
+  useApi: vi.fn(),
 }));
 
-import { useScopedApi } from "../../hooks/use-scoped-api";
+import { useApi } from "../../hooks/use-api";
 
 function makeSummary(data: FrameworkSummary | null = null) {
   return {
@@ -21,7 +21,7 @@ function makeSummary(data: FrameworkSummary | null = null) {
 
 describe("FrameworkHealth", () => {
   it("test_renders_count_badge: shows error count badge", () => {
-    vi.mocked(useScopedApi).mockReturnValue(
+    vi.mocked(useApi).mockReturnValue(
       makeSummary({ total_errors: 3, total_job_errors: 1 }),
     );
     const { getByTestId } = render(<FrameworkHealth />);
@@ -30,7 +30,7 @@ describe("FrameworkHealth", () => {
   });
 
   it("shows zero count when no errors", () => {
-    vi.mocked(useScopedApi).mockReturnValue(
+    vi.mocked(useApi).mockReturnValue(
       makeSummary({ total_errors: 0, total_job_errors: 0 }),
     );
     const { getByTestId } = render(<FrameworkHealth />);
@@ -40,7 +40,7 @@ describe("FrameworkHealth", () => {
   });
 
   it("badge shows danger variant when errors present", () => {
-    vi.mocked(useScopedApi).mockReturnValue(
+    vi.mocked(useApi).mockReturnValue(
       makeSummary({ total_errors: 2, total_job_errors: 0 }),
     );
     const { getByTestId } = render(<FrameworkHealth />);
@@ -49,17 +49,16 @@ describe("FrameworkHealth", () => {
   });
 
   it("test_collapse_toggle_present_when_errors_exist: toggle button visible when errors > 0", () => {
-    vi.mocked(useScopedApi).mockReturnValue(
+    vi.mocked(useApi).mockReturnValue(
       makeSummary({ total_errors: 5, total_job_errors: 2 }),
     );
     const { queryByRole } = render(<FrameworkHealth />);
-    // Toggle button should exist for collapsible detail
     const btn = queryByRole("button");
     expect(btn).not.toBeNull();
   });
 
   it("test_no_toggle_when_no_errors: no toggle button when error count is 0", () => {
-    vi.mocked(useScopedApi).mockReturnValue(
+    vi.mocked(useApi).mockReturnValue(
       makeSummary({ total_errors: 0, total_job_errors: 0 }),
     );
     const { queryByRole } = render(<FrameworkHealth />);
@@ -67,7 +66,7 @@ describe("FrameworkHealth", () => {
   });
 
   it("shows System Health label", () => {
-    vi.mocked(useScopedApi).mockReturnValue(
+    vi.mocked(useApi).mockReturnValue(
       makeSummary({ total_errors: 0, total_job_errors: 0 }),
     );
     const { getByText } = render(<FrameworkHealth />);

@@ -155,7 +155,7 @@ describe("UnifiedHandlerRow — kind glyph", () => {
   });
 
   it("renders ⚡ glyph for event kind", () => {
-    const listener = createListener({ listener_id: 1, topic: "some_event" });
+    const listener = createListener({ listener_id: 1, topic: "some_event", listener_kind: "event" });
     const item = { kind: "listener" as const, id: 1, name: "on_event", humanDescription: null, statusKind: "ok" as const, data: listener };
     const { container } = render(
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,

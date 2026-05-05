@@ -9,7 +9,11 @@ import type { components } from "../../api/generated-types";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
 
-const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
+let _isMac: boolean | null = null;
+function isMac(): boolean {
+  if (_isMac === null) _isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
+  return _isMac;
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Status group definitions
@@ -315,12 +319,12 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
       <button
         type="button"
         class="ht-sidebar__cmdkey"
-        title={`Command palette (${IS_MAC ? "⌘K" : "Ctrl+K"})`}
+        title={`Command palette (${isMac() ? "⌘K" : "Ctrl+K"})`}
         aria-label="Open command palette"
         onClick={onOpenPalette}
       >
         <span>jump to…</span>
-        <kbd class="ht-sidebar__cmdkey-hint">{IS_MAC ? "⌘K" : "Ctrl+K"}</kbd>
+        <kbd class="ht-sidebar__cmdkey-hint">{isMac() ? "⌘K" : "Ctrl+K"}</kbd>
       </button>
 
       {/* Top-level navigation */}

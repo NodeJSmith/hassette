@@ -110,6 +110,7 @@ export function createListener(overrides: Partial<ListenerWithSummary> = {}): Li
     app_key: "test_app",
     instance_index: 0,
     topic: "state_changed",
+    listener_kind: "state change",
     handler_method: "on_state_change",
     total_invocations: 0,
     successful: 0,

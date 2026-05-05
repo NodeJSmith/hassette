@@ -5,7 +5,6 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field
 
 from hassette.core.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
-from hassette.core.telemetry_models import SessionRecord
 from hassette.types.types import SourceTier
 
 
@@ -282,6 +281,7 @@ class ListenerWithSummary(BaseModel):
     app_key: str
     instance_index: int = 0
     topic: str
+    listener_kind: str = "event"
     handler_method: str
     total_invocations: int
     successful: int
@@ -395,9 +395,6 @@ class FrameworkSummaryResponse(BaseModel):
 
     total_errors: int
     total_job_errors: int
-
-
-SessionListEntry = SessionRecord
 
 
 class TelemetryStatusResponse(BaseModel):

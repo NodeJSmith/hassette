@@ -9,7 +9,7 @@ import { HandlersHealthStrip } from "./health-strip";
 import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useAppState } from "../../state/context";
 import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
-import { formatTriggerDetail, formatDuration, formatRelativeTime, parseSourceLocation, TIME_PRESET_LABELS } from "../../utils/format";
+import { formatTriggerDetail, formatDuration, formatRelativeTime, lastDotSegment, parseSourceLocation, TIME_PRESET_LABELS } from "../../utils/format";
 import { handlerKindLabel, statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 
@@ -167,7 +167,7 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
     },
   );
 
-  const kindLabel = handlerKindLabel("listener", listener.topic, null);
+  const kindLabel = handlerKindLabel("listener", listener.listener_kind, null);
   const isFailing = listener.failed > 0 || listener.timed_out > 0;
   const listenerKind = isFailing ? statusToKind("failed") : statusToKind("running");
   const { filename: sourceFilename, line: sourceLine } = parseSourceLocation(listener.source_location);
@@ -181,7 +181,7 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
           <StatusShape kind={listenerKind} size={8} />
           {kindLabel}
         </span>
-        <span class="ht-detail-pane__handler-name">{listener.handler_method.split(".").pop() ?? listener.handler_method}</span>
+        <span class="ht-detail-pane__handler-name">{lastDotSegment(listener.handler_method)}</span>
         {isFailing && (
           <span class="ht-badge ht-badge--danger ht-badge--sm" data-testid="handler-status-pill">failing</span>
         )}
@@ -390,7 +390,7 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
 
 export function HandlersTab({ listeners, jobs, focusMethod, onSwitchToCode }: Props) {
   const { timePreset } = useAppState();
-  // Selected item in master list
+  // useRef(signal(...)).current — stable signal that survives re-renders without triggering them
   const selectedId = useRef(signal<SelectedHandlerId | null>(null)).current;
   // Mobile mode: show detail instead of list
   const showDetail = useRef(signal(false)).current;
