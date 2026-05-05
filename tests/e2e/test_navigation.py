@@ -12,7 +12,7 @@ pytestmark = pytest.mark.e2e
 # Nav items in the new sidebar: Overview, Apps, Logs, Config
 PAGES = [
     ("/", "Everything's running smoothly", "App Health"),
-    ("/apps", "App Management", "App Management"),
+    ("/apps", "apps", "apps"),
     ("/logs", None, None),
     ("/config", "Configuration", "Configuration"),
 ]
@@ -42,7 +42,7 @@ def test_config_page_loads(page: Page, base_url: str) -> None:
 # Sidebar nav links: Overview, Apps, Logs, Config
 SIDEBAR_LINKS = [
     ("nav-overview", "/", "App Health"),
-    ("nav-apps", "/apps", "App Management"),
+    ("nav-apps", "/apps", "apps"),
     ("nav-logs", "/logs", "logs"),
     ("nav-config", "/config", "Configuration"),
 ]

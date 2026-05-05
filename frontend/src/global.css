@@ -2588,6 +2588,10 @@ strong {
   flex-wrap: wrap;
 }
 
+.ht-log-toolbar .ht-summary-card__title {
+  margin-bottom: 0;
+}
+
 .ht-log-toolbar__controls {
   display: flex;
   align-items: center;
@@ -2754,6 +2758,41 @@ strong {
 
 /* — Manifest Card List (mobile apps view) —————————————— */
 /* sync: BREAKPOINT_MOBILE in use-media-query.ts */
+.ht-apps-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--line-1);
+  margin-bottom: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.ht-apps-toolbar .ht-tabs {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.ht-apps-toolbar .ht-tabs li button {
+  border-bottom-width: 0;
+  font-size: var(--fs-micro);
+}
+
+.ht-apps-toolbar .ht-summary-card__title {
+  margin-bottom: 0;
+}
+
+.ht-apps-toolbar .ht-tabs li button[aria-pressed="true"] {
+  background: var(--bg-active);
+  border-radius: var(--r-sm);
+  border-bottom-color: transparent;
+}
+
+.ht-card--apps {
+  padding: var(--sp-3);
+}
+
 .ht-manifest-card-list {
   display: flex;
   flex-direction: column;

@@ -47,10 +47,10 @@ describe("AppsPage", () => {
     expect(getByTestId("spinner")).toBeDefined();
   });
 
-  it("renders 'App Management' heading when data loads", () => {
+  it("renders 'apps' section title when data loads", () => {
     useApi.mockReturnValue(fakeApiResult(createManifestList()));
     const { getByRole } = renderWithAppState(<AppsPage />);
-    expect(getByRole("heading", { name: /app management/i })).toBeDefined();
+    expect(getByRole("heading", { name: /apps/i })).toBeDefined();
   });
 
   it("renders ManifestList component", () => {

@@ -231,7 +231,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
   return (
     <div class="ht-log-table-container" ref={tableContainerRef}>
       <div class="ht-log-toolbar">
-        <h3 class="ht-summary-card__title">logs</h3>
+        <h2 class="ht-summary-card__title">logs</h2>
         <div class="ht-log-toolbar__controls">
           <div class="ht-select ht-select--sm">
             <select

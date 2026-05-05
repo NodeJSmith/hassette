@@ -22,11 +22,13 @@ export function AppsPage() {
   if (loading.value) return <Spinner />;
 
   return (
-    <div>
-      <h1 class="ht-heading-4 ht-mb-4">App Management</h1>
+    <div class="ht-apps-page">
       {error.value && <p class="ht-text-danger">{error.value}</p>}
-      <div class="ht-card">
-        <StatusFilter active={filter} counts={counts} />
+      <div class="ht-card ht-card--apps">
+        <div class="ht-apps-toolbar">
+          <h2 class="ht-summary-card__title">apps</h2>
+          <StatusFilter active={filter} counts={counts} />
+        </div>
         <ManifestList manifests={manifests?.manifests ?? null} filter={filter} />
       </div>
     </div>
