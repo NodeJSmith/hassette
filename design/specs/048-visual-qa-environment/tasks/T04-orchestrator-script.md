@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Create demo orchestrator script with dynamic ports"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03"]
 implements: ["FR#1", "FR#2", "FR#6", "FR#7", "FR#8", "FR#11", "AC#1", "AC#2", "AC#4"]
 ---
