@@ -57,10 +57,17 @@ export function parseSourceLocation(sourceLocation: string): { filename: string;
   return { filename, line: Number.isFinite(n) ? n : null };
 }
 
-/** Format a Unix timestamp as a relative time string (e.g., "2m ago"). */
+/** Format a Unix timestamp as a relative time string (e.g., "2m ago", "in 8m"). */
 export function formatRelativeTime(ts: number): string {
   const now = Date.now() / 1000;
   const diff = now - ts;
+  if (diff < 0) {
+    const abs = -diff;
+    if (abs < 60) return "in <1m";
+    if (abs < 3600) return `in ${Math.floor(abs / 60)}m`;
+    if (abs < 86400) return `in ${Math.floor(abs / 3600)}h`;
+    return `in ${Math.floor(abs / 86400)}d`;
+  }
   if (diff < 60) return "just now";
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;

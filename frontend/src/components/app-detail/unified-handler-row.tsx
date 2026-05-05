@@ -2,7 +2,7 @@ import { StatusShape } from "../shared/status-shape";
 import type { StatusKind } from "../../utils/status";
 import { handlerKindLabel } from "../../utils/status";
 import type { ListenerData, JobData } from "../../api/endpoints";
-import { pluralize, formatRelativeTime } from "../../utils/format";
+import { pluralize, formatRelativeTime, formatTimestamp } from "../../utils/format";
 
 export type UnifiedItemKind = "listener" | "job";
 
@@ -41,6 +41,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
   let isFailing: boolean;
   let lastErrorMessage: string | null = null;
   let nextRunLabel: string | null = null;
+  let nextRunTitle: string | null = null;
 
   if (item.kind === "listener") {
     const l = item.data;
@@ -62,8 +63,10 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
       nextRunLabel = "cancelled";
     } else if (j.next_run) {
       nextRunLabel = `next ${formatRelativeTime(j.next_run)}`;
+      nextRunTitle = formatTimestamp(j.next_run);
     } else if (j.fire_at) {
       nextRunLabel = `fire at ${formatRelativeTime(j.fire_at)}`;
+      nextRunTitle = formatTimestamp(j.fire_at);
     }
   }
 
@@ -110,7 +113,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
         ) : null}
         {/* Next-run line for schedule jobs */}
         {nextRunLabel !== null && (
-          <span class="ht-unified-row__next-run">{nextRunLabel}</span>
+          <span class="ht-unified-row__next-run" title={nextRunTitle ?? undefined}>{nextRunLabel}</span>
         )}
         <div class="ht-unified-row__stats">
           <span title={`Total ${callLabel}s`}>{pluralize(invocationsOrRuns, callLabel)}</span>

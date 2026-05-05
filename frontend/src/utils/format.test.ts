@@ -195,6 +195,22 @@ describe("formatRelativeTime", () => {
   it("test_formatRelativeTime_days: multiple days", () => {
     expect(formatRelativeTime(BASE_TIME_S - 432000)).toBe("5d ago");
   });
+
+  it("future timestamp <60s returns 'in <1m'", () => {
+    expect(formatRelativeTime(BASE_TIME_S + 30)).toBe("in <1m");
+  });
+
+  it("future timestamp minutes", () => {
+    expect(formatRelativeTime(BASE_TIME_S + 480)).toBe("in 8m");
+  });
+
+  it("future timestamp hours", () => {
+    expect(formatRelativeTime(BASE_TIME_S + 7200)).toBe("in 2h");
+  });
+
+  it("future timestamp days", () => {
+    expect(formatRelativeTime(BASE_TIME_S + 172800)).toBe("in 2d");
+  });
 });
 
 // ---------------------------------------------------------------------------
