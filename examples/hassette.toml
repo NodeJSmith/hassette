@@ -1,0 +1,54 @@
+[hassette]
+app_dir = "examples"
+
+# Telemetry database — keep 14 days of handler/job execution history
+db_retention_days = 14
+db_max_size_mb = 100
+
+# Per-service log levels — quiet noisy services, verbose for debugging
+scheduler_service_log_level = "WARNING"
+websocket_log_level = "WARNING"
+
+[apps.motion_lights]
+filename = "motion_lights.py"
+class_name = "MotionLights"
+
+[[apps.motion_lights.config]]
+instance_name = "backyard_kitchen"
+motion_entity = "binary_sensor.movement_backyard"
+light_entity = "light.kitchen_lights"
+boost_brightness = 255
+
+[[apps.motion_lights.config]]
+instance_name = "backyard_ceiling"
+motion_entity = "binary_sensor.movement_backyard"
+light_entity = "light.ceiling_lights"
+boost_brightness = 200
+default_brightness = 80
+
+[apps.climate_controller]
+filename = "climate_controller.py"
+class_name = "ClimateController"
+config = { temp_threshold = 24.0, ac_switch = "switch.ac" }
+
+[apps.cover_scheduler]
+filename = "cover_scheduler.py"
+class_name = "CoverScheduler"
+
+[apps.presence_tracker]
+filename = "presence_tracker.py"
+class_name = "PresenceTracker"
+
+[[apps.presence_tracker.config]]
+instance_name = "paulus"
+tracker_entity = "device_tracker.demo_paulus"
+person_name = "Paulus"
+
+[[apps.presence_tracker.config]]
+instance_name = "home_boy"
+tracker_entity = "device_tracker.demo_home_boy"
+person_name = "HomeBoy"
+
+[apps.security_monitor]
+filename = "security_monitor.py"
+class_name = "SecurityMonitor"

@@ -49,14 +49,11 @@ The web UI is enabled by default at `http://<host>:8126/ui/`. See the [Web UI do
 
 Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/examples) directory for complete working examples:
 
-**Based on AppDaemon's examples**:
-- [Battery monitoring](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/battery.py) - Monitor device battery levels
-- [Presence detection](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/presence.py) - Track who's home
-- [Sensor notifications](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/sensor_notification.py) - Alert on sensor changes
-
-**Real-world apps**:
-- [Office Button App](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/office_button_app.py) - Multi-function button handler
-- [Laundry Room Lights](https://github.com/NodeJSmith/hassette/tree/main/examples/apps/laundry_room_light.py) - Motion-based lighting
+- [motion_lights.py](https://github.com/NodeJSmith/hassette/tree/main/examples/motion_lights.py) - Motion-activated lights with debounce
+- [climate_controller.py](https://github.com/NodeJSmith/hassette/tree/main/examples/climate_controller.py) - Temperature monitoring with glob patterns
+- [cover_scheduler.py](https://github.com/NodeJSmith/hassette/tree/main/examples/cover_scheduler.py) - Cron/daily scheduling for blinds
+- [presence_tracker.py](https://github.com/NodeJSmith/hassette/tree/main/examples/presence_tracker.py) - Dynamic subscription management
+- [security_monitor.py](https://github.com/NodeJSmith/hassette/tree/main/examples/security_monitor.py) - Synchronous app with throttle
 
 **Configuration examples**:
 - [Docker Compose Guide](https://hassette.readthedocs.io/en/latest/pages/getting-started/docker/) - Docker deployment setup

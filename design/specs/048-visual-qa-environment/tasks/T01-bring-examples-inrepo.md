@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Bring hassette-examples apps in-repo, remove legacy examples"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#4", "FR#10", "AC#6"]
 ---
