@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add env var override for Vite proxy target"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#5", "AC#7"]
 ---
