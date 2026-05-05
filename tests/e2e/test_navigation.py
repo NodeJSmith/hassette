@@ -9,10 +9,11 @@ from tests.e2e.conftest import DESKTOP_VIEWPORT, MOBILE_VIEWPORT
 
 pytestmark = pytest.mark.e2e
 
-# Nav items in the new sidebar: Overview, Logs, Config (no Sessions)
+# Nav items in the new sidebar: Overview, Apps, Logs, Config
 PAGES = [
     ("/", "Everything's running smoothly", "App Health"),
-    ("/logs", "Log Viewer", "Log Viewer"),
+    ("/apps", "App Management", "App Management"),
+    ("/logs", None, None),
     ("/config", "Configuration", "Configuration"),
 ]
 
@@ -21,13 +22,12 @@ def test_root_loads_dashboard(page: Page, base_url: str) -> None:
     """/ routes to the overview/dashboard page."""
     page.goto(base_url + "/")
     page.wait_for_load_state("networkidle")
-    # The new UI shows a hero card or KPI strip on the overview page
     expect(page.locator("body")).to_contain_text("App Health")
 
 
 def test_logs_page_loads(page: Page, base_url: str) -> None:
     page.goto(base_url + "/logs")
-    expect(page.locator("body")).to_contain_text("Log Viewer")
+    expect(page.locator("[data-testid='filter-level']")).to_be_visible()
 
 
 def test_config_page_loads(page: Page, base_url: str) -> None:
@@ -39,16 +39,17 @@ def test_config_page_loads(page: Page, base_url: str) -> None:
 # Sidebar nav items
 # ──────────────────────────────────────────────────────────────────────
 
-# New sidebar nav links: Overview, Logs, Config
+# Sidebar nav links: Overview, Apps, Logs, Config
 SIDEBAR_LINKS = [
     ("nav-overview", "/", "App Health"),
-    ("nav-logs", "/logs", "Log Viewer"),
+    ("nav-apps", "/apps", "App Management"),
+    ("nav-logs", "/logs", "logs"),
     ("nav-config", "/config", "Configuration"),
 ]
 
 
 def test_sidebar_renders_nav_items(page: Page, base_url: str) -> None:
-    """All 3 top-level nav links are present with correct testids."""
+    """All 4 top-level nav links are present with correct testids."""
     page.goto(base_url + "/")
     page.wait_for_load_state("networkidle")
     for testid, _, _ in SIDEBAR_LINKS:
@@ -265,7 +266,7 @@ def test_spa_navigates_without_full_reload(page: Page, base_url: str) -> None:
     page.goto(base_url + "/")
     page.evaluate("window.__test_marker = true")
     page.locator("[data-testid='nav-logs']").click()
-    expect(page.locator("body")).to_contain_text("Log Viewer")
+    expect(page.locator("[data-testid='filter-level']")).to_be_visible()
     assert page.evaluate("window.__test_marker") is True
     page.locator("[data-testid='nav-overview']").click()
     expect(page.locator("body")).to_contain_text("App Health")

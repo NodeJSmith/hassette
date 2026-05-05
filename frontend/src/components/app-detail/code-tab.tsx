@@ -11,11 +11,6 @@ interface Props {
   focusLine?: number;
 }
 
-/**
- * Parse handler annotations from listeners.
- * Returns a map of line_number → handler_method name.
- * source_location format: "filename.py:LINE"
- */
 function buildAnnotationMap(listeners: ListenerData[]): Map<number, string[]> {
   const map = new Map<number, string[]>();
   for (const l of listeners) {
@@ -29,7 +24,6 @@ function buildAnnotationMap(listeners: ListenerData[]): Map<number, string[]> {
   return map;
 }
 
-// Module-level Shiki highlighter cache (shared across component instances)
 let highlighterPromise: ReturnType<typeof createHighlighter> | null = null;
 
 function getHighlighter() {
@@ -43,6 +37,26 @@ function getHighlighter() {
     });
   }
   return highlighterPromise;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// Depends on Shiki emitting exactly `<span class="line">` with no extra attributes.
+// If this breaks after a Shiki upgrade, check codeToHtml output format.
+function injectLineNumbers(html: string, annotationMap: Map<number, string[]>): string {
+  let lineNum = 0;
+  return html.replace(/<span class="line">/g, () => {
+    lineNum++;
+    const annotations = annotationMap.get(lineNum);
+    const annotatedClass = annotations ? " line--annotated" : "";
+    const safe = annotations?.map(escapeHtml);
+    const annotationHtml = safe
+      ? `<span class="line-annotation" data-testid="gutter-annotation-${lineNum}" title="${safe.join(", ")}">${safe[0]}</span>`
+      : "";
+    return `<span class="line${annotatedClass}" data-line="${lineNum}" data-testid="code-line-${lineNum}"><span class="line-num">${lineNum}</span>${annotationHtml}`;
+  });
 }
 
 export function CodeTab({ appKey, listeners, focusLine }: Props) {
@@ -66,17 +80,16 @@ export function CodeTab({ appKey, listeners, focusLine }: Props) {
         if (cancelled) return;
         source.value = data;
 
-        // Highlight code
         const hl = await getHighlighter();
         if (cancelled) return;
 
-        const html = hl.codeToHtml(data.content, {
+        const rawHtml = hl.codeToHtml(data.content, {
           lang: "python",
           themes: { light: "github-light", dark: "github-dark" },
           defaultColor: false,
         });
         if (cancelled) return;
-        highlightedHtml.value = html;
+        highlightedHtml.value = rawHtml;
       } catch (err) {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : String(err);
@@ -115,15 +128,16 @@ export function CodeTab({ appKey, listeners, focusLine }: Props) {
     const el = document.querySelector(`[data-testid="code-line-${focusLine}"]`);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("ht-code-tab__gutter-line--focus");
+      el.classList.add("line--focus");
     }
   }, [focusLine, loading.value]);
 
-  if (!source.value) return null;
+  if (!source.value || !highlightedHtml.value) return null;
 
   const lines = source.value.content.replace(/\r\n/g, "\n").split("\n");
-  // Remove trailing empty line from split if present
   const lineCount = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
+
+  const processedHtml = injectLineNumbers(highlightedHtml.value, annotationMap);
 
   const handleCopyPath = () => {
     if (source.value?.filename) {
@@ -152,40 +166,11 @@ export function CodeTab({ appKey, listeners, focusLine }: Props) {
           </button>
         </div>
       </div>
-      <div class="ht-code-tab__body">
-        {/* Gutter with line numbers and annotations */}
-        <div class="ht-code-tab__gutter" aria-hidden="true">
-          {Array.from({ length: lineCount }, (_, i) => {
-            const lineNum = i + 1;
-            const annotations = annotationMap.get(lineNum);
-            return (
-              <div
-                key={lineNum}
-                class={`ht-code-tab__gutter-line${annotations ? " ht-code-tab__gutter-line--annotated" : ""}`}
-                data-testid={`code-line-${lineNum}`}
-              >
-                <span class="ht-code-tab__line-num">{lineNum}</span>
-                {annotations && (
-                  <span
-                    class="ht-code-tab__annotation"
-                    data-testid={`gutter-annotation-${lineNum}`}
-                    title={annotations.join(", ")}
-                  >
-                    {annotations[0]}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Highlighted source */}
-        <div
-          class="ht-code-tab__source"
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki output is trusted
-          dangerouslySetInnerHTML={{ __html: highlightedHtml.value ?? "" }}
-        />
-      </div>
+      <div
+        class="ht-code-tab__body"
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki output is trusted
+        dangerouslySetInnerHTML={{ __html: processedHtml }}
+      />
     </div>
   );
 }

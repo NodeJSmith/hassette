@@ -2011,6 +2011,7 @@ export interface operations {
     dashboard_errors_api_telemetry_dashboard_errors_get: {
         parameters: {
             query?: {
+                since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
                 source_tier?: ("app" | "framework" | "all") | null;
             };

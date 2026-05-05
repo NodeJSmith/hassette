@@ -1239,6 +1239,22 @@
         "operationId": "dashboard_errors_api_telemetry_dashboard_errors_get",
         "parameters": [
           {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
             "name": "source_tier",
             "in": "query",
             "required": false,

@@ -470,11 +470,26 @@ function RecentErrorsTable({
   errors: UseApiResult<DashboardErrorEntry[]>;
   tierFilter: Signal<SourceTier>;
 }) {
-  const hasErrors = errors.data.value && errors.data.value.length > 0;
-  if (errors.loading.value || !hasErrors) return null;
+  const staleRef = useRef<DashboardErrorEntry[] | null>(null);
+  const currentData = errors.data.value;
+  const hasFreshData = currentData !== null && currentData.length > 0;
+
+  useEffect(() => {
+    if (currentData !== null) {
+      staleRef.current = currentData.length > 0 ? currentData : null;
+    }
+  }, [currentData]);
+
+  const displayErrors = hasFreshData ? currentData : staleRef.current;
+  if (!displayErrors || displayErrors.length === 0) return null;
+  const isRefetching = errors.loading.value && !hasFreshData;
 
   return (
-    <div class="ht-card ht-card--urgent ht-recent-errors" data-testid="recent-errors-table">
+    <div
+      class="ht-card ht-card--urgent ht-recent-errors"
+      data-testid="recent-errors-table"
+      style={isRefetching ? "opacity: 0.6; transition: opacity 0.15s ease" : undefined}
+    >
       <div class="ht-recent-errors__header">
         <h3 class="ht-summary-card__title ht-recent-errors__title">recent errors</h3>
         <div class="ht-tier-toggle">
@@ -501,7 +516,7 @@ function RecentErrorsTable({
           </tr>
         </thead>
         <tbody>
-          {errors.data.value!.map((err, i) => {
+          {displayErrors.map((err, i) => {
             const errType = shortErrorType(err.error_type);
             const method = getHandlerMethod(err);
             const age = formatRelativeTime(err.execution_start_ts);
@@ -563,7 +578,7 @@ function RecentActivityFeed({ activity }: { activity: ActivityFeedEntry[] | null
     <div class="ht-card ht-card--receded ht-recent-activity" data-testid="recent-activity">
       <div class="ht-recent-activity__header">
         <h3 class="ht-summary-card__title">recent activity</h3>
-        <a href="/events" class="ht-recent-activity__link">full log →</a>
+        <a href="/logs" class="ht-recent-activity__link">full log →</a>
       </div>
       {isQuiet ? (
         <div class="ht-recent-activity__quiet">

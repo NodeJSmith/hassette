@@ -35,7 +35,7 @@ def test_spa_navigates_without_full_reload(page: Page, base_url: str) -> None:
 
     # Navigate to Logs page via sidebar
     page.locator("[data-testid='nav-logs']").click()
-    expect(page.locator("body")).to_contain_text("Log Viewer")
+    expect(page.locator("[data-testid='filter-level']")).to_be_visible()
 
     # Page was NOT reloaded — marker survives
     assert page.evaluate("window.__test_marker") is True

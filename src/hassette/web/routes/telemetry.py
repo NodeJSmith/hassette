@@ -507,13 +507,15 @@ async def dashboard_app_grid(
 @router.get("/dashboard/errors", response_model=DashboardErrorsResponse)
 async def dashboard_errors(
     telemetry: TelemetryDep,
+    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = _SOURCE_TIER_PARAM,
 ) -> DashboardErrorsResponse:
     """Recent errors for the dashboard error feed."""
     effective_tier = source_tier if source_tier is not None else "all"
+    since_ts = since if since is not None else time.time() - _ERROR_WINDOW_SECONDS
     try:
         raw_errors = await telemetry.get_recent_errors(
-            since_ts=time.time() - _ERROR_WINDOW_SECONDS,
+            since_ts=since_ts,
             limit=10,
             source_tier=effective_tier,
         )

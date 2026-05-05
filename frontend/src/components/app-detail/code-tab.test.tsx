@@ -7,9 +7,14 @@ import { server } from "../../test/server";
 vi.mock("shiki", () => ({
   createHighlighter: vi.fn().mockResolvedValue({
     codeToHtml: vi.fn().mockImplementation((code: string) => {
-      // Return a minimal HTML structure that wraps code in <pre><code>
-      const escaped = code.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      return `<pre class="shiki"><code>${escaped}</code></pre>`;
+      const lines = code.split("\n");
+      const lineSpans = lines
+        .map((line) => {
+          const escaped = line.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+          return `<span class="line">${escaped}</span>`;
+        })
+        .join("\n");
+      return `<pre class="shiki"><code>${lineSpans}</code></pre>`;
     }),
     dispose: vi.fn(),
   }),

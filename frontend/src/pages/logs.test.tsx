@@ -36,10 +36,11 @@ describe("LogsPage", () => {
     vi.clearAllMocks();
   });
 
-  it("renders 'Log Viewer' heading", () => {
+  it("renders logs page with card container", () => {
     useApi.mockReturnValue(fakeApiResult(createManifestList()));
-    const { getByRole } = renderWithAppState(<LogsPage />);
-    expect(getByRole("heading", { name: /log viewer/i })).toBeDefined();
+    const { container } = renderWithAppState(<LogsPage />);
+    expect(container.querySelector(".ht-logs-page")).toBeDefined();
+    expect(container.querySelector(".ht-card--logs-full")).toBeDefined();
   });
 
   it("renders LogTable component", () => {

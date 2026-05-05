@@ -230,65 +230,67 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
 
   return (
     <div class="ht-log-table-container" ref={tableContainerRef}>
-      <div class="ht-field-group">
-        <div class="ht-select ht-select--sm">
-          <select
-            aria-label="Minimum log level"
-            data-testid="filter-level"
-            value={minLevel.value}
-            onChange={(e) => {
-              const newLevel = (e.target as HTMLSelectElement).value;
-              minLevel.value = newLevel;
-              // Update server-side filtering — "" (All Levels) maps to DEBUG
-              updateLogSubscription(newLevel || "DEBUG");
-            }}
-          >
-            <option value="">All Levels</option>
-            {LEVELS.map((level) => (
-              <option key={level} value={level}>
-                {level}
-              </option>
-            ))}
-          </select>
-        </div>
-        {showAppColumn && appKeys && appKeys.length > 0 && (
+      <div class="ht-log-toolbar">
+        <h3 class="ht-summary-card__title">logs</h3>
+        <div class="ht-log-toolbar__controls">
           <div class="ht-select ht-select--sm">
             <select
-              aria-label="Filter by app"
-              data-testid="filter-app"
-              value={appFilter.value}
+              aria-label="Minimum log level"
+              data-testid="filter-level"
+              value={minLevel.value}
               onChange={(e) => {
-                appFilter.value = (e.target as HTMLSelectElement).value;
+                const newLevel = (e.target as HTMLSelectElement).value;
+                minLevel.value = newLevel;
+                updateLogSubscription(newLevel || "DEBUG");
               }}
             >
-              <option value="">All Apps</option>
-              {appKeys.map((key) => (
-                <option key={key} value={key}>
-                  {key}
+              <option value="">All Levels</option>
+              {LEVELS.map((level) => (
+                <option key={level} value={level}>
+                  {level}
                 </option>
               ))}
             </select>
           </div>
-        )}
-        <input
-          class="ht-input ht-input--sm"
-          type="text"
-          aria-label="Search log messages"
-          placeholder="Search..."
-          value={search.value}
-          onInput={(e) => {
-            search.value = (e.target as HTMLInputElement).value;
-          }}
-        />
-        <span class="ht-text-secondary ht-text-xs">{pluralize(filtered.length, "entry", "entries")}</span>
-        {livePaused && (
-          <span class="ht-text-xs ht-text-warning">
-            Live updates paused{" "}
-            <button type="button" class="ht-btn ht-btn--xs ht-btn--ghost" onClick={handleResume}>
-              Resume
-            </button>
-          </span>
-        )}
+          {showAppColumn && appKeys && appKeys.length > 0 && (
+            <div class="ht-select ht-select--sm">
+              <select
+                aria-label="Filter by app"
+                data-testid="filter-app"
+                value={appFilter.value}
+                onChange={(e) => {
+                  appFilter.value = (e.target as HTMLSelectElement).value;
+                }}
+              >
+                <option value="">All Apps</option>
+                {appKeys.map((key) => (
+                  <option key={key} value={key}>
+                    {key}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <input
+            class="ht-input ht-input--sm"
+            type="text"
+            aria-label="Search log messages"
+            placeholder="Search..."
+            value={search.value}
+            onInput={(e) => {
+              search.value = (e.target as HTMLInputElement).value;
+            }}
+          />
+          <span class="ht-text-secondary ht-text-xs">{pluralize(filtered.length, "entry", "entries")}</span>
+          {livePaused && (
+            <span class="ht-text-xs ht-text-warning">
+              Live updates paused{" "}
+              <button type="button" class="ht-btn ht-btn--xs ht-btn--ghost" onClick={handleResume}>
+                Resume
+              </button>
+            </span>
+          )}
+        </div>
       </div>
       <div class="ht-log-table-scroll">
         <table class="ht-table ht-table--compact ht-table-log">

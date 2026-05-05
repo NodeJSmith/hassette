@@ -1144,6 +1144,8 @@ strong {
   bottom: 0;
   width: 240px;
   z-index: 60;
+  background: var(--bg-surface);
+  overflow-y: auto;
   transform: translateX(-100%);
   transition: transform var(--t-med) var(--ease);
 }
@@ -1198,12 +1200,13 @@ strong {
 
 .ht-table th {
   text-align: left;
-  font-weight: 600;
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-  letter-spacing: 0.03em;
+  font-weight: 500;
+  font-size: var(--fs-micro);
+  color: var(--ink-4);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-1);
 }
 
 .ht-table td {
@@ -1231,7 +1234,21 @@ strong {
 .ht-table--compact .ht-col-status   { width: 14%; }
 .ht-table--compact .ht-col-time     { width: 25%; }
 .ht-table--compact .ht-col-duration { width: 14%; }
-/* Error column: no width — takes remaining space */
+
+@media screen and (max-width: 768px) {
+  .ht-table--compact { table-layout: auto; }
+  .ht-table--compact .ht-col-status   { width: auto; }
+  .ht-table--compact .ht-col-time     { width: auto; white-space: nowrap; }
+  .ht-table--compact .ht-col-duration { width: auto; white-space: nowrap; }
+  .ht-table--compact .ht-col-trace    { display: none; }
+  .ht-table--compact .ht-col-error    { display: none; }
+  .ht-table--compact td { padding: var(--sp-1); font-size: var(--fs-micro); }
+  .ht-exec-error-mobile { display: block; font-size: var(--fs-micro); color: var(--err); margin-top: 2px; }
+}
+
+@media screen and (min-width: 769px) {
+  .ht-exec-error-mobile { display: none; }
+}
 
 /* Message cell — interactive only when text is truncated */
 .ht-log-message-cell {
@@ -1541,13 +1558,6 @@ strong {
 }
 
 .ht-select--inline { display: inline-block; }
-
-.ht-field-group {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
-}
 
 .ht-control {
   display: inline-flex;
@@ -2165,12 +2175,12 @@ strong {
     grid-template-columns: 1fr;
   }
 
-  .ht-sidebar {
+  .ht-layout > .ht-sidebar {
     display: none;
   }
 
-  .ht-layout > aside.ht-sidebar {
-    display: none;
+  .ht-drawer .ht-sidebar {
+    display: flex;
   }
 
   .ht-main {
@@ -2224,11 +2234,6 @@ strong {
 
   .ht-tabs li {
     flex-shrink: 0;
-  }
-
-  /* Field groups: stack */
-  .ht-field-group {
-    flex-wrap: wrap;
   }
 
   /* Headings: smaller */
@@ -2572,6 +2577,24 @@ strong {
 }
 
 /* — Log Table ————————————————————————————————————————— */
+.ht-log-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--line-1);
+  margin-bottom: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.ht-log-toolbar__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
 .ht-log-table-container {
   display: flex;
   flex-direction: column;
@@ -2617,6 +2640,13 @@ strong {
   .ht-table-log .ht-col-source {
     display: none;
   }
+}
+
+@media screen and (max-width: 768px) {
+  .ht-table-log .ht-col-level { width: 36px; }
+  .ht-table-log .ht-col-time  { width: 72px; }
+  .ht-table-log { font-size: var(--fs-micro); }
+  .ht-table-log .ht-text-mono { font-size: var(--fs-micro); }
 }
 
 /* — Sortable Column Header ————————————————————————————— */
@@ -3466,93 +3496,72 @@ strong {
 }
 
 .ht-code-tab__body {
-  display: grid;
-  grid-template-columns: auto 1fr;
   overflow-x: auto;
 }
 
-/* Gutter: line numbers + handler annotations */
-.ht-code-tab__gutter {
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-sunken);
-  border-right: 1px solid var(--line-1);
-  padding: var(--sp-3) 0;
-  user-select: none;
-  min-width: 48px;
-}
-
-.ht-code-tab__gutter-line {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 0 var(--sp-3);
-  line-height: 1.6;
-  min-height: 1.6em;
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-}
-
-.ht-code-tab__gutter-line--annotated {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-.ht-code-tab__line-num {
-  color: var(--ink-4);
-  text-align: right;
-  min-width: 2ch;
-  flex-shrink: 0;
-}
-
-.ht-code-tab__annotation {
-  color: var(--accent);
-  font-size: var(--fs-micro);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 160px;
-  font-style: italic;
-}
-
-/* Shiki output overrides */
-.ht-code-tab__source {
-  overflow-x: auto;
-  flex: 1;
-  min-width: 0;
-}
-
-.ht-code-tab__source .shiki {
+.ht-code-tab__body .shiki {
   margin: 0;
-  padding: var(--sp-3) var(--sp-4);
-  background: transparent !important;
+  padding: var(--sp-3) 0;
+  background-color: var(--bg-sunken) !important;
   border-radius: 0;
   font-size: var(--fs-small);
   line-height: 1.6;
 }
 
-.ht-code-tab__source .shiki code {
-  background: none;
-  padding: 0;
+[data-theme="dark"] .ht-code-tab__body .shiki {
+  background-color: var(--bg-sunken) !important;
 }
 
-.ht-code-tab__source .shiki span {
+.ht-code-tab__body .shiki code {
+  background: none;
+  padding: 0;
+  display: block;
+}
+
+.ht-code-tab__body .shiki span.line {
+  display: inline-flex;
+  width: 100%;
+  padding: 0 var(--sp-4) 0 0;
+}
+
+.ht-code-tab__body .shiki span.line--annotated {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.ht-code-tab__body .shiki span.line--focus {
+  background: var(--accent-soft);
+}
+
+.ht-code-tab__body .shiki .line-num {
+  color: var(--ink-4);
+  text-align: right;
+  min-width: 3ch;
+  padding: 0 var(--sp-3);
+  user-select: none;
+  flex-shrink: 0;
+  border-right: 1px solid var(--line-1);
+  margin-right: var(--sp-3);
+}
+
+.ht-code-tab__body .shiki .line-annotation {
+  color: var(--accent);
+  font-size: var(--fs-micro);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+  font-style: italic;
+  flex-shrink: 0;
+  margin-right: var(--sp-2);
+}
+
+/* --shiki-light/--shiki-dark are inline style attrs set by Shiki (defaultColor: false) */
+.ht-code-tab__body .shiki span:not(.line):not(.line-num):not(.line-annotation) {
   color: var(--shiki-light);
 }
 
-[data-theme="dark"] .ht-code-tab__source .shiki span {
+[data-theme="dark"] .ht-code-tab__body .shiki span:not(.line):not(.line-num):not(.line-annotation) {
   color: var(--shiki-dark);
-}
-
-.ht-code-tab__source .shiki {
-  background-color: var(--bg-sunken) !important;
-}
-
-[data-theme="dark"] .ht-code-tab__source .shiki {
-  background-color: var(--bg-sunken) !important;
-}
-
-.ht-code-tab__gutter-line--focus {
-  background: var(--accent-soft);
 }
 
 .ht-code-tab__loading,

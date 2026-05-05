@@ -38,8 +38,8 @@ export function JobExecutions({ executions, jobId }: Props) {
             <th class="ht-col-status">Status</th>
             <th class="ht-col-time">Timestamp</th>
             <th class="ht-col-duration">Duration</th>
-            <th>Error</th>
-            <th>Trace ID</th>
+            <th class="ht-col-error">Error</th>
+            <th class="ht-col-trace">Trace ID</th>
           </tr>
         </thead>
         <tbody>
@@ -47,10 +47,13 @@ export function JobExecutions({ executions, jobId }: Props) {
             const isExpanded = expandedTracebacks.value.has(i);
             return [
               <tr key={i}>
-                <td><span class={`ht-badge ht-badge--sm ht-badge--${executionStatusVariant(ex.status)}`}>{ex.status}</span></td>
+                <td>
+                  <span class={`ht-badge ht-badge--sm ht-badge--${executionStatusVariant(ex.status)}`}>{ex.status}</span>
+                  {ex.error_message && <span class="ht-exec-error-mobile">{ex.error_message}</span>}
+                </td>
                 <td class="ht-text-mono ht-text-xs">{formatTimestamp(ex.execution_start_ts)}</td>
                 <td>{formatDuration(ex.duration_ms)}</td>
-                <td class="ht-text-secondary ht-text-sm">
+                <td class="ht-col-error ht-text-secondary ht-text-sm">
                   <ErrorCell
                     traceback={ex.error_traceback}
                     message={ex.error_message}
@@ -58,7 +61,7 @@ export function JobExecutions({ executions, jobId }: Props) {
                     onToggle={() => toggleTraceback(i)}
                   />
                 </td>
-                <td class="ht-text-mono ht-text-xs" title={ex.execution_id ?? undefined}>{truncateId(ex.execution_id)}</td>
+                <td class="ht-col-trace ht-text-mono ht-text-xs" title={ex.execution_id ?? undefined}>{truncateId(ex.execution_id)}</td>
               </tr>,
               isExpanded && ex.error_traceback && (
                 <tr key={`${i}-tb`} class="ht-traceback-row">

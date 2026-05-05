@@ -49,13 +49,13 @@ describe("JobExecutions", () => {
   });
 
   it("renders error message in error column", () => {
-    const { getByText } = render(
+    const { getAllByText } = render(
       <JobExecutions
         executions={[createExecution({ status: "error", error_message: "Task failed" })]}
         jobId={1}
       />,
     );
-    expect(getByText("Task failed")).toBeDefined();
+    expect(getAllByText("Task failed").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows traceback toggle button when error_traceback is present", () => {
