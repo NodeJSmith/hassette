@@ -198,10 +198,9 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Step 2: Allocate three free ports
     # ------------------------------------------------------------------
-    ports: set[int] = set()
-    while len(ports) < 3:
-        ports.add(find_free_port())
-    ha_port, hassette_port, vite_port = ports
+    ha_port = find_free_port()
+    hassette_port = find_free_port()
+    vite_port = find_free_port()
 
     # ------------------------------------------------------------------
     # Step 3: Copy demo HA fixture to temp directory
