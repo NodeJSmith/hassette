@@ -29,11 +29,12 @@ default_brightness = 80
 [apps.climate_controller]
 filename = "climate_controller.py"
 class_name = "ClimateController"
-config = { temp_threshold = 24.0, ac_switch = "switch.ac" }
+config = { instance_name = "climate_controller", temp_threshold = 24.0, ac_switch = "switch.ac" }
 
 [apps.cover_scheduler]
 filename = "cover_scheduler.py"
 class_name = "CoverScheduler"
+config = { instance_name = "cover_scheduler" }
 
 [apps.presence_tracker]
 filename = "presence_tracker.py"
@@ -52,3 +53,4 @@ person_name = "HomeBoy"
 [apps.security_monitor]
 filename = "security_monitor.py"
 class_name = "SecurityMonitor"
+config = { instance_name = "security_monitor" }
