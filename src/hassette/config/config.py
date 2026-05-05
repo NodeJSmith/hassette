@@ -179,7 +179,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     websocket_authentication_timeout_seconds: int = Field(default=10)
     """Length of time to wait for WebSocket authentication to complete."""
 
-    websocket_response_timeout_seconds: int = Field(default=5)
+    websocket_response_timeout_seconds: int = Field(default=15)
     """Length of time to wait for a response from the WebSocket."""
 
     websocket_connection_timeout_seconds: int = Field(default=5)
