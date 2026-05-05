@@ -294,6 +294,8 @@ def main() -> None:
         env=hassette_env,
         cwd=str(repo_root),
         start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
     # ------------------------------------------------------------------
@@ -337,6 +339,8 @@ def main() -> None:
         env=vite_env,
         cwd=str(repo_root),
         start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
     # Poll Vite readiness
