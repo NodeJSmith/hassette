@@ -207,10 +207,10 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
       {/* Modifier chips */}
       <ModifierChips listener={listener} />
 
-      {/* Source file location + method */}
-      <div class="ht-detail-pane__meta" data-testid="handler-method-block">
+      {/* Handler method */}
+      <div class="ht-detail-pane__registration" data-testid="handler-method-block">
         <span class="ht-detail-label">Handler</span>
-        <code class="ht-text-mono ht-text-sm">{listener.handler_method}</code>
+        <pre class="ht-detail-pane__code-snippet"><code>{listener.handler_method}</code></pre>
       </div>
 
       {/* Source file location */}

@@ -218,7 +218,7 @@ describe("AppDetailPage", () => {
       <AppDetailPage params={{ key: "motion_sensor_app" }} />,
       { wrapper: createWrapper(state) },
     );
-    expect(getByTestId("app-key-mono").textContent).toContain("motion_sensor_app");
+    expect(getByTestId("app-subtitle-meta").textContent).toContain("motion_sensor_app");
   });
 
   it("renders auto-loaded badge when auto_loaded is true", () => {
@@ -250,7 +250,7 @@ describe("AppDetailPage", () => {
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
     );
-    expect(getByTestId("instance-meta").textContent).toContain("PID MyApp.office_button.0");
+    expect(getByTestId("app-subtitle-meta").textContent).toContain("PID MyApp.office_button.0");
   });
 
   it("omits PID portion when owner_id is null", () => {
@@ -262,7 +262,7 @@ describe("AppDetailPage", () => {
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
     );
-    expect(getByTestId("instance-meta").textContent).not.toContain("PID");
+    expect(getByTestId("app-subtitle-meta").textContent).not.toContain("PID");
   });
 
   it("renders multi-instance parent overview when instance_count > 1 and no index param", () => {

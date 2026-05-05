@@ -188,7 +188,7 @@ export function AppDetailPage({ params }: Props) {
     || jobs.loading.value || manifests.loading.value);
   if (initialLoading) return <Spinner />;
 
-  const Tab = ({ id, label }: { id: TabId; label: string }) => (
+  const Tab = ({ id, label, badge }: { id: TabId; label: string; badge?: number }) => (
     <button
       type="button"
       role="tab"
@@ -196,9 +196,11 @@ export function AppDetailPage({ params }: Props) {
       class={`ht-tab-btn${activeTab.value === id ? " ht-tab-btn--active" : ""}`}
       onClick={() => { activeTab.value = id; }}
     >
-      {label}
+      {label}{badge !== undefined && <span class="ht-tab-btn__badge">{badge}</span>}
     </button>
   );
+
+  const handlerCount = (listeners.data.value?.length ?? 0) + (jobs.data.value?.length ?? 0);
 
   // Multi-instance parent overview
   if (showParentOverview && manifest) {
@@ -279,25 +281,30 @@ export function AppDetailPage({ params }: Props) {
           </div>
         </div>
         <div class="ht-level-end">
+          {liveStatus !== "running" && liveStatus !== "starting" && (
+            <span
+              class={`ht-badge ht-badge--sm ht-badge--${statusToVariant(liveStatus)}`}
+              data-testid="app-status-pill"
+            >
+              <StatusShape kind={statusToKind(liveStatus)} size={8} /> {liveStatus}
+            </span>
+          )}
           <ActionButtons appKey={appKey} status={liveStatus} variant="text" confirmStop />
         </div>
       </div>
 
-      {/* App key + auto-loaded badge */}
-      <div class="ht-level ht-mb-3">
-        <code class="ht-text-mono ht-text-sm" data-testid="app-key-mono">{appKey}</code>
-        {manifest?.auto_loaded && (
-          <span class="ht-badge ht-badge--neutral" data-testid="auto-loaded-badge">auto</span>
+      {/* Subtitle meta line */}
+      <p class="ht-text-mono ht-text-sm ht-text-muted ht-mb-3" data-testid="app-subtitle-meta">
+        {appKey}
+        {manifest?.display_name && manifest.display_name !== appKey && (
+          <> &middot; class: {manifest.display_name}</>
         )}
-      </div>
-
-      {/* Instance metadata */}
-      {manifest && (
-        <p class="ht-text-muted ht-text-sm ht-mb-3" data-testid="instance-meta">
-          Instance {resolvedInstanceIndex}
-          {currentInstance?.owner_id && <> &middot; PID {currentInstance.owner_id}</>}
-        </p>
-      )}
+        {manifest && <> &middot; Instance {resolvedInstanceIndex}</>}
+        {currentInstance?.owner_id && <> &middot; PID {currentInstance.owner_id}</>}
+        {manifest?.auto_loaded && (
+          <> &middot; <span class="ht-badge ht-badge--neutral ht-badge--xs" data-testid="auto-loaded-badge">auto</span></>
+        )}
+      </p>
 
       {/* Error banner for failed/crashed apps */}
       {(currentInstance?.error_message ?? manifest?.error_message) && (
@@ -316,10 +323,10 @@ export function AppDetailPage({ params }: Props) {
 
       {/* Tab strip */}
       <div class="ht-tab-strip ht-mb-4" role="tablist" aria-label="App sections">
-        <Tab id="handlers" label="Handlers" />
-        <Tab id="code" label="Code" />
-        <Tab id="logs" label="Logs" />
-        <Tab id="config" label="Config" />
+        <Tab id="handlers" label="handlers" badge={handlerCount} />
+        <Tab id="code" label="code" />
+        <Tab id="logs" label="logs" />
+        <Tab id="config" label="config" />
       </div>
 
       {/* Tab content */}

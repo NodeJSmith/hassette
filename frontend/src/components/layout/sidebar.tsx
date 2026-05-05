@@ -90,9 +90,9 @@ function getGroupKey(manifest: AppManifest): GroupKey {
 // ──────────────────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
-  { path: "/", label: "Overview", testId: "nav-overview" },
-  { path: "/logs", label: "Logs", testId: "nav-logs" },
-  { path: "/config", label: "Config", testId: "nav-config" },
+  { path: "/", label: "overview", testId: "nav-overview" },
+  { path: "/logs", label: "logs", testId: "nav-logs" },
+  { path: "/config", label: "config", testId: "nav-config" },
 ] as const;
 
 // ──────────────────────────────────────────────────────────────────────────────

@@ -134,7 +134,10 @@ export function CodeTab({ appKey, listeners, focusLine }: Props) {
   return (
     <div class="ht-code-tab" data-testid="code-tab-content">
       <div class="ht-code-tab__header" data-testid="code-tab-header">
-        <span class="ht-text-mono ht-text-sm ht-text-muted">{source.value.filename}</span>
+        <div class="ht-code-tab__header-source">
+          <span class="ht-detail-label">Source</span>
+          <span class="ht-text-mono ht-text-sm ht-text-muted">{source.value.filename}</span>
+        </div>
         <div class="ht-code-tab__header-meta">
           <span class="ht-text-muted ht-text-sm">{lineCount} lines</span>
           <span class="ht-code-tab__readonly-label">read-only</span>

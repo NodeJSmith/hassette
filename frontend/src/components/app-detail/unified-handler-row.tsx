@@ -96,6 +96,9 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
             {chipLabel}
           </span>
           <span class="ht-unified-row__name">{item.name}</span>
+          {isFailing && (
+            <span class="ht-badge ht-badge--danger ht-badge--xs">failing</span>
+          )}
         </div>
         {/* Subline: error message (when failing) or human description (otherwise) */}
         {isFailing && lastErrorMessage ? (

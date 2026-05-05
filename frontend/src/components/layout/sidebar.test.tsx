@@ -74,21 +74,21 @@ describe("Sidebar — nav items", () => {
     const { getByTestId } = renderWithAppState(<Sidebar />);
     const link = getByTestId("nav-overview");
     expect(link.getAttribute("href")).toBe("/");
-    expect(link.textContent).toBe("Overview");
+    expect(link.textContent).toBe("overview");
   });
 
   it("renders Logs nav link to /logs", () => {
     const { getByTestId } = renderWithAppState(<Sidebar />);
     const link = getByTestId("nav-logs");
     expect(link.getAttribute("href")).toBe("/logs");
-    expect(link.textContent).toBe("Logs");
+    expect(link.textContent).toBe("logs");
   });
 
   it("renders Config nav link to /config", () => {
     const { getByTestId } = renderWithAppState(<Sidebar />);
     const link = getByTestId("nav-config");
     expect(link.getAttribute("href")).toBe("/config");
-    expect(link.textContent).toBe("Config");
+    expect(link.textContent).toBe("config");
   });
 
   it("applies is-active to Overview when at root", () => {

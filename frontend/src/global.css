@@ -1312,6 +1312,12 @@ strong {
   vertical-align: middle;
 }
 
+.ht-badge--xs {
+  font-size: 10px;
+  padding: 0.05em 0.4em;
+  line-height: 1.4;
+}
+
 .ht-badge--sm {
   font-size: var(--fs-micro);
   padding: 0.1em 0.45em;
@@ -1890,9 +1896,9 @@ strong {
 }
 
 .ht-health-card__value {
-  font-family: var(--font-mono);
+  font-family: var(--font-display);
   font-size: var(--fs-h2);
-  font-weight: 600;
+  font-weight: 400;
   color: var(--ink-1);
   line-height: 1.2;
   white-space: nowrap;
@@ -2981,6 +2987,13 @@ strong {
   font-weight: 500;
 }
 
+.ht-tab-btn__badge {
+  margin-left: var(--sp-1);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
 /* — Master/Detail layout ——————————————————————————————— */
 .ht-master-detail {
   display: grid;
@@ -3349,14 +3362,6 @@ strong {
 .ht-detail-stats-row__value--err { color: var(--err); }
 .ht-detail-stats-row__value--warn { color: var(--warn); }
 
-.ht-detail-pane__meta {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-3);
-  flex-wrap: wrap;
-}
-
 /* — Modifier and schedule chips ————————————————————————— */
 .ht-chip-row {
   display: flex;
@@ -3436,6 +3441,12 @@ strong {
   background: var(--bg-sunken);
   gap: var(--sp-3);
   flex-wrap: wrap;
+}
+
+.ht-code-tab__header-source {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
 }
 
 .ht-code-tab__header-meta {
@@ -3533,11 +3544,11 @@ strong {
 }
 
 .ht-code-tab__source .shiki {
-  background-color: var(--shiki-light-bg) !important;
+  background-color: var(--bg-sunken) !important;
 }
 
 [data-theme="dark"] .ht-code-tab__source .shiki {
-  background-color: var(--shiki-dark-bg) !important;
+  background-color: var(--bg-sunken) !important;
 }
 
 .ht-code-tab__gutter-line--focus {
