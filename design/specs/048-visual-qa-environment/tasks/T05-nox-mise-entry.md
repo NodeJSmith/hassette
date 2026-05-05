@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Add nox demo session and mise task"
-status: "planned"
+status: "done"
 depends_on: ["T04"]
 implements: ["AC#1"]
 ---
