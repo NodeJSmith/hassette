@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Add smoke system test for demo environment"
-status: "planned"
+status: "done"
 depends_on: ["T04"]
 implements: ["FR#9", "AC#3", "AC#5"]
 ---
