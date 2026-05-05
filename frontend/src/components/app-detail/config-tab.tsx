@@ -8,22 +8,92 @@ interface Props {
 }
 
 type ConfigRecord = Record<string, unknown>;
+type SchemaProperty = {
+  type?: string;
+  default?: unknown;
+  description?: string;
+  title?: string;
+  anyOf?: { type?: string }[];
+};
+type ConfigSchema = {
+  properties?: Record<string, SchemaProperty>;
+  required?: string[];
+};
 
-/**
- * Single config key-value table for an object config.
- */
 function formatConfigValue(val: unknown): string {
   if (val === null || val === undefined) return "—";
   if (typeof val === "object") return JSON.stringify(val);
   return String(val);
 }
 
-function ConfigTable({ config }: { config: ConfigRecord }) {
+function resolveType(prop: SchemaProperty): string {
+  if (prop.type) return prop.type;
+  if (prop.anyOf) {
+    const types = prop.anyOf.map((t) => t.type).filter(Boolean);
+    return types.join(" | ") || "any";
+  }
+  return "any";
+}
+
+function SchemaConfigTable({
+  config,
+  schema,
+}: {
+  config: ConfigRecord;
+  schema: ConfigSchema;
+}) {
+  const properties = schema.properties ?? {};
+  const required = new Set(schema.required ?? []);
+  const propKeys = Object.keys(properties);
+  const extraKeys = Object.keys(config).filter((k) => !propKeys.includes(k));
+  const allKeys = [...propKeys, ...extraKeys];
+
+  if (allKeys.length === 0) {
+    return (
+      <div class="ht-log-empty">
+        <div class="ht-log-empty__icon">∅</div>
+        <div class="ht-log-empty__title">no configuration fields</div>
+        <div class="ht-log-empty__body">this app uses the default AppConfig with no custom fields.</div>
+      </div>
+    );
+  }
+
+  return (
+    <div class="ht-config-fields" data-testid="config-values-table">
+      {allKeys.map((key) => {
+        const prop = properties[key];
+        const value = config[key];
+        const isRequired = required.has(key);
+        const hasValue = value !== null && value !== undefined;
+        const typeName = prop ? resolveType(prop) : typeof value;
+
+        return (
+          <div key={key} class="ht-config-field" data-testid={`config-value-${key}`}>
+            <div class="ht-config-field__header">
+              <code class="ht-config-field__name">{key}</code>
+              <span class="ht-config-field__type">{typeName}</span>
+              {isRequired && <span class="ht-pill ht-pill--mute ht-config-field__required">required</span>}
+            </div>
+            <div class={`ht-config-field__value${!hasValue ? " ht-config-field__value--missing" : ""}`}>
+              <code>{formatConfigValue(value)}</code>
+            </div>
+            {prop?.description && (
+              <div class="ht-config-field__note">{prop.description}</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SimpleConfigTable({ config }: { config: ConfigRecord }) {
   const entries = Object.entries(config);
   if (entries.length === 0) {
     return (
-      <div class="ht-config-tab__empty" data-testid="config-empty">
-        <p class="ht-text-muted ht-text-sm">No configuration values.</p>
+      <div class="ht-log-empty">
+        <div class="ht-log-empty__icon">∅</div>
+        <div class="ht-log-empty__title">no configuration values</div>
       </div>
     );
   }
@@ -39,13 +109,8 @@ function ConfigTable({ config }: { config: ConfigRecord }) {
       <tbody>
         {entries.map(([key, val]) => (
           <tr key={key}>
-            <td>
-              <code class="ht-text-mono ht-text-sm">{key}</code>
-            </td>
-            <td
-              class="ht-config-tab__value"
-              data-testid={`config-value-${key}`}
-            >
+            <td><code class="ht-text-mono ht-text-sm">{key}</code></td>
+            <td class="ht-config-tab__value" data-testid={`config-value-${key}`}>
               <code class="ht-text-mono ht-text-sm">{formatConfigValue(val)}</code>
             </td>
           </tr>
@@ -103,8 +168,7 @@ export function ConfigTab({ appKey }: Props) {
 
   const cfg = configData.value;
   const appConfig = cfg.app_config;
-
-  // Multi-instance list config: array of config objects
+  const schema = (cfg as { config_schema?: ConfigSchema }).config_schema;
   const isListConfig = Array.isArray(appConfig);
 
   return (
@@ -127,34 +191,44 @@ export function ConfigTab({ appKey }: Props) {
         </div>
       </div>
 
-      <div class="ht-config-tab__divider" />
-
-      {/* Config values */}
-      {isListConfig ? (
-        // Multi-instance: render per-instance blocks
-        <div class="ht-config-tab__instances">
-          {(appConfig as unknown[]).map((instanceCfg, idx) => (
-            <div
-              key={idx}
-              class="ht-config-tab__instance-block"
-              data-testid={`config-instance-${idx}`}
-            >
-              <h3 class="ht-config-tab__instance-heading">Instance {idx}</h3>
-              {instanceCfg && typeof instanceCfg === "object" && !Array.isArray(instanceCfg) ? (
-                <ConfigTable config={instanceCfg as ConfigRecord} />
-              ) : (
-                <p class="ht-text-muted ht-text-sm">{String(instanceCfg)}</p>
-              )}
+      {/* 2-column layout: config fields + raw values */}
+      <div class="ht-config-tab__layout">
+        <div class="ht-card ht-config-tab__fields-card">
+          <h3 class="ht-summary-card__title">configuration</h3>
+          {isListConfig ? (
+            <div class="ht-config-tab__instances">
+              {(appConfig as unknown[]).map((instanceCfg, idx) => (
+                <div key={idx} class="ht-config-tab__instance-block" data-testid={`config-instance-${idx}`}>
+                  <h4 class="ht-config-tab__instance-heading">Instance {idx}</h4>
+                  {instanceCfg && typeof instanceCfg === "object" && !Array.isArray(instanceCfg) ? (
+                    schema
+                      ? <SchemaConfigTable config={instanceCfg as ConfigRecord} schema={schema} />
+                      : <SimpleConfigTable config={instanceCfg as ConfigRecord} />
+                  ) : (
+                    <p class="ht-text-muted ht-text-sm">{String(instanceCfg)}</p>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
+          ) : appConfig && typeof appConfig === "object" && !Array.isArray(appConfig) ? (
+            schema
+              ? <SchemaConfigTable config={appConfig as ConfigRecord} schema={schema} />
+              : <SimpleConfigTable config={appConfig as ConfigRecord} />
+          ) : (
+            <div class="ht-log-empty">
+              <div class="ht-log-empty__icon">∅</div>
+              <div class="ht-log-empty__title">no configuration values</div>
+            </div>
+          )}
         </div>
-      ) : appConfig && typeof appConfig === "object" && !Array.isArray(appConfig) ? (
-        <ConfigTable config={appConfig as ConfigRecord} />
-      ) : (
-        <div class="ht-config-tab__empty" data-testid="config-empty">
-          <p class="ht-text-muted ht-text-sm">No configuration values.</p>
+
+        {/* Raw config card */}
+        <div class="ht-card ht-config-tab__raw-card">
+          <h3 class="ht-summary-card__title">raw config</h3>
+          <span class="ht-text-mono ht-text-xs ht-text-muted">hassette.toml → apps.{appKey}.config</span>
+          <pre class="ht-config-tab__raw-code">{JSON.stringify(appConfig, null, 2)}</pre>
         </div>
-      )}
+      </div>
     </div>
   );
 }

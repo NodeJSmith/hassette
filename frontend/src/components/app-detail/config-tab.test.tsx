@@ -58,8 +58,9 @@ describe("ConfigTab", () => {
     );
     render(<ConfigTab appKey="test_app" />);
     await waitFor(() => {
-      expect(screen.getByTestId("config-empty")).toBeDefined();
+      expect(screen.getByTestId("config-tab-content")).toBeDefined();
     });
+    expect(screen.getByText(/no configuration/i)).toBeDefined();
   });
 
   it("handles multi-instance list config by rendering per-instance blocks", async () => {

@@ -454,6 +454,7 @@ class AppConfigResponse(BaseModel):
     class_name: str
     enabled: bool
     app_config: dict[str, Any] | list[dict[str, Any]]
+    config_schema: dict[str, Any] | None = None
 
 
 class AppSourceResponse(BaseModel):

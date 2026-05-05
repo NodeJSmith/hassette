@@ -1,5 +1,6 @@
 """App management endpoints."""
 
+import contextlib
 import re
 from logging import getLogger
 
@@ -99,12 +100,19 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
     manifest = hassette.app_handler.registry.get_manifest(app_key)
     if manifest is None:
         raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
+    schema = None
+    app_instance = hassette.app_handler.registry.get(app_key)
+    if app_instance is not None:
+        with contextlib.suppress(Exception):
+            schema = type(app_instance).app_config_cls.model_json_schema()
+
     return AppConfigResponse(
         app_key=app_key,
         filename=manifest.filename,
         class_name=manifest.class_name,
         enabled=manifest.enabled,
         app_config=manifest.app_config,
+        config_schema=schema,
     )
 
 

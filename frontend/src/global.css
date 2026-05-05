@@ -1798,15 +1798,97 @@ strong {
   background: transparent;
 }
 
-.ht-invocation-note--expandable {
-  cursor: pointer;
+/* — Invocation table (expandable rows) ———————————————— */
+.ht-invocation-table .ht-inv-col-status { width: 20px; }
+.ht-invocation-table .ht-inv-col-time   { width: 150px; }
+.ht-invocation-table .ht-inv-col-dur    { width: 70px; }
+.ht-invocation-table .ht-inv-col-arrow  { width: 16px; }
+
+.ht-inv-row { cursor: pointer; transition: background var(--t-fast) var(--ease); }
+.ht-inv-row.is-open { background: var(--bg-sunken); }
+.ht-inv-row:hover { background: var(--bg-sunken); }
+
+.ht-inv-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  overflow: hidden;
 }
 
-.ht-col-note {
+.ht-inv-origin-chip {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.ht-inv-note {
+  font-family: var(--font-mono);
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 200px;
+}
+
+.ht-inv-detail {
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--bg-sunken);
+  border-left: 3px solid var(--ink-3);
+  border-bottom: 1px solid var(--line-1);
+}
+
+.ht-inv-detail__context {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: baseline;
+  margin-bottom: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.ht-inv-detail__label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ink-4);
+  display: block;
+  margin-bottom: var(--sp-1);
+}
+
+.ht-inv-detail__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+}
+
+.ht-inv-detail__code-box {
+  border: 1px dashed var(--line-1);
+  border-radius: var(--r-sm);
+  padding: var(--sp-2);
+  background: var(--bg-page);
+}
+
+.ht-inv-detail__code-box pre {
+  margin: 0;
+  font-size: 10px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+@media screen and (max-width: 768px) {
+  .ht-inv-detail__grid {
+    grid-template-columns: 1fr;
+  }
+  .ht-invocation-table .ht-inv-col-time { width: auto; }
+  .ht-invocation-table .ht-inv-col-dur  { display: none; }
+  .ht-invocation-table .ht-inv-col-arrow { display: none; }
+  .ht-inv-note { display: none; }
+  .ht-invocation-table { table-layout: auto; }
 }
 
 /* — Detail Label ——————————————————————————————————————— */
@@ -3807,6 +3889,94 @@ strong {
 
 .ht-config-tab__empty {
   padding: var(--sp-6);
+}
+
+.ht-config-tab__layout {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: var(--sp-4);
+}
+
+.ht-config-tab__fields-card,
+.ht-config-tab__raw-card {
+  padding: var(--sp-4);
+}
+
+.ht-config-tab__fields-card .ht-summary-card__title,
+.ht-config-tab__raw-card .ht-summary-card__title {
+  margin-bottom: var(--sp-3);
+}
+
+.ht-config-tab__raw-code {
+  margin-top: var(--sp-2);
+  padding: var(--sp-3);
+  background: var(--bg-sunken);
+  border: 1px dashed var(--line-1);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* Schema-aware config fields */
+.ht-config-fields {
+  display: flex;
+  flex-direction: column;
+}
+
+.ht-config-field {
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--line-1);
+}
+
+.ht-config-field:last-child {
+  border-bottom: none;
+}
+
+.ht-config-field__header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-1);
+}
+
+.ht-config-field__name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ht-config-field__type {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-4);
+}
+
+.ht-config-field__required {
+  font-size: 9px !important;
+  padding: 0 5px !important;
+}
+
+.ht-config-field__value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.ht-config-field__value--missing {
+  color: var(--err);
+}
+
+.ht-config-field__note {
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  margin-top: 2px;
+}
+
+@media screen and (max-width: 768px) {
+  .ht-config-tab__layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* =====================================================

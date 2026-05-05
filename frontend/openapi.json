@@ -1463,6 +1463,18 @@
               }
             ],
             "title": "App Config"
+          },
+          "config_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Schema"
           }
         },
         "type": "object",

@@ -535,6 +535,10 @@ export interface components {
             } | {
                 [key: string]: unknown;
             }[];
+            /** Config Schema */
+            config_schema?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * AppHealthResponse
