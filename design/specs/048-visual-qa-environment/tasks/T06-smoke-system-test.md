@@ -28,13 +28,14 @@ Create `tests/system/test_demo_smoke.py`:
    - Extract `DEMO_HASSETTE_URL` from the output
    - `GET {hassette_url}/api/apps` and parse the response
    - Assert the response contains exactly 7 app entries
-   - Assert all 7 have `status == "RUNNING"` (or the equivalent status field — check the `AppStatusResponse` model)
+   - Assert all 7 have `status == "RUNNING"` (the `AppStatusResponse.apps` list contains `AppStatus` objects with a `status` field)
+   - For at least one app, verify non-zero listener count and/or scheduled job count in the response (confirms framework wiring, not just process startup)
    - Send `SIGTERM` to the subprocess in a `finally` block and wait for exit
 
 4. **Mark with `pytest.mark.system`** so it runs as part of `nox -s system` (non-destructive tier). The existing system session runs `pytest -m "system and not system_destructive"` which will pick this up.
 
 ## Focus
-- The `GET /api/apps` endpoint is at `src/hassette/web/routes/apps.py` and returns an `AppStatusResponse`. Check the response model to know the exact field names for app status.
+- The `GET /api/apps` endpoint is at `src/hassette/web/routes/apps.py` and returns an `AppStatusResponse`. The response model has an `apps` field containing a list of `AppStatus` objects, each with `status`, `app_key`, `listeners`, and `scheduled_jobs` fields. Check `src/hassette/web/models.py` for the exact schema.
 - The 7 expected instances are: motion_lights/backyard_kitchen, motion_lights/backyard_ceiling, climate_controller, cover_scheduler, presence_tracker/paulus, presence_tracker/home_boy, security_monitor.
 - The test must be tolerant of startup timing — apps may take a few seconds after `DEMO_READY=true` to fully initialize. Add a brief polling loop for the apps endpoint if needed (poll until all 7 are RUNNING, timeout 30s).
 - Use `subprocess.Popen` with `start_new_session=True` so `os.killpg` can cleanly terminate the orchestrator and its children in the finally block.

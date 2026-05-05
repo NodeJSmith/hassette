@@ -3,7 +3,7 @@ task_id: "T05"
 title: "Add nox demo session and mise task"
 status: "planned"
 depends_on: ["T04"]
-implements: ["FR#1", "AC#1"]
+implements: ["AC#1"]
 ---
 
 ## Summary
@@ -34,5 +34,4 @@ Add a `python=False` nox session named `demo` that wraps the orchestrator script
 - Check the existing noxfile for import ordering and style before adding the session.
 
 ## Verify
-- [ ] FR#1: `uv run nox -s demo` invokes `scripts/hassette_demo.py` and starts all services
-- [ ] AC#1: `mise run demo` invokes the orchestrator, starts all three services, and prints `DEMO_READY=true` — identical to `uv run nox -s demo`
+- [ ] AC#1: Both `uv run nox -s demo` and `mise run demo` invoke the orchestrator, start all three services, and print `DEMO_READY=true`
