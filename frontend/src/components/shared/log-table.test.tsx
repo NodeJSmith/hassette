@@ -1101,19 +1101,18 @@ describe("Mobile responsive rendering", () => {
     expect(headerTexts.some((t) => t.includes("App"))).toBe(false);
   });
 
-  it("shows app name as tag in message column on mobile", () => {
-    state.logs.push(createLogEntry({ app_key: "my_app", message: "test message" }));
+  it("shows source inline with app and func name on mobile", () => {
+    state.logs.push(createLogEntry({ app_key: "my_app", func_name: "on_change", message: "test message" }));
 
     const { container } = render(
       <LogTable showAppColumn appKeys={["my_app"]} />,
       { wrapper: createWrapper(state) },
     );
 
-    const appTag = container.querySelector(".ht-log-app-tag");
-    expect(appTag).not.toBeNull();
-    expect(appTag!.textContent).toBe("my_app");
-    expect(appTag!.classList.contains("ht-tag")).toBe(true);
-    expect(appTag!.classList.contains("ht-tag--neutral")).toBe(true);
+    const sourceInline = container.querySelector(".ht-log-source-inline");
+    expect(sourceInline).not.toBeNull();
+    expect(sourceInline!.textContent).toContain("my_app.");
+    expect(sourceInline!.textContent).toContain("on_change()");
   });
 
   it("shows relative timestamps on mobile", () => {

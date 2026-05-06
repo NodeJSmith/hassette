@@ -412,10 +412,12 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
                   onClick={toggle}
                   onKeyDown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
                 >
+                  {isMobile && entry.func_name && (
+                    <div class="ht-log-source-inline">
+                      {showAppColumn && entry.app_key ? `${entry.app_key}.` : ""}<b>{entry.func_name}</b>()
+                    </div>
+                  )}
                   <div data-row-key={rowKey} class={`ht-log-message__text${isExpanded && !isMobile ? " is-expanded" : ""}`}>
-                    {isMobile && showAppColumn && entry.app_key && (
-                      <span class="ht-log-app-tag ht-tag ht-tag--neutral">{entry.app_key}</span>
-                    )}
                     {entry.message}
                   </div>
                 </td>

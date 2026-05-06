@@ -2041,6 +2041,7 @@ strong {
   }
 }
 
+/* sync: BREAKPOINT_SMALL_MOBILE in use-media-query.ts */
 @media screen and (max-width: 480px) {
   .ht-health-strip {
     grid-template-columns: repeat(2, 1fr);
@@ -2265,9 +2266,9 @@ strong {
   font-weight: 500;
 }
 
-/* — Responsive: sidebar hidden below 768px ————————————— */
-/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
-@media screen and (max-width: 768px) {
+/* — Responsive: sidebar hidden below 900px ————————————— */
+/* sync: BREAKPOINT_SIDEBAR in use-media-query.ts */
+@media screen and (max-width: 900px) {
   .ht-hamburger {
     display: flex;
   }
@@ -2286,6 +2287,14 @@ strong {
 
   .ht-main {
     grid-column: 1;
+    padding-top: calc(var(--sp-3) * 2 + 44px);
+  }
+}
+
+/* — Responsive: mobile layout below 768px ———————————————— */
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
+@media screen and (max-width: 768px) {
+  .ht-main {
     padding: var(--sp-4);
     padding-top: calc(var(--sp-3) * 2 + 44px);
   }
@@ -2371,13 +2380,14 @@ strong {
     background: var(--bg-surface);
   }
 
-  /* Log table: hide App column — app name shown as tag in message column */
+  /* Log table: hide App column — source shown inline (app.func) in message column */
   .ht-table-log .ht-col-app {
     display: none;
   }
 }
 
 /* — Responsive: small phones (max-width: 480px) ———————— */
+/* sync: BREAKPOINT_SMALL_MOBILE in use-media-query.ts */
 @media screen and (max-width: 480px) {
   .ht-section {
     padding: var(--sp-3);
@@ -2564,13 +2574,14 @@ strong {
   margin-bottom: var(--sp-2);
 }
 
-.ht-log-app-tag {
-  margin-right: var(--sp-1);
-  max-width: 100px;
+.ht-log-source-inline {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
-  vertical-align: baseline;
-  flex-shrink: 0;
+  white-space: nowrap;
+  margin-bottom: 2px;
 }
 
 .ht-info-hint {

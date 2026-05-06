@@ -225,7 +225,7 @@ The design system uses unprefixed Ink tokens (no `--ht-*` prefix). Light mode is
 
 **Sidebar** — 240px fixed panel, left side. Text-only nav (overview, apps, logs, config) — no icons. Below the nav: APPS section header with count, search input, then status-grouped app entries (FAILING, BLOCKED, SLOW, RUNNING, STOPPED, DISABLED). Each group is collapsible. App entries show StatusShape + display name + optional auto badge + invocation count. Multi-instance apps have an expand chevron showing individual instances with tree connectors (`└`). Wordmark ("hassette") at top with version and connection status below it. Command palette trigger ("jump to... Ctrl+K") between wordmark and nav.
 
-**Mobile layout** (below 768px) — sidebar hides; hamburger button (top-left, 44px) opens an off-canvas drawer that slides in from the left with the full sidebar content. Backdrop overlay for dismissal. Main content gets top padding to clear the hamburger.
+**Mobile layout** (below 900px) — sidebar hides; hamburger button (top-left, 44px) opens an off-canvas drawer that slides in from the left with the full sidebar content. Backdrop overlay for dismissal. Main content gets top padding to clear the hamburger. The 900px threshold was chosen to eliminate the 769-900px dead zone where the sidebar consumed too much of the viewport. General mobile layout changes (grid stacking, compact tables, touch targets) still trigger at 768px.
 
 **StatusBar** — horizontal bar at top of main content area. Left side: TimePresetSelector (Since restart / 1h / 24h / 7d with uptime label). Right side: WebSocket indicator (pulse dot + label when not connected), telemetry degraded indicator, dropped events indicator, error handler failures indicator, theme toggle (sun/moon icon).
 
