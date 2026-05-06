@@ -3473,6 +3473,11 @@ strong {
   .ht-apps-row__auto-badge {
     display: none;
   }
+
+  .ht-apps-table thead th:nth-child(n+3),
+  .ht-apps-table tbody td:nth-child(n+3) {
+    display: none;
+  }
 }
 
 /* — Reduced Motion ————————————————————————————————————— */
