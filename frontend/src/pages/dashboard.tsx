@@ -6,7 +6,6 @@ import {
   getDashboardAppGrid,
   getDashboardErrors,
   getDashboardKpis,
-  getDashboardActivity,
   getSystemStatus,
 } from "../api/endpoints";
 import type {
@@ -14,7 +13,6 @@ import type {
   DashboardAppGridEntry,
   DashboardKpis,
   DashboardErrorEntry,
-  ActivityFeedEntry,
   BootIssue,
 } from "../api/endpoints";
 import { TelemetryDegradedBanner } from "../components/layout/alert-banner";
@@ -576,61 +574,6 @@ function RecentErrorsTable({
   );
 }
 
-// ---- Recent activity feed ---------------------------------------------------
-
-function RecentActivityFeed({ activity }: { activity: ActivityFeedEntry[] | null }) {
-  const isQuiet = !activity || activity.length === 0;
-
-  return (
-    <div class="ht-card ht-card--receded ht-recent-activity" data-testid="recent-activity">
-      <div class="ht-recent-activity__header">
-        <h3 class="ht-summary-card__title">recent activity</h3>
-        <a href="/logs" class="ht-recent-activity__link">full log →</a>
-      </div>
-      {isQuiet ? (
-        <div class="ht-recent-activity__quiet">
-          <p class="ht-recent-activity__quiet-title">quiet hour</p>
-          <p class="ht-recent-activity__quiet-note">
-            nothing has triggered any handler in the last 60 minutes.
-          </p>
-        </div>
-      ) : (
-        <div class="ht-recent-activity__list">
-          {activity!.map((entry) => {
-            const kind: "ok" | "warn" | "err" | "mute" =
-              entry.status === "success" ? "ok"
-                : entry.status === "timed_out" ? "warn"
-                  : "err";
-            const time = new Date(entry.timestamp * 1000).toLocaleTimeString("en-US", {
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-              hour12: false,
-            });
-            const label = `${entry.app_key}.${entry.handler_name}`;
-            const detail = entry.error_type
-              ? `${entry.error_type}`
-              : entry.duration_ms !== null && entry.duration_ms !== undefined
-                ? `${entry.duration_ms.toFixed(0)}ms`
-                : "";
-
-            return (
-              <div key={`${entry.timestamp}-${entry.app_key}-${entry.handler_name}`} class="ht-activity-row">
-                <StatusShape kind={kind} size={8} />
-                <span class="ht-activity-row__time">{time}</span>
-                <span class="ht-activity-row__label">{label}</span>
-                <span class={`ht-activity-row__detail${kind === "err" ? " ht-activity-row__detail--err" : ""}`}>
-                  {detail}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ---- Dashboard Page --------------------------------------------------------
 
 export function DashboardPage() {
@@ -645,8 +588,6 @@ export function DashboardPage() {
     (since) => getDashboardErrors(since, errorTierFilter.value).then((r) => r.errors),
     { deps: [errorTierFilter.value] },
   );
-  const activityFeed = useScopedApi((since) => getDashboardActivity(20, since));
-
   // System status for boot issues (uses useApi — not time-scoped)
   const systemStatus = useApi(() => getSystemStatus());
 
@@ -676,7 +617,7 @@ export function DashboardPage() {
     () => statusVersionRef.current,
     500,
     () => {
-      void Promise.allSettled([kpis.refetch(), appGrid.refetch(), errors.refetch(), activityFeed.refetch()]);
+      void Promise.allSettled([kpis.refetch(), appGrid.refetch(), errors.refetch()]);
     },
     2000,
   );
@@ -759,9 +700,6 @@ export function DashboardPage() {
         errors={errors}
         tierFilter={errorTierFilter}
       />
-
-      {/* Recent activity feed */}
-      <RecentActivityFeed activity={activityFeed.data.value} />
 
     </div>
   );

@@ -115,10 +115,3 @@ export type SystemStatus = components["schemas"]["SystemStatusResponse"];
 export type BootIssue = components["schemas"]["BootIssueResponse"];
 
 export const getSystemStatus = () => apiFetch<SystemStatus>("/health");
-
-// ---- Activity feed ----
-
-export type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
-
-export const getDashboardActivity = (limit = 20, since?: number | null) =>
-  apiFetch<ActivityFeedEntry[]>(buildUrl("/telemetry/dashboard/activity", { limit, since }));

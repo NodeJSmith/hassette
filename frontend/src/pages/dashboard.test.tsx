@@ -43,12 +43,11 @@ function fakeApiResult<T>(data: T | null, loading = false, error: string | null 
   };
 }
 
-/** Standard four-call setup for DashboardPage (kpis, appGrid, errors, activity). */
+/** Standard three-call setup for DashboardPage (kpis, appGrid, errors). */
 function setupScopedApi({
   kpisData = createKpis() as ReturnType<typeof createKpis> | null,
   appGridData = [] as ReturnType<typeof createAppGridEntry>[] | null,
   errorsData = [] as ReturnType<typeof createHandlerError>[] | null,
-  activityData = [] as unknown[],
   kpisLoading = false,
   appGridLoading = false,
   kpisError = null as string | null,
@@ -58,8 +57,7 @@ function setupScopedApi({
   useScopedApi
     .mockReturnValueOnce(fakeApiResult(kpisData, kpisLoading, kpisError))     // kpis
     .mockReturnValueOnce(fakeApiResult(appGridData, appGridLoading, appGridError)) // appGrid
-    .mockReturnValueOnce(fakeApiResult(errorsData, false, errorsError))   // errors
-    .mockReturnValueOnce(fakeApiResult(activityData)); // activity
+    .mockReturnValueOnce(fakeApiResult(errorsData, false, errorsError));  // errors
 }
 
 function setupUseApi(bootIssues: unknown[] = [], services: unknown[] = [
@@ -431,59 +429,16 @@ describe("DashboardPage — recent errors as table", () => {
     let callCount = 0;
     useScopedApi.mockImplementation(() => {
       callCount++;
-      const pos = ((callCount - 1) % 4);
+      const pos = ((callCount - 1) % 3);
       if (pos === 0) return fakeApiResult(createKpis({ total_invocations: 10, total_errors: 1 }));
       if (pos === 1) return fakeApiResult([createAppGridEntry()]);
-      if (pos === 2) return fakeApiResult([createHandlerError()]);
-      return fakeApiResult([]);
+      return fakeApiResult([createHandlerError()]);
     });
     const { container, getByText } = renderWithAppState(<DashboardPage />);
     fireEvent.click(getByText("Apps"));
     const allBtns = container.querySelectorAll(".ht-tier-toggle__btn");
     const activeBtn = Array.from(allBtns).find((el) => el.className.includes("--active"));
     expect(activeBtn?.textContent).toBe("Apps");
-  });
-});
-
-describe("DashboardPage — recent activity feed", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    useDebouncedEffect.mockImplementation(() => {});
-    setupUseApi();
-  });
-
-  it("renders recent activity section", () => {
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 10 }),
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    expect(getByTestId("recent-activity")).toBeDefined();
-  });
-
-  it("shows quiet state when no activity entries", () => {
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 0, total_executions: 0 }),
-      activityData: [],
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    const feed = getByTestId("recent-activity");
-    expect(feed.textContent).toMatch(/quiet|nothing has triggered/i);
-  });
-
-  it("renders activity entries when available", () => {
-    const activity = [
-      { status: "success", timestamp: 1700000000, app_key: "motion_lights", handler_name: "kitchen_motion", duration_ms: 82, error_type: null, kind: "handler" as const },
-    ];
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 10 }),
-      activityData: activity,
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    const feed = getByTestId("recent-activity");
-    expect(feed.textContent).toContain("motion_lights");
   });
 });
 
@@ -546,16 +501,13 @@ describe("DashboardPage — debounced refetch on appStatus change", () => {
     const kpisRefetch = vi.fn().mockResolvedValue(undefined);
     const appGridRefetch = vi.fn().mockResolvedValue(undefined);
     const errorsRefetch = vi.fn().mockResolvedValue(undefined);
-    const activityRefetch = vi.fn().mockResolvedValue(undefined);
-
     let callCount = 0;
     useScopedApi.mockImplementation(() => {
       callCount++;
-      const pos = ((callCount - 1) % 4);
+      const pos = ((callCount - 1) % 3);
       if (pos === 0) return { data: signal(createKpis()), loading: signal(false), error: signal(null), refetch: kpisRefetch };
       if (pos === 1) return { data: signal([]), loading: signal(false), error: signal(null), refetch: appGridRefetch };
-      if (pos === 2) return { data: signal([]), loading: signal(false), error: signal(null), refetch: errorsRefetch };
-      return { data: signal([]), loading: signal(false), error: signal(null), refetch: activityRefetch };
+      return { data: signal([]), loading: signal(false), error: signal(null), refetch: errorsRefetch };
     });
 
     setupUseApi();
@@ -569,7 +521,6 @@ describe("DashboardPage — debounced refetch on appStatus change", () => {
     expect(kpisRefetch).toHaveBeenCalled();
     expect(appGridRefetch).toHaveBeenCalled();
     expect(errorsRefetch).toHaveBeenCalled();
-    expect(activityRefetch).toHaveBeenCalled();
   });
 
   it("useDebouncedEffect is called with 500ms delay and 2000ms maxWait", () => {
