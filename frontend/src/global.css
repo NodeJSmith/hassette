@@ -135,6 +135,14 @@ h1 {
   color: var(--ink-1);
 }
 
+.ht-display {
+  font-family: var(--font-display);
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  letter-spacing: var(--tr-h1);
+  font-weight: 400;
+}
+
 h2 {
   font-family: var(--font-display);
   font-size: var(--fs-h2);
@@ -2685,8 +2693,11 @@ strong {
   gap: var(--sp-3);
 }
 
-.ht-log-toolbar__title .ht-summary-card__title {
-  margin-bottom: 0;
+.ht-log-toolbar__heading {
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  font-weight: 400;
+  margin: 0;
 }
 
 .ht-log-toolbar__note {
@@ -4137,7 +4148,7 @@ strong {
 
 .ht-code-tab__body .shiki span.line {
   display: inline-flex;
-  width: 100%;
+  min-width: 100%;
   padding: 0 var(--sp-4) 0 0;
 }
 
@@ -4536,7 +4547,7 @@ strong {
 
 /* Make log scroll fill available vertical space on the Logs page */
 .ht-logs-page .ht-log-table-scroll {
-  --log-scroll-height: calc(100vh - 220px);
+  --log-scroll-height: calc(100vh - 270px);
 }
 
 /* — Config Page — key-value groups ——————————————————— */
@@ -4550,9 +4561,9 @@ strong {
 }
 
 .ht-config-group__label {
-  font-family: var(--font-body);
+  font-family: var(--font-display);
   font-size: var(--fs-h3);
-  font-weight: 500;
+  font-weight: 400;
   color: var(--ink-2);
   letter-spacing: var(--tr-h3);
   margin-bottom: var(--sp-2);
@@ -4596,6 +4607,30 @@ strong {
 /* Dim placeholder dash values */
 .ht-config-table__value--empty {
   color: var(--ink-4);
+}
+
+@media screen and (max-width: 768px) {
+  .ht-config-table__key {
+    width: auto;
+    min-width: unset;
+    padding-top: var(--sp-2);
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .ht-config-table td {
+    display: block;
+    padding: var(--sp-1) var(--sp-3);
+  }
+
+  .ht-config-table__value {
+    padding-bottom: var(--sp-2);
+    word-break: break-word;
+  }
+
+  .ht-config-table tbody tr:last-child .ht-config-table__value {
+    border-bottom: none;
+  }
 }
 
 /* =====================================================
@@ -5180,6 +5215,29 @@ strong {
 .ht-recent-errors__error-msg {
   font-family: var(--font-mono);
   color: var(--ink-3);
+}
+
+@media screen and (max-width: 1024px) {
+  .ht-recent-errors__col-location,
+  .ht-recent-errors__location {
+    display: none;
+  }
+
+  .ht-recent-errors__col-age,
+  .ht-recent-errors__age {
+    display: none;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .ht-recent-errors__col-time,
+  .ht-recent-errors__time {
+    display: none;
+  }
+
+  .ht-recent-errors__table {
+    font-size: var(--fs-micro);
+  }
 }
 
 /* — Recent activity feed ——————————————————————————————— */

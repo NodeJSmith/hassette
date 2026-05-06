@@ -65,9 +65,11 @@ interface Props {
   appKey?: string;
   /** List of app keys for the app filter dropdown (global logs page) */
   appKeys?: string[];
+  /** Hide the internal "logs" heading when the parent page renders its own */
+  hideTitle?: boolean;
 }
 
-export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
+export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: Props) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   // Source column is CSS-hidden at max-width: 1024px (see global.css .ht-table-log .ht-col-source)
   // Ideally the Source <th>/<td> would be conditionally rendered like the App column,
@@ -243,7 +245,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys }: Props) {
     <div class="ht-log-table-container" ref={tableContainerRef}>
       <div class="ht-log-toolbar">
         <div class="ht-log-toolbar__title">
-          <h2 class="ht-summary-card__title">logs</h2>
+          {!hideTitle && <h2 class="ht-log-toolbar__heading">logs</h2>}
           <span class="ht-log-toolbar__note">{pluralize(filtered.length, "entry", "entries")}</span>
         </div>
         <div class="ht-log-toolbar__controls">

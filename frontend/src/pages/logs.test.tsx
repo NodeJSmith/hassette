@@ -6,11 +6,12 @@ import { createManifestList, createManifest } from "../test/factories";
 
 // Stub LogTable — it has its own extensive tests
 vi.mock("../components/shared/log-table", () => ({
-  LogTable: ({ showAppColumn, appKeys }: { showAppColumn: boolean; appKeys: string[] }) => (
+  LogTable: ({ showAppColumn, appKeys, hideTitle }: { showAppColumn: boolean; appKeys: string[]; hideTitle?: boolean }) => (
     <div
       data-testid="log-table"
       data-show-app-column={String(showAppColumn)}
       data-app-keys={appKeys.join(",")}
+      data-hide-title={String(!!hideTitle)}
     />
   ),
 }));
@@ -78,5 +79,17 @@ describe("LogsPage", () => {
     useApi.mockReturnValue(fakeApiResult(createManifestList()));
     const { container } = renderWithAppState(<LogsPage />);
     expect(container.querySelector(".ht-card")).not.toBeNull();
+  });
+
+  it("renders page-level h1 heading", () => {
+    useApi.mockReturnValue(fakeApiResult(createManifestList()));
+    const { container } = renderWithAppState(<LogsPage />);
+    expect(container.querySelector("h1.ht-display")?.textContent).toBe("logs");
+  });
+
+  it("passes hideTitle to LogTable", () => {
+    useApi.mockReturnValue(fakeApiResult(createManifestList()));
+    const { getByTestId } = renderWithAppState(<LogsPage />);
+    expect(getByTestId("log-table").getAttribute("data-hide-title")).toBe("true");
   });
 });

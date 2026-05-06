@@ -1133,4 +1133,20 @@ describe("Mobile responsive rendering", () => {
     });
     expect(tsCell).not.toBeNull();
   });
+
+  it("shows the logs heading by default", () => {
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(container.querySelector("h2.ht-log-toolbar__heading")).not.toBeNull();
+  });
+
+  it("hides the logs heading when hideTitle is true", () => {
+    const { container } = render(
+      <LogTable hideTitle />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(container.querySelector("h2.ht-log-toolbar__heading")).toBeNull();
+  });
 });
