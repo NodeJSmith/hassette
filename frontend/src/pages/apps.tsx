@@ -10,6 +10,7 @@ import { useScopedApi, PRESET_WINDOW_SECONDS } from "../hooks/use-scoped-api";
 import { useApi } from "../hooks/use-api";
 import { useAppState } from "../state/context";
 import { statusToKind, INACTIVE_STATUSES, type StatusKind } from "../utils/status";
+import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
 import { formatRelativeTime, formatTimestamp } from "../utils/format";
 import { StatusShape } from "../components/shared/status-shape";
 import { ActionButtons } from "../components/shared/action-buttons";
@@ -159,6 +160,7 @@ function MiniSparkline({ buckets, width = 80, height = 20 }: {
 // ---- Stats strip ----
 
 function StatsStrip({ apps, windowSeconds }: { apps: AppRow[]; windowSeconds: number | null }) {
+  const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const counts = { total: apps.length, running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0 };
   let totalHandlers = 0;
   let totalRuns = 0;
@@ -174,11 +176,17 @@ function StatsStrip({ apps, windowSeconds }: { apps: AppRow[]; windowSeconds: nu
     { label: "total", value: counts.total },
     { label: "running", value: counts.running, tone: "ok" },
     { label: "failed", value: counts.failed, tone: counts.failed > 0 ? "err" : undefined },
-    { label: "stopped", value: counts.stopped },
-    { label: "disabled", value: counts.disabled },
-    { label: "handlers", value: totalHandlers },
-    { label: "runs / hr", value: runsPerHour !== null ? runsPerHour.toFixed(1) : "—" },
   ];
+
+  if (isMobile) {
+    cells.push({ label: "inactive", value: counts.stopped + counts.disabled });
+  } else {
+    cells.push({ label: "stopped", value: counts.stopped });
+    cells.push({ label: "disabled", value: counts.disabled });
+  }
+
+  cells.push({ label: "handlers", value: totalHandlers });
+  cells.push({ label: "runs / hr", value: runsPerHour !== null ? runsPerHour.toFixed(1) : "—" });
 
   return (
     <div class="ht-apps-stats" data-testid="apps-stats-strip">
