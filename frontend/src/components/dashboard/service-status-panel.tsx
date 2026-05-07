@@ -105,15 +105,33 @@ function ServiceRow({ entry }: ServiceRowProps) {
   );
 }
 
+function DroppedEventsLine() {
+  const { droppedOverflow, droppedExhausted, droppedNoSession, droppedShutdown } = useAppState();
+  // Same four signals summed in status-bar.tsx — update both if drop counters change
+  const total =
+    droppedOverflow.value +
+    droppedExhausted.value +
+    droppedNoSession.value +
+    droppedShutdown.value;
+  const hasDrops = total > 0;
+  return (
+    <div class="ht-ssp__dropped-events" data-testid="dropped-events-line">
+      <a
+        href="/diagnostics"
+        class="ht-ssp__dropped-events-link"
+        style={{ color: hasDrops ? "var(--warn)" : "var(--ink-3)" }}
+      >
+        {hasDrops ? `${total} events dropped` : "0 events dropped"}
+      </a>
+    </div>
+  );
+}
+
 export function ServiceStatusPanel() {
   const { serviceStatus } = useAppState();
   const entries = Object.values(serviceStatus.value).filter(
     (e) => !HEALTHY_STATUSES.has(e.status) || (e.status === "running" && !e.ready),
   );
-
-  if (entries.length === 0) {
-    return null;
-  }
 
   return (
     <section
@@ -122,11 +140,14 @@ export function ServiceStatusPanel() {
       aria-label="Internal service status"
     >
       <h2 class="ht-heading-5 ht-mb-3">service status</h2>
-      <ul class="ht-ssp__list" aria-label="Service statuses">
-        {entries.map((entry) => (
-          <ServiceRow key={entry.resource_name} entry={entry} />
-        ))}
-      </ul>
+      {entries.length > 0 && (
+        <ul class="ht-ssp__list" aria-label="Service statuses">
+          {entries.map((entry) => (
+            <ServiceRow key={entry.resource_name} entry={entry} />
+          ))}
+        </ul>
+      )}
+      <DroppedEventsLine />
     </section>
   );
 }

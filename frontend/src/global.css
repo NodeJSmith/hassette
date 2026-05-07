@@ -3547,6 +3547,149 @@ strong {
 }
 
 /* =====================================================
+   Handlers Page (global handlers / jobs view)
+   ===================================================== */
+
+.ht-handlers-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.ht-handlers-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-4);
+}
+
+.ht-handlers-header .ht-display {
+  margin: 0;
+}
+
+/* Toolbar: app filter + tier toggle */
+.ht-handlers-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+.ht-handlers-app-filter {
+  min-width: 160px;
+}
+
+.ht-handlers-tier-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ht-handlers-tier-toggle input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--accent);
+  width: 13px;
+  height: 13px;
+}
+
+/* Table card */
+.ht-handlers-table-card {
+  overflow: hidden;
+}
+
+.ht-handlers-table-wrap {
+  overflow-x: auto;
+}
+
+.ht-handlers-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ht-handlers-table th {
+  background: var(--bg-sunken);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--line-1);
+}
+
+.ht-handlers-table td {
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--line-2);
+  font-size: var(--fs-small);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.ht-handlers-row:hover {
+  background: var(--bg-active);
+}
+
+.ht-handlers-row:last-child td {
+  border-bottom: none;
+}
+
+.ht-handlers-row__app-link {
+  color: var(--ink-1);
+  text-decoration: none;
+}
+
+.ht-handlers-row__app-link:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+/* Empty state */
+.ht-handlers-empty {
+  padding: var(--sp-8);
+  text-align: center;
+}
+
+/* Dropped events line in ServiceStatusPanel */
+.ht-ssp__dropped-events {
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--line-2);
+  margin-top: var(--sp-2);
+  font-size: var(--fs-small);
+}
+
+.ht-ssp__dropped-events-link {
+  text-decoration: none;
+  font-family: var(--font-mono);
+}
+
+.ht-ssp__dropped-events-link:hover {
+  text-decoration: underline;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .ht-handlers-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ht-handlers-app-filter {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .ht-handlers-table th:nth-child(n+5),
+  .ht-handlers-table td:nth-child(n+5) {
+    display: none;
+  }
+}
+
+/* =====================================================
    WP06 — Overview Page Components
    All classes use ht- prefix with BEM structure.
    Ink tokens: var(--font-mono), var(--ok), var(--warn),

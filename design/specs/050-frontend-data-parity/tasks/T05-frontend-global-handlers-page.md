@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Add global handlers page with handlers and jobs tabs"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#9", "FR#11", "FR#18", "AC#6", "AC#14"]
 ---

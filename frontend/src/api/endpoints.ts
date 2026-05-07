@@ -109,6 +109,10 @@ export const getRecentLogs = (params?: { level?: string; app_key?: string; limit
 
 export const getAllListeners = () => apiFetch<ListenerData[]>("/bus/listeners");
 
+// ---- Scheduler (global) ----
+
+export const getAllJobs = () => apiFetch<JobData[]>("/scheduler/jobs");
+
 // ---- System status ----
 
 export type SystemStatus = components["schemas"]["SystemStatusResponse"];

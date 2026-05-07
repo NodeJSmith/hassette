@@ -32,6 +32,13 @@ function buildStaticPageItems(navigate: (path: string) => void): PaletteItem[] {
       action: () => navigate("/"),
     },
     {
+      id: "page-handlers",
+      kind: "page",
+      label: "Handlers",
+      sub: "/handlers",
+      action: () => navigate("/handlers"),
+    },
+    {
       id: "page-logs",
       kind: "page",
       label: "Logs",
@@ -198,10 +205,10 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     };
   }, [open, onClose]);
 
-  if (!open) return null;
-
   // Build full item list (pageItems are stable — cache across renders)
   const pageItemsRef = useRef<PaletteItem[] | null>(null);
+
+  if (!open) return null;
   if (!pageItemsRef.current) pageItemsRef.current = buildStaticPageItems(navigate);
   const pageItems = pageItemsRef.current;
   const actionItems = buildActionItems(allManifests, onClose);

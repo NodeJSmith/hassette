@@ -28,14 +28,16 @@ function makeEntry(overrides: Partial<ServiceStatusEntry> = {}): ServiceStatusEn
 
 describe("ServiceStatusPanel", () => {
   describe("visibility", () => {
-    it("renders nothing when no service statuses are tracked", () => {
+    it("always renders the panel (shows dropped events line even with no service statuses)", () => {
       const { container } = renderWithAppState(<ServiceStatusPanel />, {
         stateOverrides: { serviceStatus: signal({}) },
       });
-      expect(container.querySelector("[data-testid='service-status-panel']")).toBeNull();
+      // Panel always renders now — dropped events line must always be visible
+      expect(container.querySelector("[data-testid='service-status-panel']")).not.toBeNull();
+      expect(container.querySelector("[data-testid='dropped-events-line']")).not.toBeNull();
     });
 
-    it("renders nothing when all services are healthy", () => {
+    it("renders panel but no service rows when all services are healthy", () => {
       const serviceStatus = makeServiceStatus([
         makeEntry({ resource_name: "svc1", status: "running", ready: true }),
         makeEntry({ resource_name: "svc2", status: "starting" }),
@@ -44,7 +46,9 @@ describe("ServiceStatusPanel", () => {
       const { container } = renderWithAppState(<ServiceStatusPanel />, {
         stateOverrides: { serviceStatus },
       });
-      expect(container.querySelector("[data-testid='service-status-panel']")).toBeNull();
+      // Panel renders, but no service rows
+      expect(container.querySelector("[data-testid='service-status-panel']")).not.toBeNull();
+      expect(container.querySelector(".ht-ssp__list")).toBeNull();
     });
 
     it("shows only degraded services, filtering out healthy ones", () => {
@@ -174,7 +178,7 @@ describe("ServiceStatusPanel", () => {
   });
 
   describe("readiness rendering", () => {
-    it("renders nothing when all services are running and ready", () => {
+    it("renders panel but no service rows when all services are running and ready", () => {
       const serviceStatus = makeServiceStatus([
         makeEntry({ resource_name: "svc1", status: "running", ready: true }),
         makeEntry({ resource_name: "svc2", status: "running", ready: true }),
@@ -182,7 +186,8 @@ describe("ServiceStatusPanel", () => {
       const { container } = renderWithAppState(<ServiceStatusPanel />, {
         stateOverrides: { serviceStatus },
       });
-      expect(container.querySelector("[data-testid='service-status-panel']")).toBeNull();
+      expect(container.querySelector("[data-testid='service-status-panel']")).not.toBeNull();
+      expect(container.querySelector(".ht-ssp__list")).toBeNull();
     });
 
     it("shows starting row for running-but-not-ready service", () => {
@@ -268,6 +273,55 @@ describe("ServiceStatusPanel", () => {
       const countdown = container.querySelector(".ht-ssp__detail--cooling");
       expect(countdown).not.toBeNull();
       expect(countdown!.textContent).toMatch(/Retrying in \d+m/);
+    });
+  });
+
+  describe("dropped events line", () => {
+    it("always renders the dropped events line", () => {
+      const { getByTestId } = renderWithAppState(<ServiceStatusPanel />, {
+        stateOverrides: { serviceStatus: signal({}) },
+      });
+      expect(getByTestId("dropped-events-line")).toBeDefined();
+    });
+
+    it("shows '0 events dropped' in muted color when all drop counters are zero", () => {
+      const { getByTestId } = renderWithAppState(<ServiceStatusPanel />, {
+        stateOverrides: {
+          serviceStatus: signal({}),
+          droppedOverflow: signal(0),
+          droppedExhausted: signal(0),
+          droppedNoSession: signal(0),
+          droppedShutdown: signal(0),
+        },
+      });
+      const line = getByTestId("dropped-events-line");
+      const link = line.querySelector("a");
+      expect(link?.textContent).toBe("0 events dropped");
+      expect(link?.style.color).toContain("var(--ink-3)");
+    });
+
+    it("shows 'N events dropped' in warn color when drops > 0", () => {
+      const { getByTestId } = renderWithAppState(<ServiceStatusPanel />, {
+        stateOverrides: {
+          serviceStatus: signal({}),
+          droppedOverflow: signal(3),
+          droppedExhausted: signal(2),
+          droppedNoSession: signal(0),
+          droppedShutdown: signal(1),
+        },
+      });
+      const line = getByTestId("dropped-events-line");
+      const link = line.querySelector("a");
+      expect(link?.textContent).toBe("6 events dropped");
+      expect(link?.style.color).toContain("var(--warn)");
+    });
+
+    it("links to /diagnostics", () => {
+      const { getByTestId } = renderWithAppState(<ServiceStatusPanel />, {
+        stateOverrides: { serviceStatus: signal({}) },
+      });
+      const link = getByTestId("dropped-events-line").querySelector("a");
+      expect(link?.getAttribute("href")).toBe("/diagnostics");
     });
   });
 });

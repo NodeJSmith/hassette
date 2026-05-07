@@ -16,6 +16,7 @@ import type {
   BootIssue,
 } from "../api/endpoints";
 import { TelemetryDegradedBanner } from "../components/layout/alert-banner";
+import { ServiceStatusPanel } from "../components/dashboard/service-status-panel";
 import { Spinner } from "../components/shared/spinner";
 import { StatusShape } from "../components/shared/status-shape";
 import { useScopedApi } from "../hooks/use-scoped-api";
@@ -726,6 +727,9 @@ export function DashboardPage() {
         <ActivityCard kpis={kpis.data.value} isQuiet={isQuiet} timeLabel={TIME_PRESET_LABELS[timePreset.value]} />
         <SystemCard services={systemStatus.data.value?.services ?? []} />
       </div>
+
+      {/* Service status panel: degraded services + dropped events line */}
+      <ServiceStatusPanel />
 
       {/* Recent errors table */}
       <RecentErrorsTable
