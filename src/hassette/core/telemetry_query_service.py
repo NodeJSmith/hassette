@@ -345,6 +345,9 @@ class TelemetryQueryService(Resource):
         """
         tier_clause, tier_params = _source_tier_clause(source_tier, "sj")
         since_join_clause, since_params = _since_clause(since, "je.execution_start_ts")
+        # Params discarded — :since is already in params via since_params above;
+        # the same bind name resolves inside the correlated subquery.
+        since_err_clause, _ = _since_clause(since, "je2.execution_start_ts")
 
         join_condition = f"je.job_id = sj.id {since_join_clause}"
         params: dict = {"app_key": app_key, "instance_index": instance_index, **tier_params, **since_params}
@@ -373,9 +376,19 @@ class TelemetryQueryService(Resource):
                 SUM(CASE WHEN je.status = 'timed_out' THEN 1 ELSE 0 END) AS timed_out,
                 MAX(je.execution_start_ts) AS last_executed_at,
                 COALESCE(SUM(je.duration_ms), 0.0) AS total_duration_ms,
-                COALESCE(AVG(je.duration_ms), 0.0) AS avg_duration_ms
+                COALESCE(AVG(je.duration_ms), 0.0) AS avg_duration_ms,
+                MIN(je.duration_ms) AS min_duration_ms,
+                MAX(je.duration_ms) AS max_duration_ms,
+                last_err.error_type AS last_error_type,
+                last_err.error_message AS last_error_message,
+                last_err.execution_start_ts AS last_error_ts
             FROM scheduled_jobs sj
             LEFT JOIN job_executions je ON {join_condition}
+            LEFT JOIN job_executions last_err ON last_err.id = (
+                SELECT je2.id FROM job_executions je2
+                WHERE je2.job_id = sj.id AND je2.status IN ('error', 'timed_out') {since_err_clause}
+                ORDER BY je2.execution_start_ts DESC LIMIT 1
+            )
             WHERE sj.app_key = :app_key AND sj.instance_index = :instance_index
             {tier_clause}
             GROUP BY sj.id

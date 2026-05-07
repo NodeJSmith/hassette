@@ -1138,6 +1138,16 @@ export interface components {
              * @default false
              */
             name_auto: boolean;
+            /** Last Error Message */
+            last_error_message?: string | null;
+            /** Last Error Type */
+            last_error_type?: string | null;
+            /** Last Error Ts */
+            last_error_ts?: number | null;
+            /** Min Duration Ms */
+            min_duration_ms?: number | null;
+            /** Max Duration Ms */
+            max_duration_ms?: number | null;
         };
         /**
          * ListenerWithSummary

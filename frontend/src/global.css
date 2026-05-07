@@ -4683,6 +4683,39 @@ strong {
 }
 
 /* — Greeting header ———————————————————————————————————— */
+/* — Dashboard hero (state-tinted greeting zone) ————————————————————— */
+.ht-dashboard-hero {
+  padding: var(--sp-5) var(--sp-6);
+  margin-bottom: var(--sp-6);
+  border-radius: var(--r-lg);
+  transition: background var(--t-med) var(--ease);
+}
+
+.ht-dashboard-hero--healthy,
+.ht-dashboard-hero--quiet {
+  background: color-mix(in oklch, var(--ok) 5%, var(--bg-page));
+}
+
+.ht-dashboard-hero--single-failure {
+  background: color-mix(in oklch, var(--warn) 6%, var(--bg-page));
+}
+
+.ht-dashboard-hero--multiple-failures {
+  background: color-mix(in oklch, var(--err) 6%, var(--bg-page));
+}
+
+.ht-dashboard-hero--first-install {
+  background: color-mix(in oklch, var(--mute) 4%, var(--bg-page));
+}
+
+.ht-dashboard-hero .ht-dashboard-header {
+  margin-bottom: var(--sp-6);
+}
+
+.ht-dashboard-hero .ht-dashboard-stats {
+  margin-bottom: 0;
+}
+
 .ht-dashboard-header {
   margin-bottom: var(--sp-6);
 }
@@ -5301,6 +5334,11 @@ strong {
 
   .ht-dashboard {
     padding: var(--sp-4);
+  }
+
+  .ht-dashboard-hero {
+    padding: var(--sp-4);
+    margin-bottom: var(--sp-4);
   }
 }
 

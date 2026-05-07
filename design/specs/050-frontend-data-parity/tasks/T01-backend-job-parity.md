@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Extend JobSummary model and query with error and duration fields"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#3", "AC#1", "AC#2"]
 ---

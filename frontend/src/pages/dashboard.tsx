@@ -667,45 +667,47 @@ export function DashboardPage() {
     <div class="ht-dashboard">
       <TelemetryDegradedBanner />
 
-      {/* Greeting header */}
-      <div class="ht-dashboard-header">
-        <div class="ht-dashboard-header__top">
-          <h1 class="ht-dashboard-greeting">{getGreeting()}</h1>
-          <span class="ht-dashboard-meta" data-testid="dashboard-metadata">
-            {appCount} apps · {isQuiet ? 0 : Math.round(runsPerHour)} runs / hr
-          </span>
-        </div>
-        <p class="ht-dashboard-subtitle" data-testid="dashboard-subtitle">
-          {getSubtitle(systemState, appGrid.data.value)}
-        </p>
-      </div>
-
-      {kpis.error.value && (
-        <p class="ht-text-danger">Could not load dashboard stats — {kpis.error.value}</p>
-      )}
-      {appGrid.error.value && (
-        <p class="ht-text-danger">Could not load apps — {appGrid.error.value}</p>
-      )}
-
-      {/* Stats strip */}
-      {kpis.data.value && !isQuiet && (
-        <div class="ht-dashboard-stats" data-testid="dashboard-stats-strip">
-          <div class="ht-dashboard-stats__cell">
-            <span class="ht-dashboard-stats__label">handlers</span>
-            <span class="ht-dashboard-stats__value">{kpis.data.value.total_handlers + kpis.data.value.total_jobs}</span>
-          </div>
-          <div class="ht-dashboard-stats__cell">
-            <span class="ht-dashboard-stats__label">invocations</span>
-            <span class="ht-dashboard-stats__value">{kpis.data.value.total_invocations + kpis.data.value.total_executions}</span>
-          </div>
-          <div class="ht-dashboard-stats__cell">
-            <span class="ht-dashboard-stats__label">success rate</span>
-            <span class={`ht-dashboard-stats__value${kpis.data.value.error_rate > 0 ? " ht-dashboard-stats__value--warn" : ""}`}>
-              {(100 - kpis.data.value.error_rate).toFixed(1)}%
+      {/* Greeting hero — state-tinted background */}
+      <div class={`ht-dashboard-hero ht-dashboard-hero--${systemState.replace("_", "-")}`}>
+        <div class="ht-dashboard-header">
+          <div class="ht-dashboard-header__top">
+            <h1 class="ht-dashboard-greeting">{getGreeting()}</h1>
+            <span class="ht-dashboard-meta" data-testid="dashboard-metadata">
+              {appCount} apps · {isQuiet ? 0 : Math.round(runsPerHour)} runs / hr
             </span>
           </div>
+          <p class="ht-dashboard-subtitle" data-testid="dashboard-subtitle">
+            {getSubtitle(systemState, appGrid.data.value)}
+          </p>
         </div>
-      )}
+
+        {kpis.error.value && (
+          <p class="ht-text-danger">Could not load dashboard stats — {kpis.error.value}</p>
+        )}
+        {appGrid.error.value && (
+          <p class="ht-text-danger">Could not load apps — {appGrid.error.value}</p>
+        )}
+
+        {/* Stats strip */}
+        {kpis.data.value && !isQuiet && (
+          <div class="ht-dashboard-stats" data-testid="dashboard-stats-strip">
+            <div class="ht-dashboard-stats__cell">
+              <span class="ht-dashboard-stats__label">handlers</span>
+              <span class="ht-dashboard-stats__value">{kpis.data.value.total_handlers + kpis.data.value.total_jobs}</span>
+            </div>
+            <div class="ht-dashboard-stats__cell">
+              <span class="ht-dashboard-stats__label">invocations</span>
+              <span class="ht-dashboard-stats__value">{kpis.data.value.total_invocations + kpis.data.value.total_executions}</span>
+            </div>
+            <div class="ht-dashboard-stats__cell">
+              <span class="ht-dashboard-stats__label">success rate</span>
+              <span class={`ht-dashboard-stats__value${kpis.data.value.error_rate > 0 ? " ht-dashboard-stats__value--warn" : ""}`}>
+                {(100 - kpis.data.value.error_rate).toFixed(1)}%
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Framework error banner */}
       <FrameworkErrorBanner issues={bootIssues} />

@@ -152,6 +152,16 @@ class JobSummary(BaseModel):
     """True when the job is cancelled; derived solely from ``cancelled_at IS NOT NULL`` in the DB."""
     name_auto: bool = False
     """True when the job name was auto-generated from the callable and trigger ID."""
+    last_error_message: str | None = None
+    """Most recent error message within the query window, or None."""
+    last_error_type: str | None = None
+    """Most recent error exception type within the query window, or None."""
+    last_error_ts: float | None = None
+    """Unix epoch of the most recent error within the query window, or None."""
+    min_duration_ms: float | None = None
+    """Minimum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
+    max_duration_ms: float | None = None
+    """Maximum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
 
 
 class JobExecution(BaseModel):

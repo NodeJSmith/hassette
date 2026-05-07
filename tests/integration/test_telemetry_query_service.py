@@ -302,6 +302,158 @@ class TestGetJobSummary:
         assert row2.successful == 1
         assert row2.failed == 0
 
+    async def test_get_job_summary_error_fields_populated_when_error_exists(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """A job with at least one error execution returns last_error_message, last_error_type, last_error_ts."""
+        db_svc, session_id = db
+
+        job_id = await _insert_job(db_svc, job_name="failing_job")
+
+        base_ts = 1_000_000.0
+        # Older error — not the most recent
+        await _insert_execution(
+            db_svc,
+            job_id,
+            session_id,
+            status="error",
+            duration_ms=30.0,
+            error_type="OldError",
+            error_message="old failure",
+            execution_start_ts=base_ts + 1.0,
+        )
+        # Most recent error — should be returned
+        await _insert_execution(
+            db_svc,
+            job_id,
+            session_id,
+            status="error",
+            duration_ms=40.0,
+            error_type="ValueError",
+            error_message="something went wrong",
+            execution_start_ts=base_ts + 10.0,
+        )
+
+        rows = await svc.get_job_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.last_error_type == "ValueError"
+        assert row.last_error_message == "something went wrong"
+        assert row.last_error_ts == pytest.approx(base_ts + 10.0)
+
+    async def test_get_job_summary_error_fields_none_when_only_successes(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """A job with only successful executions has None for all error fields."""
+        db_svc, session_id = db
+
+        job_id = await _insert_job(db_svc, job_name="clean_job")
+        await _insert_execution(db_svc, job_id, session_id, status="success", duration_ms=10.0)
+        await _insert_execution(db_svc, job_id, session_id, status="success", duration_ms=20.0)
+
+        rows = await svc.get_job_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.last_error_type is None
+        assert row.last_error_message is None
+        assert row.last_error_ts is None
+
+    async def test_get_job_summary_error_fields_none_when_no_executions(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """A job with no executions has None for all error fields AND duration fields."""
+        db_svc, _session_id = db
+
+        await _insert_job(db_svc, job_name="idle_job")
+
+        rows = await svc.get_job_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.last_error_type is None
+        assert row.last_error_message is None
+        assert row.last_error_ts is None
+        assert row.min_duration_ms is None
+        assert row.max_duration_ms is None
+
+    async def test_get_job_summary_min_max_duration_correct(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """A job with multiple executions at different durations returns correct min and max."""
+        db_svc, session_id = db
+
+        job_id = await _insert_job(db_svc, job_name="varied_job")
+        await _insert_execution(db_svc, job_id, session_id, status="success", duration_ms=50.0)
+        await _insert_execution(db_svc, job_id, session_id, status="success", duration_ms=200.0)
+        await _insert_execution(db_svc, job_id, session_id, status="error", duration_ms=10.0)
+
+        rows = await svc.get_job_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.min_duration_ms == pytest.approx(10.0)
+        assert row.max_duration_ms == pytest.approx(200.0)
+        assert row.avg_duration_ms == pytest.approx((50.0 + 200.0 + 10.0) / 3)
+
+    async def test_get_job_summary_last_error_picks_up_timed_out(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """A timed-out execution is surfaced as the last error."""
+        db_svc, session_id = db
+
+        job_id = await _insert_job(db_svc, job_name="timeout_job")
+        base_ts = 1_000_000.0
+        await _insert_execution(
+            db_svc,
+            job_id,
+            session_id,
+            status="timed_out",
+            duration_ms=30_000.0,
+            error_type="TimeoutError",
+            error_message="exceeded limit",
+            execution_start_ts=base_ts + 5.0,
+        )
+
+        rows = await svc.get_job_summary("test_app", 0)
+        row = rows[0]
+        assert row.last_error_type == "TimeoutError"
+        assert row.last_error_message == "exceeded limit"
+        assert row.last_error_ts == pytest.approx(base_ts + 5.0)
+
+    async def test_get_job_summary_last_error_none_when_error_predates_since(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Error outside the since window returns None for error fields."""
+        db_svc, session_id = db
+
+        job_id = await _insert_job(db_svc, job_name="old_error_job")
+        base_ts = 1_000_000.0
+        await _insert_execution(
+            db_svc,
+            job_id,
+            session_id,
+            status="error",
+            duration_ms=10.0,
+            error_type="OldError",
+            error_message="ancient failure",
+            execution_start_ts=base_ts + 1.0,
+        )
+
+        rows = await svc.get_job_summary("test_app", 0, since=base_ts + 50.0)
+        row = rows[0]
+        assert row.last_error_type is None
+        assert row.last_error_ts is None
+
 
 # ---------------------------------------------------------------------------
 # Tests: get_global_summary
