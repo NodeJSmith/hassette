@@ -150,7 +150,7 @@ export function createJob(overrides: Partial<JobSummary> = {}): JobSummary {
     instance_index: 0,
     job_name: "test_job",
     handler_method: "run_task",
-    trigger_type: "Every",
+    trigger_type: "interval",
     trigger_label: "every 60s",
     trigger_detail: null,
     args_json: "[]",
