@@ -299,6 +299,32 @@ The design system uses unprefixed Ink tokens (no `--ht-*` prefix). Light mode is
 
 **Grouped key-value tables** — sections: General, Connection, Buffers, Timeouts, Scheduler, Paths, Database, Features. Each section has an h2 heading. Two-column table: key (mono) and value (mono). No editing — read-only config viewer.
 
+### Handlers Page (`/handlers`)
+
+**Page header** — "handlers" in Newsreader display size.
+
+**Tab bar** — "handlers" and "jobs" tab buttons. Each tab shows a count when data is available.
+
+**Toolbar** — app filter dropdown (all apps or a specific app key) + framework tier toggle checkbox. Client-side filtering: both tabs default to app-tier only; toggling the checkbox includes framework-tier items.
+
+**Handlers table** — sortable columns: APP, HANDLER, INVOCATIONS, FAILED, ERROR RATE, AVG, MAX. Rows link to app detail with handler focused. Empty state: "No handlers registered."
+
+**Jobs table** — sortable columns: APP, JOB NAME, TRIGGER, EXECUTIONS, FAILED, TIMED OUT, NEXT RUN, STATUS. Shows "overdue" when `next_run < now` on a non-cancelled job. Empty state: "No jobs scheduled."
+
+Data sources: `GET /api/bus/listeners` and `GET /api/scheduler/jobs`.
+
+### Diagnostics Page (`/diagnostics`)
+
+**Page header** — "diagnostics" in Newsreader display size.
+
+**Services panel** — two-phase initialization: seeded from `GET /api/health` on mount (returns `ServiceInfoResponse` with `name`, `status`, `role`, `ready_phase`, `retry_at`), then live WS `service_status` broadcasts overlay keyed by `resource_name`. Displays each service as a row: StatusShape + resource_name (mono, bold) + role (mono, muted) + status (mono) + optional ready_phase (italic). Services in `exhausted_cooling` state show a relative retry timestamp ("retry in 3m") that refreshes as the WS signal updates. Services with exceptions show a "show exception" toggle revealing a `<pre>` block. When WS is disconnected, a "stale" badge appears in the panel header. Empty state: "No services registered."
+
+**Boot issues panel** — reads from the same `GET /api/health` response (shared fetch). Issues sorted by severity (errors first). Each row: StatusShape (err/warn) + label (bold) + detail text below. Empty state: "Clean startup — no issues."
+
+**Telemetry health panel** — reads from `useAppState()` signals populated by the global 30s `useTelemetryHealth` poller (no additional fetch). Shows a degraded banner when `telemetryDegraded` is true. Displays per-category drop counters: Buffer overflow, Write failed, No session, During shutdown, Error handler failures — each as a label/count row. When all counters are zero: "No telemetry drops."
+
+Data sources: `GET /api/health` (services + boot issues), `useAppState()` signals (drop counters).
+
 ### Shared Components
 
 **StatusBadge** — two variants:

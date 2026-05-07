@@ -13,6 +13,7 @@ import { AppDetailPage } from "./pages/app-detail";
 import { AppsPage } from "./pages/apps";
 import { ConfigPage } from "./pages/config";
 import { DashboardPage } from "./pages/dashboard";
+import { DiagnosticsPage } from "./pages/diagnostics";
 import { HandlersPage } from "./pages/handlers";
 import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
@@ -100,6 +101,7 @@ export function App() {
               <Route path="/apps/:key/:index">{(params: { key: string; index: string }) => <AppDetailPage params={params} />}</Route>
               <Route path="/apps/:key">{(params: { key: string }) => <AppDetailPage params={params} />}</Route>
               <Route path="/handlers" component={HandlersPage} />
+              <Route path="/diagnostics" component={DiagnosticsPage} />
               <Route path="/logs" component={LogsPage} />
               <Route path="/config" component={ConfigPage} />
               <Route component={NotFoundPage} />

@@ -46,6 +46,13 @@ function buildStaticPageItems(navigate: (path: string) => void): PaletteItem[] {
       action: () => navigate("/logs"),
     },
     {
+      id: "page-diagnostics",
+      kind: "page",
+      label: "Diagnostics",
+      sub: "/diagnostics",
+      action: () => navigate("/diagnostics"),
+    },
+    {
       id: "page-config",
       kind: "page",
       label: "Config",

@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Add system diagnostics page with services, boot issues, and drop counters"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#12", "FR#13", "FR#14", "FR#15", "FR#16", "AC#8", "AC#9", "AC#10", "AC#11", "AC#12"]
 ---

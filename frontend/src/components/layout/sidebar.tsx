@@ -98,6 +98,7 @@ const NAV_ITEMS = [
   { path: "/apps", label: "apps", testId: "nav-apps" },
   { path: "/handlers", label: "handlers", testId: "nav-handlers" },
   { path: "/logs", label: "logs", testId: "nav-logs" },
+  { path: "/diagnostics", label: "diagnostics", testId: "nav-diagnostics" },
   { path: "/config", label: "config", testId: "nav-config" },
 ] as const;
 

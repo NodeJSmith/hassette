@@ -3690,6 +3690,225 @@ strong {
 }
 
 /* =====================================================
+   Diagnostics Page  (ht-diag-*)
+   ===================================================== */
+
+.ht-diag-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.ht-diag-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-4);
+}
+
+.ht-diag-header .ht-display {
+  margin: 0;
+}
+
+/* Section card */
+.ht-diag__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.ht-diag__section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.ht-diag__section-heading {
+  font-family: var(--font-serif);
+  font-size: var(--fs-h2);
+  line-height: var(--lh-h2);
+  letter-spacing: var(--tr-h2, -0.01em);
+  font-weight: 400;
+  margin: 0;
+  color: var(--ink-1);
+}
+
+.ht-diag__stale-badge {
+  font-size: var(--fs-micro);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--warn);
+  border: 1px solid var(--warn);
+  border-radius: var(--r-pill);
+  padding: 1px var(--sp-2);
+}
+
+/* Services list */
+.ht-diag__service-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ht-diag__service-row {
+  border-bottom: 1px solid var(--line-2);
+  padding: var(--sp-2) 0;
+}
+
+.ht-diag__service-row:last-child {
+  border-bottom: none;
+}
+
+.ht-diag__service-main {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.ht-diag__service-name {
+  font-size: var(--fs-mono-md);
+  color: var(--ink-1);
+  font-weight: 500;
+}
+
+.ht-diag__service-role {
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-3);
+}
+
+.ht-diag__service-status {
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-2);
+}
+
+.ht-diag__service-phase {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+.ht-diag__service-retry {
+  font-size: var(--fs-mono-sm);
+  color: var(--warn);
+}
+
+.ht-diag__exception-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  cursor: pointer;
+  text-decoration: underline;
+  font-family: inherit;
+}
+
+.ht-diag__exception-toggle:hover {
+  color: var(--ink-2);
+}
+
+.ht-diag__exception-detail {
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-3);
+  background: var(--bg-sunken);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--ink-2);
+}
+
+/* Boot issues */
+.ht-diag__boot-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.ht-diag__boot-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+.ht-diag__boot-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  flex: 1;
+}
+
+.ht-diag__boot-label {
+  font-size: var(--fs-body);
+  font-weight: 500;
+  color: var(--ink-1);
+}
+
+.ht-diag__boot-detail {
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+}
+
+/* Telemetry health */
+.ht-diag__degraded-banner {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn);
+  border-radius: var(--r-sm);
+  padding: var(--sp-3) var(--sp-4);
+  font-size: var(--fs-small);
+  color: var(--warn);
+}
+
+.ht-diag__drop-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ht-diag__drop-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.ht-diag__drop-row:last-child {
+  border-bottom: none;
+}
+
+.ht-diag__drop-label {
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+  flex: 1;
+}
+
+.ht-diag__drop-value {
+  font-size: var(--fs-mono-md);
+  color: var(--ink-2);
+  min-width: 3ch;
+  text-align: right;
+}
+
+.ht-diag__load-error {
+  background: var(--err-bg);
+  border: 1px solid var(--err);
+  border-radius: var(--r-sm);
+  padding: var(--sp-3) var(--sp-4);
+  font-size: var(--fs-small);
+  color: var(--err);
+}
+
+/* =====================================================
    WP06 — Overview Page Components
    All classes use ht- prefix with BEM structure.
    Ink tokens: var(--font-mono), var(--ok), var(--warn),
