@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "preact/hooks";
-import { useSignal, type Signal } from "@preact/signals";
+import { signal, useSignal, type Signal } from "@preact/signals";
 import type { UseApiResult } from "../hooks/use-api";
 import { useApi } from "../hooks/use-api";
 import {
@@ -348,16 +348,21 @@ interface YourAppsCardProps {
   apps: DashboardAppGridEntry[] | null;
 }
 
+const YOUR_APPS_COLLAPSED_COUNT = 8;
+
 function YourAppsCard({ apps }: YourAppsCardProps) {
+  const showAll = useRef(signal(false)).current;
   const allApps = [...(apps ?? [])].sort((a, b) =>
     (b.total_invocations + b.total_executions) - (a.total_invocations + a.total_executions),
   );
+  const visible = showAll.value ? allApps : allApps.slice(0, YOUR_APPS_COLLAPSED_COUNT);
+  const hasMore = allApps.length > YOUR_APPS_COLLAPSED_COUNT;
 
   return (
     <div class="ht-card ht-summary-card" data-testid="your-apps-card">
       <a href="/apps" class="ht-summary-card__title ht-summary-card__title--link">your apps</a>
       <div class="ht-app-list">
-        {allApps.map((app) => (
+        {visible.map((app) => (
           <a key={app.app_key} href={`/apps/${app.app_key}`} class="ht-app-list__row">
             <StatusShape kind={statusToKind(app.status)} size={8} />
             <span class="ht-app-list__name">
@@ -373,6 +378,15 @@ function YourAppsCard({ apps }: YourAppsCardProps) {
           <p class="ht-summary-card__empty">no apps loaded</p>
         )}
       </div>
+      {hasMore && (
+        <button
+          type="button"
+          class="ht-btn ht-btn--xs ht-btn--ghost ht-show-more"
+          onClick={() => { showAll.value = !showAll.value; }}
+        >
+          {showAll.value ? "Show less" : `Show all ${allApps.length}`}
+        </button>
+      )}
     </div>
   );
 }
@@ -440,12 +454,18 @@ function humanizeServiceName(name: string): string {
     .toLowerCase();
 }
 
+const SYSTEM_CARD_COLLAPSED_COUNT = 8;
+
 function SystemCard({ services }: SystemCardProps) {
+  const showAll = useRef(signal(false)).current;
+  const visible = showAll.value ? services : services.slice(0, SYSTEM_CARD_COLLAPSED_COUNT);
+  const hasMore = services.length > SYSTEM_CARD_COLLAPSED_COUNT;
+
   return (
     <div class="ht-card ht-summary-card" data-testid="system-card">
       <h3 class="ht-summary-card__title">system</h3>
       <div class="ht-system-service-list">
-        {services.map((svc) => (
+        {visible.map((svc) => (
           <div key={svc.name} class="ht-system-service-row">
             <StatusShape kind={statusToKind(svc.status)} size={8} />
             <span class="ht-system-service-name">{humanizeServiceName(svc.name)}</span>
@@ -453,6 +473,15 @@ function SystemCard({ services }: SystemCardProps) {
           </div>
         ))}
       </div>
+      {hasMore && (
+        <button
+          type="button"
+          class="ht-btn ht-btn--xs ht-btn--ghost ht-show-more"
+          onClick={() => { showAll.value = !showAll.value; }}
+        >
+          {showAll.value ? "Show less" : `Show all ${services.length}`}
+        </button>
+      )}
     </div>
   );
 }
@@ -526,10 +555,10 @@ function RecentErrorsTable({
             const method = getHandlerMethod(err);
             const age = formatRelativeTime(err.execution_start_ts);
             const time = new Date(err.execution_start_ts * 1000).toLocaleTimeString("en-US", {
-              hour: "2-digit",
+              hour: "numeric",
               minute: "2-digit",
               second: "2-digit",
-              hour12: false,
+              hour12: true,
             });
 
             return (
@@ -689,6 +718,7 @@ export function DashboardPage() {
       />
 
       {/* Three summary cards */}
+      <h2 class="ht-visually-hidden">Summary</h2>
       <div class="ht-summary-cards" data-testid="summary-cards">
         <YourAppsCard apps={appGrid.data.value} />
         <ActivityCard kpis={kpis.data.value} isQuiet={isQuiet} timeLabel={TIME_PRESET_LABELS[timePreset.value]} />

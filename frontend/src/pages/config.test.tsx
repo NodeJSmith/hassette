@@ -56,7 +56,7 @@ describe("ConfigPage", () => {
       config_dir: "/my/config",
     })));
     const { getByText } = renderWithAppState(<ConfigPage />);
-    expect(getByText("Paths")).toBeDefined();
+    expect(getByText("paths")).toBeDefined();
     expect(getByText("app_dir")).toBeDefined();
     expect(getByText("data_dir")).toBeDefined();
     expect(getByText("config_dir")).toBeDefined();
@@ -68,7 +68,7 @@ describe("ConfigPage", () => {
   it("renders connection settings group", () => {
     useApi.mockReturnValue(fakeApiResult(createSystemConfig()));
     const { getByText } = renderWithAppState(<ConfigPage />);
-    expect(getByText("Connection")).toBeDefined();
+    expect(getByText("connection")).toBeDefined();
     expect(getByText("web_api_host")).toBeDefined();
     expect(getByText("web_api_port")).toBeDefined();
   });
@@ -76,7 +76,7 @@ describe("ConfigPage", () => {
   it("renders general settings group", () => {
     useApi.mockReturnValue(fakeApiResult(createSystemConfig()));
     const { getByText } = renderWithAppState(<ConfigPage />);
-    expect(getByText("General")).toBeDefined();
+    expect(getByText("general")).toBeDefined();
     expect(getByText("log_level")).toBeDefined();
     expect(getByText("dev_mode")).toBeDefined();
   });
@@ -84,7 +84,7 @@ describe("ConfigPage", () => {
   it("renders timeouts group", () => {
     useApi.mockReturnValue(fakeApiResult(createSystemConfig()));
     const { getByText } = renderWithAppState(<ConfigPage />);
-    expect(getByText("Timeouts")).toBeDefined();
+    expect(getByText("timeouts")).toBeDefined();
     expect(getByText("startup_timeout_seconds")).toBeDefined();
   });
 

@@ -27,7 +27,7 @@ export function ConfigPage() {
   const groups: ConfigGroup[] = config
     ? [
         {
-          label: "General",
+          label: "general",
           rows: [
             { key: "dev_mode", value: formatValue(config.dev_mode) },
             { key: "log_level", value: formatValue(config.log_level) },
@@ -39,7 +39,7 @@ export function ConfigPage() {
           ],
         },
         {
-          label: "Connection",
+          label: "connection",
           rows: [
             { key: "base_url", value: formatValue(config.base_url) },
             { key: "web_api_host", value: formatValue(config.web_api_host) },
@@ -52,7 +52,7 @@ export function ConfigPage() {
           ],
         },
         {
-          label: "Buffers",
+          label: "buffers",
           rows: [
             { key: "web_api_event_buffer_size", value: formatValue(config.web_api_event_buffer_size) },
             { key: "web_api_log_buffer_size", value: formatValue(config.web_api_log_buffer_size) },
@@ -60,7 +60,7 @@ export function ConfigPage() {
           ],
         },
         {
-          label: "Timeouts",
+          label: "timeouts",
           rows: [
             { key: "startup_timeout_seconds", value: formatValue(config.startup_timeout_seconds) },
             { key: "app_startup_timeout_seconds", value: formatValue(config.app_startup_timeout_seconds) },
@@ -68,7 +68,7 @@ export function ConfigPage() {
           ],
         },
         {
-          label: "Scheduler",
+          label: "scheduler",
           rows: [
             { key: "scheduler_min_delay_seconds", value: formatValue(config.scheduler_min_delay_seconds) },
             { key: "scheduler_max_delay_seconds", value: formatValue(config.scheduler_max_delay_seconds) },
@@ -76,7 +76,7 @@ export function ConfigPage() {
           ],
         },
         {
-          label: "Paths",
+          label: "paths",
           rows: [
             { key: "app_dir", value: formatValue(config.app_dir) },
             { key: "data_dir", value: formatValue(config.data_dir) },

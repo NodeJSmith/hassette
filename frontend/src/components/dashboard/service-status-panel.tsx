@@ -116,7 +116,7 @@ export function ServiceStatusPanel() {
   }
 
   return (
-    <div
+    <section
       class="ht-card ht-card--receded ht-mb-6 ht-ssp"
       data-testid="service-status-panel"
       aria-label="Internal service status"
@@ -127,6 +127,6 @@ export function ServiceStatusPanel() {
           <ServiceRow key={entry.resource_name} entry={entry} />
         ))}
       </ul>
-    </div>
+    </section>
   );
 }

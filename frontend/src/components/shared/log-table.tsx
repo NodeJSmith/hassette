@@ -7,11 +7,12 @@ import { useSubscribe } from "../../hooks/use-subscribe";
 import { useAppState } from "../../state/context";
 import { formatTimestamp, formatRelativeTime, pluralize } from "../../utils/format";
 import { levelToKind } from "../../utils/status";
+import { SortHeader } from "./sort-header";
 import { StatusShape } from "./status-shape";
 
 const LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] as const;
 
-export type SortColumn = "timestamp" | "level" | "app" | "message";
+export type SortColumn = "timestamp" | "level" | "app" | "source" | "message";
 
 export const LEVEL_INDEX: Record<string, number> = {
   DEBUG: 0,
@@ -46,6 +47,8 @@ export function sortEntries(entries: readonly LogEntry[], column: SortColumn, as
         if (bMissing) return -1; // nulls always last
         return aKey.localeCompare(bKey) * direction;
       }
+      case "source":
+        return a.func_name.localeCompare(b.func_name) * direction;
       case "message":
         return a.message.localeCompare(b.message) * direction;
     }
@@ -80,7 +83,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
   useSubscribe(tick, logs.version);
   const minLevel = useRef(signal("INFO")).current;
   const appFilter = useRef(signal("")).current;
-  const tierFilter = useRef(signal<"all" | "app" | "framework">("all")).current;
+  const tierFilter = useRef(signal<"all" | "app" | "framework">(appKey ? "all" : "app")).current;
   const search = useRef(signal("")).current;
   const initialEntries = useRef(signal<LogEntry[]>([])).current;
   const sortConfig = useRef(signal<SortConfig>({ column: "timestamp", asc: false })).current;
@@ -228,15 +231,20 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
     // Key on count + first/last seq to detect row swaps at same count (filter/sort changes)
   }, [sorted.length, sorted[0]?.seq, sorted[sorted.length - 1]?.seq, recheckTruncation]);
 
-  const ariaSortFor = (column: SortColumn): "ascending" | "descending" | undefined =>
-    sortConfig.value.column === column
-      ? sortConfig.value.asc ? "ascending" : "descending"
-      : undefined;
-
-  const sortArrow = (column: SortColumn): string =>
-    sortConfig.value.column === column
-      ? sortConfig.value.asc ? "↑" : "↓"
-      : "⇅";
+  const LogSortHeader = ({ col, children, class: className }: { col: SortColumn; children: preact.ComponentChildren; class?: string }) => {
+    const isActive = sortConfig.value.column === col;
+    return (
+      <SortHeader
+        active={isActive}
+        direction={isActive ? (sortConfig.value.asc ? "asc" : "desc") : "asc"}
+        onClick={() => handleSort(col)}
+        class={className}
+        data-testid={`sort-${col}`}
+      >
+        {children}
+      </SortHeader>
+    );
+  };
 
   const levelLabel = minLevel.value ? `level: ${minLevel.value}+` : "level: all";
   const appLabel = appFilter.value ? `app: ${appFilter.value}` : "app: all";
@@ -246,7 +254,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
       <div class="ht-log-toolbar">
         <div class="ht-log-toolbar__title">
           {!hideTitle && <h2 class="ht-log-toolbar__heading">logs</h2>}
-          <span class="ht-log-toolbar__note">{pluralize(filtered.length, "entry", "entries")}</span>
+          <span class="ht-log-toolbar__note" aria-live="polite">{pluralize(filtered.length, "entry", "entries")}</span>
         </div>
         <div class="ht-log-toolbar__controls">
           {!appKey && (
@@ -330,29 +338,13 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
         <table class="ht-table ht-table--compact ht-table-log">
           <thead>
             <tr>
-              <th class="ht-col-level" aria-sort={ariaSortFor("level")} data-testid="sort-level">
-                <button type="button" class="ht-sortable" onClick={() => handleSort("level")}>
-                  <span>Level</span>{" "}<span aria-hidden="true">{sortArrow("level")}</span>
-                </button>
-              </th>
-              <th class="ht-col-time" aria-sort={ariaSortFor("timestamp")} data-testid="sort-timestamp">
-                <button type="button" class="ht-sortable" onClick={() => handleSort("timestamp")}>
-                  <span>Timestamp</span>{" "}<span aria-hidden="true">{sortArrow("timestamp")}</span>
-                </button>
-              </th>
+              <LogSortHeader col="level" class="ht-col-level">{isMobile ? "Lvl" : "Level"}</LogSortHeader>
+              <LogSortHeader col="timestamp" class="ht-col-time">Timestamp</LogSortHeader>
               {showAppColumn && !isMobile && (
-                <th class="ht-col-app" aria-sort={ariaSortFor("app")} data-testid="sort-app">
-                  <button type="button" class="ht-sortable" onClick={() => handleSort("app")}>
-                    <span>App</span>{" "}<span aria-hidden="true">{sortArrow("app")}</span>
-                  </button>
-                </th>
+                <LogSortHeader col="app" class="ht-col-app">App</LogSortHeader>
               )}
-              <th class="ht-col-source">source</th>
-              <th aria-sort={ariaSortFor("message")} data-testid="sort-message">
-                <button type="button" class="ht-sortable" onClick={() => handleSort("message")}>
-                  <span>Message</span>{" "}<span aria-hidden="true">{sortArrow("message")}</span>
-                </button>
-              </th>
+              <LogSortHeader col="source" class="ht-col-source">Source</LogSortHeader>
+              <LogSortHeader col="message">Message</LogSortHeader>
             </tr>
           </thead>
           <tbody>
@@ -402,8 +394,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
                   </td>
                 )}
                 <td class="ht-col-source" title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
-                  <div class="ht-log-source__fn">{entry.app_key ? `${entry.app_key}.` : ""}<b>{entry.func_name}</b>()</div>
-                  <div class="ht-log-source__loc">{entry.logger_name}:{entry.lineno}</div>
+                  <span class="ht-log-source__fn">{entry.func_name}() · {entry.logger_name.split(".").pop()}:{entry.lineno}</span>
                 </td>
                 <td
                   class={`ht-log-message-cell${canExpand ? " is-expandable" : ""}${isExpanded ? " is-expanded" : ""}${isMobile && isExpanded ? " is-mobile-expanded" : ""}`}
@@ -414,12 +405,16 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
                 >
                   {isMobile && entry.func_name && (
                     <div class="ht-log-source-inline">
-                      {showAppColumn && entry.app_key ? `${entry.app_key}.` : ""}<b>{entry.func_name}</b>()
+                      {showAppColumn && entry.app_key ? `${entry.app_key}.` : ""}{entry.func_name}()
                     </div>
                   )}
-                  <div data-row-key={rowKey} class={`ht-log-message__text${isExpanded && !isMobile ? " is-expanded" : ""}`}>
-                    {entry.message}
-                  </div>
+                  {isExpanded && !isMobile ? (
+                    <pre class="ht-log-message__pre">{entry.message}</pre>
+                  ) : (
+                    <div data-row-key={rowKey} class="ht-log-message__text">
+                      {entry.message}
+                    </div>
+                  )}
                 </td>
               </tr>,
               ];

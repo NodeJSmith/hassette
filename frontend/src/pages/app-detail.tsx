@@ -104,7 +104,7 @@ function MultiInstanceOverview({
     <div class="ht-multi-overview" data-testid="multi-instance-overview">
       <div class="ht-level ht-mb-4">
         <div class="ht-level-start">
-          <h2 class="ht-heading-4">{displayName}</h2>
+          <h1 class="ht-heading-4">{displayName}</h1>
           <span class="ht-badge ht-badge--neutral" data-testid="instance-count-badge">
             ×{instanceCount} instances
           </span>
@@ -201,7 +201,9 @@ export function AppDetailPage({ params }: Props) {
     <button
       type="button"
       role="tab"
+      id={`tab-${id}`}
       aria-selected={activeTab.value === id}
+      aria-controls={`tabpanel-${id}`}
       class={`ht-tab-btn${activeTab.value === id ? " ht-tab-btn--active" : ""}`}
       onClick={() => { activeTab.value = id; }}
     >
@@ -283,10 +285,10 @@ export function AppDetailPage({ params }: Props) {
       <div class="ht-level ht-mb-2">
         <div class="ht-level-start">
           <div class="ht-level-item">
-            <h2 class="ht-heading-4" data-testid="app-title">
+            <h1 class="ht-heading-4" data-testid="app-title">
               <StatusShape kind={statusToKind(liveStatus)} size={14} />
               <span class="ht-ml-2">{appKey}</span>
-            </h2>
+            </h1>
           </div>
         </div>
         <div class="ht-level-end">
@@ -339,15 +341,17 @@ export function AppDetailPage({ params }: Props) {
 
       {/* Tab content */}
       {activeTab.value === "handlers" && (
+        <div role="tabpanel" id="tabpanel-handlers" aria-labelledby="tab-handlers">
         <HandlersTab
           listeners={displayListeners}
           jobs={displayJobs}
           focusMethod={focusMethod.current}
           onSwitchToCode={(line) => { codeFocusLine.value = line; cameFromHandlers.value = true; activeTab.value = "code"; }}
         />
+        </div>
       )}
       {activeTab.value === "code" && (
-        <>
+        <div role="tabpanel" id="tabpanel-code" aria-labelledby="tab-code">
           {cameFromHandlers.value && (
             <button
               type="button"
@@ -362,15 +366,19 @@ export function AppDetailPage({ params }: Props) {
             listeners={displayListeners}
             focusLine={codeFocusLine.value}
           />
-        </>
+        </div>
       )}
       {activeTab.value === "logs" && (
-        <div class="ht-card" data-testid="logs-section">
-          <LogTable showAppColumn={false} appKey={appKey} />
+        <div role="tabpanel" id="tabpanel-logs" aria-labelledby="tab-logs">
+          <div class="ht-card" data-testid="logs-section">
+            <LogTable showAppColumn={false} appKey={appKey} />
+          </div>
         </div>
       )}
       {activeTab.value === "config" && (
-        <ConfigTab appKey={appKey} />
+        <div role="tabpanel" id="tabpanel-config" aria-labelledby="tab-config">
+          <ConfigTab appKey={appKey} />
+        </div>
       )}
     </div>
   );

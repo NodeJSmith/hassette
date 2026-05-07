@@ -44,9 +44,10 @@ export function JobExecutions({ executions, jobId }: Props) {
         </thead>
         <tbody>
           {visible.map((ex, i) => {
+            const rowKey = ex.execution_id ?? `ex-${i}`;
             const isExpanded = expandedTracebacks.value.has(i);
             return [
-              <tr key={i}>
+              <tr key={rowKey}>
                 <td>
                   <span class={`ht-badge ht-badge--sm ht-badge--${executionStatusVariant(ex.status)}`}>{ex.status}</span>
                   {ex.error_message && <span class="ht-exec-error-mobile">{ex.error_message}</span>}
@@ -64,7 +65,7 @@ export function JobExecutions({ executions, jobId }: Props) {
                 <td class="ht-col-trace ht-text-mono ht-text-xs">{ex.execution_id ?? "—"}</td>
               </tr>,
               isExpanded && ex.error_traceback && (
-                <tr key={`${i}-tb`} class="ht-traceback-row">
+                <tr key={`${rowKey}-tb`} class="ht-traceback-row">
                   <td colSpan={COL_COUNT}>
                     <pre class="ht-traceback" data-testid="execution-traceback">{ex.error_traceback}</pre>
                   </td>

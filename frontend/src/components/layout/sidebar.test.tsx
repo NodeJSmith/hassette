@@ -324,26 +324,15 @@ describe("Sidebar — version display", () => {
     expect(versionEl!.textContent).toContain("v1.2.3");
   });
 
-  it("shows 'connected' status when WS is connected", () => {
+  it("shows version without connection status", () => {
     const { container } = renderWithAppState(<Sidebar />, {
       stateOverrides: {
         systemVersion: signal("1.0.0"),
-        connection: signal("connected"),
       },
     });
     const versionEl = container.querySelector(".ht-sidebar__version");
-    expect(versionEl!.textContent).toContain("connected");
-  });
-
-  it("shows 'reconnecting…' when WS is reconnecting", () => {
-    const { container } = renderWithAppState(<Sidebar />, {
-      stateOverrides: {
-        systemVersion: signal("1.0.0"),
-        connection: signal("reconnecting"),
-      },
-    });
-    const versionEl = container.querySelector(".ht-sidebar__version");
-    expect(versionEl!.textContent).toContain("reconnecting");
+    expect(versionEl!.textContent).toContain("v1.0.0");
+    expect(versionEl!.textContent).not.toContain("connected");
   });
 
   it("omits version line when systemVersion is null", () => {
@@ -516,11 +505,11 @@ describe("Sidebar — status groups", () => {
     const { findByText, queryByText } = renderWithAppState(<Sidebar />);
     const header = await findByText("FAILING");
     expect(await findByText("Failed App")).toBeDefined();
-    // Keyboard collapse
-    fireEvent.keyDown(header.closest(".ht-sidebar__group-header")!, { key: "Enter" });
+    // Collapse via click (native <button> handles Enter/Space → click automatically)
+    fireEvent.click(header.closest(".ht-sidebar__group-header")!);
     expect(queryByText("Failed App")).toBeNull();
-    // Keyboard re-expand
-    fireEvent.keyDown(header.closest(".ht-sidebar__group-header")!, { key: "Enter" });
+    // Re-expand
+    fireEvent.click(header.closest(".ht-sidebar__group-header")!);
     expect(queryByText("Failed App")).not.toBeNull();
   });
 
@@ -563,9 +552,9 @@ describe("Sidebar — status groups", () => {
     const { findByText, queryByText } = renderWithAppState(<Sidebar />);
     const header = await findByText("FAILING");
     expect(await findByText("Failed App")).toBeDefined();
-    fireEvent.keyDown(header.closest(".ht-sidebar__group-header")!, { key: " " });
+    fireEvent.click(header.closest(".ht-sidebar__group-header")!);
     expect(queryByText("Failed App")).toBeNull();
-    fireEvent.keyDown(header.closest(".ht-sidebar__group-header")!, { key: " " });
+    fireEvent.click(header.closest(".ht-sidebar__group-header")!);
     expect(queryByText("Failed App")).not.toBeNull();
   });
 

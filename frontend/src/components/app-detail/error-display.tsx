@@ -17,6 +17,7 @@ export function ErrorDisplay({ errorMessage, errorTraceback }: Props) {
       {errorTraceback && (
         <div>
           <button
+            type="button"
             class="ht-btn ht-btn--sm ht-mt-3"
             onClick={() => { tbOpen.value = !tbOpen.value; }}
             aria-expanded={tbOpen.value}

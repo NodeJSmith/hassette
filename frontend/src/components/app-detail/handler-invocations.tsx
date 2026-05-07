@@ -50,11 +50,21 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
             const noteText = inv.error_message
               || (inv.status === "success" ? `completed in ${formatDuration(inv.duration_ms)}` : "—");
             const noteTone = isError ? "var(--err)" : inv.status === "timed_out" ? "var(--warn)" : "var(--ink-2)";
+            const rowKey = inv.execution_id ?? `inv-${i}`;
             return [
               <tr
-                key={i}
+                key={rowKey}
                 class={`ht-inv-row${isOpen ? " is-open" : ""}`}
+                tabIndex={0}
+                role="row"
+                aria-expanded={isOpen}
                 onClick={() => openRow.value = isOpen ? null : i}
+                onKeyDown={(e: KeyboardEvent) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    openRow.value = isOpen ? null : i;
+                  }
+                }}
               >
                 <td><StatusShape kind={statusToKind(inv.status)} size={10} /></td>
                 <td class="ht-text-mono ht-text-xs">{formatTimestamp(inv.execution_start_ts)}</td>
@@ -76,7 +86,7 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
                 <td class="ht-text-mono ht-text-xs ht-text-muted">{isOpen ? "▾" : "▸"}</td>
               </tr>,
               isOpen && (
-                <tr key={`${i}-detail`}>
+                <tr key={`${rowKey}-detail`}>
                   <td colSpan={COL_COUNT} class="ht-inv-detail-cell" style={{ padding: 0 }}>
                     <InvocationDetail inv={inv} />
                   </td>
@@ -94,10 +104,14 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
 function InvocationDetail({ inv }: { inv: HandlerInvocationData }) {
   const isError = inv.status === "error";
   const isTimeout = inv.status === "timed_out";
-  const borderColor = isError ? "var(--err)" : isTimeout ? "var(--warn)" : "var(--ink-3)";
+  const bg = isError
+    ? "color-mix(in srgb, var(--err-bg) 50%, var(--bg-sunken))"
+    : isTimeout
+      ? "color-mix(in srgb, var(--warn-bg) 50%, var(--bg-sunken))"
+      : undefined;
 
   return (
-    <div class="ht-inv-detail" style={{ borderLeftColor: borderColor }} data-testid="invocation-detail">
+    <div class="ht-inv-detail" style={bg ? { background: bg } : undefined} data-testid="invocation-detail">
       {inv.trigger_context_id && (
         <div class="ht-inv-detail__context">
           <span class="ht-inv-detail__label">context</span>

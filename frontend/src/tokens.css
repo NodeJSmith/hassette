@@ -8,7 +8,7 @@
 :root {
   /* Surfaces */
   --bg-page:    #FAFAF8;
-  --bg-surface: #FFFFFF;
+  --bg-surface: #FDFDFB;
   --bg-sunken:  #F4F4F1;
   --bg-active:  #F0F0EC;
 
@@ -76,10 +76,26 @@
   --overlay-bg: rgba(0, 0, 0, 0.45);
   --err-dark:   #9A2020;
 
+  /* Code highlights */
+  --code-annotate-bg: oklch(0.97 0.005 80);
+  --code-focus-bg:    oklch(0.93 0.04 80);
+
   /* Motion */
   --ease:   cubic-bezier(0.4, 0, 0.2, 1);
   --t-fast: 120ms;
   --t-med:  200ms;
+
+  /* Z-index scale */
+  --z-table-head: 1;
+  --z-status-bar: 20;
+  --z-sidebar:    30;
+  --z-hamburger:  50;
+  --z-drawer-bg:  55;
+  --z-drawer:     60;
+  --z-dialog:     100;
+  --z-palette-bg: 200;
+  --z-palette:    201;
+  --z-skip:       1000;
 }
 
 /* — Dark Theme ——————————————————————————————————————— */
@@ -112,6 +128,10 @@
   --warn:  #D9B36E;  --warn-bg:  #272219;
   --err:   #E08278;  --err-bg:   #28191A;
   --mute:  #6A707A;  --mute-bg:  #1D1F23;
+
+  /* Code highlights */
+  --code-annotate-bg: oklch(0.18 0.005 250);
+  --code-focus-bg:    oklch(0.22 0.03 80);
 
   /* Overlay */
   --overlay-bg: rgba(0, 0, 0, 0.5);

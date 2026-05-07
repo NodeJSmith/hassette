@@ -485,7 +485,7 @@ describe("LogTable", () => {
 
     const headers = container.querySelectorAll("th");
     const headerTexts = Array.from(headers).map((h) => h.textContent);
-    expect(headerTexts).toContain("source");
+    expect(headerTexts).toContain("Source");
   });
 
   it("renders source location with func_name and lineno", () => {

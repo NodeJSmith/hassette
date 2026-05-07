@@ -43,7 +43,6 @@ function SchemaConfigTable({
   schema: ConfigSchema;
 }) {
   const properties = schema.properties ?? {};
-  const required = new Set(schema.required ?? []);
   const propKeys = Object.keys(properties);
   const extraKeys = Object.keys(config).filter((k) => !propKeys.includes(k));
   const allKeys = [...propKeys, ...extraKeys];
@@ -59,31 +58,35 @@ function SchemaConfigTable({
   }
 
   return (
-    <div class="ht-config-fields" data-testid="config-values-table">
-      {allKeys.map((key) => {
-        const prop = properties[key];
-        const value = config[key];
-        const isRequired = required.has(key);
-        const hasValue = value !== null && value !== undefined;
-        const typeName = prop ? resolveType(prop) : typeof value;
+    <table class="ht-table ht-table--compact ht-config-table" data-testid="config-values-table">
+      <thead>
+        <tr>
+          <th class="ht-config-table__key">Key</th>
+          <th class="ht-config-table__col-type">Type</th>
+          <th class="ht-config-table__col-value">Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {allKeys.map((key) => {
+          const prop = properties[key];
+          const value = config[key];
+          const hasValue = value !== null && value !== undefined;
+          const typeName = prop ? resolveType(prop) : typeof value;
 
-        return (
-          <div key={key} class="ht-config-field" data-testid={`config-value-${key}`}>
-            <div class="ht-config-field__header">
-              <code class="ht-config-field__name">{key}</code>
-              <span class="ht-config-field__type">{typeName}</span>
-              {isRequired && <span class="ht-pill ht-pill--mute ht-config-field__required">required</span>}
-            </div>
-            <div class={`ht-config-field__value${!hasValue ? " ht-config-field__value--missing" : ""}`}>
-              <code>{formatConfigValue(value)}</code>
-            </div>
-            {prop?.description && (
-              <div class="ht-config-field__note">{prop.description}</div>
-            )}
-          </div>
-        );
-      })}
-    </div>
+          return (
+            <tr key={key} data-testid={`config-value-${key}`}>
+              <td class="ht-config-table__key">{key}</td>
+              <td class="ht-config-table__col-type">
+                <span class="ht-text-muted ht-text-xs">{typeName}</span>
+              </td>
+              <td class={`ht-config-table__value${!hasValue ? " ht-config-table__value--empty" : ""}`}>
+                {formatConfigValue(value)}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
@@ -191,10 +194,11 @@ export function ConfigTab({ appKey }: Props) {
         </div>
       </div>
 
-      {/* 2-column layout: config fields + raw values */}
+      {/* 2-column layout: config table + raw values */}
       <div class="ht-config-tab__layout">
-        <div class="ht-card ht-config-tab__fields-card">
-          <h3 class="ht-summary-card__title">configuration</h3>
+        <div class="ht-config-tab__fields-card">
+          <h3 class="ht-config-group__label">configuration</h3>
+          <div class="ht-card ht-card--config">
           {isListConfig ? (
             <div class="ht-config-tab__instances">
               {(appConfig as unknown[]).map((instanceCfg, idx) => (
@@ -220,13 +224,16 @@ export function ConfigTab({ appKey }: Props) {
               <div class="ht-log-empty__title">no configuration values</div>
             </div>
           )}
+          </div>
         </div>
 
         {/* Raw config card */}
-        <div class="ht-card ht-config-tab__raw-card">
-          <h3 class="ht-summary-card__title">raw config</h3>
+        <div class="ht-config-tab__raw-card">
+          <h3 class="ht-config-group__label">raw config</h3>
+          <div class="ht-card ht-card--config">
           <span class="ht-text-mono ht-text-xs ht-text-muted">hassette.toml → apps.{appKey}.config</span>
           <pre class="ht-config-tab__raw-code">{JSON.stringify(appConfig, null, 2)}</pre>
+          </div>
         </div>
       </div>
     </div>

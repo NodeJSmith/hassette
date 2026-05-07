@@ -200,8 +200,10 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   if (!open) return null;
 
-  // Build full item list
-  const pageItems = buildStaticPageItems(navigate);
+  // Build full item list (pageItems are stable — cache across renders)
+  const pageItemsRef = useRef<PaletteItem[] | null>(null);
+  if (!pageItemsRef.current) pageItemsRef.current = buildStaticPageItems(navigate);
+  const pageItems = pageItemsRef.current;
   const actionItems = buildActionItems(allManifests, onClose);
   const appItems = buildAppItems(allManifests, navigate, onClose);
   const handlerItems = buildHandlerItems(listenersApi.data.value ?? [], navigate, onClose);

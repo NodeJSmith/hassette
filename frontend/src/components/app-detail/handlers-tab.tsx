@@ -244,7 +244,7 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
 
     {/* Invocations panel */}
     <div class="ht-detail-pane__invocations-panel">
-      <h3 class="ht-detail-pane__panel-heading">Invocations</h3>
+      <h3 class="ht-detail-pane__panel-heading">invocations</h3>
       {loading.value && !invocations.value ? (
         <p class="ht-text-muted ht-text-xs">Loading invocations…</p>
       ) : (
@@ -374,7 +374,7 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
 
     {/* Executions panel */}
     <div class="ht-detail-pane__invocations-panel">
-      <h3 class="ht-detail-pane__panel-heading">Executions</h3>
+      <h3 class="ht-detail-pane__panel-heading">executions</h3>
       {loading.value && !executions.value ? (
         <p class="ht-text-muted ht-text-xs">Loading executions…</p>
       ) : (

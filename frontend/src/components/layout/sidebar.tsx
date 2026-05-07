@@ -195,21 +195,12 @@ interface StatusGroupHeaderProps {
 }
 
 function StatusGroupHeader({ def, count, isOpen, onToggle }: StatusGroupHeaderProps) {
-  function handleKeyDown(e: KeyboardEvent) {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onToggle();
-    }
-  }
-
   return (
-    <div
+    <button
+      type="button"
       class={`ht-sidebar__group-header ht-sidebar__group-header--${def.tone}`}
-      role="button"
-      tabIndex={0}
       aria-expanded={isOpen}
       onClick={onToggle}
-      onKeyDown={handleKeyDown}
     >
       <svg
         class="ht-sidebar__group-chevron"
@@ -228,7 +219,7 @@ function StatusGroupHeader({ def, count, isOpen, onToggle }: StatusGroupHeaderPr
       <StatusShape kind={def.tone} size={7} />
       <span class="ht-sidebar__group-label">{def.label}</span>
       <span class="ht-sidebar__group-count">{count}</span>
-    </div>
+    </button>
   );
 }
 
@@ -242,19 +233,13 @@ interface SidebarProps {
 
 export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   const [location] = useLocation();
-  const { connection, systemVersion } = useAppState();
+  const { systemVersion } = useAppState();
   const manifests = useApi(getManifests);
   const [search, setSearch] = useState("");
 
   const [groupOpen, setGroupOpen] = useState<Record<GroupKey, boolean>>(DEFAULT_GROUP_OPEN);
 
-  const wsStatus = connection.value;
   const version = systemVersion.value;
-
-  // Connection status label
-  const isConnected = wsStatus === "connected";
-  const wsLabel = isConnected ? "connected" : "reconnecting…";
-  const wsKind = isConnected ? "ok" : "warn";
 
   const allManifests = manifests.data.value?.manifests ?? [];
   const isFiltering = search.trim().length > 0;
@@ -308,9 +293,6 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         {version !== null && (
           <div class="ht-sidebar__version">
             <span class="ht-sidebar__version-text">v{version}</span>
-            <span class="ht-sidebar__version-sep">·</span>
-            <StatusShape kind={wsKind} size={7} />
-            <span class="ht-sidebar__version-status">{wsLabel}</span>
           </div>
         )}
       </div>

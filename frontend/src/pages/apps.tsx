@@ -14,6 +14,7 @@ import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
 import { formatRelativeTime, formatTimestamp } from "../utils/format";
 import { StatusShape } from "../components/shared/status-shape";
 import { ActionButtons } from "../components/shared/action-buttons";
+import { SortHeader } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 
 // ---- Merged app row type ----
@@ -236,22 +237,21 @@ function FilterPills({ counts, active, onChange }: {
 
 // ---- Sort header ----
 
-function SortHeader({ sort, setSort, k, children }: {
+function AppSortHeader({ sort, setSort, k, children }: {
   sort: SortState;
   setSort: (s: SortState) => void;
   k: SortKey;
   children: preact.ComponentChildren;
 }) {
   const isActive = sort.key === k;
-  const arrow = isActive ? (sort.dir === "asc" ? " ↑" : " ↓") : "";
   return (
-    <button
-      type="button"
-      class={`ht-apps-sort-header${isActive ? " ht-apps-sort-header--active" : ""}`}
+    <SortHeader
+      active={isActive}
+      direction={isActive ? sort.dir : "asc"}
       onClick={() => setSort({ key: k, dir: isActive && sort.dir === "asc" ? "desc" : "asc" })}
     >
-      {children}{arrow}
-    </button>
+      {children}
+    </SortHeader>
   );
 }
 
@@ -430,6 +430,7 @@ export function AppsPage() {
           type="text"
           class="ht-apps-search"
           placeholder="search apps…"
+          aria-label="Search apps"
           value={search}
           onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
           data-testid="apps-search"
@@ -449,11 +450,11 @@ export function AppsPage() {
           <table class="ht-table ht-apps-table">
             <thead>
               <tr>
-                <th><SortHeader sort={sort} setSort={setSort} k="name">app</SortHeader></th>
-                <th><SortHeader sort={sort} setSort={setSort} k="status">status</SortHeader></th>
-                <th><SortHeader sort={sort} setSort={setSort} k="error">last error</SortHeader></th>
-                <th><SortHeader sort={sort} setSort={setSort} k="runs">runs</SortHeader></th>
-                <th><SortHeader sort={sort} setSort={setSort} k="last">last fired</SortHeader></th>
+                <AppSortHeader sort={sort} setSort={setSort} k="name">app</AppSortHeader>
+                <AppSortHeader sort={sort} setSort={setSort} k="status">status</AppSortHeader>
+                <AppSortHeader sort={sort} setSort={setSort} k="error">last error</AppSortHeader>
+                <AppSortHeader sort={sort} setSort={setSort} k="runs">runs</AppSortHeader>
+                <AppSortHeader sort={sort} setSort={setSort} k="last">last fired</AppSortHeader>
                 <th>actions</th>
               </tr>
             </thead>

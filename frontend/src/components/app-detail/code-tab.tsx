@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
 import { signal } from "@preact/signals";
-import { createHighlighter } from "shiki";
+import type { HighlighterGeneric } from "shiki";
 import { getAppSource } from "../../api/endpoints";
 import type { AppSourceData, ListenerData } from "../../api/endpoints";
 import { parseSourceLocation } from "../../utils/format";
@@ -24,17 +24,21 @@ function buildAnnotationMap(listeners: ListenerData[]): Map<number, string[]> {
   return map;
 }
 
-let highlighterPromise: ReturnType<typeof createHighlighter> | null = null;
+let highlighterPromise: Promise<HighlighterGeneric<never, never>> | null = null;
 
 function getHighlighter() {
   if (!highlighterPromise) {
-    highlighterPromise = createHighlighter({
-      langs: ["python"],
-      themes: ["github-light", "github-dark"],
-    }).catch((e) => {
-      highlighterPromise = null;
-      throw e;
-    });
+    highlighterPromise = import("shiki")
+      .then(({ createHighlighter }) =>
+        createHighlighter({
+          langs: ["python"],
+          themes: ["github-light", "github-dark"],
+        }),
+      )
+      .catch((e) => {
+        highlighterPromise = null;
+        throw e;
+      });
   }
   return highlighterPromise;
 }
@@ -52,10 +56,8 @@ function injectLineNumbers(html: string, annotationMap: Map<number, string[]>): 
     const annotations = annotationMap.get(lineNum);
     const annotatedClass = annotations ? " line--annotated" : "";
     const safe = annotations?.map(escapeHtml);
-    const annotationHtml = safe
-      ? `<span class="line-annotation" data-testid="gutter-annotation-${lineNum}" title="${safe.join(", ")}">${safe[0]}</span>`
-      : "";
-    return `<span class="line${annotatedClass}" data-line="${lineNum}" data-testid="code-line-${lineNum}"><span class="line-num">${lineNum}</span>${annotationHtml}`;
+    const titleAttr = safe ? ` title="${safe.join(", ")}"` : "";
+    return `<span class="line${annotatedClass}" data-line="${lineNum}" data-testid="code-line-${lineNum}"${titleAttr}><span class="line-num">${lineNum}</span>`;
   });
 }
 

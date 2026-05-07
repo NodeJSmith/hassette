@@ -204,6 +204,20 @@ a:hover {
   text-decoration: underline;
 }
 
+/* Content links inside tables/data — underline for affordance since
+   light-mode accent is ink-1 (same as body text) */
+.ht-table td a,
+.ht-table-log td a {
+  text-decoration: underline;
+  text-decoration-color: var(--ink-4);
+  text-underline-offset: 2px;
+}
+
+.ht-table td a:hover,
+.ht-table-log td a:hover {
+  text-decoration-color: var(--accent);
+}
+
 strong {
   font-weight: 500;
 }
@@ -298,7 +312,7 @@ strong {
   flex-shrink: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  z-index: 30;
+  z-index: var(--z-sidebar);
 }
 
 .ht-sidebar-brand {
@@ -408,11 +422,12 @@ strong {
   border: 1px solid var(--line-1);
   border-radius: var(--r-md);
   outline: none;
-  transition: border-color var(--t-fast) var(--ease);
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
 
-.ht-sidebar__app-search:focus {
+.ht-sidebar__app-search:focus-visible {
   border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 .ht-sidebar__app-search::placeholder {
@@ -613,7 +628,7 @@ strong {
 .ht-sidebar__section-label {
   font-size: var(--fs-micro);
   font-weight: 500;
-  color: var(--ink-3);
+  color: var(--ink-2);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -629,14 +644,20 @@ strong {
   margin-bottom: 2px;
 }
 
-/* Status group header (collapsible) */
+/* Status group header (collapsible) — native <button> */
 .ht-sidebar__group-header {
   display: flex;
+  width: calc(100% - var(--sp-2) * 2);
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-1) var(--sp-3);
   margin: 0 var(--sp-2);
+  border: none;
   border-radius: var(--r-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
   cursor: pointer;
   user-select: none;
   transition: background var(--t-fast) var(--ease);
@@ -665,7 +686,7 @@ strong {
   flex: 1;
   font-size: var(--fs-micro);
   font-weight: 500;
-  color: var(--ink-3);
+  color: var(--ink-2);
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
@@ -859,7 +880,7 @@ strong {
   inset: 0;
   background: var(--overlay-bg);
   backdrop-filter: blur(2px);
-  z-index: 200;
+  z-index: var(--z-palette-bg);
 }
 
 /* Panel: centered floating surface */
@@ -876,7 +897,7 @@ strong {
   border: 1px solid var(--line-1);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-3);
-  z-index: 201;
+  z-index: var(--z-palette);
   overflow: hidden;
 }
 
@@ -1033,7 +1054,7 @@ strong {
   position: fixed;
   inset: 0;
   background: var(--overlay-bg);
-  z-index: 100;
+  z-index: var(--z-dialog);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1041,6 +1062,11 @@ strong {
 }
 
 .ht-confirm-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: calc(var(--z-dialog) + 1);
   background: var(--bg-surface);
   border: 1px solid var(--line-1);
   border-radius: var(--r-xl);
@@ -1120,7 +1146,7 @@ strong {
   position: fixed;
   top: var(--sp-3);
   left: var(--sp-3);
-  z-index: 50;
+  z-index: var(--z-hamburger);
   width: 44px;
   height: 44px;
   align-items: center;
@@ -1150,7 +1176,7 @@ strong {
   left: 0;
   bottom: 0;
   width: 240px;
-  z-index: 60;
+  z-index: var(--z-drawer);
   background: var(--bg-surface);
   overflow-y: auto;
   transform: translateX(-100%);
@@ -1164,7 +1190,7 @@ strong {
 .ht-drawer-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 55;
+  z-index: var(--z-drawer-bg);
   background: var(--overlay-bg);
 }
 
@@ -1209,9 +1235,8 @@ strong {
   text-align: left;
   font-weight: 500;
   font-size: var(--fs-micro);
-  color: var(--ink-4);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  color: var(--ink-3);
+  letter-spacing: 0.03em;
   padding: var(--sp-2) var(--sp-3);
   border-bottom: 1px solid var(--line-1);
 }
@@ -1281,10 +1306,18 @@ strong {
   white-space: nowrap;
 }
 
-.ht-log-message__text.is-expanded {
-  max-height: none;
-  white-space: normal;
+.ht-log-message__pre {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
   word-break: break-all;
+  background: var(--bg-sunken);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 /* Mobile: expanded message shown in full-width row below */
@@ -1845,7 +1878,6 @@ strong {
 .ht-inv-detail {
   padding: var(--sp-3) var(--sp-4);
   background: var(--bg-sunken);
-  border-left: 3px solid var(--ink-3);
   border-bottom: 1px solid var(--line-1);
 }
 
@@ -1990,11 +2022,7 @@ strong {
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
-  padding: var(--sp-4);
-  background: var(--bg-surface);
-  border: 1px solid var(--line-1);
-  border-top: 1px solid var(--line-2);
-  border-radius: var(--r-md);
+  padding: var(--sp-4) 0;
 }
 
 .ht-health-card__label {
@@ -2002,7 +2030,7 @@ strong {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--ink-4);
+  color: var(--ink-2);
 }
 
 .ht-health-card__value {
@@ -2031,7 +2059,9 @@ strong {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: var(--sp-4);
+  padding-bottom: var(--sp-4);
   margin-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--line-2);
 }
 
 /* sync: BREAKPOINT_MOBILE in use-media-query.ts */
@@ -2289,6 +2319,68 @@ strong {
     grid-column: 1;
     padding-top: calc(var(--sp-3) * 2 + 44px);
   }
+
+  /* Touch target enforcement (WCAG 2.5.8 — 44px minimum)
+     Applied at 900px because devices in this range use the hamburger
+     drawer and are likely touch-operated. */
+  .ht-theme-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .ht-tabs li button,
+  .ht-tab-btn {
+    min-height: 44px;
+    padding: var(--sp-2) var(--sp-3);
+  }
+
+  .ht-btn--sm,
+  .ht-btn--xs,
+  .ht-btn--icon {
+    min-height: 44px;
+  }
+
+  .ht-tier-toggle__btn {
+    min-height: 44px;
+    padding: 0.15em 0.75em;
+  }
+
+  .ht-time-preset-selector__btn {
+    min-height: 44px;
+    padding: var(--sp-1) var(--sp-3);
+  }
+
+  .ht-sidebar__app-expand {
+    width: 44px;
+    height: 44px;
+  }
+
+  .ht-apps-row__expand {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Apps table: hide columns 3+ (error, runs, last fired, actions) in
+     sidebar-free view where horizontal space is limited */
+  .ht-apps-table thead th:nth-child(n+3),
+  .ht-apps-table tbody td:nth-child(n+3) {
+    display: none;
+  }
+
+  /* Apps page: reduce padding for narrower viewport */
+  .ht-apps-page {
+    padding: var(--sp-4);
+  }
+
+  /* Invocation table: allow horizontal scroll when columns overflow */
+  .ht-invocation-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* — Responsive: mobile layout below 768px ———————————————— */
@@ -2355,28 +2447,11 @@ strong {
     font-size: var(--fs-body);
   }
 
-  /* Touch target enforcement (WCAG 2.5.8 — 44px minimum) */
-  .ht-theme-toggle {
-    min-width: 44px;
-    min-height: 44px;
-  }
-
-  .ht-tabs li button {
-    min-height: 44px;
-    padding: var(--sp-2) var(--sp-3);
-  }
-
-  .ht-btn--sm,
-  .ht-btn--xs,
-  .ht-btn--icon {
-    min-height: 44px;
-  }
-
   /* StatusBar: sticky so pulse dot and scope toggle stay visible */
   .ht-status-bar {
     position: sticky;
     top: 0;
-    z-index: 20;
+    z-index: var(--z-status-bar);
     background: var(--bg-surface);
   }
 
@@ -2410,7 +2485,7 @@ strong {
   border: 1px solid var(--line-1);
   border-top: 1px solid var(--line-2);
   border-radius: var(--r-md);
-  transition: background var(--t-fast), box-shadow var(--t-fast);
+  transition: background var(--t-fast);
   overflow: hidden;
 }
 
@@ -2754,6 +2829,11 @@ strong {
   position: relative;
 }
 
+.ht-pill--interactive:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
 .ht-pill__select {
   position: absolute;
   inset: 0;
@@ -2762,19 +2842,11 @@ strong {
   font-size: inherit;
 }
 
-/* Log source column (two-line: function + file:line) */
+/* Log source column */
 .ht-log-source__fn {
-  font-family: var(--font-mono);
-  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.ht-log-source__loc {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--ink-4);
 }
 
 /* Log empty state */
@@ -2816,8 +2888,10 @@ strong {
 }
 
 .ht-table-log {
-  table-layout: fixed;
+  table-layout: auto;
   width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-md);
 }
 
 .ht-table-log thead {
@@ -2825,7 +2899,7 @@ strong {
   top: 0;
   /* Must remain opaque or scrolled rows show through */
   background: var(--bg-surface);
-  z-index: 1;
+  z-index: var(--z-table-head);
 }
 
 .ht-table-log .ht-text-mono {
@@ -2833,10 +2907,10 @@ strong {
 }
 
 .ht-table-log td { padding: var(--sp-2) var(--sp-3); vertical-align: top; }
-.ht-table-log .ht-col-level   { width: 80px; }
-.ht-table-log .ht-col-time    { width: 150px; }
-.ht-table-log .ht-col-app     { width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ht-table-log .ht-col-source  { width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.ht-table-log .ht-col-level   { white-space: nowrap; width: 1%; }
+.ht-table-log .ht-col-time    { white-space: nowrap; width: 1%; }
+.ht-table-log .ht-col-app     { white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.ht-table-log .ht-col-source  { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
 /* Message column: no width set — takes all remaining space */
 
 /* Severity row tinting — visible at scroll speed, not just badge-reading speed */
@@ -2858,26 +2932,6 @@ strong {
 }
 
 /* — Sortable Column Header ————————————————————————————— */
-.ht-sortable {
-  appearance: none;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  user-select: none;
-  font: inherit;
-  color: inherit;
-}
-
-.ht-sortable:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: var(--r-sm);
-}
-
-.ht-sortable:hover {
-  color: var(--ink-1);
-}
 
 /* — Chevron Inline (manifest table) ——————————————————— */
 .ht-item-row__chevron-inline {
@@ -2940,7 +2994,7 @@ strong {
   width: 1px;
   height: 1px;
   overflow: hidden;
-  z-index: 1000;
+  z-index: var(--z-skip);
 }
 /* :focus (not :focus-visible) — skip-nav must be visible on ALL focus types,
    including mouse click, since the user explicitly activated it */
@@ -2957,7 +3011,7 @@ strong {
   border-radius: var(--r-md);
   font-family: var(--font-body);
   font-size: var(--fs-body);
-  z-index: 1000;
+  z-index: var(--z-skip);
 }
 
 /* — Manifest Card List (mobile apps view) —————————————— */
@@ -3125,20 +3179,14 @@ strong {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 0;
-  border: 1px solid var(--line-1);
+  background: var(--bg-sunken);
   border-radius: var(--r-md);
-  background: var(--bg-surface);
   overflow: hidden;
   margin-bottom: var(--sp-4);
 }
 
 .ht-apps-stats__cell {
   padding: 12px 14px;
-  border-right: 1px solid var(--line-1);
-}
-
-.ht-apps-stats__cell:last-child {
-  border-right: none;
 }
 
 .ht-apps-stats__label {
@@ -3147,7 +3195,7 @@ strong {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 
 .ht-apps-stats__value {
@@ -3194,7 +3242,7 @@ strong {
   border: 1px solid var(--line-1);
   border-radius: var(--r-pill);
   cursor: pointer;
-  transition: all var(--t-fast) var(--ease);
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 
 .ht-apps-filter-pill:hover {
@@ -3229,8 +3277,9 @@ strong {
   min-width: 160px;
 }
 
-.ht-apps-search:focus {
-  border-color: var(--ink-3);
+.ht-apps-search:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 .ht-apps-search::placeholder {
@@ -3242,7 +3291,8 @@ strong {
   border: 1px solid var(--line-1);
   border-radius: var(--r-md);
   background: var(--bg-surface);
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .ht-apps-table {
@@ -3279,7 +3329,7 @@ strong {
 }
 
 /* Sort header button */
-.ht-apps-sort-header {
+.ht-sort-header {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -3290,12 +3340,22 @@ strong {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--ink-3);
+  color: var(--ink-2);
   font-weight: 500;
   cursor: pointer;
 }
 
-.ht-apps-sort-header--active {
+.ht-sort-header:hover {
+  color: var(--ink-1);
+}
+
+.ht-sort-header:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+.ht-sort-header--active {
   color: var(--ink-1);
   font-weight: 600;
 }
@@ -3468,7 +3528,7 @@ strong {
   }
 
   .ht-apps-stats__cell:nth-child(n+4) {
-    border-top: 1px solid var(--line-1);
+    border-top: 1px solid var(--line-2);
   }
 
   .ht-apps-toolbar {
@@ -3483,22 +3543,6 @@ strong {
   .ht-apps-row__class-name,
   .ht-apps-row__auto-badge {
     display: none;
-  }
-
-  .ht-apps-table thead th:nth-child(n+3),
-  .ht-apps-table tbody td:nth-child(n+3) {
-    display: none;
-  }
-}
-
-/* — Reduced Motion ————————————————————————————————————— */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
   }
 }
 
@@ -3658,7 +3702,7 @@ strong {
 /* — Master/Detail layout ——————————————————————————————— */
 .ht-master-detail {
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: minmax(220px, 300px) 1fr;
   align-items: start;
   gap: var(--sp-4);
 }
@@ -3742,8 +3786,8 @@ strong {
 }
 
 .ht-unified-row--selected {
-  background: var(--bg-active);
-  box-shadow: inset 3px 0 0 var(--ink-1);
+  background: var(--accent-soft);
+  font-weight: 500;
 }
 
 .ht-unified-row__status {
@@ -3781,7 +3825,7 @@ strong {
   font-weight: 500;
   background: var(--bg-sunken);
   border: 1px solid var(--line-1);
-  border-radius: 2px;
+  border-radius: var(--r-sm);
   padding: 1px var(--sp-1);
   color: var(--ink-3);
   text-transform: lowercase;
@@ -3896,7 +3940,7 @@ strong {
   align-items: center;
   gap: var(--sp-1);
   padding: var(--sp-1) var(--sp-2);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   font-size: var(--fs-micro);
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -3973,10 +4017,8 @@ strong {
 
 .ht-detail-pane__error-banner-heading {
   display: block;
-  font-size: var(--fs-micro);
+  font-size: var(--fs-small);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   color: var(--err);
   margin-bottom: var(--sp-1);
 }
@@ -4140,7 +4182,7 @@ strong {
 
 .ht-code-tab__body {
   overflow: auto;
-  max-height: 520px;
+  max-height: calc(100vh - 280px);
 }
 
 .ht-code-tab__body .shiki {
@@ -4169,21 +4211,14 @@ strong {
 }
 
 .ht-code-tab__body .shiki span.line--annotated {
-  background: rgba(0, 0, 0, 0.025);
+  background: var(--code-annotate-bg);
   box-shadow: inset 3px 0 0 var(--ink-3);
+  cursor: help;
 }
 
 .ht-code-tab__body .shiki span.line--focus {
-  background: rgba(212, 165, 90, 0.15);
+  background: var(--code-focus-bg);
   box-shadow: inset 3px 0 0 var(--accent);
-}
-
-[data-theme="dark"] .ht-code-tab__body .shiki span.line--annotated {
-  background: rgba(255, 255, 255, 0.03);
-}
-
-[data-theme="dark"] .ht-code-tab__body .shiki span.line--focus {
-  background: rgba(212, 165, 90, 0.12);
 }
 
 .ht-code-tab__body .shiki .line-num {
@@ -4197,25 +4232,13 @@ strong {
   margin-right: var(--sp-3);
 }
 
-.ht-code-tab__body .shiki .line-annotation {
-  color: var(--accent);
-  font-size: var(--fs-micro);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 140px;
-  font-style: italic;
-  flex-shrink: 0;
-  margin-right: var(--sp-2);
-}
-
 /* --shiki-light/--shiki-dark are inline style attrs set by Shiki (defaultColor: false).
    Fallback to --ink-1 so text remains visible if Shiki output format changes. */
-.ht-code-tab__body .shiki span:not(.line):not(.line-num):not(.line-annotation) {
+.ht-code-tab__body .shiki span:not(.line):not(.line-num) {
   color: var(--shiki-light, var(--ink-1));
 }
 
-[data-theme="dark"] .ht-code-tab__body .shiki span:not(.line):not(.line-num):not(.line-annotation) {
+[data-theme="dark"] .ht-code-tab__body .shiki span:not(.line):not(.line-num) {
   color: var(--shiki-dark, var(--ink-1));
 }
 
@@ -4697,14 +4720,11 @@ strong {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--sp-4);
-  margin-bottom: var(--sp-4);
+  margin-bottom: var(--sp-6);
 }
 
 .ht-dashboard-stats__cell {
-  background: var(--bg-surface);
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-md);
-  padding: 10px 12px;
+  padding: 0;
 }
 
 .ht-dashboard-stats__label {
@@ -4713,12 +4733,12 @@ strong {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 
 .ht-dashboard-stats__value {
   font-family: var(--font-display);
-  font-size: 24px;
+  font-size: var(--fs-h1);
   color: var(--ink-1);
   margin-top: 2px;
 }
@@ -4984,12 +5004,12 @@ strong {
 }
 
 .ht-summary-card__title {
-  font-family: var(--font-body);
-  font-size: var(--fs-small);
-  font-weight: 500;
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-weight: 400;
   color: var(--ink-2);
   text-transform: lowercase;
-  letter-spacing: 0.01em;
+  letter-spacing: var(--tr-h3);
   margin: 0 0 var(--sp-3);
   display: block;
 }
@@ -5030,7 +5050,7 @@ strong {
   font-size: var(--fs-body);
   text-decoration: none;
   color: inherit;
-  border-radius: var(--radius-sm, 4px);
+  border-radius: var(--r-sm);
   padding: 2px 4px;
   margin: 0 -4px;
 }
@@ -5040,8 +5060,8 @@ strong {
 }
 
 .ht-app-list__name {
-  font-family: var(--font-mono);
-  font-size: var(--fs-small);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
   color: var(--ink-1);
   flex: 1;
   overflow: hidden;
@@ -5190,6 +5210,13 @@ strong {
 
 .ht-recent-errors__app-link {
   color: var(--ink-1);
+  text-decoration: underline;
+  text-decoration-color: var(--ink-4);
+  text-underline-offset: 2px;
+}
+
+.ht-recent-errors__app-link:hover {
+  text-decoration-color: var(--accent);
 }
 
 .ht-recent-errors__location {

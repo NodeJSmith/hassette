@@ -100,7 +100,7 @@ describe("CodeTab", () => {
     expect(screen.getByTestId("copy-path-btn")).toBeDefined();
   });
 
-  it("annotates handler lines with handler name in gutter", async () => {
+  it("annotates handler lines with title tooltip on hover", async () => {
     const listeners = [
       {
         listener_id: 1,
@@ -112,10 +112,8 @@ describe("CodeTab", () => {
     await waitFor(() => {
       expect(screen.getByTestId("code-tab-content")).toBeDefined();
     });
-    // Handler annotation should appear at line 2
-    expect(screen.getByTestId("gutter-annotation-2")).toBeDefined();
-    expect(screen.getByTestId("gutter-annotation-2").textContent).toContain(
-      "on_state_change",
-    );
+    const line2 = screen.getByTestId("code-line-2");
+    expect(line2.getAttribute("title")).toContain("on_state_change");
+    expect(line2.classList.contains("line--annotated")).toBe(true);
   });
 });

@@ -59,7 +59,7 @@ export function App() {
       <button
         type="button"
         class="ht-hamburger"
-        aria-label="Open navigation"
+        aria-label={drawerOpen ? "Close navigation" : "Open navigation"}
         aria-expanded={drawerOpen}
         onClick={() => setDrawerOpen(true)}
       >
@@ -86,7 +86,8 @@ export function App() {
       )}
 
       {/* Desktop layout */}
-      <div class="ht-layout">
+      <div class="ht-layout" {...(drawerOpen ? { inert: true } : {})}>
+
         <Sidebar onOpenPalette={() => setPaletteOpen(true)} />
         <main class="ht-main" id="main-content" tabIndex={-1}>
           <StatusBar />

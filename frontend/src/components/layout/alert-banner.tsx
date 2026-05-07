@@ -16,7 +16,7 @@ export function AlertBanner({ failedApps }: AlertBannerProps) {
   if (failedApps.length === 0) return null;
 
   return (
-    <div class="ht-alert ht-alert--danger">
+    <div class="ht-alert ht-alert--danger" role="alert">
       <strong>{failedApps.length} app{failedApps.length > 1 ? "s" : ""} failed</strong>
       <ul class="ht-alert-list">
         {failedApps.map((app) => (
