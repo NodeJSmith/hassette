@@ -63,11 +63,11 @@ export function ManifestList({ manifests, filter }: Props) {
     <table class="ht-table ht-table--dense">
       <thead>
         <tr>
-          <th>App Key</th>
-          <th>Name</th>
-          <th>Status</th>
-          <th>Error</th>
-          <th>Actions</th>
+          <th scope="col">App Key</th>
+          <th scope="col">Name</th>
+          <th scope="col">Status</th>
+          <th scope="col">Error</th>
+          <th scope="col">Actions</th>
         </tr>
       </thead>
       <tbody>

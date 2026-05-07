@@ -543,11 +543,11 @@ function RecentErrorsTable({
       <table class="ht-table ht-table--dense ht-recent-errors__table">
         <thead>
           <tr>
-            <th class="ht-recent-errors__col-time">TIME</th>
-            <th class="ht-recent-errors__col-app">APP</th>
-            <th class="ht-recent-errors__col-location">LOCATION</th>
-            <th class="ht-recent-errors__col-exception">EXCEPTION</th>
-            <th class="ht-recent-errors__col-age">AGE</th>
+            <th class="ht-recent-errors__col-time" scope="col">TIME</th>
+            <th class="ht-recent-errors__col-app" scope="col">APP</th>
+            <th class="ht-recent-errors__col-location" scope="col">LOCATION</th>
+            <th class="ht-recent-errors__col-exception" scope="col">EXCEPTION</th>
+            <th class="ht-recent-errors__col-age" scope="col">AGE</th>
           </tr>
         </thead>
         <tbody>

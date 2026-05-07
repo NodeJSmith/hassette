@@ -47,8 +47,8 @@ describe("HandlersPage", () => {
 
   it("renders with handlers tab active by default", () => {
     const { getByRole } = renderWithAppState(<HandlersPage />);
-    const handlersTab = getByRole("button", { name: /^handlers/i });
-    expect(handlersTab.getAttribute("aria-pressed")).toBe("true");
+    const handlersTab = getByRole("tab", { name: /^handlers/i });
+    expect(handlersTab.getAttribute("aria-selected")).toBe("true");
   });
 
   it("shows the page heading", () => {
@@ -58,12 +58,12 @@ describe("HandlersPage", () => {
 
   it("switches to jobs tab when clicked", () => {
     const { getByRole, getByTestId } = renderWithAppState(<HandlersPage />);
-    const jobsTab = getByRole("button", { name: /^jobs/i });
+    const jobsTab = getByRole("tab", { name: /^jobs/i });
     fireEvent.click(jobsTab);
-    expect(jobsTab.getAttribute("aria-pressed")).toBe("true");
+    expect(jobsTab.getAttribute("aria-selected")).toBe("true");
     // handlers tab should no longer be active
-    const handlersTab = getByRole("button", { name: /^handlers/i });
-    expect(handlersTab.getAttribute("aria-pressed")).toBe("false");
+    const handlersTab = getByRole("tab", { name: /^handlers/i });
+    expect(handlersTab.getAttribute("aria-selected")).toBe("false");
     // jobs empty state renders (beforeEach provides empty jobs)
     expect(getByTestId("jobs-empty")).toBeDefined();
   });
@@ -129,13 +129,13 @@ describe("HandlersPage", () => {
       ],
     });
     const { getByRole, getAllByTestId } = renderWithAppState(<HandlersPage />);
-    fireEvent.click(getByRole("button", { name: /^jobs/i }));
+    fireEvent.click(getByRole("tab", { name: /^jobs/i }));
     expect(getAllByTestId(/job-row-/).length).toBe(2);
   });
 
   it("shows empty state on jobs tab when no jobs", () => {
     const { getByRole, getByText } = renderWithAppState(<HandlersPage />);
-    fireEvent.click(getByRole("button", { name: /^jobs/i }));
+    fireEvent.click(getByRole("tab", { name: /^jobs/i }));
     expect(getByText(/no jobs scheduled/i)).toBeDefined();
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Route, Switch, useLocation } from "wouter";
 import { getManifests } from "./api/endpoints";
 import { AlertBanner } from "./components/layout/alert-banner";
@@ -26,6 +26,9 @@ export function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMounted, setDrawerMounted] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const hamburgerRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const drawerEverOpenedRef = useRef(false);
 
   if (drawerOpen && !drawerMounted) setDrawerMounted(true);
 
@@ -33,6 +36,16 @@ export function App() {
     const id = setInterval(() => { if (!document.hidden) state.tick.value++; }, RELATIVE_TIME_TICK_MS);
     return () => clearInterval(id);
   }, [state]);
+
+  useEffect(() => {
+    if (drawerOpen) {
+      drawerEverOpenedRef.current = true;
+      const firstLink = drawerRef.current?.querySelector<HTMLElement>("a[href], button:not([disabled])");
+      firstLink?.focus();
+    } else if (drawerEverOpenedRef.current) {
+      hamburgerRef.current?.focus();
+    }
+  }, [drawerOpen]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -59,6 +72,7 @@ export function App() {
 
       {/* Hamburger button (mobile) */}
       <button
+        ref={hamburgerRef}
         type="button"
         class="ht-hamburger"
         aria-label={drawerOpen ? "Close navigation" : "Open navigation"}
@@ -74,6 +88,7 @@ export function App() {
 
       {/* Off-canvas drawer (mobile) */}
       <div
+        ref={drawerRef}
         class={`ht-drawer${drawerOpen ? " is-open" : ""}`}
         aria-hidden={!drawerOpen}
       >

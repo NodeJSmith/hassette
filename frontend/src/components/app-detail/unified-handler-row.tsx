@@ -75,20 +75,13 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
   const glyph = kindGlyph(chipLabel);
 
   return (
-    <div
+    <button
+      type="button"
       class={`ht-unified-row${isSelected ? " ht-unified-row--selected" : ""}`}
       data-testid={`unified-row-${item.kind}-${item.id}`}
-      role="button"
-      tabIndex={0}
       aria-pressed={isSelected}
       aria-label={`${item.name}${item.humanDescription ? ": " + item.humanDescription : ""}`}
       onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
     >
       <span class="ht-unified-row__status" aria-hidden="true">
         <StatusShape kind={item.statusKind} size={10} />
@@ -126,6 +119,6 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
           )}
         </div>
       </div>
-    </div>
+    </button>
   );
 }

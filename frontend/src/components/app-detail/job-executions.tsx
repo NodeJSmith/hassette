@@ -35,11 +35,11 @@ export function JobExecutions({ executions, jobId }: Props) {
       <table class="ht-table ht-table--compact" data-testid={`execution-table-${jobId}`}>
         <thead>
           <tr>
-            <th class="ht-col-status">Status</th>
-            <th class="ht-col-time">Timestamp</th>
-            <th class="ht-col-duration">Duration</th>
-            <th class="ht-col-error">Error</th>
-            <th class="ht-col-trace">Trace ID</th>
+            <th class="ht-col-status" scope="col">Status</th>
+            <th class="ht-col-time" scope="col">Timestamp</th>
+            <th class="ht-col-duration" scope="col">Duration</th>
+            <th class="ht-col-error" scope="col">Error</th>
+            <th class="ht-col-trace" scope="col">Trace ID</th>
           </tr>
         </thead>
         <tbody>

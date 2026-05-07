@@ -61,9 +61,9 @@ function SchemaConfigTable({
     <table class="ht-table ht-table--compact ht-config-table" data-testid="config-values-table">
       <thead>
         <tr>
-          <th class="ht-config-table__key">Key</th>
-          <th class="ht-config-table__col-type">Type</th>
-          <th class="ht-config-table__col-value">Value</th>
+          <th class="ht-config-table__key" scope="col">Key</th>
+          <th class="ht-config-table__col-type" scope="col">Type</th>
+          <th class="ht-config-table__col-value" scope="col">Value</th>
         </tr>
       </thead>
       <tbody>
@@ -105,8 +105,8 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
     <table class="ht-table ht-config-tab__table" data-testid="config-values-table">
       <thead>
         <tr>
-          <th class="ht-config-tab__col-key">Key</th>
-          <th class="ht-config-tab__col-value">Value</th>
+          <th class="ht-config-tab__col-key" scope="col">Key</th>
+          <th class="ht-config-tab__col-value" scope="col">Value</th>
         </tr>
       </thead>
       <tbody>

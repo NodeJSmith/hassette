@@ -455,7 +455,7 @@ export function AppsPage() {
                 <AppSortHeader sort={sort} setSort={setSort} k="error">last error</AppSortHeader>
                 <AppSortHeader sort={sort} setSort={setSort} k="runs">runs</AppSortHeader>
                 <AppSortHeader sort={sort} setSort={setSort} k="last">last fired</AppSortHeader>
-                <th>actions</th>
+                <th scope="col">actions</th>
               </tr>
             </thead>
             <tbody>

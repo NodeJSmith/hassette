@@ -1606,10 +1606,13 @@ strong {
 
 /* — Tabs ——————————————————————————————————————————————— */
 .ht-tabs {
+  display: flex;
   border-bottom: 1px solid var(--line-1);
   margin-bottom: var(--sp-4);
+  gap: 0;
 }
 
+/* Legacy list wrapper (used by .ht-apps-toolbar .ht-tabs) */
 .ht-tabs ul {
   display: flex;
   list-style: none;
@@ -1618,6 +1621,8 @@ strong {
   gap: 0;
 }
 
+/* Buttons as direct children (role="tablist" flat pattern) or nested in li */
+.ht-tabs > button,
 .ht-tabs li button {
   display: block;
   padding: 0.4em 0.85em;
@@ -1632,10 +1637,12 @@ strong {
   transition: color var(--t-fast), border-color var(--t-fast);
 }
 
+.ht-tabs > button:hover,
 .ht-tabs li button:hover {
   color: var(--ink-1);
 }
 
+.ht-tabs > button[aria-selected="true"],
 .ht-tabs li button[aria-pressed="true"] {
   color: var(--ink-1);
   border-bottom-color: var(--ink-3);
@@ -2328,6 +2335,7 @@ strong {
     min-height: 44px;
   }
 
+  .ht-tabs > button,
   .ht-tabs li button,
   .ht-tab-btn {
     min-height: 44px;
@@ -2428,6 +2436,7 @@ strong {
   }
 
   /* Tabs: scroll horizontally */
+  .ht-tabs,
   .ht-tabs ul {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -4130,8 +4139,14 @@ strong {
   padding: var(--sp-3);
   cursor: pointer;
   transition: background var(--t-fast);
-  border-bottom: 1px solid var(--line-1);
   background: var(--bg-surface);
+  /* Button reset */
+  border: none;
+  border-bottom: 1px solid var(--line-1);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  width: 100%;
 }
 
 .ht-unified-row:last-child {

@@ -123,23 +123,25 @@ describe("UnifiedHandlerRow — listener", () => {
     expect(onSelect).toHaveBeenCalledOnce();
   });
 
-  it("calls onSelect when Enter key is pressed", () => {
+  it("calls onSelect when activated via Enter key (native button fires click)", () => {
     const onSelect = vi.fn();
     const item = makeListenerItem({ listener_id: 1 });
     const { getByRole } = render(
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />,
     );
-    fireEvent.keyDown(getByRole("button"), { key: "Enter" });
+    // Native <button> fires click on Enter/Space — fireEvent.click simulates that
+    fireEvent.click(getByRole("button"));
     expect(onSelect).toHaveBeenCalledOnce();
   });
 
-  it("calls onSelect when Space key is pressed", () => {
+  it("calls onSelect when activated via Space key (native button fires click)", () => {
     const onSelect = vi.fn();
     const item = makeListenerItem({ listener_id: 1 });
     const { getByRole } = render(
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={onSelect} />,
     );
-    fireEvent.keyDown(getByRole("button"), { key: " " });
+    // Native <button> fires click on Enter/Space — fireEvent.click simulates that
+    fireEvent.click(getByRole("button"));
     expect(onSelect).toHaveBeenCalledOnce();
   });
 });

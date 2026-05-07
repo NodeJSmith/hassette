@@ -35,12 +35,12 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
       <table class="ht-table ht-table--compact ht-invocation-table" data-testid={`invocation-table-${listenerId}`}>
         <thead>
           <tr>
-            <th class="ht-inv-col-status"></th>
-            <th class="ht-inv-col-time">Time</th>
-            <th>Trigger</th>
-            <th class="ht-inv-col-dur">Duration</th>
-            <th>Note</th>
-            <th class="ht-inv-col-arrow"></th>
+            <th class="ht-inv-col-status" scope="col"><span class="ht-visually-hidden">Status</span></th>
+            <th class="ht-inv-col-time" scope="col">Time</th>
+            <th scope="col">Trigger</th>
+            <th class="ht-inv-col-dur" scope="col">Duration</th>
+            <th scope="col">Note</th>
+            <th class="ht-inv-col-arrow" scope="col"><span class="ht-visually-hidden">Details</span></th>
           </tr>
         </thead>
         <tbody>

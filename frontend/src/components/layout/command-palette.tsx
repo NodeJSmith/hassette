@@ -183,6 +183,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const query = useRef(signal("")).current;
   const selectedIndex = useRef(signal(-1)).current;
   const inputRef = useRef<HTMLInputElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<Element | null>(null);
 
   const manifests = useApi(getManifests);
@@ -271,6 +272,21 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         aria-label="Command palette"
         class="ht-cmd-palette"
       >
+        {/* Top sentinel — catches Shift+Tab from search input, wraps focus to last result */}
+        <div
+          tabIndex={0}
+          aria-hidden="true"
+          style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0"
+          onFocus={() => {
+            // Focus arrived here via Shift+Tab from the search input.
+            // Move to the last focusable result button inside the results list,
+            // or back to the search input itself when no results exist.
+            const buttons = resultsRef.current?.querySelectorAll<HTMLElement>("button");
+            const last = buttons && buttons.length > 0 ? buttons[buttons.length - 1] : null;
+            (last ?? inputRef.current)?.focus();
+          }}
+        />
+
         {/* Search input */}
         <div class="ht-cmd-palette__input-wrap">
           <svg
@@ -304,6 +320,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
         {/* Results */}
         <div
+          ref={resultsRef}
           id="ht-cmd-palette-results"
           class="ht-cmd-palette__results"
           role="listbox"
@@ -343,6 +360,16 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             </div>
           ))}
         </div>
+
+        {/* Bottom sentinel — catches Tab from last result, wraps focus back to search input */}
+        <div
+          tabIndex={0}
+          aria-hidden="true"
+          style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0"
+          onFocus={() => {
+            inputRef.current?.focus();
+          }}
+        />
 
         {/* Footer */}
         <div class="ht-cmd-palette__footer" aria-hidden="true">

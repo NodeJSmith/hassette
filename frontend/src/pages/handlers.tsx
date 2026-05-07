@@ -355,29 +355,29 @@ export function HandlersPage() {
       </div>
 
       {/* Tabs */}
-      <div class="ht-tabs" data-testid="handlers-tabs">
-        <ul role="list">
-          <li>
-            <button
-              type="button"
-              aria-pressed={activeTab === "handlers"}
-              onClick={() => { setActiveTab("handlers"); setSelectedApp(""); }}
-              data-testid="tab-handlers"
-            >
-              handlers{allListeners.length > 0 ? ` (${tierFilteredListeners.length})` : ""}
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              aria-pressed={activeTab === "jobs"}
-              onClick={() => { setActiveTab("jobs"); setSelectedApp(""); }}
-              data-testid="tab-jobs"
-            >
-              jobs{allJobs.length > 0 ? ` (${tierFilteredJobs.length})` : ""}
-            </button>
-          </li>
-        </ul>
+      <div class="ht-tabs" role="tablist" aria-label="View" data-testid="handlers-tabs">
+        <button
+          type="button"
+          role="tab"
+          id="tab-handlers"
+          aria-selected={activeTab === "handlers"}
+          aria-controls="tabpanel-handlers"
+          onClick={() => { setActiveTab("handlers"); setSelectedApp(""); }}
+          data-testid="tab-handlers"
+        >
+          handlers{allListeners.length > 0 ? ` (${tierFilteredListeners.length})` : ""}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-jobs"
+          aria-selected={activeTab === "jobs"}
+          aria-controls="tabpanel-jobs"
+          onClick={() => { setActiveTab("jobs"); setSelectedApp(""); }}
+          data-testid="tab-jobs"
+        >
+          jobs{allJobs.length > 0 ? ` (${tierFilteredJobs.length})` : ""}
+        </button>
       </div>
 
       {/* Toolbar */}
@@ -391,21 +391,23 @@ export function HandlersPage() {
       />
 
       {/* Content */}
-      <div class="ht-card ht-handlers-table-card">
-        {activeTab === "handlers" ? (
+      {activeTab === "handlers" ? (
+        <div role="tabpanel" id="tabpanel-handlers" aria-labelledby="tab-handlers" class="ht-card ht-handlers-table-card">
           <HandlersTable
             listeners={sortedListeners}
             sort={handlerSort}
             onSort={setHandlerSort}
           />
-        ) : (
+        </div>
+      ) : (
+        <div role="tabpanel" id="tabpanel-jobs" aria-labelledby="tab-jobs" class="ht-card ht-handlers-table-card">
           <JobsTable
             jobs={sortedJobs}
             sort={jobSort}
             onSort={setJobSort}
           />
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
