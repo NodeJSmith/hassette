@@ -105,7 +105,16 @@ def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
         BootIssueResponse(severity=issue.severity, label=issue.label, detail=issue.detail)
         for issue in status.boot_issues
     ]
-    services = [ServiceInfoResponse(name=svc.name, status=svc.status) for svc in status.services]
+    services = [
+        ServiceInfoResponse(
+            name=svc.name,
+            status=svc.status,
+            role=svc.role,
+            ready_phase=svc.ready_phase,
+            retry_at=svc.retry_at,
+        )
+        for svc in status.services
+    ]
     return SystemStatusResponse(
         status=status.status,
         websocket_connected=status.websocket_connected,

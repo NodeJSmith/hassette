@@ -382,7 +382,8 @@ class TelemetryQueryService(Resource):
                 MAX(je.duration_ms) AS max_duration_ms,
                 last_err.error_type AS last_error_type,
                 last_err.error_message AS last_error_message,
-                last_err.execution_start_ts AS last_error_ts
+                last_err.execution_start_ts AS last_error_ts,
+                last_err.error_traceback AS last_error_traceback
             FROM scheduled_jobs sj
             LEFT JOIN job_executions je ON {join_condition}
             LEFT JOIN job_executions last_err ON last_err.id = (
@@ -396,6 +397,86 @@ class TelemetryQueryService(Resource):
         """
         async with self._db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
+        return [JobSummary.model_validate(_row_to_dict(row)) for row in rows]
+
+    async def get_all_jobs_summary(
+        self,
+        since: float | None = None,
+        source_tier: QuerySourceTier = "app",
+    ) -> list[JobSummary]:
+        """Return per-job summaries across all apps, with no app_key filter.
+
+        Models the single-query approach of ``get_job_summary()`` but without
+        the ``app_key``/``instance_index`` WHERE clause.  Uses a ``BEGIN DEFERRED``
+        WAL snapshot to ensure the main query and the correlated error subquery
+        see a consistent snapshot (same pattern as ``get_all_app_summaries()``).
+
+        Args:
+            since: When provided, restrict execution counts to records with
+                ``execution_start_ts >= since`` (Unix epoch float).
+            source_tier: Filter jobs by source tier.  ``'app'`` (default) excludes
+                framework internals.  ``'framework'`` returns only internal actors.
+                ``'all'`` returns everything.
+        """
+        tier_clause, tier_params = _source_tier_clause(source_tier, "sj")
+        since_join_clause, since_params = _since_clause(since, "je.execution_start_ts")
+        # :since is reused inside the correlated subquery via the same bind name.
+        since_err_clause, _ = _since_clause(since, "je2.execution_start_ts")
+
+        join_condition = f"je.job_id = sj.id {since_join_clause}"
+        params: dict = {**tier_params, **since_params}
+
+        query = f"""
+            SELECT
+                sj.id AS job_id,
+                sj.app_key,
+                sj.instance_index,
+                sj.job_name,
+                sj.handler_method,
+                sj.trigger_type,
+                sj.trigger_label,
+                sj.trigger_detail,
+                sj.args_json,
+                sj.kwargs_json,
+                sj.source_location,
+                sj.registration_source,
+                sj.source_tier,
+                sj."group" AS "group",
+                sj.name_auto,
+                CASE WHEN sj.cancelled_at IS NOT NULL THEN 1 ELSE 0 END AS cancelled,
+                COUNT(je.rowid) AS total_executions,
+                SUM(CASE WHEN je.status = 'success' THEN 1 ELSE 0 END) AS successful,
+                SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS failed,
+                SUM(CASE WHEN je.status = 'timed_out' THEN 1 ELSE 0 END) AS timed_out,
+                MAX(je.execution_start_ts) AS last_executed_at,
+                COALESCE(SUM(je.duration_ms), 0.0) AS total_duration_ms,
+                COALESCE(AVG(je.duration_ms), 0.0) AS avg_duration_ms,
+                MIN(je.duration_ms) AS min_duration_ms,
+                MAX(je.duration_ms) AS max_duration_ms,
+                last_err.error_type AS last_error_type,
+                last_err.error_message AS last_error_message,
+                last_err.execution_start_ts AS last_error_ts,
+                last_err.error_traceback AS last_error_traceback
+            FROM scheduled_jobs sj
+            LEFT JOIN job_executions je ON {join_condition}
+            LEFT JOIN job_executions last_err ON last_err.id = (
+                SELECT je2.id FROM job_executions je2
+                WHERE je2.job_id = sj.id AND je2.status IN ('error', 'timed_out') {since_err_clause}
+                ORDER BY je2.execution_start_ts DESC LIMIT 1
+            )
+            WHERE 1=1
+            {tier_clause}
+            GROUP BY sj.id
+        """
+        async with self._snapshot_lock:
+            try:
+                await self._db.execute("BEGIN DEFERRED")
+                async with self._db.execute(query, params) as cursor:
+                    rows = await cursor.fetchall()
+            finally:
+                with contextlib.suppress(aiosqlite.OperationalError):
+                    await self._db.execute("ROLLBACK")
+
         return [JobSummary.model_validate(_row_to_dict(row)) for row in rows]
 
     async def get_all_app_summaries(

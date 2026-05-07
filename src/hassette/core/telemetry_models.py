@@ -159,6 +159,8 @@ class JobSummary(BaseModel):
     """Most recent error exception type within the query window, or None."""
     last_error_ts: float | None = None
     """Unix epoch of the most recent error within the query window, or None."""
+    last_error_traceback: str | None = None
+    """Traceback from the most recent error within the query window, or None."""
     min_duration_ms: float | None = None
     """Minimum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
     max_duration_ms: float | None = None

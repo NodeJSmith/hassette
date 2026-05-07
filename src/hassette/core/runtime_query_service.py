@@ -383,6 +383,9 @@ class RuntimeQueryService(Resource):
             ServiceInfo(
                 name=child.class_name,
                 status=child.status.value if hasattr(child, "status") else "unknown",
+                role=child.role.value if hasattr(child, "role") and hasattr(child.role, "value") else "",
+                ready_phase=getattr(child, "_ready_reason", None),
+                retry_at=getattr(child, "_retry_at", None),
             )
             for child in self.hassette.children
             if hasattr(child, "status")

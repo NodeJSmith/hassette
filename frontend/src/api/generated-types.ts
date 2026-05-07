@@ -467,6 +467,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scheduler/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * All Jobs
+         * @description All scheduled jobs across all apps, enriched with live heap data.
+         *
+         *     Live fields (``next_run``, ``fire_at``, ``jitter``, ``cancelled``) are joined
+         *     from the live scheduler heap by ``db_id``.  On heap failure the DB rows are
+         *     returned without enrichment (degraded but functional; logged warning, no 500).
+         *
+         *     The heap snapshot is taken once — not per app — to avoid fan-out overhead.
+         */
+        get: operations["all_jobs_api_scheduler_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1144,6 +1170,8 @@ export interface components {
             last_error_type?: string | null;
             /** Last Error Ts */
             last_error_ts?: number | null;
+            /** Last Error Traceback */
+            last_error_traceback?: string | null;
             /** Min Duration Ms */
             min_duration_ms?: number | null;
             /** Max Duration Ms */
@@ -1285,6 +1313,15 @@ export interface components {
             name: string;
             /** Status */
             status: string;
+            /**
+             * Role
+             * @default
+             */
+            role: string;
+            /** Ready Phase */
+            ready_phase?: string | null;
+            /** Retry At */
+            retry_at?: number | null;
         };
         /** SystemStatusResponse */
         SystemStatusResponse: {
@@ -1683,6 +1720,8 @@ export interface operations {
                 app_key?: string | null;
                 instance_index?: number;
                 since?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
             };
             header?: never;
             path?: never;
@@ -2085,6 +2124,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FrameworkSummaryResponse"];
+                };
+            };
+        };
+    };
+    all_jobs_api_scheduler_jobs_get: {
+        parameters: {
+            query?: {
+                since?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

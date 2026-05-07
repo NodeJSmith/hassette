@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add global jobs endpoint and extend ServiceInfoResponse"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#9", "FR#10", "AC#7"]
 ---

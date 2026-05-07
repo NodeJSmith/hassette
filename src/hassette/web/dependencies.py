@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import Depends, Request
+from fastapi import Depends, Query, Request
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -38,3 +38,10 @@ RuntimeDep = Annotated["RuntimeQueryService", Depends(get_runtime)]
 TelemetryDep = Annotated["TelemetryQueryService", Depends(get_telemetry)]
 SchedulerDep = Annotated["SchedulerService", Depends(get_scheduler)]
 ApiDep = Annotated["Api", Depends(get_api)]
+
+# Shared query parameter for source tier filtering.
+SOURCE_TIER_PARAM = Query(
+    default=None,
+    description="Filter by source tier. 'app' excludes framework internals. "
+    "'framework' returns only internal actors. 'all' returns everything.",
+)

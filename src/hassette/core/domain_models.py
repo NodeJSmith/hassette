@@ -48,6 +48,12 @@ class ServiceInfo(BaseModel):
 
     name: str
     status: str
+    role: str = ""
+    """Role of the service (e.g. 'service', 'resource'). Empty string when not available."""
+    ready_phase: str | None = None
+    """Human-readable description of the current readiness phase, or None if not available."""
+    retry_at: float | None = None
+    """Unix timestamp when the next restart will be attempted (cooling state), or None."""
 
 
 class SystemStatus(BaseModel):

@@ -493,6 +493,29 @@
               ],
               "title": "Since"
             }
+          },
+          {
+            "name": "source_tier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "app",
+                    "framework",
+                    "all"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "title": "Source Tier"
+            },
+            "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
           }
         ],
         "responses": {
@@ -1317,6 +1340,83 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FrameworkSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scheduler/jobs": {
+      "get": {
+        "tags": [
+          "scheduler"
+        ],
+        "summary": "All Jobs",
+        "description": "All scheduled jobs across all apps, enriched with live heap data.\n\nLive fields (``next_run``, ``fire_at``, ``jitter``, ``cancelled``) are joined\nfrom the live scheduler heap by ``db_id``.  On heap failure the DB rows are\nreturned without enrichment (degraded but functional; logged warning, no 500).\n\nThe heap snapshot is taken once \u2014 not per app \u2014 to avoid fan-out overhead.",
+        "operationId": "all_jobs_api_scheduler_jobs_get",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "name": "source_tier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "app",
+                    "framework",
+                    "all"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "title": "Source Tier"
+            },
+            "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobSummary"
+                  },
+                  "title": "Response All Jobs Api Scheduler Jobs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2924,6 +3024,17 @@
             ],
             "title": "Last Error Ts"
           },
+          "last_error_traceback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Traceback"
+          },
           "min_duration_ms": {
             "anyOf": [
               {
@@ -3299,6 +3410,33 @@
           "status": {
             "type": "string",
             "title": "Status"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "default": ""
+          },
+          "ready_phase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ready Phase"
+          },
+          "retry_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry At"
           }
         },
         "type": "object",

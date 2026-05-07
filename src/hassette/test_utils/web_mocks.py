@@ -22,6 +22,7 @@ def _wire_telemetry_stubs(hassette: MagicMock) -> None:
     ts = hassette._telemetry_query_service
     ts.get_listener_summary = AsyncMock(return_value=[])
     ts.get_job_summary = AsyncMock(return_value=[])
+    ts.get_all_jobs_summary = AsyncMock(return_value=[])
     ts.get_all_app_summaries = AsyncMock(return_value={})
     ts.get_global_summary = AsyncMock(
         return_value=GlobalSummary(
