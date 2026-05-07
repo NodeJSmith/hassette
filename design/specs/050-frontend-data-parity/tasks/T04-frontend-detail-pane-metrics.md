@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Surface hidden metrics and error traceback on handler/job detail panes"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#2", "FR#5", "FR#6", "FR#7", "FR#8", "FR#17", "AC#4", "AC#5", "AC#13"]
 ---

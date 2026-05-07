@@ -1,5 +1,5 @@
 import { signal } from "@preact/signals";
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { ListenerData, JobData } from "../../api/endpoints";
 import { getHandlerInvocations, getJobExecutions } from "../../api/endpoints";
 import { HandlerList, type SelectedHandlerId } from "./handler-list";
@@ -61,19 +61,25 @@ function ScheduleChips({ job }: { job: JobData }) {
   );
 }
 
-/** Stats row: CALLS · 1H, LAST, FAILED, TIMED OUT, AVG */
+/** Stats row: CALLS · 1H, SUCCESSFUL, LAST, FAILED, TIMED OUT, CANCELLED (conditional), MIN / AVG / MAX */
 function HandlerStatsRow({ listener }: { listener: ListenerData }) {
   const { timePreset } = useAppState();
   const timeLabel = TIME_PRESET_LABELS[timePreset.value] ?? "";
   const lastLabel = listener.last_invoked_at
     ? formatRelativeTime(listener.last_invoked_at)
     : "—";
+  const minLabel = listener.min_duration_ms !== null && listener.min_duration_ms !== undefined ? formatDuration(listener.min_duration_ms) : "—";
+  const maxLabel = listener.max_duration_ms !== null && listener.max_duration_ms !== undefined ? formatDuration(listener.max_duration_ms) : "—";
 
   return (
     <div class="ht-detail-stats-row" data-testid="handler-stats-row">
       <div class="ht-detail-stats-row__cell">
         <span class="ht-detail-stats-row__label">Calls{timeLabel ? ` · ${timeLabel}` : ""}</span>
         <span class="ht-detail-stats-row__value">{listener.total_invocations}</span>
+      </div>
+      <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Successful</span>
+        <span class="ht-detail-stats-row__value">{listener.successful}</span>
       </div>
       <div class="ht-detail-stats-row__cell">
         <span class="ht-detail-stats-row__label">Last</span>
@@ -91,29 +97,49 @@ function HandlerStatsRow({ listener }: { listener: ListenerData }) {
           {listener.timed_out > 0 ? listener.timed_out : "—"}
         </span>
       </div>
+      {listener.cancelled > 0 && (
+        <div class="ht-detail-stats-row__cell">
+          <span class="ht-detail-stats-row__label">Cancelled</span>
+          <span class="ht-detail-stats-row__value">{listener.cancelled}</span>
+        </div>
+      )}
+      <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Min</span>
+        <span class="ht-detail-stats-row__value">{minLabel}</span>
+      </div>
       <div class="ht-detail-stats-row__cell">
         <span class="ht-detail-stats-row__label">Avg</span>
         <span class="ht-detail-stats-row__value">
           {listener.avg_duration_ms > 0 ? formatDuration(listener.avg_duration_ms) : "—"}
         </span>
       </div>
+      <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Max</span>
+        <span class="ht-detail-stats-row__value">{maxLabel}</span>
+      </div>
     </div>
   );
 }
 
-/** Stats row for scheduled jobs */
+/** Stats row for scheduled jobs: RUNS · 1H, SUCCESSFUL, LAST, FAILED, TIMED OUT, MIN / AVG / MAX */
 function JobStatsRow({ job }: { job: JobData }) {
   const { timePreset } = useAppState();
   const timeLabel = TIME_PRESET_LABELS[timePreset.value] ?? "";
   const lastLabel = job.last_executed_at
     ? formatRelativeTime(job.last_executed_at)
     : "—";
+  const minLabel = job.min_duration_ms !== null && job.min_duration_ms !== undefined ? formatDuration(job.min_duration_ms) : "—";
+  const maxLabel = job.max_duration_ms !== null && job.max_duration_ms !== undefined ? formatDuration(job.max_duration_ms) : "—";
 
   return (
     <div class="ht-detail-stats-row" data-testid="job-stats-row">
       <div class="ht-detail-stats-row__cell">
         <span class="ht-detail-stats-row__label">Runs{timeLabel ? ` · ${timeLabel}` : ""}</span>
         <span class="ht-detail-stats-row__value">{job.total_executions}</span>
+      </div>
+      <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Successful</span>
+        <span class="ht-detail-stats-row__value">{job.successful}</span>
       </div>
       <div class="ht-detail-stats-row__cell">
         <span class="ht-detail-stats-row__label">Last</span>
@@ -132,15 +158,61 @@ function JobStatsRow({ job }: { job: JobData }) {
         </span>
       </div>
       <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Min</span>
+        <span class="ht-detail-stats-row__value">{minLabel}</span>
+      </div>
+      <div class="ht-detail-stats-row__cell">
         <span class="ht-detail-stats-row__label">Avg</span>
         <span class="ht-detail-stats-row__value">
           {job.avg_duration_ms > 0 ? formatDuration(job.avg_duration_ms) : "—"}
         </span>
       </div>
+      <div class="ht-detail-stats-row__cell">
+        <span class="ht-detail-stats-row__label">Max</span>
+        <span class="ht-detail-stats-row__value">{maxLabel}</span>
+      </div>
     </div>
   );
 }
 
+
+interface ErrorBannerProps {
+  errorType: string | null;
+  errorMessage: string | null;
+  traceback: string | null;
+  testId?: string;
+}
+
+function ErrorBanner({ errorType, errorMessage, traceback, testId }: ErrorBannerProps) {
+  const [traceExpanded, setTraceExpanded] = useState(false);
+
+  return (
+    <div class="ht-detail-pane__error-banner" data-testid={testId}>
+      <span class="ht-detail-pane__error-banner-heading">
+        Last Error{errorType ? ` — ${errorType}` : ""}
+      </span>
+      {errorMessage && (
+        <p class="ht-detail-pane__error-banner-message">{errorMessage}</p>
+      )}
+      {traceback && (
+        <div class="ht-detail-pane__traceback" data-testid="traceback-content">
+          <button
+            type="button"
+            class="ht-detail-pane__traceback-toggle"
+            data-testid="traceback-toggle"
+            aria-expanded={traceExpanded}
+            onClick={() => setTraceExpanded((v) => !v)}
+          >
+            {traceExpanded ? "hide traceback ↑" : "show traceback ↓"}
+          </button>
+          {traceExpanded && (
+            <pre class="ht-traceback ht-detail-pane__traceback-body">{traceback}</pre>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface ListenerDetailProps {
   listener: ListenerData;
@@ -216,14 +288,12 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
 
       {/* Error banner */}
       {isFailing && (listener.last_error_message || listener.last_error_type) && (
-        <div class="ht-detail-pane__error-banner" data-testid="handler-error-banner">
-          <span class="ht-detail-pane__error-banner-heading">
-            Last Error{listener.last_error_type ? ` — ${listener.last_error_type}` : ""}
-          </span>
-          {listener.last_error_message && (
-            <p class="ht-detail-pane__error-banner-message">{listener.last_error_message}</p>
-          )}
-        </div>
+        <ErrorBanner
+          errorType={listener.last_error_type ?? null}
+          errorMessage={listener.last_error_message ?? null}
+          traceback={listener.last_error_traceback ?? null}
+          testId="handler-error-banner"
+        />
       )}
 
       {/* Stats row */}
@@ -354,6 +424,16 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
             {sourceFilename}{sourceLine ? `:${sourceLine}` : ""}
           </span>
         </div>
+      )}
+
+      {/* Error banner */}
+      {(job.failed > 0 || job.timed_out > 0) && (job.last_error_message || job.last_error_type) && (
+        <ErrorBanner
+          errorType={job.last_error_type ?? null}
+          errorMessage={job.last_error_message ?? null}
+          traceback={job.last_error_traceback ?? null}
+          testId="job-error-banner"
+        />
       )}
 
       {/* Stats row */}

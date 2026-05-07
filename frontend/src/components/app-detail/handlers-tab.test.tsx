@@ -211,6 +211,145 @@ describe("HandlersTab", () => {
     expect(queryByTestId("handler-registration-source")).toBeNull();
   });
 
+  it("handler stats row: renders successful count", async () => {
+    const listener = createListener({
+      listener_id: 20,
+      total_invocations: 10,
+      successful: 8,
+      failed: 2,
+    });
+    const { getByTestId } = renderHandlersTab([listener], []);
+    fireEvent.click(getByTestId("unified-row-listener-20"));
+    await waitFor(() => {
+      expect(getByTestId("handler-stats-row")).toBeDefined();
+    });
+    const statsRow = getByTestId("handler-stats-row");
+    expect(statsRow.textContent).toContain("Successful");
+    expect(statsRow.textContent).toContain("8");
+  });
+
+  it("handler stats row: does not show cancelled when zero", async () => {
+    const listener = createListener({ listener_id: 21, cancelled: 0 });
+    const { getByTestId, queryByText } = renderHandlersTab([listener], []);
+    fireEvent.click(getByTestId("unified-row-listener-21"));
+    await waitFor(() => getByTestId("handler-stats-row"));
+    expect(queryByText("Cancelled")).toBeNull();
+  });
+
+  it("handler stats row: shows cancelled count when > 0", async () => {
+    const listener = createListener({ listener_id: 22, cancelled: 3 });
+    const { getByTestId } = renderHandlersTab([listener], []);
+    fireEvent.click(getByTestId("unified-row-listener-22"));
+    await waitFor(() => getByTestId("handler-stats-row"));
+    const statsRow = getByTestId("handler-stats-row");
+    expect(statsRow.textContent).toContain("Cancelled");
+    expect(statsRow.textContent).toContain("3");
+  });
+
+  it("handler stats row: shows — for min/max when null (no executions)", async () => {
+    const listener = createListener({
+      listener_id: 23,
+      min_duration_ms: null,
+      max_duration_ms: null,
+      avg_duration_ms: 0,
+    });
+    const { getByTestId } = renderHandlersTab([listener], []);
+    fireEvent.click(getByTestId("unified-row-listener-23"));
+    await waitFor(() => getByTestId("handler-stats-row"));
+    const statsRow = getByTestId("handler-stats-row");
+    // Min and Max labels exist
+    expect(statsRow.textContent).toContain("Min");
+    expect(statsRow.textContent).toContain("Max");
+    // Both show dash when null
+    const cells = statsRow.querySelectorAll(".ht-detail-stats-row__cell");
+    const minCell = Array.from(cells).find((c) => c.textContent?.includes("Min"));
+    const maxCell = Array.from(cells).find((c) => c.textContent?.includes("Max"));
+    expect(minCell?.textContent).toContain("—");
+    expect(maxCell?.textContent).toContain("—");
+  });
+
+  it("handler error banner: shows expandable traceback when available", async () => {
+    const listener = createListener({
+      listener_id: 24,
+      failed: 1,
+      last_error_type: "ValueError",
+      last_error_message: "bad value",
+      last_error_traceback: "Traceback (most recent call last):\n  File test.py line 1\nValueError: bad value",
+    });
+    const { getByTestId } = renderHandlersTab([listener], []);
+    fireEvent.click(getByTestId("unified-row-listener-24"));
+    await waitFor(() => getByTestId("handler-error-banner"));
+    const banner = getByTestId("handler-error-banner");
+    // Traceback toggle button should be present
+    const toggle = banner.querySelector("[data-testid='traceback-toggle']");
+    expect(toggle).not.toBeNull();
+    // Traceback is initially collapsed
+    const tracebackContent = banner.querySelector("[data-testid='traceback-content']");
+    expect(tracebackContent).not.toBeNull();
+    // Expand it
+    fireEvent.click(toggle!);
+    expect(banner.textContent).toContain("Traceback (most recent call last)");
+  });
+
+  it("job detail: shows error banner when job has errors", async () => {
+    const job = createJob({
+      job_id: 30,
+      failed: 1,
+      last_error_type: "RuntimeError",
+      last_error_message: "something failed",
+      last_error_traceback: "Traceback (most recent call last):\nRuntimeError: something failed",
+    });
+    const { getByTestId } = renderHandlersTab([], [job]);
+    fireEvent.click(getByTestId("unified-row-job-30"));
+    await waitFor(() => getByTestId("job-detail-30"));
+    const banner = getByTestId("job-error-banner");
+    expect(banner.textContent).toContain("RuntimeError");
+    expect(banner.textContent).toContain("something failed");
+    // Toggle and check traceback
+    const toggle = banner.querySelector("[data-testid='traceback-toggle']");
+    expect(toggle).not.toBeNull();
+    fireEvent.click(toggle!);
+    expect(banner.textContent).toContain("Traceback (most recent call last)");
+  });
+
+  it("job stats row: renders successful count", async () => {
+    const job = createJob({
+      job_id: 31,
+      total_executions: 10,
+      successful: 7,
+      failed: 2,
+      timed_out: 1,
+    });
+    const { getByTestId } = renderHandlersTab([], [job]);
+    fireEvent.click(getByTestId("unified-row-job-31"));
+    await waitFor(() => getByTestId("job-stats-row"));
+    const statsRow = getByTestId("job-stats-row");
+    expect(statsRow.textContent).toContain("Successful");
+    expect(statsRow.textContent).toContain("7");
+  });
+
+  it("job stats row: visually separates failed and timed_out as distinct cells", async () => {
+    const job = createJob({
+      job_id: 32,
+      failed: 2,
+      timed_out: 1,
+    });
+    const { getByTestId } = renderHandlersTab([], [job]);
+    fireEvent.click(getByTestId("unified-row-job-32"));
+    await waitFor(() => getByTestId("job-stats-row"));
+    const statsRow = getByTestId("job-stats-row");
+    // Both labels must be present as distinct cells
+    expect(statsRow.textContent).toContain("Failed");
+    expect(statsRow.textContent).toContain("Timed Out");
+    // Failed uses err color class, Timed Out uses warn color class
+    const errValue = statsRow.querySelector(".ht-detail-stats-row__value--err");
+    const warnValue = statsRow.querySelector(".ht-detail-stats-row__value--warn");
+    expect(errValue).not.toBeNull();
+    expect(warnValue).not.toBeNull();
+    expect(errValue?.textContent).toBe("2");
+    expect(warnValue?.textContent).toBe("1");
+  });
+
   it("selects first item automatically when focusMethod matches a handler", () => {
     const listeners = [
       createListener({ listener_id: 1, handler_method: "app.on_motion" }),

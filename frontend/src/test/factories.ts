@@ -119,8 +119,8 @@ export function createListener(overrides: Partial<ListenerWithSummary> = {}): Li
     cancelled: 0,
     timed_out: 0,
     avg_duration_ms: 0,
-    min_duration_ms: 0,
-    max_duration_ms: 0,
+    min_duration_ms: null,
+    max_duration_ms: null,
     total_duration_ms: 0,
     predicate_description: null,
     human_description: null,
@@ -138,6 +138,7 @@ export function createListener(overrides: Partial<ListenerWithSummary> = {}): Li
     immediate: 0,
     duration: null,
     entity_id: null,
+    last_error_traceback: null,
     ...overrides,
   } satisfies ListenerWithSummary;
 }
@@ -170,6 +171,12 @@ export function createJob(overrides: Partial<JobSummary> = {}): JobSummary {
     jitter: null,
     cancelled: false,
     name_auto: false,
+    last_error_message: null,
+    last_error_type: null,
+    last_error_ts: null,
+    last_error_traceback: null,
+    min_duration_ms: null,
+    max_duration_ms: null,
     ...overrides,
   } satisfies JobSummary;
 }
