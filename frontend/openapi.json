@@ -3023,14 +3023,26 @@
             "default": 0.0
           },
           "min_duration_ms": {
-            "type": "number",
-            "title": "Min Duration Ms",
-            "default": 0.0
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Duration Ms"
           },
           "max_duration_ms": {
-            "type": "number",
-            "title": "Max Duration Ms",
-            "default": 0.0
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Duration Ms"
           },
           "total_duration_ms": {
             "type": "number",
@@ -3123,6 +3135,17 @@
               }
             ],
             "title": "Last Error Type"
+          },
+          "last_error_traceback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Traceback"
           },
           "timed_out": {
             "type": "integer",

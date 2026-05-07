@@ -306,11 +306,12 @@ class TelemetryQueryService(Resource):
                 SUM(CASE WHEN hi.status = 'timed_out' THEN 1 ELSE 0 END) AS timed_out,
                 COALESCE(SUM(hi.duration_ms), 0.0) AS total_duration_ms,
                 COALESCE(AVG(hi.duration_ms), 0.0) AS avg_duration_ms,
-                COALESCE(MIN(hi.duration_ms), 0.0) AS min_duration_ms,
-                COALESCE(MAX(hi.duration_ms), 0.0) AS max_duration_ms,
+                MIN(hi.duration_ms) AS min_duration_ms,
+                MAX(hi.duration_ms) AS max_duration_ms,
                 MAX(hi.execution_start_ts) AS last_invoked_at,
                 last_err.error_type AS last_error_type,
-                last_err.error_message AS last_error_message
+                last_err.error_message AS last_error_message,
+                last_err.error_traceback AS last_error_traceback
             FROM listeners l
             LEFT JOIN handler_invocations hi ON {join_condition}
             LEFT JOIN handler_invocations last_err ON last_err.id = (

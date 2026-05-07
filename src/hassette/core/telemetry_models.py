@@ -88,11 +88,12 @@ class ListenerSummary(BaseModel):
     timed_out: int = 0
     total_duration_ms: float
     avg_duration_ms: float
-    min_duration_ms: float
-    max_duration_ms: float
+    min_duration_ms: float | None = None
+    max_duration_ms: float | None = None
     last_invoked_at: float | None
     last_error_type: str | None
     last_error_message: str | None
+    last_error_traceback: str | None = None
 
 
 class HandlerInvocation(BaseModel):

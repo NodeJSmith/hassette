@@ -289,8 +289,8 @@ class ListenerWithSummary(BaseModel):
     di_failures: int
     cancelled: int
     avg_duration_ms: float = 0.0
-    min_duration_ms: float = 0.0
-    max_duration_ms: float = 0.0
+    min_duration_ms: float | None = None
+    max_duration_ms: float | None = None
     total_duration_ms: float = 0.0
     predicate_description: str | None = None
     human_description: str | None = None
@@ -301,6 +301,7 @@ class ListenerWithSummary(BaseModel):
     last_invoked_at: float | None = None
     last_error_message: str | None = None
     last_error_type: str | None = None
+    last_error_traceback: str | None = None
     timed_out: int = 0
     source_location: str = ""
     registration_source: str | None = None

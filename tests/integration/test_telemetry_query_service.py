@@ -144,6 +144,7 @@ async def _insert_invocation(
     duration_ms: float = 10.0,
     error_type: str | None = None,
     error_message: str | None = None,
+    error_traceback: str | None = None,
     execution_start_ts: float | None = None,
     source_tier: str = "app",
     is_di_failure: int = 0,
@@ -153,9 +154,20 @@ async def _insert_invocation(
     cursor = await db_svc.db.execute(
         """INSERT INTO handler_invocations
                (listener_id, session_id, execution_start_ts, duration_ms,
-                status, error_type, error_message, source_tier, is_di_failure)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (listener_id, session_id, ts, duration_ms, status, error_type, error_message, source_tier, is_di_failure),
+                status, error_type, error_message, error_traceback, source_tier, is_di_failure)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            listener_id,
+            session_id,
+            ts,
+            duration_ms,
+            status,
+            error_type,
+            error_message,
+            error_traceback,
+            source_tier,
+            is_di_failure,
+        ),
     )
     await db_svc.db.commit()
     assert cursor.lastrowid is not None
@@ -260,6 +272,98 @@ class TestGetListenerSummary:
         assert row.total_invocations == 2
         assert row.successful == 2
         assert row.failed == 0
+
+    async def test_get_listener_summary_min_max_none_when_no_invocations(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Handler with no invocations returns None for min_duration_ms and max_duration_ms."""
+        db_svc, _session_id = db
+        await _insert_listener(db_svc, handler_method="on_idle")
+
+        rows = await svc.get_listener_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.min_duration_ms is None
+        assert row.max_duration_ms is None
+
+    async def test_get_listener_summary_min_max_correct_with_invocations(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Handler with invocations returns correct min and max duration."""
+        db_svc, session_id = db
+        listener_id = await _insert_listener(db_svc, handler_method="on_varied")
+
+        await _insert_invocation(db_svc, listener_id, session_id, status="success", duration_ms=15.0)
+        await _insert_invocation(db_svc, listener_id, session_id, status="success", duration_ms=5.0)
+        await _insert_invocation(db_svc, listener_id, session_id, status="error", duration_ms=100.0)
+
+        rows = await svc.get_listener_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.min_duration_ms == pytest.approx(5.0)
+        assert row.max_duration_ms == pytest.approx(100.0)
+
+    async def test_get_listener_summary_last_error_traceback_populated(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Handler with errors includes last_error_traceback from the most recent error."""
+        db_svc, session_id = db
+        listener_id = await _insert_listener(db_svc, handler_method="on_err")
+
+        base_ts = 1_000_000.0
+        # Older error — not the most recent
+        await _insert_invocation(
+            db_svc,
+            listener_id,
+            session_id,
+            status="error",
+            error_type="OldError",
+            error_message="old message",
+            error_traceback="old traceback\n  at old.py:1",
+            execution_start_ts=base_ts + 1.0,
+        )
+        # Most recent error — traceback should be returned
+        await _insert_invocation(
+            db_svc,
+            listener_id,
+            session_id,
+            status="error",
+            error_type="ValueError",
+            error_message="latest message",
+            error_traceback="Traceback (most recent call last):\n  File test.py, line 42\nValueError: oops",
+            execution_start_ts=base_ts + 10.0,
+        )
+
+        rows = await svc.get_listener_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        assert (
+            row.last_error_traceback == "Traceback (most recent call last):\n  File test.py, line 42\nValueError: oops"
+        )
+        assert row.last_error_type == "ValueError"
+
+    async def test_get_listener_summary_last_error_traceback_none_when_no_errors(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Handler with no errors has None for last_error_traceback."""
+        db_svc, session_id = db
+        listener_id = await _insert_listener(db_svc, handler_method="on_clean")
+
+        await _insert_invocation(db_svc, listener_id, session_id, status="success", duration_ms=10.0)
+        await _insert_invocation(db_svc, listener_id, session_id, status="success", duration_ms=20.0)
+
+        rows = await svc.get_listener_summary("test_app", 0)
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.last_error_traceback is None
 
 
 # ---------------------------------------------------------------------------

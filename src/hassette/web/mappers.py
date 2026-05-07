@@ -175,6 +175,7 @@ def to_listener_with_summary(ls: ListenerSummary) -> ListenerWithSummary:
         last_invoked_at=ls.last_invoked_at,
         last_error_message=ls.last_error_message,
         last_error_type=ls.last_error_type,
+        last_error_traceback=ls.last_error_traceback,
         source_tier=ls.source_tier,
         source_location=ls.source_location,
         registration_source=ls.registration_source,

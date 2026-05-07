@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Populate handler min/max duration and add traceback to summary"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#4", "FR#17", "AC#3", "AC#13"]
 ---

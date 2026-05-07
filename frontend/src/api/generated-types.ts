@@ -1187,16 +1187,10 @@ export interface components {
              * @default 0
              */
             avg_duration_ms: number;
-            /**
-             * Min Duration Ms
-             * @default 0
-             */
-            min_duration_ms: number;
-            /**
-             * Max Duration Ms
-             * @default 0
-             */
-            max_duration_ms: number;
+            /** Min Duration Ms */
+            min_duration_ms?: number | null;
+            /** Max Duration Ms */
+            max_duration_ms?: number | null;
             /**
              * Total Duration Ms
              * @default 0
@@ -1226,6 +1220,8 @@ export interface components {
             last_error_message?: string | null;
             /** Last Error Type */
             last_error_type?: string | null;
+            /** Last Error Traceback */
+            last_error_traceback?: string | null;
             /**
              * Timed Out
              * @default 0
