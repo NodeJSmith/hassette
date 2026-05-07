@@ -608,8 +608,9 @@ function RecentErrorsTable({
 
 export function DashboardPage() {
   useEffect(() => { document.title = "Dashboard - Hassette"; }, []);
-  const { appStatus, invocationCompleted, executionCompleted, timePreset } = useAppState();
+  const { appStatus, invocationCompleted, executionCompleted, timePreset, droppedOverflow, droppedExhausted, droppedNoSession, droppedShutdown } = useAppState();
 
+  const totalDropped = droppedOverflow.value + droppedExhausted.value + droppedNoSession.value + droppedShutdown.value;
   const errorTierFilter = useSignal<SourceTier>("all");
 
   const kpis = useScopedApi((since) => getDashboardKpis(since, "app"));
@@ -689,8 +690,8 @@ export function DashboardPage() {
           <p class="ht-text-danger">Could not load apps — {appGrid.error.value}</p>
         )}
 
-        {/* Stats strip */}
-        {kpis.data.value && !isQuiet && (
+        {/* Stats strip — visible when activity exists OR when drops are non-zero */}
+        {kpis.data.value && (!isQuiet || totalDropped > 0) && (
           <div class="ht-dashboard-stats" data-testid="dashboard-stats-strip">
             <div class="ht-dashboard-stats__cell">
               <span class="ht-dashboard-stats__label">handlers</span>
@@ -705,6 +706,16 @@ export function DashboardPage() {
               <span class={`ht-dashboard-stats__value${kpis.data.value.error_rate > 0 ? " ht-dashboard-stats__value--warn" : ""}`}>
                 {(100 - kpis.data.value.error_rate).toFixed(1)}%
               </span>
+            </div>
+            <div class="ht-dashboard-stats__cell">
+              <span class="ht-dashboard-stats__label">dropped events</span>
+              <a
+                href="/diagnostics"
+                class={`ht-dashboard-stats__value${totalDropped > 0 ? " ht-dashboard-stats__value--warn" : ""}`}
+                data-testid="stats-strip-dropped"
+              >
+                {totalDropped}
+              </a>
             </div>
           </div>
         )}

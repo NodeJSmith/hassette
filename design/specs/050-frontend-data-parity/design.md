@@ -1,7 +1,7 @@
 # Design: Frontend Data Parity
 
 **Date:** 2026-05-07
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 
 ## Problem

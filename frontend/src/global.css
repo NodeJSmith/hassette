@@ -5141,7 +5141,7 @@ strong {
 
 .ht-dashboard-stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--sp-4);
   margin-bottom: var(--sp-6);
 }
@@ -5422,8 +5422,6 @@ strong {
 }
 
 .ht-summary-card {
-  max-height: 320px;
-  overflow-y: auto;
 }
 
 .ht-summary-card__title {
