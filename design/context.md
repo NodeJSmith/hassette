@@ -25,7 +25,7 @@ Like a well-typeset technical manual. The cover is beautiful, the content is pre
 
 **Casing**: Sentence case throughout — "Stop motion_lights?", not "Stop Motion_Lights?". Code identifiers (app names, entity IDs, file paths) keep their literal casing.
 
-**Numbers**: Integers for counts, no thousands separator under 10k. Durations use `2.4s`, `380ms`, never "2.4 seconds". Times are 24-hour with seconds where precision matters (`14:23:01`), or relative for recency ("4m ago", "yesterday").
+**Numbers**: Integers for counts, no thousands separator under 10k. Durations use `2.4s`, `380ms`, never "2.4 seconds". Times are 12-hour with seconds where precision matters (`7:25:37 PM`), or relative for recency ("4m ago", "yesterday").
 
 **Errors**: Lead with what happened, then what to do. "Could not connect to broker — check `mqtt.host` in config." Not "Error: connection failed."
 

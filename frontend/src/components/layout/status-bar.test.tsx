@@ -62,35 +62,35 @@ describe("StatusBar — connection states", () => {
   });
 });
 
-describe("StatusBar — DB degraded indicator", () => {
-  it("shows DB degraded indicator when connected and degraded", () => {
+describe("StatusBar — database degraded indicator", () => {
+  it("shows database degraded indicator when connected and degraded", () => {
     const { getByLabelText } = renderWithAppState(<StatusBar />, {
       stateOverrides: {
         connection: signal("connected"),
         telemetryDegraded: signal(true),
       },
     });
-    expect(getByLabelText("DB degraded")).toBeDefined();
+    expect(getByLabelText("database degraded")).toBeDefined();
   });
 
-  it("hides DB degraded indicator when disconnected even if degraded", () => {
+  it("hides database degraded indicator when disconnected even if degraded", () => {
     const { queryByLabelText } = renderWithAppState(<StatusBar />, {
       stateOverrides: {
         connection: signal("disconnected"),
         telemetryDegraded: signal(true),
       },
     });
-    expect(queryByLabelText("DB degraded")).toBeNull();
+    expect(queryByLabelText("database degraded")).toBeNull();
   });
 
-  it("hides DB degraded indicator when not degraded", () => {
+  it("hides database degraded indicator when not degraded", () => {
     const { queryByLabelText } = renderWithAppState(<StatusBar />, {
       stateOverrides: {
         connection: signal("connected"),
         telemetryDegraded: signal(false),
       },
     });
-    expect(queryByLabelText("DB degraded")).toBeNull();
+    expect(queryByLabelText("database degraded")).toBeNull();
   });
 });
 

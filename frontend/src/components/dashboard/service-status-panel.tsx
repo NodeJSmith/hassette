@@ -121,7 +121,7 @@ export function ServiceStatusPanel() {
       data-testid="service-status-panel"
       aria-label="Internal service status"
     >
-      <h2 class="ht-heading-5 ht-mb-3">Service Status</h2>
+      <h2 class="ht-heading-5 ht-mb-3">service status</h2>
       <ul class="ht-ssp__list" aria-label="Service statuses">
         {entries.map((entry) => (
           <ServiceRow key={entry.resource_name} entry={entry} />

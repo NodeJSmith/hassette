@@ -43,9 +43,9 @@ The **Recent Errors** section is a unified feed of the most recent handler and j
 
 When no errors exist, a "No recent errors. All systems healthy." message is displayed.
 
-## System Health
+## System health
 
-Below the error feed, the **System Health** badge summarizes framework-level health — issues within Hassette itself rather than in your automations. The badge shows the framework error count (scoped by the session toggle); green means none.
+Below the error feed, the **system health** badge summarizes framework-level health — issues within Hassette itself rather than in your automations. The badge shows the framework error count (scoped by the session toggle); green means none.
 
 ## Session Scope
 

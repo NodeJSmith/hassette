@@ -255,11 +255,11 @@ def test_framework_health_visible(page: Page, base_url: str) -> None:
     page.goto(base_url + "/")
     framework_section = page.locator("[data-testid='framework-health']")
     expect(framework_section).to_be_visible()
-    expect(framework_section).to_contain_text("System Health")
+    expect(framework_section).to_contain_text("system health")
 
 
 def test_framework_health_shows_error_count_badge(page: Page, base_url: str) -> None:
-    """System Health badge shows the framework error count."""
+    """system health badge shows the framework error count."""
     page.goto(base_url + "/")
     framework_section = page.locator("[data-testid='framework-health']")
     expect(framework_section).to_be_visible()

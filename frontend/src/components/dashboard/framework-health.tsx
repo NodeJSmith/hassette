@@ -1,5 +1,5 @@
 /**
- * FrameworkHealth — System Health summary badge for the dashboard.
+ * FrameworkHealth — system health summary badge for the dashboard.
  *
  * Shows framework-tier error count via the dedicated framework-summary endpoint,
  * which runs a COUNT(*) query without the feed's LIMIT cap. When errors exist,
@@ -30,13 +30,13 @@ export function FrameworkHealth() {
     <div class="ht-card ht-card--receded" data-testid="framework-health">
       <div class="ht-framework-health__title">
         {icon}
-        <span class="ht-heading-5" style={{ margin: 0 }}>System Health</span>
+        <span class="ht-heading-5" style={{ margin: 0 }}>system health</span>
         <span
           class={`ht-badge ht-badge--${badgeVariant} ht-badge--sm`}
           data-testid="framework-error-count"
           aria-label={
             isLoading ? "Loading framework health"
-              : hasError ? "Failed to load framework health"
+              : hasError ? "Could not load framework health"
                 : `${totalFrameworkErrors} framework error${totalFrameworkErrors !== 1 ? "s" : ""}`
           }
         >

@@ -12,7 +12,7 @@ export function ErrorDisplay({ errorMessage, errorTraceback }: Props) {
   return (
     <div class="ht-card ht-mb-4" data-testid="error-display">
       <p class="ht-text-danger">
-        <strong>Error:</strong> {errorMessage}
+        {errorMessage}
       </p>
       {errorTraceback && (
         <div>

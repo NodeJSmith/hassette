@@ -468,7 +468,7 @@ export function HandlersTab({ listeners, jobs, focusMethod, onSwitchToCode }: Pr
           onClick={handleBack}
           aria-label="Back to handler list"
         >
-          ← Back
+          ← back
         </button>
       )}
 

@@ -452,13 +452,13 @@ describe("DashboardPage — KPI / AppGrid error states", () => {
   it("shows KPI error message when kpis fetch fails", () => {
     setupScopedApi({ kpisError: "KPI fetch failed" });
     const { getByText } = renderWithAppState(<DashboardPage />);
-    expect(getByText(/Failed to load KPIs: KPI fetch failed/)).toBeDefined();
+    expect(getByText(/Could not load dashboard stats — KPI fetch failed/)).toBeDefined();
   });
 
   it("shows AppGrid error message when app grid fetch fails", () => {
     setupScopedApi({ appGridError: "App grid failed" });
     const { getByText } = renderWithAppState(<DashboardPage />);
-    expect(getByText(/Failed to load app grid: App grid failed/)).toBeDefined();
+    expect(getByText(/Could not load apps — App grid failed/)).toBeDefined();
   });
 });
 

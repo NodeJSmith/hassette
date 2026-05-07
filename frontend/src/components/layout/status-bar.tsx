@@ -38,7 +38,7 @@ export function StatusBar() {
 
   const { className, dotClass, label } = statusConfig[status];
 
-  // "Disconnected" takes visual precedence over "DB degraded"
+  // "Disconnected" takes visual precedence over "database degraded"
   const showDegraded = isDegraded && status === "connected";
 
   return (
@@ -52,16 +52,16 @@ export function StatusBar() {
           {status !== "connected" && <span class="ht-text-xs">{label}</span>}
         </span>
         {showDegraded && (
-          <span class="ht-ws-indicator is-degraded" aria-label="DB degraded">
+          <span class="ht-ws-indicator is-degraded" aria-label="database degraded">
             <span class="ht-pulse-dot degraded" />
-            <span class="ht-text-xs">DB degraded</span>
+            <span class="ht-text-xs">database degraded</span>
           </span>
         )}
         {droppedTotal > 0 && (
           <span
             class="ht-ws-indicator is-degraded"
             aria-label={`${droppedTotal} telemetry event${droppedTotal !== 1 ? "s" : ""} dropped`}
-            title={`Overflow: ${overflow}, Exhausted: ${exhausted}, Late: ${noSession}, Shutdown: ${shutdown}`}
+            title={`buffer full: ${overflow}, write failed: ${exhausted}, no session: ${noSession}, during shutdown: ${shutdown}`}
             data-testid="dropped-events-indicator"
           >
             <span class="ht-pulse-dot degraded" />
@@ -71,12 +71,12 @@ export function StatusBar() {
         {ehFailures > 0 && (
           <span
             class="ht-ws-indicator is-degraded"
-            aria-label={`${ehFailures} error handler failure${ehFailures !== 1 ? "s" : ""}`}
+            aria-label={`${ehFailures} handler error${ehFailures !== 1 ? "s" : ""}`}
             title={`${ehFailures} user error handler invocation${ehFailures !== 1 ? "s" : ""} raised or timed out`}
             data-testid="error-handler-failures-indicator"
           >
             <span class="ht-pulse-dot degraded" />
-            <span class="ht-text-xs">{ehFailures} handler err{ehFailures !== 1 ? "s" : ""}</span>
+            <span class="ht-text-xs">{ehFailures} handler error{ehFailures !== 1 ? "s" : ""}</span>
           </span>
         )}
         <button

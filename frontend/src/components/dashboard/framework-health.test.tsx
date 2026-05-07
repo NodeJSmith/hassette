@@ -65,11 +65,11 @@ describe("FrameworkHealth", () => {
     expect(queryByRole("button")).toBeNull();
   });
 
-  it("shows System Health label", () => {
+  it("shows system health label", () => {
     vi.mocked(useApi).mockReturnValue(
       makeSummary({ total_errors: 0, total_job_errors: 0 }),
     );
     const { getByText } = render(<FrameworkHealth />);
-    expect(getByText("System Health")).toBeDefined();
+    expect(getByText("system health")).toBeDefined();
   });
 });

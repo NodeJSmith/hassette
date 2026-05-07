@@ -681,10 +681,10 @@ export function DashboardPage() {
       </div>
 
       {kpis.error.value && (
-        <p class="ht-text-danger">Failed to load KPIs: {kpis.error.value}</p>
+        <p class="ht-text-danger">Could not load dashboard stats — {kpis.error.value}</p>
       )}
       {appGrid.error.value && (
-        <p class="ht-text-danger">Failed to load app grid: {appGrid.error.value}</p>
+        <p class="ht-text-danger">Could not load apps — {appGrid.error.value}</p>
       )}
 
       {/* Stats strip */}
