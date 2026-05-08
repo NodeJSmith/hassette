@@ -8,7 +8,7 @@ import {
 import { useScopedApi, PRESET_WINDOW_SECONDS } from "../hooks/use-scoped-api";
 import { useApi } from "../hooks/use-api";
 import { useAppState } from "../state/context";
-import { statusToKind, INACTIVE_STATUSES, type StatusKind } from "../utils/status";
+import { statusToKind, statusToVariant, INACTIVE_STATUSES, type StatusKind } from "../utils/status";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
 import { formatRelativeTime, formatTimestamp } from "../utils/format";
 import { type AppRow, type AppSortState, mergeManifestsAndGrid, compareAppRows } from "../utils/app-data";
@@ -112,16 +112,6 @@ function FilterPills({ counts, active, onChange }: {
 // ---- Sort header ----
 
 
-// ---- Status pill ----
-
-function StatusPill({ status }: { status: string }) {
-  const kind = statusToKind(status);
-  return (
-    <span class={`ht-apps-status-pill ht-apps-status-pill--${kind}`} data-testid="status-pill">
-      {status}
-    </span>
-  );
-}
 
 // ---- Table row ----
 
@@ -157,7 +147,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
         </td>
         {/* Status */}
         <td>
-          <StatusPill status={status} />
+          <span class={`ht-badge ht-badge--${statusToVariant(status)} ht-badge--sm`} data-testid="status-pill">{status}</span>
           {isMulti && <span class="ht-apps-row__instance-count">{app.instance_count} instances</span>}
         </td>
         {/* Error */}
@@ -200,7 +190,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
               <StatusShape kind={instKind} size={6} />
               <a href={`/apps/${app.app_key}/${inst.index}`} class="ht-text-mono ht-text-sm">{inst.instance_name}</a>
             </td>
-            <td><StatusPill status={instStatus} /></td>
+            <td><span class={`ht-badge ht-badge--${statusToVariant(instStatus)} ht-badge--sm`}>{instStatus}</span></td>
             <td class="ht-apps-row__error-cell">
               {inst.error_message ? (
                 <span class="ht-text-mono ht-text-sm ht-text-danger" title={inst.error_message}>{inst.error_message}</span>

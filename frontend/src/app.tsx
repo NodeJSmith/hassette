@@ -17,6 +17,7 @@ import { DiagnosticsPage } from "./pages/diagnostics";
 import { HandlersPage } from "./pages/handlers";
 import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
+import { PatternComparePage } from "./pages/pattern-compare";
 import { AppStateContext } from "./state/context";
 import { createAppState, RELATIVE_TIME_TICK_MS } from "./state/create-app-state";
 
@@ -119,6 +120,7 @@ export function App() {
               <Route path="/diagnostics" component={DiagnosticsPage} />
               <Route path="/logs" component={LogsPage} />
               <Route path="/config" component={ConfigPage} />
+              <Route path="/patterns" component={PatternComparePage} />
               <Route component={NotFoundPage} />
             </Switch>
           </ErrorBoundary>

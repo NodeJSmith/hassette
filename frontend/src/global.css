@@ -1634,50 +1634,6 @@ strong {
   align-items: center;
 }
 
-/* — Tabs ——————————————————————————————————————————————— */
-.ht-tabs {
-  display: flex;
-  border-bottom: 1px solid var(--line-1);
-  margin-bottom: var(--sp-4);
-  gap: 0;
-}
-
-/* Legacy list wrapper (used by .ht-apps-toolbar .ht-tabs) */
-.ht-tabs ul {
-  display: flex;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  gap: 0;
-}
-
-/* Buttons as direct children (role="tablist" flat pattern) or nested in li */
-.ht-tabs > button,
-.ht-tabs li button {
-  display: block;
-  padding: 0.4em 0.85em;
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-  border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  transition: color var(--t-fast), border-color var(--t-fast);
-}
-
-.ht-tabs > button:hover,
-.ht-tabs li button:hover {
-  color: var(--ink-1);
-}
-
-.ht-tabs > button[aria-selected="true"],
-.ht-tabs li button[aria-pressed="true"] {
-  color: var(--ink-1);
-  border-bottom-color: var(--ink-3);
-  font-weight: 600;
-}
 
 /* — Headings ——————————————————————————————————————————— */
 .ht-heading-1 {
@@ -2300,8 +2256,6 @@ strong {
     min-height: 44px;
   }
 
-  .ht-tabs > button,
-  .ht-tabs li button,
   .ht-tab-btn {
     min-height: 44px;
     padding: var(--sp-2) var(--sp-3);
@@ -2398,19 +2352,7 @@ strong {
     gap: var(--sp-2);
   }
 
-  /* Tabs: scroll horizontally */
-  .ht-tabs,
-  .ht-tabs ul {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .ht-tabs li {
-    flex-shrink: 0;
-  }
-
-  /* Headings: smaller */
+/* Headings: smaller */
   .ht-heading-4 {
     font-size: var(--fs-body);
   }
@@ -2977,22 +2919,6 @@ strong {
   flex-wrap: wrap;
 }
 
-.ht-apps-toolbar .ht-tabs {
-  border-bottom: none;
-  margin-bottom: 0;
-}
-
-.ht-apps-toolbar .ht-tabs li button {
-  border-bottom-width: 0;
-  font-size: var(--fs-micro);
-}
-
-.ht-apps-toolbar .ht-tabs li button[aria-pressed="true"] {
-  background: var(--bg-active);
-  border-radius: var(--r-sm);
-  border-bottom-color: transparent;
-}
-
 
 /* — Apps Page ——————————————————————————————————————————— */
 
@@ -3238,35 +3164,6 @@ strong {
   margin-left: var(--sp-1);
 }
 
-/* Status pill */
-.ht-apps-status-pill {
-  display: inline-block;
-  font-family: var(--font-body);
-  font-size: 10px;
-  font-weight: 500;
-  padding: 2px 8px;
-  border-radius: var(--r-pill);
-}
-
-.ht-apps-status-pill--ok {
-  color: var(--ok);
-  background: var(--ok-bg);
-}
-
-.ht-apps-status-pill--err {
-  color: var(--err);
-  background: var(--err-bg);
-}
-
-.ht-apps-status-pill--warn {
-  color: var(--warn);
-  background: var(--warn-bg);
-}
-
-.ht-apps-status-pill--mute {
-  color: var(--mute);
-  background: var(--mute-bg);
-}
 
 /* Error cell */
 .ht-apps-row__error-cell {

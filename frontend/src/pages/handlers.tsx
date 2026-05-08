@@ -427,17 +427,18 @@ export function HandlersPage() {
       </div>
 
       {/* Tabs */}
-      <div class="ht-tabs" role="tablist" aria-label="View" data-testid="handlers-tabs">
+      <div class="ht-tab-strip" role="tablist" aria-label="View" data-testid="handlers-tabs">
         <button
           type="button"
           role="tab"
           id="tab-handlers"
           aria-selected={activeTab === "handlers"}
           aria-controls="tabpanel-handlers"
+          class={`ht-tab-btn${activeTab === "handlers" ? " ht-tab-btn--active" : ""}`}
           onClick={() => { setActiveTab("handlers"); setSelectedApp(""); setSearch(""); }}
           data-testid="tab-handlers"
         >
-          handlers{allListeners.length > 0 ? ` (${tierFilteredListeners.length})` : ""}
+          handlers{allListeners.length > 0 && <span class="ht-tab-btn__badge">{tierFilteredListeners.length}</span>}
         </button>
         <button
           type="button"
@@ -445,10 +446,11 @@ export function HandlersPage() {
           id="tab-jobs"
           aria-selected={activeTab === "jobs"}
           aria-controls="tabpanel-jobs"
+          class={`ht-tab-btn${activeTab === "jobs" ? " ht-tab-btn--active" : ""}`}
           onClick={() => { setActiveTab("jobs"); setSelectedApp(""); setSearch(""); }}
           data-testid="tab-jobs"
         >
-          jobs{allJobs.length > 0 ? ` (${tierFilteredJobs.length})` : ""}
+          jobs{allJobs.length > 0 && <span class="ht-tab-btn__badge">{tierFilteredJobs.length}</span>}
         </button>
       </div>
 
