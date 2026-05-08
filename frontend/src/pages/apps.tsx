@@ -309,8 +309,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
         <td class="ht-apps-row__error-cell">
           {app.error_message ? (
             <span
-              class="ht-text-mono ht-text-sm"
-              style={{ color: "var(--err)" }}
+              class="ht-text-mono ht-text-sm ht-text-danger"
               title={app.error_message}
             >
               {app.error_message}
@@ -349,7 +348,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
             <td><StatusPill status={instStatus} /></td>
             <td class="ht-apps-row__error-cell">
               {inst.error_message ? (
-                <span class="ht-text-mono ht-text-sm" style={{ color: "var(--err)" }} title={inst.error_message}>{inst.error_message}</span>
+                <span class="ht-text-mono ht-text-sm ht-text-danger" title={inst.error_message}>{inst.error_message}</span>
               ) : "—"}
             </td>
             <td />
@@ -416,9 +415,9 @@ export function AppsPage() {
   if (manifestLoading.value && manifests.length === 0) return <Spinner />;
 
   return (
-    <div class="ht-apps-page" data-testid="apps-page">
+    <div class="ht-page ht-apps-page" data-testid="apps-page">
       {/* Header */}
-      <div class="ht-apps-header">
+      <div class="ht-page-header">
         <h1 class="ht-display">apps</h1>
       </div>
 
@@ -442,7 +441,7 @@ export function AppsPage() {
       {/* Table */}
       <div class="ht-card ht-apps-table-card">
         {filtered.length === 0 ? (
-          <div class="ht-apps-empty">
+          <div class="ht-empty-state">
             <p class="ht-text-muted">no apps match this filter.</p>
             {(filter !== "all" || q) && (
               <button type="button" class="ht-btn ht-btn--ghost ht-btn--sm" onClick={() => { setFilter("all"); setSearch(""); }}>clear filters</button>

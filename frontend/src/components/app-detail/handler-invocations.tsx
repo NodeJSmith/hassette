@@ -133,15 +133,15 @@ function InvocationDetail({ inv }: { inv: HandlerInvocationData }) {
           </span>
           <div class="ht-inv-detail__code-box">
             {isError && inv.error_traceback ? (
-              <pre class="ht-text-mono" style={{ color: "var(--err)" }} data-testid="invocation-traceback">
+              <pre class="ht-text-mono ht-text-danger" data-testid="invocation-traceback">
                 {inv.error_traceback}
               </pre>
             ) : isTimeout ? (
-              <pre class="ht-text-mono" style={{ color: "var(--warn)" }}>
+              <pre class="ht-text-mono ht-text-warning">
                 {`handler exceeded ${formatDuration(inv.duration_ms)} budget\ntask cancelled by handler runner`}
               </pre>
             ) : isError && inv.error_message ? (
-              <pre class="ht-text-mono" style={{ color: "var(--err)" }}>
+              <pre class="ht-text-mono ht-text-danger">
                 {`${inv.error_type ?? "Error"}: ${inv.error_message}`}
               </pre>
             ) : (

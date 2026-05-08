@@ -113,7 +113,7 @@ function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
 
   if (listeners.length === 0) {
     return (
-      <div class="ht-handlers-empty" data-testid="handlers-empty">
+      <div class="ht-empty-state" data-testid="handlers-empty">
         <p class="ht-text-muted">no handlers registered.</p>
       </div>
     );
@@ -156,10 +156,10 @@ function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
                   </a>
                 </td>
                 <td class="ht-text-mono ht-text-sm">{l.total_invocations}</td>
-                <td class="ht-text-mono ht-text-sm" style={l.failed > 0 ? { color: "var(--err)" } : {}}>
+                <td class={`ht-text-mono ht-text-sm${l.failed > 0 ? " ht-text-danger" : ""}`}>
                   {l.failed > 0 ? l.failed : "—"}
                 </td>
-                <td class="ht-text-mono ht-text-sm" style={l.failed > 0 ? { color: "var(--err)" } : {}}>
+                <td class={`ht-text-mono ht-text-sm${l.failed > 0 ? " ht-text-danger" : ""}`}>
                   {errorRate}
                 </td>
                 <td class="ht-text-mono ht-text-sm">{avgDur}</td>
@@ -197,7 +197,7 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
 
   if (jobs.length === 0) {
     return (
-      <div class="ht-handlers-empty" data-testid="jobs-empty">
+      <div class="ht-empty-state" data-testid="jobs-empty">
         <p class="ht-text-muted">no jobs scheduled.</p>
       </div>
     );
@@ -224,11 +224,6 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
             const isOverdue = nextRun === "overdue";
             const isCancelled = j.cancelled;
             const statusText = isCancelled ? "cancelled" : (j.failed > 0 ? "failing" : "active");
-            const statusColor = isCancelled
-              ? "var(--ink-3)"
-              : j.failed > 0
-              ? "var(--err)"
-              : undefined;
             return (
               <tr
                 key={j.job_id}
@@ -243,16 +238,16 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
                 </td>
                 <td class="ht-text-mono ht-text-sm">{j.trigger_label}</td>
                 <td class="ht-text-mono ht-text-sm">{j.total_executions}</td>
-                <td class="ht-text-mono ht-text-sm" style={j.failed > 0 ? { color: "var(--err)" } : {}}>
+                <td class={`ht-text-mono ht-text-sm${j.failed > 0 ? " ht-text-danger" : ""}`}>
                   {j.failed > 0 ? j.failed : "—"}
                 </td>
-                <td class="ht-text-mono ht-text-sm" style={j.timed_out > 0 ? { color: "var(--warn)" } : {}}>
+                <td class={`ht-text-mono ht-text-sm${j.timed_out > 0 ? " ht-text-warning" : ""}`}>
                   {j.timed_out > 0 ? j.timed_out : "—"}
                 </td>
-                <td class="ht-text-mono ht-text-sm" style={isOverdue ? { color: "var(--warn)" } : {}}>
+                <td class={`ht-text-mono ht-text-sm${isOverdue ? " ht-text-warning" : ""}`}>
                   {nextRun}
                 </td>
-                <td class="ht-text-mono ht-text-sm" style={statusColor ? { color: statusColor } : {}}>
+                <td class={`ht-text-mono ht-text-sm${isCancelled ? " ht-text-muted" : j.failed > 0 ? " ht-text-danger" : ""}`}>
                   {statusText}
                 </td>
               </tr>
@@ -339,9 +334,9 @@ export function HandlersPage() {
   const appKeys = activeTab === "handlers" ? handlerAppKeys : jobAppKeys;
 
   return (
-    <div class="ht-handlers-page" data-testid="handlers-page">
+    <div class="ht-page ht-handlers-page" data-testid="handlers-page">
       {/* Header */}
-      <div class="ht-handlers-header">
+      <div class="ht-page-header">
         <h1 class="ht-display">handlers</h1>
       </div>
 

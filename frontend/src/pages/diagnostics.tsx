@@ -250,8 +250,7 @@ function DropCounterRow({ label, value, testId }: DropCounterRowProps) {
     <li class="ht-diag__drop-row" data-testid={testId}>
       <span class="ht-diag__drop-label">{label}</span>
       <span
-        class="ht-diag__drop-value ht-text-mono"
-        style={value > 0 ? { color: "var(--warn)" } : {}}
+        class={`ht-diag__drop-value ht-text-mono${value > 0 ? " ht-text-warning" : ""}`}
       >
         {value}
       </span>
@@ -386,8 +385,8 @@ export function DiagnosticsPage() {
   if (loading) return <Spinner />;
 
   return (
-    <div class="ht-diag-page" data-testid="diagnostics-page">
-      <div class="ht-diag-header">
+    <div class="ht-page ht-diag-page" data-testid="diagnostics-page">
+      <div class="ht-page-header">
         <h1 class="ht-display">diagnostics</h1>
       </div>
 

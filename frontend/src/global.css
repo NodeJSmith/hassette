@@ -257,6 +257,22 @@ strong {
   padding: var(--sp-6);
 }
 
+.ht-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.ht-page-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-4);
+}
+
+.ht-page-header .ht-display {
+  margin: 0;
+}
+
 /* 12-column CSS grid */
 .ht-grid {
   display: grid;
@@ -1737,6 +1753,12 @@ strong {
 .ht-text-center { text-align: center; }
 .ht-text-right  { text-align: right; }
 
+/* Empty state */
+.ht-empty-state {
+  padding: var(--sp-8);
+  text-align: center;
+}
+
 /* Text color */
 .ht-text-muted   { color: var(--ink-3); }
 .ht-text-faint   { color: var(--ink-3); }
@@ -3206,18 +3228,9 @@ strong {
 
 .ht-apps-page {
   padding: 28px;
-  display: flex;
-  flex-direction: column;
   min-height: 0;
 }
 
-.ht-apps-header {
-  margin-bottom: var(--sp-4);
-}
-
-.ht-apps-header .ht-display {
-  margin-bottom: 0;
-}
 
 /* Stats strip */
 .ht-apps-stats {
@@ -3331,11 +3344,8 @@ strong {
   color: var(--ink-4);
 }
 
-/* Table card */
+/* Table card — extends .ht-card with horizontal scroll */
 .ht-apps-table-card {
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-md);
-  background: var(--bg-surface);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -3531,11 +3541,6 @@ strong {
 }
 
 /* Empty state */
-.ht-apps-empty {
-  padding: var(--sp-8);
-  text-align: center;
-}
-
 /* Mobile */
 @media (max-width: 768px) {
   .ht-apps-stats {
@@ -3565,21 +3570,6 @@ strong {
    Handlers Page (global handlers / jobs view)
    ===================================================== */
 
-.ht-handlers-page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-}
-
-.ht-handlers-header {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-4);
-}
-
-.ht-handlers-header .ht-display {
-  margin: 0;
-}
 
 /* Shared tier toolbar (tier toggle + app filter + optional search) */
 .ht-tier-toolbar {
@@ -3669,11 +3659,6 @@ strong {
 }
 
 /* Empty state */
-.ht-handlers-empty {
-  padding: var(--sp-8);
-  text-align: center;
-}
-
 /* Dropped events line in ServiceStatusPanel */
 .ht-ssp__dropped-events {
   padding-top: var(--sp-2);
@@ -3713,21 +3698,6 @@ strong {
    Diagnostics Page  (ht-diag-*)
    ===================================================== */
 
-.ht-diag-page {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-}
-
-.ht-diag-header {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-4);
-}
-
-.ht-diag-header .ht-display {
-  margin: 0;
-}
 
 /* Section card */
 .ht-diag__section {
@@ -4990,8 +4960,6 @@ strong {
 
 /* — Logs Page — full-height card override ————————————— */
 .ht-logs-page {
-  display: flex;
-  flex-direction: column;
   height: 100%;
 }
 

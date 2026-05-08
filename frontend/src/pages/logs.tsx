@@ -9,7 +9,7 @@ export function LogsPage() {
   const appKeys = manifests.data.value?.manifests.map((m) => m.app_key).sort() ?? [];
 
   return (
-    <div class="ht-logs-page">
+    <div class="ht-page ht-logs-page">
       <h1 class="ht-display ht-mb-4">logs</h1>
       <div class="ht-card ht-card--logs-full">
         <LogTable showAppColumn={true} appKeys={appKeys} hideTitle />
