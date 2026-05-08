@@ -264,16 +264,13 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
               appKeys={showAppColumn ? appKeys : undefined}
               selectedApp={appFilter.value}
               onAppChange={(a) => { appFilter.value = a; }}
-              search={search.value}
-              onSearchChange={(v) => { search.value = v; }}
-              searchPlaceholder="Search..."
               testIdPrefix="log"
             />
           )}
-          {!appKey && (
-            <span class={`ht-pill ${livePaused ? "ht-pill--mute" : "ht-pill--accent"}`}>
-              <StatusShape kind={livePaused ? "mute" : "ok"} size={6} />
-              {livePaused ? "paused" : "live"}
+          {livePaused && (
+            <span class="ht-pill ht-pill--mute">
+              <StatusShape kind="mute" size={6} />
+              paused
             </span>
           )}
           <label class="ht-pill ht-pill--mute ht-pill--interactive">
@@ -297,23 +294,21 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
               ))}
             </select>
           </label>
-          {appKey && (
-            <input
-              class="ht-input ht-input--sm"
-              type="text"
-              aria-label="Search log messages"
-              placeholder="Search..."
-              value={search.value}
-              onInput={(e) => {
-                search.value = (e.target as HTMLInputElement).value;
-              }}
-            />
-          )}
           {livePaused && (
             <button type="button" class="ht-btn ht-btn--xs ht-btn--ghost" onClick={handleResume}>
               resume
             </button>
           )}
+          <input
+            class="ht-input ht-input--sm"
+            type="text"
+            aria-label="Search log messages"
+            placeholder="Search..."
+            value={search.value}
+            onInput={(e) => {
+              search.value = (e.target as HTMLInputElement).value;
+            }}
+          />
         </div>
       </div>
       <div class="ht-log-table-scroll">
