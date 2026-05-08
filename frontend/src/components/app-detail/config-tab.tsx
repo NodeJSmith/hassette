@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { getAppConfig } from "../../api/endpoints";
+import { Spinner } from "../shared/spinner";
 import type { AppConfigData } from "../../api/endpoints";
 
 interface Props {
@@ -49,10 +50,10 @@ function SchemaConfigTable({
 
   if (allKeys.length === 0) {
     return (
-      <div class="ht-log-empty">
-        <div class="ht-log-empty__icon">∅</div>
-        <div class="ht-log-empty__title">no configuration fields</div>
-        <div class="ht-log-empty__body">this app uses the default AppConfig with no custom fields.</div>
+      <div class="ht-empty">
+        <div class="ht-empty__icon">∅</div>
+        <div class="ht-empty__title">no configuration fields</div>
+        <div class="ht-empty__body">this app uses the default AppConfig with no custom fields.</div>
       </div>
     );
   }
@@ -94,9 +95,9 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
   const entries = Object.entries(config);
   if (entries.length === 0) {
     return (
-      <div class="ht-log-empty">
-        <div class="ht-log-empty__icon">∅</div>
-        <div class="ht-log-empty__title">no configuration values</div>
+      <div class="ht-empty">
+        <div class="ht-empty__icon">∅</div>
+        <div class="ht-empty__title">no configuration values</div>
       </div>
     );
   }
@@ -153,9 +154,7 @@ export function ConfigTab({ appKey }: Props) {
 
   if (loading.value) {
     return (
-      <div class="ht-config-tab__loading" data-testid="config-tab-loading">
-        <span class="ht-text-muted ht-text-sm">Loading config…</span>
-      </div>
+      <Spinner />
     );
   }
 
@@ -219,9 +218,9 @@ export function ConfigTab({ appKey }: Props) {
               ? <SchemaConfigTable config={appConfig as ConfigRecord} schema={schema} />
               : <SimpleConfigTable config={appConfig as ConfigRecord} />
           ) : (
-            <div class="ht-log-empty">
-              <div class="ht-log-empty__icon">∅</div>
-              <div class="ht-log-empty__title">no configuration values</div>
+            <div class="ht-empty">
+              <div class="ht-empty__icon">∅</div>
+              <div class="ht-empty__title">no configuration values</div>
             </div>
           )}
           </div>

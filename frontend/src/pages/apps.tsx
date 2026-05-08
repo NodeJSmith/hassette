@@ -13,6 +13,7 @@ import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
 import { formatRelativeTime, formatTimestamp } from "../utils/format";
 import { type AppRow, type AppSortState, mergeManifestsAndGrid, compareAppRows } from "../utils/app-data";
 import { AppLink } from "../components/shared/app-link";
+import { EmptyState } from "../components/shared/empty-state";
 import { StatusShape } from "../components/shared/status-shape";
 import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { ActionButtons } from "../components/shared/action-buttons";
@@ -287,12 +288,11 @@ export function AppsPage() {
       {/* Table */}
       <div class="ht-card ht-apps-table-card">
         {filtered.length === 0 ? (
-          <div class="ht-empty-state">
-            <p class="ht-text-muted">no apps match this filter.</p>
+          <EmptyState title="no apps match this filter.">
             {(filter !== "all" || q) && (
               <button type="button" class="ht-btn ht-btn--ghost ht-btn--sm" onClick={() => { setFilter("all"); setSearch(""); }}>clear filters</button>
             )}
-          </div>
+          </EmptyState>
         ) : (
           <table class="ht-table ht-apps-table">
             <thead>

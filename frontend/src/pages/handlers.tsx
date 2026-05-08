@@ -5,6 +5,7 @@ import { getAllListeners, getAllJobs } from "../api/endpoints";
 import type { ListenerData, JobData } from "../api/endpoints";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
 import { AppLink } from "../components/shared/app-link";
+import { EmptyState } from "../components/shared/empty-state";
 import { SortHeader, type SortState } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { TierToolbar } from "../components/shared/tier-toolbar";
@@ -125,9 +126,7 @@ function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
 
   if (listeners.length === 0) {
     return (
-      <div class="ht-empty-state" data-testid="handlers-empty">
-        <p class="ht-text-muted">no handlers registered.</p>
-      </div>
+      <EmptyState title="no handlers registered." data-testid="handlers-empty" />
     );
   }
 
@@ -231,9 +230,7 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
 
   if (jobs.length === 0) {
     return (
-      <div class="ht-empty-state" data-testid="jobs-empty">
-        <p class="ht-text-muted">no jobs scheduled.</p>
-      </div>
+      <EmptyState title="no jobs scheduled." data-testid="jobs-empty" />
     );
   }
 

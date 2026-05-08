@@ -12,6 +12,8 @@ import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
 import { formatTriggerDetail, formatDurationOrDash, formatOptionalDuration, formatRelativeTime, lastDotSegment, parseSourceLocation, TIME_PRESET_LABELS } from "../../utils/format";
 
 import { handlerKindLabel, statusToKind } from "../../utils/status";
+import { EmptyState } from "../shared/empty-state";
+import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
 
 const MOBILE_BREAKPOINT = 768;
@@ -255,7 +257,7 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
     <div class="ht-detail-pane__invocations-panel">
       <h3 class="ht-detail-pane__panel-heading">invocations</h3>
       {loading.value && !invocations.value ? (
-        <p class="ht-text-muted ht-text-xs">Loading invocations…</p>
+        <Spinner />
       ) : (
         <HandlerInvocations
           invocations={invocations.value ?? []}
@@ -396,7 +398,7 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
     <div class="ht-detail-pane__invocations-panel">
       <h3 class="ht-detail-pane__panel-heading">executions</h3>
       {loading.value && !executions.value ? (
-        <p class="ht-text-muted ht-text-xs">Loading executions…</p>
+        <Spinner />
       ) : (
         <JobExecutions
           executions={executions.value ?? []}
@@ -457,7 +459,7 @@ export function HandlersTab({ listeners, jobs, focusMethod, onSwitchToCode }: Pr
   if (!hasItems) {
     return (
       <div class="ht-handlers-tab" data-testid="handlers-empty">
-        <p class="ht-text-muted">no handlers or scheduled jobs registered.</p>
+        <EmptyState title="no handlers or scheduled jobs registered." />
       </div>
     );
   }
@@ -513,9 +515,7 @@ export function HandlersTab({ listeners, jobs, focusMethod, onSwitchToCode }: Pr
             ) : selectedJob ? (
               <JobDetail job={selectedJob} onSwitchToCode={onSwitchToCode} />
             ) : (
-              <div class="ht-detail-pane__empty" data-testid="detail-placeholder">
-                <p class="ht-text-muted">Select a handler or job to see details.</p>
-              </div>
+              <EmptyState title="Select a handler or job to see details." data-testid="detail-placeholder" />
             )}
           </div>
         )}

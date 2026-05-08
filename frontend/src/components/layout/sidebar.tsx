@@ -4,6 +4,7 @@ import { getManifests } from "../../api/endpoints";
 import { useApi } from "../../hooks/use-api";
 import { useAppState } from "../../state/context";
 import { statusToKind } from "../../utils/status";
+import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
 import type { components } from "../../api/generated-types";
 
@@ -357,7 +358,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
 
         {/* Status groups */}
         {manifests.loading.value && (
-          <div class="ht-sidebar__loading">Loading…</div>
+          <Spinner />
         )}
         {!manifests.loading.value && filtered.length === 0 && (
           <div class="ht-sidebar__empty">no apps</div>

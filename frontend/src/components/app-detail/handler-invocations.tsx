@@ -4,6 +4,7 @@ import type { HandlerInvocationData } from "../../api/endpoints";
 import { ShowMoreButton } from "../shared/show-more-button";
 import { formatDuration, formatTimestamp } from "../../utils/format";
 import { statusToKind } from "../../utils/status";
+import { EmptyState } from "../shared/empty-state";
 import { StatusShape } from "../shared/status-shape";
 
 const INITIAL_ROWS = 5;
@@ -20,11 +21,7 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
 
   if (invocations.length === 0) {
     return (
-      <div class="ht-log-empty">
-        <div class="ht-log-empty__icon">◌</div>
-        <div class="ht-log-empty__title">no invocations recorded</div>
-        <div class="ht-log-empty__body">this handler hasn't been called yet in the current time window.</div>
-      </div>
+      <EmptyState icon="◌" title="no invocations recorded" body="this handler hasn't been called yet in the current time window." />
     );
   }
   const visible = showAll.value ? invocations : invocations.slice(0, INITIAL_ROWS);

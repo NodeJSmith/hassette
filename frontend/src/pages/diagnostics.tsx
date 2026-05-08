@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+import { EmptyState } from "../components/shared/empty-state";
 import { useApi } from "../hooks/use-api";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useAppState } from "../state/context";
@@ -154,9 +155,7 @@ function ServicesPanel({ services, wsConnected, tick }: ServicesPanelProps) {
         )}
       </div>
       {services.length === 0 ? (
-        <p class="ht-text-muted" data-testid="diag-services-empty">
-          No services registered.
-        </p>
+        <EmptyState title="no services registered." data-testid="diag-services-empty" />
       ) : (
         <ul class="ht-diag__service-list" aria-label="Service list">
           {services.map((svc) => (
@@ -191,9 +190,7 @@ function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
     >
       <h2 class="ht-diag__section-heading">boot issues</h2>
       {sorted.length === 0 ? (
-        <p class="ht-text-muted" data-testid="diag-boot-clean">
-          Clean startup — no issues.
-        </p>
+        <EmptyState icon="✓" title="clean startup — no issues." data-testid="diag-boot-clean" />
       ) : (
         <ul class="ht-diag__boot-list" aria-label="Boot issues">
           {sorted.map((issue, i) => {

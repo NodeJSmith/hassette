@@ -8,7 +8,7 @@ describe("JobExecutions", () => {
     const { getByText } = render(
       <JobExecutions executions={[]} jobId={1} />,
     );
-    expect(getByText("No executions recorded.")).toBeDefined();
+    expect(getByText("no executions recorded.")).toBeDefined();
   });
 
   it("renders table with testid matching jobId", () => {

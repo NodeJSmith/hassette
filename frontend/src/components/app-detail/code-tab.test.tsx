@@ -40,7 +40,7 @@ describe("CodeTab", () => {
 
   it("shows loading spinner initially", () => {
     render(<CodeTab appKey="test_app" listeners={[]} />);
-    expect(screen.getByTestId("code-tab-loading")).toBeDefined();
+    expect(screen.getByRole("status")).toBeDefined();
   });
 
   it("renders source code after loading", async () => {

@@ -28,7 +28,7 @@ describe("ConfigTab", () => {
 
   it("shows loading state initially", () => {
     render(<ConfigTab appKey="test_app" />);
-    expect(screen.getByTestId("config-tab-loading")).toBeDefined();
+    expect(screen.getByRole("status")).toBeDefined();
   });
 
   it("renders config metadata after loading", async () => {

@@ -1,5 +1,6 @@
 import { useRef } from "preact/hooks";
 import { AppLink } from "../components/shared/app-link";
+import { EmptyState } from "../components/shared/empty-state";
 import { useApi } from "../hooks/use-api";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import {
@@ -103,9 +104,9 @@ function AppHealthTable({ apps, liveStatuses }: {
           <h2 class="ht-overview-section-title">apps</h2>
           <a href="/apps" class="ht-overview-section-link">all apps →</a>
         </div>
-        <p class="ht-empty-state ht-text-muted">
-          no apps loaded. <a href="https://hassette.readthedocs.io/en/latest/getting-started/" class="ht-link">get started →</a>
-        </p>
+        <EmptyState title="no apps loaded.">
+          <a href="https://hassette.readthedocs.io/en/latest/getting-started/" class="ht-link">get started →</a>
+        </EmptyState>
       </div>
     );
   }

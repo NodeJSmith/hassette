@@ -4,6 +4,7 @@ import type { JobExecutionData } from "../../api/endpoints";
 import { ShowMoreButton } from "../shared/show-more-button";
 import { formatDuration, formatTimestamp } from "../../utils/format";
 import { executionStatusVariant } from "../../utils/status";
+import { EmptyState } from "../shared/empty-state";
 import { ErrorCell } from "./error-cell";
 
 const INITIAL_ROWS = 5;
@@ -19,7 +20,7 @@ export function JobExecutions({ executions, jobId }: Props) {
   const expandedTracebacks = useRef(signal<Set<number>>(new Set())).current;
 
   if (executions.length === 0) {
-    return <p class="ht-text-muted ht-text-xs">No executions recorded.</p>;
+    return <EmptyState title="no executions recorded." />;
   }
   const visible = showAll.value ? executions : executions.slice(0, INITIAL_ROWS);
   const hasMore = executions.length > INITIAL_ROWS;

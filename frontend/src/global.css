@@ -469,7 +469,6 @@ strong {
   gap: 1px;
 }
 
-.ht-sidebar__loading,
 .ht-sidebar__empty {
   display: block;
   padding: var(--sp-3) var(--sp-4);
@@ -1711,11 +1710,6 @@ strong {
 .ht-text-center { text-align: center; }
 .ht-text-right  { text-align: right; }
 
-/* Empty state */
-.ht-empty-state {
-  padding: var(--sp-8);
-  text-align: center;
-}
 
 /* Text color */
 .ht-text-muted   { color: var(--ink-3); }
@@ -2729,26 +2723,26 @@ strong {
   white-space: nowrap;
 }
 
-/* Log empty state */
-.ht-log-empty {
+/* — Empty State ———————————————————————————————————————— */
+.ht-empty {
   text-align: center;
   padding: var(--sp-6) !important;
 }
 
-.ht-log-empty__icon {
+.ht-empty__icon {
   font-size: 28px;
   color: var(--ink-4);
   margin-bottom: var(--sp-2);
 }
 
-.ht-log-empty__title {
+.ht-empty__title {
   font-size: var(--fs-small);
   font-weight: 500;
   color: var(--ink-2);
   margin-bottom: var(--sp-1);
 }
 
-.ht-log-empty__body {
+.ht-empty__body {
   font-size: var(--fs-micro);
   color: var(--ink-3);
   max-width: 320px;
@@ -3891,17 +3885,7 @@ strong {
   margin: 0 0 var(--sp-3);
 }
 
-.ht-detail-pane__empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--sp-8);
-  color: var(--ink-3);
-  text-align: center;
-  background: var(--bg-surface);
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-md);
-}
+
 
 .ht-detail-pane__header {
   display: flex;
@@ -4246,7 +4230,6 @@ strong {
   color: var(--shiki-dark, var(--ink-1));
 }
 
-.ht-code-tab__loading,
 .ht-code-tab__error {
   padding: var(--sp-6);
 }
@@ -4256,7 +4239,6 @@ strong {
    ===================================================== */
 
 .ht-config-tab { padding: var(--sp-4) 0; }
-.ht-config-tab__loading,
 .ht-config-tab__error { padding: var(--sp-6); }
 
 .ht-multi-overview { padding: var(--sp-4) 0; }

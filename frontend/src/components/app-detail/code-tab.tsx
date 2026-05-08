@@ -3,6 +3,7 @@ import { signal } from "@preact/signals";
 import type { HighlighterGeneric } from "shiki";
 import { getAppSource } from "../../api/endpoints";
 import type { AppSourceData, ListenerData } from "../../api/endpoints";
+import { Spinner } from "../shared/spinner";
 import { parseSourceLocation } from "../../utils/format";
 
 interface Props {
@@ -122,9 +123,7 @@ export function CodeTab({ appKey, listeners, focusLine }: Props) {
 
   if (loading.value) {
     return (
-      <div class="ht-code-tab__loading" data-testid="code-tab-loading">
-        <span class="ht-text-muted ht-text-sm">Loading source…</span>
-      </div>
+      <Spinner />
     );
   }
 

@@ -328,10 +328,10 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={isMobile ? 3 : (showAppColumn ? (showSourceColumn ? 5 : 4) : (showSourceColumn ? 4 : 3))} class="ht-log-empty">
-                  <div class="ht-log-empty__icon">∅</div>
-                  <div class="ht-log-empty__title">no log lines in window</div>
-                  <div class="ht-log-empty__body">nothing has been logged recently. change the level filter or extend the time window to see older lines.</div>
+                <td colSpan={isMobile ? 3 : (showAppColumn ? (showSourceColumn ? 5 : 4) : (showSourceColumn ? 4 : 3))} class="ht-empty">
+                  <div class="ht-empty__icon">∅</div>
+                  <div class="ht-empty__title">no log lines in window</div>
+                  <div class="ht-empty__body">nothing has been logged recently. change the level filter or extend the time window to see older lines.</div>
                 </td>
               </tr>
             )}
