@@ -7,6 +7,20 @@ import { Spinner } from "../components/shared/spinner";
 import { TierToolbar } from "../components/shared/tier-toolbar";
 import { formatRelativeTime, formatDuration } from "../utils/format";
 
+// ---- Formatting helpers ----
+
+function fmtRate(failed: number, total: number): string {
+  return total > 0 ? ((failed / total) * 100).toFixed(1) + "%" : "—";
+}
+
+function fmtDur(ms: number | null | undefined): string {
+  return ms !== null && ms !== undefined && ms > 0 ? formatDuration(ms) : "—";
+}
+
+function fmtOptDur(ms: number | null | undefined): string {
+  return ms !== null && ms !== undefined ? formatDuration(ms) : "—";
+}
+
 // ---- Tier toggle ----
 
 type Tab = "handlers" | "jobs";
@@ -152,12 +166,10 @@ function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
         </thead>
         <tbody>
           {listeners.map((l) => {
-            const errorRate = l.total_invocations > 0
-              ? ((l.failed / l.total_invocations) * 100).toFixed(1) + "%"
-              : "—";
-            const avgDur = l.avg_duration_ms > 0 ? formatDuration(l.avg_duration_ms) : "—";
-            const minDur = l.min_duration_ms !== null && l.min_duration_ms !== undefined ? formatDuration(l.min_duration_ms) : "—";
-            const maxDur = l.max_duration_ms !== null && l.max_duration_ms !== undefined ? formatDuration(l.max_duration_ms) : "—";
+            const errorRate = fmtRate(l.failed, l.total_invocations);
+            const avgDur = fmtDur(l.avg_duration_ms);
+            const minDur = fmtOptDur(l.min_duration_ms);
+            const maxDur = fmtOptDur(l.max_duration_ms);
             return (
               <tr
                 key={l.listener_id}
@@ -249,12 +261,10 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
             const isOverdue = nextRun === "overdue";
             const isCancelled = j.cancelled;
             const statusText = isCancelled ? "cancelled" : (j.failed > 0 ? "failing" : "active");
-            const errorRate = j.total_executions > 0
-              ? ((j.failed / j.total_executions) * 100).toFixed(1) + "%"
-              : "—";
-            const avgDur = j.avg_duration_ms > 0 ? formatDuration(j.avg_duration_ms) : "—";
-            const minDur = j.min_duration_ms !== null && j.min_duration_ms !== undefined ? formatDuration(j.min_duration_ms) : "—";
-            const maxDur = j.max_duration_ms !== null && j.max_duration_ms !== undefined ? formatDuration(j.max_duration_ms) : "—";
+            const errorRate = fmtRate(j.failed, j.total_executions);
+            const avgDur = fmtDur(j.avg_duration_ms);
+            const minDur = fmtOptDur(j.min_duration_ms);
+            const maxDur = fmtOptDur(j.max_duration_ms);
             return (
               <tr
                 key={j.job_id}
