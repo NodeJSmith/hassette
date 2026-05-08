@@ -461,17 +461,35 @@ function humanizeServiceName(name: string): string {
 }
 
 function SystemCard({ services }: SystemCardProps) {
+  const total = services.length;
+  const unhealthy = services.filter((s) => s.status !== "running");
+  const allHealthy = unhealthy.length === 0;
+  const kind = allHealthy ? "ok" : "err";
+
   return (
     <div class="ht-card ht-summary-card" data-testid="system-card">
       <h3 class="ht-summary-card__title">system</h3>
-      <div class="ht-system-service-list">
-        {services.map((svc) => (
-          <div key={svc.name} class="ht-system-service-row">
-            <StatusShape kind={statusToKind(svc.status)} size={8} />
-            <span class="ht-system-service-name">{humanizeServiceName(svc.name)}</span>
-            <span class="ht-system-service-meta">{svc.status === "running" ? "ready" : svc.status}</span>
-          </div>
-        ))}
+      <div class="ht-system-summary">
+        <div class="ht-system-summary__status">
+          <StatusShape kind={kind} size={10} />
+          <span class={allHealthy ? "" : "ht-text-danger"}>
+            {allHealthy
+              ? `all ${total} services healthy`
+              : `${unhealthy.length} of ${total} services unhealthy`}
+          </span>
+        </div>
+        {!allHealthy && (
+          <ul class="ht-system-summary__issues">
+            {unhealthy.map((svc) => (
+              <li key={svc.name}>
+                <StatusShape kind={statusToKind(svc.status)} size={7} />
+                <span class="ht-text-mono ht-text-sm">{humanizeServiceName(svc.name)}</span>
+                <span class="ht-text-muted ht-text-sm">{svc.status}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <a href="/diagnostics" class="ht-system-summary__link">view diagnostics →</a>
       </div>
     </div>
   );
@@ -593,7 +611,7 @@ function RecentErrorsTable({
 
 export function DashboardPage() {
   useEffect(() => { document.title = "Dashboard - Hassette"; }, []);
-  const { appStatus, invocationCompleted, executionCompleted, timePreset, droppedOverflow, droppedExhausted, droppedNoSession, droppedShutdown } = useAppState();
+  const { appStatus, invocationCompleted, executionCompleted, timePreset, uptimeSeconds, droppedOverflow, droppedExhausted, droppedNoSession, droppedShutdown } = useAppState();
 
   const totalDropped = droppedOverflow.value + droppedExhausted.value + droppedNoSession.value + droppedShutdown.value;
   const errorTierFilter = useSignal<SourceTier>("all");
@@ -648,7 +666,9 @@ export function DashboardPage() {
   const bootIssues = systemStatus.data.value?.boot_issues ?? [];
 
   const appCount = appGrid.data.value?.length ?? 0;
-  const runsPerHour = kpis.data.value?.runs_per_hour ?? 0;
+  const uptime = uptimeSeconds.value ?? 0;
+  const rateReliable = uptime >= 1800;
+  const runsPerHour = rateReliable ? (kpis.data.value?.runs_per_hour ?? 0) : null;
 
   return (
     <div class="ht-dashboard">
@@ -660,7 +680,7 @@ export function DashboardPage() {
           <div class="ht-dashboard-header__top">
             <h1 class="ht-dashboard-greeting">{getGreeting()}</h1>
             <span class="ht-dashboard-meta" data-testid="dashboard-metadata">
-              {appCount} apps · {isQuiet ? 0 : Math.round(runsPerHour)} runs / hr
+              {appCount} apps{runsPerHour !== null ? ` · ${isQuiet ? 0 : Math.round(runsPerHour)} runs / hr` : ""}
             </span>
           </div>
           <p class="ht-dashboard-subtitle" data-testid="dashboard-subtitle">

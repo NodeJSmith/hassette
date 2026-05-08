@@ -192,7 +192,7 @@ describe("DashboardPage — three summary cards", () => {
     expect(getByTestId("activity-card").textContent).toContain("activity");
   });
 
-  it("renders system card with service statuses", () => {
+  it("renders system card with health summary", () => {
     setupScopedApi({
       appGridData: [createAppGridEntry({ status: "running" })],
       kpisData: createKpis({ total_invocations: 10 }),
@@ -200,7 +200,7 @@ describe("DashboardPage — three summary cards", () => {
     const { getByTestId } = renderWithAppState(<DashboardPage />);
     const card = getByTestId("system-card");
     expect(card.textContent).toContain("system");
-    expect(card.textContent).toContain("bus");
+    expect(card.textContent).toContain("services healthy");
   });
 
   it("activity card shows quiet state when no runs", () => {

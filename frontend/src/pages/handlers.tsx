@@ -13,8 +13,8 @@ type Tab = "handlers" | "jobs";
 
 // ---- Sort ----
 
-type HandlerSortKey = "app" | "handler" | "invocations" | "failed" | "error_rate" | "avg_duration" | "max_duration";
-type JobSortKey = "app" | "name" | "trigger" | "executions" | "failed" | "timed_out" | "next_run" | "status";
+type HandlerSortKey = "app" | "handler" | "invocations" | "failed" | "timed_out" | "error_rate" | "avg_duration" | "min_duration" | "max_duration";
+type JobSortKey = "app" | "name" | "trigger" | "executions" | "failed" | "timed_out" | "error_rate" | "avg_duration" | "min_duration" | "max_duration" | "next_run" | "status";
 interface SortState<K extends string> { key: K; dir: "asc" | "desc" }
 
 // ---- Next-run display ----
@@ -45,8 +45,12 @@ function compareHandlers(a: ListenerData, b: ListenerData, sort: SortState<Handl
       const rateB = b.total_invocations > 0 ? b.failed / b.total_invocations : 0;
       return dir * (rateA - rateB);
     }
+    case "timed_out":
+      return dir * (a.timed_out - b.timed_out);
     case "avg_duration":
       return dir * (a.avg_duration_ms - b.avg_duration_ms);
+    case "min_duration":
+      return dir * ((a.min_duration_ms ?? 0) - (b.min_duration_ms ?? 0));
     case "max_duration":
       return dir * ((a.max_duration_ms ?? 0) - (b.max_duration_ms ?? 0));
     default:
@@ -71,6 +75,17 @@ function compareJobs(a: JobData, b: JobData, sort: SortState<JobSortKey>): numbe
       return dir * (a.failed - b.failed);
     case "timed_out":
       return dir * (a.timed_out - b.timed_out);
+    case "error_rate": {
+      const rateA = a.total_executions > 0 ? a.failed / a.total_executions : 0;
+      const rateB = b.total_executions > 0 ? b.failed / b.total_executions : 0;
+      return dir * (rateA - rateB);
+    }
+    case "avg_duration":
+      return dir * (a.avg_duration_ms - b.avg_duration_ms);
+    case "min_duration":
+      return dir * ((a.min_duration_ms ?? 0) - (b.min_duration_ms ?? 0));
+    case "max_duration":
+      return dir * ((a.max_duration_ms ?? 0) - (b.max_duration_ms ?? 0));
     case "next_run": {
       const aN = a.next_run ?? Infinity;
       const bN = b.next_run ?? Infinity;
@@ -128,8 +143,10 @@ function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
             {header("handler", "handler")}
             {header("invocations", "invocations")}
             {header("failed", "failed")}
+            {header("timed_out", "timed out")}
             {header("error_rate", "error rate")}
             {header("avg_duration", "avg")}
+            {header("min_duration", "min")}
             {header("max_duration", "max")}
           </tr>
         </thead>
@@ -139,8 +156,8 @@ function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
               ? ((l.failed / l.total_invocations) * 100).toFixed(1) + "%"
               : "—";
             const avgDur = l.avg_duration_ms > 0 ? formatDuration(l.avg_duration_ms) : "—";
-            const maxDur = l.max_duration_ms !== null && l.max_duration_ms !== undefined
-              ? formatDuration(l.max_duration_ms) : "—";
+            const minDur = l.min_duration_ms !== null && l.min_duration_ms !== undefined ? formatDuration(l.min_duration_ms) : "—";
+            const maxDur = l.max_duration_ms !== null && l.max_duration_ms !== undefined ? formatDuration(l.max_duration_ms) : "—";
             return (
               <tr
                 key={l.listener_id}
@@ -159,10 +176,14 @@ function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
                 <td class={`ht-text-mono ht-text-sm${l.failed > 0 ? " ht-text-danger" : ""}`}>
                   {l.failed > 0 ? l.failed : "—"}
                 </td>
+                <td class={`ht-text-mono ht-text-sm${l.timed_out > 0 ? " ht-text-warning" : ""}`}>
+                  {l.timed_out > 0 ? l.timed_out : "—"}
+                </td>
                 <td class={`ht-text-mono ht-text-sm${l.failed > 0 ? " ht-text-danger" : ""}`}>
                   {errorRate}
                 </td>
                 <td class="ht-text-mono ht-text-sm">{avgDur}</td>
+                <td class="ht-text-mono ht-text-sm">{minDur}</td>
                 <td class="ht-text-mono ht-text-sm">{maxDur}</td>
               </tr>
             );
@@ -214,6 +235,10 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
             {header("executions", "executions")}
             {header("failed", "failed")}
             {header("timed_out", "timed out")}
+            {header("error_rate", "error rate")}
+            {header("avg_duration", "avg")}
+            {header("min_duration", "min")}
+            {header("max_duration", "max")}
             {header("next_run", "next run")}
             {header("status", "status")}
           </tr>
@@ -224,6 +249,12 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
             const isOverdue = nextRun === "overdue";
             const isCancelled = j.cancelled;
             const statusText = isCancelled ? "cancelled" : (j.failed > 0 ? "failing" : "active");
+            const errorRate = j.total_executions > 0
+              ? ((j.failed / j.total_executions) * 100).toFixed(1) + "%"
+              : "—";
+            const avgDur = j.avg_duration_ms > 0 ? formatDuration(j.avg_duration_ms) : "—";
+            const minDur = j.min_duration_ms !== null && j.min_duration_ms !== undefined ? formatDuration(j.min_duration_ms) : "—";
+            const maxDur = j.max_duration_ms !== null && j.max_duration_ms !== undefined ? formatDuration(j.max_duration_ms) : "—";
             return (
               <tr
                 key={j.job_id}
@@ -244,6 +275,12 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
                 <td class={`ht-text-mono ht-text-sm${j.timed_out > 0 ? " ht-text-warning" : ""}`}>
                   {j.timed_out > 0 ? j.timed_out : "—"}
                 </td>
+                <td class={`ht-text-mono ht-text-sm${j.failed > 0 ? " ht-text-danger" : ""}`}>
+                  {errorRate}
+                </td>
+                <td class="ht-text-mono ht-text-sm">{avgDur}</td>
+                <td class="ht-text-mono ht-text-sm">{minDur}</td>
+                <td class="ht-text-mono ht-text-sm">{maxDur}</td>
                 <td class={`ht-text-mono ht-text-sm${isOverdue ? " ht-text-warning" : ""}`}>
                   {nextRun}
                 </td>
