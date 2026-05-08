@@ -250,7 +250,8 @@ strong {
   background: var(--bg-page);
   overflow-y: auto;
   min-width: 0;
-  padding: var(--sp-6);
+  display: flex;
+  flex-direction: column;
 }
 
 .ht-section {
@@ -261,6 +262,8 @@ strong {
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
+  padding: var(--sp-7);
+  flex: 1;
 }
 
 .ht-page-header {
@@ -814,11 +817,10 @@ strong {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--sp-2) var(--sp-6);
+  padding: var(--sp-2) var(--sp-7);
   background: var(--bg-surface);
   border-bottom: 1px solid var(--line-1);
   gap: var(--sp-3);
-  margin-bottom: var(--sp-4);
   flex-shrink: 0;
 }
 
@@ -1827,6 +1829,11 @@ strong {
   margin-bottom: var(--sp-2);
 }
 
+.ht-main > .ht-alert {
+  margin-left: var(--sp-7);
+  margin-right: var(--sp-7);
+}
+
 .ht-alert--warning {
   background: var(--warn-bg);
   border: 1px solid var(--warn);
@@ -2005,58 +2012,6 @@ strong {
 .ht-status-badge--warning .ht-status-badge__label  { color: var(--warn); }
 .ht-status-badge--neutral .ht-status-badge__dot   { background: var(--ink-3); }
 .ht-status-badge--neutral .ht-status-badge__label  { color: var(--ink-3); }
-
-/* — Service Status Panel ————————————————————————————— */
-.ht-ssp__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-}
-
-.ht-ssp__row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r-sm);
-  background: var(--bg-sunken);
-  font-size: var(--fs-small);
-}
-
-.ht-ssp__row--danger {
-  background: color-mix(in srgb, var(--err) 8%, var(--bg-sunken));
-}
-
-.ht-ssp__row--warning {
-  background: color-mix(in srgb, var(--warn) 8%, var(--bg-sunken));
-}
-
-
-.ht-ssp__name {
-  font-weight: 500;
-  color: var(--ink-1);
-}
-
-.ht-ssp__label {
-  font-weight: 500;
-}
-
-.ht-ssp__label--danger  { color: var(--err); }
-.ht-ssp__label--warning { color: var(--warn); }
-.ht-ssp__label--neutral { color: var(--ink-3); }
-
-.ht-ssp__detail {
-  margin-left: auto;
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-}
-
-.ht-ssp__detail--cooling {
-  color: var(--warn);
-}
 
 /* — Health Card ——————————————————————————————————————— */
 .ht-health-card {
@@ -2413,11 +2368,6 @@ strong {
     display: none;
   }
 
-  /* Apps page: reduce padding for narrower viewport */
-  .ht-apps-page {
-    padding: var(--sp-4);
-  }
-
   /* Invocation table: allow horizontal scroll when columns overflow */
   .ht-invocation-table {
     display: block;
@@ -2430,8 +2380,11 @@ strong {
 /* sync: BREAKPOINT_MOBILE in use-media-query.ts */
 @media screen and (max-width: 768px) {
   .ht-main {
-    padding: var(--sp-4);
     padding-top: calc(var(--sp-3) * 2 + 44px);
+  }
+
+  .ht-page {
+    padding: var(--sp-4);
   }
 
   .ht-section {
@@ -3121,10 +3074,6 @@ strong {
   font-size: var(--fs-micro);
 }
 
-.ht-apps-toolbar .ht-summary-card__title {
-  margin-bottom: 0;
-}
-
 .ht-apps-toolbar .ht-tabs li button[aria-pressed="true"] {
   background: var(--bg-active);
   border-radius: var(--r-sm);
@@ -3253,7 +3202,6 @@ strong {
 /* — Apps Page ——————————————————————————————————————————— */
 
 .ht-apps-page {
-  padding: 28px;
   min-height: 0;
 }
 
@@ -3562,7 +3510,7 @@ strong {
 }
 
 /* Sparkline */
-.ht-apps-sparkline {
+.ht-mini-sparkline {
   display: block;
 }
 
@@ -3686,24 +3634,6 @@ strong {
 
 .ht-handlers-row__app-link:hover {
   color: var(--accent-hover);
-  text-decoration: underline;
-}
-
-/* Empty state */
-/* Dropped events line in ServiceStatusPanel */
-.ht-ssp__dropped-events {
-  padding-top: var(--sp-2);
-  border-top: 1px solid var(--line-2);
-  margin-top: var(--sp-2);
-  font-size: var(--fs-small);
-}
-
-.ht-ssp__dropped-events-link {
-  text-decoration: none;
-  font-family: var(--font-mono);
-}
-
-.ht-ssp__dropped-events-link:hover {
   text-decoration: underline;
 }
 
@@ -3972,67 +3902,6 @@ strong {
    Ink tokens: var(--font-mono), var(--ok), var(--warn),
    var(--err), var(--ok-bg), var(--warn-bg), var(--err-bg)
    ===================================================== */
-
-/* — Hero Card (system state indicator) ————————————————— */
-.ht-hero-card {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sp-4);
-  padding: var(--sp-6) var(--sp-6) var(--sp-5);
-  border-radius: var(--r-lg);
-  border: 1px solid var(--line-1);
-  margin-bottom: var(--sp-6);
-  background: var(--bg-surface);
-}
-
-.ht-hero-card--failure {
-  background: color-mix(in oklch, var(--err) 4%, var(--bg-surface));
-  border-color: var(--err);
-}
-
-.ht-hero-card--first-install {
-  border-color: var(--line-1);
-  background: var(--bg-surface);
-}
-
-.ht-hero-card__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--r-lg);
-  background: color-mix(in srgb, var(--ok) 15%, transparent);
-  color: var(--ok);
-}
-
-.ht-hero-card__icon--err {
-  background: color-mix(in srgb, var(--err) 15%, transparent);
-  color: var(--err);
-}
-
-.ht-hero-card__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-}
-
-.ht-hero-card__title {
-  font-family: var(--font-display);
-  font-size: var(--fs-h2);
-  font-weight: 400;
-  line-height: var(--lh-h2);
-  letter-spacing: var(--tr-h2);
-  color: var(--ink-1);
-  margin: 0;
-}
-
-.ht-hero-card__subtitle {
-  font-size: var(--fs-body);
-  color: var(--ink-3);
-  margin: 0;
-}
 
 /* — Telemetry Degraded Banner ——————————————————————————— */
 .ht-degraded-banner {
@@ -4796,11 +4665,6 @@ strong {
   padding: var(--sp-4);
 }
 
-.ht-config-tab__fields-card .ht-summary-card__title,
-.ht-config-tab__raw-card .ht-summary-card__title {
-  margin-bottom: var(--sp-3);
-}
-
 .ht-config-tab__raw-code {
   margin-top: var(--sp-2);
   padding: var(--sp-3);
@@ -5131,685 +4995,219 @@ strong {
 }
 
 /* =====================================================
-   WP12 — Overview rebuild: greeting, three-card layout,
-   framework error banner, error table, activity feed
+   Overview — operational dashboard: status header, KPI strip,
+   alerts bar, app health table, recent errors
    ===================================================== */
 
-/* — Dashboard page wrapper ————————————————————————————— */
-.ht-dashboard {
-  padding: var(--sp-7);
-}
-
-/* — Greeting header ———————————————————————————————————— */
-/* — Dashboard hero (state-tinted greeting zone) ————————————————————— */
-.ht-dashboard-hero {
-  padding: var(--sp-5) var(--sp-6);
-  margin-bottom: var(--sp-6);
-  border-radius: var(--r-lg);
-  transition: background var(--t-med) var(--ease);
-}
-
-.ht-dashboard-hero--healthy,
-.ht-dashboard-hero--quiet {
-  background: color-mix(in oklch, var(--ok) 5%, var(--bg-page));
-}
-
-.ht-dashboard-hero--single-failure {
-  background: color-mix(in oklch, var(--warn) 6%, var(--bg-page));
-}
-
-.ht-dashboard-hero--multiple-failures {
-  background: color-mix(in oklch, var(--err) 6%, var(--bg-page));
-}
-
-.ht-dashboard-hero--first-install {
-  background: color-mix(in oklch, var(--mute) 4%, var(--bg-page));
-}
-
-.ht-dashboard-hero .ht-dashboard-header {
-  margin-bottom: var(--sp-6);
-}
-
-.ht-dashboard-hero .ht-dashboard-stats {
-  margin-bottom: 0;
-}
-
-.ht-dashboard-header {
-  margin-bottom: var(--sp-6);
-}
-
-.ht-dashboard-header__top {
+/* — Overview page wrapper ————————————————————————————— */
+.ht-overview {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  flex-direction: column;
   gap: var(--sp-4);
-  flex-wrap: wrap;
-  margin-bottom: var(--sp-1);
 }
 
-.ht-dashboard-greeting {
-  /* h1 inherits font-display from base h1 styles */
-  margin: 0;
-  flex: 1;
-  min-width: 0;
-}
-
-.ht-dashboard-meta {
-  font-family: var(--font-mono);
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-  white-space: nowrap;
-}
-
-.ht-dashboard-subtitle {
-  font-size: var(--fs-body);
-  color: var(--ink-2);
-  margin: 0;
-}
-
-.ht-dashboard-stats {
+/* — Stats strip (unified) ————————————————————————————— */
+.ht-overview-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--sp-4);
-  margin-bottom: var(--sp-6);
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0;
+  background: var(--bg-sunken);
+  border-radius: var(--r-md);
+  overflow: hidden;
 }
 
-.ht-dashboard-stats__cell {
-  padding: 0;
+.ht-overview-stats__cell {
+  padding: var(--sp-3) var(--sp-3);
 }
 
-.ht-dashboard-stats__label {
+.ht-overview-stats__value {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--fs-h2);
+  line-height: var(--lh-h2);
+  letter-spacing: var(--tr-h2);
+  color: var(--ink-1);
+}
+
+.ht-overview-stats__value--warn {
+  color: var(--warn);
+}
+
+.ht-overview-stats__label {
   display: block;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--ink-2);
+  margin-top: var(--sp-1);
 }
 
-.ht-dashboard-stats__value {
-  font-family: var(--font-display);
-  font-size: var(--fs-h1);
-  color: var(--ink-1);
-  margin-top: 2px;
+@media screen and (max-width: 900px) {
+  .ht-overview-stats {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
-
-.ht-dashboard-stats__value--warn { color: var(--warn); }
-.ht-dashboard-stats__value--err { color: var(--err); }
 
 @media screen and (max-width: 768px) {
-  .ht-dashboard-stats {
+  .ht-overview-stats {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-/* — Framework error banner ————————————————————————————— */
-.ht-framework-error-banner {
-  background: color-mix(in oklch, var(--err) 4%, var(--bg-surface));
-  border-color: var(--err);
-  margin-bottom: var(--sp-4);
-  padding: var(--sp-2) var(--sp-4);
-}
-
-.ht-framework-error-banner__inner {
+/* — Alerts bar ————————————————————————————————————————— */
+.ht-overview-alerts {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  flex-wrap: wrap;
+  padding: var(--sp-2) var(--sp-4);
+  background: color-mix(in srgb, var(--warn) 6%, var(--bg-surface));
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
 }
 
-.ht-framework-error-banner__icon {
-  font-size: var(--fs-body);
-  color: var(--err);
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.ht-framework-error-banner__count {
-  font-family: var(--font-mono);
-  font-size: var(--fs-small);
-  font-weight: 600;
-  color: var(--err);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-.ht-framework-error-banner__detail {
+.ht-overview-alerts__text {
   font-family: var(--font-mono);
   font-size: var(--fs-small);
   color: var(--ink-2);
   flex: 1;
-  min-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.ht-framework-error-banner__link {
+.ht-overview-alerts__link {
   font-size: var(--fs-small);
-  color: var(--err);
+  color: var(--warn);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-.ht-framework-error-banner__link:hover {
-  color: var(--err);
+.ht-overview-alerts__link:hover {
+  color: var(--ink-1);
 }
 
-/* — Hero card enrichments for WP12 ————————————————————— */
-
-.ht-hero-card__title--err {
-  color: var(--err);
-}
-
-.ht-hero-card__error-type {
-  font-family: var(--font-mono);
-  font-size: var(--fs-small);
-  color: var(--err);
-  font-weight: 600;
-}
-
-.ht-hero-card__location {
-  font-family: var(--font-mono);
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-}
-
-.ht-hero-card__actions {
-  display: flex;
-  gap: var(--sp-2);
-  margin-top: var(--sp-3);
-  flex-wrap: wrap;
-}
-
-/* Multi-failure hero layout */
-.ht-hero-card--multi {
-  flex-direction: column;
-  gap: var(--sp-3);
-}
-
-.ht-hero-card__multi-header {
-  display: flex;
-  gap: var(--sp-4);
-  align-items: flex-start;
-}
-
-.ht-hero-card__failure-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.ht-hero-card__failure-row {
-  display: grid;
-  grid-template-columns: 20px 1fr auto auto;
-  gap: var(--sp-3);
-  align-items: baseline;
-  padding: var(--sp-2) var(--sp-4);
-  border-bottom: 1px solid var(--line-1);
-  cursor: pointer;
-  text-decoration: none;
-  color: inherit;
-  transition: background var(--t-fast) var(--ease);
-}
-
-.ht-hero-card__failure-row:hover {
-  background: var(--bg-sunken);
-}
-
-.ht-hero-card__failure-detail {
-  min-width: 0;
-}
-
-.ht-hero-card__failure-name-line {
+/* — App health table ——————————————————————————————————— */
+.ht-overview-apps__header {
   display: flex;
   align-items: baseline;
-  gap: var(--sp-2);
-  margin-bottom: 1px;
-}
-
-.ht-hero-card__failure-name {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink-1);
-}
-
-.ht-hero-card__failure-meta {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--ink-3);
-}
-
-.ht-hero-card__failure-arrow {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  color: var(--ink-4);
-}
-
-.ht-hero-card__multi-actions {
-  display: flex;
-  gap: var(--sp-2);
-  justify-content: flex-end;
-  padding: var(--sp-2) var(--sp-4);
-  background: var(--bg-sunken);
-}
-
-/* First-install hero */
-.ht-hero-card--first-install {
-  display: block;
-  padding: var(--sp-6);
-}
-
-.ht-first-install__layout {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: var(--sp-5);
-}
-
-.ht-first-install__code-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-}
-
-.ht-first-install__section-title {
-  /* inherits font-display from h3 base styles */
-  margin: 0 0 var(--sp-2);
-}
-
-.ht-first-install__hint {
-  font-size: var(--fs-small);
-  color: var(--ink-2);
-  margin: 0;
-}
-
-.ht-first-install__note {
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-  margin: 0;
-}
-
-.ht-first-install__snippet {
-  background: var(--bg-sunken);
-  padding: var(--sp-3);
-}
-
-.ht-first-install__pre {
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
-  white-space: pre;
-  background: none;
-  padding: 0;
-  border-radius: 0;
-  overflow-x: auto;
-  margin: 0;
-}
-
-.ht-first-install__pre code {
-  background: none;
-  padding: 0;
-  font-size: inherit;
-}
-
-.ht-first-install__sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-}
-
-.ht-first-install__system-card,
-.ht-first-install__appdaemon-card {
-  /* inherits from .ht-card */
-}
-
-.ht-first-install__service-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  margin-top: var(--sp-2);
-}
-
-.ht-first-install__service-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  font-size: var(--fs-body);
-}
-
-.ht-first-install__service-name {
-  flex: 1;
-}
-
-.ht-first-install__service-meta {
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-}
-
-/* — Three summary cards ———————————————————————————————— */
-.ht-summary-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--sp-4);
-  margin-bottom: var(--sp-5);
-}
-
-.ht-summary-card {
-  display: flex;
-  flex-direction: column;
-}
-
-.ht-summary-card__title {
-  font-family: var(--font-display);
-  font-size: var(--fs-body);
-  font-weight: 400;
-  color: var(--ink-2);
-  text-transform: lowercase;
-  letter-spacing: var(--tr-h3);
-  margin: 0 0 var(--sp-3);
-  display: block;
-}
-
-.ht-summary-card__title--link {
-  text-decoration: none;
-  color: var(--ink-2);
-}
-
-.ht-summary-card__title--link:hover {
-  color: var(--ink-1);
-}
-
-.ht-summary-card__empty {
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-  margin: 0;
-}
-
-.ht-summary-card__link {
-  display: inline-block;
-  margin-top: var(--sp-3);
-  font-size: var(--fs-small);
-  color: var(--accent);
-}
-
-/* Your apps card */
-.ht-app-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-}
-
-.ht-app-list__row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  font-size: var(--fs-body);
-  text-decoration: none;
-  color: inherit;
-  border-radius: var(--r-sm);
-  padding: 2px 4px;
-  margin: 0 -4px;
-}
-
-.ht-app-list__row:hover {
-  background: var(--bg-active);
-}
-
-.ht-app-list__name {
-  font-family: var(--font-body);
-  font-size: var(--fs-body);
-  color: var(--ink-1);
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ht-app-list__instances {
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-}
-
-.ht-app-list__runs {
-  font-family: var(--font-mono);
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-  flex-shrink: 0;
-}
-
-/* Activity card */
-.ht-activity-quiet {
-  text-align: center;
-  padding: var(--sp-4) 0;
-}
-
-.ht-activity-quiet__count {
-  font-family: var(--font-display);
-  font-size: var(--fs-h2);
-  color: var(--ink-3);
-  margin: 0 0 var(--sp-2);
-}
-
-.ht-activity-quiet__note {
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-  margin: 0;
-}
-
-.ht-activity-body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  text-align: center;
-}
-
-.ht-activity-big-number {
-  font-family: var(--font-display);
-  font-size: var(--fs-display);
-  line-height: 1;
-  color: var(--ink-1);
-  margin: 0 0 var(--sp-1);
-}
-
-.ht-activity-label {
-  font-size: var(--fs-small);
-  color: var(--ink-2);
-  margin: 0 0 var(--sp-2);
-}
-
-.ht-sparkline {
-  display: block;
-  margin: var(--sp-2) 0;
-}
-
-.ht-activity-breakdown {
-  display: flex;
-  gap: var(--sp-4);
-  margin-top: var(--sp-2);
-}
-
-.ht-activity-breakdown__ok,
-.ht-activity-breakdown__err {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-}
-
-/* System card */
-.ht-system-summary {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  margin-top: var(--sp-1);
-}
-
-.ht-system-summary__status {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  font-size: var(--fs-body);
-}
-
-.ht-system-summary__issues {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-}
-
-.ht-system-summary__issues li {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
-
-.ht-system-summary__link {
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-  text-decoration: none;
-}
-
-.ht-system-summary__link:hover {
-  color: var(--ink-1);
-}
-
-/* — Recent errors table ———————————————————————————————— */
-.ht-recent-errors {
-  margin-bottom: var(--sp-5);
-}
-
-.ht-recent-errors__header {
-  display: flex;
-  align-items: center;
   justify-content: space-between;
   margin-bottom: var(--sp-3);
-  gap: var(--sp-3);
-  flex-wrap: wrap;
 }
 
-.ht-recent-errors__title {
-  color: var(--err);
-}
-
-.ht-recent-errors__table {
-  /* inherits .ht-table */
-}
-
-/* Column widths — AGE is first column, TIME dropped */
-.ht-recent-errors__col-age      { width: 60px; }
-.ht-recent-errors__col-app      { width: 15%; }
-.ht-recent-errors__col-location { width: 22%; }
-.ht-recent-errors__col-exception { /* takes remaining space */ }
-
-.ht-recent-errors__age {
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-}
-
-.ht-recent-errors__app {
-  font-family: var(--font-mono);
-  font-size: var(--fs-small);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ht-recent-errors__app-link {
+.ht-overview-section-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  font-weight: 400;
+  line-height: var(--lh-h3);
+  letter-spacing: var(--tr-h3);
   color: var(--ink-1);
+  margin: 0;
+}
+
+.ht-overview-section-link {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  text-decoration: none;
+}
+
+.ht-overview-section-link:hover {
+  color: var(--ink-1);
+}
+
+.ht-overview-apps__table {
+  width: 100%;
+}
+
+.ht-overview-apps__name-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.ht-overview-apps__name {
+  font-family: var(--font-mono);
+  font-size: var(--fs-body);
+  color: var(--ink-1);
+  text-decoration: none;
+}
+
+.ht-overview-apps__name:hover {
   text-decoration: underline;
   text-decoration-color: var(--ink-4);
   text-underline-offset: 2px;
 }
 
-.ht-recent-errors__app-link:hover {
-  text-decoration-color: var(--accent);
+.ht-overview-apps__sparkline-cell {
+  width: 90px;
 }
 
-.ht-recent-errors__location {
-  font-family: var(--font-mono);
-  font-size: var(--fs-small);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ht-overview-apps__col-num {
+  width: 70px;
+  text-align: right;
 }
 
-.ht-recent-errors__location-fn {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ht-overview-apps__col-last-err {
+  width: 90px;
+  text-align: right;
 }
 
-.ht-recent-errors__location-file {
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-  font-family: var(--font-mono);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ht-overview-apps__row--dimmed {
+  opacity: 0.5;
 }
 
-.ht-recent-errors__exception {
-  font-size: var(--fs-small);
-  word-break: break-word;
-}
-
-.ht-recent-errors__error-type {
-  font-family: var(--font-mono);
-  color: var(--err);
-  font-weight: 600;
-}
-
-.ht-recent-errors__error-msg {
-  font-family: var(--font-mono);
-  color: var(--ink-3);
-}
-
-@media screen and (max-width: 1024px) {
-  .ht-recent-errors__col-location,
-  .ht-recent-errors__location {
+@media screen and (max-width: 768px) {
+  .ht-overview-apps__sparkline-cell,
+  .ht-overview-apps__col-last-err {
     display: none;
   }
 }
 
-@media screen and (max-width: 768px) {
-  .ht-recent-errors__table {
-    font-size: var(--fs-micro);
-  }
+/* — Recent errors —————————————————————————————————————— */
+.ht-overview-errors__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--sp-3);
 }
 
-/* — Responsive overrides ——————————————————————————————— */
-@media screen and (max-width: 900px) {
-  .ht-summary-cards {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .ht-first-install__layout {
-    grid-template-columns: 1fr;
-  }
+.ht-overview-errors__table {
+  width: 100%;
 }
 
-@media screen and (max-width: 768px) {
-  .ht-summary-cards {
-    grid-template-columns: 1fr;
-  }
+.ht-overview-errors__age {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  white-space: nowrap;
+  width: 60px;
+}
 
-  .ht-dashboard {
-    padding: var(--sp-4);
-  }
+.ht-overview-errors__app {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  white-space: nowrap;
+  width: 15%;
+}
 
-  .ht-dashboard-hero {
-    padding: var(--sp-4);
-    margin-bottom: var(--sp-4);
-  }
+.ht-overview-errors__detail {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0;
+}
+
+.ht-overview-errors__method {
+  color: var(--ink-2);
+  margin-right: var(--sp-2);
+}
+
+.ht-overview-errors__type {
+  color: var(--err);
+  font-weight: 600;
+}
+
+.ht-overview-errors__msg {
+  color: var(--ink-3);
 }
 
 /* — Visually hidden (accessibility) ———————————————————— */

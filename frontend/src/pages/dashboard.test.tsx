@@ -1,26 +1,21 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent } from "@testing-library/preact";
 import { signal } from "@preact/signals";
 import { DashboardPage } from "./dashboard";
 import { renderWithAppState } from "../test/render-helpers";
-import { createKpis, createAppGridEntry, createHandlerError } from "../test/factories";
+import { createKpis, createAppGridEntry, createHandlerError, createManifestList, createManifest } from "../test/factories";
 
-// Stub child components that have their own tests
 vi.mock("../components/shared/spinner", () => ({
   Spinner: () => <div data-testid="spinner" />,
 }));
 
-// Mock useScopedApi for data-fetching control
 vi.mock("../hooks/use-scoped-api", () => ({
   useScopedApi: vi.fn(),
 }));
 
-// Mock useDebouncedEffect to capture its callback for manual invocation
 vi.mock("../hooks/use-debounced-effect", () => ({
   useDebouncedEffect: vi.fn(),
 }));
 
-// Mock useApi for the system status fetch
 vi.mock("../hooks/use-api", () => ({
   useApi: vi.fn(),
 }));
@@ -43,30 +38,35 @@ function fakeApiResult<T>(data: T | null, loading = false, error: string | null 
   };
 }
 
-/** Standard three-call setup for DashboardPage (kpis, appGrid, errors). */
 function setupScopedApi({
   kpisData = createKpis() as ReturnType<typeof createKpis> | null,
   appGridData = [] as ReturnType<typeof createAppGridEntry>[] | null,
   errorsData = [] as ReturnType<typeof createHandlerError>[] | null,
   kpisLoading = false,
   appGridLoading = false,
-  kpisError = null as string | null,
-  appGridError = null as string | null,
-  errorsError = null as string | null,
 } = {}) {
   useScopedApi
-    .mockReturnValueOnce(fakeApiResult(kpisData, kpisLoading, kpisError))     // kpis
-    .mockReturnValueOnce(fakeApiResult(appGridData, appGridLoading, appGridError)) // appGrid
-    .mockReturnValueOnce(fakeApiResult(errorsData, false, errorsError));  // errors
+    .mockReturnValueOnce(fakeApiResult(kpisData, kpisLoading))
+    .mockReturnValueOnce(fakeApiResult(appGridData, appGridLoading))
+    .mockReturnValueOnce(fakeApiResult(errorsData));
 }
 
-function setupUseApi(bootIssues: unknown[] = [], services: unknown[] = [
-  { name: "BusService", status: "running" },
-  { name: "SchedulerService", status: "running" },
-  { name: "WebsocketService", status: "running" },
-  { name: "FileWatcherService", status: "running" },
-]) {
-  useApi.mockReturnValue(fakeApiResult({ status: "running", boot_issues: bootIssues, services }));
+function setupUseApi({
+  bootIssues = [] as unknown[],
+  services = [
+    { name: "BusService", status: "running" },
+    { name: "SchedulerService", status: "running" },
+    { name: "WebsocketService", status: "running" },
+    { name: "FileWatcherService", status: "running" },
+  ],
+  manifests = createManifestList(),
+} = {}) {
+  let callCount = 0;
+  useApi.mockImplementation(() => {
+    callCount++;
+    if (callCount % 2 === 1) return fakeApiResult(manifests);
+    return fakeApiResult({ status: "running", boot_issues: bootIssues, services });
+  });
 }
 
 describe("DashboardPage — loading state", () => {
@@ -76,388 +76,236 @@ describe("DashboardPage — loading state", () => {
     setupUseApi();
   });
 
-  it("shows spinner while kpis are loading", () => {
-    setupScopedApi({ kpisLoading: true, kpisData: null });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    expect(getByTestId("spinner")).toBeDefined();
-  });
-
-  it("shows spinner while app grid is loading", () => {
-    setupScopedApi({ appGridLoading: true, appGridData: null });
+  it("shows spinner while kpis and manifests are loading", () => {
+    setupScopedApi({ kpisLoading: true, kpisData: null, appGridData: null });
+    useApi.mockReset();
+    useApi.mockReturnValue(fakeApiResult(null, true));
     const { getByTestId } = renderWithAppState(<DashboardPage />);
     expect(getByTestId("spinner")).toBeDefined();
   });
 });
 
-describe("DashboardPage — greeting header", () => {
+describe("DashboardPage — stats strip", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useDebouncedEffect.mockImplementation(() => {});
+  });
+
+  it("renders unified stats strip with handler count and success rate", () => {
     setupUseApi();
-  });
-
-  it("renders a greeting h1 with good morning/afternoon/evening", () => {
     setupScopedApi({
+      kpisData: createKpis({ total_handlers: 10, total_jobs: 5, error_rate: 2.5 }),
       appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 10 }),
     });
-    const { getByRole } = renderWithAppState(<DashboardPage />);
-    const heading = getByRole("heading", { level: 1 });
-    expect(heading.textContent).toMatch(/good (morning|afternoon|evening)\./i);
+    const { getByTestId } = renderWithAppState(<DashboardPage />);
+    const strip = getByTestId("overview-stats-strip");
+    expect(strip.textContent).toContain("15");
+    expect(strip.textContent).toContain("97.5");
+    expect(strip.textContent).toContain("handlers");
+    expect(strip.textContent).toContain("success");
   });
 
-  it("renders metadata line with app count and run rate", () => {
+  it("shows app count and service count", () => {
+    setupUseApi({
+      manifests: createManifestList({
+        manifests: [
+          createManifest({ app_key: "app_a" }),
+          createManifest({ app_key: "app_b" }),
+        ],
+      }),
+    });
     setupScopedApi({
       appGridData: [
-        createAppGridEntry({ app_key: "app_a", status: "running" }),
-        createAppGridEntry({ app_key: "app_b", status: "running" }),
+        createAppGridEntry({ app_key: "app_a" }),
+        createAppGridEntry({ app_key: "app_b" }),
       ],
-      kpisData: createKpis({ total_invocations: 50, total_executions: 10, runs_per_hour: 60 }),
+      kpisData: createKpis(),
     });
     const { getByTestId } = renderWithAppState(<DashboardPage />);
-    const meta = getByTestId("dashboard-metadata");
-    expect(meta.textContent).toMatch(/2 apps/);
+    const strip = getByTestId("overview-stats-strip");
+    expect(strip.textContent).toContain("2");
+    expect(strip.textContent).toContain("apps");
+    expect(strip.textContent).toContain("services");
   });
 
-  it("renders healthy subtitle when all apps healthy", () => {
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 10 }),
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    const subtitle = getByTestId("dashboard-subtitle");
-    expect(subtitle.textContent).toMatch(/healthy|nothing needs your attention/i);
-  });
-
-  it("renders quiet subtitle when apps loaded but no activity", () => {
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 0, total_executions: 0 }),
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    const subtitle = getByTestId("dashboard-subtitle");
-    expect(subtitle.textContent).toMatch(/nothing has happened in a while/i);
-  });
-
-  it("renders multi-error subtitle when multiple apps failing", () => {
-    setupScopedApi({
-      appGridData: [
-        createAppGridEntry({ app_key: "app_a", status: "failed" }),
-        createAppGridEntry({ app_key: "app_b", status: "failed" }),
+  it("shows unhealthy service ratio when services degraded", () => {
+    setupUseApi({
+      services: [
+        { name: "BusService", status: "running" },
+        { name: "SchedulerService", status: "failed" },
       ],
-      kpisData: createKpis({ total_errors: 3 }),
     });
+    setupScopedApi({ kpisData: createKpis() });
     const { getByTestId } = renderWithAppState(<DashboardPage />);
-    const subtitle = getByTestId("dashboard-subtitle");
-    expect(subtitle.textContent).toMatch(/failing/i);
+    const strip = getByTestId("overview-stats-strip");
+    expect(strip.textContent).toContain("1/2");
+  });
+
+  it("shows dropped events count", () => {
+    setupUseApi();
+    setupScopedApi({ kpisData: createKpis() });
+    const { getByTestId } = renderWithAppState(<DashboardPage />, {
+      stateOverrides: { droppedOverflow: signal(3), droppedExhausted: signal(2) },
+    });
+    const strip = getByTestId("overview-stats-strip");
+    expect(strip.textContent).toContain("5");
+    expect(strip.textContent).toContain("dropped");
   });
 });
 
-describe("DashboardPage — three summary cards", () => {
+describe("DashboardPage — alerts bar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useDebouncedEffect.mockImplementation(() => {});
-    setupUseApi();
   });
 
-  it("renders three-card grid", () => {
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 10 }),
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    expect(getByTestId("summary-cards")).toBeDefined();
-  });
-
-  it("renders your-apps card with app list", () => {
-    setupScopedApi({
-      appGridData: [
-        createAppGridEntry({ app_key: "app_one", display_name: "App One", status: "running", total_invocations: 5 }),
+  it("renders alerts bar when boot issues exist", () => {
+    setupUseApi({
+      bootIssues: [
+        { severity: "err", label: "config error", detail: "missing key" },
+        { severity: "warn", label: "deprecation", detail: "old syntax" },
       ],
-      kpisData: createKpis({ total_invocations: 5 }),
     });
+    setupScopedApi({ kpisData: createKpis() });
     const { getByTestId } = renderWithAppState(<DashboardPage />);
-    const card = getByTestId("your-apps-card");
-    expect(card.textContent).toContain("your apps");
-    expect(card.textContent).toContain("app_one");
+    const alerts = getByTestId("overview-alerts-bar");
+    expect(alerts.textContent).toContain("1 boot error");
+    expect(alerts.textContent).toContain("1 boot warning");
   });
 
-  it("renders activity card", () => {
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 100, total_executions: 68 }),
+  it("renders alerts bar when degraded services exist", () => {
+    setupUseApi({
+      services: [
+        { name: "BusService", status: "running" },
+        { name: "SchedulerService", status: "failed" },
+        { name: "WebsocketService", status: "starting" },
+      ],
     });
+    setupScopedApi({ kpisData: createKpis() });
     const { getByTestId } = renderWithAppState(<DashboardPage />);
-    expect(getByTestId("activity-card")).toBeDefined();
-    expect(getByTestId("activity-card").textContent).toContain("activity");
+    const alerts = getByTestId("overview-alerts-bar");
+    expect(alerts.textContent).toContain("2 degraded services");
   });
 
-  it("renders system card with health summary", () => {
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 10 }),
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    const card = getByTestId("system-card");
-    expect(card.textContent).toContain("system");
-    expect(card.textContent).toContain("services healthy");
-  });
-
-  it("activity card shows quiet state when no runs", () => {
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 0, total_executions: 0 }),
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    const card = getByTestId("activity-card");
-    expect(card.textContent).toMatch(/0 runs.*hour|quiet/i);
-  });
-
-  it("your-apps card shows see-all link", () => {
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 10 }),
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    const card = getByTestId("your-apps-card");
-    const link = card.querySelector("a");
-    expect(link?.getAttribute("href")).toBe("/apps");
-  });
-});
-
-describe("DashboardPage — hero card variants", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    useDebouncedEffect.mockImplementation(() => {});
+  it("does not render alerts bar when everything is healthy", () => {
     setupUseApi();
-  });
-
-  it("shows first-install hero when no apps are loaded", () => {
-    setupScopedApi({ appGridData: [], kpisData: createKpis() });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    expect(getByTestId("hero-card-first-install")).toBeDefined();
-  });
-
-  it("first-install shows code snippet", () => {
-    setupScopedApi({ appGridData: [], kpisData: createKpis() });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    const hero = getByTestId("hero-card-first-install");
-    expect(hero.textContent).toMatch(/HelloApp|hassette\.toml|from hassette/i);
-  });
-
-  it("shows no hero card when all apps running, no errors", () => {
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ app_key: "app_a", status: "running" })],
-      errorsData: [],
-      kpisData: createKpis({ error_rate: 0, total_invocations: 100 }),
-    });
+    setupScopedApi({ kpisData: createKpis() });
     const { queryByTestId } = renderWithAppState(<DashboardPage />);
-    expect(queryByTestId("hero-card-single-failure")).toBeNull();
-    expect(queryByTestId("hero-card-multiple-failures")).toBeNull();
-    expect(queryByTestId("hero-card-first-install")).toBeNull();
+    expect(queryByTestId("overview-alerts-bar")).toBeNull();
+  });
+});
+
+describe("DashboardPage — app health table", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useDebouncedEffect.mockImplementation(() => {});
   });
 
-  it("shows single-failure hero when exactly one app has failed", () => {
+  it("renders app table with app names", () => {
+    setupUseApi({
+      manifests: createManifestList({
+        manifests: [
+          createManifest({ app_key: "kitchen_lights" }),
+          createManifest({ app_key: "motion_detector" }),
+        ],
+      }),
+    });
     setupScopedApi({
       appGridData: [
-        createAppGridEntry({ app_key: "app_a", status: "failed" }),
-        createAppGridEntry({ app_key: "app_b", status: "running" }),
+        createAppGridEntry({ app_key: "kitchen_lights", status: "running" }),
+        createAppGridEntry({ app_key: "motion_detector", status: "running" }),
       ],
-      errorsData: [createHandlerError({ app_key: "app_a" })],
-      kpisData: createKpis({ total_errors: 1 }),
+      kpisData: createKpis(),
     });
     const { getByTestId } = renderWithAppState(<DashboardPage />);
-    expect(getByTestId("hero-card-single-failure")).toBeDefined();
+    const table = getByTestId("overview-app-table");
+    expect(table.textContent).toContain("kitchen_lights");
+    expect(table.textContent).toContain("motion_detector");
   });
 
-  it("single-failure hero shows failing app name", () => {
+  it("shows empty state when no apps loaded", () => {
+    setupUseApi({ manifests: createManifestList({ manifests: [] }) });
+    setupScopedApi({ appGridData: [], kpisData: createKpis() });
+    const { getByTestId } = renderWithAppState(<DashboardPage />);
+    const table = getByTestId("overview-app-table");
+    expect(table.textContent).toContain("no apps loaded");
+    expect(table.textContent).toContain("get started");
+  });
+
+  it("links to all-apps page", () => {
+    setupUseApi();
+    setupScopedApi({ kpisData: createKpis() });
+    const { getByTestId } = renderWithAppState(<DashboardPage />);
+    const table = getByTestId("overview-app-table");
+    const link = table.querySelector("a[href='/apps']");
+    expect(link).not.toBeNull();
+  });
+
+  it("sorts failed apps first", () => {
+    setupUseApi({
+      manifests: createManifestList({
+        manifests: [
+          createManifest({ app_key: "ok_app", status: "running" }),
+          createManifest({ app_key: "bad_app", status: "failed" }),
+        ],
+      }),
+    });
     setupScopedApi({
       appGridData: [
-        createAppGridEntry({ app_key: "my_broken_app", display_name: "My Broken App", status: "failed" }),
         createAppGridEntry({ app_key: "ok_app", status: "running" }),
+        createAppGridEntry({ app_key: "bad_app", status: "failed" }),
       ],
-      errorsData: [createHandlerError({ app_key: "my_broken_app", error_type: "AttributeError", handler_method: "notify" })],
-      kpisData: createKpis({ total_errors: 1 }),
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    const hero = getByTestId("hero-card-single-failure");
-    expect(hero.textContent).toContain("My Broken App");
-  });
-
-  it("shows multiple-failures hero when 2+ apps have failed", () => {
-    setupScopedApi({
-      appGridData: [
-        createAppGridEntry({ app_key: "app_a", status: "failed" }),
-        createAppGridEntry({ app_key: "app_b", status: "failed" }),
-        createAppGridEntry({ app_key: "app_c", status: "running" }),
-      ],
-      errorsData: [
-        createHandlerError({ app_key: "app_a" }),
-        createHandlerError({ app_key: "app_b", listener_id: 2 }),
-      ],
-      kpisData: createKpis({ total_errors: 3 }),
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    expect(getByTestId("hero-card-multiple-failures")).toBeDefined();
-  });
-
-  it("multiple-failures hero shows failure count", () => {
-    setupScopedApi({
-      appGridData: [
-        createAppGridEntry({ app_key: "app_a", status: "failed" }),
-        createAppGridEntry({ app_key: "app_b", status: "failed" }),
-        createAppGridEntry({ app_key: "app_c", status: "failed" }),
-      ],
-      errorsData: [],
-      kpisData: createKpis({ total_errors: 5 }),
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    const hero = getByTestId("hero-card-multiple-failures");
-    expect(hero.textContent).toMatch(/3 apps? (fail|are failing)/i);
-  });
-});
-
-describe("DashboardPage — framework error banner", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    useDebouncedEffect.mockImplementation(() => {});
-  });
-
-  it("renders framework error banner when boot issues exist", () => {
-    setupUseApi([{ severity: "err", label: "config validation", detail: "some detail" }]);
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 10 }),
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    expect(getByTestId("framework-error-banner")).toBeDefined();
-  });
-
-  it("does not render framework error banner when no boot issues", () => {
-    setupUseApi([]);
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 10 }),
-    });
-    const { queryByTestId } = renderWithAppState(<DashboardPage />);
-    expect(queryByTestId("framework-error-banner")).toBeNull();
-  });
-
-  it("shows error count and top issue detail in banner", () => {
-    setupUseApi([
-      { severity: "err", label: "config validation", detail: "buggy_app: no class_name" },
-      { severity: "warn", label: "deprecated decorator", detail: "@on_event deprecated" },
-    ]);
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 10 }),
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    const banner = getByTestId("framework-error-banner");
-    expect(banner.textContent).toMatch(/1 error/i);
-    expect(banner.textContent).toContain("config validation");
-  });
-});
-
-describe("DashboardPage — recent errors as table", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    useDebouncedEffect.mockImplementation(() => {});
-    setupUseApi();
-  });
-
-  it("renders recent errors table when errors exist", () => {
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 10, total_errors: 1 }),
-      errorsData: [createHandlerError({ app_key: "my_app", error_type: "ValueError", handler_method: "on_event" })],
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    expect(getByTestId("recent-errors-table")).toBeDefined();
-  });
-
-  it("renders error table columns: AGE, APP, LOCATION, EXCEPTION", () => {
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 10, total_errors: 1 }),
-      errorsData: [createHandlerError()],
-    });
-    const { getByTestId } = renderWithAppState(<DashboardPage />);
-    const table = getByTestId("recent-errors-table");
-    expect(table.textContent).toMatch(/age/i);
-    expect(table.textContent).toMatch(/app/i);
-    expect(table.textContent).toMatch(/exception/i);
-  });
-
-  it("renders tier filter toggle (All/Apps/Framework)", () => {
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 10, total_errors: 1 }),
-      errorsData: [createHandlerError()],
-    });
-    const { getByText } = renderWithAppState(<DashboardPage />);
-    expect(getByText("All")).toBeDefined();
-    expect(getByText("Apps")).toBeDefined();
-    expect(getByText("Framework")).toBeDefined();
-  });
-
-  it("does not render errors table when no errors", () => {
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 10 }),
-      errorsData: [],
-    });
-    const { queryByTestId } = renderWithAppState(<DashboardPage />);
-    expect(queryByTestId("recent-errors-table")).toBeNull();
-  });
-
-  it("'All' is the active tier filter by default when errors exist", () => {
-    setupScopedApi({
-      appGridData: [createAppGridEntry({ status: "running" })],
-      kpisData: createKpis({ total_invocations: 10, total_errors: 1 }),
-      errorsData: [createHandlerError()],
+      kpisData: createKpis(),
     });
     const { container } = renderWithAppState(<DashboardPage />);
-    const allBtn = Array.from(container.querySelectorAll(".ht-tier-toggle__btn")).find(
-      (el) => el.textContent === "All",
-    );
-    expect(allBtn?.className).toContain("ht-tier-toggle__btn--active");
-  });
-
-  it("clicking Apps tier filter changes active filter", () => {
-    let callCount = 0;
-    useScopedApi.mockImplementation(() => {
-      callCount++;
-      const pos = ((callCount - 1) % 3);
-      if (pos === 0) return fakeApiResult(createKpis({ total_invocations: 10, total_errors: 1 }));
-      if (pos === 1) return fakeApiResult([createAppGridEntry()]);
-      return fakeApiResult([createHandlerError()]);
-    });
-    const { container, getByText } = renderWithAppState(<DashboardPage />);
-    fireEvent.click(getByText("Apps"));
-    const allBtns = container.querySelectorAll(".ht-tier-toggle__btn");
-    const activeBtn = Array.from(allBtns).find((el) => el.className.includes("--active"));
-    expect(activeBtn?.textContent).toBe("Apps");
+    const rows = container.querySelectorAll("tr[data-testid^='overview-app-']");
+    expect(rows[0]?.getAttribute("data-testid")).toBe("overview-app-bad_app");
+    expect(rows[1]?.getAttribute("data-testid")).toBe("overview-app-ok_app");
   });
 });
 
-describe("DashboardPage — KPI / AppGrid error states", () => {
+describe("DashboardPage — recent errors", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useDebouncedEffect.mockImplementation(() => {});
     setupUseApi();
   });
 
-  it("shows KPI error message when kpis fetch fails", () => {
-    setupScopedApi({ kpisError: "KPI fetch failed" });
-    const { getByText } = renderWithAppState(<DashboardPage />);
-    expect(getByText(/Could not load dashboard stats — KPI fetch failed/)).toBeDefined();
+  it("renders recent errors when errors exist", () => {
+    setupScopedApi({
+      kpisData: createKpis(),
+      errorsData: [createHandlerError({ app_key: "my_app", error_type: "ValueError" })],
+    });
+    const { getByTestId } = renderWithAppState(<DashboardPage />);
+    const errors = getByTestId("overview-recent-errors");
+    expect(errors.textContent).toContain("my_app");
+    expect(errors.textContent).toContain("ValueError");
   });
 
-  it("shows AppGrid error message when app grid fetch fails", () => {
-    setupScopedApi({ appGridError: "App grid failed" });
-    const { getByText } = renderWithAppState(<DashboardPage />);
-    expect(getByText(/Could not load apps — App grid failed/)).toBeDefined();
+  it("does not render errors section when no errors", () => {
+    setupScopedApi({ kpisData: createKpis(), errorsData: [] });
+    const { queryByTestId } = renderWithAppState(<DashboardPage />);
+    expect(queryByTestId("overview-recent-errors")).toBeNull();
+  });
+
+  it("caps visible errors at 5", () => {
+    const errors = Array.from({ length: 10 }, (_, i) =>
+      createHandlerError({ app_key: `app_${i}`, listener_id: i + 1 }),
+    );
+    setupScopedApi({ kpisData: createKpis(), errorsData: errors });
+    const { getByTestId } = renderWithAppState(<DashboardPage />);
+    const rows = getByTestId("overview-recent-errors").querySelectorAll("tbody tr");
+    expect(rows.length).toBe(5);
+  });
+
+  it("links to logs page", () => {
+    setupScopedApi({
+      kpisData: createKpis(),
+      errorsData: [createHandlerError()],
+    });
+    const { getByTestId } = renderWithAppState(<DashboardPage />);
+    const link = getByTestId("overview-recent-errors").querySelector("a[href='/logs']");
+    expect(link).not.toBeNull();
   });
 });
 
@@ -469,7 +317,7 @@ describe("DashboardPage — telemetry degraded banner", () => {
   });
 
   it("shows telemetry degraded banner when telemetryDegraded is true", () => {
-    setupScopedApi();
+    setupScopedApi({ kpisData: createKpis() });
     const { getByTestId } = renderWithAppState(<DashboardPage />, {
       stateOverrides: { telemetryDegraded: signal(true), droppedOverflow: signal(5) },
     });
@@ -477,19 +325,31 @@ describe("DashboardPage — telemetry degraded banner", () => {
   });
 
   it("does not show telemetry degraded banner when telemetryDegraded is false", () => {
-    setupScopedApi();
+    setupScopedApi({ kpisData: createKpis() });
     const { queryByTestId } = renderWithAppState(<DashboardPage />, {
-      stateOverrides: { telemetryDegraded: signal(false), droppedOverflow: signal(0) },
+      stateOverrides: { telemetryDegraded: signal(false) },
     });
     expect(queryByTestId("telemetry-degraded-banner")).toBeNull();
   });
 });
 
-describe("DashboardPage — debounced refetch on appStatus change", () => {
-  it("calls useDebouncedEffect with a callback that invokes refetch", async () => {
-    useScopedApi.mockReset();
-    useDebouncedEffect.mockReset();
+describe("DashboardPage — debounced refetch", () => {
+  it("calls useDebouncedEffect with 500ms delay and 2000ms maxWait", () => {
+    vi.clearAllMocks();
+    useDebouncedEffect.mockImplementation(() => {});
+    setupUseApi();
+    setupScopedApi();
+    renderWithAppState(<DashboardPage />);
+    expect(useDebouncedEffect).toHaveBeenCalledWith(
+      expect.any(Function),
+      500,
+      expect.any(Function),
+      2000,
+    );
+  });
 
+  it("refetch callback calls all three refetch functions", () => {
+    vi.clearAllMocks();
     let capturedCallback: (() => void) | null = null;
     useDebouncedEffect.mockImplementation(
       (_getValue: () => unknown, _delay: number, callback: () => void) => {
@@ -503,7 +363,7 @@ describe("DashboardPage — debounced refetch on appStatus change", () => {
     let callCount = 0;
     useScopedApi.mockImplementation(() => {
       callCount++;
-      const pos = ((callCount - 1) % 3);
+      const pos = (callCount - 1) % 3;
       if (pos === 0) return { data: signal(createKpis()), loading: signal(false), error: signal(null), refetch: kpisRefetch };
       if (pos === 1) return { data: signal([]), loading: signal(false), error: signal(null), refetch: appGridRefetch };
       return { data: signal([]), loading: signal(false), error: signal(null), refetch: errorsRefetch };
@@ -511,30 +371,11 @@ describe("DashboardPage — debounced refetch on appStatus change", () => {
 
     setupUseApi();
     renderWithAppState(<DashboardPage />);
-
     expect(capturedCallback).not.toBeNull();
-    expect(useDebouncedEffect).toHaveBeenCalled();
 
     capturedCallback!();
-
     expect(kpisRefetch).toHaveBeenCalled();
     expect(appGridRefetch).toHaveBeenCalled();
     expect(errorsRefetch).toHaveBeenCalled();
-  });
-
-  it("useDebouncedEffect is called with 500ms delay and 2000ms maxWait", () => {
-    vi.clearAllMocks();
-    useDebouncedEffect.mockImplementation(() => {});
-    setupUseApi();
-    setupScopedApi();
-
-    renderWithAppState(<DashboardPage />);
-
-    expect(useDebouncedEffect).toHaveBeenCalledWith(
-      expect.any(Function),
-      500,
-      expect.any(Function),
-      2000,
-    );
   });
 });

@@ -1,601 +1,203 @@
 import { useEffect, useRef } from "preact/hooks";
-import { signal, useSignal, type Signal } from "@preact/signals";
-import type { UseApiResult } from "../hooks/use-api";
 import { useApi } from "../hooks/use-api";
 import {
   getDashboardAppGrid,
   getDashboardErrors,
   getDashboardKpis,
+  getManifests,
   getSystemStatus,
-} from "../api/endpoints";
-import type {
-  SourceTier,
-  DashboardAppGridEntry,
-  DashboardKpis,
-  DashboardErrorEntry,
-  BootIssue,
+  type DashboardErrorEntry,
+  type BootIssue,
 } from "../api/endpoints";
 import { TelemetryDegradedBanner } from "../components/layout/alert-banner";
-import { ServiceStatusPanel } from "../components/dashboard/service-status-panel";
 import { Spinner } from "../components/shared/spinner";
 import { StatusShape } from "../components/shared/status-shape";
+import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { useDebouncedEffect } from "../hooks/use-debounced-effect";
 import { useAppState } from "../state/context";
 import { statusToKind } from "../utils/status";
-import { formatRelativeTime, lastDotSegment, pluralize, TIME_PRESET_LABELS } from "../utils/format";
+import { formatRelativeTime, formatUptime, lastDotSegment } from "../utils/format";
+import { type AppRow, mergeManifestsAndGrid, compareAppRows } from "../utils/app-data";
 
-const TIER_OPTIONS: { value: SourceTier; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "app", label: "Apps" },
-  { value: "framework", label: "Framework" },
-];
+// ---- Stats strip (unified) --------------------------------------------------
 
-// ---- System state detection ------------------------------------------------
-
-type SystemState =
-  | "first_install"
-  | "healthy"
-  | "quiet"
-  | "single_failure"
-  | "multiple_failures";
-
-function detectSystemState(
-  apps: DashboardAppGridEntry[] | null,
-  kpis: DashboardKpis | null,
-): SystemState {
-  if (!apps || apps.length === 0) return "first_install";
-
-  const failedApps = apps.filter((a) => a.status === "failed" || a.status === "crashed");
-  if (failedApps.length >= 2) return "multiple_failures";
-  if (failedApps.length === 1) return "single_failure";
-
-  const totalActivity = (kpis?.total_invocations ?? 0) + (kpis?.total_executions ?? 0);
-  if (totalActivity === 0) return "quiet";
-
-  return "healthy";
+interface StatsStripProps {
+  uptime: number | null;
+  appCount: number;
+  serviceTotal: number;
+  serviceHealthy: number;
+  runsPerHour: number | null;
+  successRate: number;
+  handlerCount: number;
+  droppedEvents: number;
 }
 
-// ---- Greeting helpers -------------------------------------------------------
+function StatsStrip(props: StatsStripProps) {
+  const svcUnhealthy = props.serviceTotal - props.serviceHealthy;
 
-/** Intentionally recomputed on each render so greeting updates across noon. */
-function getGreeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning.";
-  if (h < 18) return "Good afternoon.";
-  return "Good evening.";
-}
-
-function getSubtitle(
-  state: SystemState,
-  apps: DashboardAppGridEntry[] | null,
-): string {
-  switch (state) {
-    case "first_install":
-      return "no apps loaded yet. drop a python file into your apps directory to get started.";
-    case "healthy":
-      return "all apps are healthy. nothing needs your attention right now.";
-    case "quiet":
-      return "all apps are running, but nothing has happened in a while.";
-    case "multiple_failures": {
-      const failCount = (apps ?? []).filter((a) => a.status === "failed" || a.status === "crashed").length;
-      return `${failCount} apps are failing — start with the worst, or stop them all to triage offline.`;
-    }
-    case "single_failure": {
-      const failed = (apps ?? []).find((a) => a.status === "failed" || a.status === "crashed");
-      return `hassette is healthy overall — but ${failed?.display_name ?? "an app"} needs your attention.`;
-    }
-  }
-}
-
-// ---- Framework error banner -------------------------------------------------
-
-function FrameworkErrorBanner({ issues }: { issues: BootIssue[] }) {
-  if (!issues || issues.length === 0) return null;
-  const top = issues[0];
-  const errorCount = issues.filter((i) => i.severity === "err").length;
-  const warnCount = issues.filter((i) => i.severity === "warn").length;
-
-  const countText = [
-    errorCount > 0 ? `${errorCount} error${errorCount > 1 ? "s" : ""}` : "",
-    warnCount > 0 ? `${warnCount} warning${warnCount > 1 ? "s" : ""}` : "",
-  ].filter(Boolean).join(" · ");
+  const cells: Array<{ label: string; value: string | number; warn?: boolean }> = [
+    { label: "uptime", value: props.uptime !== null ? formatUptime(props.uptime) : "—" },
+    { label: "apps", value: props.appCount },
+    { label: "services", value: svcUnhealthy > 0 ? `${props.serviceHealthy}/${props.serviceTotal}` : String(props.serviceTotal), warn: svcUnhealthy > 0 },
+    { label: "runs / hr", value: props.runsPerHour !== null ? Math.round(props.runsPerHour) : "—" },
+    { label: "success", value: `${props.successRate.toFixed(1)}%`, warn: props.successRate < 95 },
+    { label: "handlers", value: props.handlerCount },
+    { label: "dropped", value: props.droppedEvents, warn: props.droppedEvents > 0 },
+  ];
 
   return (
-    <div
-      class="ht-card ht-framework-error-banner"
-      data-testid="framework-error-banner"
-      role="alert"
-    >
-      <div class="ht-framework-error-banner__inner">
-        <span class="ht-framework-error-banner__icon" aria-hidden="true">!</span>
-        <span class="ht-framework-error-banner__count">
-          hassette started with {countText}
-        </span>
-        <span class="ht-framework-error-banner__detail">
-          {top.label} — {top.detail}
-        </span>
-        <a href="/config" class="ht-framework-error-banner__link">view all →</a>
-      </div>
+    <div class="ht-overview-stats" data-testid="overview-stats-strip">
+      {cells.map((c) => (
+        <div key={c.label} class="ht-overview-stats__cell">
+          <span class="ht-overview-stats__label">{c.label}</span>
+          <span class={`ht-overview-stats__value${c.warn ? " ht-overview-stats__value--warn" : ""}`}>{c.value}</span>
+        </div>
+      ))}
     </div>
   );
 }
 
-// ---- Hero card variants -----------------------------------------------------
+// ---- Alerts bar -------------------------------------------------------------
 
-function HeroCardFirstInstall() {
-  const codeSnippet = `from hassette import App, D, states
-
-
-class HelloApp(App):
-    async def on_change(
-        self,
-        event: D.TypedStateChangeEvent[states.LightState],
-    ):
-        new = event.payload.data.new_state
-        self.logger.info(
-            "%s → %s",
-            event.payload.data.entity_id,
-            new.value if new else None,
-        )`;
-
-  const tomlSnippet = `[apps.hello]
-filename = "hello.py"
-class_name = "HelloApp"`;
-
-  return (
-    <div class="ht-hero-card ht-hero-card--first-install" data-testid="hero-card-first-install">
-      <div class="ht-first-install__layout">
-        <div class="ht-card ht-first-install__code-card">
-          <h3 class="ht-first-install__section-title">your first app</h3>
-          <p class="ht-first-install__hint">
-            create <code>~/hassette/apps/hello.py</code> with this:
-          </p>
-          <div class="ht-card ht-first-install__snippet">
-            <pre class="ht-first-install__pre"><code>{codeSnippet}</code></pre>
-          </div>
-          <p class="ht-first-install__hint">
-            register it in <code>hassette.toml</code>:
-          </p>
-          <div class="ht-card ht-first-install__snippet">
-            <pre class="ht-first-install__pre"><code>{tomlSnippet}</code></pre>
-          </div>
-          <p class="ht-first-install__note">
-            hassette will hot-reload as soon as you save.
-          </p>
-        </div>
-        <div class="ht-first-install__sidebar">
-          <div class="ht-card ht-first-install__system-card">
-            <h3 class="ht-first-install__section-title">system</h3>
-            <div class="ht-first-install__service-list">
-              {[
-                ["bus", "ready"],
-                ["scheduler", "0 jobs"],
-                ["HA websocket", "connected"],
-                ["file watcher", "watching apps/"],
-              ].map(([name, sub]) => (
-                <div key={name} class="ht-first-install__service-row">
-                  <StatusShape kind="ok" size={8} />
-                  <span class="ht-first-install__service-name">{name}</span>
-                  <span class="ht-first-install__service-meta">{sub}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div class="ht-card ht-first-install__appdaemon-card">
-            <h3 class="ht-first-install__section-title">coming from AppDaemon?</h3>
-            <p class="ht-first-install__hint">
-              hassette is a fresh start, not a drop-in replacement. config moves from{" "}
-              <code>apps.yaml</code> to <code>hassette.toml</code>.
-            </p>
-            <p class="ht-first-install__note">
-              ↗ see the migration guide in the docs
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface HeroCardSingleFailureProps {
-  apps: DashboardAppGridEntry[];
-  errors: DashboardErrorEntry[] | null;
-}
-
-function HeroCardSingleFailure({ apps, errors }: HeroCardSingleFailureProps) {
-  const failedApp = apps.find((a) => a.status === "failed" || a.status === "crashed");
-  const latestError = errors?.find((e) => e.app_key === failedApp?.app_key);
-
-  return (
-    <div
-      class="ht-hero-card ht-hero-card--failure"
-      data-testid="hero-card-single-failure"
-    >
-      <div class="ht-hero-card__icon ht-hero-card__icon--err">!</div>
-      <div class="ht-hero-card__body">
-        <h3 class="ht-hero-card__title ht-hero-card__title--err">
-          {failedApp?.display_name ?? failedApp?.app_key ?? "an app"} is failing
-        </h3>
-        {latestError && (
-          <p class="ht-hero-card__subtitle">
-            <span class="ht-hero-card__error-type">{latestError.error_type}</span>
-            {latestError.error_message && (
-              <span> — {latestError.error_message}</span>
-            )}
-            {latestError.kind === "handler" && latestError.handler_method && (
-              <span class="ht-hero-card__location"> in {latestError.handler_method}()</span>
-            )}
-          </p>
-        )}
-        <div class="ht-hero-card__actions">
-          {failedApp && (
-            <a href={`/apps/${failedApp.app_key}`} class="ht-btn ht-btn--xs">
-              open app →
-            </a>
-          )}
-          <button type="button" class="ht-btn ht-btn--xs ht-btn--ghost" disabled aria-label="Traceback viewer coming soon">
-            view traceback
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface HeroCardMultipleFailuresProps {
-  apps: DashboardAppGridEntry[];
-}
-
-function HeroCardMultipleFailures({ apps }: HeroCardMultipleFailuresProps) {
-  const failedApps = apps.filter((a) => a.status === "failed" || a.status === "crashed");
-
-  return (
-    <div
-      class="ht-hero-card ht-hero-card--failure ht-hero-card--multi"
-      data-testid="hero-card-multiple-failures"
-    >
-      <div class="ht-hero-card__multi-header">
-        <div class="ht-hero-card__icon ht-hero-card__icon--err">!</div>
-        <div>
-          <h3 class="ht-hero-card__title ht-hero-card__title--err">
-            {failedApps.length} apps are failing
-          </h3>
-          <p class="ht-hero-card__subtitle">
-            ranked by recency below — start with the top one.
-          </p>
-        </div>
-      </div>
-      <div class="ht-hero-card__failure-list">
-        {failedApps.map((app) => (
-          <a key={app.app_key} href={`/apps/${app.app_key}`} class="ht-hero-card__failure-row">
-            <StatusShape kind="err" size={10} />
-            <div class="ht-hero-card__failure-detail">
-              <div class="ht-hero-card__failure-name-line">
-                <span class="ht-hero-card__failure-name">{app.app_key}</span>
-                <span class="ht-hero-card__failure-meta">
-                  · {app.total_errors} error{app.total_errors !== 1 ? "s" : ""}
-                </span>
-              </div>
-            </div>
-            <span class="ht-badge ht-badge--danger ht-badge--sm">failing</span>
-            <span class="ht-hero-card__failure-arrow">→</span>
-          </a>
-        ))}
-      </div>
-      <div class="ht-hero-card__multi-actions">
-        <a href="/logs" class="ht-btn ht-btn--xs ht-btn--ghost">view all in logs →</a>
-      </div>
-    </div>
-  );
-}
-
-interface HeroCardProps {
-  state: SystemState;
-  apps: DashboardAppGridEntry[] | null;
-  errors: DashboardErrorEntry[] | null;
-}
-
-function HeroCard({ state, apps, errors }: HeroCardProps) {
-  if (state === "first_install") return <HeroCardFirstInstall />;
-  if (state === "healthy" || state === "quiet") return null;
-  if (state === "single_failure") return <HeroCardSingleFailure apps={apps ?? []} errors={errors} />;
-  return <HeroCardMultipleFailures apps={apps ?? []} />;
-}
-
-// ---- Sparkline --------------------------------------------------------------
-
-interface SparklineProps {
-  buckets: Array<{ ok: number; err: number }>;
-  width?: number;
-  height?: number;
-}
-
-function Sparkline({ buckets, width = 260, height = 36 }: SparklineProps) {
-  if (!buckets || buckets.length < 2) return null;
-
-  const totals = buckets.map((b) => b.ok + b.err);
-  const maxVal = Math.max(...totals, 1);
-
-  const points = buckets.map((b, i) => {
-    const x = (i / (buckets.length - 1)) * width;
-    const y = height - ((b.ok + b.err) / maxVal) * height;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-
-  return (
-    <svg
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      class="ht-sparkline"
-      aria-hidden="true"
-    >
-      <polyline
-        points={points}
-        fill="none"
-        stroke="var(--ok)"
-        stroke-width="1.5"
-        stroke-linejoin="round"
-        stroke-linecap="round"
-      />
-    </svg>
-  );
-}
-
-// ---- Three summary cards ----------------------------------------------------
-
-interface YourAppsCardProps {
-  apps: DashboardAppGridEntry[] | null;
-}
-
-const YOUR_APPS_COLLAPSED_COUNT = 8;
-
-const STATUS_ORDER: Record<string, number> = { failed: 0, blocked: 1, running: 2, stopped: 3, disabled: 4 };
-
-function YourAppsCard({ apps }: YourAppsCardProps) {
-  const showAll = useRef(signal(false)).current;
-  const allApps = [...(apps ?? [])].sort((a, b) => {
-    const sa = STATUS_ORDER[a.status] ?? 99;
-    const sb = STATUS_ORDER[b.status] ?? 99;
-    if (sa !== sb) return sa - sb;
-    return a.app_key.localeCompare(b.app_key);
-  });
-  const visible = showAll.value ? allApps : allApps.slice(0, YOUR_APPS_COLLAPSED_COUNT);
-  const hasMore = allApps.length > YOUR_APPS_COLLAPSED_COUNT;
-
-  return (
-    <div class="ht-card ht-summary-card" data-testid="your-apps-card">
-      <a href="/apps" class="ht-summary-card__title ht-summary-card__title--link">your apps</a>
-      <div class="ht-app-list">
-        {visible.map((app) => (
-          <a key={app.app_key} href={`/apps/${app.app_key}`} class="ht-app-list__row">
-            <StatusShape kind={statusToKind(app.status)} size={8} />
-            <span class="ht-app-list__name">
-              {app.app_key}
-              {app.instance_count > 1 && (
-                <span class="ht-app-list__instances"> ×{app.instance_count}</span>
-              )}
-            </span>
-            <span class="ht-app-list__runs">{pluralize(app.total_invocations + app.total_executions, "run")}</span>
-          </a>
-        ))}
-        {allApps.length === 0 && (
-          <p class="ht-summary-card__empty">no apps loaded</p>
-        )}
-      </div>
-      {hasMore && (
-        <button
-          type="button"
-          class="ht-btn ht-btn--xs ht-btn--ghost ht-show-more"
-          onClick={() => { showAll.value = !showAll.value; }}
-        >
-          {showAll.value ? "Show less" : `Show all ${allApps.length}`}
-        </button>
-      )}
-    </div>
-  );
-}
-
-interface ActivityCardProps {
-  kpis: DashboardKpis | null;
-  isQuiet: boolean;
-  timeLabel: string;
-}
-
-function ActivityCard({ kpis, isQuiet, timeLabel }: ActivityCardProps) {
-  const totalRuns = (kpis?.total_invocations ?? 0) + (kpis?.total_executions ?? 0);
-  const buckets = kpis?.activity_buckets ?? [];
-
-  const errCount = (kpis?.total_errors ?? 0) + (kpis?.total_timed_out ?? 0)
-    + (kpis?.total_job_errors ?? 0) + (kpis?.total_job_timed_out ?? 0);
-  const okCount = Math.max(0, totalRuns - errCount);
-
-  return (
-    <div class="ht-card ht-summary-card" data-testid="activity-card">
-      <h3 class="ht-summary-card__title">activity</h3>
-      {isQuiet ? (
-        <div class="ht-activity-quiet">
-          <p class="ht-activity-quiet__count">0 runs / hour</p>
-          <p class="ht-activity-quiet__note">
-            apps are loaded and connected — they just haven't had anything to react to.
-          </p>
-        </div>
-      ) : (
-        <div class="ht-activity-body">
-          <div class="ht-activity-big-number">
-            {totalRuns.toLocaleString()}
-          </div>
-          <p class="ht-activity-label">runs {timeLabel}</p>
-          {buckets.length >= 2 && <Sparkline buckets={buckets} />}
-          <div class="ht-activity-breakdown">
-            <span class="ht-activity-breakdown__ok">
-              <StatusShape kind="ok" size={8} /> {Math.max(0, okCount)} ok
-            </span>
-            {errCount > 0 && (
-              <span class="ht-activity-breakdown__err">
-                <StatusShape kind="err" size={8} /> {errCount} err
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-interface ServiceEntry {
-  name: string;
-  status: string;
-}
-
-interface SystemCardProps {
-  services: ServiceEntry[];
-}
-
-function humanizeServiceName(name: string): string {
-  return name
-    .replace(/Service$/, "")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .toLowerCase();
-}
-
-function SystemCard({ services }: SystemCardProps) {
-  const total = services.length;
-  const unhealthy = services.filter((s) => s.status !== "running");
-  const allHealthy = unhealthy.length === 0;
-  const kind = allHealthy ? "ok" : "err";
-
-  return (
-    <div class="ht-card ht-summary-card" data-testid="system-card">
-      <h3 class="ht-summary-card__title">system</h3>
-      <div class="ht-system-summary">
-        <div class="ht-system-summary__status">
-          <StatusShape kind={kind} size={10} />
-          <span class={allHealthy ? "" : "ht-text-danger"}>
-            {allHealthy
-              ? `all ${total} services healthy`
-              : `${unhealthy.length} of ${total} services unhealthy`}
-          </span>
-        </div>
-        {!allHealthy && (
-          <ul class="ht-system-summary__issues">
-            {unhealthy.map((svc) => (
-              <li key={svc.name}>
-                <StatusShape kind={statusToKind(svc.status)} size={7} />
-                <span class="ht-text-mono ht-text-sm">{humanizeServiceName(svc.name)}</span>
-                <span class="ht-text-muted ht-text-sm">{svc.status}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <a href="/diagnostics" class="ht-system-summary__link">view diagnostics →</a>
-      </div>
-    </div>
-  );
-}
-
-// ---- Recent errors table ----------------------------------------------------
-
-function shortErrorType(t: string | null | undefined): string {
-  if (!t) return "";
-  return lastDotSegment(t);
-}
-
-function getHandlerMethod(err: DashboardErrorEntry): string | null {
-  if (err.kind === "handler") return err.handler_method ?? null;
-  if (err.kind === "job") return err.job_name ?? null;
-  return null;
-}
-
-function RecentErrorsTable({
-  errors,
-  tierFilter,
-}: {
-  errors: UseApiResult<DashboardErrorEntry[]>;
-  tierFilter: Signal<SourceTier>;
+function AlertsBar({ bootIssues, unhealthyServices }: {
+  bootIssues: BootIssue[];
+  unhealthyServices: Array<{ name: string; status: string }>;
 }) {
-  const staleRef = useRef<DashboardErrorEntry[] | null>(null);
-  const currentData = errors.data.value;
-  const isLoading = errors.loading.value;
+  if (bootIssues.length === 0 && unhealthyServices.length === 0) return null;
 
-  if (currentData && currentData.length > 0) {
-    staleRef.current = currentData;
+  const parts: string[] = [];
+  const errorCount = bootIssues.filter((i) => i.severity === "err").length;
+  const warnCount = bootIssues.filter((i) => i.severity === "warn").length;
+  if (errorCount > 0) parts.push(`${errorCount} boot error${errorCount > 1 ? "s" : ""}`);
+  if (warnCount > 0) parts.push(`${warnCount} boot warning${warnCount > 1 ? "s" : ""}`);
+  if (unhealthyServices.length > 0) {
+    parts.push(`${unhealthyServices.length} degraded service${unhealthyServices.length > 1 ? "s" : ""}`);
   }
 
-  const displayErrors = currentData ?? staleRef.current;
-  if (!displayErrors || displayErrors.length === 0) return null;
-  const isRefetching = isLoading && currentData === null;
+  return (
+    <div class="ht-overview-alerts" data-testid="overview-alerts-bar" role="status">
+      <StatusShape kind="warn" size={8} />
+      <span class="ht-overview-alerts__text">{parts.join(" · ")}</span>
+      <a href="/diagnostics" class="ht-overview-alerts__link">view diagnostics →</a>
+    </div>
+  );
+}
+
+// ---- App health table -------------------------------------------------------
+
+function AppHealthTable({ apps, liveStatuses }: {
+  apps: AppRow[];
+  liveStatuses: Record<string, { status: string } | undefined>;
+}) {
+  const sorted = [...apps].sort((a, b) =>
+    compareAppRows(a, b, { key: "status", dir: "asc" }, liveStatuses),
+  );
+
+  if (sorted.length === 0) {
+    return (
+      <div class="ht-card ht-overview-apps" data-testid="overview-app-table">
+        <div class="ht-overview-apps__header">
+          <h2 class="ht-overview-section-title">apps</h2>
+          <a href="/apps" class="ht-overview-section-link">all apps →</a>
+        </div>
+        <p class="ht-empty-state ht-text-muted">
+          no apps loaded. <a href="https://hassette.readthedocs.io/en/latest/getting-started/" class="ht-link">get started →</a>
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div
-      class="ht-card ht-card--urgent ht-recent-errors"
-      data-testid="recent-errors-table"
-      style={isRefetching ? "opacity: 0.6; transition: opacity 0.15s ease" : undefined}
-    >
-      <div class="ht-recent-errors__header">
-        <h3 class="ht-summary-card__title ht-recent-errors__title">recent errors</h3>
-        <div class="ht-tier-toggle">
-          {TIER_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              class={`ht-tier-toggle__btn${tierFilter.value === opt.value ? " ht-tier-toggle__btn--active" : ""}`}
-              onClick={() => { tierFilter.value = opt.value; }}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+    <div class="ht-card ht-overview-apps" data-testid="overview-app-table">
+      <div class="ht-overview-apps__header">
+        <h2 class="ht-overview-section-title">apps</h2>
+        <a href="/apps" class="ht-overview-section-link">all apps →</a>
       </div>
-      <table class="ht-table ht-table--dense ht-recent-errors__table">
+      <table class="ht-table ht-table--dense ht-overview-apps__table" aria-label="App health">
         <thead>
           <tr>
-            <th class="ht-recent-errors__col-age" scope="col">AGE</th>
-            <th class="ht-recent-errors__col-app" scope="col">APP</th>
-            <th class="ht-recent-errors__col-location" scope="col">LOCATION</th>
-            <th class="ht-recent-errors__col-exception" scope="col">EXCEPTION</th>
+            <th scope="col">app</th>
+            <th scope="col" class="ht-overview-apps__sparkline-cell">activity</th>
+            <th scope="col" class="ht-overview-apps__col-num">runs</th>
+            <th scope="col" class="ht-overview-apps__col-num">err %</th>
+            <th scope="col" class="ht-overview-apps__col-last-err">last error</th>
           </tr>
         </thead>
         <tbody>
-          {displayErrors.map((err, i) => {
-            const errType = shortErrorType(err.error_type);
-            const method = getHandlerMethod(err);
-            const age = formatRelativeTime(err.execution_start_ts);
-            const time = new Date(err.execution_start_ts * 1000).toLocaleTimeString("en-US", {
-              hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true,
-            });
+          {sorted.map((app) => {
+            const status = liveStatuses[app.app_key]?.status ?? app.status;
+            const kind = statusToKind(status);
+            const totalRuns = app.total_invocations + app.total_executions;
+            const totalErrors = app.total_errors + app.total_timed_out + app.total_job_errors + app.total_job_timed_out;
+            const errPct = totalRuns > 0 ? (totalErrors / totalRuns) * 100 : 0;
+            const isDimmed = status === "stopped" || status === "disabled";
 
             return (
-              <tr key={`${err.kind}-${err.execution_start_ts}-${i}`} title={time}>
-                <td class="ht-recent-errors__age">{age}</td>
-                <td class="ht-recent-errors__app">
+              <tr
+                key={app.app_key}
+                class={`ht-overview-apps__row${isDimmed ? " ht-overview-apps__row--dimmed" : ""}`}
+                data-testid={`overview-app-${app.app_key}`}
+              >
+                <td class="ht-overview-apps__name-cell">
+                  <StatusShape kind={kind} size={7} />
+                  <a href={`/apps/${app.app_key}`} class="ht-overview-apps__name">{app.app_key}</a>
+                </td>
+                <td class="ht-overview-apps__sparkline-cell">
+                  <MiniSparkline buckets={app.activity_buckets} width={64} height={16} />
+                </td>
+                <td class="ht-text-mono ht-text-sm ht-overview-apps__col-num">{totalRuns}</td>
+                <td class={`ht-text-mono ht-text-sm ht-overview-apps__col-num${errPct > 0 ? " ht-text-danger" : ""}`}>
+                  {errPct > 0 ? errPct.toFixed(1) : "0"}
+                </td>
+                <td class="ht-text-mono ht-text-sm ht-text-muted ht-overview-apps__col-last-err">
+                  {app.last_error_ts ? formatRelativeTime(app.last_error_ts) : "—"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ---- Recent errors ----------------------------------------------------------
+
+const MAX_RECENT_ERRORS = 5;
+
+function RecentErrors({ errors }: { errors: DashboardErrorEntry[] | null }) {
+  if (!errors || errors.length === 0) return null;
+
+  const visible = errors.slice(0, MAX_RECENT_ERRORS);
+
+  return (
+    <div class="ht-card ht-overview-errors" data-testid="overview-recent-errors">
+      <div class="ht-overview-errors__header">
+        <h2 class="ht-overview-section-title">recent errors</h2>
+        <a href="/logs" class="ht-overview-section-link">all logs →</a>
+      </div>
+      <table class="ht-table ht-table--dense ht-overview-errors__table" aria-label="Recent errors">
+        <tbody>
+          {visible.map((err, i) => {
+            const age = formatRelativeTime(err.execution_start_ts);
+            const errType = err.error_type ? lastDotSegment(err.error_type) : "";
+            const method = err.kind === "handler" ? err.handler_method : err.kind === "job" ? err.job_name : null;
+            return (
+              <tr key={`${err.kind}-${err.execution_start_ts}-${i}`}>
+                <td class="ht-overview-errors__age">{age}</td>
+                <td class="ht-overview-errors__app">
                   {err.app_key ? (
-                    <a href={`/apps/${err.app_key}`} class="ht-recent-errors__app-link">
-                      {err.app_key}
-                    </a>
+                    <a href={`/apps/${err.app_key}`} class="ht-link">{err.app_key}</a>
                   ) : (
-                    <span class="ht-text-muted">—</span>
+                    <span class="ht-text-muted">framework</span>
                   )}
                 </td>
-                <td class="ht-recent-errors__location">
-                  {method && (
-                    <div class="ht-recent-errors__location-fn">
-                      {method}()
-                    </div>
-                  )}
-                  {err.source_location && (
-                    <div class="ht-recent-errors__location-file">
-                      {err.source_location}
-                    </div>
-                  )}
-                </td>
-                <td class="ht-recent-errors__exception">
-                  {errType && (
-                    <span class="ht-recent-errors__error-type">{errType}</span>
-                  )}
+                <td class="ht-overview-errors__detail">
+                  {method && <span class="ht-overview-errors__method">{method}()</span>}
+                  {errType && <span class="ht-overview-errors__type">{errType}</span>}
                   {err.error_message && (
-                    <span class="ht-recent-errors__error-msg">: {err.error_message}</span>
+                    <span class="ht-overview-errors__msg">: {err.error_message}</span>
                   )}
                 </td>
               </tr>
@@ -607,25 +209,25 @@ function RecentErrorsTable({
   );
 }
 
-// ---- Dashboard Page --------------------------------------------------------
+// ---- Dashboard page ---------------------------------------------------------
 
 export function DashboardPage() {
-  useEffect(() => { document.title = "Dashboard - Hassette"; }, []);
-  const { appStatus, invocationCompleted, executionCompleted, timePreset, uptimeSeconds, droppedOverflow, droppedExhausted, droppedNoSession, droppedShutdown } = useAppState();
+  useEffect(() => { document.title = "Overview - Hassette"; }, []);
+
+  const {
+    appStatus, invocationCompleted, executionCompleted,
+    uptimeSeconds, droppedOverflow, droppedExhausted, droppedNoSession, droppedShutdown,
+  } = useAppState();
 
   const totalDropped = droppedOverflow.value + droppedExhausted.value + droppedNoSession.value + droppedShutdown.value;
-  const errorTierFilter = useSignal<SourceTier>("all");
 
   const kpis = useScopedApi((since) => getDashboardKpis(since, "app"));
   const appGrid = useScopedApi((since) => getDashboardAppGrid(since).then((r) => r.apps));
-  const errors = useScopedApi(
-    (since) => getDashboardErrors(since, errorTierFilter.value).then((r) => r.errors),
-    { deps: [errorTierFilter.value] },
-  );
-  // System status for boot issues (uses useApi — not time-scoped)
-  const systemStatus = useApi(() => getSystemStatus());
+  const manifests = useApi(getManifests);
+  const errors = useScopedApi((since) => getDashboardErrors(since).then((r) => r.errors));
+  const systemStatus = useApi(getSystemStatus);
 
-  // Debounce appStatus-driven refetches
+  // Debounce WS-driven refetches
   const initialLoadDone = !kpis.loading.value && !appGrid.loading.value;
   const statusVersionRef = useRef(0);
   const prevStatusRef = useRef(appStatus.value);
@@ -656,103 +258,53 @@ export function DashboardPage() {
     2000,
   );
 
-  const hasData = kpis.data.value !== null && appGrid.data.value !== null;
-  if (!hasData && (kpis.loading.value || appGrid.loading.value)) {
-    return <Spinner />;
-  }
+  // Merge manifests + grid into AppRow[]
+  const manifestList = manifests.data.value?.manifests ?? [];
+  const gridEntries = appGrid.data.value ?? [];
+  const apps = mergeManifestsAndGrid(manifestList, gridEntries);
 
-  const systemState = detectSystemState(appGrid.data.value, kpis.data.value);
-  const isQuiet = systemState === "quiet";
-  const bootIssues = systemStatus.data.value?.boot_issues ?? [];
-
-  const appCount = appGrid.data.value?.length ?? 0;
+  // Compute KPI values
+  const kpiData = kpis.data.value;
+  const totalHandlers = (kpiData?.total_handlers ?? 0) + (kpiData?.total_jobs ?? 0);
+  const successRate = kpiData ? 100 - kpiData.error_rate : 100;
   const uptime = uptimeSeconds.value ?? 0;
   const rateReliable = uptime >= 1800;
-  const runsPerHour = rateReliable ? (kpis.data.value?.runs_per_hour ?? 0) : null;
+  const runsPerHour = rateReliable ? (kpiData?.runs_per_hour ?? 0) : null;
+
+  // System health
+  const services = systemStatus.data.value?.services ?? [];
+  const bootIssues = systemStatus.data.value?.boot_issues ?? [];
+  const unhealthyServices = services.filter((s) => s.status !== "running");
+
+  const hasData = kpiData !== null || apps.length > 0;
+  const isLoading = kpis.loading.value && manifests.loading.value && !hasData;
+
+  if (isLoading) return <Spinner />;
 
   return (
-    <div class="ht-dashboard">
+    <div class="ht-page ht-overview" data-testid="overview-page">
       <TelemetryDegradedBanner />
 
-      {/* Greeting hero — state-tinted background */}
-      <div class={`ht-dashboard-hero ht-dashboard-hero--${systemState.replace("_", "-")}`}>
-        <div class="ht-dashboard-header">
-          <div class="ht-dashboard-header__top">
-            <h1 class="ht-dashboard-greeting">{getGreeting()}</h1>
-            <span class="ht-dashboard-meta" data-testid="dashboard-metadata">
-              {appCount} apps{runsPerHour !== null ? ` · ${isQuiet ? 0 : Math.round(runsPerHour)} runs / hr` : ""}
-            </span>
-          </div>
-          <p class="ht-dashboard-subtitle" data-testid="dashboard-subtitle">
-            {getSubtitle(systemState, appGrid.data.value)}
-          </p>
-        </div>
-
-        {kpis.error.value && (
-          <p class="ht-text-danger">Could not load dashboard stats — {kpis.error.value}</p>
-        )}
-        {appGrid.error.value && (
-          <p class="ht-text-danger">Could not load apps — {appGrid.error.value}</p>
-        )}
-
-        {/* Stats strip — visible when activity exists OR when drops are non-zero */}
-        {kpis.data.value && (!isQuiet || totalDropped > 0) && (
-          <div class="ht-dashboard-stats" data-testid="dashboard-stats-strip">
-            <div class="ht-dashboard-stats__cell">
-              <span class="ht-dashboard-stats__label">handlers</span>
-              <span class="ht-dashboard-stats__value">{kpis.data.value.total_handlers + kpis.data.value.total_jobs}</span>
-            </div>
-            <div class="ht-dashboard-stats__cell">
-              <span class="ht-dashboard-stats__label">invocations</span>
-              <span class="ht-dashboard-stats__value">{kpis.data.value.total_invocations + kpis.data.value.total_executions}</span>
-            </div>
-            <div class="ht-dashboard-stats__cell">
-              <span class="ht-dashboard-stats__label">success rate</span>
-              <span class={`ht-dashboard-stats__value${kpis.data.value.error_rate > 0 ? " ht-dashboard-stats__value--warn" : ""}`}>
-                {(100 - kpis.data.value.error_rate).toFixed(1)}%
-              </span>
-            </div>
-            <div class="ht-dashboard-stats__cell">
-              <span class="ht-dashboard-stats__label">dropped events</span>
-              <a
-                href="/diagnostics"
-                class={`ht-dashboard-stats__value${totalDropped > 0 ? " ht-dashboard-stats__value--warn" : ""}`}
-                data-testid="stats-strip-dropped"
-              >
-                {totalDropped}
-              </a>
-            </div>
-          </div>
-        )}
+      <div class="ht-page-header">
+        <h1 class="ht-display">overview</h1>
       </div>
 
-      {/* Framework error banner */}
-      <FrameworkErrorBanner issues={bootIssues} />
-
-      {/* Hero card */}
-      <HeroCard
-        state={systemState}
-        apps={appGrid.data.value}
-        errors={errors.data.value}
+      <StatsStrip
+        uptime={uptimeSeconds.value}
+        appCount={apps.length}
+        serviceTotal={services.length}
+        serviceHealthy={services.filter((s) => s.status === "running").length}
+        runsPerHour={runsPerHour}
+        successRate={successRate}
+        handlerCount={totalHandlers}
+        droppedEvents={totalDropped}
       />
 
-      {/* Three summary cards */}
-      <h2 class="ht-visually-hidden">Summary</h2>
-      <div class="ht-summary-cards" data-testid="summary-cards">
-        <YourAppsCard apps={appGrid.data.value} />
-        <ActivityCard kpis={kpis.data.value} isQuiet={isQuiet} timeLabel={TIME_PRESET_LABELS[timePreset.value]} />
-        <SystemCard services={systemStatus.data.value?.services ?? []} />
-      </div>
+      <AlertsBar bootIssues={bootIssues} unhealthyServices={unhealthyServices} />
 
-      {/* Service status panel: degraded services + dropped events line */}
-      <ServiceStatusPanel />
+      <AppHealthTable apps={apps} liveStatuses={appStatus.value} />
 
-      {/* Recent errors table */}
-      <RecentErrorsTable
-        errors={errors}
-        tierFilter={errorTierFilter}
-      />
-
+      <RecentErrors errors={errors.data.value} />
     </div>
   );
 }

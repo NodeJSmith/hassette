@@ -3,8 +3,6 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import {
   getManifests,
   getDashboardAppGrid,
-  type AppManifest,
-  type DashboardAppGridEntry,
 } from "../api/endpoints";
 import { useScopedApi, PRESET_WINDOW_SECONDS } from "../hooks/use-scoped-api";
 import { useApi } from "../hooks/use-api";
@@ -12,77 +10,12 @@ import { useAppState } from "../state/context";
 import { statusToKind, INACTIVE_STATUSES, type StatusKind } from "../utils/status";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
 import { formatRelativeTime, formatTimestamp } from "../utils/format";
+import { type AppRow, type AppSortKey, type AppSortState, mergeManifestsAndGrid, compareAppRows } from "../utils/app-data";
 import { StatusShape } from "../components/shared/status-shape";
+import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { ActionButtons } from "../components/shared/action-buttons";
 import { SortHeader } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
-
-// ---- Merged app row type ----
-
-interface AppRow {
-  app_key: string;
-  class_name: string;
-  display_name: string;
-  filename: string;
-  status: string;
-  block_reason: string | null;
-  enabled: boolean;
-  auto_loaded: boolean;
-  instance_count: number;
-  instances: AppManifest["instances"];
-  error_message: string | null;
-  handler_count: number;
-  job_count: number;
-  total_invocations: number;
-  total_executions: number;
-  total_errors: number;
-  total_timed_out: number;
-  total_job_errors: number;
-  total_job_timed_out: number;
-  error_rate: number;
-  last_activity_ts: number | null;
-  activity_buckets: Array<{ ok: number; err: number }>;
-  last_error_message: string | null;
-  last_error_type: string | null;
-  last_error_ts: number | null;
-}
-
-function mergeData(
-  manifests: AppManifest[],
-  gridEntries: DashboardAppGridEntry[],
-): AppRow[] {
-  const gridMap = new Map(gridEntries.map((e) => [e.app_key, e]));
-  return manifests.map((m) => {
-    const g = gridMap.get(m.app_key);
-    return {
-      app_key: m.app_key,
-      class_name: m.class_name,
-      display_name: m.display_name,
-      filename: m.filename,
-      status: m.status,
-      block_reason: m.block_reason ?? null,
-      enabled: m.enabled,
-      auto_loaded: m.auto_loaded,
-      instance_count: m.instance_count,
-      instances: m.instances,
-      error_message: g?.last_error_message ?? m.error_message ?? null,
-      last_error_message: g?.last_error_message ?? null,
-      last_error_type: g?.last_error_type ?? null,
-      last_error_ts: g?.last_error_ts ?? null,
-      handler_count: g?.handler_count ?? 0,
-      job_count: g?.job_count ?? 0,
-      total_invocations: g?.total_invocations ?? 0,
-      total_executions: g?.total_executions ?? 0,
-      total_errors: g?.total_errors ?? 0,
-      total_timed_out: g?.total_timed_out ?? 0,
-      total_job_errors: g?.total_job_errors ?? 0,
-      total_job_timed_out: g?.total_job_timed_out ?? 0,
-      error_rate: g?.error_rate ?? 0,
-      last_activity_ts: g?.last_activity_ts ?? null,
-      activity_buckets: g?.activity_buckets ?? [],
-    };
-  });
-}
 
 // ---- Filter types ----
 
@@ -97,68 +30,6 @@ const FILTER_TONES: Record<FilterId, StatusKind | null> = {
   disabled: "mute",
   blocked: "warn",
 };
-
-// ---- Sort ----
-
-type SortKey = "name" | "status" | "error" | "runs" | "last";
-interface SortState { key: SortKey; dir: "asc" | "desc" }
-
-function compareRows(a: AppRow, b: AppRow, sort: SortState, liveStatuses: Record<string, { status: string } | undefined>): number {
-  const dir = sort.dir === "asc" ? 1 : -1;
-  const aStatus = liveStatuses[a.app_key]?.status ?? a.status;
-  const bStatus = liveStatuses[b.app_key]?.status ?? b.status;
-  switch (sort.key) {
-    case "name":
-      return dir * a.app_key.localeCompare(b.app_key);
-    case "status": {
-      const order: Record<string, number> = { failed: 0, blocked: 1, running: 2, stopped: 3, disabled: 4 };
-      const statusDiff = (order[aStatus] ?? 5) - (order[bStatus] ?? 5);
-      if (statusDiff !== 0) return dir * statusDiff;
-      return a.app_key.localeCompare(b.app_key);
-    }
-    case "error":
-      return dir * ((a.error_message ? 0 : 1) - (b.error_message ? 0 : 1));
-    case "runs": {
-      const aRuns = a.total_invocations + a.total_executions;
-      const bRuns = b.total_invocations + b.total_executions;
-      return dir * (aRuns - bRuns);
-    }
-    case "last":
-      return dir * ((a.last_activity_ts ?? 0) - (b.last_activity_ts ?? 0));
-    default:
-      return 0;
-  }
-}
-
-// ---- Mini sparkline ----
-
-function MiniSparkline({ buckets, width = 80, height = 20 }: {
-  buckets: Array<{ ok: number; err: number }>;
-  width?: number;
-  height?: number;
-}) {
-  if (!buckets || buckets.length < 2) return null;
-  const totals = buckets.map((b) => b.ok + b.err);
-  const maxVal = Math.max(...totals, 1);
-  const points = buckets.map((b, i) => {
-    const x = (i / (buckets.length - 1)) * width;
-    const y = height - ((b.ok + b.err) / maxVal) * height;
-    return { x, y, ok: b.ok, err: b.err };
-  });
-  const line = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-  const errPoints = points.filter((p) => p.err > 0);
-
-  return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true" class="ht-apps-sparkline">
-      <polyline points={line} fill="none" stroke="var(--ok)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
-      {errPoints.map((p, i) => (
-        <circle key={i} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="2.5" fill="var(--err)">
-          <title>{`${p.err} error${p.err > 1 ? "s" : ""}, ${p.ok} ok`}</title>
-        </circle>
-      ))}
-    </svg>
-  );
-}
 
 // ---- Stats strip ----
 
@@ -240,9 +111,9 @@ function FilterPills({ counts, active, onChange }: {
 // ---- Sort header ----
 
 function AppSortHeader({ sort, setSort, k, children }: {
-  sort: SortState;
-  setSort: (s: SortState) => void;
-  k: SortKey;
+  sort: AppSortState;
+  setSort: (s: AppSortState) => void;
+  k: AppSortKey;
   children: preact.ComponentChildren;
 }) {
   const isActive = sort.key === k;
@@ -375,7 +246,7 @@ export function AppsPage() {
   );
 
   const [filter, setFilter] = useState<FilterId>("all");
-  const [sort, setSort] = useState<SortState>({ key: "status", dir: "asc" });
+  const [sort, setSort] = useState<AppSortState>({ key: "status", dir: "asc" });
   const [search, setSearch] = useState("");
   const expanded = useRef(signal<Set<string>>(new Set())).current;
 
@@ -388,7 +259,7 @@ export function AppsPage() {
 
   const manifests = manifestData.value?.manifests ?? [];
   const gridEntries = gridData.value?.apps ?? [];
-  const allApps = mergeData(manifests, gridEntries);
+  const allApps = mergeManifestsAndGrid(manifests, gridEntries);
 
   const windowSeconds = uptimeSeconds.value !== null && uptimeSeconds.value !== undefined
     ? (timePreset.value === "since-restart" ? uptimeSeconds.value : PRESET_WINDOW_SECONDS[timePreset.value])
@@ -410,7 +281,7 @@ export function AppsPage() {
       if (q && !a.app_key.toLowerCase().includes(q) && !a.class_name.toLowerCase().includes(q) && !a.display_name.toLowerCase().includes(q)) return false;
       return true;
     })
-    .sort((a, b) => compareRows(a, b, sort, appStatus.value));
+    .sort((a, b) => compareAppRows(a, b, sort, appStatus.value));
 
   if (manifestLoading.value && manifests.length === 0) return <Spinner />;
 

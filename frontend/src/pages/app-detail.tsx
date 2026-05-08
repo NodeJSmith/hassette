@@ -237,7 +237,7 @@ export function AppDetailPage({ params }: Props) {
   }
 
   return (
-    <div>
+    <div class="ht-page">
       {/* Breadcrumb */}
       <nav class="ht-breadcrumb ht-mb-3" aria-label="Breadcrumb">
         {isMultiInstance ? (

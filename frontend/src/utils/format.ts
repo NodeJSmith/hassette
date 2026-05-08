@@ -97,3 +97,10 @@ export function lastDotSegment(s: string): string {
   const idx = s.lastIndexOf(".");
   return idx === -1 ? s : s.slice(idx + 1);
 }
+
+export function formatUptime(seconds: number): string {
+  if (seconds < 60) return `${Math.floor(seconds)}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+  return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
+}
