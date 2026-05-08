@@ -364,11 +364,7 @@ export function DiagnosticsPage() {
       </div>
 
       {loadError.value ? (
-        <div
-          class="ht-diag__load-error"
-          role="alert"
-          data-testid="diag-load-error"
-        >
+        <div class="ht-alert ht-alert--danger" role="alert" data-testid="diag-load-error">
           {loadError.value}
         </div>
       ) : (

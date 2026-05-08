@@ -7,7 +7,7 @@ import type { AppInstance } from "../api/endpoints";
 import { ActionButtons } from "../components/shared/action-buttons";
 import { CodeTab } from "../components/app-detail/code-tab";
 import { ConfigTab } from "../components/app-detail/config-tab";
-import { ErrorDisplay } from "../components/app-detail/error-display";
+import { ErrorBanner } from "../components/shared/error-banner";
 import { HandlersTab } from "../components/app-detail/handlers-tab";
 import { LogTable } from "../components/shared/log-table";
 import { Spinner } from "../components/shared/spinner";
@@ -310,9 +310,10 @@ export function AppDetailPage({ params }: Props) {
 
       {/* Error banner for failed/crashed apps */}
       {(currentInstance?.error_message ?? manifest?.error_message) && (
-        <ErrorDisplay
+        <ErrorBanner
           errorMessage={(currentInstance?.error_message ?? manifest?.error_message)!}
-          errorTraceback={manifest?.error_traceback ?? null}
+          traceback={manifest?.error_traceback ?? null}
+          data-testid="error-display"
         />
       )}
 

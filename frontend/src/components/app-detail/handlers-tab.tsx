@@ -1,5 +1,5 @@
 import { signal } from "@preact/signals";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 import type { ListenerData, JobData } from "../../api/endpoints";
 import { getHandlerInvocations, getJobExecutions } from "../../api/endpoints";
 import { HandlerList, type SelectedHandlerId } from "./handler-list";
@@ -13,6 +13,7 @@ import { formatTriggerDetail, formatDurationOrDash, formatOptionalDuration, form
 
 import { handlerKindLabel, statusToKind } from "../../utils/status";
 import { EmptyState } from "../shared/empty-state";
+import { ErrorBanner } from "../shared/error-banner";
 import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
 
@@ -116,43 +117,6 @@ function jobStatsCells(job: JobData, timeLabel: string): StatsCell[] {
 }
 
 
-interface ErrorBannerProps {
-  errorType: string | null;
-  errorMessage: string | null;
-  traceback: string | null;
-  testId?: string;
-}
-
-function ErrorBanner({ errorType, errorMessage, traceback, testId }: ErrorBannerProps) {
-  const [traceExpanded, setTraceExpanded] = useState(false);
-
-  return (
-    <div class="ht-detail-pane__error-banner" data-testid={testId}>
-      <span class="ht-detail-pane__error-banner-heading">
-        Last Error{errorType ? ` — ${errorType}` : ""}
-      </span>
-      {errorMessage && (
-        <p class="ht-detail-pane__error-banner-message">{errorMessage}</p>
-      )}
-      {traceback && (
-        <div class="ht-detail-pane__traceback" data-testid="traceback-content">
-          <button
-            type="button"
-            class="ht-detail-pane__traceback-toggle"
-            data-testid="traceback-toggle"
-            aria-expanded={traceExpanded}
-            onClick={() => setTraceExpanded((v) => !v)}
-          >
-            {traceExpanded ? "hide traceback" : "show traceback"}
-          </button>
-          {traceExpanded && (
-            <pre class="ht-traceback ht-detail-pane__traceback-body">{traceback}</pre>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 interface ListenerDetailProps {
   listener: ListenerData;
@@ -233,7 +197,7 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
           errorType={listener.last_error_type ?? null}
           errorMessage={listener.last_error_message ?? null}
           traceback={listener.last_error_traceback ?? null}
-          testId="handler-error-banner"
+          data-testid="handler-error-banner"
         />
       )}
 
@@ -374,7 +338,7 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
           errorType={job.last_error_type ?? null}
           errorMessage={job.last_error_message ?? null}
           traceback={job.last_error_traceback ?? null}
-          testId="job-error-banner"
+          data-testid="job-error-banner"
         />
       )}
 

@@ -3562,14 +3562,6 @@ strong {
   text-align: right;
 }
 
-.ht-diag__load-error {
-  background: var(--err-bg);
-  border: 1px solid var(--err);
-  border-radius: var(--r-sm);
-  padding: var(--sp-3) var(--sp-4);
-  font-size: var(--fs-small);
-  color: var(--err);
-}
 
 /* =====================================================
    WP06 — Overview Page Components
@@ -3967,7 +3959,7 @@ strong {
   color: var(--ink-3);
 }
 
-.ht-detail-pane__error-banner {
+.ht-error-banner {
   background: var(--err-bg);
   border: 1px solid color-mix(in srgb, var(--err) 30%, transparent);
   border-radius: var(--r-md);
@@ -3975,7 +3967,7 @@ strong {
   margin-bottom: var(--sp-4);
 }
 
-.ht-detail-pane__error-banner-heading {
+.ht-error-banner__heading {
   display: block;
   font-size: var(--fs-small);
   font-weight: 600;
@@ -3983,20 +3975,17 @@ strong {
   margin-bottom: var(--sp-1);
 }
 
-.ht-detail-pane__error-banner-message {
+.ht-error-banner__message {
   font-family: var(--font-mono);
   font-size: var(--fs-mono-sm);
   color: var(--ink-2);
   word-break: break-all;
 }
 
-.ht-detail-pane__traceback {
-  margin-top: var(--sp-2);
-}
-
-.ht-detail-pane__traceback-toggle {
+.ht-error-banner__traceback-toggle {
   display: inline-flex;
   align-items: center;
+  margin-top: var(--sp-2);
   background: none;
   border: none;
   padding: 0;
@@ -4008,14 +3997,8 @@ strong {
   transition: opacity var(--t-fast) var(--ease);
 }
 
-.ht-detail-pane__traceback-toggle:hover {
+.ht-error-banner__traceback-toggle:hover {
   opacity: 1;
-}
-
-.ht-detail-pane__traceback-body {
-  font-size: var(--fs-mono-sm);
-  line-height: 1.5;
-  color: var(--ink-2);
 }
 
 .ht-detail-pane__next-run {
