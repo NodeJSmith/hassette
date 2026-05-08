@@ -4,18 +4,18 @@ import { signal } from "@preact/signals";
 import { HandlersPage } from "./handlers";
 import { renderWithAppState } from "../test/render-helpers";
 import { createListener, createJob } from "../test/factories";
-import { getAllListeners, getAllJobs } from "../api/endpoints";
+
 
 vi.mock("../components/shared/spinner", () => ({
   Spinner: () => <div data-testid="spinner" />,
 }));
 
-vi.mock("../hooks/use-api", () => ({
-  useApi: vi.fn(),
+vi.mock("../hooks/use-scoped-api", () => ({
+  useScopedApi: vi.fn(),
 }));
 
-const useApiMod = await import("../hooks/use-api");
-const useApi = useApiMod.useApi as unknown as ReturnType<typeof vi.fn>;
+const useScopedApiMod = await import("../hooks/use-scoped-api");
+const useScopedApi = useScopedApiMod.useScopedApi as unknown as ReturnType<typeof vi.fn>;
 
 function fakeApiResult<T>(data: T | null, loading = false, error: string | null = null) {
   return {
@@ -26,16 +26,18 @@ function fakeApiResult<T>(data: T | null, loading = false, error: string | null 
   };
 }
 
-/** Set up useApi to return different data based on which fetcher is called. */
+/** Set up useScopedApi to return different data based on which fetcher is called. */
 function setupApi({
   listeners = [] as ReturnType<typeof createListener>[],
   jobs = [] as ReturnType<typeof createJob>[],
   loading = false,
 } = {}) {
-  useApi.mockImplementation((fetcher: () => unknown) => {
-    if (fetcher === getAllListeners) return fakeApiResult(listeners, loading);
-    if (fetcher === getAllJobs) return fakeApiResult(jobs, loading);
-    return fakeApiResult(null);
+  const listenersResult = fakeApiResult(listeners, loading);
+  const jobsResult = fakeApiResult(jobs, loading);
+  useScopedApi.mockImplementation((fetcher: (since: number) => Promise<unknown>) => {
+    const probe = fetcher.toString();
+    if (probe.includes("getAllJobs")) return jobsResult;
+    return listenersResult;
   });
 }
 
@@ -95,7 +97,7 @@ describe("HandlersPage", () => {
     expect(getAllByTestId(/handler-row-/).length).toBe(1);
   });
 
-  it("includes framework handlers when tier toggle is enabled", () => {
+  it("includes framework handlers when 'all' tier button is clicked", () => {
     setupApi({
       listeners: [
         createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" }),
@@ -103,8 +105,8 @@ describe("HandlersPage", () => {
       ],
     });
     const { getAllByTestId, getByRole } = renderWithAppState(<HandlersPage />);
-    const toggle = getByRole("checkbox", { name: /include framework/i });
-    fireEvent.click(toggle);
+    const allBtn = getByRole("button", { name: /^all$/i });
+    fireEvent.click(allBtn);
     expect(getAllByTestId(/handler-row-/).length).toBe(2);
   });
 
@@ -137,5 +139,79 @@ describe("HandlersPage", () => {
     const { getByRole, getByText } = renderWithAppState(<HandlersPage />);
     fireEvent.click(getByRole("tab", { name: /^jobs/i }));
     expect(getByText(/no jobs scheduled/i)).toBeDefined();
+  });
+
+  it("renders a search input for handlers", () => {
+    const { getByPlaceholderText } = renderWithAppState(<HandlersPage />);
+    expect(getByPlaceholderText("search handlers...")).toBeDefined();
+  });
+
+  it("filters handlers by search text in handler_method", () => {
+    setupApi({
+      listeners: [
+        createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_motion_detected", source_tier: "app" }),
+        createListener({ listener_id: 2, app_key: "app_b", handler_method: "on_temperature_change", source_tier: "app" }),
+      ],
+    });
+    const { getAllByTestId, getByPlaceholderText } = renderWithAppState(<HandlersPage />);
+    fireEvent.input(getByPlaceholderText("search handlers..."), { target: { value: "motion" } });
+    expect(getAllByTestId(/handler-row-/).length).toBe(1);
+  });
+
+  it("filters handlers by search text in app_key", () => {
+    setupApi({
+      listeners: [
+        createListener({ listener_id: 1, app_key: "climate_app", handler_method: "on_event", source_tier: "app" }),
+        createListener({ listener_id: 2, app_key: "alarm_app", handler_method: "on_event", source_tier: "app" }),
+      ],
+    });
+    const { getAllByTestId, getByPlaceholderText } = renderWithAppState(<HandlersPage />);
+    fireEvent.input(getByPlaceholderText("search handlers..."), { target: { value: "climate" } });
+    expect(getAllByTestId(/handler-row-/).length).toBe(1);
+  });
+
+  it("search is case-insensitive for handlers", () => {
+    setupApi({
+      listeners: [
+        createListener({ listener_id: 1, app_key: "app_a", handler_method: "OnMotionDetected", source_tier: "app" }),
+        createListener({ listener_id: 2, app_key: "app_b", handler_method: "on_temperature", source_tier: "app" }),
+      ],
+    });
+    const { getAllByTestId, getByPlaceholderText } = renderWithAppState(<HandlersPage />);
+    fireEvent.input(getByPlaceholderText("search handlers..."), { target: { value: "onmotion" } });
+    expect(getAllByTestId(/handler-row-/).length).toBe(1);
+  });
+
+  it("filters jobs by search text in job_name on the jobs tab", () => {
+    setupApi({
+      jobs: [
+        createJob({ job_id: 10, app_key: "app_a", job_name: "daily_backup", source_tier: "app" }),
+        createJob({ job_id: 11, app_key: "app_b", job_name: "hourly_ping", source_tier: "app" }),
+      ],
+    });
+    const { getByRole, getAllByTestId, getByPlaceholderText } = renderWithAppState(<HandlersPage />);
+    fireEvent.click(getByRole("tab", { name: /^jobs/i }));
+    fireEvent.input(getByPlaceholderText("search handlers..."), { target: { value: "backup" } });
+    expect(getAllByTestId(/job-row-/).length).toBe(1);
+  });
+
+  it("clears search when switching tabs", () => {
+    setupApi({
+      listeners: [
+        createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_motion", source_tier: "app" }),
+      ],
+      jobs: [
+        createJob({ job_id: 10, app_key: "app_a", job_name: "daily_backup", source_tier: "app" }),
+      ],
+    });
+    const { getByRole, getAllByTestId, getByPlaceholderText } = renderWithAppState(<HandlersPage />);
+
+    // Filter handlers by search
+    fireEvent.input(getByPlaceholderText("search handlers..."), { target: { value: "motion" } });
+    expect(getAllByTestId(/handler-row-/).length).toBe(1);
+
+    // Switch to jobs tab — search should clear, job row visible
+    fireEvent.click(getByRole("tab", { name: /^jobs/i }));
+    expect(getAllByTestId(/job-row-/).length).toBe(1);
   });
 });

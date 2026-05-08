@@ -23,8 +23,8 @@ function kindGlyph(label: string): string {
   switch (label) {
     case "state change": return "◇";
     case "service call": return "☎";
-    case "cron": case "interval": case "every": case "daily": case "once": case "after": case "schedule": return "⏱";
-    default: return "⚡";
+    case "cron": case "interval": case "every": case "daily": case "once": case "after": case "schedule": return "↻";
+    default: return "◆";
   }
 }
 

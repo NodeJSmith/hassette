@@ -203,7 +203,7 @@ function ErrorBanner({ errorType, errorMessage, traceback, testId }: ErrorBanner
             aria-expanded={traceExpanded}
             onClick={() => setTraceExpanded((v) => !v)}
           >
-            {traceExpanded ? "hide traceback ↑" : "show traceback ↓"}
+            {traceExpanded ? "hide traceback" : "show traceback"}
           </button>
           {traceExpanded && (
             <pre class="ht-traceback ht-detail-pane__traceback-body">{traceback}</pre>
@@ -517,7 +517,7 @@ export function HandlersTab({ listeners, jobs, focusMethod, onSwitchToCode }: Pr
   if (!hasItems) {
     return (
       <div class="ht-handlers-tab" data-testid="handlers-empty">
-        <p class="ht-text-muted">No handlers or scheduled jobs registered.</p>
+        <p class="ht-text-muted">no handlers or scheduled jobs registered.</p>
       </div>
     );
   }

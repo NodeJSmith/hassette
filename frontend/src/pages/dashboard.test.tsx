@@ -376,7 +376,7 @@ describe("DashboardPage — recent errors as table", () => {
     expect(getByTestId("recent-errors-table")).toBeDefined();
   });
 
-  it("renders error table columns: TIME, APP, LOCATION, EXCEPTION, AGE", () => {
+  it("renders error table columns: AGE, APP, LOCATION, EXCEPTION", () => {
     setupScopedApi({
       appGridData: [createAppGridEntry({ status: "running" })],
       kpisData: createKpis({ total_invocations: 10, total_errors: 1 }),
@@ -384,10 +384,9 @@ describe("DashboardPage — recent errors as table", () => {
     });
     const { getByTestId } = renderWithAppState(<DashboardPage />);
     const table = getByTestId("recent-errors-table");
-    expect(table.textContent).toMatch(/time/i);
+    expect(table.textContent).toMatch(/age/i);
     expect(table.textContent).toMatch(/app/i);
     expect(table.textContent).toMatch(/exception/i);
-    expect(table.textContent).toMatch(/age/i);
   });
 
   it("renders tier filter toggle (All/Apps/Framework)", () => {

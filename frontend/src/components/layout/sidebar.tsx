@@ -360,7 +360,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
           <div class="ht-sidebar__loading">Loading…</div>
         )}
         {!manifests.loading.value && filtered.length === 0 && (
-          <div class="ht-sidebar__empty">No apps</div>
+          <div class="ht-sidebar__empty">no apps</div>
         )}
         {GROUP_DEFS.map((def) => {
           const apps = groups.get(def.key) ?? [];

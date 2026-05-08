@@ -222,7 +222,7 @@ describe("LogTable", () => {
     expect(getByText("from A")).toBeDefined();
     expect(getByText("from B")).toBeDefined();
 
-    fireEvent.change(getByTestId("filter-app"), { target: { value: "app_a" } });
+    fireEvent.change(getByTestId("log-app-filter"), { target: { value: "app_a" } });
 
     expect(getByText("from A")).toBeDefined();
     expect(queryByText("from B")).toBeNull();
@@ -235,7 +235,7 @@ describe("LogTable", () => {
     );
 
     expect(getByTestId("filter-level")).toBeDefined();
-    expect(queryByTestId("filter-app")).toBeNull();
+    expect(queryByTestId("log-app-filter")).toBeNull();
   });
 
   it("filters by appKey prop (app-scoped log table)", () => {

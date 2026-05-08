@@ -112,7 +112,9 @@ function compareRows(a: AppRow, b: AppRow, sort: SortState, liveStatuses: Record
       return dir * a.app_key.localeCompare(b.app_key);
     case "status": {
       const order: Record<string, number> = { failed: 0, blocked: 1, running: 2, stopped: 3, disabled: 4 };
-      return dir * ((order[aStatus] ?? 5) - (order[bStatus] ?? 5));
+      const statusDiff = (order[aStatus] ?? 5) - (order[bStatus] ?? 5);
+      if (statusDiff !== 0) return dir * statusDiff;
+      return a.app_key.localeCompare(b.app_key);
     }
     case "error":
       return dir * ((a.error_message ? 0 : 1) - (b.error_message ? 0 : 1));
@@ -441,7 +443,7 @@ export function AppsPage() {
       <div class="ht-card ht-apps-table-card">
         {filtered.length === 0 ? (
           <div class="ht-apps-empty">
-            <p class="ht-text-muted">No apps match this filter.</p>
+            <p class="ht-text-muted">no apps match this filter.</p>
             {(filter !== "all" || q) && (
               <button type="button" class="ht-btn ht-btn--ghost ht-btn--sm" onClick={() => { setFilter("all"); setSearch(""); }}>clear filters</button>
             )}

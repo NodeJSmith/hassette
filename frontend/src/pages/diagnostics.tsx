@@ -85,9 +85,6 @@ function DiagServiceRow({ service, tick }: DiagServiceRowProps) {
       <div class="ht-diag__service-main">
         <StatusShape kind={kind} size={10} />
         <span class="ht-diag__service-name ht-text-mono">{service.resource_name}</span>
-        {service.role && (
-          <span class="ht-diag__service-role ht-text-mono">{service.role}</span>
-        )}
         <span
           class="ht-diag__service-status ht-text-mono"
           data-testid={`diag-service-status-${service.resource_name}`}

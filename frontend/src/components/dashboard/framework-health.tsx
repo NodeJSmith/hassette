@@ -50,7 +50,7 @@ export function FrameworkHealth() {
             aria-expanded={expanded.value}
             aria-controls="framework-health-detail"
           >
-            {expanded.value ? "Hide details" : "Details"}
+            {expanded.value ? "hide details" : "show details"}
           </button>
         )}
       </div>

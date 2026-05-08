@@ -1,9 +1,10 @@
 import { useEffect, useState } from "preact/hooks";
-import { useApi } from "../hooks/use-api";
+import { useScopedApi } from "../hooks/use-scoped-api";
 import { getAllListeners, getAllJobs } from "../api/endpoints";
 import type { ListenerData, JobData } from "../api/endpoints";
 import { SortHeader } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
+import { TierToolbar } from "../components/shared/tier-toolbar";
 import { formatRelativeTime, formatDuration } from "../utils/format";
 
 // ---- Tier toggle ----
@@ -84,44 +85,9 @@ function compareJobs(a: JobData, b: JobData, sort: SortState<JobSortKey>): numbe
   }
 }
 
-// ---- Toolbar component (app filter + tier toggle) ----
+// ---- Tier filter type ----
 
-interface ToolbarProps {
-  appKeys: string[];
-  selectedApp: string;
-  onAppChange: (app: string) => void;
-  includeFramework: boolean;
-  onToggleFramework: () => void;
-  testIdPrefix: string;
-}
-
-function Toolbar({ appKeys, selectedApp, onAppChange, includeFramework, onToggleFramework, testIdPrefix }: ToolbarProps) {
-  return (
-    <div class="ht-handlers-toolbar">
-      <select
-        class="ht-select ht-handlers-app-filter"
-        value={selectedApp}
-        onChange={(e) => onAppChange((e.target as HTMLSelectElement).value)}
-        aria-label="Filter by app"
-        data-testid={`${testIdPrefix}-app-filter`}
-      >
-        <option value="">all apps</option>
-        {appKeys.map((key) => (
-          <option key={key} value={key}>{key}</option>
-        ))}
-      </select>
-      <label class="ht-handlers-tier-toggle">
-        <input
-          type="checkbox"
-          checked={includeFramework}
-          onChange={onToggleFramework}
-          aria-label="Include framework handlers"
-        />
-        <span>include framework</span>
-      </label>
-    </div>
-  );
-}
+type TierFilter = "all" | "app" | "framework";
 
 // ---- Handlers table ----
 
@@ -148,7 +114,7 @@ function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
   if (listeners.length === 0) {
     return (
       <div class="ht-handlers-empty" data-testid="handlers-empty">
-        <p class="ht-text-muted">No handlers registered.</p>
+        <p class="ht-text-muted">no handlers registered.</p>
       </div>
     );
   }
@@ -178,14 +144,16 @@ function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
             return (
               <tr
                 key={l.listener_id}
-                class="ht-handlers-row"
+                class={`ht-handlers-row${l.failed > 0 ? " ht-handlers-row--failing" : ""}`}
                 data-testid={`handler-row-${l.listener_id}`}
               >
                 <td class="ht-text-mono ht-text-sm">
                   <a href={`/apps/${l.app_key}`} class="ht-handlers-row__app-link">{l.app_key}</a>
                 </td>
                 <td class="ht-text-mono ht-text-sm">
-                  <a href={`/apps/${l.app_key}?focus=${l.handler_method}`} class="ht-handlers-row__handler-link">{l.handler_method}</a>
+                  <a href={`/apps/${l.app_key}?focus=${l.handler_method}`} class="ht-handlers-row__handler-link" title={l.handler_method}>
+                    {l.handler_method.split(".").pop()}
+                  </a>
                 </td>
                 <td class="ht-text-mono ht-text-sm">{l.total_invocations}</td>
                 <td class="ht-text-mono ht-text-sm" style={l.failed > 0 ? { color: "var(--err)" } : {}}>
@@ -230,7 +198,7 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
   if (jobs.length === 0) {
     return (
       <div class="ht-handlers-empty" data-testid="jobs-empty">
-        <p class="ht-text-muted">No jobs scheduled.</p>
+        <p class="ht-text-muted">no jobs scheduled.</p>
       </div>
     );
   }
@@ -264,7 +232,7 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
             return (
               <tr
                 key={j.job_id}
-                class="ht-handlers-row"
+                class={`ht-handlers-row${j.failed > 0 ? " ht-handlers-row--failing" : ""}`}
                 data-testid={`job-row-${j.job_id}`}
               >
                 <td class="ht-text-mono ht-text-sm">
@@ -302,38 +270,61 @@ export function HandlersPage() {
   useEffect(() => { document.title = "Handlers - Hassette"; }, []);
 
   const [activeTab, setActiveTab] = useState<Tab>("handlers");
-  const [includeFramework, setIncludeFramework] = useState(false);
+  const [tierFilter, setTierFilter] = useState<TierFilter>("app");
   const [selectedApp, setSelectedApp] = useState("");
+  const [search, setSearch] = useState("");
   const [handlerSort, setHandlerSort] = useState<SortState<HandlerSortKey>>({ key: "app", dir: "asc" });
   const [jobSort, setJobSort] = useState<SortState<JobSortKey>>({ key: "app", dir: "asc" });
 
-  const listenersApi = useApi(getAllListeners);
-  const jobsApi = useApi(getAllJobs);
+  const listenersApi = useScopedApi((since) => getAllListeners(since));
+  const jobsApi = useScopedApi((since) => getAllJobs(since));
 
   const allListeners = listenersApi.data.value ?? [];
   const allJobs = jobsApi.data.value ?? [];
 
   // Client-side tier filtering
-  const tierFilteredListeners = includeFramework
+  const tierFilteredListeners = tierFilter === "all"
     ? allListeners
-    : allListeners.filter((l) => l.source_tier === "app");
+    : tierFilter === "app"
+      ? allListeners.filter((l) => l.source_tier === "app")
+      : allListeners.filter((l) => l.source_tier !== "app");
 
-  const tierFilteredJobs = includeFramework
+  const tierFilteredJobs = tierFilter === "all"
     ? allJobs
-    : allJobs.filter((j) => j.source_tier === "app");
+    : tierFilter === "app"
+      ? allJobs.filter((j) => j.source_tier === "app")
+      : allJobs.filter((j) => j.source_tier !== "app");
 
   // Unique app keys for filter dropdowns
   const handlerAppKeys = [...new Set(tierFilteredListeners.map((l) => l.app_key))].sort();
   const jobAppKeys = [...new Set(tierFilteredJobs.map((j) => j.app_key))].sort();
 
   // App filter
-  const filteredListeners = selectedApp
+  const appFilteredListeners = selectedApp
     ? tierFilteredListeners.filter((l) => l.app_key === selectedApp)
     : tierFilteredListeners;
 
-  const filteredJobs = selectedApp
+  const appFilteredJobs = selectedApp
     ? tierFilteredJobs.filter((j) => j.app_key === selectedApp)
     : tierFilteredJobs;
+
+  // Search filter (case-insensitive match on handler_method, app_key, job_name)
+  const searchLower = search.toLowerCase();
+  const filteredListeners = searchLower
+    ? appFilteredListeners.filter(
+        (l) =>
+          l.handler_method.toLowerCase().includes(searchLower) ||
+          l.app_key.toLowerCase().includes(searchLower),
+      )
+    : appFilteredListeners;
+
+  const filteredJobs = searchLower
+    ? appFilteredJobs.filter(
+        (j) =>
+          j.job_name.toLowerCase().includes(searchLower) ||
+          j.app_key.toLowerCase().includes(searchLower),
+      )
+    : appFilteredJobs;
 
   // Sort
   const sortedListeners = [...filteredListeners].sort((a, b) => compareHandlers(a, b, handlerSort));
@@ -362,7 +353,7 @@ export function HandlersPage() {
           id="tab-handlers"
           aria-selected={activeTab === "handlers"}
           aria-controls="tabpanel-handlers"
-          onClick={() => { setActiveTab("handlers"); setSelectedApp(""); }}
+          onClick={() => { setActiveTab("handlers"); setSelectedApp(""); setSearch(""); }}
           data-testid="tab-handlers"
         >
           handlers{allListeners.length > 0 ? ` (${tierFilteredListeners.length})` : ""}
@@ -373,7 +364,7 @@ export function HandlersPage() {
           id="tab-jobs"
           aria-selected={activeTab === "jobs"}
           aria-controls="tabpanel-jobs"
-          onClick={() => { setActiveTab("jobs"); setSelectedApp(""); }}
+          onClick={() => { setActiveTab("jobs"); setSelectedApp(""); setSearch(""); }}
           data-testid="tab-jobs"
         >
           jobs{allJobs.length > 0 ? ` (${tierFilteredJobs.length})` : ""}
@@ -381,12 +372,15 @@ export function HandlersPage() {
       </div>
 
       {/* Toolbar */}
-      <Toolbar
+      <TierToolbar
+        tierFilter={tierFilter}
+        onTierChange={setTierFilter}
         appKeys={appKeys}
         selectedApp={selectedApp}
-        onAppChange={(app) => setSelectedApp(app)}
-        includeFramework={includeFramework}
-        onToggleFramework={() => setIncludeFramework((v) => !v)}
+        onAppChange={setSelectedApp}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="search handlers..."
         testIdPrefix={activeTab === "handlers" ? "handlers" : "jobs"}
       />
 

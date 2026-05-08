@@ -13,7 +13,7 @@ interface Props {
 export function AppGrid({ apps }: Props) {
   if (!apps) return null;
   if (apps.length === 0) {
-    return <p class="ht-text-secondary">No apps registered.</p>;
+    return <p class="ht-text-secondary">no apps registered.</p>;
   }
 
   const active = apps.filter((a) => !INACTIVE_STATUSES.has(a.status)).sort(byName);

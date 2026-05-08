@@ -43,7 +43,7 @@ export function ManifestList({ manifests, filter }: Props) {
   });
 
   if (sorted.length === 0) {
-    return <p class="ht-text-secondary">No apps match this filter.</p>;
+    return <p class="ht-text-secondary">no apps match this filter.</p>;
   }
 
   if (isMobile) {

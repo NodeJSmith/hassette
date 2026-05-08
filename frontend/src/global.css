@@ -2239,7 +2239,8 @@ strong {
 
 /* Show more/less toggle below execution tables */
 .ht-show-more {
-  margin-top: var(--sp-2);
+  margin-top: auto;
+  padding-top: var(--sp-2);
   color: var(--accent);
 }
 
@@ -2700,7 +2701,7 @@ strong {
   font-family: var(--font-body);
   color: var(--ink-3);
   cursor: pointer;
-  transition: background 0.1s, color 0.1s;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 
 .ht-tier-toggle__btn:not(:last-child) {
@@ -2715,6 +2716,11 @@ strong {
 
 .ht-tier-toggle__btn:hover:not(.ht-tier-toggle__btn--active) {
   background: var(--bg-active);
+}
+
+.ht-tier-toggle__btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .ht-tag--xs {
@@ -2956,6 +2962,15 @@ strong {
   margin-right: var(--sp-1);
 }
 
+.ht-item-row__chevron-inline:hover {
+  color: var(--ink-1);
+}
+
+.ht-item-row__chevron-inline:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* — Button: link variant ————————————————————————————— */
 .ht-btn--link {
   border-color: transparent;
@@ -3104,6 +3119,15 @@ strong {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.ht-manifest-card__chevron:hover {
+  color: var(--ink-1);
+}
+
+.ht-manifest-card__chevron:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .ht-manifest-card__name {
@@ -3410,6 +3434,11 @@ strong {
   line-height: 1;
 }
 
+.ht-apps-row__expand:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .ht-apps-row__app-name {
   font-family: var(--font-body);
   font-size: 12.5px;
@@ -3575,6 +3604,14 @@ strong {
   margin: 0;
 }
 
+/* Shared tier toolbar (tier toggle + app filter + optional search) */
+.ht-tier-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
 /* Toolbar: app filter + tier toggle */
 .ht-handlers-toolbar {
   display: flex;
@@ -3596,11 +3633,24 @@ strong {
   user-select: none;
 }
 
+.ht-handlers-tier-toggle:hover {
+  color: var(--ink-1);
+}
+
+.ht-handlers-tier-toggle:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .ht-handlers-tier-toggle input[type="checkbox"] {
   cursor: pointer;
   accent-color: var(--accent);
   width: 13px;
   height: 13px;
+}
+
+.ht-handlers-tier-toggle input[type="checkbox"]:focus-visible {
+  outline: none;
 }
 
 /* Table card */
@@ -3641,6 +3691,14 @@ strong {
 
 .ht-handlers-row:hover {
   background: var(--bg-active);
+}
+
+.ht-handlers-row--failing {
+  background: var(--err-bg);
+}
+
+.ht-handlers-row--failing:hover {
+  background: color-mix(in srgb, var(--err-bg) 70%, var(--bg-active));
 }
 
 .ht-handlers-row:last-child td {
@@ -4073,7 +4131,7 @@ strong {
 /* — Master/Detail layout ——————————————————————————————— */
 .ht-master-detail {
   display: grid;
-  grid-template-columns: minmax(220px, 300px) 1fr;
+  grid-template-columns: minmax(280px, 420px) 1fr;
   align-items: start;
   gap: var(--sp-4);
 }
@@ -4174,8 +4232,8 @@ strong {
 
 .ht-unified-row__kind-glyph {
   padding-top: 2px;
-  font-size: 11px;
-  color: var(--ink-4);
+  font-size: 12px;
+  color: var(--ink-3);
   line-height: 1;
   flex-shrink: 0;
   user-select: none;
@@ -5437,6 +5495,8 @@ strong {
 }
 
 .ht-summary-card {
+  display: flex;
+  flex-direction: column;
 }
 
 .ht-summary-card__title {
@@ -5536,12 +5596,21 @@ strong {
   margin: 0;
 }
 
+.ht-activity-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  text-align: center;
+}
+
 .ht-activity-big-number {
   font-family: var(--font-display);
   font-size: var(--fs-display);
   line-height: 1;
   color: var(--ink-1);
-  margin: var(--sp-1) 0 var(--sp-1);
+  margin: 0 0 var(--sp-1);
 }
 
 .ht-activity-label {
@@ -5618,22 +5687,16 @@ strong {
   /* inherits .ht-table */
 }
 
-/* Column widths */
-.ht-recent-errors__col-time     { width: 70px; }
+/* Column widths — AGE is first column, TIME dropped */
+.ht-recent-errors__col-age      { width: 60px; }
 .ht-recent-errors__col-app      { width: 15%; }
 .ht-recent-errors__col-location { width: 22%; }
 .ht-recent-errors__col-exception { /* takes remaining space */ }
-.ht-recent-errors__col-age      { width: 50px; text-align: right; }
 
-.ht-recent-errors__time,
 .ht-recent-errors__age {
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
   color: var(--ink-3);
-}
-
-.ht-recent-errors__age {
-  text-align: right;
 }
 
 .ht-recent-errors__app {
@@ -5680,9 +5743,7 @@ strong {
 
 .ht-recent-errors__exception {
   font-size: var(--fs-small);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
 }
 
 .ht-recent-errors__error-type {
@@ -5701,19 +5762,9 @@ strong {
   .ht-recent-errors__location {
     display: none;
   }
-
-  .ht-recent-errors__col-age,
-  .ht-recent-errors__age {
-    display: none;
-  }
 }
 
 @media screen and (max-width: 768px) {
-  .ht-recent-errors__col-time,
-  .ht-recent-errors__time {
-    display: none;
-  }
-
   .ht-recent-errors__table {
     font-size: var(--fs-micro);
   }

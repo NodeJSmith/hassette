@@ -156,14 +156,14 @@ describe("UnifiedHandlerRow — kind glyph", () => {
     expect(container.querySelector(".ht-unified-row__kind-glyph")).not.toBeNull();
   });
 
-  it("renders ⚡ glyph for event kind", () => {
+  it("renders ◆ glyph for event kind", () => {
     const listener = createListener({ listener_id: 1, topic: "some_event", listener_kind: "event" });
     const item = { kind: "listener" as const, id: 1, name: "on_event", humanDescription: null, statusKind: "ok" as const, data: listener };
     const { container } = render(
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
     );
     const glyph = container.querySelector(".ht-unified-row__kind-glyph");
-    expect(glyph?.textContent).toBe("⚡");
+    expect(glyph?.textContent).toBe("◆");
   });
 
   it("renders ◇ glyph for state kind", () => {
@@ -176,24 +176,24 @@ describe("UnifiedHandlerRow — kind glyph", () => {
     expect(glyph?.textContent).toBe("◇");
   });
 
-  it("renders ⏱ glyph for cron job", () => {
+  it("renders ↻ glyph for cron job", () => {
     const job = createJob({ job_id: 1, trigger_type: "Cron" });
     const item = { kind: "job" as const, id: 1, name: "my_job", humanDescription: null, statusKind: "ok" as const, data: job };
     const { container } = render(
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
     );
     const glyph = container.querySelector(".ht-unified-row__kind-glyph");
-    expect(glyph?.textContent).toBe("⏱");
+    expect(glyph?.textContent).toBe("↻");
   });
 
-  it("renders ⏱ glyph for interval job", () => {
+  it("renders ↻ glyph for interval job", () => {
     const job = createJob({ job_id: 2, trigger_type: "Every" });
     const item = { kind: "job" as const, id: 2, name: "poll_job", humanDescription: null, statusKind: "ok" as const, data: job };
     const { container } = render(
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
     );
     const glyph = container.querySelector(".ht-unified-row__kind-glyph");
-    expect(glyph?.textContent).toBe("⏱");
+    expect(glyph?.textContent).toBe("↻");
   });
 });
 

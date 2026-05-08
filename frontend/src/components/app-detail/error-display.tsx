@@ -22,7 +22,7 @@ export function ErrorDisplay({ errorMessage, errorTraceback }: Props) {
             onClick={() => { tbOpen.value = !tbOpen.value; }}
             aria-expanded={tbOpen.value}
           >
-            {tbOpen.value ? "Hide traceback" : "Show traceback"}
+            {tbOpen.value ? "hide traceback" : "show traceback"}
           </button>
           {tbOpen.value && (
             <pre class="ht-traceback">{errorTraceback}</pre>

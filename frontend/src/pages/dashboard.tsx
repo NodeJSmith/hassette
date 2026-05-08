@@ -23,7 +23,7 @@ import { useScopedApi } from "../hooks/use-scoped-api";
 import { useDebouncedEffect } from "../hooks/use-debounced-effect";
 import { useAppState } from "../state/context";
 import { statusToKind } from "../utils/status";
-import { formatRelativeTime, lastDotSegment, TIME_PRESET_LABELS } from "../utils/format";
+import { formatRelativeTime, lastDotSegment, pluralize, TIME_PRESET_LABELS } from "../utils/format";
 
 const TIER_OPTIONS: { value: SourceTier; label: string }[] = [
   { value: "all", label: "All" },
@@ -351,11 +351,16 @@ interface YourAppsCardProps {
 
 const YOUR_APPS_COLLAPSED_COUNT = 8;
 
+const STATUS_ORDER: Record<string, number> = { failed: 0, blocked: 1, running: 2, stopped: 3, disabled: 4 };
+
 function YourAppsCard({ apps }: YourAppsCardProps) {
   const showAll = useRef(signal(false)).current;
-  const allApps = [...(apps ?? [])].sort((a, b) =>
-    (b.total_invocations + b.total_executions) - (a.total_invocations + a.total_executions),
-  );
+  const allApps = [...(apps ?? [])].sort((a, b) => {
+    const sa = STATUS_ORDER[a.status] ?? 99;
+    const sb = STATUS_ORDER[b.status] ?? 99;
+    if (sa !== sb) return sa - sb;
+    return a.app_key.localeCompare(b.app_key);
+  });
   const visible = showAll.value ? allApps : allApps.slice(0, YOUR_APPS_COLLAPSED_COUNT);
   const hasMore = allApps.length > YOUR_APPS_COLLAPSED_COUNT;
 
@@ -372,7 +377,7 @@ function YourAppsCard({ apps }: YourAppsCardProps) {
                 <span class="ht-app-list__instances"> ×{app.instance_count}</span>
               )}
             </span>
-            <span class="ht-app-list__runs">{app.total_invocations + app.total_executions} runs</span>
+            <span class="ht-app-list__runs">{pluralize(app.total_invocations + app.total_executions, "run")}</span>
           </a>
         ))}
         {allApps.length === 0 && (
@@ -417,7 +422,7 @@ function ActivityCard({ kpis, isQuiet, timeLabel }: ActivityCardProps) {
           </p>
         </div>
       ) : (
-        <>
+        <div class="ht-activity-body">
           <div class="ht-activity-big-number">
             {totalRuns.toLocaleString()}
           </div>
@@ -433,7 +438,7 @@ function ActivityCard({ kpis, isQuiet, timeLabel }: ActivityCardProps) {
               </span>
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -455,18 +460,12 @@ function humanizeServiceName(name: string): string {
     .toLowerCase();
 }
 
-const SYSTEM_CARD_COLLAPSED_COUNT = 8;
-
 function SystemCard({ services }: SystemCardProps) {
-  const showAll = useRef(signal(false)).current;
-  const visible = showAll.value ? services : services.slice(0, SYSTEM_CARD_COLLAPSED_COUNT);
-  const hasMore = services.length > SYSTEM_CARD_COLLAPSED_COUNT;
-
   return (
     <div class="ht-card ht-summary-card" data-testid="system-card">
       <h3 class="ht-summary-card__title">system</h3>
       <div class="ht-system-service-list">
-        {visible.map((svc) => (
+        {services.map((svc) => (
           <div key={svc.name} class="ht-system-service-row">
             <StatusShape kind={statusToKind(svc.status)} size={8} />
             <span class="ht-system-service-name">{humanizeServiceName(svc.name)}</span>
@@ -474,15 +473,6 @@ function SystemCard({ services }: SystemCardProps) {
           </div>
         ))}
       </div>
-      {hasMore && (
-        <button
-          type="button"
-          class="ht-btn ht-btn--xs ht-btn--ghost ht-show-more"
-          onClick={() => { showAll.value = !showAll.value; }}
-        >
-          {showAll.value ? "Show less" : `Show all ${services.length}`}
-        </button>
-      )}
     </div>
   );
 }
@@ -543,11 +533,10 @@ function RecentErrorsTable({
       <table class="ht-table ht-table--dense ht-recent-errors__table">
         <thead>
           <tr>
-            <th class="ht-recent-errors__col-time" scope="col">TIME</th>
+            <th class="ht-recent-errors__col-age" scope="col">AGE</th>
             <th class="ht-recent-errors__col-app" scope="col">APP</th>
             <th class="ht-recent-errors__col-location" scope="col">LOCATION</th>
             <th class="ht-recent-errors__col-exception" scope="col">EXCEPTION</th>
-            <th class="ht-recent-errors__col-age" scope="col">AGE</th>
           </tr>
         </thead>
         <tbody>
@@ -556,15 +545,12 @@ function RecentErrorsTable({
             const method = getHandlerMethod(err);
             const age = formatRelativeTime(err.execution_start_ts);
             const time = new Date(err.execution_start_ts * 1000).toLocaleTimeString("en-US", {
-              hour: "numeric",
-              minute: "2-digit",
-              second: "2-digit",
-              hour12: true,
+              hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true,
             });
 
             return (
-              <tr key={`${err.kind}-${err.execution_start_ts}-${i}`}>
-                <td class="ht-recent-errors__time">{time}</td>
+              <tr key={`${err.kind}-${err.execution_start_ts}-${i}`} title={time}>
+                <td class="ht-recent-errors__age">{age}</td>
                 <td class="ht-recent-errors__app">
                   {err.app_key ? (
                     <a href={`/apps/${err.app_key}`} class="ht-recent-errors__app-link">
@@ -594,7 +580,6 @@ function RecentErrorsTable({
                     <span class="ht-recent-errors__error-msg">: {err.error_message}</span>
                   )}
                 </td>
-                <td class="ht-recent-errors__age">{age}</td>
               </tr>
             );
           })}

@@ -25,7 +25,7 @@ describe("ErrorDisplay", () => {
       />,
     );
     const btn = getByRole("button");
-    expect(btn.textContent).toContain("Show traceback");
+    expect(btn.textContent).toContain("show traceback");
   });
 
   it("traceback is hidden initially", () => {
@@ -38,7 +38,7 @@ describe("ErrorDisplay", () => {
     expect(container.querySelector("pre.ht-traceback")).toBeNull();
   });
 
-  it("clicking 'Show traceback' reveals the traceback pre element", () => {
+  it("clicking 'show traceback' reveals the traceback pre element", () => {
     const tracebackText = "Traceback (most recent call last):\n  File test.py, line 1";
     const { getByRole, container } = render(
       <ErrorDisplay
@@ -54,7 +54,7 @@ describe("ErrorDisplay", () => {
     expect(pre!.textContent).toContain("Traceback (most recent call last)");
   });
 
-  it("clicking 'Hide traceback' after expand hides the traceback again", () => {
+  it("clicking 'hide traceback' after expand hides the traceback again", () => {
     const { getByRole, container } = render(
       <ErrorDisplay
         errorMessage="Err"
@@ -80,14 +80,14 @@ describe("ErrorDisplay", () => {
     expect(btn.getAttribute("aria-expanded")).toBe("true");
   });
 
-  it("button text changes from 'Show traceback' to 'Hide traceback' after expand", () => {
+  it("button text changes from 'show traceback' to 'hide traceback' after expand", () => {
     const { getByRole } = render(
       <ErrorDisplay errorMessage="Err" errorTraceback="Traceback..." />,
     );
     const btn = getByRole("button");
-    expect(btn.textContent).toBe("Show traceback");
+    expect(btn.textContent).toBe("show traceback");
 
     fireEvent.click(btn);
-    expect(btn.textContent).toBe("Hide traceback");
+    expect(btn.textContent).toBe("hide traceback");
   });
 });

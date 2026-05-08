@@ -9,6 +9,7 @@ import { formatTimestamp, formatRelativeTime, pluralize } from "../../utils/form
 import { levelToKind } from "../../utils/status";
 import { SortHeader } from "./sort-header";
 import { StatusShape } from "./status-shape";
+import { TierToolbar } from "./tier-toolbar";
 
 const LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] as const;
 
@@ -247,7 +248,6 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
   };
 
   const levelLabel = minLevel.value ? `level: ${minLevel.value}+` : "level: all";
-  const appLabel = appFilter.value ? `app: ${appFilter.value}` : "app: all";
 
   return (
     <div class="ht-log-table-container" ref={tableContainerRef}>
@@ -258,16 +258,17 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
         </div>
         <div class="ht-log-toolbar__controls">
           {!appKey && (
-            <div class="ht-tier-toggle" data-testid="log-tier-toggle">
-              {(["all", "app", "framework"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  class={`ht-tier-toggle__btn${tierFilter.value === t ? " ht-tier-toggle__btn--active" : ""}`}
-                  onClick={() => { tierFilter.value = t; }}
-                >{t === "all" ? "All" : t === "app" ? "Apps" : "Framework"}</button>
-              ))}
-            </div>
+            <TierToolbar
+              tierFilter={tierFilter.value}
+              onTierChange={(t) => { tierFilter.value = t; }}
+              appKeys={showAppColumn ? appKeys : undefined}
+              selectedApp={appFilter.value}
+              onAppChange={(a) => { appFilter.value = a; }}
+              search={search.value}
+              onSearchChange={(v) => { search.value = v; }}
+              searchPlaceholder="Search..."
+              testIdPrefix="log"
+            />
           )}
           {!appKey && (
             <span class={`ht-pill ${livePaused ? "ht-pill--mute" : "ht-pill--accent"}`}>
@@ -296,37 +297,18 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
               ))}
             </select>
           </label>
-          {showAppColumn && appKeys && appKeys.length > 0 && (
-            <label class="ht-pill ht-pill--mute ht-pill--interactive">
-              {appLabel}
-              <select
-                class="ht-pill__select"
-                aria-label="Filter by app"
-                data-testid="filter-app"
-                value={appFilter.value}
-                onChange={(e) => {
-                  appFilter.value = (e.target as HTMLSelectElement).value;
-                }}
-              >
-                <option value="">all</option>
-                {appKeys.map((key) => (
-                  <option key={key} value={key}>
-                    {key}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {appKey && (
+            <input
+              class="ht-input ht-input--sm"
+              type="text"
+              aria-label="Search log messages"
+              placeholder="Search..."
+              value={search.value}
+              onInput={(e) => {
+                search.value = (e.target as HTMLInputElement).value;
+              }}
+            />
           )}
-          <input
-            class="ht-input ht-input--sm"
-            type="text"
-            aria-label="Search log messages"
-            placeholder="Search..."
-            value={search.value}
-            onInput={(e) => {
-              search.value = (e.target as HTMLInputElement).value;
-            }}
-          />
           {livePaused && (
             <button type="button" class="ht-btn ht-btn--xs ht-btn--ghost" onClick={handleResume}>
               resume

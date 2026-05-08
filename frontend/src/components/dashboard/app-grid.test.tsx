@@ -15,7 +15,7 @@ describe("AppGrid", () => {
 
   it("renders empty state when apps list is empty", () => {
     const { getByText } = render(<AppGrid apps={[]} />);
-    expect(getByText("No apps registered.")).toBeDefined();
+    expect(getByText("no apps registered.")).toBeDefined();
   });
 
   it("renders a card for each active app", () => {

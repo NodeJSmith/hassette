@@ -107,11 +107,13 @@ export const getRecentLogs = (params?: { level?: string; app_key?: string; limit
 
 // ---- Bus ----
 
-export const getAllListeners = () => apiFetch<ListenerData[]>("/bus/listeners");
+export const getAllListeners = (since?: number | null) =>
+  apiFetch<ListenerData[]>(buildUrl("/bus/listeners", { since }));
 
 // ---- Scheduler (global) ----
 
-export const getAllJobs = () => apiFetch<JobData[]>("/scheduler/jobs");
+export const getAllJobs = (since?: number | null) =>
+  apiFetch<JobData[]>(buildUrl("/scheduler/jobs", { since }));
 
 // ---- System status ----
 

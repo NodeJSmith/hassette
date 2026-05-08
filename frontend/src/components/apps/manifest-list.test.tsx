@@ -99,7 +99,7 @@ describe("ManifestList", () => {
       { wrapper: createWrapper(state) },
     );
 
-    expect(getByText("No apps match this filter.")).toBeDefined();
+    expect(getByText("no apps match this filter.")).toBeDefined();
   });
 
   // -- Status filtering --
