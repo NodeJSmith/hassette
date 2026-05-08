@@ -12,6 +12,7 @@ import { statusToKind, statusToVariant, INACTIVE_STATUSES, type StatusKind } fro
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
 import { formatRelativeTime, formatTimestamp } from "../utils/format";
 import { type AppRow, type AppSortState, mergeManifestsAndGrid, compareAppRows } from "../utils/app-data";
+import { AppLink } from "../components/shared/app-link";
 import { StatusShape } from "../components/shared/status-shape";
 import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { ActionButtons } from "../components/shared/action-buttons";
@@ -141,7 +142,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
             </button>
           )}
           <StatusShape kind={kind} size={7} />
-          <a href={`/apps/${app.app_key}`} class="ht-apps-row__app-name">{app.app_key}</a>
+          <AppLink appKey={app.app_key} />
           <span class="ht-apps-row__class-name">{app.class_name}</span>
           {app.auto_loaded && <span class="ht-apps-row__auto-badge">auto</span>}
         </td>
@@ -188,7 +189,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
             <td class="ht-apps-row__name-cell">
               <span class="ht-apps-row__instance-corner">└</span>
               <StatusShape kind={instKind} size={6} />
-              <a href={`/apps/${app.app_key}/${inst.index}`} class="ht-text-mono ht-text-sm">{inst.instance_name}</a>
+              <AppLink appKey={app.app_key} instanceIndex={inst.index}>{inst.instance_name}</AppLink>
             </td>
             <td><span class={`ht-badge ht-badge--${statusToVariant(instStatus)} ht-badge--sm`}>{instStatus}</span></td>
             <td class="ht-apps-row__error-cell">
@@ -274,7 +275,7 @@ export function AppsPage() {
         <FilterPills counts={statusCounts} active={filter} onChange={setFilter} />
         <input
           type="text"
-          class="ht-apps-search"
+          class="ht-search"
           placeholder="search apps…"
           aria-label="Search apps"
           value={search}

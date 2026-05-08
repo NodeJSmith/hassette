@@ -7,6 +7,7 @@ import { useSubscribe } from "../../hooks/use-subscribe";
 import { useAppState } from "../../state/context";
 import { formatTimestamp, formatRelativeTime, pluralize } from "../../utils/format";
 import { levelToKind } from "../../utils/status";
+import { AppLink } from "./app-link";
 import { SortHeader } from "./sort-header";
 import { StatusShape } from "./status-shape";
 import { TierToolbar } from "./tier-toolbar";
@@ -300,7 +301,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
             </select>
           </label>
           <input
-            class="ht-input ht-input--sm"
+            class="ht-search"
             type="text"
             aria-label="Search logs"
             placeholder="Search..."
@@ -362,9 +363,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
                 {showAppColumn && !isMobile && (
                   <td>
                     {entry.app_key ? (
-                      <a href={`/apps/${entry.app_key}`} class="ht-text-mono">
-                        {entry.app_key}
-                      </a>
+                      <AppLink appKey={entry.app_key} />
                     ) : (
                       <span class="ht-text-muted">—</span>
                     )}

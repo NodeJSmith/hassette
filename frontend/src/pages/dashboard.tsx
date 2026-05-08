@@ -1,4 +1,5 @@
 import { useRef } from "preact/hooks";
+import { AppLink } from "../components/shared/app-link";
 import { useApi } from "../hooks/use-api";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import {
@@ -142,7 +143,7 @@ function AppHealthTable({ apps, liveStatuses }: {
               >
                 <td class="ht-overview-apps__name-cell">
                   <StatusShape kind={kind} size={7} />
-                  <a href={`/apps/${app.app_key}`} class="ht-overview-apps__name">{app.app_key}</a>
+                  <AppLink appKey={app.app_key} />
                 </td>
                 <td class="ht-overview-apps__sparkline-cell">
                   <MiniSparkline buckets={app.activity_buckets} width={64} height={16} />
@@ -189,7 +190,7 @@ function RecentErrors({ errors }: { errors: DashboardErrorEntry[] | null }) {
                 <td class="ht-overview-errors__age">{age}</td>
                 <td class="ht-overview-errors__app">
                   {err.app_key ? (
-                    <a href={`/apps/${err.app_key}`} class="ht-link">{err.app_key}</a>
+                    <AppLink appKey={err.app_key} />
                   ) : (
                     <span class="ht-text-muted">framework</span>
                   )}

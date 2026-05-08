@@ -56,7 +56,7 @@ export function TierToolbar({
       )}
       {onSearchChange && (
         <input
-          class="ht-input ht-input--sm"
+          class="ht-search"
           type="text"
           aria-label="Search"
           placeholder={searchPlaceholder}

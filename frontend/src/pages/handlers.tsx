@@ -4,6 +4,7 @@ import { useScopedApi } from "../hooks/use-scoped-api";
 import { getAllListeners, getAllJobs } from "../api/endpoints";
 import type { ListenerData, JobData } from "../api/endpoints";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
+import { AppLink } from "../components/shared/app-link";
 import { SortHeader, type SortState } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { TierToolbar } from "../components/shared/tier-toolbar";
@@ -190,12 +191,10 @@ function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
                 data-testid={`handler-row-${l.listener_id}`}
               >
                 <td class="ht-text-mono ht-text-sm">
-                  <a href={`/apps/${l.app_key}`} class="ht-handlers-row__app-link">{l.app_key}</a>
+                  <AppLink appKey={l.app_key} />
                 </td>
                 <td class="ht-text-mono ht-text-sm">
-                  <a href={`/apps/${l.app_key}?focus=${l.handler_method}`} class="ht-handlers-row__handler-link" title={l.handler_method}>
-                    {l.handler_method.split(".").pop()}
-                  </a>
+                  <AppLink appKey={l.app_key} query={`focus=${l.handler_method}`}>{l.handler_method.split(".").pop()}</AppLink>
                 </td>
                 <td class="ht-text-mono ht-text-sm">{l.total_invocations}</td>
                 <td class={`ht-text-mono ht-text-sm${l.failed > 0 ? " ht-text-danger" : ""}`}>
@@ -311,10 +310,10 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
                 data-testid={`job-row-${j.job_id}`}
               >
                 <td class="ht-text-mono ht-text-sm">
-                  <a href={`/apps/${j.app_key}`} class="ht-handlers-row__app-link">{j.app_key}</a>
+                  <AppLink appKey={j.app_key} />
                 </td>
                 <td class="ht-text-mono ht-text-sm">
-                  <a href={`/apps/${j.app_key}?focus=${j.handler_method}`} class="ht-handlers-row__handler-link">{j.job_name}</a>
+                  <AppLink appKey={j.app_key} query={`focus=${j.handler_method}`}>{j.job_name}</AppLink>
                 </td>
                 <td class="ht-text-mono ht-text-sm">{j.trigger_label}</td>
                 <td class="ht-text-mono ht-text-sm">{j.total_executions}</td>

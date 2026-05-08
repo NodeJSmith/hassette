@@ -1,4 +1,5 @@
 import { useAppState } from "../../state/context";
+import { AppLink } from "../shared/app-link";
 import { IconWarning } from "../shared/icons";
 
 // ---- AlertBanner: failed-apps list (unchanged from WP04) -------------------
@@ -21,7 +22,7 @@ export function AlertBanner({ failedApps }: AlertBannerProps) {
       <ul class="ht-alert-list">
         {failedApps.map((app) => (
           <li key={app.app_key}>
-            <a href={`/apps/${app.app_key}`}>{app.app_key}</a>
+            <AppLink appKey={app.app_key} />
             {app.error_message && (
               <span class="ht-text-secondary"> — {app.error_message}</span>
             )}

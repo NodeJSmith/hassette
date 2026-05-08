@@ -2513,6 +2513,18 @@ strong {
   font-family: var(--font-mono);
 }
 
+.ht-app-link {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--ink-1);
+  text-decoration: none;
+}
+
+.ht-app-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+}
 
 .ht-log-source-inline {
   font-family: var(--font-mono);
@@ -2808,7 +2820,7 @@ strong {
     gap: var(--sp-2);
   }
 
-  .ht-log-toolbar__controls .ht-input--sm {
+  .ht-log-toolbar__controls .ht-search {
     width: 100%;
     min-width: unset;
   }
@@ -3018,7 +3030,7 @@ strong {
   opacity: 0.85;
 }
 
-.ht-apps-search {
+.ht-search {
   font-family: var(--font-body);
   font-size: 12px;
   padding: 6px 10px;
@@ -3030,12 +3042,12 @@ strong {
   min-width: 160px;
 }
 
-.ht-apps-search:focus-visible {
+.ht-search:focus-visible {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
-.ht-apps-search::placeholder {
+.ht-search::placeholder {
   color: var(--ink-4);
 }
 
@@ -3121,20 +3133,6 @@ strong {
   outline-offset: 2px;
 }
 
-.ht-apps-row__app-name {
-  font-family: var(--font-body);
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--ink-1);
-  text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ht-apps-row__app-name:hover {
-  color: var(--accent);
-}
 
 .ht-apps-row__class-name {
   font-family: var(--font-mono);
@@ -3222,7 +3220,7 @@ strong {
     align-items: stretch;
   }
 
-  .ht-apps-search {
+  .ht-search {
     min-width: unset;
   }
 
@@ -3319,15 +3317,6 @@ strong {
   background: color-mix(in srgb, var(--err-bg) 70%, var(--bg-active));
 }
 
-.ht-handlers-row__app-link {
-  color: var(--ink-1);
-  text-decoration: none;
-}
-
-.ht-handlers-row__app-link:hover {
-  color: var(--accent-hover);
-  text-decoration: underline;
-}
 
 /* — Mobile card layout (handlers + jobs on small screens) ————————— */
 .ht-mobile-cards {
@@ -4814,18 +4803,6 @@ strong {
   gap: var(--sp-2);
 }
 
-.ht-overview-apps__name {
-  font-family: var(--font-mono);
-  font-size: var(--fs-body);
-  color: var(--ink-1);
-  text-decoration: none;
-}
-
-.ht-overview-apps__name:hover {
-  text-decoration: underline;
-  text-decoration-color: var(--ink-4);
-  text-underline-offset: 2px;
-}
 
 .ht-overview-apps__sparkline-cell {
   width: 90px;
