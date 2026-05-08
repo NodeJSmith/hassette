@@ -1,8 +1,10 @@
-import { useEffect, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
+import { useApi } from "../hooks/use-api";
+import { useDocumentTitle } from "../hooks/use-document-title";
 import { useAppState } from "../state/context";
 import type { ServiceStatusEntry } from "../state/create-app-state";
 import { getSystemStatus } from "../api/endpoints";
-import type { SystemStatus, BootIssue } from "../api/endpoints";
+import type { BootIssue } from "../api/endpoints";
 import type { components } from "../api/generated-types";
 import { statusToKind } from "../utils/status";
 import { formatRelativeTime } from "../utils/format";
@@ -332,9 +334,7 @@ function TelemetryPanel({
 // ──────────────────────────────────────────────────────────────────────────────
 
 export function DiagnosticsPage() {
-  useEffect(() => {
-    document.title = "Diagnostics - Hassette";
-  }, []);
+  useDocumentTitle("Diagnostics");
 
   const {
     serviceStatus,
@@ -348,41 +348,17 @@ export function DiagnosticsPage() {
     telemetryDegraded,
   } = useAppState();
 
-  // HTTP seed state
-  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    getSystemStatus()
-      .then((data) => {
-        if (!cancelled) {
-          setSystemStatus(data);
-          setLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setLoadError(err instanceof Error ? err.message : "Failed to load system status.");
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { data: systemStatus, loading, error: loadError } = useApi(getSystemStatus);
 
   const wsConnected = connection.value === "connected";
 
   // Merge HTTP seed with live WS updates
-  const httpServices = systemStatus?.services ?? [];
+  const httpServices = systemStatus.value?.services ?? [];
   const mergedServices = mergeServices(httpServices, serviceStatus.value);
 
-  const bootIssues: BootIssue[] = systemStatus?.boot_issues ?? [];
+  const bootIssues: BootIssue[] = systemStatus.value?.boot_issues ?? [];
 
-  if (loading) return <Spinner />;
+  if (loading.value) return <Spinner />;
 
   return (
     <div class="ht-page ht-diag-page" data-testid="diagnostics-page">
@@ -390,13 +366,13 @@ export function DiagnosticsPage() {
         <h1 class="ht-display">diagnostics</h1>
       </div>
 
-      {loadError ? (
+      {loadError.value ? (
         <div
           class="ht-diag__load-error"
           role="alert"
           data-testid="diag-load-error"
         >
-          {loadError}
+          {loadError.value}
         </div>
       ) : (
         <>

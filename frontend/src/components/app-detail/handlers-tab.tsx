@@ -9,7 +9,8 @@ import { HandlersHealthStrip } from "./health-strip";
 import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useAppState } from "../../state/context";
 import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
-import { formatTriggerDetail, formatDuration, formatRelativeTime, lastDotSegment, parseSourceLocation, TIME_PRESET_LABELS } from "../../utils/format";
+import { formatTriggerDetail, formatDurationOrDash, formatOptionalDuration, formatRelativeTime, lastDotSegment, parseSourceLocation, TIME_PRESET_LABELS } from "../../utils/format";
+
 import { handlerKindLabel, statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 
@@ -61,118 +62,55 @@ function ScheduleChips({ job }: { job: JobData }) {
   );
 }
 
-/** Stats row: CALLS · 1H, SUCCESSFUL, LAST, FAILED, TIMED OUT, CANCELLED (conditional), MIN / AVG / MAX */
-function HandlerStatsRow({ listener }: { listener: ListenerData }) {
-  const { timePreset } = useAppState();
-  const timeLabel = TIME_PRESET_LABELS[timePreset.value] ?? "";
-  const lastLabel = listener.last_invoked_at
-    ? formatRelativeTime(listener.last_invoked_at)
-    : "—";
-  const minLabel = listener.min_duration_ms !== null && listener.min_duration_ms !== undefined ? formatDuration(listener.min_duration_ms) : "—";
-  const maxLabel = listener.max_duration_ms !== null && listener.max_duration_ms !== undefined ? formatDuration(listener.max_duration_ms) : "—";
+interface StatsCell {
+  label: string;
+  value: string | number;
+  tone?: "err" | "warn";
+}
 
+function DetailStatsRow({ cells, testId }: { cells: StatsCell[]; testId?: string }) {
   return (
-    <div class="ht-detail-stats-row" data-testid="handler-stats-row">
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Calls{timeLabel ? ` · ${timeLabel}` : ""}</span>
-        <span class="ht-detail-stats-row__value">{listener.total_invocations}</span>
-      </div>
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Successful</span>
-        <span class="ht-detail-stats-row__value">{listener.successful}</span>
-      </div>
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Last</span>
-        <span class="ht-detail-stats-row__value">{lastLabel}</span>
-      </div>
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Failed</span>
-        <span class={`ht-detail-stats-row__value${listener.failed > 0 ? " ht-detail-stats-row__value--err" : ""}`}>
-          {listener.failed > 0 ? listener.failed : "—"}
-        </span>
-      </div>
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Timed Out</span>
-        <span class={`ht-detail-stats-row__value${listener.timed_out > 0 ? " ht-detail-stats-row__value--warn" : ""}`}>
-          {listener.timed_out > 0 ? listener.timed_out : "—"}
-        </span>
-      </div>
-      {listener.cancelled > 0 && (
-        <div class="ht-detail-stats-row__cell">
-          <span class="ht-detail-stats-row__label">Cancelled</span>
-          <span class="ht-detail-stats-row__value">{listener.cancelled}</span>
+    <div class="ht-detail-stats-row" data-testid={testId}>
+      {cells.map((cell) => (
+        <div class="ht-detail-stats-row__cell" key={cell.label}>
+          <span class="ht-detail-stats-row__label">{cell.label}</span>
+          <span class={`ht-detail-stats-row__value${cell.tone ? ` ht-detail-stats-row__value--${cell.tone}` : ""}`}>
+            {cell.value}
+          </span>
         </div>
-      )}
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Min</span>
-        <span class="ht-detail-stats-row__value">{minLabel}</span>
-      </div>
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Avg</span>
-        <span class="ht-detail-stats-row__value">
-          {listener.avg_duration_ms > 0 ? formatDuration(listener.avg_duration_ms) : "—"}
-        </span>
-      </div>
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Max</span>
-        <span class="ht-detail-stats-row__value">{maxLabel}</span>
-      </div>
+      ))}
     </div>
   );
 }
 
-/** Stats row for scheduled jobs: RUNS · 1H, SUCCESSFUL, LAST, FAILED, TIMED OUT, MIN / AVG / MAX */
-function JobStatsRow({ job }: { job: JobData }) {
-  const { timePreset } = useAppState();
-  const timeLabel = TIME_PRESET_LABELS[timePreset.value] ?? "";
-  const lastLabel = job.last_executed_at
-    ? formatRelativeTime(job.last_executed_at)
-    : "—";
-  const minLabel = job.min_duration_ms !== null && job.min_duration_ms !== undefined ? formatDuration(job.min_duration_ms) : "—";
-  const maxLabel = job.max_duration_ms !== null && job.max_duration_ms !== undefined ? formatDuration(job.max_duration_ms) : "—";
-
-  return (
-    <div class="ht-detail-stats-row" data-testid="job-stats-row">
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Runs{timeLabel ? ` · ${timeLabel}` : ""}</span>
-        <span class="ht-detail-stats-row__value">{job.total_executions}</span>
-      </div>
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Successful</span>
-        <span class="ht-detail-stats-row__value">{job.successful}</span>
-      </div>
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Last</span>
-        <span class="ht-detail-stats-row__value">{lastLabel}</span>
-      </div>
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Failed</span>
-        <span class={`ht-detail-stats-row__value${job.failed > 0 ? " ht-detail-stats-row__value--err" : ""}`}>
-          {job.failed > 0 ? job.failed : "—"}
-        </span>
-      </div>
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Timed Out</span>
-        <span class={`ht-detail-stats-row__value${job.timed_out > 0 ? " ht-detail-stats-row__value--warn" : ""}`}>
-          {job.timed_out > 0 ? job.timed_out : "—"}
-        </span>
-      </div>
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Min</span>
-        <span class="ht-detail-stats-row__value">{minLabel}</span>
-      </div>
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Avg</span>
-        <span class="ht-detail-stats-row__value">
-          {job.avg_duration_ms > 0 ? formatDuration(job.avg_duration_ms) : "—"}
-        </span>
-      </div>
-      <div class="ht-detail-stats-row__cell">
-        <span class="ht-detail-stats-row__label">Max</span>
-        <span class="ht-detail-stats-row__value">{maxLabel}</span>
-      </div>
-    </div>
+function handlerStatsCells(listener: ListenerData, timeLabel: string): StatsCell[] {
+  const cells: StatsCell[] = [
+    { label: `Calls${timeLabel ? ` · ${timeLabel}` : ""}`, value: listener.total_invocations },
+    { label: "Successful", value: listener.successful },
+    { label: "Last", value: listener.last_invoked_at ? formatRelativeTime(listener.last_invoked_at) : "—" },
+    { label: "Failed", value: listener.failed > 0 ? listener.failed : "—", tone: listener.failed > 0 ? "err" : undefined },
+    { label: "Timed Out", value: listener.timed_out > 0 ? listener.timed_out : "—", tone: listener.timed_out > 0 ? "warn" : undefined },
+  ];
+  if (listener.cancelled > 0) cells.push({ label: "Cancelled", value: listener.cancelled });
+  cells.push(
+    { label: "Min", value: formatOptionalDuration(listener.min_duration_ms) },
+    { label: "Avg", value: formatDurationOrDash(listener.avg_duration_ms) },
+    { label: "Max", value: formatOptionalDuration(listener.max_duration_ms) },
   );
+  return cells;
+}
+
+function jobStatsCells(job: JobData, timeLabel: string): StatsCell[] {
+  return [
+    { label: `Runs${timeLabel ? ` · ${timeLabel}` : ""}`, value: job.total_executions },
+    { label: "Successful", value: job.successful },
+    { label: "Last", value: job.last_executed_at ? formatRelativeTime(job.last_executed_at) : "—" },
+    { label: "Failed", value: job.failed > 0 ? job.failed : "—", tone: job.failed > 0 ? "err" : undefined },
+    { label: "Timed Out", value: job.timed_out > 0 ? job.timed_out : "—", tone: job.timed_out > 0 ? "warn" : undefined },
+    { label: "Min", value: formatOptionalDuration(job.min_duration_ms) },
+    { label: "Avg", value: formatDurationOrDash(job.avg_duration_ms) },
+    { label: "Max", value: formatOptionalDuration(job.max_duration_ms) },
+  ];
 }
 
 
@@ -225,7 +163,8 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
     { deps: [listener.listener_id] },
   );
 
-  const { invocationCompleted } = useAppState();
+  const { invocationCompleted, timePreset } = useAppState();
+  const timeLabel = TIME_PRESET_LABELS[timePreset.value] ?? "";
 
   // Targeted real-time refetch when a matching invocation_completed event arrives
   useDebouncedEffect(
@@ -297,7 +236,7 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
       )}
 
       {/* Stats row */}
-      <HandlerStatsRow listener={listener} />
+      <DetailStatsRow cells={handlerStatsCells(listener, timeLabel)} testId="handler-stats-row" />
 
       {/* View in code link */}
       {onSwitchToCode && listener.source_location && (
@@ -339,7 +278,8 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
     { deps: [job.job_id] },
   );
 
-  const { executionCompleted } = useAppState();
+  const { executionCompleted, timePreset: jobTimePreset } = useAppState();
+  const jobTimeLabel = TIME_PRESET_LABELS[jobTimePreset.value] ?? "";
 
   // Targeted real-time refetch when a matching execution_completed event arrives
   useDebouncedEffect(
@@ -437,7 +377,7 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
       )}
 
       {/* Stats row */}
-      <JobStatsRow job={job} />
+      <DetailStatsRow cells={jobStatsCells(job, jobTimeLabel)} testId="job-stats-row" />
 
       {/* View in code link */}
       {onSwitchToCode && job.source_location && (

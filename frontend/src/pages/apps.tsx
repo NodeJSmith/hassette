@@ -1,5 +1,6 @@
 import { signal } from "@preact/signals";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
+import { useDocumentTitle } from "../hooks/use-document-title";
 import {
   getManifests,
   getDashboardAppGrid,
@@ -10,7 +11,7 @@ import { useAppState } from "../state/context";
 import { statusToKind, INACTIVE_STATUSES, type StatusKind } from "../utils/status";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
 import { formatRelativeTime, formatTimestamp } from "../utils/format";
-import { type AppRow, type AppSortKey, type AppSortState, mergeManifestsAndGrid, compareAppRows } from "../utils/app-data";
+import { type AppRow, type AppSortState, mergeManifestsAndGrid, compareAppRows } from "../utils/app-data";
 import { StatusShape } from "../components/shared/status-shape";
 import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { ActionButtons } from "../components/shared/action-buttons";
@@ -110,23 +111,6 @@ function FilterPills({ counts, active, onChange }: {
 
 // ---- Sort header ----
 
-function AppSortHeader({ sort, setSort, k, children }: {
-  sort: AppSortState;
-  setSort: (s: AppSortState) => void;
-  k: AppSortKey;
-  children: preact.ComponentChildren;
-}) {
-  const isActive = sort.key === k;
-  return (
-    <SortHeader
-      active={isActive}
-      direction={isActive ? sort.dir : "asc"}
-      onClick={() => setSort({ key: k, dir: isActive && sort.dir === "asc" ? "desc" : "asc" })}
-    >
-      {children}
-    </SortHeader>
-  );
-}
 
 // ---- Status pill ----
 
@@ -237,7 +221,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
 // ---- Page ----
 
 export function AppsPage() {
-  useEffect(() => { document.title = "Apps - Hassette"; }, []);
+  useDocumentTitle("Apps");
 
   const { appStatus, timePreset, uptimeSeconds } = useAppState();
   const { data: manifestData, loading: manifestLoading } = useApi(getManifests);
@@ -322,11 +306,11 @@ export function AppsPage() {
           <table class="ht-table ht-apps-table">
             <thead>
               <tr>
-                <AppSortHeader sort={sort} setSort={setSort} k="name">app</AppSortHeader>
-                <AppSortHeader sort={sort} setSort={setSort} k="status">status</AppSortHeader>
-                <AppSortHeader sort={sort} setSort={setSort} k="error">last error</AppSortHeader>
-                <AppSortHeader sort={sort} setSort={setSort} k="runs">runs</AppSortHeader>
-                <AppSortHeader sort={sort} setSort={setSort} k="last">last fired</AppSortHeader>
+                <SortHeader sort={sort} onSort={setSort} sortKey="name">app</SortHeader>
+                <SortHeader sort={sort} onSort={setSort} sortKey="status">status</SortHeader>
+                <SortHeader sort={sort} onSort={setSort} sortKey="error">last error</SortHeader>
+                <SortHeader sort={sort} onSort={setSort} sortKey="runs">runs</SortHeader>
+                <SortHeader sort={sort} onSort={setSort} sortKey="last">last fired</SortHeader>
                 <th scope="col">actions</th>
               </tr>
             </thead>

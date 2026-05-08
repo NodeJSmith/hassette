@@ -1,5 +1,6 @@
 import { signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
+import { useDocumentTitle } from "../hooks/use-document-title";
 import { useSearch, useLocation } from "wouter";
 import { getAppJobs, getAppListeners, getManifests } from "../api/endpoints";
 import type { AppInstance } from "../api/endpoints";
@@ -171,17 +172,8 @@ export function AppDetailPage({ params }: Props) {
   const displayListeners = listeners.data.value ?? staleListeners.current ?? [];
   const displayJobs = jobs.data.value ?? staleJobs.current ?? [];
 
-  // Immediate fallback title on mount
-  useEffect(() => { document.title = "App - Hassette"; }, []);
-
   const manifest = manifests.data.value?.manifests.find((m) => m.app_key === appKey);
-
-  // Update title when manifest loads; reset on unmount
-  const displayName = manifest?.display_name;
-  useEffect(() => {
-    if (displayName) document.title = `${displayName} - Hassette`;
-    return () => { document.title = "Hassette"; };
-  }, [displayName]);
+  useDocumentTitle(manifest?.display_name ?? "App");
 
   const isMultiInstance = (manifest?.instance_count ?? 0) > 1;
 

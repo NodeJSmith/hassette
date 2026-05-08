@@ -1,7 +1,7 @@
-import { useEffect } from "preact/hooks";
+import { useDocumentTitle } from "../hooks/use-document-title";
 
 export function NotFoundPage() {
-  useEffect(() => { document.title = "Not Found - Hassette"; }, []);
+  useDocumentTitle("Not Found");
   return (
     <div class="ht-page ht-error-page">
       <h1>404</h1>

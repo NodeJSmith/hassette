@@ -1,6 +1,7 @@
-import { useEffect } from "preact/hooks";
 import { getConfig } from "../api/endpoints";
+import { Spinner } from "../components/shared/spinner";
 import { useApi } from "../hooks/use-api";
+import { useDocumentTitle } from "../hooks/use-document-title";
 
 type ConfigRow = { key: string; value: string };
 
@@ -18,7 +19,7 @@ function formatValue(value: unknown): string {
 }
 
 export function ConfigPage() {
-  useEffect(() => { document.title = "Config - Hassette"; }, []);
+  useDocumentTitle("Config");
   const result = useApi(getConfig);
   const config = result.data.value;
   const loading = result.loading.value;
@@ -92,9 +93,7 @@ export function ConfigPage() {
         <h1 class="ht-display">config</h1>
       </div>
 
-      {loading && (
-        <div class="ht-spinner" role="status" aria-label="Loading configuration" />
-      )}
+      {loading && <Spinner />}
 
       {error && (
         <div class="ht-alert ht-alert--danger" role="alert">

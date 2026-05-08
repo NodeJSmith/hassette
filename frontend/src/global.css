@@ -1987,31 +1987,6 @@ strong {
   font-weight: 500;
 }
 
-/* — Status Badge (dot + label) ———————————————————————— */
-.ht-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  font-size: var(--fs-small);
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.ht-status-badge__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--r-pill);
-  flex-shrink: 0;
-}
-
-.ht-status-badge--success .ht-status-badge__dot  { background: var(--ok); }
-.ht-status-badge--success .ht-status-badge__label { color: var(--ok); }
-.ht-status-badge--danger .ht-status-badge__dot    { background: var(--err); }
-.ht-status-badge--danger .ht-status-badge__label   { color: var(--err); }
-.ht-status-badge--warning .ht-status-badge__dot   { background: var(--warn); }
-.ht-status-badge--warning .ht-status-badge__label  { color: var(--warn); }
-.ht-status-badge--neutral .ht-status-badge__dot   { background: var(--ink-3); }
-.ht-status-badge--neutral .ht-status-badge__label  { color: var(--ink-3); }
 
 /* — Health Card ——————————————————————————————————————— */
 .ht-health-card {
@@ -2596,55 +2571,6 @@ strong {
   font-family: var(--font-mono);
 }
 
-/* — Tags (error feed badges) —————————————————————————— */
-.ht-tag {
-  display: inline-flex;
-  align-items: center;
-  font-size: var(--fs-micro);
-  font-weight: 500;
-  padding: 0.1em 0.45em;
-  border-radius: var(--r-sm);
-  line-height: 1.6;
-  white-space: nowrap;
-  text-transform: lowercase;
-}
-
-.ht-tag--handler {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.ht-tag--job {
-  color: var(--warn);
-  background: var(--warn-bg);
-}
-
-.ht-tag--neutral {
-  color: var(--ink-3);
-  background: var(--bg-sunken);
-}
-
-.ht-tag--framework {
-  color: var(--ink-3);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line-1);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 0.65em;
-}
-
-.ht-tag--jitter {
-  color: var(--ink-3);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line-1);
-}
-
-.ht-tag-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1);
-  margin-bottom: var(--sp-2);
-}
 
 .ht-log-source-inline {
   font-family: var(--font-mono);
@@ -2710,19 +2636,6 @@ strong {
   outline-offset: -2px;
 }
 
-.ht-tag--xs {
-  font-size: 0.65em;
-  padding: 0.05em 0.35em;
-  line-height: 1.4;
-}
-
-.ht-tag--truncated {
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: inline-block;
-}
 
 /* — Alert List ————————————————————————————————————————— */
 .ht-alert-list {
@@ -3080,124 +2993,6 @@ strong {
   border-bottom-color: transparent;
 }
 
-.ht-card--apps {
-  padding: var(--sp-3);
-}
-
-.ht-manifest-card-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-}
-
-.ht-manifest-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--line-1);
-  border-top: 1px solid var(--line-2);
-  border-radius: var(--r-md);
-  padding: var(--sp-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-}
-
-.ht-manifest-card__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--sp-2);
-}
-
-.ht-manifest-card__title {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
-  min-width: 0;
-}
-
-.ht-manifest-card__chevron {
-  background: none;
-  border: none;
-  color: var(--ink-3);
-  cursor: pointer;
-  padding: var(--sp-1);
-  font-size: var(--fs-small);
-  line-height: 1;
-  min-width: 44px;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.ht-manifest-card__chevron:hover {
-  color: var(--ink-1);
-}
-
-.ht-manifest-card__chevron:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-
-.ht-manifest-card__name {
-  color: var(--accent);
-  text-decoration: none;
-  font-weight: 500;
-  font-size: var(--fs-body);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ht-manifest-card__name:hover {
-  color: var(--accent-hover);
-}
-
-.ht-manifest-card__badges {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
-  flex-shrink: 0;
-}
-
-.ht-manifest-card__actions {
-  display: flex;
-  gap: var(--sp-2);
-  flex-wrap: wrap;
-}
-
-.ht-manifest-card__instance {
-  background: var(--bg-sunken);
-  border-radius: var(--r-sm);
-  padding: var(--sp-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-}
-
-.ht-manifest-card__instance-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--sp-2);
-}
-
-.ht-manifest-card__instance-name {
-  color: var(--accent);
-  text-decoration: none;
-  font-family: var(--font-mono);
-  font-size: var(--fs-small);
-}
-
-.ht-manifest-card__instance-name:hover {
-  color: var(--accent-hover);
-}
-
-.ht-manifest-card__instance-actions {
-  display: flex;
-  gap: var(--sp-2);
-  flex-wrap: wrap;
-}
 
 /* — Apps Page ——————————————————————————————————————————— */
 

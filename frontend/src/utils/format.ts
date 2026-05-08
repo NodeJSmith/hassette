@@ -15,6 +15,16 @@ export function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+/** Format a duration or "—" if null/undefined/zero. Use for averages where 0 means "no data". */
+export function formatDurationOrDash(ms: number | null | undefined): string {
+  return ms !== null && ms !== undefined && ms > 0 ? formatDuration(ms) : "—";
+}
+
+/** Format a duration or "—" if null/undefined. Use for min/max where 0 is a valid value. */
+export function formatOptionalDuration(ms: number | null | undefined): string {
+  return ms !== null && ms !== undefined ? formatDuration(ms) : "—";
+}
+
 /** Pluralize a label based on count (e.g., pluralize(1, "entry", "entries") → "1 entry"). */
 export function pluralize(count: number, singular: string, plural?: string): string {
   const label = count === 1 ? singular : (plural ?? `${singular}s`);

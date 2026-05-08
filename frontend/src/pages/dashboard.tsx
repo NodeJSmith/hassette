@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useRef } from "preact/hooks";
 import { useApi } from "../hooks/use-api";
+import { useDocumentTitle } from "../hooks/use-document-title";
 import {
   getDashboardAppGrid,
   getDashboardErrors,
@@ -212,7 +213,7 @@ function RecentErrors({ errors }: { errors: DashboardErrorEntry[] | null }) {
 // ---- Dashboard page ---------------------------------------------------------
 
 export function DashboardPage() {
-  useEffect(() => { document.title = "Overview - Hassette"; }, []);
+  useDocumentTitle("Overview");
 
   const {
     appStatus, invocationCompleted, executionCompleted,

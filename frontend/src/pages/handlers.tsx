@@ -1,25 +1,18 @@
-import { useEffect, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
+import { useDocumentTitle } from "../hooks/use-document-title";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { getAllListeners, getAllJobs } from "../api/endpoints";
 import type { ListenerData, JobData } from "../api/endpoints";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
-import { SortHeader } from "../components/shared/sort-header";
+import { SortHeader, type SortState } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { TierToolbar } from "../components/shared/tier-toolbar";
-import { formatRelativeTime, formatDuration } from "../utils/format";
+import { formatRelativeTime, formatDurationOrDash, formatOptionalDuration } from "../utils/format";
 
 // ---- Formatting helpers ----
 
 function fmtRate(failed: number, total: number): string {
   return total > 0 ? ((failed / total) * 100).toFixed(1) + "%" : "—";
-}
-
-function fmtDur(ms: number | null | undefined): string {
-  return ms !== null && ms !== undefined && ms > 0 ? formatDuration(ms) : "—";
-}
-
-function fmtOptDur(ms: number | null | undefined): string {
-  return ms !== null && ms !== undefined ? formatDuration(ms) : "—";
 }
 
 // ---- Tier toggle ----
@@ -30,7 +23,6 @@ type Tab = "handlers" | "jobs";
 
 type HandlerSortKey = "app" | "handler" | "invocations" | "failed" | "timed_out" | "error_rate" | "avg_duration" | "min_duration" | "max_duration";
 type JobSortKey = "app" | "name" | "trigger" | "executions" | "failed" | "timed_out" | "error_rate" | "avg_duration" | "min_duration" | "max_duration" | "next_run" | "status";
-interface SortState<K extends string> { key: K; dir: "asc" | "desc" }
 
 // ---- Next-run display ----
 
@@ -130,19 +122,6 @@ interface HandlersTableProps {
 function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
 
-  function header(k: HandlerSortKey, children: preact.ComponentChildren) {
-    const isActive = sort.key === k;
-    return (
-      <SortHeader
-        active={isActive}
-        direction={isActive ? sort.dir : "asc"}
-        onClick={() => onSort({ key: k, dir: isActive && sort.dir === "asc" ? "desc" : "asc" })}
-      >
-        {children}
-      </SortHeader>
-    );
-  }
-
   if (listeners.length === 0) {
     return (
       <div class="ht-empty-state" data-testid="handlers-empty">
@@ -156,7 +135,7 @@ function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
       <div class="ht-mobile-cards" data-testid="handlers-table-container">
         {listeners.map((l) => {
           const errorRate = fmtRate(l.failed, l.total_invocations);
-          const avgDur = fmtDur(l.avg_duration_ms);
+          const avgDur = formatDurationOrDash(l.avg_duration_ms);
           return (
             <a
               key={l.listener_id}
@@ -187,23 +166,23 @@ function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
       <table class="ht-table ht-handlers-table">
         <thead>
           <tr>
-            {header("app", "app")}
-            {header("handler", "handler")}
-            {header("invocations", "invocations")}
-            {header("failed", "failed")}
-            {header("timed_out", "timed out")}
-            {header("error_rate", "error rate")}
-            {header("avg_duration", "avg")}
-            {header("min_duration", "min")}
-            {header("max_duration", "max")}
+            <SortHeader sort={sort} onSort={onSort} sortKey="app">app</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="handler">handler</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="invocations">invocations</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="failed">failed</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="timed_out">timed out</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="error_rate">error rate</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="avg_duration">avg</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="min_duration">min</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="max_duration">max</SortHeader>
           </tr>
         </thead>
         <tbody>
           {listeners.map((l) => {
             const errorRate = fmtRate(l.failed, l.total_invocations);
-            const avgDur = fmtDur(l.avg_duration_ms);
-            const minDur = fmtOptDur(l.min_duration_ms);
-            const maxDur = fmtOptDur(l.max_duration_ms);
+            const avgDur = formatDurationOrDash(l.avg_duration_ms);
+            const minDur = formatOptionalDuration(l.min_duration_ms);
+            const maxDur = formatOptionalDuration(l.max_duration_ms);
             return (
               <tr
                 key={l.listener_id}
@@ -251,19 +230,6 @@ interface JobsTableProps {
 function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
 
-  function header(k: JobSortKey, children: preact.ComponentChildren) {
-    const isActive = sort.key === k;
-    return (
-      <SortHeader
-        active={isActive}
-        direction={isActive ? sort.dir : "asc"}
-        onClick={() => onSort({ key: k, dir: isActive && sort.dir === "asc" ? "desc" : "asc" })}
-      >
-        {children}
-      </SortHeader>
-    );
-  }
-
   if (jobs.length === 0) {
     return (
       <div class="ht-empty-state" data-testid="jobs-empty">
@@ -279,7 +245,7 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
           const nextRun = formatNextRun(j);
           const isCancelled = j.cancelled;
           const statusText = isCancelled ? "cancelled" : (j.failed > 0 ? "failing" : "active");
-          const avgDur = fmtDur(j.avg_duration_ms);
+          const avgDur = formatDurationOrDash(j.avg_duration_ms);
           return (
             <a
               key={j.job_id}
@@ -314,18 +280,18 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
       <table class="ht-table ht-handlers-table">
         <thead>
           <tr>
-            {header("app", "app")}
-            {header("name", "job name")}
-            {header("trigger", "trigger")}
-            {header("executions", "executions")}
-            {header("failed", "failed")}
-            {header("timed_out", "timed out")}
-            {header("error_rate", "error rate")}
-            {header("avg_duration", "avg")}
-            {header("min_duration", "min")}
-            {header("max_duration", "max")}
-            {header("next_run", "next run")}
-            {header("status", "status")}
+            <SortHeader sort={sort} onSort={onSort} sortKey="app">app</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="name">job name</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="trigger">trigger</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="executions">executions</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="failed">failed</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="timed_out">timed out</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="error_rate">error rate</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="avg_duration">avg</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="min_duration">min</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="max_duration">max</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="next_run">next run</SortHeader>
+            <SortHeader sort={sort} onSort={onSort} sortKey="status">status</SortHeader>
           </tr>
         </thead>
         <tbody>
@@ -335,9 +301,9 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
             const isCancelled = j.cancelled;
             const statusText = isCancelled ? "cancelled" : (j.failed > 0 ? "failing" : "active");
             const errorRate = fmtRate(j.failed, j.total_executions);
-            const avgDur = fmtDur(j.avg_duration_ms);
-            const minDur = fmtOptDur(j.min_duration_ms);
-            const maxDur = fmtOptDur(j.max_duration_ms);
+            const avgDur = formatDurationOrDash(j.avg_duration_ms);
+            const minDur = formatOptionalDuration(j.min_duration_ms);
+            const maxDur = formatOptionalDuration(j.max_duration_ms);
             return (
               <tr
                 key={j.job_id}
@@ -382,7 +348,7 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
 // ---- Page ----
 
 export function HandlersPage() {
-  useEffect(() => { document.title = "Handlers - Hassette"; }, []);
+  useDocumentTitle("Handlers");
 
   const [activeTab, setActiveTab] = useState<Tab>("handlers");
   const [tierFilter, setTierFilter] = useState<TierFilter>("app");

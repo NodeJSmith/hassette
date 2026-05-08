@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   formatAge,
   formatDuration,
+  formatDurationOrDash,
+  formatOptionalDuration,
   formatRelativeTime,
   formatTimestamp,
   formatTriggerDetail,
@@ -68,6 +70,43 @@ describe("formatDuration", () => {
 
   it("test_formatDuration_zero: zero returns '<1ms'", () => {
     expect(formatDuration(0)).toBe("<1ms");
+  });
+});
+
+describe("formatDurationOrDash", () => {
+  it("returns dash for null", () => {
+    expect(formatDurationOrDash(null)).toBe("—");
+  });
+
+  it("returns dash for undefined", () => {
+    expect(formatDurationOrDash(undefined)).toBe("—");
+  });
+
+  it("returns dash for zero", () => {
+    expect(formatDurationOrDash(0)).toBe("—");
+  });
+
+  it("formats positive values", () => {
+    expect(formatDurationOrDash(150)).toBe("150.0ms");
+    expect(formatDurationOrDash(2500)).toBe("2.5s");
+  });
+});
+
+describe("formatOptionalDuration", () => {
+  it("returns dash for null", () => {
+    expect(formatOptionalDuration(null)).toBe("—");
+  });
+
+  it("returns dash for undefined", () => {
+    expect(formatOptionalDuration(undefined)).toBe("—");
+  });
+
+  it("formats zero as a valid duration", () => {
+    expect(formatOptionalDuration(0)).toBe("<1ms");
+  });
+
+  it("formats positive values", () => {
+    expect(formatOptionalDuration(150)).toBe("150.0ms");
   });
 });
 

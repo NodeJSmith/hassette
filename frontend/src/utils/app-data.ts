@@ -1,4 +1,5 @@
 import type { AppManifest, DashboardAppGridEntry } from "../api/endpoints";
+import type { SortState } from "../components/shared/sort-header";
 
 export interface AppRow {
   app_key: string;
@@ -66,7 +67,7 @@ export function mergeManifestsAndGrid(
 }
 
 export type AppSortKey = "name" | "status" | "error" | "runs" | "last";
-export interface AppSortState { key: AppSortKey; dir: "asc" | "desc" }
+export type AppSortState = SortState<AppSortKey>;
 
 const STATUS_SORT_ORDER: Record<string, number> = { failed: 0, blocked: 1, running: 2, stopped: 3, disabled: 4 };
 
