@@ -375,7 +375,7 @@ export function HandlersPage() {
         onAppChange={setSelectedApp}
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="search handlers..."
+        searchPlaceholder="Search..."
         testIdPrefix={activeTab === "handlers" ? "handlers" : "jobs"}
       />
 

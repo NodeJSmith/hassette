@@ -268,10 +268,15 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
             />
           )}
           {livePaused && (
-            <span class="ht-pill ht-pill--mute">
-              <StatusShape kind="mute" size={6} />
-              paused
-            </span>
+            <button
+              type="button"
+              class="ht-pill ht-pill--warn"
+              onClick={handleResume}
+              aria-label="Resume live log streaming"
+            >
+              <StatusShape kind="warn" size={6} />
+              paused — click to resume
+            </button>
           )}
           <label class="ht-pill ht-pill--mute ht-pill--interactive">
             {levelLabel}
@@ -294,15 +299,10 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
               ))}
             </select>
           </label>
-          {livePaused && (
-            <button type="button" class="ht-btn ht-btn--xs ht-btn--ghost" onClick={handleResume}>
-              resume
-            </button>
-          )}
           <input
             class="ht-input ht-input--sm"
             type="text"
-            aria-label="Search log messages"
+            aria-label="Search logs"
             placeholder="Search..."
             value={search.value}
             onInput={(e) => {

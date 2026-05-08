@@ -943,7 +943,7 @@ describe("Live streaming pause", () => {
     entrySeq = 0;
   });
 
-  it("shows 'Live updates paused' when sorting by non-timestamp column", () => {
+  it("shows paused badge when sorting by non-timestamp column", () => {
     state.logs.push(createLogEntry());
 
     const { getByTestId, getByText } = render(
@@ -954,7 +954,7 @@ describe("Live streaming pause", () => {
     const sortBtn = getByTestId("sort-level").querySelector("button") as HTMLElement;
     fireEvent.click(sortBtn);
 
-    expect(getByText("paused")).toBeDefined();
+    expect(getByText(/paused/)).toBeDefined();
   });
 
   it("hides paused indicator when sorting by timestamp", () => {
@@ -967,14 +967,14 @@ describe("Live streaming pause", () => {
 
     // Sort by level (paused)
     fireEvent.click(getByTestId("sort-level").querySelector("button") as HTMLElement);
-    expect(queryByText("paused")).not.toBeNull();
+    expect(queryByText(/paused/)).not.toBeNull();
 
     // Sort by timestamp (resumes)
     fireEvent.click(getByTestId("sort-timestamp").querySelector("button") as HTMLElement);
-    expect(queryByText("paused")).toBeNull();
+    expect(queryByText(/paused/)).toBeNull();
   });
 
-  it("Resume button resets sort to timestamp descending", () => {
+  it("clicking paused badge resets sort to timestamp descending", () => {
     state.logs.push(createLogEntry({ timestamp: 1000, message: "older" }));
     state.logs.push(createLogEntry({ timestamp: 2000, message: "newer" }));
 
@@ -985,13 +985,13 @@ describe("Live streaming pause", () => {
 
     // Sort by level to pause
     fireEvent.click(getByTestId("sort-level").querySelector("button") as HTMLElement);
-    expect(queryByText("paused")).not.toBeNull();
+    expect(queryByText(/paused/)).not.toBeNull();
 
-    // Click Resume
-    fireEvent.click(getByText("resume"));
+    // Click the paused badge to resume
+    fireEvent.click(getByText(/paused/));
 
     // Paused indicator gone
-    expect(queryByText("paused")).toBeNull();
+    expect(queryByText(/paused/)).toBeNull();
 
     // Sort is back to timestamp descending
     expect(getByTestId("sort-timestamp").getAttribute("aria-sort")).toBe("descending");

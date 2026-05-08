@@ -143,7 +143,7 @@ describe("HandlersPage", () => {
 
   it("renders a search input for handlers", () => {
     const { getByPlaceholderText } = renderWithAppState(<HandlersPage />);
-    expect(getByPlaceholderText("search handlers...")).toBeDefined();
+    expect(getByPlaceholderText("Search...")).toBeDefined();
   });
 
   it("filters handlers by search text in handler_method", () => {
@@ -154,7 +154,7 @@ describe("HandlersPage", () => {
       ],
     });
     const { getAllByTestId, getByPlaceholderText } = renderWithAppState(<HandlersPage />);
-    fireEvent.input(getByPlaceholderText("search handlers..."), { target: { value: "motion" } });
+    fireEvent.input(getByPlaceholderText("Search..."), { target: { value: "motion" } });
     expect(getAllByTestId(/handler-row-/).length).toBe(1);
   });
 
@@ -166,7 +166,7 @@ describe("HandlersPage", () => {
       ],
     });
     const { getAllByTestId, getByPlaceholderText } = renderWithAppState(<HandlersPage />);
-    fireEvent.input(getByPlaceholderText("search handlers..."), { target: { value: "climate" } });
+    fireEvent.input(getByPlaceholderText("Search..."), { target: { value: "climate" } });
     expect(getAllByTestId(/handler-row-/).length).toBe(1);
   });
 
@@ -178,7 +178,7 @@ describe("HandlersPage", () => {
       ],
     });
     const { getAllByTestId, getByPlaceholderText } = renderWithAppState(<HandlersPage />);
-    fireEvent.input(getByPlaceholderText("search handlers..."), { target: { value: "onmotion" } });
+    fireEvent.input(getByPlaceholderText("Search..."), { target: { value: "onmotion" } });
     expect(getAllByTestId(/handler-row-/).length).toBe(1);
   });
 
@@ -191,7 +191,7 @@ describe("HandlersPage", () => {
     });
     const { getByRole, getAllByTestId, getByPlaceholderText } = renderWithAppState(<HandlersPage />);
     fireEvent.click(getByRole("tab", { name: /^jobs/i }));
-    fireEvent.input(getByPlaceholderText("search handlers..."), { target: { value: "backup" } });
+    fireEvent.input(getByPlaceholderText("Search..."), { target: { value: "backup" } });
     expect(getAllByTestId(/job-row-/).length).toBe(1);
   });
 
@@ -207,7 +207,7 @@ describe("HandlersPage", () => {
     const { getByRole, getAllByTestId, getByPlaceholderText } = renderWithAppState(<HandlersPage />);
 
     // Filter handlers by search
-    fireEvent.input(getByPlaceholderText("search handlers..."), { target: { value: "motion" } });
+    fireEvent.input(getByPlaceholderText("Search..."), { target: { value: "motion" } });
     expect(getAllByTestId(/handler-row-/).length).toBe(1);
 
     // Switch to jobs tab — search should clear, job row visible
