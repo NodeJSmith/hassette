@@ -2,6 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { getAllListeners, getAllJobs } from "../api/endpoints";
 import type { ListenerData, JobData } from "../api/endpoints";
+import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
 import { SortHeader } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { TierToolbar } from "../components/shared/tier-toolbar";
@@ -127,6 +128,8 @@ interface HandlersTableProps {
 }
 
 function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
+  const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
+
   function header(k: HandlerSortKey, children: preact.ComponentChildren) {
     const isActive = sort.key === k;
     return (
@@ -144,6 +147,37 @@ function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
     return (
       <div class="ht-empty-state" data-testid="handlers-empty">
         <p class="ht-text-muted">no handlers registered.</p>
+      </div>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <div class="ht-mobile-cards" data-testid="handlers-table-container">
+        {listeners.map((l) => {
+          const errorRate = fmtRate(l.failed, l.total_invocations);
+          const avgDur = fmtDur(l.avg_duration_ms);
+          return (
+            <a
+              key={l.listener_id}
+              href={`/apps/${l.app_key}?focus=${l.handler_method}`}
+              class={`ht-mobile-card${l.failed > 0 ? " ht-mobile-card--failing" : ""}`}
+              data-testid={`handler-row-${l.listener_id}`}
+            >
+              <div class="ht-mobile-card__header">
+                <span class="ht-text-mono ht-text-sm">{l.app_key}</span>
+                <span class="ht-text-mono ht-text-sm" style={{ fontWeight: 600 }}>{l.handler_method.split(".").pop()}</span>
+              </div>
+              <div class="ht-mobile-card__metrics">
+                <span>{l.total_invocations} calls</span>
+                {l.failed > 0 && <span class="ht-text-danger">{l.failed} failed</span>}
+                {l.timed_out > 0 && <span class="ht-text-warning">{l.timed_out} timed out</span>}
+                {l.total_invocations > 0 && <span>{errorRate} err</span>}
+                {l.avg_duration_ms > 0 && <span>avg {avgDur}</span>}
+              </div>
+            </a>
+          );
+        })}
       </div>
     );
   }
@@ -215,6 +249,8 @@ interface JobsTableProps {
 }
 
 function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
+  const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
+
   function header(k: JobSortKey, children: preact.ComponentChildren) {
     const isActive = sort.key === k;
     return (
@@ -232,6 +268,43 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
     return (
       <div class="ht-empty-state" data-testid="jobs-empty">
         <p class="ht-text-muted">no jobs scheduled.</p>
+      </div>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <div class="ht-mobile-cards" data-testid="jobs-table-container">
+        {jobs.map((j) => {
+          const nextRun = formatNextRun(j);
+          const isCancelled = j.cancelled;
+          const statusText = isCancelled ? "cancelled" : (j.failed > 0 ? "failing" : "active");
+          const avgDur = fmtDur(j.avg_duration_ms);
+          return (
+            <a
+              key={j.job_id}
+              href={`/apps/${j.app_key}?focus=${j.handler_method}`}
+              class={`ht-mobile-card${j.failed > 0 ? " ht-mobile-card--failing" : ""}${isCancelled ? " ht-mobile-card--muted" : ""}`}
+              data-testid={`job-row-${j.job_id}`}
+            >
+              <div class="ht-mobile-card__header">
+                <span class="ht-text-mono ht-text-sm">{j.app_key}</span>
+                <span class="ht-text-mono ht-text-sm" style={{ fontWeight: 600 }}>{j.job_name}</span>
+              </div>
+              <div class="ht-mobile-card__metrics">
+                <span>{j.trigger_label}</span>
+                <span>{j.total_executions} runs</span>
+                {j.failed > 0 && <span class="ht-text-danger">{j.failed} failed</span>}
+                {j.timed_out > 0 && <span class="ht-text-warning">{j.timed_out} timed out</span>}
+                {j.avg_duration_ms > 0 && <span>avg {avgDur}</span>}
+              </div>
+              <div class="ht-mobile-card__footer">
+                <span class={isCancelled ? "ht-text-muted" : j.failed > 0 ? "ht-text-danger" : ""}>{statusText}</span>
+                {!isCancelled && nextRun !== "—" && <span class="ht-text-muted">next {nextRun}</span>}
+              </div>
+            </a>
+          );
+        })}
       </div>
     );
   }
