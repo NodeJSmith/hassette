@@ -24,7 +24,7 @@ Modify one file:
 - App dropdown: `onAppChange` → `qp.set({ app: v || null })`
 - Search input: `onSearchChange` → `qp.set({ search: v || null })`
 - SortHeader: `onSort` → `qp.set({ sort: s.key === "app" ? null : s.key, dir: s.dir === "asc" ? null : s.dir })`
-- The handler row links (mobile card href at line 257, AppLink at line 310): change from `?focus=${handler_method}` to direct handler deep-link `/apps/${row.app_key}/handlers/h-${row.id.slice(2)}` for handlers and `/apps/${row.app_key}/handlers/j-${row.id.slice(2)}` for jobs. Use the numeric ID from the UnifiedRow's `id` field (strip the `h-`/`j-` prefix that's already there).
+- The handler row links (mobile card href at line 257, AppLink at line 310): change from `?focus=${handler_method}` to direct handler deep-link `/apps/${row.app_key}/handlers/${row.id}`. The UnifiedRow `id` field is already in `h-42`/`j-7` format — use it directly, no string manipulation needed.
 
 ## Focus
 - Default values for handlers page: tier="app", app="", sort="app", dir="asc", search="" — omit all from URL

@@ -19,7 +19,7 @@ Create three new files and update two existing files:
    - Values must be encoded via `encodeURIComponent` on write and decoded on read
    - When the resulting param set equals the current one, `set()` must no-op (no spurious navigation)
 
-2. **Create `frontend/src/hooks/use-correct-url.ts`** — exports a `correctUrl(correctedUrl: string, reason: string)` function that calls `navigate(correctedUrl, { replace: true })`. The `reason` parameter is stored but not displayed (future toast hook point). Export the function and the stored reasons for testability.
+2. **Create `frontend/src/hooks/use-correct-url.ts`** — exports a `useCorrectUrl()` hook (not a plain function — it needs `navigate` from wouter's `useLocation()`). The hook returns a `correctUrl(correctedUrl: string, reason: string)` function that calls `navigate(correctedUrl, { replace: true })`. The `reason` parameter is stored in a module-level array (exported as `correctionReasons` for testability and future toast integration). Callers use it as: `const correctUrl = useCorrectUrl();` then `correctUrl("/apps/foo/handlers", "handler h-999 not found")`.
 
 3. **Update `frontend/src/state/create-app-state.ts`** — add a `urlWindowParam` signal (initially `null`) and an `effectiveTimePreset` computed signal: `effectiveTimePreset = computed(() => urlWindowParam.value ?? timePreset.value)`. Export both from the app state. The `urlWindowParam` signal is page-scoped — pages write to it; it does not persist to localStorage.
 
