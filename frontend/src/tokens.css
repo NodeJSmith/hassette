@@ -35,6 +35,9 @@
   --err:   #B53024;  --err-bg:   #F5DEDC;
   --mute:  #9097A0;  --mute-bg:  #EFF0EC;
 
+  /* Inputs */
+  --input-bg: #FFFFFF;
+
   /* Code */
   --code-bg:      var(--bg-sunken);
   --code-comment: var(--ink-3);
@@ -128,6 +131,9 @@
   --warn:  #D9B36E;  --warn-bg:  #272219;
   --err:   #E08278;  --err-bg:   #28191A;
   --mute:  #6A707A;  --mute-bg:  #1D1F23;
+
+  /* Inputs */
+  --input-bg: #1F2227;
 
   /* Code highlights */
   --code-annotate-bg: oklch(0.18 0.005 250);

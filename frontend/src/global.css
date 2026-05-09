@@ -2914,9 +2914,9 @@ strong {
   font-family: var(--font-body);
   font-size: 12px;
   padding: 6px 10px;
-  border: 1px solid var(--line-1);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-md);
-  background: var(--bg-surface);
+  background: var(--input-bg);
   color: var(--ink-1);
   outline: none;
   min-width: 160px;
