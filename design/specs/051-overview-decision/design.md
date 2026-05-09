@@ -1,7 +1,7 @@
 # Design: Remove overview page and default to /apps
 
 **Date:** 2026-05-09
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/specs/051-overview-decision/brief.md
 
