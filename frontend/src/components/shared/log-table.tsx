@@ -312,7 +312,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
           />
         </div>
       </div>
-      <div class="ht-log-table-scroll">
+      <div class="ht-table-card-scroll">
         <table class="ht-table ht-table--compact ht-table-log">
           <thead>
             <tr>

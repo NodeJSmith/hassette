@@ -2598,10 +2598,7 @@ strong {
   gap: var(--sp-3);
 }
 
-.ht-log-table-scroll {
-  max-height: var(--log-scroll-height, 600px);
-  overflow-y: auto;
-}
+/* (ht-log-table-scroll migrated to ht-table-card-scroll) */
 
 .ht-table-log {
   table-layout: fixed;
@@ -3154,13 +3151,9 @@ strong {
 }
 
 /* Table card + scroll */
-.ht-handlers-card {
-  flex: 1;
-}
-
-.ht-handlers-scroll {
+.ht-table-card-scroll {
   overflow: auto;
-  max-height: var(--handlers-scroll-height, calc(100vh - 310px));
+  max-height: var(--table-scroll-height, calc(100vh - 310px));
 }
 
 .ht-handlers-table td {
@@ -4414,8 +4407,8 @@ strong {
 }
 
 /* Make log scroll fill available vertical space on the Logs page */
-.ht-logs-page .ht-log-table-scroll {
-  --log-scroll-height: calc(100vh - 270px);
+.ht-logs-page .ht-table-card-scroll {
+  --table-scroll-height: calc(100vh - 270px);
 }
 
 /* — Config Page — key-value groups ——————————————————— */

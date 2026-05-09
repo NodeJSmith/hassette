@@ -8,6 +8,7 @@ import { AppLink } from "../components/shared/app-link";
 import { EmptyState } from "../components/shared/empty-state";
 import { SortHeader, type SortState } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
+import { TableCard } from "../components/shared/table-card";
 import { TierToolbar } from "../components/shared/tier-toolbar";
 import { formatRelativeTime, formatDurationOrDash, pluralize } from "../utils/format";
 
@@ -236,30 +237,26 @@ export function HandlersPage() {
         <h1 class="ht-display">handlers</h1>
       </div>
 
-      <div class="ht-card ht-card--compact ht-handlers-card">
-        <div class="ht-table-toolbar">
-          <div class="ht-table-toolbar__title">
-            <span class="ht-table-toolbar__note" aria-live="polite">
-              {pluralize(sorted.filter((r) => r.kind === "handler").length, "handler")}
-              {" · "}
-              {pluralize(sorted.filter((r) => r.kind === "job").length, "job")}
-            </span>
-          </div>
-          <div class="ht-table-toolbar__controls">
-            <TierToolbar
-              tierFilter={tierFilter}
-              onTierChange={setTierFilter}
-              appKeys={appKeys}
-              selectedApp={selectedApp}
-              onAppChange={setSelectedApp}
-              search={search}
-              onSearchChange={setSearch}
-              searchPlaceholder="Search..."
-              testIdPrefix="handlers"
-            />
-          </div>
-        </div>
-        <div class="ht-handlers-scroll">
+      <TableCard
+        count={<>
+          {pluralize(sorted.filter((r) => r.kind === "handler").length, "handler")}
+          {" · "}
+          {pluralize(sorted.filter((r) => r.kind === "job").length, "job")}
+        </>}
+        controls={
+          <TierToolbar
+            tierFilter={tierFilter}
+            onTierChange={setTierFilter}
+            appKeys={appKeys}
+            selectedApp={selectedApp}
+            onAppChange={setSelectedApp}
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search..."
+            testIdPrefix="handlers"
+          />
+        }
+      >
           {sorted.length === 0 ? (
             <EmptyState title="no handlers found." data-testid="handlers-empty" />
           ) : isMobile ? (
@@ -353,8 +350,7 @@ export function HandlersPage() {
               </table>
             </div>
           )}
-        </div>
-      </div>
+      </TableCard>
     </div>
   );
 }

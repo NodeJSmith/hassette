@@ -123,8 +123,6 @@ function AppEntry({ manifest, location }: AppEntryProps) {
   const appPath = `/apps/${manifest.app_key}`;
   const isActive = location.startsWith(appPath);
 
-  const invocationCount = manifest.recent_invocations_1h;
-
   return (
     <li class="ht-sidebar__app-entry">
       <div class={`ht-sidebar__app-item${isActive ? " is-active" : ""}${isBlocked ? " is-blocked" : ""}`}>
@@ -137,9 +135,6 @@ function AppEntry({ manifest, location }: AppEntryProps) {
           <span class="ht-sidebar__app-name">{manifest.display_name}</span>
           {manifest.auto_loaded && (
             <span class="ht-chip ht-chip--auto" title="Auto-loaded">auto</span>
-          )}
-          {invocationCount > 0 && (
-            <span class="ht-sidebar__app-count">{invocationCount}</span>
           )}
         </Link>
         {isMulti && (

@@ -10,7 +10,7 @@ import { useApi } from "../hooks/use-api";
 import { useAppState } from "../state/context";
 import { statusToKind, statusToVariant, INACTIVE_STATUSES, type StatusKind } from "../utils/status";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
-import { formatRelativeTime, formatTimestamp } from "../utils/format";
+import { formatRelativeTime, formatTimestamp, pluralize } from "../utils/format";
 import { type AppRow, type AppSortState, mergeManifestsAndGrid, compareAppRows } from "../utils/app-data";
 import { AppLink } from "../components/shared/app-link";
 import { EmptyState } from "../components/shared/empty-state";
@@ -20,6 +20,7 @@ import { ActionButtons } from "../components/shared/action-buttons";
 import { SortHeader } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { StatsStrip, type StatsStripCell } from "../components/shared/stats-strip";
+import { TableCard } from "../components/shared/table-card";
 
 // ---- Filter types ----
 
@@ -262,22 +263,21 @@ export function AppsPage() {
       {/* Stats strip */}
       <StatsStrip cells={buildAppsCells(allApps, windowSeconds, isMobile)} data-testid="apps-stats-strip" />
 
-      {/* Toolbar: filters + search */}
-      <div class="ht-apps-toolbar">
-        <FilterPills counts={statusCounts} active={filter} onChange={setFilter} />
-        <input
-          type="text"
-          class="ht-search"
-          placeholder="search apps…"
-          aria-label="Search apps"
-          value={search}
-          onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
-          data-testid="apps-search"
-        />
-      </div>
-
-      {/* Table */}
-      <div class="ht-card ht-apps-table-card">
+      <TableCard
+        count={pluralize(filtered.length, "app")}
+        controls={<>
+          <FilterPills counts={statusCounts} active={filter} onChange={setFilter} />
+          <input
+            type="text"
+            class="ht-search"
+            placeholder="search apps…"
+            aria-label="Search apps"
+            value={search}
+            onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
+            data-testid="apps-search"
+          />
+        </>}
+      >
         {filtered.length === 0 ? (
           <EmptyState title="no apps match this filter.">
             {(filter !== "all" || q) && (
@@ -309,7 +309,7 @@ export function AppsPage() {
             </tbody>
           </table>
         )}
-      </div>
+      </TableCard>
     </div>
   );
 }
