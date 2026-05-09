@@ -27,8 +27,6 @@ interface UnifiedRow {
   avg_duration_ms: number;
   next_run: string | null;
   next_run_ts: number | null;
-  status: string | null;
-  cancelled: boolean;
   source_tier: string;
 }
 
@@ -46,8 +44,6 @@ function listenerToRow(l: ListenerData): UnifiedRow {
     avg_duration_ms: l.avg_duration_ms,
     next_run: null,
     next_run_ts: null,
-    status: null,
-    cancelled: false,
     source_tier: l.source_tier,
   };
 }
@@ -65,9 +61,7 @@ function jobToRow(j: JobData): UnifiedRow {
     timed_out: j.timed_out,
     avg_duration_ms: j.avg_duration_ms,
     next_run: formatNextRunValue(j),
-    next_run_ts: j.cancelled || j.next_run === null || j.next_run === undefined ? null : j.next_run,
-    status: j.cancelled ? "cancelled" : (j.failed > 0 ? "failing" : "active"),
-    cancelled: j.cancelled,
+    next_run_ts: j.next_run === null || j.next_run === undefined ? null : j.next_run,
     source_tier: j.source_tier,
   };
 }
@@ -79,7 +73,6 @@ function fmtRate(failed: number, total: number): string {
 }
 
 function formatNextRunValue(job: JobData): string {
-  if (job.cancelled) return "cancelled";
   if (job.next_run === null || job.next_run === undefined) return "—";
   const now = Date.now() / 1000;
   if (job.next_run < now) return "overdue";
@@ -99,7 +92,7 @@ function filterByTier<T extends { source_tier: string }>(items: T[], tier: TierF
 
 // ---- Sort ----
 
-type SortKey = "kind" | "app" | "name" | "trigger" | "runs" | "failed" | "timed_out" | "error_rate" | "avg_duration" | "next_run" | "status";
+type SortKey = "kind" | "app" | "name" | "trigger" | "runs" | "failed" | "timed_out" | "error_rate" | "avg_duration" | "next_run";
 
 function compareRows(a: UnifiedRow, b: UnifiedRow, sort: SortState<SortKey>): number {
   const dir = sort.dir === "asc" ? 1 : -1;
@@ -129,10 +122,6 @@ function compareRows(a: UnifiedRow, b: UnifiedRow, sort: SortState<SortKey>): nu
       const ts = (r: UnifiedRow) => r.next_run_ts ?? Infinity;
       return dir * (ts(a) - ts(b));
     }
-    case "status": {
-      const rank = (r: UnifiedRow) => r.status === null ? 3 : r.cancelled ? 2 : r.failed > 0 ? 0 : 1;
-      return dir * (rank(a) - rank(b));
-    }
     default:
       return 0;
   }
@@ -145,16 +134,14 @@ interface MobileCardProps {
   appKey: string;
   name: string;
   failing?: boolean;
-  muted?: boolean;
   "data-testid"?: string;
   metrics: preact.ComponentChildren;
   footer?: preact.ComponentChildren;
 }
 
-function MobileCard({ href, appKey, name, failing, muted, metrics, footer, ...rest }: MobileCardProps) {
+function MobileCard({ href, appKey, name, failing, metrics, footer, ...rest }: MobileCardProps) {
   let cls = "ht-mobile-card";
   if (failing) cls += " ht-mobile-card--failing";
-  if (muted) cls += " ht-mobile-card--muted";
   return (
     <a href={href} class={cls} data-testid={rest["data-testid"]}>
       <div class="ht-mobile-card__header">
@@ -271,7 +258,6 @@ export function HandlersPage() {
                     appKey={row.app_key}
                     name={row.name}
                     failing={row.failed > 0}
-                    muted={row.cancelled}
                     data-testid={`${row.kind}-row-${row.id}`}
                     metrics={<>
                       <KindBadge kind={row.kind} />
@@ -282,10 +268,9 @@ export function HandlersPage() {
                       {row.runs > 0 && <span>{errorRate} err</span>}
                       {row.avg_duration_ms > 0 && <span>avg {avgDur}</span>}
                     </>}
-                    footer={row.kind === "job" ? <>
-                      <span class={row.cancelled ? "ht-text-muted" : row.failed > 0 ? "ht-text-danger" : ""}>{row.status}</span>
-                      {!row.cancelled && row.next_run !== "—" && <span class="ht-text-muted">next {row.next_run}</span>}
-                    </> : undefined}
+                    footer={row.kind === "job" && row.next_run !== "—" ? (
+                      <span class="ht-text-muted">next {row.next_run}</span>
+                    ) : undefined}
                   />
                 );
               })}
@@ -305,7 +290,6 @@ export function HandlersPage() {
                     <SortHeader sort={sort} onSort={setSort} sortKey="error_rate">error rate</SortHeader>
                     <SortHeader sort={sort} onSort={setSort} sortKey="avg_duration">avg</SortHeader>
                     <SortHeader sort={sort} onSort={setSort} sortKey="next_run">next run</SortHeader>
-                    <SortHeader sort={sort} onSort={setSort} sortKey="status">status</SortHeader>
                   </tr>
                 </thead>
                 <tbody>
@@ -315,7 +299,7 @@ export function HandlersPage() {
                     return (
                       <tr
                         key={row.id}
-                        class={`ht-handlers-row${row.failed > 0 ? " ht-handlers-row--failing" : ""}${row.cancelled ? " ht-handlers-row--muted" : ""}`}
+                        class={`ht-handlers-row${row.failed > 0 ? " ht-handlers-row--failing" : ""}`}
                         data-testid={`${row.kind}-row-${row.id}`}
                       >
                         <td><KindBadge kind={row.kind} /></td>
@@ -339,9 +323,6 @@ export function HandlersPage() {
                         <td class="ht-text-mono ht-text-sm">{avgDur}</td>
                         <td class={`ht-text-mono ht-text-sm${row.next_run === "overdue" ? " ht-text-warning" : ""}`}>
                           {row.next_run ?? "—"}
-                        </td>
-                        <td class={`ht-text-mono ht-text-sm${row.cancelled ? " ht-text-muted" : row.failed > 0 ? " ht-text-danger" : ""}`}>
-                          {row.status ?? "—"}
                         </td>
                       </tr>
                     );

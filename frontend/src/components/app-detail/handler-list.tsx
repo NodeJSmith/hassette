@@ -22,7 +22,6 @@ function listenerStatusKind(l: ListenerData) {
 }
 
 function jobStatusKind(j: JobData) {
-  if (j.cancelled) return statusToKind("disabled");
   if (j.failed > 0 || j.timed_out > 0) return statusToKind("failed");
   if (j.total_executions > 0) return statusToKind("running");
   return statusToKind("stopped");

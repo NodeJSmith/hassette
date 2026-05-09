@@ -798,7 +798,7 @@
           "telemetry"
         ],
         "summary": "App Jobs",
-        "description": "Job summaries for a single app instance, enriched with live heap data.\n\nLive fields (``next_run``, ``fire_at``, ``jitter``, ``cancelled``) are joined\nfrom the live scheduler heap by ``db_id``. On heap failure the DB rows are\nreturned without enrichment (degraded but functional; logged warning, no 500).",
+        "description": "Job summaries for a single app instance, enriched with live heap data.\n\nLive fields (``next_run``, ``fire_at``, ``jitter``) are joined\nfrom the live scheduler heap by ``db_id``. On heap failure the DB rows are\nreturned without enrichment (degraded but functional; logged warning, no 500).",
         "operationId": "app_jobs_api_telemetry_app__app_key__jobs_get",
         "parameters": [
           {
@@ -1353,7 +1353,7 @@
           "scheduler"
         ],
         "summary": "All Jobs",
-        "description": "All scheduled jobs across all apps, enriched with live heap data.\n\nLive fields (``next_run``, ``fire_at``, ``jitter``, ``cancelled``) are joined\nfrom the live scheduler heap by ``db_id``.  On heap failure the DB rows are\nreturned without enrichment (degraded but functional; logged warning, no 500).\n\nThe heap snapshot is taken once \u2014 not per app \u2014 to avoid fan-out overhead.",
+        "description": "All scheduled jobs across all apps, enriched with live heap data.\n\nLive fields (``next_run``, ``fire_at``, ``jitter``) are joined\nfrom the live scheduler heap by ``db_id``.  On heap failure the DB rows are\nreturned without enrichment (degraded but functional; logged warning, no 500).\n\nThe heap snapshot is taken once \u2014 not per app \u2014 to avoid fan-out overhead.",
         "operationId": "all_jobs_api_scheduler_jobs_get",
         "parameters": [
           {
@@ -2980,11 +2980,6 @@
               }
             ],
             "title": "Jitter"
-          },
-          "cancelled": {
-            "type": "boolean",
-            "title": "Cancelled",
-            "default": false
           },
           "name_auto": {
             "type": "boolean",

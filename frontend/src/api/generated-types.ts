@@ -309,7 +309,7 @@ export interface paths {
          * App Jobs
          * @description Job summaries for a single app instance, enriched with live heap data.
          *
-         *     Live fields (``next_run``, ``fire_at``, ``jitter``, ``cancelled``) are joined
+         *     Live fields (``next_run``, ``fire_at``, ``jitter``) are joined
          *     from the live scheduler heap by ``db_id``. On heap failure the DB rows are
          *     returned without enrichment (degraded but functional; logged warning, no 500).
          */
@@ -478,7 +478,7 @@ export interface paths {
          * All Jobs
          * @description All scheduled jobs across all apps, enriched with live heap data.
          *
-         *     Live fields (``next_run``, ``fire_at``, ``jitter``, ``cancelled``) are joined
+         *     Live fields (``next_run``, ``fire_at``, ``jitter``) are joined
          *     from the live scheduler heap by ``db_id``.  On heap failure the DB rows are
          *     returned without enrichment (degraded but functional; logged warning, no 500).
          *
@@ -1154,11 +1154,6 @@ export interface components {
             fire_at?: number | null;
             /** Jitter */
             jitter?: number | null;
-            /**
-             * Cancelled
-             * @default false
-             */
-            cancelled: boolean;
             /**
              * Name Auto
              * @default false

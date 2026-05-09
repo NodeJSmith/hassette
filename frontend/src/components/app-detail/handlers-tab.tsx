@@ -262,9 +262,7 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
   const kindLabel = handlerKindLabel("job", null, job.trigger_type);
 
   // Next-run strip
-  const nextRunText = job.cancelled
-    ? "cancelled"
-    : job.next_run
+  const nextRunText = job.next_run
     ? `next ${formatRelativeTime(job.next_run)}`
     : job.fire_at
     ? `fire at ${formatRelativeTime(job.fire_at)}`
@@ -272,7 +270,7 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
 
   const { filename: sourceFilename, line: sourceLine } = parseSourceLocation(job.source_location);
 
-  const jobKind = job.cancelled ? statusToKind("disabled") : (job.failed > 0 ? statusToKind("failed") : statusToKind("running"));
+  const jobKind = job.failed > 0 ? statusToKind("failed") : statusToKind("running");
 
   return (
     <div class="ht-detail-pane__wrapper" data-testid={`job-detail-${job.job_id}`}>
@@ -293,9 +291,6 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
             >ⓘ</span>
           )}
         </span>
-        {job.cancelled && (
-          <span class="ht-badge ht-badge--neutral ht-badge--sm" data-testid="job-status-pill">cancelled</span>
-        )}
       </div>
 
       {/* Subtitle: combined trigger label + detail */}

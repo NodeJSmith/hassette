@@ -52,7 +52,7 @@ def enrich_jobs_with_heap(
     """Enrich DB job summaries with live scheduler heap data.
 
     Matches DB rows to live heap entries by ``db_id``. For each match, copies
-    ``next_run``, ``fire_at``, ``jitter``, and ``cancelled`` from the live state.
+    ``next_run``, ``fire_at``, and ``jitter`` from the live state.
     Jobs without a live match are returned unmodified.
     """
     live_by_db_id = {job.db_id: job for job in live_jobs if job.db_id is not None}
@@ -62,21 +62,12 @@ def enrich_jobs_with_heap(
         try:
             live_job = live_by_db_id.get(js.job_id)
             if live_job is not None:
-                is_cancelled = js.cancelled
-                if is_cancelled:
-                    next_run_ts = None
-                    fire_at_ts = None
-                else:
-                    next_run_ts = live_job.next_run.timestamp()
-                    fire_at_ts = live_job.fire_at.timestamp() if live_job.jitter is not None else None
-
                 enriched.append(
                     js.model_copy(
                         update={
-                            "next_run": next_run_ts,
-                            "fire_at": fire_at_ts,
+                            "next_run": live_job.next_run.timestamp(),
+                            "fire_at": live_job.fire_at.timestamp() if live_job.jitter is not None else None,
                             "jitter": live_job.jitter,
-                            "cancelled": is_cancelled,
                         }
                     )
                 )

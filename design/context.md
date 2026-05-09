@@ -303,13 +303,11 @@ The design system uses unprefixed Ink tokens (no `--ht-*` prefix). Light mode is
 
 **Page header** — "handlers" in Newsreader display size.
 
-**Tab bar** — "handlers" and "jobs" tab buttons. Each tab shows a count when data is available.
+**Toolbar** — tier filter (All / Apps / Framework), app filter dropdown (all apps or a specific app key), search input. Defaults to app-tier only; toggling includes framework-tier items.
 
-**Toolbar** — app filter dropdown (all apps or a specific app key) + framework tier toggle checkbox. Client-side filtering: both tabs default to app-tier only; toggling the checkbox includes framework-tier items.
+**Unified table** — handlers and jobs in a single sortable table. Sortable columns: TYPE (event/job badge), APP, NAME, TRIGGER, RUNS, FAILED, TIMED OUT, ERROR RATE, AVG, NEXT RUN. Rows link to app detail with handler focused. The TYPE column distinguishes handlers from jobs; columns that don't apply to a row show "—" (e.g., handlers have no NEXT RUN, jobs with zero runs show "—" for AVG). Header shows combined counts ("19 handlers · 14 jobs"). Empty state: "no handlers found."
 
-**Handlers table** — sortable columns: APP, HANDLER, INVOCATIONS, FAILED, ERROR RATE, AVG, MAX. Rows link to app detail with handler focused. Empty state: "No handlers registered."
-
-**Jobs table** — sortable columns: APP, JOB NAME, TRIGGER, EXECUTIONS, FAILED, TIMED OUT, NEXT RUN, STATUS. Shows "overdue" when `next_run < now` on a non-cancelled job. Empty state: "No jobs scheduled."
+Cancelled jobs are filtered at the backend (SQL `WHERE sj.cancelled_at IS NULL`). The STATUS column was removed — all returned jobs are active by definition.
 
 Data sources: `GET /api/bus/listeners` and `GET /api/scheduler/jobs`.
 

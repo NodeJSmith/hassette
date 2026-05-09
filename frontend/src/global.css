@@ -3175,10 +3175,6 @@ strong {
   background: color-mix(in srgb, var(--err-bg) 70%, var(--bg-active));
 }
 
-.ht-handlers-row--muted {
-  opacity: 0.6;
-}
-
 /* — Mobile card layout (handlers + jobs on small screens) ————————— */
 .ht-mobile-cards {
   display: flex;
@@ -3206,10 +3202,6 @@ strong {
 
 .ht-mobile-card--failing {
   background: var(--err-bg);
-}
-
-.ht-mobile-card--muted {
-  opacity: 0.55;
 }
 
 .ht-mobile-card__header {

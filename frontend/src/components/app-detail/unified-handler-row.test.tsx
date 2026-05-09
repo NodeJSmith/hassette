@@ -242,15 +242,7 @@ describe("UnifiedHandlerRow — subline switching", () => {
     expect(container.querySelector(".ht-unified-row__next-run")).not.toBeNull();
   });
 
-  it("shows 'cancelled' for cancelled schedule jobs", () => {
-    const job = createJob({ job_id: 1, cancelled: true });
-    const item = { kind: "job" as const, id: 1, name: "my_job", humanDescription: null, statusKind: "mute" as const, data: job };
-    const { container } = render(
-      <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
-    );
-    const nextRun = container.querySelector(".ht-unified-row__next-run");
-    expect(nextRun?.textContent).toBe("cancelled");
-  });
+
 });
 
 describe("UnifiedHandlerRow — job", () => {

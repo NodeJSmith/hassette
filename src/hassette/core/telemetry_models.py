@@ -149,8 +149,6 @@ class JobSummary(BaseModel):
     """Unix epoch seconds of actual dispatch time when jitter applied; sourced from live heap."""
     jitter: float | None = None
     """Seconds of random jitter offset; sourced from live heap."""
-    cancelled: bool = False
-    """True when the job is cancelled; derived solely from ``cancelled_at IS NOT NULL`` in the DB."""
     name_auto: bool = False
     """True when the job name was auto-generated from the callable and trigger ID."""
     last_error_message: str | None = None

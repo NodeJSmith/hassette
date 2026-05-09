@@ -28,7 +28,7 @@ async def all_jobs(
 ) -> list[JobSummary]:
     """All scheduled jobs across all apps, enriched with live heap data.
 
-    Live fields (``next_run``, ``fire_at``, ``jitter``, ``cancelled``) are joined
+    Live fields (``next_run``, ``fire_at``, ``jitter``) are joined
     from the live scheduler heap by ``db_id``.  On heap failure the DB rows are
     returned without enrichment (degraded but functional; logged warning, no 500).
 

@@ -332,7 +332,6 @@ def _make_job_summary(
     job_id: int = 1,
     app_key: str = "my_app",
     job_name: str = "test_job",
-    cancelled: bool = False,
 ) -> JobSummary:
     return JobSummary(
         job_id=job_id,
@@ -353,7 +352,6 @@ def _make_job_summary(
         last_executed_at=1700000000.0,
         total_duration_ms=90.0,
         avg_duration_ms=30.0,
-        cancelled=cancelled,
     )
 
 
@@ -413,27 +411,6 @@ class TestGlobalJobsEndpointEnrichesWithLiveData:
         assert isinstance(row["next_run"], float)
         assert row["jitter"] == 10.0
         assert row["fire_at"] is not None
-
-    async def test_cancelled_job_has_no_next_run(self, scheduler_client) -> None:
-        """Cancelled jobs from DB have no next_run or fire_at in enriched output."""
-        client, mock_hassette = scheduler_client
-
-        db_summary = _make_job_summary(job_id=7, cancelled=True)
-        mock_hassette.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[db_summary])
-
-        trigger = Every(hours=1)
-        live_job = make_real_job(name="test_job", trigger=trigger)
-        live_job.mark_registered(7)
-        mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[live_job])
-
-        response = await client.get("/api/scheduler/jobs")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        row = data[0]
-        assert row["next_run"] is None
-        assert row["fire_at"] is None
-        assert row["cancelled"] is True
 
 
 class TestGlobalJobsEndpointDegradedOnHeapFailure:

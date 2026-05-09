@@ -60,9 +60,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
     timedOut = j.timed_out;
     isFailing = failed > 0 || timedOut > 0;
     // Next-run line for schedule jobs
-    if (j.cancelled) {
-      nextRunLabel = "cancelled";
-    } else if (j.next_run) {
+    if (j.next_run) {
       nextRunLabel = `next ${formatRelativeTime(j.next_run)}`;
       nextRunTitle = formatTimestamp(j.next_run);
     } else if (j.fire_at) {

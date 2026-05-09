@@ -370,7 +370,6 @@ class TelemetryQueryService(Resource):
                 sj.source_tier,
                 sj."group" AS "group",
                 sj.name_auto,
-                CASE WHEN sj.cancelled_at IS NOT NULL THEN 1 ELSE 0 END AS cancelled,
                 COUNT(je.rowid) AS total_executions,
                 SUM(CASE WHEN je.status = 'success' THEN 1 ELSE 0 END) AS successful,
                 SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS failed,
@@ -392,6 +391,7 @@ class TelemetryQueryService(Resource):
                 ORDER BY je2.execution_start_ts DESC LIMIT 1
             )
             WHERE sj.app_key = :app_key AND sj.instance_index = :instance_index
+            AND sj.cancelled_at IS NULL
             {tier_clause}
             GROUP BY sj.id
         """
@@ -443,7 +443,6 @@ class TelemetryQueryService(Resource):
                 sj.source_tier,
                 sj."group" AS "group",
                 sj.name_auto,
-                CASE WHEN sj.cancelled_at IS NOT NULL THEN 1 ELSE 0 END AS cancelled,
                 COUNT(je.rowid) AS total_executions,
                 SUM(CASE WHEN je.status = 'success' THEN 1 ELSE 0 END) AS successful,
                 SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS failed,
@@ -464,7 +463,7 @@ class TelemetryQueryService(Resource):
                 WHERE je2.job_id = sj.id AND je2.status IN ('error', 'timed_out') {since_err_clause}
                 ORDER BY je2.execution_start_ts DESC LIMIT 1
             )
-            WHERE 1=1
+            WHERE sj.cancelled_at IS NULL
             {tier_clause}
             GROUP BY sj.id
         """
