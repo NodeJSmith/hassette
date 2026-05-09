@@ -1,6 +1,9 @@
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
+from whenever import ZonedDateTime
+
+from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
 from .base import AttributesBase, StringBaseState
 
@@ -8,7 +11,15 @@ from .base import AttributesBase, StringBaseState
 class TimerAttributes(AttributesBase):
     duration: str | None = Field(default=None)
     editable: bool | None = Field(default=None)
+    last_transition: ZonedDateTime | None = Field(default=None)
+    finishes_at: ZonedDateTime | None = Field(default=None)
+    remaining: str | None = Field(default=None)
     restore: bool | None = Field(default=None)
+
+    @field_validator("last_transition", "finishes_at", mode="before")
+    @classmethod
+    def parse_timestamps(cls, value: ZonedDateTime | str | None) -> ZonedDateTime | None:
+        return convert_datetime_str_to_system_tz(value)
 
 
 class TimerState(StringBaseState):

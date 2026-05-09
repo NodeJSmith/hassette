@@ -1,12 +1,6 @@
 from typing import Literal
 
-from pydantic import Field
-
-from .base import AttributesBase, DateTimeBaseState
-
-
-class SceneAttributes(AttributesBase):
-    id: str | None = Field(default=None)
+from .base import DateTimeBaseState
 
 
 class SceneState(DateTimeBaseState):
@@ -16,5 +10,3 @@ class SceneState(DateTimeBaseState):
     """
 
     domain: Literal["scene"]
-
-    attributes: SceneAttributes

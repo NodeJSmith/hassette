@@ -17,13 +17,12 @@ _DOMAIN = "light"
 
 
 async def test_get_state_single_entity(ha_container: str, tmp_path) -> None:
-    """get_state returns a state object with a matching entity_id and a string state value."""
+    """get_state returns a state object with a matching entity_id and a bool state value."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         state = await hassette.api.get_state(_ENTITY)
         assert state.entity_id == _ENTITY
-        assert isinstance(state.value, str)
-        assert state.value in ("on", "off")
+        assert isinstance(state.value, bool)
 
 
 async def test_set_state_roundtrip(ha_container: str, tmp_path) -> None:

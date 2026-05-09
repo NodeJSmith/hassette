@@ -160,6 +160,8 @@ class BaseState(BaseModel, Generic[StateValueT]):
             LOGGER.warning("Expected values to be a dict, got %s", type(values).__name__, stacklevel=2)
             return values
 
+        values = dict(values)
+
         entity_id = values.get("entity_id")
         if entity_id:
             domain = entity_id.split(".")[0]

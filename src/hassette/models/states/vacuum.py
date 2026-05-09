@@ -11,7 +11,6 @@ class VacuumAttributes(AttributesBase):
     battery_level: int | float | None = Field(default=None)
     battery_icon: str | None = Field(default=None)
     fan_speed: str | None = Field(default=None)
-    cleaned_area: int | float | None = Field(default=None)
 
     @property
     def supports_pause(self) -> bool:

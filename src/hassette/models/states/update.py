@@ -2,7 +2,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from .base import AttributesBase, StringBaseState
+from .base import AttributesBase, BoolBaseState
 
 
 class UpdateAttributes(AttributesBase):
@@ -19,7 +19,7 @@ class UpdateAttributes(AttributesBase):
     entity_picture: str | None = Field(default=None)
 
 
-class UpdateState(StringBaseState):
+class UpdateState(BoolBaseState):
     """Representation of a Home Assistant update state.
 
     See: https://www.home-assistant.io/integrations/update/

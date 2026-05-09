@@ -1,12 +1,6 @@
 from typing import Literal
 
-from pydantic import Field
-
-from .base import AttributesBase, StringBaseState
-
-
-class AssistSatelliteAttributes(AttributesBase):
-    restored: bool | None = Field(default=None)
+from .base import StringBaseState
 
 
 class AssistSatelliteState(StringBaseState):
@@ -16,5 +10,3 @@ class AssistSatelliteState(StringBaseState):
     """
 
     domain: Literal["assist_satellite"]
-
-    attributes: AssistSatelliteAttributes

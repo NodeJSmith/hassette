@@ -85,6 +85,9 @@ class MediaPlayerAttributes(AttributesBase):
     sound_mode_list: list[str] | None = Field(default=None)
     """List of available sound modes."""
 
+    entity_picture_local: str | None = Field(default=None)
+    """Local URL for the entity picture when remotely accessible."""
+
     @property
     def supports_pause(self) -> bool:
         """Whether this media player supports pausing."""
