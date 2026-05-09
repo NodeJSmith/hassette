@@ -46,3 +46,4 @@ Create three new files and update two existing files:
 - [ ] AC#9: Setting all params to their defaults results in a clean URL with no query string
 - [ ] AC#13: Confirm via unit test that default values produce empty query string
 - [ ] AC#14: `correctUrl` can be called with a corrected URL and reason; URL is replaced
+- [ ] FR#16: `correctUrl` does not fire when data is still loading — unit test confirms no navigation occurs when the guard condition (loading complete) is not met

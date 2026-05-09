@@ -31,7 +31,7 @@ Modify one file:
 - The UnifiedRow `id` field already uses `h-${listener_id}` and `j-${job_id}` format (handlers.tsx:37,53) — these match the handler deep-link format exactly
 - The mobile card `href` at line 257 currently uses `?focus=` — change to handler deep-link
 - The AppLink at line 310 currently uses `query={focus=...}` — change to a direct `<a>` with handler deep-link href, or update AppLink to accept a `handlerId` prop (done in T07)
-- For now, use raw `<a>` tags for handler deep-links until T07 updates AppLink
+- For now, use raw `<a>` tags for handler deep-links — this is a deliberate temporary bridge; T07 updates AppLink to accept a `handlerId` prop and these `<a>` tags will be replaced
 
 ## Verify
 - [ ] FR#5: Tier filter, app filter, sort column, sort direction, and search text are readable from and writable to query parameters

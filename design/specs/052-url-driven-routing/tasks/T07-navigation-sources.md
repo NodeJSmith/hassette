@@ -26,8 +26,8 @@ Modify five files:
    - Handler items (line 147): change from `/apps/${l.app_key}?focus=${l.handler_method}` to `/apps/${l.app_key}/handlers/h-${l.listener_id}`
    - Instance items (line 126): change from `/apps/${m.app_key}/${inst.index}` to `/apps/${m.app_key}?instance=${inst.index}`
 
-4. **Update time window button behavior** — in whichever component renders the time preset selector (find via grep for `timePreset`):
-   - On button click: update localStorage via `timePreset.value = newPreset`, update `urlWindowParam.value = newPreset`, AND call `qp.set({ window: newPreset === timePreset.value ? null : newPreset })`
+4. **Update time window button behavior** — the time preset selector is rendered by the StatusBar component (`frontend/src/components/layout/status-bar.tsx`):
+   - On button click: update localStorage via `timePreset.value = newPreset`, update `urlWindowParam.value = newPreset`, AND call `qp.set({ window: newPreset })` (always write — do not conditionally omit based on localStorage match)
    - On page load: read `?window=` from query params; if present, write to `urlWindowParam.value` (do NOT write to `timePreset` / localStorage)
    - This implements the "read-only override" model from the design doc
 
@@ -36,7 +36,7 @@ Modify five files:
 
 ## Focus
 - The sidebar active-state detection for instances is tricky — the current check uses path matching (`location === instPath || location.startsWith(instPath + "/")`). With query params, the path is `/apps/${appKey}` for all instances; the instance is in the query string. Consider checking `location.startsWith(\`/apps/${manifest.app_key}\`) && new URLSearchParams(searchString).get("instance") === String(inst.index)` — but this requires access to `useSearch()` in the sidebar. Alternatively, simplify: instances are active when the path matches and the query string contains the right instance param.
-- The time preset selector is rendered by the StatusBar component — grep for `timePreset` to find the exact file and component
+- The time preset selector is in StatusBar — already referenced in the Prompt above
 - `command-palette.tsx` only indexes listeners (not jobs) via `buildHandlerItems` — this is a pre-existing limitation, not something to fix in this task
 - The Vite `appType: 'spa'` setting may conflict with the existing proxy configuration — test that `/api` and `/api/ws` proxies still work after the change
 
