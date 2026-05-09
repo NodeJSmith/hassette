@@ -1270,10 +1270,6 @@ strong {
   background: var(--bg-sunken);
 }
 
-.ht-table--dense td {
-  padding: var(--sp-1) var(--sp-3);
-}
-
 .ht-table--compact {
   table-layout: fixed;
 }
@@ -1366,12 +1362,6 @@ strong {
 
 .ht-table--striped tbody tr:nth-child(even) {
   background: var(--bg-sunken);
-}
-
-/* Narrow variant (used in health badge config tables) */
-.ht-table--narrow th,
-.ht-table--narrow td {
-  padding: var(--sp-1) var(--sp-2);
 }
 
 /* — Badges ————————————————————————————————————————————— */
@@ -1683,9 +1673,10 @@ strong {
 .ht-text-success { color: var(--ok); }
 .ht-text-warning { color: var(--warn); }
 
-/* Text size */
+/* Text size & weight */
 .ht-text-xs { font-size: var(--fs-micro); }
 .ht-text-sm { font-size: var(--fs-small); }
+.ht-text-semibold { font-weight: 600; }
 
 /* Flex */
 .ht-flex     { display: flex; }
@@ -3573,33 +3564,6 @@ strong {
 /* — Handlers tab container ————————————————————————————— */
 .ht-handlers-tab {
   /* no extra padding — master-detail provides structure */
-}
-
-/* — Stats strip (above handler list) ——————————————————— */
-.ht-stats-strip {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
-  background: var(--bg-sunken);
-  border-bottom: 1px solid var(--line-1);
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-  flex-wrap: wrap;
-}
-
-.ht-stats-strip__item {
-  white-space: nowrap;
-}
-
-.ht-stats-strip__item--err {
-  color: var(--err);
-  font-weight: 500;
-}
-
-.ht-stats-strip__item--warn {
-  color: var(--warn);
-  font-weight: 500;
 }
 
 /* — Unified handler row ————————————————————————————————— */

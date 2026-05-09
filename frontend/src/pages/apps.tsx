@@ -19,6 +19,7 @@ import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { ActionButtons } from "../components/shared/action-buttons";
 import { SortHeader } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
+import { StatsStrip, type StatsStripCell } from "../components/shared/stats-strip";
 
 // ---- Filter types ----
 
@@ -34,10 +35,9 @@ const FILTER_TONES: Record<FilterId, StatusKind | null> = {
   blocked: "warn",
 };
 
-// ---- Stats strip ----
+// ---- Stats strip helpers ----
 
-function StatsStrip({ apps, windowSeconds }: { apps: AppRow[]; windowSeconds: number | null }) {
-  const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
+function buildAppsCells(apps: AppRow[], windowSeconds: number | null, isMobile: boolean): StatsStripCell[] {
   const counts = { total: apps.length, running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0 };
   let totalHandlers = 0;
   let totalRuns = 0;
@@ -49,7 +49,7 @@ function StatsStrip({ apps, windowSeconds }: { apps: AppRow[]; windowSeconds: nu
   }
   const runsPerHour = windowSeconds && windowSeconds >= 60 ? totalRuns / (windowSeconds / 3600) : null;
 
-  const cells: Array<{ label: string; value: number | string; tone?: StatusKind }> = [
+  const cells: StatsStripCell[] = [
     { label: "total", value: counts.total },
     { label: "running", value: counts.running, tone: "ok" },
     { label: "failed", value: counts.failed, tone: counts.failed > 0 ? "err" : undefined },
@@ -64,17 +64,7 @@ function StatsStrip({ apps, windowSeconds }: { apps: AppRow[]; windowSeconds: nu
 
   cells.push({ label: "handlers", value: totalHandlers });
   cells.push({ label: "runs / hr", value: runsPerHour !== null ? runsPerHour.toFixed(1) : "—" });
-
-  return (
-    <div class="ht-stats-strip" data-testid="apps-stats-strip">
-      {cells.map((c) => (
-        <div key={c.label} class="ht-stats-strip__cell">
-          <span class="ht-stats-strip__label">{c.label}</span>
-          <span class={`ht-stats-strip__value${c.tone ? ` ht-stats-strip__value--${c.tone}` : ""}`}>{c.value}</span>
-        </div>
-      ))}
-    </div>
-  );
+  return cells;
 }
 
 // ---- Filter pills ----
@@ -221,6 +211,7 @@ export function AppsPage() {
     (since) => getDashboardAppGrid(since),
   );
 
+  const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const [filter, setFilter] = useState<FilterId>("all");
   const [sort, setSort] = useState<AppSortState>({ key: "status", dir: "asc" });
   const [search, setSearch] = useState("");
@@ -269,7 +260,7 @@ export function AppsPage() {
       </div>
 
       {/* Stats strip */}
-      <StatsStrip apps={allApps} windowSeconds={windowSeconds} />
+      <StatsStrip cells={buildAppsCells(allApps, windowSeconds, isMobile)} data-testid="apps-stats-strip" />
 
       {/* Toolbar: filters + search */}
       <div class="ht-apps-toolbar">

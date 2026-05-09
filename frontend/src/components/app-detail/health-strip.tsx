@@ -1,6 +1,7 @@
 import type { ListenerData, JobData } from "../../api/endpoints";
 import { computeHandlerStats } from "../../utils/handler-stats";
 import { useMediaQuery, BREAKPOINT_SMALL_MOBILE } from "../../hooks/use-media-query";
+import { StatsStrip, type StatsStripCell } from "../shared/stats-strip";
 
 interface HandlersHealthStripProps {
   listeners: ListenerData[];
@@ -9,8 +10,6 @@ interface HandlersHealthStripProps {
 }
 
 export function HandlersHealthStrip({ listeners, jobs, timeLabel }: HandlersHealthStripProps) {
-  const handlerCount = listeners.length;
-  const jobCount = jobs.length;
   const isSmallMobile = useMediaQuery(BREAKPOINT_SMALL_MOBILE);
 
   const { totalInvocations, totalExecutions, totalFailed, totalTimedOut } =
@@ -22,52 +21,18 @@ export function HandlersHealthStrip({ listeners, jobs, timeLabel }: HandlersHeal
     ? Math.round(((totalAll - totalErrors) / totalAll) * 100)
     : 100;
 
-  const hasErrors = totalErrors > 0;
-  const cols = isSmallMobile ? 4 : 5;
+  const cells: StatsStripCell[] = [
+    { label: "Handlers", value: listeners.length + jobs.length },
+    { label: `Invocations${timeLabel ? ` · ${timeLabel}` : ""}`, value: totalAll },
+    { label: "Success Rate", value: totalAll > 0 ? `${successRate}%` : "—", tone: totalErrors > 0 ? "warn" : undefined },
+  ];
 
-  return (
-    <div class="ht-stats-strip" style={`--stats-cols: ${cols}`} data-testid="handlers-health-strip">
-      <div class="ht-stats-strip__cell">
-        <span class="ht-stats-strip__label">Handlers</span>
-        <span class="ht-stats-strip__value">{handlerCount + jobCount}</span>
-      </div>
+  if (isSmallMobile) {
+    cells.push({ label: "Errors", value: totalErrors > 0 ? totalErrors : "—", tone: totalErrors > 0 ? "err" : undefined });
+  } else {
+    cells.push({ label: "Failed", value: totalFailed > 0 ? totalFailed : "—", tone: totalFailed > 0 ? "err" : undefined });
+    cells.push({ label: "Timed Out", value: totalTimedOut > 0 ? totalTimedOut : "—", tone: totalTimedOut > 0 ? "warn" : undefined });
+  }
 
-      <div class="ht-stats-strip__cell">
-        <span class="ht-stats-strip__label">Invocations{timeLabel ? ` · ${timeLabel}` : ""}</span>
-        <span class="ht-stats-strip__value">{totalAll}</span>
-      </div>
-
-      <div class="ht-stats-strip__cell">
-        <span class="ht-stats-strip__label">Success Rate</span>
-        <span class={`ht-stats-strip__value${hasErrors ? " ht-stats-strip__value--warn" : ""}`}>
-          {totalAll > 0 ? `${successRate}%` : "—"}
-        </span>
-      </div>
-
-      {isSmallMobile ? (
-        <div class="ht-stats-strip__cell">
-          <span class="ht-stats-strip__label">Errors</span>
-          <span class={`ht-stats-strip__value${totalErrors > 0 ? " ht-stats-strip__value--err" : ""}`}>
-            {totalErrors > 0 ? totalErrors : "—"}
-          </span>
-        </div>
-      ) : (
-        <>
-          <div class="ht-stats-strip__cell">
-            <span class="ht-stats-strip__label">Failed</span>
-            <span class={`ht-stats-strip__value${totalFailed > 0 ? " ht-stats-strip__value--err" : ""}`}>
-              {totalFailed > 0 ? totalFailed : "—"}
-            </span>
-          </div>
-
-          <div class="ht-stats-strip__cell">
-            <span class="ht-stats-strip__label">Timed Out</span>
-            <span class={`ht-stats-strip__value${totalTimedOut > 0 ? " ht-stats-strip__value--warn" : ""}`}>
-              {totalTimedOut > 0 ? totalTimedOut : "—"}
-            </span>
-          </div>
-        </>
-      )}
-    </div>
-  );
+  return <StatsStrip cells={cells} cols={isSmallMobile ? 4 : 5} data-testid="handlers-health-strip" />;
 }

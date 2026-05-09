@@ -14,6 +14,7 @@ import {
 } from "../api/endpoints";
 import { TelemetryDegradedBanner } from "../components/layout/alert-banner";
 import { Spinner } from "../components/shared/spinner";
+import { StatsStrip, type StatsStripCell } from "../components/shared/stats-strip";
 import { StatusShape } from "../components/shared/status-shape";
 import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { useScopedApi } from "../hooks/use-scoped-api";
@@ -23,42 +24,28 @@ import { statusToKind } from "../utils/status";
 import { formatRelativeTime, formatUptime, lastDotSegment } from "../utils/format";
 import { type AppRow, mergeManifestsAndGrid, compareAppRows } from "../utils/app-data";
 
-// ---- Stats strip (unified) --------------------------------------------------
+// ---- Stats strip helpers ----------------------------------------------------
 
-interface StatsStripProps {
-  uptime: number | null;
-  appCount: number;
-  serviceTotal: number;
-  serviceHealthy: number;
-  runsPerHour: number | null;
-  successRate: number;
-  handlerCount: number;
-  droppedEvents: number;
-}
-
-function StatsStrip(props: StatsStripProps) {
-  const svcUnhealthy = props.serviceTotal - props.serviceHealthy;
-
-  const cells: Array<{ label: string; value: string | number; warn?: boolean }> = [
-    { label: "uptime", value: props.uptime !== null ? formatUptime(props.uptime) : "—" },
-    { label: "apps", value: props.appCount },
-    { label: "services", value: svcUnhealthy > 0 ? `${props.serviceHealthy}/${props.serviceTotal}` : String(props.serviceTotal), warn: svcUnhealthy > 0 },
-    { label: "runs / hr", value: props.runsPerHour !== null ? Math.round(props.runsPerHour) : "—" },
-    { label: "success", value: `${props.successRate.toFixed(1)}%`, warn: props.successRate < 95 },
-    { label: "handlers", value: props.handlerCount },
-    { label: "dropped", value: props.droppedEvents, warn: props.droppedEvents > 0 },
+function buildOverviewCells(
+  uptime: number | null,
+  appCount: number,
+  serviceTotal: number,
+  serviceHealthy: number,
+  runsPerHour: number | null,
+  successRate: number,
+  handlerCount: number,
+  droppedEvents: number,
+): StatsStripCell[] {
+  const unhealthy = serviceTotal - serviceHealthy;
+  return [
+    { label: "uptime", value: uptime !== null ? formatUptime(uptime) : "—" },
+    { label: "apps", value: appCount },
+    { label: "services", value: unhealthy > 0 ? `${serviceHealthy}/${serviceTotal}` : String(serviceTotal), tone: unhealthy > 0 ? "warn" : undefined },
+    { label: "runs / hr", value: runsPerHour !== null ? Math.round(runsPerHour) : "—" },
+    { label: "success", value: `${successRate.toFixed(1)}%`, tone: successRate < 95 ? "warn" : undefined },
+    { label: "handlers", value: handlerCount },
+    { label: "dropped", value: droppedEvents, tone: droppedEvents > 0 ? "warn" : undefined },
   ];
-
-  return (
-    <div class="ht-stats-strip" data-testid="overview-stats-strip">
-      {cells.map((c) => (
-        <div key={c.label} class="ht-stats-strip__cell">
-          <span class="ht-stats-strip__label">{c.label}</span>
-          <span class={`ht-stats-strip__value${c.warn ? " ht-stats-strip__value--warn" : ""}`}>{c.value}</span>
-        </div>
-      ))}
-    </div>
-  );
 }
 
 // ---- Alerts bar -------------------------------------------------------------
@@ -293,14 +280,8 @@ export function DashboardPage() {
       </div>
 
       <StatsStrip
-        uptime={uptimeSeconds.value}
-        appCount={apps.length}
-        serviceTotal={services.length}
-        serviceHealthy={services.filter((s) => s.status === "running").length}
-        runsPerHour={runsPerHour}
-        successRate={successRate}
-        handlerCount={totalHandlers}
-        droppedEvents={totalDropped}
+        cells={buildOverviewCells(uptimeSeconds.value, apps.length, services.length, services.filter((s) => s.status === "running").length, runsPerHour, successRate, totalHandlers, totalDropped)}
+        data-testid="overview-stats-strip"
       />
 
       <AlertsBar bootIssues={bootIssues} unhealthyServices={unhealthyServices} />

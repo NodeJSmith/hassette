@@ -109,9 +109,45 @@ function compareJobs(a: JobData, b: JobData, sort: SortState<JobSortKey>): numbe
   }
 }
 
-// ---- Tier filter type ----
+// ---- Tier filter ----
 
 type TierFilter = "all" | "app" | "framework";
+
+function filterByTier<T extends { source_tier: string }>(items: T[], tier: TierFilter): T[] {
+  if (tier === "all") return items;
+  return tier === "app"
+    ? items.filter((i) => i.source_tier === "app")
+    : items.filter((i) => i.source_tier !== "app");
+}
+
+// ---- Mobile card ----
+
+interface MobileCardProps {
+  href: string;
+  appKey: string;
+  name: string;
+  failing?: boolean;
+  muted?: boolean;
+  "data-testid"?: string;
+  metrics: preact.ComponentChildren;
+  footer?: preact.ComponentChildren;
+}
+
+function MobileCard({ href, appKey, name, failing, muted, metrics, footer, ...rest }: MobileCardProps) {
+  let cls = "ht-mobile-card";
+  if (failing) cls += " ht-mobile-card--failing";
+  if (muted) cls += " ht-mobile-card--muted";
+  return (
+    <a href={href} class={cls} data-testid={rest["data-testid"]}>
+      <div class="ht-mobile-card__header">
+        <span class="ht-text-mono ht-text-sm">{appKey}</span>
+        <span class="ht-text-mono ht-text-sm ht-text-semibold">{name}</span>
+      </div>
+      <div class="ht-mobile-card__metrics">{metrics}</div>
+      {footer && <div class="ht-mobile-card__footer">{footer}</div>}
+    </a>
+  );
+}
 
 // ---- Handlers table ----
 
@@ -137,24 +173,21 @@ function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
           const errorRate = fmtRate(l.failed, l.total_invocations);
           const avgDur = formatDurationOrDash(l.avg_duration_ms);
           return (
-            <a
+            <MobileCard
               key={l.listener_id}
               href={`/apps/${l.app_key}?focus=${l.handler_method}`}
-              class={`ht-mobile-card${l.failed > 0 ? " ht-mobile-card--failing" : ""}`}
+              appKey={l.app_key}
+              name={l.handler_method.split(".").pop() ?? l.handler_method}
+              failing={l.failed > 0}
               data-testid={`handler-row-${l.listener_id}`}
-            >
-              <div class="ht-mobile-card__header">
-                <span class="ht-text-mono ht-text-sm">{l.app_key}</span>
-                <span class="ht-text-mono ht-text-sm" style={{ fontWeight: 600 }}>{l.handler_method.split(".").pop()}</span>
-              </div>
-              <div class="ht-mobile-card__metrics">
+              metrics={<>
                 <span>{l.total_invocations} calls</span>
                 {l.failed > 0 && <span class="ht-text-danger">{l.failed} failed</span>}
                 {l.timed_out > 0 && <span class="ht-text-warning">{l.timed_out} timed out</span>}
                 {l.total_invocations > 0 && <span>{errorRate} err</span>}
                 {l.avg_duration_ms > 0 && <span>avg {avgDur}</span>}
-              </div>
-            </a>
+              </>}
+            />
           );
         })}
       </div>
@@ -243,28 +276,26 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
           const statusText = isCancelled ? "cancelled" : (j.failed > 0 ? "failing" : "active");
           const avgDur = formatDurationOrDash(j.avg_duration_ms);
           return (
-            <a
+            <MobileCard
               key={j.job_id}
               href={`/apps/${j.app_key}?focus=${j.handler_method}`}
-              class={`ht-mobile-card${j.failed > 0 ? " ht-mobile-card--failing" : ""}${isCancelled ? " ht-mobile-card--muted" : ""}`}
+              appKey={j.app_key}
+              name={j.job_name}
+              failing={j.failed > 0}
+              muted={isCancelled}
               data-testid={`job-row-${j.job_id}`}
-            >
-              <div class="ht-mobile-card__header">
-                <span class="ht-text-mono ht-text-sm">{j.app_key}</span>
-                <span class="ht-text-mono ht-text-sm" style={{ fontWeight: 600 }}>{j.job_name}</span>
-              </div>
-              <div class="ht-mobile-card__metrics">
+              metrics={<>
                 <span>{j.trigger_label}</span>
                 <span>{j.total_executions} runs</span>
                 {j.failed > 0 && <span class="ht-text-danger">{j.failed} failed</span>}
                 {j.timed_out > 0 && <span class="ht-text-warning">{j.timed_out} timed out</span>}
                 {j.avg_duration_ms > 0 && <span>avg {avgDur}</span>}
-              </div>
-              <div class="ht-mobile-card__footer">
+              </>}
+              footer={<>
                 <span class={isCancelled ? "ht-text-muted" : j.failed > 0 ? "ht-text-danger" : ""}>{statusText}</span>
                 {!isCancelled && nextRun !== "—" && <span class="ht-text-muted">next {nextRun}</span>}
-              </div>
-            </a>
+              </>}
+            />
           );
         })}
       </div>
@@ -360,17 +391,8 @@ export function HandlersPage() {
   const allJobs = jobsApi.data.value ?? [];
 
   // Client-side tier filtering
-  const tierFilteredListeners = tierFilter === "all"
-    ? allListeners
-    : tierFilter === "app"
-      ? allListeners.filter((l) => l.source_tier === "app")
-      : allListeners.filter((l) => l.source_tier !== "app");
-
-  const tierFilteredJobs = tierFilter === "all"
-    ? allJobs
-    : tierFilter === "app"
-      ? allJobs.filter((j) => j.source_tier === "app")
-      : allJobs.filter((j) => j.source_tier !== "app");
+  const tierFilteredListeners = filterByTier(allListeners, tierFilter);
+  const tierFilteredJobs = filterByTier(allJobs, tierFilter);
 
   // Unique app keys for filter dropdowns
   const handlerAppKeys = [...new Set(tierFilteredListeners.map((l) => l.app_key))].sort();
