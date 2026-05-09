@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Wire query params into LogTable and LogsPage"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#6", "FR#7", "AC#3"]
 ---

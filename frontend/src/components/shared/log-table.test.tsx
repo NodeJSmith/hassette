@@ -21,6 +21,34 @@ vi.mock("../../api/endpoints", () => ({
   getRecentLogs: vi.fn().mockResolvedValue([]),
 }));
 
+// Reactive query param mock: mockSearchSignal drives useSearch() so that when
+// mockNavigate is called by qp.set(), the component re-renders with the new params.
+// _setMockSearch() is used in tests to set the initial URL state before rendering.
+import { signal as _signal } from "@preact/signals";
+const mockSearchSignal = _signal("");
+
+const _setMockSearch = (v: string) => {
+  mockSearchSignal.value = v;
+};
+
+const mockNavigate = vi.fn((url: string) => {
+  const qIdx = (url as string).indexOf("?");
+  _setMockSearch(qIdx >= 0 ? url.slice(qIdx + 1) : "");
+});
+
+/** Re-attach the navigate side-effect after vi.clearAllMocks() clears it. */
+function restoreNavigateMock() {
+  mockNavigate.mockImplementation((url: string) => {
+    const qIdx = url.indexOf("?");
+    _setMockSearch(qIdx >= 0 ? url.slice(qIdx + 1) : "");
+  });
+}
+
+vi.mock("wouter", () => ({
+  useSearch: () => mockSearchSignal.value,
+  useLocation: () => ["/logs", mockNavigate],
+}));
+
 // --- JSDOM polyfills for ResizeObserver, requestAnimationFrame, and document.fonts ---
 
 let rafCallbacks: Array<FrameRequestCallback> = [];
@@ -37,6 +65,9 @@ const setupCAF = globalThis.cancelAnimationFrame;
 beforeEach(() => {
   rafCallbacks = [];
   rafIdCounter = 0;
+  _setMockSearch("");
+  mockNavigate.mockReset();
+  restoreNavigateMock();
   globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
     const id = ++rafIdCounter;
     rafCallbacks.push(cb);
@@ -125,6 +156,7 @@ describe("LogTable", () => {
   beforeEach(() => {
     state = createAppState();
     vi.clearAllMocks();
+    restoreNavigateMock();
     entrySeq = 0;
   });
 
@@ -588,6 +620,7 @@ describe("Dedup via seq watermark (#364)", () => {
   beforeEach(() => {
     state = createAppState();
     vi.clearAllMocks();
+    restoreNavigateMock();
     entrySeq = 0;
   });
 
@@ -642,6 +675,7 @@ describe("REST + WS entry merging (#403)", () => {
   beforeEach(() => {
     state = createAppState();
     vi.clearAllMocks();
+    restoreNavigateMock();
     entrySeq = 0;
   });
 
@@ -784,6 +818,7 @@ describe("Multi-column sort", () => {
   beforeEach(() => {
     state = createAppState();
     vi.clearAllMocks();
+    restoreNavigateMock();
     entrySeq = 0;
   });
 
@@ -940,6 +975,7 @@ describe("Live streaming pause", () => {
   beforeEach(() => {
     state = createAppState();
     vi.clearAllMocks();
+    restoreNavigateMock();
     entrySeq = 0;
   });
 
@@ -1054,6 +1090,7 @@ describe("Mobile responsive rendering", () => {
   beforeEach(() => {
     state = createAppState();
     vi.clearAllMocks();
+    restoreNavigateMock();
     entrySeq = 0;
     mockUseMediaQuery.mockReturnValue(true); // mobile
   });
@@ -1147,5 +1184,199 @@ describe("Mobile responsive rendering", () => {
       { wrapper: createWrapper(state) },
     );
     expect(container.querySelector("h2.ht-table-toolbar__heading")).toBeNull();
+  });
+});
+
+// -- Query param integration (FR#6, FR#7) --
+
+describe("Query param driven state", () => {
+  let state: AppState;
+
+  beforeEach(() => {
+    state = createAppState();
+    vi.clearAllMocks();
+    restoreNavigateMock();
+    entrySeq = 0;
+    _setMockSearch("");
+    mockNavigate.mockReset();
+    restoreNavigateMock();
+  });
+
+  it("reads initial level from ?level=ERROR URL param", () => {
+    _setMockSearch("level=ERROR");
+    state.logs.push(createLogEntry({ level: "INFO", message: "info msg" }));
+    state.logs.push(createLogEntry({ level: "ERROR", message: "error msg" }));
+
+    const { getByText, queryByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // Only ERROR+ visible — INFO is filtered out by the URL param
+    expect(queryByText("info msg")).toBeNull();
+    expect(getByText("error msg")).toBeDefined();
+  });
+
+  it("reads initial search from ?search= URL param", () => {
+    _setMockSearch("search=scheduler");
+    state.logs.push(createLogEntry({ message: "Starting scheduler" }));
+    state.logs.push(createLogEntry({ message: "Bus connected" }));
+
+    const { getByText, queryByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    expect(getByText("Starting scheduler")).toBeDefined();
+    expect(queryByText("Bus connected")).toBeNull();
+  });
+
+  it("reads initial sort column from ?sort=level URL param", () => {
+    _setMockSearch("sort=level");
+    // Use only WS entries — paused when non-timestamp sort, so they're excluded.
+    // Use REST entries for predictable rendering.
+    state.logs.push(createLogEntry({ level: "ERROR", message: "error msg" }));
+    state.logs.push(createLogEntry({ level: "DEBUG", message: "debug msg" }));
+    state.logs.push(createLogEntry({ level: "WARNING", message: "warn msg" }));
+
+    const { getByTestId } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // sort=level, no ?dir — defaults to desc (asc: false)
+    expect(getByTestId("sort-level").getAttribute("aria-sort")).toBe("descending");
+  });
+
+  it("reads sort direction from ?sort=level&dir=asc URL params", () => {
+    _setMockSearch("sort=level&dir=asc");
+    state.logs.push(createLogEntry({ level: "ERROR", message: "error msg" }));
+    state.logs.push(createLogEntry({ level: "DEBUG", message: "debug msg" }));
+
+    const { getByTestId } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    expect(getByTestId("sort-level").getAttribute("aria-sort")).toBe("ascending");
+  });
+
+  it("reads app filter from ?app= URL param in global mode", () => {
+    _setMockSearch("app=app_a");
+    state.logs.push(createLogEntry({ app_key: "app_a", message: "from A" }));
+    state.logs.push(createLogEntry({ app_key: "app_b", message: "from B" }));
+
+    const { getByText, queryByText } = render(
+      <LogTable showAppColumn appKeys={["app_a", "app_b"]} />,
+      { wrapper: createWrapper(state) },
+    );
+
+    expect(getByText("from A")).toBeDefined();
+    expect(queryByText("from B")).toBeNull();
+  });
+
+  it("reads tier filter from ?tier=framework URL param", () => {
+    _setMockSearch("tier=framework");
+    state.logs.push(createLogEntry({ app_key: "my_app", message: "app msg" }));
+    state.logs.push(createLogEntry({ app_key: null, message: "framework msg" }));
+
+    const { getByText, queryByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // tier=framework shows only entries without app_key
+    expect(queryByText("app msg")).toBeNull();
+    expect(getByText("framework msg")).toBeDefined();
+  });
+
+  it("writes level to URL when level dropdown changes", () => {
+    _setMockSearch("");
+
+    const { getByTestId } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    fireEvent.change(getByTestId("filter-level"), { target: { value: "WARNING" } });
+
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    const [url] = mockNavigate.mock.calls[0];
+    expect(url).toContain("level=WARNING");
+  });
+
+  it("omits level from URL when set to INFO (default)", () => {
+    _setMockSearch("level=ERROR");
+    const { getByTestId } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    fireEvent.change(getByTestId("filter-level"), { target: { value: "INFO" } });
+
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    const [url] = mockNavigate.mock.calls[0];
+    expect(url).not.toContain("level");
+  });
+
+  it("writes search to URL when search input changes", () => {
+    _setMockSearch("");
+    const { getByPlaceholderText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    fireEvent.input(getByPlaceholderText("Search..."), { target: { value: "timeout" } });
+
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    const [url] = mockNavigate.mock.calls[0];
+    expect(url).toContain("search=timeout");
+  });
+
+  it("omits search from URL when search is cleared (default empty)", () => {
+    _setMockSearch("search=timeout");
+    const { getByPlaceholderText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    fireEvent.input(getByPlaceholderText("Search..."), { target: { value: "" } });
+
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    const [url] = mockNavigate.mock.calls[0];
+    expect(url).not.toContain("search");
+  });
+
+  it("writes sort and dir to URL when non-timestamp sort is clicked", () => {
+    _setMockSearch("");
+    state.logs.push(createLogEntry());
+
+    const { getByTestId } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    fireEvent.click(getByTestId("sort-level").querySelector("button") as HTMLElement);
+
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    const [url] = mockNavigate.mock.calls[0];
+    expect(url).toContain("sort=level");
+  });
+
+  it("clears sort and dir from URL when handleResume resets to timestamp", () => {
+    _setMockSearch("sort=level");
+    state.logs.push(createLogEntry());
+
+    const { getByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    fireEvent.click(getByText(/paused/));
+
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    const [url] = mockNavigate.mock.calls[0];
+    expect(url).not.toContain("sort=");
+    expect(url).not.toContain("dir=");
   });
 });

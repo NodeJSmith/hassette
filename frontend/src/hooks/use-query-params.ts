@@ -14,6 +14,7 @@
  */
 
 import { useSearch, useLocation } from "wouter";
+import { useRef } from "preact/hooks";
 
 export interface QueryParamOptions {
   /** When true, pushes a new history entry. Default false = replace. */
@@ -65,28 +66,38 @@ export function useQueryParams(): UseQueryParamsResult {
   const rawSearch = useSearch();
   const [location, navigate] = useLocation();
 
+  // Keep a stable ref to the latest rawSearch and location so that event handlers
+  // (e.g., handleSort called twice in rapid succession) always see the most recent
+  // URL state even if a re-render hasn't been flushed between calls. In production,
+  // wouter triggers a re-render on URL change before the next event; this ref is
+  // a safety net for test environments where batching differs.
+  const rawSearchRef = useRef(rawSearch);
+  rawSearchRef.current = rawSearch;
+  const locationRef = useRef(location);
+  locationRef.current = location;
+
   function get(key: string): string | null {
-    const params = parseQueryString(rawSearch);
+    const params = parseQueryString(rawSearchRef.current);
     return params.get(key) ?? null;
   }
 
   function set(updates: Record<string, string | null>, options: QueryParamOptions = {}): void {
     const { push = false } = options;
 
-    // Build the new param set from current state
-    const current = parseQueryString(rawSearch);
+    // Capture baseline before mutating — the guard compares against this snapshot
+    const currentSearch = buildQueryString(parseQueryString(rawSearchRef.current));
 
+    // Build the new param set from current state
+    const next = parseQueryString(rawSearchRef.current);
     for (const [key, value] of Object.entries(updates)) {
       if (value === null || value === "") {
-        current.delete(key);
+        next.delete(key);
       } else {
-        current.set(key, value);
+        next.set(key, value);
       }
     }
 
-    // Serialize both for comparison (both are sorted)
-    const newSearch = buildQueryString(current);
-    const currentSearch = buildQueryString(parseQueryString(rawSearch));
+    const newSearch = buildQueryString(next);
 
     if (newSearch === currentSearch) {
       // No-op: params haven't changed — avoid spurious navigation
@@ -94,8 +105,12 @@ export function useQueryParams(): UseQueryParamsResult {
     }
 
     // Build the new URL (preserve pathname from location, apply new search)
-    const pathname = location.split("?")[0];
+    const pathname = locationRef.current.split("?")[0];
     const newUrl = newSearch ? `${pathname}?${newSearch}` : pathname;
+
+    // Update the ref immediately so the next set() call (before re-render) sees
+    // the new search string and merges correctly.
+    rawSearchRef.current = newSearch;
 
     navigate(newUrl, { replace: !push });
   }

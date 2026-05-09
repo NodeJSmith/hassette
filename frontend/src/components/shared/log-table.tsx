@@ -3,6 +3,7 @@ import { useEffect, useRef, useCallback } from "preact/hooks";
 import type { LogEntry } from "../../api/endpoints";
 import { getRecentLogs } from "../../api/endpoints";
 import { useMediaQuery, BREAKPOINT_MOBILE, BREAKPOINT_TABLET } from "../../hooks/use-media-query";
+import { useQueryParams } from "../../hooks/use-query-params";
 import { useSubscribe } from "../../hooks/use-subscribe";
 import { useAppState } from "../../state/context";
 import { formatTimestamp, formatRelativeTime, pluralize } from "../../utils/format";
@@ -83,20 +84,40 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
   const showSourceColumn = !isTablet;
   const { logs, updateLogSubscription, reconnectVersion, tick } = useAppState();
   useSubscribe(tick, logs.version);
-  const minLevel = useRef(signal("INFO")).current;
-  const appFilter = useRef(signal("")).current;
-  const tierFilter = useRef(signal<"all" | "app" | "framework">(appKey ? "all" : "app")).current;
-  const search = useRef(signal("")).current;
+  const qp = useQueryParams();
+  // Keep a stable ref to the latest qp so event handlers always use the most
+  // recent URL params without needing to close over the render-cycle value.
+  const qpRef = useRef(qp);
+  qpRef.current = qp;
+
+  // Filter/sort state read from query params; defaults omitted from URL.
+  // level="INFO" is the omitted default; level="all" in URL means show everything (minLevel="").
+  const levelParam = qp.get("level");
+  const minLevel = levelParam === "all" ? "" : (levelParam ?? "INFO");
+  const appFilter = qp.get("app") ?? "";
+  const tierFilterRaw = qp.get("tier");
+  const tierFilter: "all" | "app" | "framework" =
+    tierFilterRaw === "all" || tierFilterRaw === "framework"
+      ? tierFilterRaw
+      : (appKey ? "all" : "app");
+  const search = qp.get("search") ?? "";
+  const sortColumn = (qp.get("sort") ?? "timestamp") as SortColumn;
+  const sortDir = qp.get("dir");
+  // Default dir: "desc" for timestamp (asc: false), "desc" for all others (asc: false as well
+  // when clicking a new non-timestamp column). "asc" is only set when explicitly in URL.
+  const sortAsc = sortDir === "asc";
+  const sortConfig: SortConfig = { column: sortColumn, asc: sortAsc };
+
+  // UI-only state (not URL state)
   const initialEntries = useRef(signal<LogEntry[]>([])).current;
-  const sortConfig = useRef(signal<SortConfig>({ column: "timestamp", asc: false })).current;
   const expandedRows = useRef(signal<Set<string>>(new Set())).current;
 
   const watermarkRef = useRef(0);
 
-  // Sync WS subscription to component's initial level on mount
+  // Sync WS subscription to current level — re-syncs on back/forward navigation
   useEffect(() => {
-    updateLogSubscription(minLevel.value || "DEBUG");
-  }, []);
+    updateLogSubscription(minLevel || "DEBUG");
+  }, [minLevel]);
 
   // Fetch initial entries on mount and after reconnect
   const rv = reconnectVersion.value;
@@ -118,55 +139,73 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
   });
 
   // Live pause: when sorting by non-timestamp column, exclude WS entries
-  const livePaused = sortConfig.value.column !== "timestamp";
+  const livePaused = sortConfig.column !== "timestamp";
   const allEntries = livePaused
     ? [...initialEntries.value]
     : [...initialEntries.value, ...wsEntries];
 
   // Apply level filter
-  const levelFiltered = minLevel.value
+  const levelFiltered = minLevel
     ? allEntries.filter((e) => {
-        const levelIndex = LEVELS.indexOf(minLevel.value as (typeof LEVELS)[number]);
+        const levelIndex = LEVELS.indexOf(minLevel as (typeof LEVELS)[number]);
         const entryIndex = LEVELS.indexOf(e.level as (typeof LEVELS)[number]);
         return entryIndex >= levelIndex;
       })
     : allEntries; // "" = All Levels — show everything
 
   // Apply source tier filter
-  const tierFiltered = tierFilter.value === "all"
+  const tierFiltered = tierFilter === "all"
     ? levelFiltered
-    : tierFilter.value === "app"
+    : tierFilter === "app"
       ? levelFiltered.filter((e) => !!e.app_key)
       : levelFiltered.filter((e) => !e.app_key);
 
   // Apply app filter (only for global logs)
-  const appFiltered = appFilter.value
-    ? tierFiltered.filter((e) => e.app_key === appFilter.value)
+  const appFiltered = appFilter
+    ? tierFiltered.filter((e) => e.app_key === appFilter)
     : tierFiltered;
 
   // Apply search filter
-  const filtered = search.value
+  const filtered = search
     ? appFiltered.filter(
         (e) =>
-          e.message.toLowerCase().includes(search.value.toLowerCase()) ||
-          e.logger_name.toLowerCase().includes(search.value.toLowerCase()),
+          e.message.toLowerCase().includes(search.toLowerCase()) ||
+          e.logger_name.toLowerCase().includes(search.toLowerCase()),
       )
     : appFiltered;
 
   // Sort
-  const sorted = sortEntries(filtered, sortConfig.value.column, sortConfig.value.asc);
+  const sorted = sortEntries(filtered, sortConfig.column, sortConfig.asc);
 
   const handleSort = (column: SortColumn) => {
-    const current = sortConfig.value;
-    if (current.column === column) {
-      sortConfig.value = { column, asc: !current.asc };
+    // Read current sort state via qpRef.current (always latest after re-renders)
+    // so rapid successive clicks see the current URL state, not stale closure values.
+    const current = qpRef.current;
+    const currentSortCol = (current.get("sort") ?? "timestamp") as SortColumn;
+    const currentSortAsc = current.get("dir") === "asc";
+
+    if (column === "timestamp") {
+      // Toggling timestamp: flip asc. Default for timestamp is desc (false).
+      const newAsc = currentSortCol === "timestamp" ? !currentSortAsc : false;
+      if (newAsc) {
+        current.set({ sort: null, dir: "asc" });
+      } else {
+        // Default: omit both sort and dir
+        current.set({ sort: null, dir: null });
+      }
+    } else if (currentSortCol === column) {
+      // Toggle direction on the same non-timestamp column
+      const newAsc = !currentSortAsc;
+      current.set({ sort: column, dir: newAsc ? "asc" : null });
     } else {
-      sortConfig.value = { column, asc: false };
+      // New non-timestamp column — default dir is desc
+      current.set({ sort: column, dir: null });
     }
   };
 
   const handleResume = () => {
-    sortConfig.value = { column: "timestamp", asc: false };
+    // Reset to default timestamp sort (omit sort and dir from URL)
+    qpRef.current.set({ sort: null, dir: null });
   };
 
   // Track which rows have truncated message text (scrollWidth > clientWidth).
@@ -234,11 +273,11 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
   }, [sorted.length, sorted[0]?.seq, sorted[sorted.length - 1]?.seq, recheckTruncation]);
 
   const LogSortHeader = ({ col, children, class: className }: { col: SortColumn; children: preact.ComponentChildren; class?: string }) => {
-    const isActive = sortConfig.value.column === col;
+    const isActive = sortConfig.column === col;
     return (
       <SortHeader
         active={isActive}
-        direction={isActive ? (sortConfig.value.asc ? "asc" : "desc") : "asc"}
+        direction={isActive ? (sortConfig.asc ? "asc" : "desc") : "asc"}
         onClick={() => handleSort(col)}
         class={className}
         data-testid={`sort-${col}`}
@@ -248,7 +287,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
     );
   };
 
-  const levelLabel = minLevel.value ? `level: ${minLevel.value}+` : "level: all";
+  const levelLabel = minLevel ? `level: ${minLevel}+` : "level: all";
 
   return (
     <div class="ht-log-table-container" ref={tableContainerRef}>
@@ -260,11 +299,14 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
         <div class="ht-table-toolbar__controls">
           {!appKey && (
             <TierToolbar
-              tierFilter={tierFilter.value}
-              onTierChange={(t) => { tierFilter.value = t; }}
+              tierFilter={tierFilter}
+              onTierChange={(t) => {
+                const defaultTier = appKey ? "all" : "app";
+                qp.set({ tier: t === defaultTier ? null : t });
+              }}
               appKeys={showAppColumn ? appKeys : undefined}
-              selectedApp={appFilter.value}
-              onAppChange={(a) => { appFilter.value = a; }}
+              selectedApp={appFilter}
+              onAppChange={(a) => { qp.set({ app: a || null }); }}
               testIdPrefix="log"
             />
           )}
@@ -285,10 +327,18 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
               class="ht-pill__select"
               aria-label="Minimum log level"
               data-testid="filter-level"
-              value={minLevel.value}
+              value={minLevel}
               onChange={(e) => {
                 const newLevel = (e.target as HTMLSelectElement).value;
-                minLevel.value = newLevel;
+                // Omit level param when it's the default (INFO).
+                // Store "" (all levels) as "all" in the URL since empty string is stripped.
+                if (newLevel === "INFO") {
+                  qp.set({ level: null });
+                } else if (newLevel === "") {
+                  qp.set({ level: "all" });
+                } else {
+                  qp.set({ level: newLevel });
+                }
                 updateLogSubscription(newLevel || "DEBUG");
               }}
             >
@@ -305,9 +355,10 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
             type="text"
             aria-label="Search logs"
             placeholder="Search..."
-            value={search.value}
+            value={search}
             onInput={(e) => {
-              search.value = (e.target as HTMLInputElement).value;
+              const value = (e.target as HTMLInputElement).value;
+              qp.set({ search: value || null });
             }}
           />
         </div>
