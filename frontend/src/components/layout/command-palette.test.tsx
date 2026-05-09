@@ -160,6 +160,38 @@ describe("CommandPalette — app items", () => {
     expect(await screen.findByText("inst_0")).toBeDefined();
     expect(screen.getByText("inst_1")).toBeDefined();
   });
+
+  it("navigates to /apps/:key?instance=N when instance item is selected", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({
+                app_key: "multi_app",
+                display_name: "Multi App",
+                instance_count: 2,
+                instances: [
+                  createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+                  createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+                ],
+              }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { container } = renderPalette();
+    await screen.findByText("inst_1");
+    const input = screen.getByPlaceholderText("Search apps, handlers, pages, actions…");
+    fireEvent.input(input, { target: { value: "inst_1" } });
+    await screen.findByText("inst_1");
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    const activeItem = container.querySelector(".ht-cmd-palette__result--active");
+    expect(activeItem?.textContent).toContain("inst_1");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/multi_app?instance=1");
+  });
 });
 
 describe("CommandPalette — filtering", () => {
@@ -302,6 +334,30 @@ describe("CommandPalette — handlers", () => {
     );
     renderPalette();
     expect(await screen.findByText("on_state_change")).toBeDefined();
+  });
+
+  it("navigates to /apps/:key/handlers/h-:id when handler item is selected", async () => {
+    server.use(
+      http.get("/api/bus/listeners", () =>
+        HttpResponse.json<ListenerWithSummary[]>([
+          createListener({
+            listener_id: 42,
+            app_key: "my_app",
+            handler_method: "on_state_change",
+          }),
+        ]),
+      ),
+    );
+    const { container } = renderPalette();
+    await screen.findByText("on_state_change");
+    const input = screen.getByPlaceholderText("Search apps, handlers, pages, actions…");
+    fireEvent.input(input, { target: { value: "on_state_change" } });
+    await screen.findByText("on_state_change");
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    const activeItem = container.querySelector(".ht-cmd-palette__result--active");
+    expect(activeItem?.textContent).toContain("on_state_change");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/h-42");
   });
 
   it("shows handlers section header when handlers are present", async () => {

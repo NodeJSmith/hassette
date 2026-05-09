@@ -1,5 +1,5 @@
 import { useState } from "preact/hooks";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { getManifests } from "../../api/endpoints";
 import { useApi } from "../../hooks/use-api";
 import { useAppState } from "../../state/context";
@@ -109,9 +109,10 @@ const NAV_ITEMS = [
 interface AppEntryProps {
   manifest: AppManifest;
   location: string;
+  searchString: string;
 }
 
-function AppEntry({ manifest, location }: AppEntryProps) {
+function AppEntry({ manifest, location, searchString }: AppEntryProps) {
   const [expanded, setExpanded] = useState(false);
   const isMulti = manifest.instance_count > 1;
   const displayStatus = isMulti ? worstStatus(manifest) : manifest.status;
@@ -158,13 +159,20 @@ function AppEntry({ manifest, location }: AppEntryProps) {
       {isMulti && expanded && (
         <ul class="ht-sidebar__instance-list">
           {(manifest.instances ?? []).map((inst) => {
-            const instPath = `/apps/${manifest.app_key}/${inst.index}`;
-            const instActive = location === instPath || location.startsWith(instPath + "/");
+            const instHref = `/apps/${manifest.app_key}?instance=${inst.index}`;
+            // Active when path matches the app and the instance query param matches.
+            // location may include a query string — split before comparing.
+            const locPath = location;
+            const locSearch = searchString;
+            const appPath = `/apps/${manifest.app_key}`;
+            const pathMatches = locPath === appPath || locPath.startsWith(appPath + "/");
+            const instanceParam = new URLSearchParams(locSearch).get("instance");
+            const instActive = pathMatches && instanceParam === String(inst.index);
             return (
               <li key={inst.index} class="ht-sidebar__instance-item">
                 <span class="ht-sidebar__app-connector">└</span>
                 <Link
-                  href={instPath}
+                  href={instHref}
                   class={`ht-sidebar__instance-link${instActive ? " is-active" : ""}`}
                   aria-current={instActive ? "page" : undefined}
                 >
@@ -230,6 +238,7 @@ interface SidebarProps {
 
 export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   const [location] = useLocation();
+  const searchString = useSearch();
   const { systemVersion } = useAppState();
   const manifests = useApi(getManifests);
   const [search, setSearch] = useState("");
@@ -371,7 +380,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
               {open && (
                 <ul class="ht-sidebar__app-list" aria-label={`${def.label} apps`}>
                   {apps.map((m) => (
-                    <AppEntry key={m.app_key} manifest={m} location={location} />
+                    <AppEntry key={m.app_key} manifest={m} location={location} searchString={searchString} />
                   ))}
                 </ul>
               )}

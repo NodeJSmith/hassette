@@ -24,10 +24,12 @@ vi.mock("wouter", () => ({
   }: Record<string, unknown>) =>
     h("a", { href, class: cls, "aria-label": ariaLabel, "aria-current": ariaCurrent, "data-testid": testId, ...rest }, children as never),
   useLocation: vi.fn().mockReturnValue(["/", vi.fn()]),
+  useSearch: vi.fn().mockReturnValue(""),
 }));
 
 const wouter = await import("wouter");
 const useLocation = wouter.useLocation as ReturnType<typeof vi.fn>;
+const useSearch = wouter.useSearch as ReturnType<typeof vi.fn>;
 
 describe("Sidebar — structure", () => {
   it("renders an aside element with ht-sidebar class", () => {
@@ -316,6 +318,66 @@ describe("Sidebar — multi-instance apps", () => {
     fireEvent.click(expandBtn);
     expect(await findByText("inst_0")).toBeDefined();
     expect(await findByText("inst_1")).toBeDefined();
+  });
+
+  it("instance links use ?instance=N query param format", async () => {
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({
+                app_key: "multi_app",
+                display_name: "Multi App",
+                instance_count: 2,
+                instances: [
+                  createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+                  createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+                ],
+              }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { findByLabelText, findByText } = renderWithAppState(<Sidebar />);
+    const expandBtn = await findByLabelText("Expand Multi App");
+    fireEvent.click(expandBtn);
+    const inst0Link = (await findByText("inst_0")).closest("a");
+    const inst1Link = (await findByText("inst_1")).closest("a");
+    expect(inst0Link?.getAttribute("href")).toBe("/apps/multi_app?instance=0");
+    expect(inst1Link?.getAttribute("href")).toBe("/apps/multi_app?instance=1");
+  });
+
+  it("instance link is active when location matches app path with correct instance query param", async () => {
+    useLocation.mockReturnValue(["/apps/multi_app", vi.fn()]);
+    useSearch.mockReturnValue("instance=1");
+    server.use(
+      http.get("/api/apps/manifests", () =>
+        HttpResponse.json<ManifestListResponse>(
+          createManifestList({
+            manifests: [
+              createManifest({
+                app_key: "multi_app",
+                display_name: "Multi App",
+                instance_count: 2,
+                instances: [
+                  createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+                  createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+                ],
+              }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const { findByLabelText, findByText } = renderWithAppState(<Sidebar />);
+    const expandBtn = await findByLabelText("Expand Multi App");
+    fireEvent.click(expandBtn);
+    const inst1Link = (await findByText("inst_1")).closest("a");
+    const inst0Link = (await findByText("inst_0")).closest("a");
+    expect(inst1Link?.className).toContain("is-active");
+    expect(inst0Link?.className).not.toContain("is-active");
   });
 });
 

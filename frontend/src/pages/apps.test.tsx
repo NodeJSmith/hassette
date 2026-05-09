@@ -12,6 +12,8 @@ const mockNavigate = vi.fn();
 vi.mock("wouter", () => ({
   useSearch: () => mockSearch,
   useLocation: () => ["/apps", mockNavigate],
+  Link: ({ href, children, class: cls }: Record<string, unknown>) =>
+    <a href={href as string} class={cls as string}>{children as never}</a>,
 }));
 
 vi.mock("../components/shared/spinner", () => ({

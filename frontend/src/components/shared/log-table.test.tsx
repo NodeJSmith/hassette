@@ -47,6 +47,8 @@ function restoreNavigateMock() {
 vi.mock("wouter", () => ({
   useSearch: () => mockSearchSignal.value,
   useLocation: () => ["/logs", mockNavigate],
+  Link: ({ href, children, class: cls }: Record<string, unknown>) =>
+    <a href={href as string} class={cls as string}>{children as never}</a>,
 }));
 
 // --- JSDOM polyfills for ResizeObserver, requestAnimationFrame, and document.fonts ---

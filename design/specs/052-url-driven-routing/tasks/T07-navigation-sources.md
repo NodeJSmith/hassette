@@ -1,7 +1,7 @@
 ---
 task_id: "T07"
 title: "Update navigation sources and Vite SPA fallback"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03"]
 implements: ["FR#9", "FR#15", "AC#7", "AC#8", "AC#11"]
 ---

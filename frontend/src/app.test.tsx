@@ -18,6 +18,7 @@ vi.mock("wouter", () => ({
   Link: ({ href, children, class: cls, ...rest }: Record<string, unknown>) =>
     <a href={href as string} class={cls as string} {...rest}>{children as never}</a>,
   useLocation: vi.fn().mockReturnValue(["/", vi.fn()]),
+  useSearch: vi.fn().mockReturnValue(""),
 }));
 vi.mock("./pages/apps", () => ({
   AppsPage: () => <div data-testid="apps-page">Apps</div>,
@@ -41,6 +42,12 @@ vi.mock("./hooks/use-websocket", () => ({
 }));
 vi.mock("./hooks/use-telemetry-health", () => ({
   useTelemetryHealth: vi.fn(),
+}));
+
+// TimePresetSelector calls useQueryParams (useSearch from wouter).
+// App tests render without a Router provider, so mock the hook.
+vi.mock("./hooks/use-query-params", () => ({
+  useQueryParams: () => ({ get: () => null, set: vi.fn() }),
 }));
 
 // Spy on TelemetryDegradedBanner to verify it is mounted in the layout shell.

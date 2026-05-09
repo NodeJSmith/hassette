@@ -1,8 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/preact";
 import { signal } from "@preact/signals";
 import { AlertBanner, TelemetryDegradedBanner } from "./alert-banner";
 import { renderWithAppState } from "../../test/render-helpers";
+
+vi.mock("wouter", () => ({
+  Link: ({ href, children, class: cls }: Record<string, unknown>) =>
+    <a href={href as string} class={cls as string}>{children as never}</a>,
+}));
 
 describe("AlertBanner", () => {
   it("renders nothing when no failed apps", () => {

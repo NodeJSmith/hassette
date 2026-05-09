@@ -10,6 +10,12 @@ vi.mock("../../utils/local-storage", () => ({
   getStoredValue: vi.fn(),
 }));
 
+// TimePresetSelector now calls useQueryParams (useSearch from wouter).
+// StatusBar tests render without a Router provider, so mock the hook.
+vi.mock("../../hooks/use-query-params", () => ({
+  useQueryParams: () => ({ get: () => null, set: vi.fn() }),
+}));
+
 describe("StatusBar — connection states", () => {
   it("renders connected state without status label", () => {
     const { container, queryByText } = renderWithAppState(<StatusBar />, {

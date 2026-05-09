@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent } from "@testing-library/preact";
 import { signal } from "@preact/signals";
 import { TimePresetSelector } from "./time-preset-selector";
@@ -10,6 +10,18 @@ vi.mock("../../utils/local-storage", () => ({
   setStoredValue: vi.fn(),
   getStoredValue: vi.fn(),
 }));
+
+// Mock useQueryParams so we can control ?window= param in tests
+const mockQpGet = vi.fn().mockReturnValue(null);
+const mockQpSet = vi.fn();
+vi.mock("../../hooks/use-query-params", () => ({
+  useQueryParams: () => ({ get: mockQpGet, set: mockQpSet }),
+}));
+
+beforeEach(() => {
+  mockQpGet.mockReturnValue(null);
+  mockQpSet.mockClear();
+});
 
 describe("TimePresetSelector — rendering", () => {
   it("renders all 4 preset buttons", () => {
@@ -93,6 +105,68 @@ describe("TimePresetSelector — interactions", () => {
     });
     fireEvent.click(getByText("Since restart"));
     expect(preset.value).toBe("since-restart");
+  });
+});
+
+describe("TimePresetSelector — URL sync on click", () => {
+  it("clicking a preset calls qp.set with the new window value", () => {
+    const preset = signal<TimePreset>("since-restart");
+    renderWithAppState(<TimePresetSelector />, {
+      stateOverrides: { timePreset: preset },
+    });
+    fireEvent.click(document.querySelector("button[aria-pressed='false']")!);
+    expect(mockQpSet).toHaveBeenCalled();
+    const callArg = mockQpSet.mock.calls[0][0] as Record<string, string>;
+    expect(callArg).toHaveProperty("window");
+  });
+
+  it("clicking 7d calls qp.set({ window: '7d' })", () => {
+    const preset = signal<TimePreset>("since-restart");
+    const { getByText } = renderWithAppState(<TimePresetSelector />, {
+      stateOverrides: { timePreset: preset },
+    });
+    fireEvent.click(getByText("7d"));
+    expect(mockQpSet).toHaveBeenCalledWith({ window: "7d" });
+  });
+
+  it("clicking a preset updates urlWindowParam signal", () => {
+    const preset = signal<TimePreset>("since-restart");
+    const urlWindowParam = signal<TimePreset | null>(null);
+    const { getByText } = renderWithAppState(<TimePresetSelector />, {
+      stateOverrides: { timePreset: preset, urlWindowParam },
+    });
+    fireEvent.click(getByText("24h"));
+    expect(urlWindowParam.value).toBe("24h");
+  });
+});
+
+describe("TimePresetSelector — URL window param on load", () => {
+  it("reads ?window= on mount and writes to urlWindowParam", () => {
+    mockQpGet.mockImplementation((key: string) => key === "window" ? "24h" : null);
+    const urlWindowParam = signal<TimePreset | null>(null);
+    renderWithAppState(<TimePresetSelector />, {
+      stateOverrides: { urlWindowParam },
+    });
+    expect(urlWindowParam.value).toBe("24h");
+  });
+
+  it("does not write to timePreset when ?window= is present on load", () => {
+    mockQpGet.mockImplementation((key: string) => key === "window" ? "7d" : null);
+    const preset = signal<TimePreset>("since-restart");
+    renderWithAppState(<TimePresetSelector />, {
+      stateOverrides: { timePreset: preset },
+    });
+    // timePreset must remain unchanged — URL override is read-only
+    expect(preset.value).toBe("since-restart");
+  });
+
+  it("does not modify urlWindowParam when no ?window= param", () => {
+    mockQpGet.mockReturnValue(null);
+    const urlWindowParam = signal<TimePreset | null>(null);
+    renderWithAppState(<TimePresetSelector />, {
+      stateOverrides: { urlWindowParam },
+    });
+    expect(urlWindowParam.value).toBeNull();
   });
 });
 

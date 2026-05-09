@@ -1,15 +1,23 @@
+import { Link } from "wouter";
+
 interface Props {
   appKey: string;
   instanceIndex?: number;
-  query?: string;
+  handlerId?: string;
   children?: preact.ComponentChildren;
 }
 
-export function AppLink({ appKey, instanceIndex, query, children }: Props) {
-  let href = `/apps/${appKey}`;
-  if (instanceIndex !== undefined) href += `/${instanceIndex}`;
-  if (query) href += `?${query}`;
+export function AppLink({ appKey, instanceIndex, handlerId, children }: Props) {
+  let path = `/apps/${appKey}`;
+  if (handlerId !== undefined) path += `/handlers/${handlerId}`;
+
+  const params = new URLSearchParams();
+  if (instanceIndex !== undefined) params.set("instance", String(instanceIndex));
+
+  const search = params.toString();
+  const href = search ? `${path}?${search}` : path;
+
   return (
-    <a href={href} class="ht-app-link">{children ?? appKey}</a>
+    <Link href={href} class="ht-app-link">{children ?? appKey}</Link>
   );
 }

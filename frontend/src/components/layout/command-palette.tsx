@@ -123,7 +123,7 @@ function buildAppItems(manifests: AppManifest[], navigate: (path: string) => voi
           sub: `${m.app_key} · #${inst.index}`,
           status: inst.status,
           action: () => {
-            navigate(`/apps/${m.app_key}/${inst.index}`);
+            navigate(`/apps/${m.app_key}?instance=${inst.index}`);
             onClose();
           },
         });
@@ -144,7 +144,7 @@ function buildHandlerItems(
     label: l.handler_method,
     sub: `${l.app_key} · ${l.topic}`,
     action: () => {
-      navigate(`/apps/${l.app_key}?focus=${l.handler_method}`);
+      navigate(`/apps/${l.app_key}/handlers/h-${l.listener_id}`);
       onClose();
     },
   }));
