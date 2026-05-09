@@ -228,43 +228,6 @@ WsServerMessage = Annotated[
 
 
 # ---------------------------------------------------------------------------
-# Typed error entry models (for get_recent_errors)
-# ---------------------------------------------------------------------------
-
-
-class HandlerErrorEntry(BaseModel):
-    kind: Literal["handler"] = "handler"
-    listener_id: int | None
-    topic: str | None
-    handler_method: str | None
-    error_message: str | None
-    error_type: str | None
-    execution_start_ts: float
-    app_key: str | None
-    source_tier: SourceTier = "app"
-    error_traceback: str | None = None
-    source_location: str | None = None
-    """Source file location of the handler (e.g. 'my_app.py:42')."""
-
-
-class JobErrorEntry(BaseModel):
-    kind: Literal["job"] = "job"
-    job_id: int | None
-    job_name: str | None
-    error_message: str | None
-    error_type: str | None
-    execution_start_ts: float
-    app_key: str | None
-    source_tier: SourceTier = "app"
-    error_traceback: str | None = None
-    source_location: str | None = None
-    """Source file location of the job handler (e.g. 'my_app.py:99')."""
-
-
-RecentErrorEntry = Annotated[HandlerErrorEntry | JobErrorEntry, Field(discriminator="kind")]
-
-
-# ---------------------------------------------------------------------------
 # Telemetry endpoint response models
 # ---------------------------------------------------------------------------
 
@@ -328,28 +291,6 @@ class ActivityBucket(BaseModel):
     """Number of error/timed-out invocations/executions in this bucket."""
 
 
-class DashboardKpisResponse(BaseModel):
-    """Global KPI metrics for the dashboard strip."""
-
-    total_handlers: int
-    total_jobs: int
-    total_invocations: int
-    total_executions: int
-    total_errors: int
-    total_timed_out: int
-    total_job_errors: int
-    total_job_timed_out: int
-    avg_handler_duration_ms: float
-    avg_job_duration_ms: float
-    error_rate: float
-    error_rate_class: str
-    uptime_seconds: float | None = None
-    runs_per_hour: float | None = None
-    """Combined handler + job runs per hour. None when the window is too short (< 1 min)."""
-    activity_buckets: list[ActivityBucket] = Field(default_factory=list)
-    """12 equal-width time buckets of ok/err counts for the sparkline chart."""
-
-
 class DashboardAppGridEntry(BaseModel):
     """Per-app health entry for the dashboard grid."""
 
@@ -384,24 +325,6 @@ class DashboardAppGridResponse(BaseModel):
     """Dashboard app grid with per-app health data."""
 
     apps: list[DashboardAppGridEntry]
-
-
-class DashboardErrorsResponse(BaseModel):
-    """Recent errors for the dashboard error feed."""
-
-    errors: list[HandlerErrorEntry | JobErrorEntry]
-
-
-class FrameworkSummaryResponse(BaseModel):
-    """Framework KPI counts for the System Health badge.
-
-    Note: total_errors and total_job_errors include timed_out status.
-    get_error_counts() returns combined counts; splitting would require
-    a separate query path.
-    """
-
-    total_errors: int
-    total_job_errors: int
 
 
 class TelemetryStatusResponse(BaseModel):

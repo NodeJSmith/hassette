@@ -12,10 +12,7 @@ import pytest
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_models import (
     AppHealthSummary,
-    GlobalSummary,
-    HandlerErrorRecord,
     HandlerInvocation,
-    JobErrorRecord,
     JobExecution,
     JobSummary,
     ListenerSummary,
@@ -560,40 +557,6 @@ class TestGetJobSummary:
 
 
 # ---------------------------------------------------------------------------
-# Tests: get_global_summary
-# ---------------------------------------------------------------------------
-
-
-class TestGetGlobalSummary:
-    async def test_get_global_summary(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """Mixed listener + job records — correct combined totals."""
-        db_svc, session_id = db
-
-        l1 = await _insert_listener(db_svc, handler_method="on_a")
-        j1 = await _insert_job(db_svc, job_name="job_a")
-
-        await _insert_invocation(db_svc, l1, session_id, status="success")
-        await _insert_invocation(db_svc, l1, session_id, status="error")
-        await _insert_execution(db_svc, j1, session_id, status="success")
-        await _insert_execution(db_svc, j1, session_id, status="error")
-
-        result = await svc.get_global_summary()
-        assert isinstance(result, GlobalSummary)
-
-        assert result.listeners.total_listeners == 1
-        assert result.listeners.total_invocations == 2
-        assert result.listeners.total_errors == 1
-
-        assert result.jobs.total_jobs == 1
-        assert result.jobs.total_executions == 2
-        assert result.jobs.total_errors == 1
-
-
-# ---------------------------------------------------------------------------
 # Tests: get_handler_invocations
 # ---------------------------------------------------------------------------
 
@@ -645,76 +608,6 @@ class TestGetJobExecutions:
         assert all(isinstance(r, JobExecution) for r in rows)
         assert rows[0].execution_start_ts == pytest.approx(base_ts + 2)
         assert rows[1].execution_start_ts == pytest.approx(base_ts + 1)
-
-
-# ---------------------------------------------------------------------------
-# Tests: get_recent_errors
-# ---------------------------------------------------------------------------
-
-
-class TestGetRecentErrors:
-    async def test_get_recent_errors_filter(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """Mix of success + error records, some old — only errors after since_ts returned."""
-        db_svc, session_id = db
-        listener_id = await _insert_listener(db_svc)
-        job_id = await _insert_job(db_svc)
-
-        base_ts = 1_000_000.0
-        since_ts = base_ts + 5.0
-
-        # Old error (before since_ts) — should NOT appear
-        await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 1.0)
-        # Recent success — should NOT appear
-        await _insert_invocation(db_svc, listener_id, session_id, status="success", execution_start_ts=base_ts + 10.0)
-        # Recent error — SHOULD appear
-        await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 20.0)
-        # Recent job error — SHOULD appear
-        await _insert_execution(db_svc, job_id, session_id, status="error", execution_start_ts=base_ts + 15.0)
-
-        rows = await svc.get_recent_errors(since_ts)
-        # Both handler error and job error should appear
-        assert len(rows) == 2
-        handler_rows = [r for r in rows if isinstance(r, HandlerErrorRecord)]
-        job_rows = [r for r in rows if isinstance(r, JobErrorRecord)]
-        assert len(handler_rows) == 1
-        assert len(job_rows) == 1
-
-        # Verify listener_id/job_id and execution_start_ts are present and non-zero
-        assert handler_rows[0].listener_id > 0
-        assert handler_rows[0].execution_start_ts > 0
-
-        assert job_rows[0].job_id > 0
-        assert job_rows[0].execution_start_ts > 0
-
-    async def test_get_recent_errors_session_scoped(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """Errors in two sessions — session filter applied."""
-        db_svc, session_a = db
-
-        cursor = await db_svc.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'stopped')",
-            (time.time(), time.time()),
-        )
-        session_b = cursor.lastrowid
-        await db_svc.db.commit()
-
-        listener_id = await _insert_listener(db_svc)
-        base_ts = 1_000_000.0
-        since_ts = base_ts - 1.0
-
-        await _insert_invocation(db_svc, listener_id, session_a, status="error", execution_start_ts=base_ts + 1.0)
-        await _insert_invocation(db_svc, listener_id, session_b, status="error", execution_start_ts=base_ts + 2.0)
-
-        rows = await svc.get_recent_errors(since_ts, session_id=session_a)
-        assert len(rows) == 1
-        assert isinstance(rows[0], HandlerErrorRecord)
 
 
 # ---------------------------------------------------------------------------
@@ -1052,47 +945,6 @@ class TestGetAllAppSummaries:
 
 
 # ---------------------------------------------------------------------------
-# Tests: get_global_summary returns typed model
-# ---------------------------------------------------------------------------
-
-
-class TestGetGlobalSummaryTyped:
-    async def test_get_global_summary_returns_typed_model(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """get_global_summary returns GlobalSummary, not dict."""
-        db_svc, session_id = db
-
-        l1 = await _insert_listener(db_svc, handler_method="on_a")
-        j1 = await _insert_job(db_svc, job_name="job_a")
-        await _insert_invocation(db_svc, l1, session_id, status="success")
-        await _insert_execution(db_svc, j1, session_id, status="success")
-
-        result = await svc.get_global_summary()
-        assert isinstance(result, GlobalSummary)
-        assert result.listeners.total_listeners == 1
-        assert result.listeners.total_invocations == 1
-        assert result.jobs.total_jobs == 1
-        assert result.jobs.total_executions == 1
-
-    async def test_get_global_summary_fresh_install(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """Fresh install with no telemetry data — returns zero-value GlobalSummary."""
-        result = await svc.get_global_summary()
-        assert isinstance(result, GlobalSummary)
-        assert result.listeners.total_listeners == 0
-        assert result.listeners.total_invocations == 0
-        assert result.listeners.avg_duration_ms is None
-        assert result.jobs.total_jobs == 0
-        assert result.jobs.total_executions == 0
-
-
-# ---------------------------------------------------------------------------
 # Tests: cross-session aggregation and retired-row view enforcement (WP06)
 # ---------------------------------------------------------------------------
 
@@ -1137,32 +989,6 @@ class TestCrossSessionAndRetiredRows:
         assert row.total_invocations == 5
         assert row.successful == 4
         assert row.failed == 1
-
-    async def test_registration_counts_exclude_retired(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """get_global_summary total_listeners uses active_listeners view (excludes retired rows).
-
-        Register two listeners. Mark one retired via retired_at. The global summary
-        must report total_listeners = 1.
-        """
-        db_svc, _session_id = db
-
-        await _insert_listener(db_svc, handler_method="on_active")
-        retired_id = await _insert_listener(db_svc, handler_method="on_retired")
-
-        # Mark the second listener as retired
-        now = time.time()
-        await db_svc.db.execute(
-            "UPDATE listeners SET retired_at = ? WHERE id = ?",
-            (now, retired_id),
-        )
-        await db_svc.db.commit()
-
-        result = await svc.get_global_summary()
-        assert result.listeners.total_listeners == 1
 
     async def test_listener_summary_includes_retired(
         self,
@@ -1265,163 +1091,6 @@ class TestCrossSessionAndRetiredRows:
 
         cursor = await db_svc.db.execute("SELECT id FROM scheduled_jobs WHERE id = ?", (recent_job_id,))
         assert await cursor.fetchone() is not None, "Recent retired job must survive"
-
-
-# ---------------------------------------------------------------------------
-# Tests: WP05 — source_tier filtering, UNION ALL, LEFT JOIN, is_di_failure
-# ---------------------------------------------------------------------------
-
-
-class TestGetRecentErrorsUnionAll:
-    async def test_get_recent_errors_union_all_ordering(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """Mixed handler/job errors with known timestamps — verify correct ordering."""
-        db_svc, session_id = db
-        listener_id = await _insert_listener(db_svc, handler_method="on_a")
-        job_id = await _insert_job(db_svc, job_name="job_a")
-
-        base_ts = 2_000_000.0
-        # Insert handler errors at t=1,3,5 and job errors at t=2,4
-        await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 5.0)
-        await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 3.0)
-        await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 1.0)
-        await _insert_execution(db_svc, job_id, session_id, status="error", execution_start_ts=base_ts + 4.0)
-        await _insert_execution(db_svc, job_id, session_id, status="error", execution_start_ts=base_ts + 2.0)
-
-        rows = await svc.get_recent_errors(since_ts=base_ts)
-        assert len(rows) == 5
-        # Must be sorted DESC by execution_start_ts across both types
-        ts_values = [r.execution_start_ts for r in rows]
-        assert ts_values == sorted(ts_values, reverse=True)
-        assert ts_values[0] == pytest.approx(base_ts + 5.0)
-        assert ts_values[1] == pytest.approx(base_ts + 4.0)
-        assert ts_values[2] == pytest.approx(base_ts + 3.0)
-
-    async def test_get_recent_errors_limit_applies_globally(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """20 handler + 5 job errors, limit=10 → 10 most recent total."""
-        db_svc, session_id = db
-        listener_id = await _insert_listener(db_svc)
-        job_id = await _insert_job(db_svc)
-
-        base_ts = 3_000_000.0
-        # Handler errors at offsets 0..19 (ts 0-19)
-        for i in range(20):
-            await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + i)
-        # Job errors at offsets 20..24 (ts 20-24) — most recent
-        for i in range(20, 25):
-            await _insert_execution(db_svc, job_id, session_id, status="error", execution_start_ts=base_ts + i)
-
-        rows = await svc.get_recent_errors(since_ts=base_ts - 1.0, limit=10)
-        assert len(rows) == 10
-        # Top 10 should be ts 24,23,22,21,20 (jobs) and ts 19,18,17,16,15 (handlers)
-        ts_values = [r.execution_start_ts for r in rows]
-        assert ts_values == sorted(ts_values, reverse=True)
-        assert ts_values[0] == pytest.approx(base_ts + 24.0)
-        # All 5 jobs in top 10
-        job_rows = [r for r in rows if isinstance(r, JobErrorRecord)]
-        assert len(job_rows) == 5
-
-    async def test_get_recent_errors_left_join_orphans(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """Delete a listener; its error records still appear with null app_key."""
-        db_svc, session_id = db
-        listener_id = await _insert_listener(db_svc, handler_method="on_orphan")
-        base_ts = 4_000_000.0
-        await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 1.0)
-        # Delete the listener (FK becomes NULL via ON DELETE SET NULL)
-        await db_svc.db.execute("DELETE FROM listeners WHERE id = ?", (listener_id,))
-        await db_svc.db.commit()
-
-        rows = await svc.get_recent_errors(since_ts=base_ts)
-        handler_rows = [r for r in rows if isinstance(r, HandlerErrorRecord)]
-        assert len(handler_rows) == 1
-        # Orphaned row: app_key and handler_method should be None
-        assert handler_rows[0].app_key is None
-        assert handler_rows[0].handler_method is None
-
-    async def test_get_recent_errors_source_tier_filter_app(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """source_tier='app' (default) excludes framework-tier errors."""
-        db_svc, session_id = db
-        app_listener = await _insert_listener(db_svc, handler_method="on_app", source_tier="app")
-        fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
-        app_job = await _insert_job(db_svc, job_name="app_job", source_tier="app")
-        fw_job = await _insert_job(db_svc, job_name="fw_job", source_tier="framework")
-
-        base_ts = 5_000_000.0
-        await _insert_invocation(
-            db_svc, app_listener, session_id, status="error", execution_start_ts=base_ts + 1.0, source_tier="app"
-        )
-        await _insert_invocation(
-            db_svc, fw_listener, session_id, status="error", execution_start_ts=base_ts + 2.0, source_tier="framework"
-        )
-        await _insert_execution(
-            db_svc, app_job, session_id, status="error", execution_start_ts=base_ts + 3.0, source_tier="app"
-        )
-        await _insert_execution(
-            db_svc, fw_job, session_id, status="error", execution_start_ts=base_ts + 4.0, source_tier="framework"
-        )
-
-        # Default source_tier='app'
-        rows = await svc.get_recent_errors(since_ts=base_ts)
-        assert len(rows) == 2
-        assert all(isinstance(r, HandlerErrorRecord | JobErrorRecord) for r in rows)
-
-    async def test_get_recent_errors_source_tier_filter_all(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """source_tier='all' includes both app and framework errors."""
-        db_svc, session_id = db
-        app_listener = await _insert_listener(db_svc, handler_method="on_app", source_tier="app")
-        fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
-
-        base_ts = 6_000_000.0
-        await _insert_invocation(
-            db_svc, app_listener, session_id, status="error", execution_start_ts=base_ts + 1.0, source_tier="app"
-        )
-        await _insert_invocation(
-            db_svc, fw_listener, session_id, status="error", execution_start_ts=base_ts + 2.0, source_tier="framework"
-        )
-
-        rows = await svc.get_recent_errors(since_ts=base_ts, source_tier="all")
-        assert len(rows) == 2
-
-    async def test_get_recent_errors_source_tier_filter_framework(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """source_tier='framework' returns only framework-tier errors."""
-        db_svc, session_id = db
-        app_listener = await _insert_listener(db_svc, handler_method="on_app", source_tier="app")
-        fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
-
-        base_ts = 7_000_000.0
-        await _insert_invocation(
-            db_svc, app_listener, session_id, status="error", execution_start_ts=base_ts + 1.0, source_tier="app"
-        )
-        await _insert_invocation(
-            db_svc, fw_listener, session_id, status="error", execution_start_ts=base_ts + 2.0, source_tier="framework"
-        )
-
-        rows = await svc.get_recent_errors(since_ts=base_ts, source_tier="framework")
-        assert len(rows) == 1
-        assert isinstance(rows[0], HandlerErrorRecord)
 
 
 class TestGetAllAppSummariesSourceTier:
@@ -1576,50 +1245,6 @@ class TestGetSlowHandlersLeftJoin:
         assert rows[0].duration_ms == pytest.approx(500.0)
 
 
-class TestGetGlobalSummarySourceTier:
-    async def test_get_global_summary_filters_app_tier(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """get_global_summary with default source_tier='app' excludes framework records."""
-        db_svc, session_id = db
-
-        app_listener = await _insert_listener(db_svc, handler_method="on_app", source_tier="app")
-        fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
-        app_job = await _insert_job(db_svc, job_name="app_job", source_tier="app")
-        fw_job = await _insert_job(db_svc, job_name="fw_job", source_tier="framework")
-
-        await _insert_invocation(db_svc, app_listener, session_id, status="success", source_tier="app")
-        await _insert_invocation(db_svc, app_listener, session_id, status="error", source_tier="app")
-        await _insert_invocation(db_svc, fw_listener, session_id, status="success", source_tier="framework")
-        await _insert_execution(db_svc, app_job, session_id, status="success", source_tier="app")
-        await _insert_execution(db_svc, fw_job, session_id, status="success", source_tier="framework")
-
-        result = await svc.get_global_summary()
-        # Default source_tier='app' — only app invocations counted
-        assert result.listeners.total_invocations == 2
-        assert result.listeners.total_errors == 1
-        assert result.jobs.total_executions == 1
-
-    async def test_get_global_summary_all_tier_includes_framework(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """get_global_summary(source_tier='all') includes framework records."""
-        db_svc, session_id = db
-
-        app_listener = await _insert_listener(db_svc, handler_method="on_app", source_tier="app")
-        fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
-
-        await _insert_invocation(db_svc, app_listener, session_id, status="success", source_tier="app")
-        await _insert_invocation(db_svc, fw_listener, session_id, status="success", source_tier="framework")
-
-        result = await svc.get_global_summary(source_tier="all")
-        assert result.listeners.total_invocations == 2
-
-
 # ---------------------------------------------------------------------------
 # Tests: _source_tier_clause — uncovered branches (lines 44, 50-51)
 # ---------------------------------------------------------------------------
@@ -1763,78 +1388,6 @@ class TestGetAllAppSummariesFrameworkTier:
         summary = result["my_app"]
         assert summary.handler_count == 1  # only the framework listener
         assert summary.total_invocations == 1
-
-
-# ---------------------------------------------------------------------------
-# Tests: get_global_summary with source_tier='framework' (lines 406-412, 415-437)
-# ---------------------------------------------------------------------------
-
-
-class TestGetGlobalSummaryFrameworkTier:
-    async def test_get_global_summary_framework_tier_no_session(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """get_global_summary(source_tier='framework') uses active_framework_listeners/jobs views."""
-        db_svc, session_id = db
-
-        fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
-        fw_job = await _insert_job(db_svc, job_name="fw_job", source_tier="framework")
-        _app_listener = await _insert_listener(db_svc, handler_method="on_app", source_tier="app")
-        _app_job = await _insert_job(db_svc, job_name="app_job", source_tier="app")
-
-        await _insert_invocation(db_svc, fw_listener, session_id, status="success", source_tier="framework")
-        await _insert_invocation(db_svc, fw_listener, session_id, status="error", source_tier="framework")
-        # App-tier invocations must not count
-        await _insert_invocation(db_svc, _app_listener, session_id, status="success", source_tier="app")
-        await _insert_execution(db_svc, fw_job, session_id, status="success", source_tier="framework")
-        # App-tier execution must not count
-        await _insert_execution(db_svc, _app_job, session_id, status="success", source_tier="app")
-
-        result = await svc.get_global_summary(source_tier="framework")
-        assert isinstance(result, GlobalSummary)
-        # Only framework-tier counts
-        assert result.listeners.total_invocations == 2
-        assert result.listeners.total_errors == 1
-        assert result.jobs.total_executions == 1
-        # total_listeners and total_jobs from framework views only
-        assert result.listeners.total_listeners == 1
-        assert result.jobs.total_jobs == 1
-
-    async def test_get_global_summary_framework_tier_with_since(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """get_global_summary(source_tier='framework', since=...) uses since + framework filter."""
-        db_svc, session_id = db
-
-        base_ts = 1_000_000.0
-        since_ts = base_ts + 5.0
-
-        fw_listener = await _insert_listener(db_svc, handler_method="on_fw", source_tier="framework")
-
-        # After since_ts: 2 framework invocations — should count
-        await _insert_invocation(
-            db_svc,
-            fw_listener,
-            session_id,
-            status="success",
-            source_tier="framework",
-            execution_start_ts=base_ts + 10.0,
-        )
-        await _insert_invocation(
-            db_svc, fw_listener, session_id, status="error", source_tier="framework", execution_start_ts=base_ts + 20.0
-        )
-        # Before since_ts: 1 framework invocation — must NOT count
-        await _insert_invocation(
-            db_svc, fw_listener, session_id, status="success", source_tier="framework", execution_start_ts=base_ts + 1.0
-        )
-
-        result = await svc.get_global_summary(source_tier="framework", since=since_ts)
-        assert result.listeners.total_invocations == 2
-        assert result.listeners.total_errors == 1
 
 
 # ---------------------------------------------------------------------------

@@ -12,7 +12,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 from hassette.core.app_registry import AppManifestInfo, AppStatusSnapshot
 from hassette.core.runtime_query_service import RuntimeQueryService
-from hassette.core.telemetry_models import GlobalSummary, JobGlobalStats, ListenerGlobalStats
 from hassette.test_utils.web_helpers import make_full_snapshot
 from hassette.types.enums import ResourceStatus
 
@@ -24,32 +23,11 @@ def _wire_telemetry_stubs(hassette: MagicMock) -> None:
     ts.get_job_summary = AsyncMock(return_value=[])
     ts.get_all_jobs_summary = AsyncMock(return_value=[])
     ts.get_all_app_summaries = AsyncMock(return_value={})
-    ts.get_global_summary = AsyncMock(
-        return_value=GlobalSummary(
-            listeners=ListenerGlobalStats(
-                total_listeners=0,
-                invoked_listeners=0,
-                total_invocations=0,
-                total_errors=0,
-                total_di_failures=0,
-                avg_duration_ms=None,
-            ),
-            jobs=JobGlobalStats(
-                total_jobs=0,
-                executed_jobs=0,
-                total_executions=0,
-                total_errors=0,
-            ),
-        )
-    )
     ts.get_handler_invocations = AsyncMock(return_value=[])
     ts.get_job_executions = AsyncMock(return_value=[])
-    ts.get_recent_errors = AsyncMock(return_value=[])
     ts.get_slow_handlers = AsyncMock(return_value=[])
     ts.get_session_list = AsyncMock(return_value=[])
     ts.check_health = AsyncMock(return_value=None)
-    ts.get_activity_feed = AsyncMock(return_value=[])
-    ts.get_activity_buckets = AsyncMock(return_value=[(0, 0)] * 12)
     ts.get_per_app_activity_buckets = AsyncMock(return_value={})
     ts.get_per_app_last_errors = AsyncMock(return_value={})
     ts.get_recent_invocations_1h_all_apps = AsyncMock(return_value={})

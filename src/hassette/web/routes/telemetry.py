@@ -12,12 +12,9 @@ from logging import getLogger
 from fastapi import APIRouter, Path, Query, Response
 
 from hassette.core.telemetry_models import (
-    ActivityFeedEntry,
     AppHealthSummary,
     AppLastError,
-    HandlerErrorRecord,
     HandlerInvocation,
-    JobErrorRecord,
     JobExecution,
     JobSummary,
 )
@@ -29,11 +26,6 @@ from hassette.web.models import (
     AppHealthResponse,
     DashboardAppGridEntry,
     DashboardAppGridResponse,
-    DashboardErrorsResponse,
-    DashboardKpisResponse,
-    FrameworkSummaryResponse,
-    HandlerErrorEntry,
-    JobErrorEntry,
     ListenerWithSummary,
     TelemetryStatusResponse,
 )
@@ -52,8 +44,6 @@ DB_ERRORS: tuple[type[Exception], ...] = (sqlite3.Error, OSError, ValueError)
 Includes ``ValueError`` because aiosqlite raises it for closed-connection
 errors during shutdown.  All three types are suppressed uniformly — a degraded
 response is always preferable to an unhandled 500."""
-
-_ERROR_WINDOW_SECONDS = 86400
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 
@@ -279,127 +269,7 @@ async def job_executions(
         return []
 
 
-def _compute_runs_per_hour(
-    total_invocations: int,
-    total_executions: int,
-    since: float | None,
-) -> float | None:
-    """Compute runs per hour from total counts and a time window.
-
-    Returns None when:
-    - ``since`` is not provided (no time window defined)
-    - The window is less than 1 minute (would produce a misleading rate)
-    """
-    if since is None:
-        return None
-    window_seconds = time.time() - since
-    window_hours = window_seconds / 3600.0
-    min_window_hours = 1.0 / 60.0  # 1 minute
-    if window_hours < min_window_hours:
-        return None
-    total = total_invocations + total_executions
-    return total / window_hours
-
-
 _NUM_SPARKLINE_BUCKETS = 12
-
-
-@router.get("/dashboard/kpis", response_model=DashboardKpisResponse)
-async def dashboard_kpis(
-    runtime: RuntimeDep,
-    telemetry: TelemetryDep,
-    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
-) -> DashboardKpisResponse:
-    """Global KPI metrics for the dashboard strip."""
-    effective_tier = source_tier if source_tier is not None else "all"
-    try:
-        summary = await telemetry.get_global_summary(since=since, source_tier=effective_tier)
-    except DB_ERRORS:
-        LOGGER.warning("Failed to fetch global summary for dashboard KPIs", exc_info=True)
-        status = runtime.get_system_status()
-        return DashboardKpisResponse(
-            total_handlers=0,
-            total_jobs=0,
-            total_invocations=0,
-            total_executions=0,
-            total_errors=0,
-            total_timed_out=0,
-            total_job_errors=0,
-            total_job_timed_out=0,
-            avg_handler_duration_ms=0.0,
-            avg_job_duration_ms=0.0,
-            error_rate=0.0,
-            error_rate_class=classify_error_rate(0.0),
-            uptime_seconds=status.uptime_seconds,
-        )
-
-    error_rate = compute_error_rate(
-        total_invocations=summary.listeners.total_invocations,
-        total_executions=summary.jobs.total_executions,
-        handler_errors=summary.listeners.total_errors + summary.listeners.total_timed_out,
-        job_errors=summary.jobs.total_errors + summary.jobs.total_timed_out,
-    )
-
-    status = runtime.get_system_status()
-
-    runs_per_hour = _compute_runs_per_hour(
-        total_invocations=summary.listeners.total_invocations,
-        total_executions=summary.jobs.total_executions,
-        since=since,
-    )
-
-    # Compute sparkline buckets when a time window is given
-    activity_buckets: list[ActivityBucket] = []
-    if since is not None:
-        try:
-            raw_buckets = await telemetry.get_activity_buckets(
-                since=since,
-                now=time.time(),
-                num_buckets=_NUM_SPARKLINE_BUCKETS,
-                source_tier=effective_tier,
-            )
-            activity_buckets = [ActivityBucket(ok=ok, err=err) for ok, err in raw_buckets]
-        except DB_ERRORS:
-            LOGGER.warning("Failed to fetch activity buckets for dashboard KPIs", exc_info=True)
-
-    return DashboardKpisResponse(
-        total_handlers=summary.listeners.total_listeners,
-        total_jobs=summary.jobs.total_jobs,
-        total_invocations=summary.listeners.total_invocations,
-        total_executions=summary.jobs.total_executions,
-        total_errors=summary.listeners.total_errors,
-        total_timed_out=summary.listeners.total_timed_out,
-        total_job_errors=summary.jobs.total_errors,
-        total_job_timed_out=summary.jobs.total_timed_out,
-        avg_handler_duration_ms=summary.listeners.avg_duration_ms or 0.0,
-        avg_job_duration_ms=summary.jobs.avg_duration_ms or 0.0,
-        error_rate=error_rate,
-        error_rate_class=classify_error_rate(error_rate),
-        uptime_seconds=status.uptime_seconds,
-        runs_per_hour=runs_per_hour,
-        activity_buckets=activity_buckets,
-    )
-
-
-@router.get("/dashboard/activity", response_model=list[ActivityFeedEntry])
-async def dashboard_activity(
-    telemetry: TelemetryDep,
-    limit: int = Query(default=20, ge=1, le=200),  # pyright: ignore[reportCallInDefaultInitializer]
-    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
-) -> list[ActivityFeedEntry]:
-    """Recent cross-app activity feed (handler invocations + job executions), sorted by timestamp descending."""
-    effective_tier = source_tier if source_tier is not None else "app"
-    try:
-        return await telemetry.get_activity_feed(
-            limit=limit,
-            since=since,
-            source_tier=effective_tier,
-        )
-    except DB_ERRORS:
-        LOGGER.warning("Failed to fetch activity feed for dashboard", exc_info=True)
-        return []
 
 
 @router.get("/dashboard/app-grid", response_model=DashboardAppGridResponse)
@@ -482,82 +352,3 @@ async def dashboard_app_grid(
         )
 
     return DashboardAppGridResponse(apps=entries)
-
-
-@router.get("/dashboard/errors", response_model=DashboardErrorsResponse)
-async def dashboard_errors(
-    telemetry: TelemetryDep,
-    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
-) -> DashboardErrorsResponse:
-    """Recent errors for the dashboard error feed."""
-    effective_tier = source_tier if source_tier is not None else "all"
-    since_ts = since if since is not None else time.time() - _ERROR_WINDOW_SECONDS
-    try:
-        raw_errors = await telemetry.get_recent_errors(
-            since_ts=since_ts,
-            limit=10,
-            source_tier=effective_tier,
-        )
-    except DB_ERRORS:
-        LOGGER.warning("Failed to fetch recent errors for dashboard", exc_info=True)
-        return DashboardErrorsResponse(errors=[])
-
-    typed_errors: list[HandlerErrorEntry | JobErrorEntry] = []
-    for err in raw_errors:
-        if isinstance(err, JobErrorRecord):
-            typed_errors.append(
-                JobErrorEntry(
-                    job_id=err.job_id,
-                    job_name=err.job_name,
-                    error_message=err.error_message,
-                    error_type=err.error_type,
-                    execution_start_ts=err.execution_start_ts,
-                    app_key=err.app_key,
-                    source_tier=err.source_tier,
-                    error_traceback=err.error_traceback,
-                    source_location=err.source_location,
-                )
-            )
-        elif isinstance(err, HandlerErrorRecord):
-            typed_errors.append(
-                HandlerErrorEntry(
-                    listener_id=err.listener_id,
-                    topic=err.topic,
-                    handler_method=err.handler_method,
-                    error_message=err.error_message,
-                    error_type=err.error_type,
-                    execution_start_ts=err.execution_start_ts,
-                    app_key=err.app_key,
-                    source_tier=err.source_tier,
-                    error_traceback=err.error_traceback,
-                    source_location=err.source_location,
-                )
-            )
-
-    return DashboardErrorsResponse(errors=typed_errors)
-
-
-@router.get("/dashboard/framework-summary", response_model=FrameworkSummaryResponse)
-async def dashboard_framework_summary(
-    telemetry: TelemetryDep,
-) -> FrameworkSummaryResponse:
-    """Framework error counts for the System Health badge.
-
-    Always scoped to the last 24 hours.
-    """
-    total_errors = 0
-    total_job_errors = 0
-
-    try:
-        total_errors, total_job_errors = await telemetry.get_error_counts(
-            since_ts=time.time() - _ERROR_WINDOW_SECONDS,
-            source_tier="framework",
-        )
-    except DB_ERRORS:
-        LOGGER.warning("Failed to fetch framework error counts for badge", exc_info=True)
-
-    return FrameworkSummaryResponse(
-        total_errors=total_errors,
-        total_job_errors=total_job_errors,
-    )

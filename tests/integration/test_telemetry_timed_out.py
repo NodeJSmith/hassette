@@ -187,29 +187,6 @@ class TestJobSummaryTimedOut:
         assert s.timed_out == 1
 
 
-class TestGlobalSummaryTimedOut:
-    async def test_global_summary_separates_timed_out_from_errors(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """Verify timed_out is counted separately from errors in global summary."""
-        db_svc, session_id = db
-        lid = await _insert_listener(db_svc)
-        jid = await _insert_job(db_svc)
-
-        await _insert_invocation(db_svc, lid, session_id, status="success")
-        await _insert_invocation(db_svc, lid, session_id, status="timed_out")
-        await _insert_execution(db_svc, jid, session_id, status="error")
-        await _insert_execution(db_svc, jid, session_id, status="timed_out")
-
-        summary = await svc.get_global_summary()
-        assert summary.listeners.total_errors == 0
-        assert summary.listeners.total_timed_out == 1
-        assert summary.jobs.total_errors == 1
-        assert summary.jobs.total_timed_out == 1
-
-
 class TestErrorRateIncludesTimedOut:
     async def test_error_rate_includes_timed_out_as_failure(
         self,
@@ -237,44 +214,3 @@ class TestErrorRateIncludesTimedOut:
 
         # Combined: 6 total, 3 failures (1 error + 1 timed_out handler + 1 timed_out job) = 50%
         assert metrics["error_rate"] == pytest.approx(50.0)
-
-
-class TestErrorCountsIncludeTimedOut:
-    async def test_error_counts_include_timed_out(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """Verify get_error_counts includes timed_out records."""
-        db_svc, session_id = db
-        lid = await _insert_listener(db_svc)
-        jid = await _insert_job(db_svc)
-
-        since_ts = time.time() - 1
-        await _insert_invocation(db_svc, lid, session_id, status="error")
-        await _insert_invocation(db_svc, lid, session_id, status="timed_out")
-        await _insert_invocation(db_svc, lid, session_id, status="success")
-        await _insert_execution(db_svc, jid, session_id, status="timed_out")
-
-        handler_errors, job_errors = await svc.get_error_counts(since_ts)
-        assert handler_errors == 2  # error + timed_out
-        assert job_errors == 1  # timed_out
-
-
-class TestRecentErrorsIncludeTimedOut:
-    async def test_recent_errors_include_timed_out(
-        self,
-        svc: TelemetryQueryService,
-        db: tuple[DatabaseService, int],
-    ) -> None:
-        """Verify get_recent_errors returns timed_out records."""
-        db_svc, session_id = db
-        lid = await _insert_listener(db_svc)
-
-        since_ts = time.time() - 1
-        await _insert_invocation(db_svc, lid, session_id, status="success")
-        await _insert_invocation(db_svc, lid, session_id, status="timed_out")
-
-        errors = await svc.get_recent_errors(since_ts)
-        assert len(errors) == 1
-        assert errors[0].kind == "handler"

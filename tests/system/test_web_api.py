@@ -68,7 +68,7 @@ async def test_config_endpoint(ha_container: str, tmp_path) -> None:
 
 
 async def test_telemetry_after_activity(ha_container: str, tmp_path) -> None:
-    """After a bus handler fires, GET /api/telemetry/dashboard/kpis shows non-zero invocation count."""
+    """After a bus handler fires, GET /api/telemetry/dashboard/app-grid shows non-zero invocation count."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         await wait_for_web_server(base_url)
@@ -79,10 +79,13 @@ async def test_telemetry_after_activity(ha_container: str, tmp_path) -> None:
         async with httpx.AsyncClient() as client:
 
             async def _has_invocations() -> bool:
-                r = await client.get(f"{base_url}/api/telemetry/dashboard/kpis", timeout=5.0)
-                return r.status_code == 200 and r.json().get("total_invocations", 0) > 0
+                r = await client.get(f"{base_url}/api/telemetry/dashboard/app-grid", timeout=5.0)
+                if r.status_code != 200:
+                    return False
+                apps = r.json().get("apps", [])
+                return any(app.get("total_invocations", 0) > 0 for app in apps)
 
-            await wait_for(_has_invocations, timeout=20.0, interval=0.3, desc="telemetry KPIs to show invocations")
+            await wait_for(_has_invocations, timeout=20.0, interval=0.3, desc="telemetry app-grid to show invocations")
 
 
 async def test_websocket_receives_events(ha_container: str, tmp_path) -> None:

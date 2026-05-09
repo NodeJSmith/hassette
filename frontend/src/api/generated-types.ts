@@ -362,46 +362,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/telemetry/dashboard/kpis": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Dashboard Kpis
-         * @description Global KPI metrics for the dashboard strip.
-         */
-        get: operations["dashboard_kpis_api_telemetry_dashboard_kpis_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/telemetry/dashboard/activity": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Dashboard Activity
-         * @description Recent cross-app activity feed (handler invocations + job executions), sorted by timestamp descending.
-         */
-        get: operations["dashboard_activity_api_telemetry_dashboard_activity_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/telemetry/dashboard/app-grid": {
         parameters: {
             query?: never;
@@ -417,48 +377,6 @@ export interface paths {
          *     not the manifest-driven app grid.
          */
         get: operations["dashboard_app_grid_api_telemetry_dashboard_app_grid_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/telemetry/dashboard/errors": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Dashboard Errors
-         * @description Recent errors for the dashboard error feed.
-         */
-        get: operations["dashboard_errors_api_telemetry_dashboard_errors_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/telemetry/dashboard/framework-summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Dashboard Framework Summary
-         * @description Framework error counts for the System Health badge.
-         *
-         *     Always scoped to the last 24 hours.
-         */
-        get: operations["dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -518,29 +436,6 @@ export interface components {
             ok: number;
             /** Err */
             err: number;
-        };
-        /**
-         * ActivityFeedEntry
-         * @description A single activity entry for the cross-app recent activity feed.
-         */
-        ActivityFeedEntry: {
-            /** Status */
-            status: string;
-            /** Timestamp */
-            timestamp: number;
-            /** App Key */
-            app_key: string;
-            /** Handler Name */
-            handler_name: string;
-            /** Duration Ms */
-            duration_ms?: number | null;
-            /** Error Type */
-            error_type?: string | null;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "handler" | "job";
         };
         /**
          * AppConfigResponse
@@ -905,101 +800,10 @@ export interface components {
             /** Apps */
             apps: components["schemas"]["DashboardAppGridEntry"][];
         };
-        /**
-         * DashboardErrorsResponse
-         * @description Recent errors for the dashboard error feed.
-         */
-        DashboardErrorsResponse: {
-            /** Errors */
-            errors: (components["schemas"]["HandlerErrorEntry"] | components["schemas"]["JobErrorEntry"])[];
-        };
-        /**
-         * DashboardKpisResponse
-         * @description Global KPI metrics for the dashboard strip.
-         */
-        DashboardKpisResponse: {
-            /** Total Handlers */
-            total_handlers: number;
-            /** Total Jobs */
-            total_jobs: number;
-            /** Total Invocations */
-            total_invocations: number;
-            /** Total Executions */
-            total_executions: number;
-            /** Total Errors */
-            total_errors: number;
-            /** Total Timed Out */
-            total_timed_out: number;
-            /** Total Job Errors */
-            total_job_errors: number;
-            /** Total Job Timed Out */
-            total_job_timed_out: number;
-            /** Avg Handler Duration Ms */
-            avg_handler_duration_ms: number;
-            /** Avg Job Duration Ms */
-            avg_job_duration_ms: number;
-            /** Error Rate */
-            error_rate: number;
-            /** Error Rate Class */
-            error_rate_class: string;
-            /** Uptime Seconds */
-            uptime_seconds?: number | null;
-            /** Runs Per Hour */
-            runs_per_hour?: number | null;
-            /** Activity Buckets */
-            activity_buckets?: components["schemas"]["ActivityBucket"][];
-        };
-        /**
-         * FrameworkSummaryResponse
-         * @description Framework KPI counts for the System Health badge.
-         *
-         *     Note: total_errors and total_job_errors include timed_out status.
-         *     get_error_counts() returns combined counts; splitting would require
-         *     a separate query path.
-         */
-        FrameworkSummaryResponse: {
-            /** Total Errors */
-            total_errors: number;
-            /** Total Job Errors */
-            total_job_errors: number;
-        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
-        };
-        /** HandlerErrorEntry */
-        HandlerErrorEntry: {
-            /**
-             * Kind
-             * @default handler
-             * @constant
-             */
-            kind: "handler";
-            /** Listener Id */
-            listener_id: number | null;
-            /** Topic */
-            topic: string | null;
-            /** Handler Method */
-            handler_method: string | null;
-            /** Error Message */
-            error_message: string | null;
-            /** Error Type */
-            error_type: string | null;
-            /** Execution Start Ts */
-            execution_start_ts: number;
-            /** App Key */
-            app_key: string | null;
-            /**
-             * Source Tier
-             * @default app
-             * @enum {string}
-             */
-            source_tier: "app" | "framework";
-            /** Error Traceback */
-            error_traceback?: string | null;
-            /** Source Location */
-            source_location?: string | null;
         };
         /**
          * HandlerInvocation
@@ -1030,37 +834,6 @@ export interface components {
             trigger_context_id?: string | null;
             /** Trigger Origin */
             trigger_origin?: string | null;
-        };
-        /** JobErrorEntry */
-        JobErrorEntry: {
-            /**
-             * Kind
-             * @default job
-             * @constant
-             */
-            kind: "job";
-            /** Job Id */
-            job_id: number | null;
-            /** Job Name */
-            job_name: string | null;
-            /** Error Message */
-            error_message: string | null;
-            /** Error Type */
-            error_type: string | null;
-            /** Execution Start Ts */
-            execution_start_ts: number;
-            /** App Key */
-            app_key: string | null;
-            /**
-             * Source Tier
-             * @default app
-             * @enum {string}
-             */
-            source_tier: "app" | "framework";
-            /** Error Traceback */
-            error_traceback?: string | null;
-            /** Source Location */
-            source_location?: string | null;
         };
         /**
          * JobExecution
@@ -1972,73 +1745,6 @@ export interface operations {
             };
         };
     };
-    dashboard_kpis_api_telemetry_dashboard_kpis_get: {
-        parameters: {
-            query?: {
-                since?: number | null;
-                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-                source_tier?: ("app" | "framework" | "all") | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DashboardKpisResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    dashboard_activity_api_telemetry_dashboard_activity_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-                since?: number | null;
-                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-                source_tier?: ("app" | "framework" | "all") | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ActivityFeedEntry"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     dashboard_app_grid_api_telemetry_dashboard_app_grid_get: {
         parameters: {
             query?: {
@@ -2066,59 +1772,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    dashboard_errors_api_telemetry_dashboard_errors_get: {
-        parameters: {
-            query?: {
-                since?: number | null;
-                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-                source_tier?: ("app" | "framework" | "all") | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DashboardErrorsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FrameworkSummaryResponse"];
                 };
             };
         };
