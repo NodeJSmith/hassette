@@ -1228,6 +1228,10 @@ strong {
   border-top-color: var(--line-1);
 }
 
+.ht-card--compact {
+  padding: var(--sp-3);
+}
+
 .ht-error-page { text-align: center; padding: var(--sp-10); }
 .ht-error-card { padding: var(--sp-6); text-align: center; }
 
@@ -2512,39 +2516,7 @@ strong {
 }
 
 /* — Log Table ————————————————————————————————————————— */
-.ht-log-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-3);
-  flex-wrap: wrap;
-}
-
-.ht-log-toolbar__title {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-3);
-}
-
-.ht-log-toolbar__heading {
-  font-family: var(--font-display);
-  font-size: var(--fs-h3);
-  font-weight: 400;
-  margin: 0;
-}
-
-.ht-log-toolbar__note {
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-}
-
-.ht-log-toolbar__controls {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  flex-wrap: wrap;
-}
+/* (ht-log-toolbar removed — migrated to ht-table-toolbar) */
 
 /* Pill filter controls */
 .ht-pill {
@@ -2689,17 +2661,17 @@ strong {
   .ht-table-log { font-size: var(--fs-micro); }
   .ht-table-log .ht-text-mono { font-size: var(--fs-micro); }
 
-  .ht-log-toolbar {
+  .ht-table-toolbar {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .ht-log-toolbar__controls {
+  .ht-table-toolbar__controls {
     flex-wrap: wrap;
     gap: var(--sp-2);
   }
 
-  .ht-log-toolbar__controls .ht-search {
+  .ht-table-toolbar__controls .ht-search {
     width: 100%;
     min-width: unset;
   }
@@ -3161,13 +3133,49 @@ strong {
   outline: none;
 }
 
-/* Table card */
-.ht-handlers-table-card {
-  overflow: hidden;
+/* — Table toolbar (shared by handlers, logs) ———————————— */
+.ht-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  flex-wrap: wrap;
 }
 
-.ht-handlers-table-wrap {
-  overflow-x: auto;
+.ht-table-toolbar__title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+
+.ht-table-toolbar__heading {
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  font-weight: 400;
+  margin: 0;
+}
+
+.ht-table-toolbar__note {
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+}
+
+.ht-table-toolbar__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+/* Table card + scroll */
+.ht-handlers-card {
+  flex: 1;
+}
+
+.ht-handlers-scroll {
+  overflow: auto;
+  max-height: var(--handlers-scroll-height, calc(100vh - 310px));
 }
 
 .ht-handlers-table td {
@@ -4403,7 +4411,6 @@ strong {
 
 .ht-card--logs-full {
   flex: 1;
-  padding: var(--sp-3);
 }
 
 /* Make log scroll fill available vertical space on the Logs page */

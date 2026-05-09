@@ -252,12 +252,12 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
 
   return (
     <div class="ht-log-table-container" ref={tableContainerRef}>
-      <div class="ht-log-toolbar">
-        <div class="ht-log-toolbar__title">
-          {!hideTitle && <h2 class="ht-log-toolbar__heading">logs</h2>}
-          <span class="ht-log-toolbar__note" aria-live="polite">{pluralize(filtered.length, "entry", "entries")}</span>
+      <div class="ht-table-toolbar">
+        <div class="ht-table-toolbar__title">
+          {!hideTitle && <h2 class="ht-table-toolbar__heading">logs</h2>}
+          <span class="ht-table-toolbar__note" aria-live="polite">{pluralize(filtered.length, "entry", "entries")}</span>
         </div>
-        <div class="ht-log-toolbar__controls">
+        <div class="ht-table-toolbar__controls">
           {!appKey && (
             <TierToolbar
               tierFilter={tierFilter.value}

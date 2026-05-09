@@ -1138,7 +1138,7 @@ describe("Mobile responsive rendering", () => {
       <LogTable />,
       { wrapper: createWrapper(state) },
     );
-    expect(container.querySelector("h2.ht-log-toolbar__heading")).not.toBeNull();
+    expect(container.querySelector("h2.ht-table-toolbar__heading")).not.toBeNull();
   });
 
   it("hides the logs heading when hideTitle is true", () => {
@@ -1146,6 +1146,6 @@ describe("Mobile responsive rendering", () => {
       <LogTable hideTitle />,
       { wrapper: createWrapper(state) },
     );
-    expect(container.querySelector("h2.ht-log-toolbar__heading")).toBeNull();
+    expect(container.querySelector("h2.ht-table-toolbar__heading")).toBeNull();
   });
 });

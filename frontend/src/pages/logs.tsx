@@ -13,7 +13,7 @@ export function LogsPage() {
       <div class="ht-page-header">
         <h1 class="ht-display">logs</h1>
       </div>
-      <div class="ht-card ht-card--logs-full">
+      <div class="ht-card ht-card--compact ht-card--logs-full">
         <LogTable showAppColumn={true} appKeys={appKeys} hideTitle />
       </div>
     </div>

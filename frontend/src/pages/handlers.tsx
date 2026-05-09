@@ -9,7 +9,7 @@ import { EmptyState } from "../components/shared/empty-state";
 import { SortHeader, type SortState } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { TierToolbar } from "../components/shared/tier-toolbar";
-import { formatRelativeTime, formatDurationOrDash, formatOptionalDuration } from "../utils/format";
+import { formatRelativeTime, formatDurationOrDash, formatOptionalDuration, pluralize } from "../utils/format";
 
 // ---- Formatting helpers ----
 
@@ -195,7 +195,7 @@ function HandlersTable({ listeners, sort, onSort }: HandlersTableProps) {
   }
 
   return (
-    <div class="ht-handlers-table-wrap" data-testid="handlers-table-container">
+    <div data-testid="handlers-table-container">
       <table class="ht-table ht-handlers-table">
         <thead>
           <tr>
@@ -303,7 +303,7 @@ function JobsTable({ jobs, sort, onSort }: JobsTableProps) {
   }
 
   return (
-    <div class="ht-handlers-table-wrap" data-testid="jobs-table-container">
+    <div data-testid="jobs-table-container">
       <table class="ht-table ht-handlers-table">
         <thead>
           <tr>
@@ -472,35 +472,62 @@ export function HandlersPage() {
         </button>
       </div>
 
-      {/* Toolbar */}
-      <TierToolbar
-        tierFilter={tierFilter}
-        onTierChange={setTierFilter}
-        appKeys={appKeys}
-        selectedApp={selectedApp}
-        onAppChange={setSelectedApp}
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search..."
-        testIdPrefix={activeTab === "handlers" ? "handlers" : "jobs"}
-      />
-
       {/* Content */}
       {activeTab === "handlers" ? (
-        <div role="tabpanel" id="tabpanel-handlers" aria-labelledby="tab-handlers" class="ht-card ht-handlers-table-card">
-          <HandlersTable
-            listeners={sortedListeners}
-            sort={handlerSort}
-            onSort={setHandlerSort}
-          />
+        <div role="tabpanel" id="tabpanel-handlers" aria-labelledby="tab-handlers" class="ht-card ht-card--compact ht-handlers-card">
+          <div class="ht-table-toolbar">
+            <div class="ht-table-toolbar__title">
+              <span class="ht-table-toolbar__note" aria-live="polite">{pluralize(sortedListeners.length, "handler")}</span>
+            </div>
+            <div class="ht-table-toolbar__controls">
+              <TierToolbar
+                tierFilter={tierFilter}
+                onTierChange={setTierFilter}
+                appKeys={appKeys}
+                selectedApp={selectedApp}
+                onAppChange={setSelectedApp}
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder="Search..."
+                testIdPrefix="handlers"
+              />
+            </div>
+          </div>
+          <div class="ht-handlers-scroll">
+            <HandlersTable
+              listeners={sortedListeners}
+              sort={handlerSort}
+              onSort={setHandlerSort}
+            />
+          </div>
         </div>
       ) : (
-        <div role="tabpanel" id="tabpanel-jobs" aria-labelledby="tab-jobs" class="ht-card ht-handlers-table-card">
-          <JobsTable
-            jobs={sortedJobs}
-            sort={jobSort}
-            onSort={setJobSort}
-          />
+        <div role="tabpanel" id="tabpanel-jobs" aria-labelledby="tab-jobs" class="ht-card ht-card--compact ht-handlers-card">
+          <div class="ht-table-toolbar">
+            <div class="ht-table-toolbar__title">
+              <span class="ht-table-toolbar__note" aria-live="polite">{pluralize(sortedJobs.length, "job")}</span>
+            </div>
+            <div class="ht-table-toolbar__controls">
+              <TierToolbar
+                tierFilter={tierFilter}
+                onTierChange={setTierFilter}
+                appKeys={appKeys}
+                selectedApp={selectedApp}
+                onAppChange={setSelectedApp}
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder="Search..."
+                testIdPrefix="jobs"
+              />
+            </div>
+          </div>
+          <div class="ht-handlers-scroll">
+            <JobsTable
+              jobs={sortedJobs}
+              sort={jobSort}
+              onSort={setJobSort}
+            />
+          </div>
         </div>
       )}
     </div>
