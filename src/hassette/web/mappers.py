@@ -149,7 +149,10 @@ _TOPIC_KIND_MAP: dict[str, str] = {
 
 
 def _listener_kind_from_topic(topic: str) -> str:
-    return _TOPIC_KIND_MAP.get(topic, "event")
+    for prefix, kind in _TOPIC_KIND_MAP.items():
+        if topic.startswith(prefix):
+            return kind
+    return "event"
 
 
 def to_listener_with_summary(ls: ListenerSummary) -> ListenerWithSummary:

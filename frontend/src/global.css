@@ -3182,6 +3182,9 @@ strong {
   background: color-mix(in srgb, var(--err-bg) 70%, var(--bg-active));
 }
 
+.ht-handlers-row--muted {
+  opacity: 0.6;
+}
 
 /* — Mobile card layout (handlers + jobs on small screens) ————————— */
 .ht-mobile-cards {
@@ -3924,6 +3927,18 @@ strong {
   color: var(--ink-3);
   background: var(--bg-sunken);
   border: 1px solid var(--line-1);
+}
+
+.ht-chip--muted {
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+}
+
+.ht-chip--sm {
+  font-size: 10px;
+  padding: 1px var(--sp-1);
 }
 
 .ht-chip--origin {
