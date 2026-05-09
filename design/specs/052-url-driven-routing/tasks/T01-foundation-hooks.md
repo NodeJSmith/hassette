@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add useQueryParams hook, correctUrl utility, and effectiveTimePreset signal"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#14", "FR#16", "FR#8", "FR#10", "AC#9", "AC#13", "AC#14"]
 ---

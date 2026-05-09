@@ -1,4 +1,4 @@
-import { batch, signal, type Signal } from "@preact/signals";
+import { batch, computed, signal, type Signal } from "@preact/signals";
 import { RingBuffer } from "../utils/ring-buffer";
 import { getStoredValue } from "../utils/local-storage";
 import { isTheme } from "../utils/theme";
@@ -9,8 +9,8 @@ export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "di
 /** Time-window presets for telemetry queries. */
 export type TimePreset = "since-restart" | "1h" | "24h" | "7d";
 
-/** Type guard for TimePreset values stored in localStorage. */
-function isTimePreset(v: unknown): v is TimePreset {
+/** Type guard for TimePreset values (localStorage and URL ?window= param). */
+export function isTimePreset(v: unknown): v is TimePreset {
   return v === "since-restart" || v === "1h" || v === "24h" || v === "7d";
 }
 
@@ -71,6 +71,22 @@ export function createAppState() {
   /** Server-side log level update callback; wired by useWebSocket after connect. */
   let _updateLogSubscription: (level: string) => void = () => {};
 
+  // Pre-create signals that are referenced by computed values.
+  const timePreset = signal<TimePreset>(
+    getStoredValue<TimePreset>("timePreset", "since-restart", isTimePreset)
+  );
+  const urlWindowParam = signal<TimePreset | null>(null);
+
+  /**
+   * Effective time-window preset: URL `?window=` override takes priority over
+   * the localStorage-backed `timePreset` when set. Falls back to `timePreset`
+   * when `urlWindowParam` is null.
+   *
+   * `useScopedApi` reads this instead of `timePreset` directly so that URL
+   * overrides reach the data layer without writing to localStorage.
+   */
+  const effectiveTimePreset = computed<TimePreset>(() => urlWindowParam.value ?? timePreset.value);
+
   return {
     /**
      * Per-app status keyed by app_key, updated via WS.
@@ -109,9 +125,24 @@ export function createAppState() {
      * "since-restart" uses uptime_seconds from the WS connected message as the window boundary.
      * Persisted to localStorage.
      */
-    timePreset: signal<TimePreset>(
-      getStoredValue<TimePreset>("timePreset", "since-restart", isTimePreset)
-    ),
+    timePreset,
+
+    /**
+     * Page-scoped URL time window override. Written by pages when a `?window=`
+     * query parameter is present. Not persisted to localStorage.
+     *
+     * Null when no URL override is active (falls back to `timePreset`).
+     * Pages set this on mount when they detect a `?window=` param, and clear it
+     * (or leave it) on navigation away.
+     */
+    urlWindowParam,
+
+    /**
+     * Effective time-window preset: URL `?window=` override takes priority.
+     * Falls back to `timePreset` (localStorage-backed) when `urlWindowParam` is null.
+     * Read by `useScopedApi` instead of `timePreset` directly.
+     */
+    effectiveTimePreset,
 
     /**
      * Server uptime in seconds, received from the WS connected message.

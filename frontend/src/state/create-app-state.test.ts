@@ -61,6 +61,57 @@ describe("createAppState", () => {
     expect(state.executionCompleted.value).toBeNull();
   });
 
+  it("has urlWindowParam signal defaulting to null", () => {
+    const state = createAppState();
+    expect(state.urlWindowParam.value).toBeNull();
+  });
+
+  it("effectiveTimePreset falls back to timePreset when urlWindowParam is null", () => {
+    const state = createAppState();
+    state.timePreset.value = "24h";
+    state.urlWindowParam.value = null;
+    expect(state.effectiveTimePreset.value).toBe("24h");
+  });
+
+  it("effectiveTimePreset returns urlWindowParam when set", () => {
+    const state = createAppState();
+    state.timePreset.value = "since-restart";
+    state.urlWindowParam.value = "7d";
+    expect(state.effectiveTimePreset.value).toBe("7d");
+  });
+
+  it("effectiveTimePreset updates reactively when urlWindowParam changes", () => {
+    const state = createAppState();
+    state.timePreset.value = "1h";
+
+    expect(state.effectiveTimePreset.value).toBe("1h");
+
+    state.urlWindowParam.value = "24h";
+    expect(state.effectiveTimePreset.value).toBe("24h");
+
+    state.urlWindowParam.value = null;
+    expect(state.effectiveTimePreset.value).toBe("1h");
+  });
+
+  it("writing to urlWindowParam does not affect timePreset (no localStorage write)", () => {
+    const state = createAppState();
+    const initialTimePreset = state.timePreset.value;
+
+    state.urlWindowParam.value = "7d";
+
+    // timePreset is unchanged — urlWindowParam is page-scoped, not persisted
+    expect(state.timePreset.value).toBe(initialTimePreset);
+  });
+
+  it("urlWindowParam and effectiveTimePreset are independent across instances", () => {
+    const a = createAppState();
+    const b = createAppState();
+
+    a.urlWindowParam.value = "7d";
+    expect(b.urlWindowParam.value).toBeNull();
+    expect(b.effectiveTimePreset.value).toBe("since-restart");
+  });
+
   it("timePreset and uptimeSeconds are independent across instances", () => {
     const a = createAppState();
     const b = createAppState();

@@ -129,8 +129,8 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
     { deps: [listener.listener_id] },
   );
 
-  const { invocationCompleted, timePreset } = useAppState();
-  const timeLabel = TIME_PRESET_LABELS[timePreset.value] ?? "";
+  const { invocationCompleted, effectiveTimePreset } = useAppState();
+  const timeLabel = TIME_PRESET_LABELS[effectiveTimePreset.value] ?? "";
 
   // Targeted real-time refetch when a matching invocation_completed event arrives
   useDebouncedEffect(
@@ -244,8 +244,8 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
     { deps: [job.job_id] },
   );
 
-  const { executionCompleted, timePreset: jobTimePreset } = useAppState();
-  const jobTimeLabel = TIME_PRESET_LABELS[jobTimePreset.value] ?? "";
+  const { executionCompleted, effectiveTimePreset: jobEffectivePreset } = useAppState();
+  const jobTimeLabel = TIME_PRESET_LABELS[jobEffectivePreset.value] ?? "";
 
   // Targeted real-time refetch when a matching execution_completed event arrives
   useDebouncedEffect(
@@ -370,7 +370,7 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
 }
 
 export function HandlersTab({ listeners, jobs, focusMethod, onSwitchToCode }: Props) {
-  const { timePreset } = useAppState();
+  const { effectiveTimePreset } = useAppState();
   // useRef(signal(...)).current — stable signal that survives re-renders without triggering them
   const selectedId = useRef(signal<SelectedHandlerId | null>(null)).current;
   // Mobile mode: show detail instead of list
@@ -438,7 +438,7 @@ export function HandlersTab({ listeners, jobs, focusMethod, onSwitchToCode }: Pr
   return (
     <div class="ht-handlers-tab" ref={containerRef}>
       {/* Health strip — above master/detail layout */}
-      <HandlersHealthStrip listeners={listeners} jobs={jobs} timeLabel={TIME_PRESET_LABELS[timePreset.value] ?? ""} />
+      <HandlersHealthStrip listeners={listeners} jobs={jobs} timeLabel={TIME_PRESET_LABELS[effectiveTimePreset.value] ?? ""} />
 
       {/* Mobile: back button in detail view */}
       {showMobileDetail && (

@@ -288,6 +288,101 @@ describe("useScopedApi", () => {
     expect(result.current.loading.value).toBe(false);
   });
 
+  it("uses effectiveTimePreset (urlWindowParam overrides timePreset)", async () => {
+    const state = createAppState();
+    state.timePreset.value = "1h";
+    state.urlWindowParam.value = "7d";
+    state.uptimeSeconds.value = 7200;
+
+    const fetcher = vi.fn().mockResolvedValue("data");
+    const expectedSince = nowSeconds() - 604800; // 7d window
+
+    renderHook(() => useScopedApi(fetcher), {
+      wrapper: createWrapper(state),
+    });
+
+    await vi.waitFor(() => {
+      expect(fetcher).toHaveBeenCalled();
+    });
+
+    expect(fetcher).toHaveBeenCalledWith(expectedSince);
+  });
+
+  it("falls back to timePreset when urlWindowParam is null", async () => {
+    const state = createAppState();
+    state.timePreset.value = "24h";
+    state.urlWindowParam.value = null;
+    state.uptimeSeconds.value = 7200;
+
+    const fetcher = vi.fn().mockResolvedValue("data");
+    const expectedSince = nowSeconds() - 86400; // 24h window
+
+    renderHook(() => useScopedApi(fetcher), {
+      wrapper: createWrapper(state),
+    });
+
+    await vi.waitFor(() => {
+      expect(fetcher).toHaveBeenCalled();
+    });
+
+    expect(fetcher).toHaveBeenCalledWith(expectedSince);
+  });
+
+  it("refetches when urlWindowParam changes (URL override)", async () => {
+    const state = createAppState();
+    state.timePreset.value = "1h";
+    state.urlWindowParam.value = null;
+    state.uptimeSeconds.value = 7200;
+
+    const fetcher = vi.fn().mockResolvedValue("data");
+
+    renderHook(() => useScopedApi(fetcher), {
+      wrapper: createWrapper(state),
+    });
+
+    await vi.waitFor(() => {
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+
+    const expectedSince = nowSeconds() - 604800;
+    act(() => {
+      state.urlWindowParam.value = "7d";
+    });
+
+    await vi.waitFor(() => {
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    });
+
+    expect(fetcher).toHaveBeenLastCalledWith(expectedSince);
+  });
+
+  it("does not refetch when timePreset changes while urlWindowParam is overriding", async () => {
+    const state = createAppState();
+    state.timePreset.value = "1h";
+    state.urlWindowParam.value = "7d";
+    state.uptimeSeconds.value = 7200;
+
+    const fetcher = vi.fn().mockResolvedValue("data");
+
+    renderHook(() => useScopedApi(fetcher), {
+      wrapper: createWrapper(state),
+    });
+
+    await vi.waitFor(() => {
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      state.timePreset.value = "24h";
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("preserves lazy mode", async () => {
     const state = createAppState();
     state.uptimeSeconds.value = 120;

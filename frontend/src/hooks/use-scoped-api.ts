@@ -9,8 +9,9 @@
  * not yet received), the hook returns a loading state without firing any
  * fetch. This prevents the first fetch from firing with `since=NaN`.
  *
- * Changes to `timePreset` or `uptimeSeconds` automatically trigger a
- * refetch by including their values in the deps array.
+ * Changes to `effectiveTimePreset` (URL override or localStorage-backed global
+ * preference) or `uptimeSeconds` automatically trigger a refetch by including
+ * their values in the deps array.
  */
 
 import { useRef } from "preact/hooks";
@@ -57,9 +58,9 @@ export function useScopedApi<T>(
   options: UseScopedApiOptions = {},
 ): UseApiResult<T> {
   const { deps: extraDeps = [], ...apiOptions } = options;
-  const { timePreset, uptimeSeconds } = useAppState();
+  const { effectiveTimePreset, uptimeSeconds } = useAppState();
 
-  const preset = timePreset.value;
+  const preset = effectiveTimePreset.value;
   const uptime = uptimeSeconds.value;
   const since = resolveSince(preset, uptime);
 
