@@ -25,11 +25,11 @@ interface PaletteItem {
 function buildStaticPageItems(navigate: (path: string) => void): PaletteItem[] {
   return [
     {
-      id: "page-overview",
+      id: "page-apps",
       kind: "page",
-      label: "Overview",
-      sub: "/",
-      action: () => navigate("/"),
+      label: "Apps",
+      sub: "/apps",
+      action: () => navigate("/apps"),
     },
     {
       id: "page-handlers",

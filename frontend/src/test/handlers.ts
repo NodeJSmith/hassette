@@ -18,10 +18,7 @@ type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
 type HandlerInvocation = components["schemas"]["HandlerInvocation"];
 type JobExecution = components["schemas"]["JobExecution"];
-type DashboardKpisResponse = components["schemas"]["DashboardKpisResponse"];
 type DashboardAppGridResponse = components["schemas"]["DashboardAppGridResponse"];
-type DashboardErrorsResponse = components["schemas"]["DashboardErrorsResponse"];
-type FrameworkSummaryResponse = components["schemas"]["FrameworkSummaryResponse"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
 type ActionResponse = components["schemas"]["ActionResponse"];
@@ -102,41 +99,9 @@ export const handlers = [
     return HttpResponse.json<JobExecution[]>([]);
   }),
 
-  // GET /api/telemetry/dashboard/kpis
-  http.get("/api/telemetry/dashboard/kpis", () => {
-    return HttpResponse.json<DashboardKpisResponse>({
-      total_handlers: 0,
-      total_jobs: 0,
-      total_invocations: 0,
-      total_executions: 0,
-      total_errors: 0,
-      total_timed_out: 0,
-      total_job_errors: 0,
-      total_job_timed_out: 0,
-      avg_handler_duration_ms: 0,
-      avg_job_duration_ms: 0,
-      error_rate: 0,
-      error_rate_class: "good",
-      uptime_seconds: null,
-    });
-  }),
-
   // GET /api/telemetry/dashboard/app-grid
   http.get("/api/telemetry/dashboard/app-grid", () => {
     return HttpResponse.json<DashboardAppGridResponse>({ apps: [] });
-  }),
-
-  // GET /api/telemetry/dashboard/errors
-  http.get("/api/telemetry/dashboard/errors", () => {
-    return HttpResponse.json<DashboardErrorsResponse>({ errors: [] });
-  }),
-
-  // GET /api/telemetry/dashboard/framework-summary
-  http.get("/api/telemetry/dashboard/framework-summary", () => {
-    return HttpResponse.json<FrameworkSummaryResponse>({
-      total_errors: 0,
-      total_job_errors: 0,
-    });
   }),
 
   // GET /api/telemetry/status

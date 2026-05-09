@@ -19,9 +19,6 @@ type DashboardAppGridEntry = components["schemas"]["DashboardAppGridEntry"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
 type AppHealthResponse = components["schemas"]["AppHealthResponse"];
-type DashboardKpisResponse = components["schemas"]["DashboardKpisResponse"];
-type HandlerErrorEntry = components["schemas"]["HandlerErrorEntry"];
-type JobErrorEntry = components["schemas"]["JobErrorEntry"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type AppInstanceResponse = components["schemas"]["AppInstanceResponse"];
@@ -190,56 +187,6 @@ export function createHealthData(overrides: Partial<AppHealthResponse> = {}): Ap
     health_status: "good",
     ...overrides,
   } satisfies AppHealthResponse;
-}
-
-export function createKpis(overrides: Partial<DashboardKpisResponse> = {}): DashboardKpisResponse {
-  return {
-    total_handlers: 0,
-    total_jobs: 0,
-    total_invocations: 0,
-    total_executions: 0,
-    total_errors: 0,
-    total_timed_out: 0,
-    total_job_errors: 0,
-    total_job_timed_out: 0,
-    avg_handler_duration_ms: 0,
-    avg_job_duration_ms: 0,
-    error_rate: 0,
-    error_rate_class: "good",
-    uptime_seconds: null,
-    ...overrides,
-  } satisfies DashboardKpisResponse;
-}
-
-export function createHandlerError(overrides: Partial<HandlerErrorEntry> = {}): HandlerErrorEntry {
-  return {
-    kind: "handler",
-    listener_id: 42,
-    topic: "state_changed",
-    handler_method: "on_light_change",
-    error_message: "something broke",
-    error_type: "ValueError",
-    execution_start_ts: 1700000000,
-    app_key: "test_app",
-    source_tier: "app",
-    error_traceback: null,
-    ...overrides,
-  } satisfies HandlerErrorEntry;
-}
-
-export function createJobError(overrides: Partial<JobErrorEntry> = {}): JobErrorEntry {
-  return {
-    kind: "job",
-    job_id: 7,
-    job_name: "cleanup",
-    error_message: "something broke",
-    error_type: "ValueError",
-    execution_start_ts: 1700000000,
-    app_key: "test_app",
-    source_tier: "app",
-    error_traceback: null,
-    ...overrides,
-  } satisfies JobErrorEntry;
 }
 
 export function createLogEntry(overrides: Partial<LogEntryResponse> = {}): LogEntryResponse {

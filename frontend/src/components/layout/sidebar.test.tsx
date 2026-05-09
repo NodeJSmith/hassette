@@ -50,7 +50,7 @@ describe("Sidebar — structure", () => {
   it("renders a brand link to home", () => {
     const { getByLabelText } = renderWithAppState(<Sidebar />);
     const brandLink = getByLabelText("Hassette home");
-    expect(brandLink.getAttribute("href")).toBe("/");
+    expect(brandLink.getAttribute("href")).toBe("/apps");
   });
 
   it("renders the Cmd-K button", () => {
@@ -70,11 +70,16 @@ describe("Sidebar — structure", () => {
 });
 
 describe("Sidebar — nav items", () => {
-  it("renders Overview nav link to /", () => {
+  it("renders Apps nav link to /apps as first item", () => {
     const { getByTestId } = renderWithAppState(<Sidebar />);
-    const link = getByTestId("nav-overview");
-    expect(link.getAttribute("href")).toBe("/");
-    expect(link.textContent).toBe("overview");
+    const link = getByTestId("nav-apps");
+    expect(link.getAttribute("href")).toBe("/apps");
+    expect(link.textContent).toBe("apps");
+  });
+
+  it("does not render an overview nav link", () => {
+    const { container } = renderWithAppState(<Sidebar />);
+    expect(container.querySelector("[data-testid='nav-overview']")).toBeNull();
   });
 
   it("renders Logs nav link to /logs", () => {
@@ -91,10 +96,10 @@ describe("Sidebar — nav items", () => {
     expect(link.textContent).toBe("config");
   });
 
-  it("applies is-active to Overview when at root", () => {
-    useLocation.mockReturnValue(["/", vi.fn()]);
+  it("applies is-active to Apps when at /apps", () => {
+    useLocation.mockReturnValue(["/apps", vi.fn()]);
     const { getByTestId } = renderWithAppState(<Sidebar />);
-    expect(getByTestId("nav-overview").className).toContain("is-active");
+    expect(getByTestId("nav-apps").className).toContain("is-active");
     expect(getByTestId("nav-logs").className).not.toContain("is-active");
   });
 
@@ -102,27 +107,27 @@ describe("Sidebar — nav items", () => {
     useLocation.mockReturnValue(["/logs", vi.fn()]);
     const { getByTestId } = renderWithAppState(<Sidebar />);
     expect(getByTestId("nav-logs").className).toContain("is-active");
-    expect(getByTestId("nav-overview").className).not.toContain("is-active");
+    expect(getByTestId("nav-apps").className).not.toContain("is-active");
   });
 
   it("applies is-active to Config when at /config", () => {
     useLocation.mockReturnValue(["/config", vi.fn()]);
     const { getByTestId } = renderWithAppState(<Sidebar />);
     expect(getByTestId("nav-config").className).toContain("is-active");
-    expect(getByTestId("nav-overview").className).not.toContain("is-active");
+    expect(getByTestId("nav-apps").className).not.toContain("is-active");
   });
 
   it("active nav item has aria-current=page", () => {
     useLocation.mockReturnValue(["/logs", vi.fn()]);
     const { getByTestId } = renderWithAppState(<Sidebar />);
     expect(getByTestId("nav-logs").getAttribute("aria-current")).toBe("page");
-    expect(getByTestId("nav-overview").getAttribute("aria-current")).toBeNull();
+    expect(getByTestId("nav-apps").getAttribute("aria-current")).toBeNull();
   });
 
-  it("Overview is not active on /apps", () => {
-    useLocation.mockReturnValue(["/apps", vi.fn()]);
+  it("Apps nav is not active on /logs", () => {
+    useLocation.mockReturnValue(["/logs", vi.fn()]);
     const { getByTestId } = renderWithAppState(<Sidebar />);
-    expect(getByTestId("nav-overview").className).not.toContain("is-active");
+    expect(getByTestId("nav-apps").className).not.toContain("is-active");
   });
 });
 

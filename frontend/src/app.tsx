@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { Route, Switch, useLocation } from "wouter";
+import { Redirect, Route, Switch, useLocation } from "wouter";
 import { getManifests } from "./api/endpoints";
 import { AlertBanner } from "./components/layout/alert-banner";
 import { CommandPalette } from "./components/layout/command-palette";
@@ -12,7 +12,6 @@ import { useWebSocket } from "./hooks/use-websocket";
 import { AppDetailPage } from "./pages/app-detail";
 import { AppsPage } from "./pages/apps";
 import { ConfigPage } from "./pages/config";
-import { DashboardPage } from "./pages/dashboard";
 import { DiagnosticsPage } from "./pages/diagnostics";
 import { HandlersPage } from "./pages/handlers";
 import { LogsPage } from "./pages/logs";
@@ -111,7 +110,7 @@ export function App() {
           <FailedAppsAlert />
           <ErrorBoundary resetKey={location}>
             <Switch>
-              <Route path="/" component={DashboardPage} />
+              <Route path="/"><Redirect to="/apps" /></Route>
               <Route path="/apps" component={AppsPage} />
               <Route path="/apps/:key/:index">{(params: { key: string; index: string }) => <AppDetailPage params={params} />}</Route>
               <Route path="/apps/:key">{(params: { key: string }) => <AppDetailPage params={params} />}</Route>

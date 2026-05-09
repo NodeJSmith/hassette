@@ -95,7 +95,6 @@ function getGroupKey(manifest: AppManifest): GroupKey {
 // ──────────────────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
-  { path: "/", label: "overview", testId: "nav-overview" },
   { path: "/apps", label: "apps", testId: "nav-apps" },
   { path: "/handlers", label: "handlers", testId: "nav-handlers" },
   { path: "/logs", label: "logs", testId: "nav-logs" },
@@ -285,7 +284,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
     <aside class="ht-sidebar">
       {/* Wordmark */}
       <div class="ht-sidebar-brand">
-        <Link href="/" class="ht-brand-link" aria-label="Hassette home">
+        <Link href="/apps" class="ht-brand-link" aria-label="Hassette home">
           <span class="ht-wordmark">hassette</span>
         </Link>
         {version !== null && (
@@ -311,8 +310,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
       <nav aria-label="Main navigation">
         <ul class="ht-nav-list">
           {NAV_ITEMS.map((item) => {
-            const isActive =
-              item.path === "/" ? location === "/" : location.startsWith(item.path);
+            const isActive = location.startsWith(item.path);
             return (
               <li key={item.path}>
                 <Link

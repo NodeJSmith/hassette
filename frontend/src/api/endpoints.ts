@@ -10,11 +10,7 @@ export type AppInstance = components["schemas"]["AppInstanceResponse"];
 export type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
 export type AppHealthData = components["schemas"]["AppHealthResponse"];
 export type ListenerData = components["schemas"]["ListenerWithSummary"];
-export type DashboardKpis = components["schemas"]["DashboardKpisResponse"];
 export type DashboardAppGridEntry = components["schemas"]["DashboardAppGridEntry"];
-export type HandlerErrorEntry = components["schemas"]["HandlerErrorEntry"];
-export type JobErrorEntry = components["schemas"]["JobErrorEntry"];
-export type DashboardErrorEntry = HandlerErrorEntry | JobErrorEntry;
 export type JobData = components["schemas"]["JobSummary"];
 export type HandlerInvocationData = components["schemas"]["HandlerInvocation"];
 export type JobExecutionData = components["schemas"]["JobExecution"];
@@ -65,27 +61,8 @@ export const getHandlerInvocations = (listenerId: number, limit = 50, since?: nu
 export const getJobExecutions = (jobId: number, limit = 50, since?: number | null) =>
   apiFetch<JobExecutionData[]>(buildUrl(`/telemetry/job/${jobId}/executions`, { limit, since }));
 
-export type SourceTier = "app" | "framework" | "all";
-
-export const getDashboardKpis = (since?: number | null, sourceTier?: SourceTier) =>
-  apiFetch<DashboardKpis>(buildUrl("/telemetry/dashboard/kpis", {
-    since,
-    source_tier: sourceTier && sourceTier !== "all" ? sourceTier : undefined,
-  }));
-
 export const getDashboardAppGrid = (since?: number | null) =>
   apiFetch<{ apps: DashboardAppGridEntry[] }>(buildUrl("/telemetry/dashboard/app-grid", { since }));
-
-export type FrameworkSummary = components["schemas"]["FrameworkSummaryResponse"];
-
-export const getFrameworkSummary = (since?: number | null) =>
-  apiFetch<FrameworkSummary>(buildUrl("/telemetry/dashboard/framework-summary", { since }));
-
-export const getDashboardErrors = (since?: number | null, sourceTier?: SourceTier) =>
-  apiFetch<{ errors: DashboardErrorEntry[] }>(buildUrl("/telemetry/dashboard/errors", {
-    since,
-    source_tier: sourceTier && sourceTier !== "all" ? sourceTier : undefined,
-  }));
 
 export const getTelemetryStatus = (signal?: AbortSignal) =>
   apiFetch<TelemetryStatus>("/telemetry/status", signal ? { signal } : undefined);

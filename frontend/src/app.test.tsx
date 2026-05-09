@@ -5,23 +5,19 @@ import { App } from "./app";
 
 // Mock wouter so we control routing without a real browser history
 vi.mock("wouter", () => ({
-  Route: ({ path, component, children }: Record<string, unknown>) => {
-    if (path === "/" && component) {
+  Route: ({ component, children }: Record<string, unknown>) => {
+    if (component) {
       const Component = component as () => preact.JSX.Element;
       return <Component />;
     }
-    if (children && typeof children === "function") return null;
+    if (children) return children as preact.JSX.Element;
     return null;
   },
+  Redirect: () => null,
   Switch: ({ children }: { children: unknown }) => children,
   Link: ({ href, children, class: cls, ...rest }: Record<string, unknown>) =>
     <a href={href as string} class={cls as string} {...rest}>{children as never}</a>,
   useLocation: vi.fn().mockReturnValue(["/", vi.fn()]),
-}));
-
-// Mock page components to keep tests fast
-vi.mock("./pages/dashboard", () => ({
-  DashboardPage: () => <div data-testid="dashboard-page">Dashboard</div>,
 }));
 vi.mock("./pages/apps", () => ({
   AppsPage: () => <div data-testid="apps-page">Apps</div>,
