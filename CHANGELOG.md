@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.0](https://github.com/NodeJSmith/hassette/compare/v0.28.0...v0.29.0) (2026-05-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* state.value for toggle entities (light, switch, fan, etc.) now returns bool instead of str. Code using state.value == "on" must change to state.value is True.
+
+### Features
+
+* lifecycle state machines, connection state, and startup registry validation ([#702](https://github.com/NodeJSmith/hassette/issues/702)) ([99bee24](https://github.com/NodeJSmith/hassette/commit/99bee24b7802e9729cde5d95152f90325784d2cd))
+* one-command visual QA environment with demo apps ([#705](https://github.com/NodeJSmith/hassette/issues/705)) ([30eee72](https://github.com/NodeJSmith/hassette/commit/30eee72d194ad5e38f22a49aed48621f5a785e1d))
+* produce human-readable predicate and handler summary strings ([#700](https://github.com/NodeJSmith/hassette/issues/700)) ([eda2c85](https://github.com/NodeJSmith/hassette/commit/eda2c85f958f632e53327e4db8e0326f9a7c3c7b))
+* surface service readiness (not just status) in the frontend ([#688](https://github.com/NodeJSmith/hassette/issues/688)) ([913c31b](https://github.com/NodeJSmith/hassette/commit/913c31b72ff7df5270cf4bfaa916a1426b206a25))
+
+
+### Bug Fixes
+
+* align state models against HA core entity attributes ([#711](https://github.com/NodeJSmith/hassette/issues/711)) ([b003ec6](https://github.com/NodeJSmith/hassette/commit/b003ec6caa074f5fe04a2ce8c3f9917af5137861))
+* bundle five small-scope issue fixes ([#680](https://github.com/NodeJSmith/hassette/issues/680)) ([4e5ce5a](https://github.com/NodeJSmith/hassette/commit/4e5ce5a08afda69a0ce4a8eefa164873fc819d59))
+* **ws:** add flake8-async hook and fix swallowed CancelledError ([#682](https://github.com/NodeJSmith/hassette/issues/682)) ([03aaf8e](https://github.com/NodeJSmith/hassette/commit/03aaf8ece0ed0d94ebf243546b28eb55d7248e87))
+
+
+### Documentation
+
+* add prior art research for internal event system design ([#683](https://github.com/NodeJSmith/hassette/issues/683)) ([d6bf7b0](https://github.com/NodeJSmith/hassette/commit/d6bf7b0c2d0b83582261e779bbf08ff86a715398))
+* add prior art research on logging patterns ([#696](https://github.com/NodeJSmith/hassette/issues/696)) ([4ee8daf](https://github.com/NodeJSmith/hassette/commit/4ee8dafa7bf2d03639e6a64c245b0b91b81ca520))
+* add prior art research on Python+TS frontend type consistency ([#693](https://github.com/NodeJSmith/hassette/issues/693)) ([3ed9758](https://github.com/NodeJSmith/hassette/commit/3ed9758730e88b6c70824bf7711db53478168496))
+* replace milestones with topic/epic/release label taxonomy ([#689](https://github.com/NodeJSmith/hassette/issues/689)) ([702a2b2](https://github.com/NodeJSmith/hassette/commit/702a2b2de809bedaeab0b4865a07b7b22be2679f))
+
+
+### CI/CD
+
+* add pull_request trigger to tests, lint, and e2e workflows ([#673](https://github.com/NodeJSmith/hassette/issues/673)) ([37cf465](https://github.com/NodeJSmith/hassette/commit/37cf465505d302468e99b5d68ace9242b2acaf21))
+* install fd-find so docker requirements tests run in CI ([#644](https://github.com/NodeJSmith/hassette/issues/644)) ([acab7ba](https://github.com/NodeJSmith/hassette/commit/acab7badea4eef5a29ed619a7191a6c2aefbf256))
+
 ## [0.28.0](https://github.com/NodeJSmith/hassette/compare/v0.27.0...v0.28.0) (2026-05-02)
 
 
