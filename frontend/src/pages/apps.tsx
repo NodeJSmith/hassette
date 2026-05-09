@@ -1,6 +1,7 @@
 import { signal } from "@preact/signals";
-import { useRef, useState } from "preact/hooks";
+import { useRef } from "preact/hooks";
 import { useDocumentTitle } from "../hooks/use-document-title";
+import { useQueryParams } from "../hooks/use-query-params";
 import {
   getManifests,
   getDashboardAppGrid,
@@ -101,8 +102,6 @@ function FilterPills({ counts, active, onChange }: {
     </div>
   );
 }
-
-// ---- Sort header ----
 
 
 
@@ -213,9 +212,23 @@ export function AppsPage() {
   );
 
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
-  const [filter, setFilter] = useState<FilterId>("all");
-  const [sort, setSort] = useState<AppSortState>({ key: "status", dir: "asc" });
-  const [search, setSearch] = useState("");
+  const qp = useQueryParams();
+  const rawFilter = qp.get("filter");
+  const filter: FilterId = rawFilter !== null && (FILTER_OPTIONS as readonly string[]).includes(rawFilter)
+    ? rawFilter as FilterId : "all";
+  const rawSort = qp.get("sort");
+  const rawDir = qp.get("dir");
+  const sort: AppSortState = {
+    key: rawSort !== null && ["name", "status", "error", "runs", "last"].includes(rawSort)
+      ? rawSort as AppSortState["key"] : "status",
+    dir: rawDir === "desc" ? "desc" : "asc",
+  };
+  const search = qp.get("search") ?? "";
+  const handleSort = (newSort: AppSortState) =>
+    qp.set({
+      sort: newSort.key === "status" ? null : newSort.key,
+      dir: newSort.dir === "asc" ? null : newSort.dir,
+    });
   const expanded = useRef(signal<Set<string>>(new Set())).current;
 
   const toggleExpand = (appKey: string) => {
@@ -266,14 +279,14 @@ export function AppsPage() {
       <TableCard
         count={pluralize(filtered.length, "app")}
         controls={<>
-          <FilterPills counts={statusCounts} active={filter} onChange={setFilter} />
+          <FilterPills counts={statusCounts} active={filter} onChange={(newFilter) => qp.set({ filter: newFilter === "all" ? null : newFilter })} />
           <input
             type="text"
             class="ht-search"
             placeholder="search apps…"
             aria-label="Search apps"
             value={search}
-            onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
+            onInput={(e) => qp.set({ search: (e.target as HTMLInputElement).value || null })}
             data-testid="apps-search"
           />
         </>}
@@ -281,18 +294,18 @@ export function AppsPage() {
         {filtered.length === 0 ? (
           <EmptyState title="no apps match this filter.">
             {(filter !== "all" || q) && (
-              <button type="button" class="ht-btn ht-btn--ghost ht-btn--sm" onClick={() => { setFilter("all"); setSearch(""); }}>clear filters</button>
+              <button type="button" class="ht-btn ht-btn--ghost ht-btn--sm" onClick={() => qp.set({ filter: null, search: null })}>clear filters</button>
             )}
           </EmptyState>
         ) : (
           <table class="ht-table ht-apps-table">
             <thead>
               <tr>
-                <SortHeader sort={sort} onSort={setSort} sortKey="name">app</SortHeader>
-                <SortHeader sort={sort} onSort={setSort} sortKey="status">status</SortHeader>
-                <SortHeader sort={sort} onSort={setSort} sortKey="error">last error</SortHeader>
-                <SortHeader sort={sort} onSort={setSort} sortKey="runs">runs</SortHeader>
-                <SortHeader sort={sort} onSort={setSort} sortKey="last">last fired</SortHeader>
+                <SortHeader sort={sort} onSort={handleSort} sortKey="name">app</SortHeader>
+                <SortHeader sort={sort} onSort={handleSort} sortKey="status">status</SortHeader>
+                <SortHeader sort={sort} onSort={handleSort} sortKey="error">last error</SortHeader>
+                <SortHeader sort={sort} onSort={handleSort} sortKey="runs">runs</SortHeader>
+                <SortHeader sort={sort} onSort={handleSort} sortKey="last">last fired</SortHeader>
                 <th scope="col">actions</th>
               </tr>
             </thead>

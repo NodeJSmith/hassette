@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Wire query params into AppsPage"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#4", "FR#12", "AC#6"]
 ---
