@@ -9,20 +9,19 @@ from tests.e2e.conftest import DESKTOP_VIEWPORT, MOBILE_VIEWPORT
 
 pytestmark = pytest.mark.e2e
 
-# Nav items in the new sidebar: Overview, Apps, Logs, Config
+# Nav items in the new sidebar: Apps, Logs, Config (overview removed)
 PAGES = [
-    ("/", "Everything's running smoothly", "App Health"),
     ("/apps", "apps", "apps"),
     ("/logs", None, None),
     ("/config", "Configuration", "Configuration"),
 ]
 
 
-def test_root_loads_dashboard(page: Page, base_url: str) -> None:
-    """/ routes to the overview/dashboard page."""
+def test_root_redirects_to_apps(page: Page, base_url: str) -> None:
+    """/ redirects to /apps."""
     page.goto(base_url + "/")
     page.wait_for_load_state("networkidle")
-    expect(page.locator("body")).to_contain_text("App Health")
+    expect(page).to_have_url(re.compile(r"/apps"))
 
 
 def test_logs_page_loads(page: Page, base_url: str) -> None:
@@ -39,9 +38,8 @@ def test_config_page_loads(page: Page, base_url: str) -> None:
 # Sidebar nav items
 # ──────────────────────────────────────────────────────────────────────
 
-# Sidebar nav links: Overview, Apps, Logs, Config
+# Sidebar nav links: Apps, Logs, Config (overview removed in T01)
 SIDEBAR_LINKS = [
-    ("nav-overview", "/", "App Health"),
     ("nav-apps", "/apps", "apps"),
     ("nav-logs", "/logs", "logs"),
     ("nav-config", "/config", "Configuration"),
@@ -49,8 +47,8 @@ SIDEBAR_LINKS = [
 
 
 def test_sidebar_renders_nav_items(page: Page, base_url: str) -> None:
-    """All 4 top-level nav links are present with correct testids."""
-    page.goto(base_url + "/")
+    """All top-level nav links are present with correct testids."""
+    page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
     for testid, _, _ in SIDEBAR_LINKS:
         expect(page.locator(f'[data-testid="{testid}"]')).to_be_visible()
@@ -63,7 +61,7 @@ def test_sidebar_renders_nav_items(page: Page, base_url: str) -> None:
 )
 def test_sidebar_navigation(page: Page, base_url: str, testid: str, expected_path: str, expected_content: str) -> None:
     """Clicking a nav item navigates to the correct page."""
-    page.goto(base_url + "/")
+    page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
     page.locator(f'[data-testid="{testid}"]').click()
     expect(page).to_have_url(re.compile(re.escape(expected_path)))
@@ -72,7 +70,7 @@ def test_sidebar_navigation(page: Page, base_url: str, testid: str, expected_pat
 
 # Map pages to the active nav item testid
 SIDEBAR_ACTIVE = [
-    ("/", "nav-overview"),
+    ("/apps", "nav-apps"),
     ("/logs", "nav-logs"),
     ("/config", "nav-config"),
 ]
@@ -94,16 +92,16 @@ def test_sidebar_active_state(page: Page, base_url: str, path: str, testid: str)
 def test_sidebar_visible_on_desktop(page: Page, base_url: str) -> None:
     """Sidebar renders on desktop viewport."""
     page.set_viewport_size(DESKTOP_VIEWPORT)
-    page.goto(base_url + "/")
+    page.goto(base_url + "/apps")
     sidebar = page.locator(".ht-sidebar")
     expect(sidebar).to_be_visible()
 
 
-def test_brand_link_navigates_to_dashboard(page: Page, base_url: str) -> None:
+def test_brand_link_navigates_to_apps(page: Page, base_url: str) -> None:
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/logs")
     page.locator(".ht-brand-link").click()
-    expect(page).to_have_url(re.compile(r"/$"))
+    expect(page).to_have_url(re.compile(r"/apps"))
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -114,7 +112,7 @@ def test_brand_link_navigates_to_dashboard(page: Page, base_url: str) -> None:
 def test_mobile_sidebar_hidden(page: Page, base_url: str) -> None:
     """Desktop sidebar is hidden on mobile viewports."""
     page.set_viewport_size(MOBILE_VIEWPORT)
-    page.goto(base_url + "/")
+    page.goto(base_url + "/apps")
     sidebar = page.locator(".ht-layout > .ht-sidebar")
     expect(sidebar).not_to_be_visible()
 
@@ -122,7 +120,7 @@ def test_mobile_sidebar_hidden(page: Page, base_url: str) -> None:
 def test_mobile_hamburger_opens_drawer(page: Page, base_url: str) -> None:
     """Hamburger button is visible on mobile and opens the off-canvas drawer."""
     page.set_viewport_size(MOBILE_VIEWPORT)
-    page.goto(base_url + "/")
+    page.goto(base_url + "/apps")
     hamburger = page.locator(".ht-hamburger")
     expect(hamburger).to_be_visible()
     hamburger.click()
@@ -133,7 +131,7 @@ def test_mobile_hamburger_opens_drawer(page: Page, base_url: str) -> None:
 def test_mobile_drawer_closes_on_backdrop_click(page: Page, base_url: str) -> None:
     """Off-canvas drawer closes when backdrop is clicked."""
     page.set_viewport_size(MOBILE_VIEWPORT)
-    page.goto(base_url + "/")
+    page.goto(base_url + "/apps")
     page.locator(".ht-hamburger").click()
     # Drawer is open
     expect(page.locator(".ht-drawer")).to_have_class(re.compile(r"\bis-open\b"))
@@ -149,7 +147,7 @@ def test_mobile_drawer_closes_on_backdrop_click(page: Page, base_url: str) -> No
 
 def test_skip_nav_link_exists(page: Page, base_url: str) -> None:
     """Skip-nav link is first focusable element and targets #main-content."""
-    page.goto(base_url + "/")
+    page.goto(base_url + "/apps")
     skip_link = page.locator("a.ht-skip-link")
     expect(skip_link).to_have_attribute("href", "#main-content")
     main = page.locator("main#main-content")
@@ -157,7 +155,7 @@ def test_skip_nav_link_exists(page: Page, base_url: str) -> None:
 
 
 TITLE_MAP = [
-    ("/", "Dashboard - Hassette"),
+    ("/apps", "Apps - Hassette"),
     ("/logs", "Logs - Hassette"),
     ("/config", "Config - Hassette"),
 ]
@@ -181,7 +179,7 @@ def test_page_title_updates_per_route(
 
 def test_sidebar_icons_are_aria_hidden(page: Page, base_url: str) -> None:
     """Decorative SVG icons in sidebar nav have aria-hidden."""
-    page.goto(base_url + "/")
+    page.goto(base_url + "/apps")
     nav_svgs = page.locator("nav[aria-label='Main navigation'] svg")
     for i in range(nav_svgs.count()):
         expect(nav_svgs.nth(i)).to_have_attribute("aria-hidden", "true")
@@ -195,7 +193,7 @@ def test_sidebar_icons_are_aria_hidden(page: Page, base_url: str) -> None:
 def test_sidebar_app_list_renders(page: Page, base_url: str) -> None:
     """Sidebar renders the app list with app names from seed data."""
     page.set_viewport_size(DESKTOP_VIEWPORT)
-    page.goto(base_url + "/")
+    page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
     app_list = page.locator("ul[aria-label='App list']")
     expect(app_list).to_be_visible()
@@ -207,7 +205,7 @@ def test_sidebar_app_list_renders(page: Page, base_url: str) -> None:
 def test_sidebar_app_search_filters(page: Page, base_url: str) -> None:
     """Typing in the sidebar search box filters the app list."""
     page.set_viewport_size(DESKTOP_VIEWPORT)
-    page.goto(base_url + "/")
+    page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
     search = page.locator("input[aria-label='Filter apps']")
     expect(search).to_be_visible()
@@ -222,7 +220,7 @@ def test_sidebar_app_search_filters(page: Page, base_url: str) -> None:
 def test_sidebar_clicking_app_navigates(page: Page, base_url: str) -> None:
     """Clicking an app in the sidebar navigates to its detail page."""
     page.set_viewport_size(DESKTOP_VIEWPORT)
-    page.goto(base_url + "/")
+    page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
     app_list = page.locator("ul[aria-label='App list']")
     app_list.get_by_text("My App").click()
@@ -232,7 +230,7 @@ def test_sidebar_clicking_app_navigates(page: Page, base_url: str) -> None:
 def test_sidebar_multi_instance_expand(page: Page, base_url: str) -> None:
     """Multi-instance apps show an expand button in the sidebar."""
     page.set_viewport_size(DESKTOP_VIEWPORT)
-    page.goto(base_url + "/")
+    page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
     # multi_app has 3 instances — expand button should be visible
     expand_btn = page.get_by_label("Expand Multi App")
@@ -263,13 +261,13 @@ def test_breadcrumb_navigation_on_instance_detail(page: Page, base_url: str) -> 
 
 def test_spa_navigates_without_full_reload(page: Page, base_url: str) -> None:
     """Client-side navigation between pages does not trigger a full page reload."""
-    page.goto(base_url + "/")
+    page.goto(base_url + "/apps")
     page.evaluate("window.__test_marker = true")
     page.locator("[data-testid='nav-logs']").click()
     expect(page.locator("[data-testid='filter-level']")).to_be_visible()
     assert page.evaluate("window.__test_marker") is True
-    page.locator("[data-testid='nav-overview']").click()
-    expect(page.locator("body")).to_contain_text("App Health")
+    page.locator("[data-testid='nav-apps']").click()
+    expect(page.locator("body")).to_contain_text("apps")
     assert page.evaluate("window.__test_marker") is True
 
 

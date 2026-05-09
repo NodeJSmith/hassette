@@ -79,19 +79,18 @@ def test_theme_persistence_survives_reload(page: Page, base_url: str) -> None:
 
 
 def test_both_modes_render_without_layout_breakage(page: Page, base_url: str) -> None:
-    """Both light and dark mode render the dashboard without layout errors.
+    """Both light and dark mode render the apps page without layout errors.
 
-    Verifies that key structural elements (sidebar, KPI strip, app grid) remain
+    Verifies that key structural elements (sidebar, apps page) remain
     visible after switching modes — catches missing token definitions or broken
     selectors that would hide content.
     """
-    page.goto(base_url + "/")
+    page.goto(base_url + "/apps")
     _clear_theme_pref(page)
 
     structural_selectors = [
         ".ht-sidebar",
-        "[data-testid='kpi-strip']",
-        "#dashboard-app-grid",
+        "[data-testid='apps-page']",
     ]
 
     # Verify in light mode (default)

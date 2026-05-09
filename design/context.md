@@ -1,6 +1,6 @@
 ---
 schema_version: 1
-updated_at: 2026-05-05
+updated_at: 2026-05-09
 ---
 
 ## Users & Purpose
@@ -223,39 +223,19 @@ The design system uses unprefixed Ink tokens (no `--ht-*` prefix). Light mode is
 
 ### Layout
 
-**Sidebar** — 240px fixed panel, left side. Text-only nav (overview, apps, logs, config) — no icons. Below the nav: APPS section header with count, search input, then status-grouped app entries (FAILING, BLOCKED, SLOW, RUNNING, STOPPED, DISABLED). Each group is collapsible. App entries show StatusShape + display name + optional auto badge + invocation count. Multi-instance apps have an expand chevron showing individual instances with tree connectors (`└`). Wordmark ("hassette") at top with version and connection status below it. Command palette trigger ("jump to... Ctrl+K") between wordmark and nav.
+**Sidebar** — 240px fixed panel, left side. Text-only nav (apps, logs, config) — no icons. Below the nav: APPS section header with count, search input, then status-grouped app entries (FAILING, BLOCKED, SLOW, RUNNING, STOPPED, DISABLED). Each group is collapsible. App entries show StatusShape + display name + optional auto badge + invocation count. Multi-instance apps have an expand chevron showing individual instances with tree connectors (`└`). Wordmark ("hassette") at top with version and connection status below it. Command palette trigger ("jump to... Ctrl+K") between wordmark and nav.
 
 **Mobile layout** (below 900px) — sidebar hides; hamburger button (top-left, 44px) opens an off-canvas drawer that slides in from the left with the full sidebar content. Backdrop overlay for dismissal. Main content gets top padding to clear the hamburger. The 900px threshold was chosen to eliminate the 769-900px dead zone where the sidebar consumed too much of the viewport. General mobile layout changes (grid stacking, compact tables, touch targets) still trigger at 768px.
 
 **StatusBar** — horizontal bar at top of main content area. Left side: TimePresetSelector (Since restart / 1h / 24h / 7d with uptime label). Right side: WebSocket indicator (pulse dot + label when not connected), telemetry degraded indicator, dropped events indicator, error handler failures indicator, theme toggle (sun/moon icon).
 
-**Command Palette** — modal overlay triggered by Cmd+K / Ctrl+K. Search input with fuzzy matching. Items categorized: pages (overview, logs, config), apps (navigate to app), instances (for multi-instance apps), handlers (navigate to app's handler), actions (reload/stop apps). Each item shows StatusShape, label, sub-label, and optional status. Keyboard navigation with highlighted selection.
+**Command Palette** — modal overlay triggered by Cmd+K / Ctrl+K. Search input with fuzzy matching. Items categorized: pages (apps, logs, config), apps (navigate to app), instances (for multi-instance apps), handlers (navigate to app's handler), actions (reload/stop apps). Each item shows StatusShape, label, sub-label, and optional status. Keyboard navigation with highlighted selection.
 
-### Overview (Dashboard)
-
-**Greeting header** — time-of-day greeting ("Good morning." / "Good afternoon." / "Good evening.") in Newsreader display size. Metadata line showing app count and runs/hr. Subtitle with system state description in plain language.
-
-**System state detection** — five states influence the greeting subtitle and page emphasis:
-- `first_install` — no apps loaded
-- `healthy` — all apps running
-- `quiet` — apps running but zero activity; activity card shows "0 runs / hour" with explanation
-- `single_failure` — one app failing
-- `multiple_failures` — 2+ apps failing
-
-**Stats strip** — 3-cell horizontal strip showing handlers count, invocations count, success rate. Hidden when system is quiet. Mono font for values, micro uppercase for labels.
-
-**Framework error banner** — appears when hassette started with boot issues (errors/warnings). Shows count, top issue label + detail, link to config page.
-
-**Summary cards** — 3-column grid:
-- *Your apps* — list of all apps sorted by activity, each with StatusShape + name + run count. Links to app detail.
-- *Activity* — big number (total runs), time label, sparkline (SVG polyline), ok/err breakdown with StatusShapes.
-- *System* — list of internal services (event stream, database, bus, scheduler, etc.) each with StatusShape + humanized name + status.
-
-**Recent errors table** — card with `--err-bg` top border. Header with tier filter toggle (All / Apps / Framework). Table columns: TIME, APP, LOCATION, EXCEPTION, AGE. Supports stale-data display during refetch (opacity fade). Hidden when no errors.
-
-**Recent activity feed** — receded card showing latest handler invocations. Each row: StatusShape + timestamp + app.handler label + duration or error type. "Quiet hour" empty state when no activity. Link to full log.
+**TelemetryDegradedBanner** — amber warning banner rendered inside the layout shell (`app.tsx`), appearing on all pages when the telemetry database is degraded (queue overflow, backpressure, or unreachable). Reads `telemetryDegraded`, `droppedOverflow`, and `droppedExhausted` signals from `useAppState()`. No props; mounts between `StatusBar` and the page router output.
 
 ### Apps Page
+
+**Default landing page** — `/` redirects to `/apps`. This is the primary entry point for the UI; there is no separate overview or dashboard page.
 
 **Page header** — "apps" in Newsreader h1.
 

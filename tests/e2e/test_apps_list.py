@@ -79,8 +79,8 @@ def test_multi_instance_expand_persists_across_navigation(page: Page, base_url: 
     expect(page.locator("text=MultiApp[1]")).to_be_visible()
     expect(page.locator("text=MultiApp[2]")).to_be_visible()
 
-    # Navigate away (to dashboard)
-    page.goto(base_url + "/")
+    # Navigate away (to logs page)
+    page.goto(base_url + "/logs")
     page.wait_for_timeout(300)
 
     # Navigate back to apps list

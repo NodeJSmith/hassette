@@ -16,9 +16,9 @@ def test_ws_connection_indicator_renders(page: Page, base_url: str) -> None:
     The e2e test server starts with ws='none', so the Preact WS hook
     will fail to connect. The page should still render fully.
     """
-    page.goto(base_url + "/")
+    page.goto(base_url + "/apps")
     # Core page structure should render even without a WS connection
-    expect(page.locator("body")).to_contain_text("App Health")
+    expect(page.locator("[data-testid='apps-page']")).to_be_visible()
 
 
 def test_status_bar_shows_disconnected_state(page: Page, base_url: str) -> None:
@@ -36,17 +36,13 @@ def test_status_bar_shows_disconnected_state(page: Page, base_url: str) -> None:
 # ── SPA renders all pages without WS ─────────────────────────────────
 
 
-def test_dashboard_renders_without_ws(page: Page, base_url: str) -> None:
-    """Dashboard renders app grid and error feed from REST API without WS."""
-    page.goto(base_url + "/")
+def test_apps_page_renders_without_ws(page: Page, base_url: str) -> None:
+    """Apps page renders from REST API without WS."""
+    page.goto(base_url + "/apps")
+    page.wait_for_load_state("networkidle")
 
-    # App grid panel
-    app_grid = page.locator("#dashboard-app-grid")
-    expect(app_grid).to_be_visible()
-
-    # Error feed panel
-    error_feed = page.locator("[data-testid='dashboard-errors']")
-    expect(error_feed).to_be_visible()
+    # Apps page should be visible
+    expect(page.locator("[data-testid='apps-page']")).to_be_visible()
 
 
 def test_app_detail_renders_without_ws(page: Page, base_url: str) -> None:
@@ -93,9 +89,9 @@ def test_websocket_connected_message_has_uptime(page: Page, live_server_ws: str)
 
     Verifies:
     - The status bar transitions to 'Connected' (WS handshake completes)
-    - Dashboard loads data after WS connection establishes uptime_seconds gate
+    - Apps page loads data after WS connection establishes uptime_seconds gate
     """
-    page.goto(live_server_ws + "/")
+    page.goto(live_server_ws + "/apps")
 
     # The status bar should reach 'Connected' once the WS handshake completes
     # and the server sends the 'connected' message with uptime_seconds.
@@ -105,8 +101,8 @@ def test_websocket_connected_message_has_uptime(page: Page, live_server_ws: str)
     expect(ws_indicator.first).to_have_attribute("aria-label", "Connected", timeout=10000)
 
     # After WS connects, useScopedApi unblocks (uptime_seconds gate) and fires
-    # telemetry fetches. Wait for the dashboard to finish loading.
-    expect(page.locator("#dashboard-app-grid")).to_be_visible(timeout=10000)
+    # telemetry fetches. Wait for the apps page to finish loading.
+    expect(page.locator("[data-testid='apps-page']")).to_be_visible(timeout=10000)
 
 
 def test_websocket_no_session_id_in_requests(page: Page, live_server_ws: str) -> None:
@@ -122,12 +118,12 @@ def test_websocket_no_session_id_in_requests(page: Page, live_server_ws: str) ->
             api_requests.append(request.url)
 
     page.on("request", _capture)
-    page.goto(live_server_ws + "/")
+    page.goto(live_server_ws + "/apps")
 
     # Wait for WS to connect and data to load
     ws_indicator = page.locator(".ht-ws-indicator")
     expect(ws_indicator.first).to_have_attribute("aria-label", "Connected", timeout=10000)
-    expect(page.locator("#dashboard-app-grid")).to_be_visible(timeout=10000)
+    expect(page.locator("[data-testid='apps-page']")).to_be_visible(timeout=10000)
 
     # At least one dashboard telemetry request must have been made
     assert len(api_requests) > 0, "No /api/telemetry/ requests were captured"

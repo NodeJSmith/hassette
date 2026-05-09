@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Redirect, Route, Switch, useLocation } from "wouter";
 import { getManifests } from "./api/endpoints";
-import { AlertBanner } from "./components/layout/alert-banner";
+import { AlertBanner, TelemetryDegradedBanner } from "./components/layout/alert-banner";
 import { CommandPalette } from "./components/layout/command-palette";
 import { ErrorBoundary } from "./components/layout/error-boundary";
 import { Sidebar } from "./components/layout/sidebar";
@@ -107,6 +107,7 @@ export function App() {
         <Sidebar onOpenPalette={() => setPaletteOpen(true)} />
         <main class="ht-main" id="main-content" tabIndex={-1}>
           <StatusBar />
+          <TelemetryDegradedBanner />
           <FailedAppsAlert />
           <ErrorBoundary resetKey={location}>
             <Switch>

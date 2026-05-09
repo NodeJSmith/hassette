@@ -43,6 +43,17 @@ vi.mock("./hooks/use-telemetry-health", () => ({
   useTelemetryHealth: vi.fn(),
 }));
 
+// Spy on TelemetryDegradedBanner to verify it is mounted in the layout shell.
+// Component-level signal behaviour is fully tested in alert-banner.test.tsx;
+// here we only care that app.tsx renders the component at all.
+vi.mock("./components/layout/alert-banner", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./components/layout/alert-banner")>();
+  return {
+    ...actual,
+    TelemetryDegradedBanner: () => <div data-testid="telemetry-degraded-banner-slot" />,
+  };
+});
+
 describe("App — layout structure", () => {
   it("renders the ht-layout container", () => {
     const { container } = render(<App />);
@@ -113,5 +124,16 @@ describe("App — hamburger button", () => {
     const btn = container.querySelector(".ht-hamburger")!;
     fireEvent.click(btn);
     expect(btn.getAttribute("aria-expanded")).toBe("true");
+  });
+});
+
+describe("App — TelemetryDegradedBanner in layout shell", () => {
+  it("mounts TelemetryDegradedBanner inside the main content area", () => {
+    const { container } = render(<App />);
+    const main = container.querySelector("main.ht-main");
+    expect(main).not.toBeNull();
+    // The slot element proves app.tsx renders TelemetryDegradedBanner inside main
+    const bannerSlot = main!.querySelector("[data-testid='telemetry-degraded-banner-slot']");
+    expect(bannerSlot).not.toBeNull();
   });
 });
