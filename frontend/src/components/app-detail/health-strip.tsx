@@ -23,45 +23,46 @@ export function HandlersHealthStrip({ listeners, jobs, timeLabel }: HandlersHeal
     : 100;
 
   const hasErrors = totalErrors > 0;
+  const cols = isSmallMobile ? 4 : 5;
 
   return (
-    <div class="ht-health-strip" data-testid="handlers-health-strip">
-      <div class="ht-health-card">
-        <span class="ht-health-card__label">Handlers</span>
-        <span class="ht-health-card__value">{handlerCount + jobCount}</span>
+    <div class="ht-stats-strip" style={`--stats-cols: ${cols}`} data-testid="handlers-health-strip">
+      <div class="ht-stats-strip__cell">
+        <span class="ht-stats-strip__label">Handlers</span>
+        <span class="ht-stats-strip__value">{handlerCount + jobCount}</span>
       </div>
 
-      <div class="ht-health-card">
-        <span class="ht-health-card__label">Invocations{timeLabel ? ` · ${timeLabel}` : ""}</span>
-        <span class="ht-health-card__value">{totalAll}</span>
+      <div class="ht-stats-strip__cell">
+        <span class="ht-stats-strip__label">Invocations{timeLabel ? ` · ${timeLabel}` : ""}</span>
+        <span class="ht-stats-strip__value">{totalAll}</span>
       </div>
 
-      <div class="ht-health-card">
-        <span class="ht-health-card__label">Success Rate</span>
-        <span class={`ht-health-card__value${hasErrors ? " ht-health-card__value--warning" : ""}`}>
+      <div class="ht-stats-strip__cell">
+        <span class="ht-stats-strip__label">Success Rate</span>
+        <span class={`ht-stats-strip__value${hasErrors ? " ht-stats-strip__value--warn" : ""}`}>
           {totalAll > 0 ? `${successRate}%` : "—"}
         </span>
       </div>
 
       {isSmallMobile ? (
-        <div class="ht-health-card">
-          <span class="ht-health-card__label">Errors</span>
-          <span class={`ht-health-card__value${totalErrors > 0 ? " ht-health-card__value--danger" : ""}`}>
+        <div class="ht-stats-strip__cell">
+          <span class="ht-stats-strip__label">Errors</span>
+          <span class={`ht-stats-strip__value${totalErrors > 0 ? " ht-stats-strip__value--err" : ""}`}>
             {totalErrors > 0 ? totalErrors : "—"}
           </span>
         </div>
       ) : (
         <>
-          <div class="ht-health-card">
-            <span class="ht-health-card__label">Failed</span>
-            <span class={`ht-health-card__value${totalFailed > 0 ? " ht-health-card__value--danger" : ""}`}>
+          <div class="ht-stats-strip__cell">
+            <span class="ht-stats-strip__label">Failed</span>
+            <span class={`ht-stats-strip__value${totalFailed > 0 ? " ht-stats-strip__value--err" : ""}`}>
               {totalFailed > 0 ? totalFailed : "—"}
             </span>
           </div>
 
-          <div class="ht-health-card">
-            <span class="ht-health-card__label">Timed Out</span>
-            <span class={`ht-health-card__value${totalTimedOut > 0 ? " ht-health-card__value--warning" : ""}`}>
+          <div class="ht-stats-strip__cell">
+            <span class="ht-stats-strip__label">Timed Out</span>
+            <span class={`ht-stats-strip__value${totalTimedOut > 0 ? " ht-stats-strip__value--warn" : ""}`}>
               {totalTimedOut > 0 ? totalTimedOut : "—"}
             </span>
           </div>

@@ -154,7 +154,7 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
     <div class="ht-detail-pane__content">
       {/* Header: kind badge + name + status pill */}
       <div class="ht-detail-pane__header">
-        <span class={`ht-kind-badge ht-kind-badge--${listenerKind}`} aria-label={`kind: ${kindLabel}`}>
+        <span class={`ht-chip ht-chip--kind ht-chip--kind-${listenerKind}`} aria-label={`kind: ${kindLabel}`}>
           <StatusShape kind={listenerKind} size={8} />
           {kindLabel}
         </span>
@@ -279,7 +279,7 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
     <div class="ht-detail-pane__content">
       {/* Header: kind badge + name + status pill */}
       <div class="ht-detail-pane__header">
-        <span class={`ht-kind-badge ht-kind-badge--${jobKind}`} aria-label={`kind: ${kindLabel}`}>
+        <span class={`ht-chip ht-chip--kind ht-chip--kind-${jobKind}`} aria-label={`kind: ${kindLabel}`}>
           <StatusShape kind={jobKind} size={8} />
           {kindLabel}
         </span>

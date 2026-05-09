@@ -136,7 +136,7 @@ function AppEntry({ manifest, location }: AppEntryProps) {
           <StatusShape kind={kind} size={10} />
           <span class="ht-sidebar__app-name">{manifest.display_name}</span>
           {manifest.auto_loaded && (
-            <span class="ht-sidebar__auto-badge" title="Auto-loaded">auto</span>
+            <span class="ht-chip ht-chip--auto" title="Auto-loaded">auto</span>
           )}
           {invocationCount > 0 && (
             <span class="ht-sidebar__app-count">{invocationCount}</span>

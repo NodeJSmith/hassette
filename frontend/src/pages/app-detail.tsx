@@ -304,7 +304,7 @@ export function AppDetailPage({ params }: Props) {
         )}
         {manifest && manifest.instance_count > 1 && <> &middot; instance {resolvedInstanceIndex}</>}
         {manifest?.auto_loaded && (
-          <> &middot; <span class="ht-badge ht-badge--neutral ht-badge--xs" data-testid="auto-loaded-badge">auto</span></>
+          <> &middot; <span class="ht-chip ht-chip--auto" data-testid="auto-loaded-badge">auto</span></>
         )}
       </p>
 

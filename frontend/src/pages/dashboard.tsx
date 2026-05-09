@@ -50,11 +50,11 @@ function StatsStrip(props: StatsStripProps) {
   ];
 
   return (
-    <div class="ht-overview-stats" data-testid="overview-stats-strip">
+    <div class="ht-stats-strip" data-testid="overview-stats-strip">
       {cells.map((c) => (
-        <div key={c.label} class="ht-overview-stats__cell">
-          <span class="ht-overview-stats__label">{c.label}</span>
-          <span class={`ht-overview-stats__value${c.warn ? " ht-overview-stats__value--warn" : ""}`}>{c.value}</span>
+        <div key={c.label} class="ht-stats-strip__cell">
+          <span class="ht-stats-strip__label">{c.label}</span>
+          <span class={`ht-stats-strip__value${c.warn ? " ht-stats-strip__value--warn" : ""}`}>{c.value}</span>
         </div>
       ))}
     </div>

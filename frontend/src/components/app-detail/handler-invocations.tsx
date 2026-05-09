@@ -72,7 +72,7 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
                     <span class="ht-text-mono ht-text-xs ht-text-muted">—</span>
                   )}
                   {inv.trigger_origin && inv.trigger_origin !== "LOCAL" && (
-                    <span class="ht-inv-origin-chip">{inv.trigger_origin.toLowerCase()}</span>
+                    <span class="ht-chip ht-chip--origin">{inv.trigger_origin.toLowerCase()}</span>
                   )}
                 </td>
                 <td class="ht-text-mono ht-text-xs">{formatDuration(inv.duration_ms)}</td>

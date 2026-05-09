@@ -66,11 +66,11 @@ function StatsStrip({ apps, windowSeconds }: { apps: AppRow[]; windowSeconds: nu
   cells.push({ label: "runs / hr", value: runsPerHour !== null ? runsPerHour.toFixed(1) : "—" });
 
   return (
-    <div class="ht-apps-stats" data-testid="apps-stats-strip">
+    <div class="ht-stats-strip" data-testid="apps-stats-strip">
       {cells.map((c) => (
-        <div key={c.label} class="ht-apps-stats__cell">
-          <span class="ht-apps-stats__label">{c.label}</span>
-          <span class={`ht-apps-stats__value${c.tone ? ` ht-apps-stats__value--${c.tone}` : ""}`}>{c.value}</span>
+        <div key={c.label} class="ht-stats-strip__cell">
+          <span class="ht-stats-strip__label">{c.label}</span>
+          <span class={`ht-stats-strip__value${c.tone ? ` ht-stats-strip__value--${c.tone}` : ""}`}>{c.value}</span>
         </div>
       ))}
     </div>
@@ -145,7 +145,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
           <StatusShape kind={kind} size={7} />
           <AppLink appKey={app.app_key} />
           <span class="ht-apps-row__class-name">{app.class_name}</span>
-          {app.auto_loaded && <span class="ht-apps-row__auto-badge">auto</span>}
+          {app.auto_loaded && <span class="ht-chip ht-chip--auto">auto</span>}
         </td>
         {/* Status */}
         <td>
