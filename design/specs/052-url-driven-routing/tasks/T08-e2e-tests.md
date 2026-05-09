@@ -1,7 +1,7 @@
 ---
 task_id: "T08"
 title: "Update and add e2e tests for URL-driven routing"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03", "T04", "T05", "T06", "T07"]
 implements: ["AC#1", "AC#2", "AC#3", "AC#4", "AC#5", "AC#6", "AC#7", "AC#8", "AC#9", "AC#10", "AC#11", "AC#12", "AC#13", "AC#14"]
 ---

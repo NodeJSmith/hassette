@@ -283,8 +283,8 @@ def test_multi_instance_app_shows_overview(page: Page, base_url: str) -> None:
 
 
 def test_multi_instance_detail_shows_switcher(page: Page, base_url: str) -> None:
-    """Multi-instance detail at /apps/multi_app/0 shows instance switcher."""
-    page.goto(base_url + "/apps/multi_app/0")
+    """Multi-instance detail at /apps/multi_app?instance=0 shows instance switcher."""
+    page.goto(base_url + "/apps/multi_app?instance=0")
     page.wait_for_load_state("networkidle")
     switcher = page.locator("[data-testid='instance-switcher']")
     expect(switcher).to_be_visible()

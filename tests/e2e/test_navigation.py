@@ -243,7 +243,7 @@ def test_sidebar_multi_instance_expand(page: Page, base_url: str) -> None:
 
 def test_breadcrumb_navigation_on_instance_detail(page: Page, base_url: str) -> None:
     """Multi-instance app detail has breadcrumb back to parent overview."""
-    page.goto(base_url + "/apps/multi_app/0")
+    page.goto(base_url + "/apps/multi_app?instance=0")
     page.wait_for_load_state("networkidle")
     breadcrumb = page.locator("nav.ht-breadcrumb")
     expect(breadcrumb).to_be_visible()
