@@ -1,5 +1,5 @@
-import { useState } from "preact/hooks";
 import { useDocumentTitle } from "../hooks/use-document-title";
+import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { getAllListeners, getAllJobs } from "../api/endpoints";
 import type { ListenerData, JobData } from "../api/endpoints";
@@ -169,10 +169,16 @@ function KindBadge({ kind }: { kind: "handler" | "job" }) {
 export function HandlersPage() {
   useDocumentTitle("Handlers");
 
-  const [tierFilter, setTierFilter] = useState<TierFilter>("app");
-  const [selectedApp, setSelectedApp] = useState("");
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<SortState<SortKey>>({ key: "app", dir: "asc" });
+  const qp = useQueryParams();
+
+  // Derive state from URL query params; default values omitted from URL
+  const tierFilter = (qp.get("tier") ?? "app") as TierFilter;
+  const selectedApp = qp.get("app") ?? "";
+  const search = qp.get("search") ?? "";
+  const sort: SortState<SortKey> = {
+    key: (qp.get("sort") ?? "app") as SortKey,
+    dir: (qp.get("dir") ?? "asc") as "asc" | "desc",
+  };
 
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
 
@@ -218,6 +224,13 @@ export function HandlersPage() {
   // Sort
   const sorted = [...filtered].sort((a, b) => compareRows(a, b, sort));
 
+  function onSort(s: SortState<SortKey>) {
+    qp.set({
+      sort: s.key === "app" ? null : s.key,
+      dir: s.dir === "asc" ? null : s.dir,
+    });
+  }
+
   return (
     <div class="ht-page ht-handlers-page" data-testid="handlers-page">
       <div class="ht-page-header">
@@ -233,12 +246,12 @@ export function HandlersPage() {
         controls={
           <TierToolbar
             tierFilter={tierFilter}
-            onTierChange={setTierFilter}
+            onTierChange={(v) => qp.set({ tier: v === "app" ? null : v })}
             appKeys={appKeys}
             selectedApp={selectedApp}
-            onAppChange={setSelectedApp}
+            onAppChange={(v) => qp.set({ app: v || null })}
             search={search}
-            onSearchChange={setSearch}
+            onSearchChange={(v) => qp.set({ search: v || null })}
             searchPlaceholder="Search..."
             testIdPrefix="handlers"
           />
@@ -254,7 +267,7 @@ export function HandlersPage() {
                 return (
                   <MobileCard
                     key={row.id}
-                    href={`/apps/${row.app_key}?focus=${row.handler_method}`}
+                    href={`/apps/${row.app_key}/handlers/${row.id}`}
                     appKey={row.app_key}
                     name={row.name}
                     failing={row.failed > 0}
@@ -280,16 +293,16 @@ export function HandlersPage() {
               <table class="ht-table ht-handlers-table">
                 <thead>
                   <tr>
-                    <SortHeader sort={sort} onSort={setSort} sortKey="kind">type</SortHeader>
-                    <SortHeader sort={sort} onSort={setSort} sortKey="app">app</SortHeader>
-                    <SortHeader sort={sort} onSort={setSort} sortKey="name">name</SortHeader>
-                    <SortHeader sort={sort} onSort={setSort} sortKey="trigger">trigger</SortHeader>
-                    <SortHeader sort={sort} onSort={setSort} sortKey="runs">runs</SortHeader>
-                    <SortHeader sort={sort} onSort={setSort} sortKey="failed">failed</SortHeader>
-                    <SortHeader sort={sort} onSort={setSort} sortKey="timed_out">timed out</SortHeader>
-                    <SortHeader sort={sort} onSort={setSort} sortKey="error_rate">error rate</SortHeader>
-                    <SortHeader sort={sort} onSort={setSort} sortKey="avg_duration">avg</SortHeader>
-                    <SortHeader sort={sort} onSort={setSort} sortKey="next_run">next run</SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="kind">type</SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="app">app</SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="name">name</SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="trigger">trigger</SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="runs">runs</SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="failed">failed</SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="timed_out">timed out</SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="error_rate">error rate</SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="avg_duration">avg</SortHeader>
+                    <SortHeader sort={sort} onSort={onSort} sortKey="next_run">next run</SortHeader>
                   </tr>
                 </thead>
                 <tbody>
@@ -307,7 +320,7 @@ export function HandlersPage() {
                           <AppLink appKey={row.app_key} />
                         </td>
                         <td class="ht-text-mono ht-text-sm">
-                          <AppLink appKey={row.app_key} query={`focus=${row.handler_method}`}>{row.name}</AppLink>
+                          <a href={`/apps/${row.app_key}/handlers/${row.id}`} class="ht-app-link">{row.name}</a>
                         </td>
                         <td class="ht-text-mono ht-text-sm">{row.trigger ?? "—"}</td>
                         <td class="ht-text-mono ht-text-sm">{row.runs}</td>

@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Wire query params into HandlersPage"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#5", "AC#6"]
 ---
