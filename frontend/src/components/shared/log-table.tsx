@@ -373,7 +373,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
                   <span class="ht-log-source__fn">{entry.func_name}() · {entry.logger_name.split(".").pop()}:{entry.lineno}</span>
                 </td>
                 <td
-                  class={`ht-log-message-cell${canExpand ? " is-expandable" : ""}${isExpanded ? " is-expanded" : ""}${isMobile && isExpanded ? " is-mobile-expanded" : ""}`}
+                  class={`ht-log-message-cell${canExpand ? " is-expandable" : ""}${isExpanded ? " is-expanded" : ""}`}
                   {...(canExpand ? { role: "button", tabIndex: 0, "aria-expanded": isExpanded,
                     "aria-label": isExpanded ? "Collapse log message" : "Expand log message" } : {})}
                   onClick={toggle}
@@ -384,21 +384,17 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
                       {showAppColumn && entry.app_key ? `${entry.app_key}.` : ""}{entry.func_name}()
                     </div>
                   )}
-                  {isExpanded && !isMobile ? (
-                    <pre class="ht-log-message__pre">{entry.message}</pre>
-                  ) : (
-                    <div data-row-key={rowKey} class="ht-log-message__text">
-                      {entry.message}
-                    </div>
-                  )}
+                  <div data-row-key={rowKey} class="ht-log-message__text">
+                    {entry.message}
+                  </div>
                 </td>
               </tr>,
               ];
-              if (isMobile && isExpanded) {
+              if (isExpanded) {
                 rows.push(
                   <tr key={`${rowKey}-expanded`} class="ht-log-expanded-row">
                     <td colSpan={colCount} class="ht-log-expanded-cell">
-                      <div class="ht-log-expanded-message">{entry.message}</div>
+                      <pre class="ht-log-expanded-message">{entry.message}</pre>
                     </td>
                   </tr>,
                 );

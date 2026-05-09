@@ -1319,29 +1319,10 @@ strong {
 
 .ht-log-message__text {
   line-height: 1.5;
-  max-height: calc(1.5em * 1); /* 1 line when collapsed */
-  overflow: hidden;
+  max-height: calc(1.5em * 1);
+  overflow: clip;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.ht-log-message__pre {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-all;
-  background: var(--bg-sunken);
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r-sm);
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-/* Mobile: expanded message shown in full-width row below */
-.ht-log-message-cell.is-mobile-expanded .ht-log-message__text {
-  /* Keep collapsed appearance — the full text is in the row below */
 }
 
 .ht-log-expanded-row {
@@ -1353,10 +1334,15 @@ strong {
 }
 
 .ht-log-expanded-message {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
   white-space: pre-wrap;
-  word-break: break-word;
+  word-break: break-all;
+  overflow-wrap: anywhere;
   line-height: 1.5;
-  font-size: var(--fs-small);
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .ht-table--dense th,
@@ -2614,12 +2600,11 @@ strong {
 
 .ht-log-table-scroll {
   max-height: var(--log-scroll-height, 600px);
-  overflow: auto;
-  padding-right: var(--sp-2);
+  overflow-y: auto;
 }
 
 .ht-table-log {
-  table-layout: auto;
+  table-layout: fixed;
   width: 100%;
   font-family: var(--font-mono);
   font-size: var(--fs-mono-md);
@@ -2637,11 +2622,11 @@ strong {
   white-space: nowrap;
 }
 
-.ht-table-log td { padding: var(--sp-2) var(--sp-3); vertical-align: top; }
-.ht-table-log .ht-col-level   { white-space: nowrap; width: 1%; }
-.ht-table-log .ht-col-time    { white-space: nowrap; width: 1%; }
-.ht-table-log .ht-col-app     { white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
-.ht-table-log .ht-col-source  { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.ht-table-log td { padding: var(--sp-2) var(--sp-3); vertical-align: top; overflow: hidden; text-overflow: ellipsis; }
+.ht-table-log .ht-col-level   { white-space: nowrap; width: 80px; }
+.ht-table-log .ht-col-time    { white-space: nowrap; width: 170px; }
+.ht-table-log .ht-col-app     { white-space: nowrap; width: 140px; }
+.ht-table-log .ht-col-source  { width: 200px; }
 /* Message column: no width set — takes all remaining space */
 
 /* Severity row tinting — visible at scroll speed, not just badge-reading speed */
