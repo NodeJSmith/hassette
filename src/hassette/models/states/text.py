@@ -6,7 +6,6 @@ from .base import AttributesBase, StringBaseState
 
 
 class TextAttributes(AttributesBase):
-    editable: bool | None = Field(default=None)
     min: int | float | None = Field(default=None)
     max: int | float | None = Field(default=None)
     pattern: Any | None = Field(default=None)

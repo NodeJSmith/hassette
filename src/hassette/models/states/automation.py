@@ -5,7 +5,7 @@ from whenever import ZonedDateTime
 
 from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
-from .base import AttributesBase, StringBaseState
+from .base import AttributesBase, BoolBaseState
 
 
 class AutomationAttributes(AttributesBase):
@@ -21,7 +21,7 @@ class AutomationAttributes(AttributesBase):
         return convert_datetime_str_to_system_tz(value)
 
 
-class AutomationState(StringBaseState):
+class AutomationState(BoolBaseState):
     """Representation of a Home Assistant automation state.
 
     See: https://www.home-assistant.io/integrations/automation/

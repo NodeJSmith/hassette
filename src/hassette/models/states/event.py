@@ -8,7 +8,6 @@ from .base import AttributesBase, DateTimeBaseState
 class EventAttributes(AttributesBase):
     event_types: list[str] | None = Field(default=None)
     event_type: str | None = Field(default=None)
-    button: str | None = Field(default=None)
 
 
 class EventState(DateTimeBaseState):

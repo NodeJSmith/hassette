@@ -1,9 +1,9 @@
 from typing import Literal
 
-from .base import BoolBaseState, DateTimeBaseState, NumericBaseState, StringBaseState, TimeBaseState
+from .base import BoolBaseState, DateTimeBaseState, NumericBaseState, TimeBaseState
 
 
-class AiTaskState(StringBaseState):
+class AiTaskState(DateTimeBaseState):
     """Representation of a Home Assistant ai_task state.
 
     See: https://www.home-assistant.io/integrations/ai_task/
@@ -12,7 +12,7 @@ class AiTaskState(StringBaseState):
     domain: Literal["ai_task"]
 
 
-class ButtonState(StringBaseState):
+class ButtonState(DateTimeBaseState):
     """Representation of a Home Assistant button state.
 
     See: https://www.home-assistant.io/integrations/button/
@@ -21,7 +21,7 @@ class ButtonState(StringBaseState):
     domain: Literal["button"]
 
 
-class ConversationState(StringBaseState):
+class ConversationState(DateTimeBaseState):
     """Representation of a Home Assistant conversation state.
 
     See: https://www.home-assistant.io/integrations/conversation/
@@ -48,7 +48,7 @@ class DateTimeState(DateTimeBaseState):
     domain: Literal["datetime"]
 
 
-class NotifyState(StringBaseState):
+class NotifyState(DateTimeBaseState):
     """Representation of a Home Assistant notify state.
 
     See: https://www.home-assistant.io/integrations/notify/
@@ -57,7 +57,7 @@ class NotifyState(StringBaseState):
     domain: Literal["notify"]
 
 
-class SttState(StringBaseState):
+class SttState(DateTimeBaseState):
     """Representation of a Home Assistant stt state.
 
     See: https://www.home-assistant.io/integrations/stt/
@@ -66,7 +66,7 @@ class SttState(StringBaseState):
     domain: Literal["stt"]
 
 
-class SwitchState(StringBaseState):
+class SwitchState(BoolBaseState):
     """Representation of a Home Assistant switch state.
 
     See: https://www.home-assistant.io/integrations/switch/
@@ -100,15 +100,6 @@ class TtsState(DateTimeBaseState):
     """
 
     domain: Literal["tts"]
-
-
-class ValveState(StringBaseState):
-    """Representation of a Home Assistant valve state.
-
-    See: https://www.home-assistant.io/integrations/valve/
-    """
-
-    domain: Literal["valve"]
 
 
 class BinarySensorState(BoolBaseState):

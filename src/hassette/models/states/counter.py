@@ -10,7 +10,6 @@ class CounterAttributes(AttributesBase):
     minimum: int | None = Field(default=None)
     maximum: int | None = Field(default=None)
     step: int | None = Field(default=None)
-    restore: bool | None = Field(default=None)
     editable: bool | None = Field(default=None)
 
 

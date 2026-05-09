@@ -7,6 +7,8 @@ from .features import CoverEntityFeature
 
 
 class CoverAttributes(AttributesBase):
+    is_closed: bool | None = Field(default=None)
+
     current_position: int | None = Field(default=None)
     """Current position of the cover (0 = closed, 100 = open)."""
 

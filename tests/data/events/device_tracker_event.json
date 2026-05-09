@@ -11,8 +11,6 @@
                     "source_type": "router",
                     "ip": "192.168.1.245",
                     "mac": "00:11:22:33:44:55",
-                    "last_time_reachable": "2025-06-30T15:14:43-05:00",
-                    "reason": "arp-response",
                     "friendly_name": "TP-Link Technologies 33:44:55"
                 },
                 "last_changed": "2025-06-30T16:42:44.000135+00:00",
@@ -31,8 +29,6 @@
                     "source_type": "router",
                     "ip": "192.168.1.245",
                     "mac": "00:11:22:33:44:55",
-                    "last_time_reachable": "2025-06-30T15:16:43-05:00",
-                    "reason": "arp-response",
                     "friendly_name": "TP-Link Technologies 33:44:55"
                 },
                 "last_changed": "2025-06-30T16:42:44.000135+00:00",

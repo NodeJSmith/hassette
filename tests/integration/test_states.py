@@ -471,7 +471,7 @@ class TestStateManagerGenericAccess:
         assert result is not None
         assert isinstance(result, states.LightState)
         assert result.entity_id == "light.bedroom"
-        assert result.value == "on"
+        assert result.value is True
         assert result.attributes.brightness == 150
 
     async def test_get_unregistered_domain_returns_base_state(

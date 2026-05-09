@@ -8,7 +8,7 @@ from .camera import CameraState
 from .climate import ClimateAttributes, ClimateState
 from .counter import CounterAttributes, CounterState
 from .cover import CoverAttributes, CoverState
-from .device_tracker import DeviceTrackerState
+from .device_tracker import DeviceTrackerAttributes, DeviceTrackerState
 from .event import EventState
 from .fan import FanAttributes, FanState
 from .features import (
@@ -53,7 +53,6 @@ from .simple import (
     TimeState,
     TodoState,
     TtsState,
-    ValveState,
 )
 from .siren import SirenState
 from .sun import SunState
@@ -61,6 +60,7 @@ from .text import TextState
 from .timer import TimerState
 from .update import UpdateState
 from .vacuum import VacuumAttributes, VacuumState
+from .valve import ValveAttributes, ValveState
 from .water_heater import WaterHeaterState
 from .weather import WeatherState
 from .zone import ZoneState
@@ -87,6 +87,7 @@ __all__ = [
     "CoverState",
     "DateState",
     "DateTimeState",
+    "DeviceTrackerAttributes",
     "DeviceTrackerState",
     "EventState",
     "FanAttributes",
@@ -131,6 +132,7 @@ __all__ = [
     "VacuumAttributes",
     "VacuumEntityFeature",
     "VacuumState",
+    "ValveAttributes",
     "ValveState",
     "WaterHeaterState",
     "WeatherState",

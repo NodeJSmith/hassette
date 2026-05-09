@@ -5,7 +5,7 @@ import logging
 import typing
 from importlib import import_module
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -132,3 +132,29 @@ def test_registry_can_convert_all_domains(
         )
 
     logger.info("Registry can successfully look up all %d state classes by domain.", len(all_models))
+
+
+def test_fixture_data_parses_as_registered_state_class(hass_state_dicts: list[dict[str, Any]]):
+    """Every entity in the JSONL fixture must parse as its registered state class.
+
+    Catches bad captured data (e.g. manually-set test values) before it cascades
+    into unrelated test failures.
+    """
+    failures: list[str] = []
+
+    for state_dict in hass_state_dicts:
+        entity_id = state_dict.get("entity_id", "")
+        domain = entity_id.split(".")[0]
+
+        state_cls = STATE_REGISTRY.resolve(domain=domain)
+        if state_cls is None:
+            continue
+
+        try:
+            state_cls.model_validate(state_dict)
+        except Exception as e:
+            failures.append(f"{entity_id}: {e}")
+
+    assert not failures, (
+        f"{len(failures)} fixture entities failed to parse as their registered state class:\n" + "\n".join(failures)
+    )

@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from .base import AttributesBase, StringBaseState
+from .base import AttributesBase, BoolBaseState
 from .features import FanEntityFeature
 
 
@@ -47,7 +47,7 @@ class FanAttributes(AttributesBase):
         return self._has_feature(FanEntityFeature.TURN_ON)
 
 
-class FanState(StringBaseState):
+class FanState(BoolBaseState):
     """Representation of a Home Assistant fan state.
 
     See: https://www.home-assistant.io/integrations/fan/

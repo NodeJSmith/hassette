@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from .base import AttributesBase, StringBaseState
+from .base import AttributesBase, BoolBaseState
 from .features import LightEntityFeature
 
 
@@ -71,7 +71,7 @@ class LightAttributes(AttributesBase):
         return self._has_feature(LightEntityFeature.TRANSITION)
 
 
-class LightState(StringBaseState):
+class LightState(BoolBaseState):
     """Representation of a Home Assistant light state.
 
     See: https://www.home-assistant.io/integrations/light/

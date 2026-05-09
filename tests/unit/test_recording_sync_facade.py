@@ -253,7 +253,7 @@ async def test_sync_get_state_delegates_to_state_proxy():
     api = _make_recording_api(states={"light.kitchen": state_dict})
     result = api.sync.get_state("light.kitchen")
     assert result.entity_id == "light.kitchen"
-    assert result.value == "on"
+    assert result.value is True
 
 
 async def test_sync_get_state_raises_for_unseeded():

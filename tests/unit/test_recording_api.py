@@ -165,7 +165,7 @@ async def test_get_state_delegates_to_state_proxy():
 
     result = await api.get_state("light.kitchen")
     assert result.entity_id == "light.kitchen"
-    assert result.value == "on"
+    assert result.value is True
 
 
 async def test_get_state_raises_entity_not_found():
@@ -545,7 +545,7 @@ async def test_get_entity_or_none_returns_base_entity_subclass():
     assert result is not None
     assert isinstance(result, LightEntity), f"Expected LightEntity instance, got {type(result)}"
     assert result.state.entity_id == "light.kitchen"
-    assert result.state.value == "on"
+    assert result.state.value is True
 
 
 async def test_get_entity_or_none_returns_none_for_missing_entity_with_model():

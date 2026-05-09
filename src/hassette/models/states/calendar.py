@@ -13,7 +13,6 @@ class CalendarAttributes(AttributesBase):
     end_time: Instant | PlainDateTime | ZonedDateTime | None = Field(default=None)
     location: str | None = Field(default=None)
     description: str | None = Field(default=None)
-    offset_reached: bool | None = Field(default=None)
 
 
 class CalendarState(StringBaseState):
