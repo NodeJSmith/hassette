@@ -1,5 +1,6 @@
 import { signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
+import { useLocation } from "wouter";
 import type { ListenerData, JobData } from "../../api/endpoints";
 import { getHandlerInvocations, getJobExecutions } from "../../api/endpoints";
 import { HandlerList, type SelectedHandlerId } from "./handler-list";
@@ -8,6 +9,7 @@ import { JobExecutions } from "./job-executions";
 import { HandlersHealthStrip } from "./health-strip";
 import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useAppState } from "../../state/context";
+import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
 import { formatTriggerDetail, formatDurationOrDash, formatOptionalDuration, formatRelativeTime, lastDotSegment, parseSourceLocation, TIME_PRESET_LABELS } from "../../utils/format";
 
@@ -22,7 +24,10 @@ const MOBILE_BREAKPOINT = 768;
 interface Props {
   listeners: ListenerData[];
   jobs: JobData[];
-  focusMethod: string | null;
+  /** Raw `:handlerId` route parameter, e.g. "h-42" or "j-7". null = no selection. */
+  selectedHandler: string | null;
+  appKey: string;
+  instanceQs: string;
   onSwitchToCode?: (line?: number) => void;
 }
 
@@ -369,15 +374,26 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
   );
 }
 
-export function HandlersTab({ listeners, jobs, focusMethod, onSwitchToCode }: Props) {
+/**
+ * Parse a handler ID param (e.g. "h-42", "j-7") into kind and numeric id.
+ * Returns null if the format is not recognized.
+ */
+function parseHandlerParam(param: string): { kind: "listener" | "job"; id: number } | null {
+  const match = /^([hj])-(\d+)$/.exec(param);
+  if (!match) return null;
+  const id = parseInt(match[2], 10);
+  if (match[1] === "h") return { kind: "listener", id };
+  if (match[1] === "j") return { kind: "job", id };
+  return null;
+}
+
+export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instanceQs, onSwitchToCode }: Props) {
   const { effectiveTimePreset } = useAppState();
-  // useRef(signal(...)).current — stable signal that survives re-renders without triggering them
-  const selectedId = useRef(signal<SelectedHandlerId | null>(null)).current;
-  // Mobile mode: show detail instead of list
-  const showDetail = useRef(signal(false)).current;
+  const [, navigate] = useLocation();
+  const correctUrl = useCorrectUrl();
+
   // Whether we're in mobile layout (< MOBILE_BREAKPOINT px)
   const isMobile = useRef(signal(false)).current;
-
   const containerRef = useRef<HTMLDivElement>(null);
 
   // ResizeObserver-based mobile detection (not media queries)
@@ -394,26 +410,36 @@ export function HandlersTab({ listeners, jobs, focusMethod, onSwitchToCode }: Pr
     return () => ro.disconnect();
   }, [isMobile]);
 
-  // Auto-select based on focusMethod
+  const hasItems = listeners.length > 0 || jobs.length > 0;
+
+  // Parse selectedHandler param into kind + id
+  const parsed = selectedHandler ? parseHandlerParam(selectedHandler) : null;
+
+  // Resolve selected listener/job from URL-driven selection
+  const selectedListener = parsed?.kind === "listener"
+    ? listeners.find((l) => l.listener_id === parsed.id) ?? null
+    : null;
+  const selectedJob = parsed?.kind === "job"
+    ? jobs.find((j) => j.job_id === parsed.id) ?? null
+    : null;
+
+  // correctUrl guard: only fire when data is loaded (at least one listener or job exists)
+  // and the handler ID from the URL doesn't match any item.
   useEffect(() => {
-    if (!focusMethod) return;
-    const match = listeners.find((l) => l.handler_method === focusMethod);
-    if (match) {
-      selectedId.value = { kind: "listener", id: match.listener_id };
-      if (isMobile.value) showDetail.value = true;
+    if (!selectedHandler || !parsed) return;
+    if (!hasItems) return; // still loading — don't correct yet
+    const found = parsed.kind === "listener"
+      ? listeners.some((l) => l.listener_id === parsed.id)
+      : jobs.some((j) => j.job_id === parsed.id);
+    if (!found) {
+      correctUrl(`/apps/${appKey}/handlers${instanceQs}`, `handler ${parsed.id} not found`);
     }
-  }, [focusMethod, listeners, selectedId, isMobile, showDetail]);
+  }, [selectedHandler, parsed, hasItems, listeners, jobs, appKey, instanceQs, correctUrl]);
 
   const handleSelect = (id: SelectedHandlerId) => {
-    selectedId.value = id;
-    if (isMobile.value) showDetail.value = true;
+    const kindPrefix = id.kind === "listener" ? "h" : "j";
+    navigate(`/apps/${appKey}/handlers/${kindPrefix}-${id.id}${instanceQs}`);
   };
-
-  const handleBack = () => {
-    showDetail.value = false;
-  };
-
-  const hasItems = listeners.length > 0 || jobs.length > 0;
 
   if (!hasItems) {
     return (
@@ -423,30 +449,28 @@ export function HandlersTab({ listeners, jobs, focusMethod, onSwitchToCode }: Pr
     );
   }
 
-  // Resolve selected item
-  const selectedListener = selectedId.value?.kind === "listener"
-    ? listeners.find((l) => l.listener_id === selectedId.value!.id) ?? null
-    : null;
-  const selectedJob = selectedId.value?.kind === "job"
-    ? jobs.find((j) => j.job_id === selectedId.value!.id) ?? null
-    : null;
+  // On mobile: show detail pane when a handler is selected (selectedHandler !== null)
+  const showMobileDetail = isMobile.value && selectedHandler !== null;
+  const showMasterList = !isMobile.value || selectedHandler === null;
+  const showDetailPane = !isMobile.value || selectedHandler !== null;
 
-  const showMobileDetail = isMobile.value && showDetail.value;
-  const showMasterList = !isMobile.value || !showDetail.value;
-  const showDetailPane = !isMobile.value || showDetail.value;
+  // Current selection for HandlerList highlight
+  const selectedId: SelectedHandlerId | null = parsed
+    ? { kind: parsed.kind, id: parsed.id }
+    : null;
 
   return (
     <div class="ht-handlers-tab" ref={containerRef}>
       {/* Health strip — above master/detail layout */}
       <HandlersHealthStrip listeners={listeners} jobs={jobs} timeLabel={TIME_PRESET_LABELS[effectiveTimePreset.value] ?? ""} />
 
-      {/* Mobile: back button in detail view */}
+      {/* Mobile: back button in detail view — navigate to handler list (no handler ID) */}
       {showMobileDetail && (
         <button
           type="button"
           class="ht-btn ht-btn--ghost ht-btn--sm ht-mb-3"
           data-testid="back-to-list"
-          onClick={handleBack}
+          onClick={() => navigate(`/apps/${appKey}/handlers${instanceQs}`)}
           aria-label="Back to handler list"
         >
           ← back
@@ -460,7 +484,7 @@ export function HandlersTab({ listeners, jobs, focusMethod, onSwitchToCode }: Pr
             <HandlerList
               listeners={listeners}
               jobs={jobs}
-              selectedId={selectedId.value}
+              selectedId={selectedId}
               onSelect={handleSelect}
             />
           </div>

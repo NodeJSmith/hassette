@@ -20,6 +20,18 @@ vi.mock("shiki", () => ({
   }),
 }));
 
+// Mock useQueryParams — controls the ?line= param for code-tab
+let mockLineParam: string | null = null;
+vi.mock("../../hooks/use-query-params", () => ({
+  useQueryParams: () => ({
+    get: (key: string) => key === "line" ? mockLineParam : null,
+    set: vi.fn(),
+  }),
+}));
+
+// jsdom doesn't implement scrollIntoView — mock it globally
+window.HTMLElement.prototype.scrollIntoView = vi.fn();
+
 import { CodeTab } from "./code-tab";
 
 describe("CodeTab", () => {
@@ -31,6 +43,7 @@ describe("CodeTab", () => {
   };
 
   beforeEach(() => {
+    mockLineParam = null;
     server.use(
       http.get("/api/apps/:app_key/source", () => {
         return HttpResponse.json(defaultSource);
@@ -115,5 +128,37 @@ describe("CodeTab", () => {
     const line2 = screen.getByTestId("code-line-2");
     expect(line2.getAttribute("title")).toContain("on_state_change");
     expect(line2.classList.contains("line--annotated")).toBe(true);
+  });
+
+  // T03: CodeTab reads ?line= from URL instead of focusLine prop
+  it("reads focusLine from ?line= query param and applies line--focus class", async () => {
+    mockLineParam = "2";
+    render(<CodeTab appKey="test_app" listeners={[]} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("code-tab-content")).toBeDefined();
+    });
+    // Wait for the focus effect to run
+    await waitFor(() => {
+      const line2 = screen.getByTestId("code-line-2");
+      expect(line2.classList.contains("line--focus")).toBe(true);
+    });
+  });
+
+  it("does not apply line--focus class when ?line= is absent", async () => {
+    mockLineParam = null;
+    render(<CodeTab appKey="test_app" listeners={[]} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("code-tab-content")).toBeDefined();
+    });
+    const line1 = screen.getByTestId("code-line-1");
+    expect(line1.classList.contains("line--focus")).toBe(false);
+  });
+
+  it("does not accept focusLine as a prop (type-level only — no runtime prop consumed)", async () => {
+    // This verifies the component renders correctly without focusLine prop
+    render(<CodeTab appKey="test_app" listeners={[]} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("code-tab-content")).toBeDefined();
+    });
   });
 });

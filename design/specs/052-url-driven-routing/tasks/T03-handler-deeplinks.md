@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add handler deep-links and view-in-code URL param"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#2", "FR#13", "AC#2", "AC#4", "AC#10"]
 ---

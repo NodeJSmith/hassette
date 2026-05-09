@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
 import { signal } from "@preact/signals";
+import { useQueryParams } from "../../hooks/use-query-params";
 import type { HighlighterGeneric } from "shiki";
 import { getAppSource } from "../../api/endpoints";
 import type { AppSourceData, ListenerData } from "../../api/endpoints";
@@ -9,7 +10,6 @@ import { parseSourceLocation } from "../../utils/format";
 interface Props {
   appKey: string;
   listeners: ListenerData[];
-  focusLine?: number;
 }
 
 function buildAnnotationMap(listeners: ListenerData[]): Map<number, string[]> {
@@ -62,7 +62,10 @@ function injectLineNumbers(html: string, annotationMap: Map<number, string[]>): 
   });
 }
 
-export function CodeTab({ appKey, listeners, focusLine }: Props) {
+export function CodeTab({ appKey, listeners }: Props) {
+  const qp = useQueryParams();
+  const lineParam = qp.get("line");
+  const focusLine = lineParam ? parseInt(lineParam, 10) : undefined;
   const loading = useRef(signal(true)).current;
   const error = useRef(signal<string | null>(null)).current;
   const source = useRef(signal<AppSourceData | null>(null)).current;

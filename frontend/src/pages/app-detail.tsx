@@ -17,7 +17,6 @@ import { useScopedApi } from "../hooks/use-scoped-api";
 import { useAppState } from "../state/context";
 import { statusToKind, statusToVariant } from "../utils/status";
 import { StatusShape } from "../components/shared/status-shape";
-import { signal } from "@preact/signals";
 
 export type TabId = "handlers" | "code" | "logs" | "config";
 
@@ -166,8 +165,7 @@ export function AppDetailPage({ params }: Props) {
   const parsedInstance = instanceParam !== null ? parseInt(instanceParam, 10) : undefined;
   const instanceIndex = parsedInstance !== undefined && Number.isFinite(parsedInstance) ? parsedInstance : undefined;
 
-  // codeFocusLine signal still used temporarily until T03 replaces it with ?line=
-  const codeFocusLine = useRef(signal<number | undefined>(undefined)).current;
+  // T03: codeFocusLine signal removed — CodeTab reads ?line= from URL directly
 
   const manifests = useApi(getManifests);
 
@@ -357,8 +355,15 @@ export function AppDetailPage({ params }: Props) {
         <HandlersTab
           listeners={displayListeners}
           jobs={displayJobs}
-          focusMethod={null}
-          onSwitchToCode={(line) => { codeFocusLine.value = line; navigate(`/apps/${appKey}/code${instanceQs}`); }}
+          selectedHandler={params.handler ?? null}
+          appKey={appKey}
+          instanceQs={instanceQs}
+          onSwitchToCode={(line) => {
+            // Navigate to code tab with ?line=N (and preserve ?instance= if set)
+            const lineParam = line !== undefined ? `?line=${line}` : "";
+            const instParam = instanceParam !== null && instanceParam !== "" ? `${lineParam ? "&" : "?"}instance=${instanceParam}` : "";
+            navigate(`/apps/${appKey}/code${lineParam}${instParam}`);
+          }}
         />
         </div>
       )}
@@ -367,7 +372,6 @@ export function AppDetailPage({ params }: Props) {
           <CodeTab
             appKey={appKey}
             listeners={displayListeners}
-            focusLine={codeFocusLine.value}
           />
         </div>
       )}

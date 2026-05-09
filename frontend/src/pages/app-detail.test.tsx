@@ -25,8 +25,15 @@ vi.mock("../components/shared/error-banner", () => ({
   ErrorBanner: ({ "data-testid": testId }: { "data-testid"?: string }) =>
     <div data-testid={testId ?? "error-banner"} />,
 }));
+// Capture props from HandlersTab so tests can invoke callbacks and assert prop values
+let capturedOnSwitchToCode: ((line?: number) => void) | undefined;
+let capturedSelectedHandler: string | null | undefined;
 vi.mock("../components/app-detail/handlers-tab", () => ({
-  HandlersTab: () => <div data-testid="handlers-tab" />,
+  HandlersTab: ({ onSwitchToCode, selectedHandler }: { onSwitchToCode?: (line?: number) => void; selectedHandler?: string | null }) => {
+    capturedOnSwitchToCode = onSwitchToCode;
+    capturedSelectedHandler = selectedHandler;
+    return <div data-testid="handlers-tab" />;
+  },
 }));
 vi.mock("../components/app-detail/code-tab", () => ({
   CodeTab: () => <div data-testid="code-tab" />,
@@ -88,6 +95,8 @@ describe("AppDetailPage", () => {
     state = createAppState();
     mockSearchString = "";
     mockNavigate.mockClear();
+    capturedOnSwitchToCode = undefined;
+    capturedSelectedHandler = undefined;
     vi.clearAllMocks();
   });
 
@@ -501,5 +510,56 @@ describe("AppDetailPage", () => {
       "/apps/test_app/handlers?instance=0",
       "instance 99 out of range, using 0",
     );
+  });
+
+  // T03: "view in code" navigates to /apps/:key/code?line=N instead of mutating signal
+  it("onSwitchToCode navigates to code tab with ?line= param", () => {
+    setupUseApi(createManifest());
+    render(
+      <AppDetailPage params={{ key: "test_app", tab: "handlers" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    // Invoke the callback captured from HandlersTab
+    capturedOnSwitchToCode?.(42);
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/code?line=42");
+  });
+
+  it("onSwitchToCode navigates to code tab without ?line= when line is undefined", () => {
+    setupUseApi(createManifest());
+    render(
+      <AppDetailPage params={{ key: "test_app", tab: "handlers" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    capturedOnSwitchToCode?.();
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/code");
+  });
+
+  it("onSwitchToCode preserves ?instance= param when navigating to code tab", () => {
+    setupUseApi(createManifest());
+    mockSearchString = "instance=1";
+    render(
+      <AppDetailPage params={{ key: "test_app", tab: "handlers" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    capturedOnSwitchToCode?.(15);
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/code?line=15&instance=1");
+  });
+
+  it("passes selectedHandler prop from params.handler to HandlersTab", () => {
+    setupUseApi(createManifest());
+    render(
+      <AppDetailPage params={{ key: "test_app", tab: "handlers", handler: "h-42" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(capturedSelectedHandler).toBe("h-42");
+  });
+
+  it("passes null selectedHandler to HandlersTab when no handler param", () => {
+    setupUseApi(createManifest());
+    render(
+      <AppDetailPage params={{ key: "test_app", tab: "handlers" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(capturedSelectedHandler).toBeNull();
   });
 });
