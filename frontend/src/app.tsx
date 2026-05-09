@@ -112,9 +112,13 @@ export function App() {
           <ErrorBoundary resetKey={location}>
             <Switch>
               <Route path="/"><Redirect to="/apps" /></Route>
+              <Route path="/apps/:key/handlers/:handlerId">{(params: { key: string; handlerId: string }) => <AppDetailPage params={{ key: params.key, tab: "handlers", handler: params.handlerId }} />}</Route>
+              <Route path="/apps/:key/handlers">{(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "handlers" }} />}</Route>
+              <Route path="/apps/:key/code">{(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "code" }} />}</Route>
+              <Route path="/apps/:key/logs">{(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "logs" }} />}</Route>
+              <Route path="/apps/:key/config">{(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "config" }} />}</Route>
+              <Route path="/apps/:key">{(params: { key: string }) => <AppDetailPage params={{ key: params.key }} />}</Route>
               <Route path="/apps" component={AppsPage} />
-              <Route path="/apps/:key/:index">{(params: { key: string; index: string }) => <AppDetailPage params={params} />}</Route>
-              <Route path="/apps/:key">{(params: { key: string }) => <AppDetailPage params={params} />}</Route>
               <Route path="/handlers" component={HandlersPage} />
               <Route path="/diagnostics" component={DiagnosticsPage} />
               <Route path="/logs" component={LogsPage} />

@@ -1,7 +1,8 @@
-import { signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
+import { Link, useLocation } from "wouter";
 import { useDocumentTitle } from "../hooks/use-document-title";
-import { useSearch, useLocation } from "wouter";
+import { useCorrectUrl } from "../hooks/use-correct-url";
+import { useQueryParams } from "../hooks/use-query-params";
 import { getAppJobs, getAppListeners, getManifests } from "../api/endpoints";
 import type { AppInstance } from "../api/endpoints";
 import { ActionButtons } from "../components/shared/action-buttons";
@@ -16,11 +17,12 @@ import { useScopedApi } from "../hooks/use-scoped-api";
 import { useAppState } from "../state/context";
 import { statusToKind, statusToVariant } from "../utils/status";
 import { StatusShape } from "../components/shared/status-shape";
+import { signal } from "@preact/signals";
 
-type TabId = "handlers" | "code" | "logs" | "config";
+export type TabId = "handlers" | "code" | "logs" | "config";
 
 interface Props {
-  params: { key: string; index?: string };
+  params: { key: string; tab?: TabId; handler?: string };
 }
 
 
@@ -125,31 +127,47 @@ function MultiInstanceOverview({
   );
 }
 
+function Tab({ id, label, badge, appKey: appKey_, instanceQs: qs, activeTab: active, navigate: nav }: {
+  id: TabId; label: string; badge?: number;
+  appKey: string; instanceQs: string; activeTab: TabId; navigate: (to: string, opts?: { replace?: boolean }) => void;
+}) {
+  const isActive = active === id;
+  const href = `/apps/${appKey_}/${id}${qs}`;
+  return (
+    <Link
+      href={href}
+      role="tab"
+      id={`tab-${id}`}
+      aria-selected={isActive}
+      aria-controls={`tabpanel-${id}`}
+      class={`ht-tab-btn${isActive ? " ht-tab-btn--active" : ""}`}
+      onKeyDown={(e: KeyboardEvent) => {
+        if (e.key === " ") {
+          e.preventDefault();
+          nav(href);
+        }
+      }}
+    >
+      {label}{badge !== undefined && <span class="ht-tab-btn__badge">{badge}</span>}
+    </Link>
+  );
+}
+
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
-  const parsed = params.index !== undefined ? parseInt(params.index, 10) : undefined;
-  const instanceIndex = parsed !== undefined && Number.isFinite(parsed) ? parsed : undefined;
+  const activeTab: TabId = params.tab ?? "handlers";
   const { appStatus } = useAppState();
   const [, navigate] = useLocation();
-  const searchString = useSearch();
+  const queryParams = useQueryParams();
+  const correctUrl = useCorrectUrl();
 
-  const activeTab = useRef(signal<TabId>("handlers")).current;
+  // Read instance from ?instance=N query param
+  const instanceParam = queryParams.get("instance");
+  const parsedInstance = instanceParam !== null ? parseInt(instanceParam, 10) : undefined;
+  const instanceIndex = parsedInstance !== undefined && Number.isFinite(parsedInstance) ? parsedInstance : undefined;
+
+  // codeFocusLine signal still used temporarily until T03 replaces it with ?line=
   const codeFocusLine = useRef(signal<number | undefined>(undefined)).current;
-  const cameFromHandlers = useRef(signal(false)).current;
-
-  // Parse focus query param for auto-selecting a handler (strip from URL once read)
-  const focusMethod = useRef<string | null>(null);
-  useEffect(() => {
-    if (focusMethod.current !== null) return;
-    const params_ = new URLSearchParams(searchString);
-    focusMethod.current = params_.get("focus");
-    if (focusMethod.current) {
-      const next = new URLSearchParams(searchString);
-      next.delete("focus");
-      const cleanPath = next.toString() ? `${window.location.pathname}?${next}` : window.location.pathname;
-      navigate(cleanPath, { replace: true });
-    }
-  }, []);
 
   const manifests = useApi(getManifests);
 
@@ -187,21 +205,22 @@ export function AppDetailPage({ params }: Props) {
     && listeners.data.value !== null && jobs.data.value !== null;
   const initialLoading = !hasData && (listeners.loading.value
     || jobs.loading.value || manifests.loading.value);
+
+  // Correct out-of-range instance index (FR#16, AC#14)
+  // Guarded: only fires when data is fully loaded and confirms instance is invalid
+  useEffect(() => {
+    if (initialLoading) return;
+    if (manifest && instanceIndex !== undefined && instanceIndex >= manifest.instance_count) {
+      correctUrl(`/apps/${appKey}/${activeTab}?instance=0`, `instance ${instanceIndex} out of range, using 0`);
+    }
+  }, [initialLoading, manifest, instanceIndex, appKey, activeTab, correctUrl]);
+
   if (initialLoading) return <Spinner />;
 
-  const Tab = ({ id, label, badge }: { id: TabId; label: string; badge?: number }) => (
-    <button
-      type="button"
-      role="tab"
-      id={`tab-${id}`}
-      aria-selected={activeTab.value === id}
-      aria-controls={`tabpanel-${id}`}
-      class={`ht-tab-btn${activeTab.value === id ? " ht-tab-btn--active" : ""}`}
-      onClick={() => { activeTab.value = id; }}
-    >
-      {label}{badge !== undefined && <span class="ht-tab-btn__badge">{badge}</span>}
-    </button>
-  );
+  // Build instance query string for tab links — preserve ?instance=N, omit if not set
+  const instanceQs = instanceParam !== null && instanceParam !== "" ? `?instance=${instanceParam}` : "";
+
+  const tabProps = { appKey, instanceQs, activeTab, navigate };
 
   const handlerCount = (listeners.data.value?.length ?? 0) + (jobs.data.value?.length ?? 0);
 
@@ -222,7 +241,7 @@ export function AppDetailPage({ params }: Props) {
           displayName={manifest.display_name ?? appKey}
           instances={manifest.instances ?? []}
           instanceCount={manifest.instance_count}
-          onNavigate={(idx) => { navigate(`/apps/${appKey}/${idx}`); }}
+          onNavigate={(idx) => { navigate(`/apps/${appKey}?instance=${idx}`); }}
         />
       </div>
     );
@@ -268,7 +287,7 @@ export function AppDetailPage({ params }: Props) {
           <InstanceSwitcher
             instances={manifest.instances}
             currentIndex={resolvedInstanceIndex}
-            onNavigate={(idx) => { navigate(`/apps/${appKey}/${idx}`); }}
+            onNavigate={(idx) => { navigate(`/apps/${appKey}/${activeTab}?instance=${idx}`); }}
           />
         </div>
       )}
@@ -326,34 +345,25 @@ export function AppDetailPage({ params }: Props) {
 
       {/* Tab strip */}
       <div class="ht-tab-strip ht-mb-4" role="tablist" aria-label="App sections">
-        <Tab id="handlers" label="handlers" badge={handlerCount} />
-        <Tab id="code" label="code" />
-        <Tab id="logs" label="logs" />
-        <Tab id="config" label="config" />
+        <Tab id="handlers" label="handlers" badge={handlerCount} {...tabProps} />
+        <Tab id="code" label="code" {...tabProps} />
+        <Tab id="logs" label="logs" {...tabProps} />
+        <Tab id="config" label="config" {...tabProps} />
       </div>
 
       {/* Tab content */}
-      {activeTab.value === "handlers" && (
+      {activeTab === "handlers" && (
         <div role="tabpanel" id="tabpanel-handlers" aria-labelledby="tab-handlers">
         <HandlersTab
           listeners={displayListeners}
           jobs={displayJobs}
-          focusMethod={focusMethod.current}
-          onSwitchToCode={(line) => { codeFocusLine.value = line; cameFromHandlers.value = true; activeTab.value = "code"; }}
+          focusMethod={null}
+          onSwitchToCode={(line) => { codeFocusLine.value = line; navigate(`/apps/${appKey}/code${instanceQs}`); }}
         />
         </div>
       )}
-      {activeTab.value === "code" && (
+      {activeTab === "code" && (
         <div role="tabpanel" id="tabpanel-code" aria-labelledby="tab-code">
-          {cameFromHandlers.value && (
-            <button
-              type="button"
-              class="ht-btn ht-btn--ghost ht-btn--sm ht-mb-3"
-              onClick={() => { cameFromHandlers.value = false; activeTab.value = "handlers"; }}
-            >
-              ← back to handlers
-            </button>
-          )}
           <CodeTab
             appKey={appKey}
             listeners={displayListeners}
@@ -361,14 +371,14 @@ export function AppDetailPage({ params }: Props) {
           />
         </div>
       )}
-      {activeTab.value === "logs" && (
+      {activeTab === "logs" && (
         <div role="tabpanel" id="tabpanel-logs" aria-labelledby="tab-logs">
           <div class="ht-card" data-testid="logs-section">
             <LogTable showAppColumn={false} appKey={appKey} />
           </div>
         </div>
       )}
-      {activeTab.value === "config" && (
+      {activeTab === "config" && (
         <div role="tabpanel" id="tabpanel-config" aria-labelledby="tab-config">
           <ConfigTab appKey={appKey} />
         </div>

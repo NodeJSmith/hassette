@@ -8,10 +8,16 @@ import { createAppState, type AppState } from "../state/create-app-state";
 import { createManifest, createInstance, createManifestList } from "../test/factories";
 import type { AppManifest, ManifestListResponse, JobData, ListenerData } from "../api/endpoints";
 
+// Mutable search string for tests that need to control query params
+let mockSearchString = "";
+const mockNavigate = vi.fn();
+
 // Stub wouter navigation
 vi.mock("wouter", () => ({
-  useLocation: () => ["/apps/test_app", vi.fn()],
-  useSearch: () => "",
+  useLocation: () => ["/apps/test_app", mockNavigate],
+  useSearch: () => mockSearchString,
+  Link: ({ href, children, role, "aria-selected": ariaSelected, "aria-controls": ariaControls, id, class: cls, onKeyDown }: Record<string, unknown>) =>
+    <a href={href as string} role={role as import("preact").JSX.AriaRole} aria-selected={ariaSelected as boolean} aria-controls={ariaControls as string} id={id as string} class={cls as string} onKeyDown={onKeyDown as never}>{children as never}</a>,
 }));
 
 // Stub child components not under test
@@ -46,6 +52,11 @@ vi.mock("../hooks/use-scoped-api", () => ({
   useScopedApi: vi.fn(),
 }));
 
+const mockCorrectUrl = vi.fn();
+vi.mock("../hooks/use-correct-url", () => ({
+  useCorrectUrl: () => mockCorrectUrl,
+}));
+
 const useApiMod = await import("../hooks/use-api");
 const useApi = useApiMod.useApi as unknown as ReturnType<typeof vi.fn>;
 const useScopedApiMod = await import("../hooks/use-scoped-api");
@@ -75,6 +86,8 @@ describe("AppDetailPage", () => {
 
   beforeEach(() => {
     state = createAppState();
+    mockSearchString = "";
+    mockNavigate.mockClear();
     vi.clearAllMocks();
   });
 
@@ -89,20 +102,6 @@ describe("AppDetailPage", () => {
       .mockReturnValueOnce(fakeApiResult(jobs));        // jobs
   }
 
-  /** Like setupUseApi but uses persistent mockReturnValue so re-renders after interactions don't exhaust the mock. */
-  function setupUseApiPersistent(
-    manifest: AppManifest,
-    listeners: ListenerData[] = [],
-    jobs: JobData[] = [],
-  ) {
-    useApi.mockReturnValue(fakeApiResult(createManifestListResponse(manifest)));
-    useScopedApi.mockReturnValue(fakeApiResult(listeners));
-    // Override first two calls to get listeners/jobs in correct order
-    useScopedApi
-      .mockReturnValueOnce(fakeApiResult(listeners))   // listeners
-      .mockReturnValueOnce(fakeApiResult(jobs))         // jobs
-      .mockReturnValue(fakeApiResult(null));            // subsequent re-renders
-  }
 
   it("renders app_key in the header", () => {
     const manifest = createManifest({ app_key: "test_app", display_name: "Motion Sensor App" });
@@ -316,8 +315,10 @@ describe("AppDetailPage", () => {
       ],
     });
     setupUseApi(manifest);
+    // Instance 0 is specified via query param
+    mockSearchString = "instance=0";
     const { getByTestId } = render(
-      <AppDetailPage params={{ key: "test_app", index: "0" }} />,
+      <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
     );
     expect(getByTestId("instance-switcher")).toBeDefined();
@@ -333,35 +334,172 @@ describe("AppDetailPage", () => {
       ],
     });
     setupUseApi(manifest);
+    mockSearchString = "instance=0";
     const { getByTestId } = render(
-      <AppDetailPage params={{ key: "test_app", index: "0" }} />,
+      <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
     );
     expect(getByTestId("breadcrumb-parent")).toBeDefined();
     expect(getByTestId("breadcrumb-parent").textContent).toContain("test_app");
   });
 
-  it("renders CodeTab when Code tab is clicked", () => {
+  // Tab routing via URL — tab is derived from params.tab prop (set by router)
+  it("renders CodeTab when params.tab is 'code'", () => {
     const manifest = createManifest();
-    setupUseApiPersistent(manifest);
-    const { getByRole, getByTestId } = render(
-      <AppDetailPage params={{ key: "test_app" }} />,
+    setupUseApi(manifest);
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app", tab: "code" }} />,
       { wrapper: createWrapper(state) },
     );
-    const codeTab = getByRole("tab", { name: /code/i });
-    fireEvent.click(codeTab);
     expect(getByTestId("code-tab")).toBeDefined();
   });
 
-  it("renders ConfigTab when Config tab is clicked", () => {
+  it("renders ConfigTab when params.tab is 'config'", () => {
     const manifest = createManifest();
-    setupUseApiPersistent(manifest);
-    const { getByRole, getByTestId } = render(
+    setupUseApi(manifest);
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app", tab: "config" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(getByTestId("config-tab")).toBeDefined();
+  });
+
+  it("renders LogTable when params.tab is 'logs'", () => {
+    const manifest = createManifest();
+    setupUseApi(manifest);
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app", tab: "logs" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(getByTestId("log-table")).toBeDefined();
+  });
+
+  it("code tab has aria-selected=true when params.tab is 'code'", () => {
+    const manifest = createManifest();
+    setupUseApi(manifest);
+    const { getByRole } = render(
+      <AppDetailPage params={{ key: "test_app", tab: "code" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    const codeTab = getByRole("tab", { name: /code/i });
+    expect(codeTab.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("handlers tab is selected by default when no params.tab provided", () => {
+    const manifest = createManifest();
+    setupUseApi(manifest);
+    const { getByRole } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
     );
-    const configTab = getByRole("tab", { name: /config/i });
-    fireEvent.click(configTab);
-    expect(getByTestId("config-tab")).toBeDefined();
+    const handlersTab = getByRole("tab", { name: /handlers/i });
+    expect(handlersTab.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("tab links point to the correct path with instance query param preserved", () => {
+    const manifest = createManifest();
+    setupUseApi(manifest);
+    mockSearchString = "instance=1";
+    const { getByRole } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    const logsTab = getByRole("tab", { name: /logs/i });
+    expect(logsTab.getAttribute("href")).toBe("/apps/test_app/logs?instance=1");
+  });
+
+  it("tab links omit instance query param when not set", () => {
+    const manifest = createManifest();
+    setupUseApi(manifest);
+    // no mockSearchString = no instance param
+    const { getByRole } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    const logsTab = getByRole("tab", { name: /logs/i });
+    expect(logsTab.getAttribute("href")).toBe("/apps/test_app/logs");
+  });
+
+  it("instance switcher navigates to current tab path with instance query param", () => {
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
+      ],
+    });
+    setupUseApi(manifest);
+    mockSearchString = "instance=0";
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app", tab: "logs" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    // Click instance 1 in the switcher
+    const inst1Btn = getByTestId("switcher-instance-1");
+    fireEvent.click(inst1Btn);
+    // Should navigate to /apps/test_app/logs?instance=1
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/logs?instance=1");
+  });
+
+  it("multi-instance parent overview navigates using ?instance= query param", () => {
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
+      ],
+    });
+    setupUseApi(manifest);
+    // No instance param = parent overview
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    // Click an instance card
+    const card0 = getByTestId("instance-card-0");
+    fireEvent.click(card0);
+    // Should navigate to /apps/test_app?instance=0
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app?instance=0");
+  });
+
+  it("reads instance from ?instance= query param for multi-instance detail view", () => {
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+      ],
+    });
+    setupUseApi(manifest);
+    mockSearchString = "instance=1";
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    // Instance switcher should be rendered (not parent overview)
+    expect(getByTestId("instance-switcher")).toBeDefined();
+    // The instance 1 button should be active
+    const inst1Btn = getByTestId("switcher-instance-1");
+    expect(inst1Btn.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("corrects out-of-range instance index to instance 0 via correctUrl", () => {
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
+      ],
+    });
+    setupUseApi(manifest);
+    mockSearchString = "instance=99";
+    render(
+      <AppDetailPage params={{ key: "test_app", tab: "handlers" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(mockCorrectUrl).toHaveBeenCalledWith(
+      "/apps/test_app/handlers?instance=0",
+      "instance 99 out of range, using 0",
+    );
   });
 });

@@ -19,6 +19,7 @@
  *   correctUrl("/apps/foo/handlers", "handler h-999 not found");
  */
 
+import { useCallback } from "preact/hooks";
 import { useLocation } from "wouter";
 
 /**
@@ -35,9 +36,9 @@ export const correctionReasons: string[] = [];
 export function useCorrectUrl(): (correctedUrl: string, reason: string) => void {
   const [, navigate] = useLocation();
 
-  return function correctUrl(correctedUrl: string, reason: string): void {
+  return useCallback((correctedUrl: string, reason: string): void => {
     if (correctionReasons.length >= MAX_CORRECTION_REASONS) correctionReasons.shift();
     correctionReasons.push(reason);
     navigate(correctedUrl, { replace: true });
-  };
+  }, [navigate]);
 }
