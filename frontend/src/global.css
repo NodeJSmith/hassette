@@ -1586,31 +1586,6 @@ strong {
 }
 
 /* — Forms —————————————————————————————————————————————— */
-.ht-input,
-.ht-select select {
-  font-family: var(--font-body);
-  font-size: var(--fs-small);
-  padding: 0.35em 0.6em;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-md);
-  background: var(--bg-surface);
-  color: var(--ink-1);
-  line-height: 1.5;
-}
-
-.ht-input:focus-visible,
-.ht-select select:focus-visible {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
-
-.ht-input--sm,
-.ht-select--sm select {
-  font-size: var(--fs-micro);
-  padding: 0.25em 0.5em;
-}
-
 .ht-select {
   display: inline-block;
   position: relative;

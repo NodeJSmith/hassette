@@ -15,8 +15,9 @@ vi.mock("wouter", () => ({
 }));
 
 // Stub child components not under test
-vi.mock("../components/app-detail/error-display", () => ({
-  ErrorDisplay: () => <div data-testid="error-display" />,
+vi.mock("../components/shared/error-banner", () => ({
+  ErrorBanner: ({ "data-testid": testId }: { "data-testid"?: string }) =>
+    <div data-testid={testId ?? "error-banner"} />,
 }));
 vi.mock("../components/app-detail/handlers-tab", () => ({
   HandlersTab: () => <div data-testid="handlers-tab" />,

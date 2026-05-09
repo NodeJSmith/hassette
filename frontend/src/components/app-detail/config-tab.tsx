@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { getAppConfig } from "../../api/endpoints";
+import { EmptyState } from "../shared/empty-state";
 import { Spinner } from "../shared/spinner";
 import type { AppConfigData } from "../../api/endpoints";
 
@@ -50,11 +51,7 @@ function SchemaConfigTable({
 
   if (allKeys.length === 0) {
     return (
-      <div class="ht-empty">
-        <div class="ht-empty__icon">∅</div>
-        <div class="ht-empty__title">no configuration fields</div>
-        <div class="ht-empty__body">this app uses the default AppConfig with no custom fields.</div>
-      </div>
+      <EmptyState title="no configuration fields" body="this app uses the default AppConfig with no custom fields." />
     );
   }
 
@@ -95,10 +92,7 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
   const entries = Object.entries(config);
   if (entries.length === 0) {
     return (
-      <div class="ht-empty">
-        <div class="ht-empty__icon">∅</div>
-        <div class="ht-empty__title">no configuration values</div>
-      </div>
+      <EmptyState title="no configuration values" />
     );
   }
 
@@ -218,10 +212,7 @@ export function ConfigTab({ appKey }: Props) {
               ? <SchemaConfigTable config={appConfig as ConfigRecord} schema={schema} />
               : <SimpleConfigTable config={appConfig as ConfigRecord} />
           ) : (
-            <div class="ht-empty">
-              <div class="ht-empty__icon">∅</div>
-              <div class="ht-empty__title">no configuration values</div>
-            </div>
+            <EmptyState title="no configuration values" />
           )}
           </div>
         </div>
