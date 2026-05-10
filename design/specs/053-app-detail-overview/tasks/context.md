@@ -22,6 +22,7 @@ None.
 - Error spotlight section is absent when nothing is failing (no "no errors found" empty state).
 - Backend endpoint must accept `limit`, `since`, and `source_tier` parameters.
 - No `from __future__ import annotations`. No `Optional[X]` — use `X | None`.
+- The handlers tab's health strip (`HandlersHealthStrip`) stays inside the handlers tab — do NOT move it above the tab bar. The overview tab's sections provide the same diagnostic data.
 
 ## Design Doc References
 - "## Problem" — what is broken and why it matters

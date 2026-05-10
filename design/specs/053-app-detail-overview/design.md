@@ -108,6 +108,7 @@ The app detail page lands on the handlers tab with an empty right panel. There i
 - Error spotlight section is absent when nothing is failing (not "no errors found" — just absent)
 - Backend endpoint must accept `limit`, `since`, and `source_tier` parameters consistent with existing telemetry endpoints
 - Frontend must use `useScopedApi` for data fetching to integrate with time-preset and reconnect-version patterns
+- The handlers tab's health strip (`HandlersHealthStrip`) stays inside the handlers tab — do NOT move it above the tab bar. The overview tab's error spotlight and handler health grid provide the same diagnostic data in a richer form
 
 ## Dependencies and Assumptions
 
