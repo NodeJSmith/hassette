@@ -4,6 +4,8 @@ import ast
 from dataclasses import dataclass
 from pathlib import Path
 
+from hassette_codegen.extractors._common import find_entity_class
+
 
 @dataclass
 class ExtractedProperty:
@@ -21,7 +23,7 @@ def extract_properties(init_py: Path) -> list[ExtractedProperty]:
     except SyntaxError:
         return []
 
-    entity_class = _find_entity_class(tree)
+    entity_class = find_entity_class(tree)
     if entity_class is None:
         return []
 
@@ -63,22 +65,6 @@ def extract_cached_properties(init_py: Path) -> set[str]:
     except SyntaxError:
         return set()
     return _extract_cached_properties_set(tree)
-
-
-def _find_entity_class(tree: ast.Module) -> ast.ClassDef | None:
-    entity_bases = {"Entity", "ToggleEntity", "RestoreEntity"}
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.ClassDef):
-            continue
-        for base in node.bases:
-            base_name = None
-            if isinstance(base, ast.Name):
-                base_name = base.id
-            elif isinstance(base, ast.Attribute):
-                base_name = base.attr
-            if base_name in entity_bases:
-                return node
-    return None
 
 
 def _extract_cached_properties_set(tree: ast.Module) -> set[str]:

@@ -83,24 +83,28 @@ def apply_property_overrides(
     properties: list[ExtractedProperty],
     overrides: list[PropertyOverride],
 ) -> list[ExtractedProperty]:
-    """Apply property overrides: rename, retype, or add properties."""
+    """Apply property overrides: rename, retype, or add properties. Returns a new list."""
     if not overrides:
         return properties
 
+    result = [ExtractedProperty(name=p.name, python_type=p.python_type, has_default=p.has_default) for p in properties]
+
     for ov in overrides:
         if ov.add:
-            properties.append(
+            result.append(
                 ExtractedProperty(name=ov.wire_name or ov.name, python_type=ov.type or "str | None", has_default=True)
             )
             continue
 
-        for prop in properties:
+        for prop in result:
             if prop.name == ov.name:
                 if ov.wire_name:
                     prop.name = ov.wire_name
                 if ov.type:
                     prop.python_type = ov.type
                 break
+
+    return result
 
     return properties
 

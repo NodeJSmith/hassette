@@ -1047,7 +1047,7 @@ def _check_drift(target_path: Path, generated_content: str, label: str) -> bool:
     return False
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     """CLI entry point for generate_sync_facade.py."""
     parser = argparse.ArgumentParser(description="Generate sync facade(s) from api.py and recording_api.py")
     parser.add_argument(
@@ -1094,7 +1094,7 @@ def main() -> None:
         help="Check mode: exit 1 if generated content differs from committed file",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     api_path: Path = args.api_path
     if not api_path.exists():

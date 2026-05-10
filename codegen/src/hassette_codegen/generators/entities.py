@@ -1,14 +1,10 @@
 """Generate entity wrapper .py files from extracted domain data."""
 
 from dataclasses import dataclass
-from pathlib import Path
-
-import jinja2
 
 from hassette_codegen.domain_data import ExtractedDomain, domain_to_title
+from hassette_codegen.generators._env import get_jinja_env
 from hassette_codegen.type_mapping import map_selector_to_type
-
-_TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 
 
 @dataclass
@@ -25,15 +21,6 @@ class ServiceForTemplate:
     params: list[ServiceParam]
 
 
-def _get_env() -> jinja2.Environment:
-    return jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
-        keep_trailing_newline=True,
-        trim_blocks=True,
-        lstrip_blocks=True,
-    )
-
-
 def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
     """Render an entity wrapper .py file for a domain.
 
@@ -42,7 +29,7 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
     if not domain.services:
         return None
 
-    env = _get_env()
+    env = get_jinja_env()
     template = env.get_template("entity_wrapper.py.j2")
 
     extra_imports: list[str] = []

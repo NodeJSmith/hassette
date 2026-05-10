@@ -13,10 +13,22 @@ from hassette_codegen.generators.constants import generate_sensor_constants
 from hassette_codegen.generators.entities import generate_entity_wrapper
 from hassette_codegen.generators.exports import generate_init_py
 from hassette_codegen.generators.states import generate_state_model
-from hassette_codegen.ha_source import HASource, check_python_version, check_ruff_available, discover_domains
+from hassette_codegen.ha_source import (
+    DiscoveredDomain,
+    HASource,
+    check_python_version,
+    check_ruff_available,
+    discover_domains,
+)
 from hassette_codegen.manifest import detect_orphans, load_manifest, merge_manifest, save_manifest
 from hassette_codegen.output import atomic_write, check_drift
-from hassette_codegen.overrides import apply_property_overrides, get_override, load_overrides, validate_overrides
+from hassette_codegen.overrides import (
+    DomainOverride,
+    apply_property_overrides,
+    get_override,
+    load_overrides,
+    validate_overrides,
+)
 
 
 def run_pipeline(
@@ -89,13 +101,12 @@ def run_pipeline(
             if check_mode:
                 if not check_drift(entity_path, entity_content, f"{domain_info.name} entity wrapper"):
                     any_drift = True
+                generated_files.add(rel_entity)
             else:
                 if atomic_write(entity_path, entity_content):
                     generated_files.add(rel_entity)
                 else:
                     print(f"WARNING: Skipped {rel_entity} (validation failed)", file=sys.stderr)
-
-            generated_files.add(rel_entity)
 
     constants = extract_sensor_constants(ha_source.path)
     if constants:
@@ -153,13 +164,12 @@ def run_pipeline(
             print(f"Skipped domains: {', '.join(skipped_domains)}", file=sys.stderr)
         return 1
 
-    if skipped_domains and check_mode:
-        return 1
-
     return 0
 
 
-def _extract_domain(ha_core_path: Path, domain_info: object, overrides: dict) -> ExtractedDomain:
+def _extract_domain(
+    ha_core_path: Path, domain_info: DiscoveredDomain, overrides: dict[str, DomainOverride]
+) -> ExtractedDomain:
     """Extract all data for a single domain."""
     override = get_override(overrides, domain_info.name)
 
@@ -188,7 +198,7 @@ def _extract_domain(ha_core_path: Path, domain_info: object, overrides: dict) ->
     )
 
 
-def _extract_manual_domain(domain_info: object, override: object) -> ExtractedDomain:
+def _extract_manual_domain(domain_info: DiscoveredDomain, override: DomainOverride) -> ExtractedDomain:
     """Build an ExtractedDomain from TOML-declared properties."""
     base_class = override.state_base_class or "StringBaseState"
     services = extract_services(domain_info.path) if domain_info.has_services_yaml else []
@@ -206,14 +216,12 @@ def _extract_manual_domain(domain_info: object, override: object) -> ExtractedDo
 
 def _discover_manual_domains(
     ha_core_path: Path,
-    overrides: dict[str, object],
+    overrides: dict[str, DomainOverride],
     already_discovered: set[str],
-) -> list:
+) -> list[DiscoveredDomain]:
     """Create DiscoveredDomain entries for manual override domains not already discovered."""
-    from hassette_codegen.ha_source import DiscoveredDomain
-
     components_dir = ha_core_path / "homeassistant" / "components"
-    manual = []
+    manual: list[DiscoveredDomain] = []
 
     for domain, override in overrides.items():
         if override.discovery != "manual":

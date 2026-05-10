@@ -7,6 +7,8 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from hassette_codegen.extractors._common import find_entity_class
+
 
 @dataclass
 class DiscoveredDomain:
@@ -148,7 +150,11 @@ def discover_domains(ha_core_path: Path) -> list[DiscoveredDomain]:
         if "CACHED_PROPERTIES_WITH_ATTR_" not in source:
             continue
 
-        if not _has_entity_class(source, str(init_py)):
+        try:
+            tree = ast.parse(source, filename=str(init_py))
+        except SyntaxError:
+            continue
+        if find_entity_class(tree) is None:
             continue
 
         domains.append(
@@ -161,26 +167,3 @@ def discover_domains(ha_core_path: Path) -> list[DiscoveredDomain]:
         )
 
     return domains
-
-
-def _has_entity_class(source: str, filename: str) -> bool:
-    """Check if the source contains a class inheriting from Entity or ToggleEntity."""
-    try:
-        tree = ast.parse(source, filename=filename)
-    except SyntaxError:
-        return False
-
-    entity_bases = {"Entity", "ToggleEntity", "RestoreEntity"}
-
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.ClassDef):
-            continue
-        for base in node.bases:
-            base_name = None
-            if isinstance(base, ast.Name):
-                base_name = base.id
-            elif isinstance(base, ast.Attribute):
-                base_name = base.attr
-            if base_name in entity_bases:
-                return True
-    return False

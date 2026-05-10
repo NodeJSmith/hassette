@@ -1,27 +1,15 @@
 """Generate state model .py files from extracted domain data."""
 
-from pathlib import Path
-
-import jinja2
+from copy import deepcopy
 
 from hassette_codegen.domain_data import ExtractedDomain, domain_to_title
+from hassette_codegen.generators._env import get_jinja_env
 from hassette_codegen.property_types import resolve_property_types
-
-_TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
-
-
-def _get_env() -> jinja2.Environment:
-    return jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(_TEMPLATE_DIR)),
-        keep_trailing_newline=True,
-        trim_blocks=True,
-        lstrip_blocks=True,
-    )
 
 
 def generate_state_model(domain: ExtractedDomain) -> str:
     """Render a state model .py file for a domain."""
-    env = _get_env()
+    env = get_jinja_env()
     template = env.get_template("state_model.py.j2")
 
     extra_imports: list[str] = []
@@ -65,8 +53,6 @@ def generate_state_model(domain: ExtractedDomain) -> str:
 
 def _rename_collisions(strenums: list, pydantic_class_name: str) -> tuple[list, dict[str, str]]:
     """Rename StrEnums that collide with the Pydantic state class name."""
-    from copy import deepcopy
-
     result = []
     renames: dict[str, str] = {}
     for enum in strenums:

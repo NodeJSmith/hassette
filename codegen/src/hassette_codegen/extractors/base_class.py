@@ -3,6 +3,8 @@
 import ast
 from pathlib import Path
 
+from hassette_codegen.extractors._common import find_entity_class
+
 
 def determine_base_class(init_py: Path) -> str:
     """Determine the state base class for an entity domain.
@@ -19,7 +21,7 @@ def determine_base_class(init_py: Path) -> str:
     except SyntaxError:
         return "StringBaseState"
 
-    entity_class = _find_entity_class(tree)
+    entity_class = find_entity_class(tree)
     if entity_class is None:
         return "StringBaseState"
 
@@ -30,22 +32,6 @@ def determine_base_class(init_py: Path) -> str:
         return "NumericBaseState"
 
     return "StringBaseState"
-
-
-def _find_entity_class(tree: ast.Module) -> ast.ClassDef | None:
-    entity_bases = {"Entity", "ToggleEntity", "RestoreEntity"}
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.ClassDef):
-            continue
-        for base in node.bases:
-            base_name = None
-            if isinstance(base, ast.Name):
-                base_name = base.id
-            elif isinstance(base, ast.Attribute):
-                base_name = base.attr
-            if base_name in entity_bases:
-                return node
-    return None
 
 
 def _has_toggle_entity_base(cls: ast.ClassDef) -> bool:

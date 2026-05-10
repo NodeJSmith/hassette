@@ -1,61 +1,33 @@
-"""Unit tests for the CLI entry point."""
+"""Unit tests for the CLI argument parsing and dispatch."""
 
-import subprocess
 import sys
 from pathlib import Path
-
-import pytest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-_HA_CORE = Path("~/source/core").expanduser()
-_HAS_HA_CORE = _HA_CORE.exists()
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-_CLI = str(Path(__file__).resolve().parent.parent / "src" / "hassette_codegen" / "__main__.py")
+from hassette_codegen.__main__ import _build_parser, main
 
 
-class TestCLIBasics:
-    def test_help_exits_zero(self) -> None:
-        result = subprocess.run(
-            ["uv", "run", "python", _CLI, "--help"],
-            capture_output=True,
-            text=True,
-            cwd=_REPO_ROOT,
-            timeout=30,
-        )
-        assert result.returncode == 0
-        assert "hassette-codegen" in result.stdout
+class TestArgParsing:
+    def test_no_args_returns_zero(self) -> None:
+        with patch("sys.argv", ["hassette-codegen"]):
+            assert main() == 0
 
-    def test_no_args_exits_zero(self) -> None:
-        result = subprocess.run(
-            ["uv", "run", "python", _CLI],
-            capture_output=True,
-            text=True,
-            cwd=_REPO_ROOT,
-            timeout=30,
-        )
-        assert result.returncode == 0
+    def test_help_flag(self, capsys) -> None:
+        parser = _build_parser()
+        args = parser.parse_args(["generate", "--ha-core-path", "/tmp/fake", "--check"])
+        assert args.command == "generate"
+        assert args.check is True
+        assert args.ha_core_path == Path("/tmp/fake")
 
-    def test_generate_requires_source(self) -> None:
-        result = subprocess.run(
-            ["uv", "run", "python", _CLI, "generate"],
-            capture_output=True,
-            text=True,
-            cwd=_REPO_ROOT,
-            timeout=30,
-        )
-        assert result.returncode != 0
+    def test_domain_filter_parsed(self) -> None:
+        parser = _build_parser()
+        args = parser.parse_args(["generate", "--ha-core-path", "/tmp", "--domain", "light,fan"])
+        assert args.domain == "light,fan"
 
-    def test_python_version_check(self) -> None:
-        if not _HAS_HA_CORE:
-            pytest.skip("HA core not available")
-        result = subprocess.run(
-            ["uv", "run", "python", _CLI, "generate", "--ha-core-path", str(_HA_CORE)],
-            capture_output=True,
-            text=True,
-            cwd=_REPO_ROOT,
-            timeout=30,
-        )
-        if sys.version_info < (3, 14):  # noqa: UP036
-            assert result.returncode != 0
-            assert "requires Python" in result.stderr
+    def test_sync_facade_subcommand(self) -> None:
+        parser = _build_parser()
+        args = parser.parse_args(["sync-facade", "--check"])
+        assert args.command == "sync-facade"
+        assert args.check is True

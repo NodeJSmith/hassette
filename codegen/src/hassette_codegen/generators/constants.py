@@ -9,9 +9,8 @@ def generate_sensor_constants(constant_sets: list[ExtractedConstantSet]) -> str:
 
     for cs in constant_sets:
         lines.append(f"{cs.name} = Literal[")
-        for i, val in enumerate(cs.values):
-            comma = "," if i < len(cs.values) - 1 else ","
-            lines.append(f'    "{val}"{comma}')
+        for val in cs.values:
+            lines.append(f'    "{val}",')
         lines.append("]")
         lines.append("")
 
