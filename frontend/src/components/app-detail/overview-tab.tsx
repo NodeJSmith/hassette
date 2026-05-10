@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useMemo, useState } from "preact/hooks";
 import { Link } from "wouter";
 import { EmptyState } from "../shared/empty-state";
 import { StatusShape } from "../shared/status-shape";
@@ -202,7 +202,7 @@ function HandlerHealthGrid({ items, appKey, instanceQs }: HandlerHealthGridProps
     );
   }
 
-  const sorted = sortedByFailingFirst(items);
+  const sorted = useMemo(() => sortedByFailingFirst(items), [items]);
 
   return (
     <section class="ht-overview-tab__section" data-testid="overview-health-grid">
@@ -252,7 +252,7 @@ interface RecentActivitySectionProps {
 }
 
 function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivitySectionProps) {
-  const { data: activity, loading, refetch } = useScopedApi(
+  const { data: activity, loading, error: activityError, refetch } = useScopedApi(
     (since) => getAppActivity(appKey, resolvedInstanceIndex, ACTIVITY_LIMIT, since),
     { deps: [appKey, resolvedInstanceIndex] },
   );
@@ -286,7 +286,11 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
   return (
     <section class="ht-overview-tab__section" data-testid="overview-activity-section">
       <h3 class="ht-config-group__label">recent activity</h3>
-      {!loading.value && entries.length === 0 ? (
+      {activityError.value ? (
+        <p class="ht-overview-empty-inline ht-text-danger" data-testid="overview-activity-error">
+          could not load activity
+        </p>
+      ) : !loading.value && entries.length === 0 ? (
         <p class="ht-overview-empty-inline" data-testid="overview-activity-empty">
           no recent activity
         </p>
@@ -338,7 +342,7 @@ interface RecentLogsSectionProps {
 }
 
 function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
-  const { data: logs, loading } = useScopedApi(
+  const { data: logs, loading, error: logsError } = useScopedApi(
     (since) => getRecentLogs({ app_key: appKey, limit: LOGS_LIMIT, since }),
     { deps: [appKey] },
   );
@@ -348,7 +352,11 @@ function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
   return (
     <section class="ht-overview-tab__section" data-testid="overview-logs-section">
       <h3 class="ht-config-group__label">recent logs</h3>
-      {!loading.value && entries.length === 0 ? (
+      {logsError.value ? (
+        <p class="ht-overview-empty-inline ht-text-danger" data-testid="overview-logs-error">
+          could not load logs
+        </p>
+      ) : !loading.value && entries.length === 0 ? (
         <p class="ht-overview-empty-inline" data-testid="overview-logs-empty">
           no recent logs
         </p>
@@ -375,9 +383,9 @@ function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 
 export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInstanceIndex }: Props) {
-  const allItems = buildItems(listeners, jobs);
+  const allItems = useMemo(() => buildItems(listeners, jobs), [listeners, jobs]);
 
-  const failingItems = allItems.filter(isFailing);
+  const failingItems = useMemo(() => allItems.filter(isFailing), [allItems]);
 
   return (
     <div class="ht-overview-tab" data-testid="overview-tab">

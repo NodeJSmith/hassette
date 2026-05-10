@@ -209,12 +209,13 @@ async def app_activity(
 ) -> list[ActivityFeedEntry]:
     """Recent handler invocations and job executions for a single app, merged and sorted by time."""
     effective_tier = source_tier if source_tier is not None else "app"
+    effective_since = since if since is not None else time.time() - 86400
     try:
         return await telemetry.get_app_recent_activity(
             app_key=app_key,
             instance_index=instance_index,
             limit=limit,
-            since=since,
+            since=effective_since,
             source_tier=effective_tier,
         )
     except DB_ERRORS:
