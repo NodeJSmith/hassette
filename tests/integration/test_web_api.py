@@ -652,6 +652,18 @@ class TestTelemetrySinceParam:
         call_kwargs = mock_hassette.telemetry_query_service.get_job_executions.call_args.kwargs
         assert call_kwargs["since"] == pytest.approx(1700000009.0)
 
+    async def test_app_activity_passes_since(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/app/my_app/activity?since=1700000011.0")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_app_recent_activity.call_args.kwargs
+        assert call_kwargs["since"] == pytest.approx(1700000011.0)
+
+    async def test_app_activity_passes_limit(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        response = await client.get("/api/telemetry/app/my_app/activity?limit=10")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_app_recent_activity.call_args.kwargs
+        assert call_kwargs["limit"] == 10
+
     async def test_dashboard_app_grid_passes_since(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         response = await client.get("/api/telemetry/dashboard/app-grid?since=1700000013.0")
         assert response.status_code == 200
@@ -704,6 +716,13 @@ class TestSourceTierParameter:
         call_kwargs = mock_hassette.telemetry_query_service.get_job_summary.call_args.kwargs
         assert call_kwargs["source_tier"] == "all"
 
+    async def test_app_activity_accepts_source_tier(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """GET /telemetry/app/{key}/activity?source_tier=all passes through."""
+        response = await client.get("/api/telemetry/app/my_app/activity?source_tier=all")
+        assert response.status_code == 200
+        call_kwargs = mock_hassette.telemetry_query_service.get_app_recent_activity.call_args.kwargs
+        assert call_kwargs["source_tier"] == "all"
+
     async def test_app_health_invalid_source_tier_returns_422(self, client: "AsyncClient") -> None:
         """Invalid source_tier on /health returns 422."""
         response = await client.get("/api/telemetry/app/my_app/health?source_tier=bad")
@@ -740,6 +759,16 @@ class TestDbErrorGuards:
             side_effect=sqlite3.OperationalError("database is locked")
         )
         response = await client.get("/api/telemetry/app/my_app/jobs")
+        assert response.status_code == 503
+        data = response.json()
+        assert data == []
+
+    async def test_app_activity_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """sqlite3.Error on app_activity returns 503 with empty list."""
+        mock_hassette.telemetry_query_service.get_app_recent_activity = AsyncMock(
+            side_effect=sqlite3.OperationalError("database is locked")
+        )
+        response = await client.get("/api/telemetry/app/my_app/activity")
         assert response.status_code == 503
         data = response.json()
         assert data == []

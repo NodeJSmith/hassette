@@ -12,6 +12,7 @@ from logging import getLogger
 from fastapi import APIRouter, Path, Query, Response
 
 from hassette.core.telemetry_models import (
+    ActivityFeedEntry,
     AppHealthSummary,
     AppLastError,
     HandlerInvocation,
@@ -194,6 +195,32 @@ async def app_listeners(
         response.status_code = 503
         return []
     return [to_listener_with_summary(ls) for ls in listeners]
+
+
+@router.get("/app/{app_key}/activity", response_model=list[ActivityFeedEntry])
+async def app_activity(
+    telemetry: TelemetryDep,
+    response: Response,
+    app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
+    instance_index: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
+    since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
+) -> list[ActivityFeedEntry]:
+    """Recent handler invocations and job executions for a single app, merged and sorted by time."""
+    effective_tier = source_tier if source_tier is not None else "app"
+    try:
+        return await telemetry.get_app_recent_activity(
+            app_key=app_key,
+            instance_index=instance_index,
+            limit=limit,
+            since=since,
+            source_tier=effective_tier,
+        )
+    except DB_ERRORS:
+        LOGGER.warning("Failed to fetch activity for %s", app_key, exc_info=True)
+        response.status_code = 503
+        return []
 
 
 @router.get("/app/{app_key}/jobs", response_model=list[JobSummary])

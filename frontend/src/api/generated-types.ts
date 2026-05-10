@@ -298,6 +298,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/telemetry/app/{app_key}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * App Activity
+         * @description Recent handler invocations and job executions for a single app, merged and sorted by time.
+         */
+        get: operations["app_activity_api_telemetry_app__app_key__activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/telemetry/app/{app_key}/jobs": {
         parameters: {
             query?: never;
@@ -436,6 +456,29 @@ export interface components {
             ok: number;
             /** Err */
             err: number;
+        };
+        /**
+         * ActivityFeedEntry
+         * @description A single activity entry for the cross-app recent activity feed.
+         */
+        ActivityFeedEntry: {
+            /** Status */
+            status: string;
+            /** Timestamp */
+            timestamp: number;
+            /** App Key */
+            app_key: string;
+            /** Handler Name */
+            handler_name: string;
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /** Error Type */
+            error_type?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "handler" | "job";
         };
         /**
          * AppConfigResponse
@@ -1627,6 +1670,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ListenerWithSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    app_activity_api_telemetry_app__app_key__activity_get: {
+        parameters: {
+            query?: {
+                instance_index?: number | null;
+                limit?: number;
+                since?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
+            };
+            header?: never;
+            path: {
+                /** @description Use `__hassette__` to query framework-internal actor telemetry. */
+                app_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityFeedEntry"][];
                 };
             };
             /** @description Validation Error */

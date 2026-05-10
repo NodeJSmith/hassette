@@ -11,6 +11,7 @@ import pytest
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_models import (
+    ActivityFeedEntry,
     AppHealthSummary,
     HandlerInvocation,
     JobExecution,
@@ -1423,3 +1424,242 @@ class TestCheckHealth:
             # Restore so fixture teardown doesn't crash
             db_svc._read_db = await aiosqlite.connect(db_svc._db_path, isolation_level=None)
             db_svc._read_db.row_factory = aiosqlite.Row
+
+
+# ---------------------------------------------------------------------------
+# Tests: get_app_recent_activity
+# ---------------------------------------------------------------------------
+
+
+class TestGetAppRecentActivity:
+    async def test_merged_sorted_by_timestamp_desc(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Handler invocations and job executions are merged and sorted by timestamp DESC."""
+        db_svc, session_id = db
+
+        base_ts = 1_000_000.0
+        listener_id = await _insert_listener(db_svc, app_key="test_app", handler_method="on_event")
+        job_id = await _insert_job(db_svc, app_key="test_app", job_name="my_job", handler_method="run_job")
+
+        # Interleave timestamps so merge order is testable
+        await _insert_invocation(db_svc, listener_id, session_id, status="success", execution_start_ts=base_ts + 30.0)
+        await _insert_invocation(
+            db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 10.0, error_type="ValueError"
+        )
+        await _insert_execution(db_svc, job_id, session_id, status="success", execution_start_ts=base_ts + 20.0)
+
+        results = await svc.get_app_recent_activity(
+            app_key="test_app",
+            instance_index=None,
+            limit=50,
+            since=None,
+            source_tier="app",
+        )
+
+        assert len(results) == 3
+        assert all(isinstance(r, ActivityFeedEntry) for r in results)
+        # Sorted DESC by timestamp
+        assert results[0].timestamp == pytest.approx(base_ts + 30.0)
+        assert results[1].timestamp == pytest.approx(base_ts + 20.0)
+        assert results[2].timestamp == pytest.approx(base_ts + 10.0)
+
+    async def test_kind_field_correct(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Handler invocations have kind='handler', job executions have kind='job'."""
+        db_svc, session_id = db
+
+        base_ts = 1_000_000.0
+        listener_id = await _insert_listener(db_svc, app_key="test_app", handler_method="on_event")
+        job_id = await _insert_job(db_svc, app_key="test_app", job_name="my_job", handler_method="run_job")
+
+        await _insert_invocation(db_svc, listener_id, session_id, status="success", execution_start_ts=base_ts + 20.0)
+        await _insert_execution(db_svc, job_id, session_id, status="success", execution_start_ts=base_ts + 10.0)
+
+        results = await svc.get_app_recent_activity(
+            app_key="test_app",
+            instance_index=None,
+            limit=50,
+            since=None,
+            source_tier="app",
+        )
+
+        assert len(results) == 2
+        assert results[0].kind == "handler"
+        assert results[1].kind == "job"
+
+    async def test_limit_is_respected(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """limit parameter caps the number of returned entries."""
+        db_svc, session_id = db
+
+        base_ts = 1_000_000.0
+        listener_id = await _insert_listener(db_svc, app_key="test_app", handler_method="on_event")
+
+        for i in range(10):
+            await _insert_invocation(
+                db_svc, listener_id, session_id, status="success", execution_start_ts=base_ts + float(i)
+            )
+
+        results = await svc.get_app_recent_activity(
+            app_key="test_app",
+            instance_index=None,
+            limit=3,
+            since=None,
+            source_tier="app",
+        )
+
+        assert len(results) == 3
+        # Should be the 3 most recent
+        assert results[0].timestamp == pytest.approx(base_ts + 9.0)
+        assert results[1].timestamp == pytest.approx(base_ts + 8.0)
+        assert results[2].timestamp == pytest.approx(base_ts + 7.0)
+
+    async def test_since_filters_old_entries(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """since parameter excludes entries older than the threshold."""
+        db_svc, session_id = db
+
+        base_ts = 1_000_000.0
+        since_ts = base_ts + 15.0
+
+        listener_id = await _insert_listener(db_svc, app_key="test_app", handler_method="on_event")
+        job_id = await _insert_job(db_svc, app_key="test_app", job_name="my_job", handler_method="run_job")
+
+        # After since_ts — should be included
+        await _insert_invocation(db_svc, listener_id, session_id, status="success", execution_start_ts=base_ts + 20.0)
+        await _insert_execution(db_svc, job_id, session_id, status="success", execution_start_ts=base_ts + 30.0)
+
+        # Before since_ts — should be excluded
+        await _insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 5.0)
+        await _insert_execution(db_svc, job_id, session_id, status="error", execution_start_ts=base_ts + 10.0)
+
+        results = await svc.get_app_recent_activity(
+            app_key="test_app",
+            instance_index=None,
+            limit=50,
+            since=since_ts,
+            source_tier="app",
+        )
+
+        assert len(results) == 2
+        assert all(r.timestamp >= since_ts for r in results)
+
+    async def test_source_tier_filtering(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """source_tier='framework' returns only framework-tier entries, not app-tier."""
+        db_svc, session_id = db
+
+        base_ts = 1_000_000.0
+        app_listener = await _insert_listener(db_svc, app_key="test_app", handler_method="on_app", source_tier="app")
+        fw_listener = await _insert_listener(
+            db_svc, app_key="test_app", handler_method="on_fw", source_tier="framework"
+        )
+
+        await _insert_invocation(
+            db_svc, app_listener, session_id, status="success", execution_start_ts=base_ts + 10.0, source_tier="app"
+        )
+        await _insert_invocation(
+            db_svc,
+            fw_listener,
+            session_id,
+            status="success",
+            execution_start_ts=base_ts + 20.0,
+            source_tier="framework",
+        )
+
+        results = await svc.get_app_recent_activity(
+            app_key="test_app",
+            instance_index=None,
+            limit=50,
+            since=None,
+            source_tier="framework",
+        )
+
+        assert len(results) == 1
+        assert results[0].handler_name == "on_fw"
+
+    async def test_instance_index_scoping(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """instance_index filters to entries for that instance only."""
+        db_svc, session_id = db
+
+        base_ts = 1_000_000.0
+        listener_0 = await _insert_listener(db_svc, app_key="test_app", instance_index=0, handler_method="on_event")
+        listener_1 = await _insert_listener(db_svc, app_key="test_app", instance_index=1, handler_method="on_event")
+
+        await _insert_invocation(db_svc, listener_0, session_id, status="success", execution_start_ts=base_ts + 10.0)
+        await _insert_invocation(db_svc, listener_1, session_id, status="success", execution_start_ts=base_ts + 20.0)
+
+        results = await svc.get_app_recent_activity(
+            app_key="test_app",
+            instance_index=0,
+            limit=50,
+            since=None,
+            source_tier="app",
+        )
+
+        assert len(results) == 1
+        assert results[0].timestamp == pytest.approx(base_ts + 10.0)
+
+    async def test_empty_app_returns_empty_list(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """App with no invocations or executions returns an empty list."""
+        db_svc, _session_id = db
+        await _insert_listener(db_svc, app_key="test_app", handler_method="on_event")
+
+        results = await svc.get_app_recent_activity(
+            app_key="test_app",
+            instance_index=None,
+            limit=50,
+            since=None,
+            source_tier="app",
+        )
+
+        assert results == []
+
+    async def test_isolates_to_app_key(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Results are scoped to the requested app_key only."""
+        db_svc, session_id = db
+
+        base_ts = 1_000_000.0
+        l_a = await _insert_listener(db_svc, app_key="app_a", handler_method="on_a")
+        l_b = await _insert_listener(db_svc, app_key="app_b", handler_method="on_b")
+
+        await _insert_invocation(db_svc, l_a, session_id, status="success", execution_start_ts=base_ts + 10.0)
+        await _insert_invocation(db_svc, l_b, session_id, status="success", execution_start_ts=base_ts + 20.0)
+
+        results = await svc.get_app_recent_activity(
+            app_key="app_a",
+            instance_index=None,
+            limit=50,
+            since=None,
+            source_tier="app",
+        )
+
+        assert len(results) == 1
+        assert results[0].app_key == "app_a"

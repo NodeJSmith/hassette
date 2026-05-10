@@ -18,6 +18,7 @@ export type TelemetryStatus = components["schemas"]["TelemetryStatusResponse"];
 export type LogEntry = components["schemas"]["LogEntryResponse"];
 export type AppConfigData = components["schemas"]["AppConfigResponse"];
 export type AppSourceData = components["schemas"]["AppSourceResponse"];
+export type ActivityFeedEntryData = components["schemas"]["ActivityFeedEntry"];
 
 // ---- Query string helpers ----
 
@@ -54,6 +55,9 @@ export const getAppListeners = (appKey: string, instanceIndex = 0, since?: numbe
 
 export const getAppJobs = (appKey: string, instanceIndex = 0, since?: number | null) =>
   apiFetch<JobData[]>(buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/jobs`, { instance_index: instanceIndex, since }));
+
+export const getAppActivity = (appKey: string, instanceIndex?: number | null, limit = 50, since?: number | null) =>
+  apiFetch<ActivityFeedEntryData[]>(buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/activity`, { instance_index: instanceIndex, limit, since }));
 
 export const getHandlerInvocations = (listenerId: number, limit = 50, since?: number | null) =>
   apiFetch<HandlerInvocationData[]>(buildUrl(`/telemetry/handler/${listenerId}/invocations`, { limit, since }));

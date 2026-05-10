@@ -792,6 +792,122 @@
         }
       }
     },
+    "/api/telemetry/app/{app_key}/activity": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "App Activity",
+        "description": "Recent handler invocations and job executions for a single app, merged and sorted by time.",
+        "operationId": "app_activity_api_telemetry_app__app_key__activity_get",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Use `__hassette__` to query framework-internal actor telemetry.",
+              "title": "App Key"
+            },
+            "description": "Use `__hassette__` to query framework-internal actor telemetry."
+          },
+          {
+            "name": "instance_index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Instance Index"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "name": "source_tier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "app",
+                    "framework",
+                    "all"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "title": "Source Tier"
+            },
+            "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ActivityFeedEntry"
+                  },
+                  "title": "Response App Activity Api Telemetry App  App Key  Activity Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/telemetry/app/{app_key}/jobs": {
       "get": {
         "tags": [
@@ -1212,6 +1328,66 @@
         ],
         "title": "ActivityBucket",
         "description": "A single time-window bucket for the sparkline chart."
+      },
+      "ActivityFeedEntry": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "timestamp": {
+            "type": "number",
+            "title": "Timestamp"
+          },
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "handler_name": {
+            "type": "string",
+            "title": "Handler Name"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "error_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Type"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "handler",
+              "job"
+            ],
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "timestamp",
+          "app_key",
+          "handler_name",
+          "kind"
+        ],
+        "title": "ActivityFeedEntry",
+        "description": "A single activity entry for the cross-app recent activity feed."
       },
       "AppConfigResponse": {
         "properties": {

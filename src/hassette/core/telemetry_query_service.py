@@ -10,6 +10,7 @@ import aiosqlite
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_models import (
+    ActivityFeedEntry,
     AppHealthSummary,
     AppLastError,
     HandlerInvocation,
@@ -797,6 +798,98 @@ class TelemetryQueryService(Resource):
         async with self._db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return {row[0]: int(row[1]) for row in rows}
+
+    async def get_app_recent_activity(
+        self,
+        app_key: str,
+        instance_index: int | None,
+        limit: int,
+        since: float | None,
+        source_tier: QuerySourceTier,
+    ) -> list[ActivityFeedEntry]:
+        """Return recent handler invocations and job executions for a single app, merged and sorted by time.
+
+        Uses a UNION ALL to merge handler_invocations and job_executions, then orders by
+        timestamp DESC with a LIMIT.  The ``since`` parameter bounds the scan so that
+        typical volumes remain fast without pushing LIMIT into UNION ALL branches.
+
+        Args:
+            app_key: The app to query.
+            instance_index: When provided, restrict to that instance only.
+            limit: Maximum number of entries to return (1-500).
+            since: Unix epoch float lower bound for ``execution_start_ts``, or ``None``.
+            source_tier: Filter by source tier (``'app'``, ``'framework'``, or ``'all'``).
+
+        Returns:
+            List of :class:`ActivityFeedEntry` sorted by ``timestamp`` descending.
+        """
+        tier_hi_clause, tier_params = _source_tier_clause(source_tier, "hi")
+        # _source_tier_clause always binds :source_tier — same key for both branches
+        tier_je_clause, _ = _source_tier_clause(source_tier, "je")
+        since_hi_clause, since_params = _since_clause(since, "hi.execution_start_ts")
+        since_je_clause, _ = _since_clause(since, "je.execution_start_ts")
+
+        instance_hi_clause = ""
+        instance_je_clause = ""
+        instance_params: dict[str, int] = {}
+        if instance_index is not None:
+            instance_hi_clause = "AND l.instance_index = :instance_index"
+            instance_je_clause = "AND sj.instance_index = :instance_index"
+            instance_params = {"instance_index": instance_index}
+
+        query = f"""
+            SELECT status, timestamp, app_key, handler_name, duration_ms, error_type, kind
+            FROM (
+                SELECT
+                    hi.status,
+                    hi.execution_start_ts AS timestamp,
+                    l.app_key,
+                    l.handler_method AS handler_name,
+                    hi.duration_ms,
+                    hi.error_type,
+                    'handler' AS kind
+                FROM handler_invocations hi
+                JOIN listeners l ON l.id = hi.listener_id
+                WHERE l.app_key = :app_key
+                    {instance_hi_clause}
+                    {since_hi_clause}
+                    {tier_hi_clause}
+
+                UNION ALL
+
+                SELECT
+                    je.status,
+                    je.execution_start_ts AS timestamp,
+                    sj.app_key,
+                    sj.handler_method AS handler_name,
+                    je.duration_ms,
+                    je.error_type,
+                    'job' AS kind
+                FROM job_executions je
+                JOIN scheduled_jobs sj ON sj.id = je.job_id
+                WHERE sj.app_key = :app_key
+                    {instance_je_clause}
+                    {since_je_clause}
+                    {tier_je_clause}
+            ) combined
+            ORDER BY timestamp DESC
+            LIMIT :limit
+        """
+
+        params: dict[str, Any] = {
+            "app_key": app_key,
+            "limit": limit,
+            **since_params,
+            **tier_params,
+            **instance_params,
+        }
+
+        # Single UNION ALL — no snapshot needed; SQLite guarantees a consistent view per statement.
+        # Inner JOINs by design: orphaned invocations (deleted listener/job) are excluded.
+        async with self._db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+
+        return [ActivityFeedEntry.model_validate(_row_to_dict(row)) for row in rows]
 
     async def check_health(self) -> None:
         """Verify the database connection is alive.
