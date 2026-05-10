@@ -37,7 +37,9 @@ def resolve_source(*, ha_core_path: Path | None = None, ha_release_tag: str | No
         components = ha_core_path / "homeassistant" / "components"
         if not components.is_dir():
             raise SystemExit(f"Invalid HA core path: {ha_core_path} (missing homeassistant/components/)")
-        return HASource(path=ha_core_path, version=_detect_version(ha_core_path))
+        version = _detect_version(ha_core_path)
+        _warn_version_mismatch(version)
+        return HASource(path=ha_core_path, version=version)
 
     if ha_release_tag is not None:
         clone_dir = Path(tempfile.mkdtemp(prefix="hassette-codegen-ha-"))
@@ -57,6 +59,20 @@ def resolve_source(*, ha_core_path: Path | None = None, ha_release_tag: str | No
         return HASource(path=clone_dir, version=ha_release_tag, _cleanup_dir=clone_dir)
 
     raise SystemExit("Must specify either --ha-core-path or --ha-release-tag")
+
+
+def _warn_version_mismatch(detected_version: str) -> None:
+    """Warn if the local HA checkout doesn't match the pinned version."""
+    version_file = Path(__file__).resolve().parent.parent.parent / "ha-version.txt"
+    if not version_file.exists():
+        return
+    pinned = version_file.read_text(encoding="utf-8").strip()
+    if pinned and pinned not in detected_version:
+        print(
+            f"WARNING: Local HA core version ({detected_version}) does not match "
+            f"pinned version ({pinned}). Generated output may differ from CI.",
+            file=sys.stderr,
+        )
 
 
 def _detect_version(ha_core_path: Path) -> str:

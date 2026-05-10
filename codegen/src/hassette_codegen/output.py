@@ -41,7 +41,7 @@ def format_via_ruff(content: str) -> str:
             tmp_path = tmp.name
 
         run_ruff_step(["ruff", "format", tmp_path], "format")
-        run_ruff_step(["ruff", "check", "--fix", "--select", "I", tmp_path], "isort")
+        run_ruff_step(["ruff", "check", "--fix", tmp_path], "fix")
 
         return Path(tmp_path).read_text(encoding="utf-8")
     finally:
