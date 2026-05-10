@@ -116,6 +116,7 @@ export function createAppState() {
     /** Shared manifest data — fetched once by useManifestFetcher, consumed by all pages. */
     manifests: signal<AppManifest[]>([]),
     manifestsLoading: signal(true),
+    manifestsError: signal<string | null>(null),
 
     /** Log entries in a ring buffer with a version signal for efficient rendering. */
     logs: createLogStore(),

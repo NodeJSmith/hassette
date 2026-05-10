@@ -159,7 +159,7 @@ export function AppDetailPage({ params }: Props) {
   const instanceIndex = parsedInstance !== undefined && Number.isFinite(parsedInstance) ? parsedInstance : undefined;
 
 
-  const { manifests: manifestsSignal, manifestsLoading } = useAppState();
+  const { manifests, manifestsLoading } = useAppState();
 
   // For instance detail view: fetch listeners, jobs
   const resolvedInstanceIndex = instanceIndex ?? 0;
@@ -180,7 +180,7 @@ export function AppDetailPage({ params }: Props) {
   const displayListeners = listeners.data.value ?? staleListeners.current ?? [];
   const displayJobs = jobs.data.value ?? staleJobs.current ?? [];
 
-  const manifest = manifestsSignal.value.find((m) => m.app_key === appKey);
+  const manifest = manifests.value.find((m) => m.app_key === appKey);
   useDocumentTitle(manifest?.display_name ?? "App");
 
   const isMultiInstance = (manifest?.instance_count ?? 0) > 1;

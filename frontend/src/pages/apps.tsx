@@ -200,7 +200,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
 export function AppsPage() {
   useDocumentTitle("Apps");
 
-  const { appStatus, effectiveTimePreset, uptimeSeconds, manifests: manifestsSignal, manifestsLoading } = useAppState();
+  const { appStatus, effectiveTimePreset, uptimeSeconds, manifests: manifestsState, manifestsLoading } = useAppState();
   const { data: gridData } = useScopedApi(
     (since) => getDashboardAppGrid(since),
   );
@@ -232,7 +232,7 @@ export function AppsPage() {
     expanded.value = next;
   };
 
-  const manifests = manifestsSignal.value;
+  const manifests = manifestsState.value;
   const gridEntries = gridData.value?.apps ?? [];
   const allApps = mergeManifestsAndGrid(manifests, gridEntries);
 

@@ -187,8 +187,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const resultsRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<Element | null>(null);
 
-  const { manifests: manifestsSignal } = useAppState();
-  const allManifests = manifestsSignal.value;
+  const { manifests } = useAppState();
+  const allManifests = manifests.value;
   const listenersApi = useApi(getAllListeners, [], { lazy: true });
 
   useEffect(() => {
