@@ -3,15 +3,19 @@
 import argparse
 import ast
 import builtins
-import contextlib
 import copy
 import itertools
-import py_compile
-import subprocess
 import sys
-import tempfile
 import textwrap
 from pathlib import Path
+
+# When run as a script (not as part of the installed package), ensure the
+# codegen/src directory is on sys.path so sibling module imports work.
+_CODEGEN_SRC = str(Path(__file__).resolve().parent.parent)
+if _CODEGEN_SRC not in sys.path:
+    sys.path.insert(0, _CODEGEN_SRC)
+
+from hassette_codegen.output import atomic_write, format_via_ruff, run_ruff_step  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Stub message templates — defined as module-level constants so generated code
@@ -360,125 +364,17 @@ def generate_sync(api_path: Path) -> str:
     return HEADER + CLASS_HEADER + wrappers_str
 
 
-def _run_ruff_step(cmd: list[str], step_name: str) -> None:
-    """Run a single ruff subprocess step, converting expected failure modes to ``SystemExit``.
-
-    Wraps ``subprocess.run(..., check=True)`` with handlers for ``FileNotFoundError``
-    (missing ruff binary), ``TimeoutExpired`` (30s cap exceeded), and
-    ``CalledProcessError`` (ruff exited non-zero on e.g. invalid syntax in the generated
-    output), so callers never surface a raw Python traceback to the pre-commit hook or
-    CI log. The ruff process is run with stdout/stderr streaming to the terminal, so on
-    a ``CalledProcessError`` the human-readable diagnostic is already visible above the
-    ``SystemExit`` message — we just tell the user to look up.
-    """
-    try:
-        subprocess.run(cmd, check=True, timeout=30)
-    except FileNotFoundError as exc:
-        raise SystemExit("ruff not found on PATH. Install with: uv tool install ruff") from exc
-    except subprocess.TimeoutExpired as exc:
-        raise SystemExit(f"ruff {step_name} timed out after 30s — check for filesystem stall") from exc
-    except subprocess.CalledProcessError as exc:
-        raise SystemExit(
-            f"ruff {step_name} failed with exit code {exc.returncode}. See the ruff output above for details."
-        ) from exc
-
-
-def _format_via_ruff(content: str) -> str:
-    """Write content to a temp file, normalize it through ruff, return the result.
-
-    The temp file is placed in tempfile.gettempdir() (outside the repo) so that
-    --check mode never leaves files inside the worktree that would confuse git.
-
-    Applies the **byte-affecting** subset of ``run_ruff``'s steps — ``ruff
-    format`` and the import-sort fix (``ruff check --fix --select I``) — so
-    that --check-mode comparison and the on-disk write path produce
-    byte-identical output. The third step ``run_ruff`` runs (``ruff check``
-    validation, no --fix) is intentionally skipped here because it does not
-    modify file bytes; running it would only slow check mode without
-    affecting the comparison.
-
-    Without the isort step here, the generator's raw output (with unsorted
-    imports) would never byte-equal the on-disk committed file (which was
-    sorted by ``run_ruff`` at write time), producing a false drift signal.
-    """
-    tmp_path: str | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            suffix=".py",
-            dir=tempfile.gettempdir(),
-            delete=False,
-            encoding="utf-8",
-        ) as tmp:
-            tmp.write(content)
-            tmp_path = tmp.name
-
-        _run_ruff_step(["ruff", "format", tmp_path], "format")
-        # Apply the same isort step as run_ruff() so the comparison is
-        # symmetric — the on-disk committed file was sorted at write time.
-        _run_ruff_step(["ruff", "check", "--fix", "--select", "I", tmp_path], "isort")
-
-        return Path(tmp_path).read_text(encoding="utf-8")
-    finally:
-        if tmp_path is not None:
-            with contextlib.suppress(OSError):
-                Path(tmp_path).unlink()
-
-
-def run_ruff(path: Path) -> None:
-    """Run ruff format + import-sort fix + ruff check on path, raising SystemExit on any failure."""
-    _run_ruff_step(["ruff", "format", str(path)], "format")
-    # auto-fix import ordering (I001 / isort) — safe fixable-only rule
-    _run_ruff_step(["ruff", "check", "--fix", "--select", "I", str(path)], "isort")
-    # validate (all rules, no --fix)
-    _run_ruff_step(["ruff", "check", str(path)], "check")
+_run_ruff_step = run_ruff_step
+_format_via_ruff = format_via_ruff
 
 
 def _atomic_write_generated(out_path: Path, content: str) -> None:
-    """Atomically write generated source, run ruff + py_compile, then rename into place.
+    """Atomically write generated source — delegates to shared output.atomic_write.
 
-    A previous non-atomic implementation wrote the raw output in-place and then ran ruff
-    over the committed file. A Ctrl-C, OOM kill, or ruff timeout between those steps left
-    the committed file in an unformatted or partially-written state — which the CI drift
-    gate then flagged spuriously on the next push.
-
-    This helper writes to a temp file in the same directory (so ``Path.replace`` is
-    atomic on the same filesystem), runs the full ``ruff`` pipeline and a ``py_compile``
-    safety net against the temp file, and only atomically replaces the committed file
-    if every step succeeds. If anything fails, the temp file is removed and the
-    committed file is left untouched.
+    Raises SystemExit on py_compile failure (sync facade's original behavior).
     """
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path: Path | None = None
-    try:
-        # delete=False so we can close, run ruff on the path, then os.replace it.
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf8",
-            dir=out_path.parent,
-            prefix=f".{out_path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as fp:
-            fp.write(content)
-            tmp_path = Path(fp.name)
-
-        run_ruff(tmp_path)
-
-        # Post-generation safety net: verify the output compiles. Catches missing imports
-        # for type-annotation-only symbols that slip past ``ruff check`` but would fail
-        # at import/type-check time.
-        try:
-            py_compile.compile(str(tmp_path), doraise=True)
-        except py_compile.PyCompileError as exc:
-            raise SystemExit(f"Generated file failed py_compile (target: {out_path}): {exc}") from exc
-
-        tmp_path.replace(out_path)
-        tmp_path = None
-    finally:
-        if tmp_path is not None:
-            with contextlib.suppress(OSError):
-                tmp_path.unlink()
+    if not atomic_write(out_path, content):
+        raise SystemExit(f"Generated file failed validation (target: {out_path})")
 
 
 # ---------------------------------------------------------------------------
