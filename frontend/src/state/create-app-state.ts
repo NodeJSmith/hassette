@@ -2,6 +2,7 @@ import { batch, computed, signal, type Signal } from "@preact/signals";
 import { RingBuffer } from "../utils/ring-buffer";
 import { getStoredValue } from "../utils/local-storage";
 import { isTheme } from "../utils/theme";
+import type { AppManifest } from "../api/endpoints";
 import type { WsLogPayload, WsInvocationCompletedPayload, WsExecutionCompletedPayload } from "../api/ws-types";
 
 export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
@@ -111,6 +112,10 @@ export function createAppState() {
 
     /** WebSocket connection state machine. */
     connection: signal<ConnectionStatus>("connecting"),
+
+    /** Shared manifest data — fetched once by useManifestFetcher, consumed by all pages. */
+    manifests: signal<AppManifest[]>([]),
+    manifestsLoading: signal(true),
 
     /** Log entries in a ring buffer with a version signal for efficient rendering. */
     logs: createLogStore(),

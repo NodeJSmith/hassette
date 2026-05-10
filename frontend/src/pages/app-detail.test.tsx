@@ -5,8 +5,8 @@ import type { ComponentChildren } from "preact";
 import { AppDetailPage } from "./app-detail";
 import { AppStateContext } from "../state/context";
 import { createAppState, type AppState } from "../state/create-app-state";
-import { createManifest, createInstance, createManifestList } from "../test/factories";
-import type { AppManifest, ManifestListResponse, JobData, ListenerData } from "../api/endpoints";
+import { createManifest, createInstance } from "../test/factories";
+import type { AppManifest, JobData, ListenerData } from "../api/endpoints";
 
 // Mutable search string for tests that need to control query params
 let mockSearchString = "";
@@ -52,9 +52,6 @@ vi.mock("../components/shared/confirm-dialog", () => ({
 }));
 
 // Mock hooks
-vi.mock("../hooks/use-api", () => ({
-  useApi: vi.fn(),
-}));
 vi.mock("../hooks/use-scoped-api", () => ({
   useScopedApi: vi.fn(),
 }));
@@ -64,16 +61,10 @@ vi.mock("../hooks/use-correct-url", () => ({
   useCorrectUrl: () => mockCorrectUrl,
 }));
 
-const useApiMod = await import("../hooks/use-api");
-const useApi = useApiMod.useApi as unknown as ReturnType<typeof vi.fn>;
 const useScopedApiMod = await import("../hooks/use-scoped-api");
 const useScopedApi = useScopedApiMod.useScopedApi as unknown as ReturnType<typeof vi.fn>;
 
-function createManifestListResponse(manifest: AppManifest): ManifestListResponse {
-  return createManifestList({ manifests: [manifest] });
-}
-
-function fakeApiResult<T>(data: T | null) {
+function fakeScopedApiResult<T>(data: T | null) {
   return {
     data: signal(data),
     loading: signal(false),
@@ -100,21 +91,24 @@ describe("AppDetailPage", () => {
     vi.clearAllMocks();
   });
 
-  function setupUseApi(
+  function setupManifestAndApi(
     manifest: AppManifest,
     listeners: ListenerData[] = [],
     jobs: JobData[] = [],
   ) {
-    useApi.mockReturnValueOnce(fakeApiResult(createManifestListResponse(manifest)));
+    // Manifests come from shared app state (synchronous)
+    state.manifests.value = [manifest];
+    state.manifestsLoading.value = false;
+    // Listeners and jobs still come from useScopedApi
     useScopedApi
-      .mockReturnValueOnce(fakeApiResult(listeners))   // listeners
-      .mockReturnValueOnce(fakeApiResult(jobs));        // jobs
+      .mockReturnValueOnce(fakeScopedApiResult(listeners))   // listeners
+      .mockReturnValueOnce(fakeScopedApiResult(jobs));        // jobs
   }
 
 
   it("renders app_key in the header", () => {
     const manifest = createManifest({ app_key: "test_app", display_name: "Motion Sensor App" });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -123,7 +117,7 @@ describe("AppDetailPage", () => {
   });
 
   it("renders action buttons", () => {
-    setupUseApi(createManifest());
+    setupManifestAndApi(createManifest());
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -132,7 +126,7 @@ describe("AppDetailPage", () => {
   });
 
   it("renders handlers tab by default (health strip is inside HandlersTab)", () => {
-    setupUseApi(createManifest());
+    setupManifestAndApi(createManifest());
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -142,7 +136,7 @@ describe("AppDetailPage", () => {
   });
 
   it("renders tab strip with Handlers tab", () => {
-    setupUseApi(createManifest());
+    setupManifestAndApi(createManifest());
     const { getByRole } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -151,7 +145,7 @@ describe("AppDetailPage", () => {
   });
 
   it("renders tab strip with Code tab", () => {
-    setupUseApi(createManifest());
+    setupManifestAndApi(createManifest());
     const { getByRole } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -160,7 +154,7 @@ describe("AppDetailPage", () => {
   });
 
   it("renders tab strip with Logs tab", () => {
-    setupUseApi(createManifest());
+    setupManifestAndApi(createManifest());
     const { getByRole } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -169,7 +163,7 @@ describe("AppDetailPage", () => {
   });
 
   it("renders tab strip with Config tab", () => {
-    setupUseApi(createManifest());
+    setupManifestAndApi(createManifest());
     const { getByRole } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -178,7 +172,7 @@ describe("AppDetailPage", () => {
   });
 
   it("Handlers tab is selected by default", () => {
-    setupUseApi(createManifest());
+    setupManifestAndApi(createManifest());
     const { getByRole } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -188,7 +182,7 @@ describe("AppDetailPage", () => {
   });
 
   it("renders handlers-tab content when Handlers tab is active", () => {
-    setupUseApi(createManifest());
+    setupManifestAndApi(createManifest());
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -202,7 +196,7 @@ describe("AppDetailPage", () => {
       error_message: "Module not found: light_controller",
       error_traceback: null,
     });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -212,7 +206,7 @@ describe("AppDetailPage", () => {
 
   it("does not render error display when app has no error_message", () => {
     const manifest = createManifest({ error_message: null });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     const { queryByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -222,7 +216,7 @@ describe("AppDetailPage", () => {
 
   it("renders filename in subtitle meta", () => {
     const manifest = createManifest({ app_key: "motion_sensor_app", filename: "apps/motion_sensor.py" });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "motion_sensor_app" }} />,
       { wrapper: createWrapper(state) },
@@ -232,7 +226,7 @@ describe("AppDetailPage", () => {
 
   it("renders auto-loaded badge when auto_loaded is true", () => {
     const manifest = createManifest({ auto_loaded: true });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -242,7 +236,7 @@ describe("AppDetailPage", () => {
 
   it("does not render auto-loaded badge when auto_loaded is false", () => {
     const manifest = createManifest({ auto_loaded: false });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     const { queryByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -256,7 +250,7 @@ describe("AppDetailPage", () => {
       filename: "apps/test_app.py",
       class_name: "TestApp",
     });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -273,7 +267,7 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
       ],
     });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -289,7 +283,7 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
       ],
     });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -307,7 +301,7 @@ describe("AppDetailPage", () => {
         createInstance({ index: 2, instance_name: "c", status: "stopped" }),
       ],
     });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -323,7 +317,7 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
       ],
     });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     // Instance 0 is specified via query param
     mockSearchString = "instance=0";
     const { getByTestId } = render(
@@ -342,7 +336,7 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
       ],
     });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     mockSearchString = "instance=0";
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
@@ -355,7 +349,7 @@ describe("AppDetailPage", () => {
   // Tab routing via URL — tab is derived from params.tab prop (set by router)
   it("renders CodeTab when params.tab is 'code'", () => {
     const manifest = createManifest();
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app", tab: "code" }} />,
       { wrapper: createWrapper(state) },
@@ -365,7 +359,7 @@ describe("AppDetailPage", () => {
 
   it("renders ConfigTab when params.tab is 'config'", () => {
     const manifest = createManifest();
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app", tab: "config" }} />,
       { wrapper: createWrapper(state) },
@@ -375,7 +369,7 @@ describe("AppDetailPage", () => {
 
   it("renders LogTable when params.tab is 'logs'", () => {
     const manifest = createManifest();
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app", tab: "logs" }} />,
       { wrapper: createWrapper(state) },
@@ -385,7 +379,7 @@ describe("AppDetailPage", () => {
 
   it("code tab has aria-selected=true when params.tab is 'code'", () => {
     const manifest = createManifest();
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     const { getByRole } = render(
       <AppDetailPage params={{ key: "test_app", tab: "code" }} />,
       { wrapper: createWrapper(state) },
@@ -396,7 +390,7 @@ describe("AppDetailPage", () => {
 
   it("handlers tab is selected by default when no params.tab provided", () => {
     const manifest = createManifest();
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     const { getByRole } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
@@ -407,7 +401,7 @@ describe("AppDetailPage", () => {
 
   it("tab links point to the correct path with instance query param preserved", () => {
     const manifest = createManifest();
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     mockSearchString = "instance=1";
     const { getByRole } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
@@ -419,7 +413,7 @@ describe("AppDetailPage", () => {
 
   it("tab links omit instance query param when not set", () => {
     const manifest = createManifest();
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     // no mockSearchString = no instance param
     const { getByRole } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
@@ -437,7 +431,7 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
       ],
     });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     mockSearchString = "instance=0";
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app", tab: "logs" }} />,
@@ -458,7 +452,7 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
       ],
     });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     // No instance param = parent overview
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
@@ -479,7 +473,7 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
       ],
     });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     mockSearchString = "instance=1";
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
@@ -500,7 +494,7 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
       ],
     });
-    setupUseApi(manifest);
+    setupManifestAndApi(manifest);
     mockSearchString = "instance=99";
     render(
       <AppDetailPage params={{ key: "test_app", tab: "handlers" }} />,
@@ -514,7 +508,7 @@ describe("AppDetailPage", () => {
 
   // T03: "view in code" navigates to /apps/:key/code?line=N instead of mutating signal
   it("onSwitchToCode navigates to code tab with ?line= param", () => {
-    setupUseApi(createManifest());
+    setupManifestAndApi(createManifest());
     render(
       <AppDetailPage params={{ key: "test_app", tab: "handlers" }} />,
       { wrapper: createWrapper(state) },
@@ -525,7 +519,7 @@ describe("AppDetailPage", () => {
   });
 
   it("onSwitchToCode navigates to code tab without ?line= when line is undefined", () => {
-    setupUseApi(createManifest());
+    setupManifestAndApi(createManifest());
     render(
       <AppDetailPage params={{ key: "test_app", tab: "handlers" }} />,
       { wrapper: createWrapper(state) },
@@ -535,7 +529,7 @@ describe("AppDetailPage", () => {
   });
 
   it("onSwitchToCode preserves ?instance= param when navigating to code tab", () => {
-    setupUseApi(createManifest());
+    setupManifestAndApi(createManifest());
     mockSearchString = "instance=1";
     render(
       <AppDetailPage params={{ key: "test_app", tab: "handlers" }} />,
@@ -546,7 +540,7 @@ describe("AppDetailPage", () => {
   });
 
   it("passes selectedHandler prop from params.handler to HandlersTab", () => {
-    setupUseApi(createManifest());
+    setupManifestAndApi(createManifest());
     render(
       <AppDetailPage params={{ key: "test_app", tab: "handlers", handler: "h-42" }} />,
       { wrapper: createWrapper(state) },
@@ -555,7 +549,7 @@ describe("AppDetailPage", () => {
   });
 
   it("passes null selectedHandler to HandlersTab when no handler param", () => {
-    setupUseApi(createManifest());
+    setupManifestAndApi(createManifest());
     render(
       <AppDetailPage params={{ key: "test_app", tab: "handlers" }} />,
       { wrapper: createWrapper(state) },

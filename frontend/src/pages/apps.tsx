@@ -2,12 +2,8 @@ import { signal } from "@preact/signals";
 import { useRef } from "preact/hooks";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useQueryParams } from "../hooks/use-query-params";
-import {
-  getManifests,
-  getDashboardAppGrid,
-} from "../api/endpoints";
+import { getDashboardAppGrid } from "../api/endpoints";
 import { useScopedApi, PRESET_WINDOW_SECONDS } from "../hooks/use-scoped-api";
-import { useApi } from "../hooks/use-api";
 import { useAppState } from "../state/context";
 import { statusToKind, statusToVariant, INACTIVE_STATUSES, type StatusKind } from "../utils/status";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
@@ -204,8 +200,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
 export function AppsPage() {
   useDocumentTitle("Apps");
 
-  const { appStatus, effectiveTimePreset, uptimeSeconds } = useAppState();
-  const { data: manifestData, loading: manifestLoading } = useApi(getManifests);
+  const { appStatus, effectiveTimePreset, uptimeSeconds, manifests: manifestsSignal, manifestsLoading } = useAppState();
   const { data: gridData } = useScopedApi(
     (since) => getDashboardAppGrid(since),
   );
@@ -237,7 +232,7 @@ export function AppsPage() {
     expanded.value = next;
   };
 
-  const manifests = manifestData.value?.manifests ?? [];
+  const manifests = manifestsSignal.value;
   const gridEntries = gridData.value?.apps ?? [];
   const allApps = mergeManifestsAndGrid(manifests, gridEntries);
 
@@ -263,7 +258,7 @@ export function AppsPage() {
     })
     .sort((a, b) => compareAppRows(a, b, sort, appStatus.value));
 
-  if (manifestLoading.value && manifests.length === 0) return <Spinner />;
+  if (manifestsLoading.value && manifests.length === 0) return <Spinner />;
 
   return (
     <div class="ht-page ht-apps-page" data-testid="apps-page">

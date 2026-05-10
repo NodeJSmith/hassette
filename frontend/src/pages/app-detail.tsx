@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useCorrectUrl } from "../hooks/use-correct-url";
 import { useQueryParams } from "../hooks/use-query-params";
-import { getAppJobs, getAppListeners, getManifests } from "../api/endpoints";
+import { getAppJobs, getAppListeners } from "../api/endpoints";
 import type { AppInstance } from "../api/endpoints";
 import { ActionButtons } from "../components/shared/action-buttons";
 import { CodeTab } from "../components/app-detail/code-tab";
@@ -12,7 +12,6 @@ import { ErrorBanner } from "../components/shared/error-banner";
 import { HandlersTab } from "../components/app-detail/handlers-tab";
 import { LogTable } from "../components/shared/log-table";
 import { Spinner } from "../components/shared/spinner";
-import { useApi } from "../hooks/use-api";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { useAppState } from "../state/context";
 import { statusToKind, statusToVariant } from "../utils/status";
@@ -160,7 +159,7 @@ export function AppDetailPage({ params }: Props) {
   const instanceIndex = parsedInstance !== undefined && Number.isFinite(parsedInstance) ? parsedInstance : undefined;
 
 
-  const manifests = useApi(getManifests);
+  const { manifests: manifestsSignal, manifestsLoading } = useAppState();
 
   // For instance detail view: fetch listeners, jobs
   const resolvedInstanceIndex = instanceIndex ?? 0;
@@ -181,7 +180,7 @@ export function AppDetailPage({ params }: Props) {
   const displayListeners = listeners.data.value ?? staleListeners.current ?? [];
   const displayJobs = jobs.data.value ?? staleJobs.current ?? [];
 
-  const manifest = manifests.data.value?.manifests.find((m) => m.app_key === appKey);
+  const manifest = manifestsSignal.value.find((m) => m.app_key === appKey);
   useDocumentTitle(manifest?.display_name ?? "App");
 
   const isMultiInstance = (manifest?.instance_count ?? 0) > 1;
@@ -192,10 +191,10 @@ export function AppDetailPage({ params }: Props) {
   const currentInstance = manifest?.instances?.find((i) => i.index === resolvedInstanceIndex);
   const liveStatus = appStatus.value[appKey]?.status ?? currentInstance?.status ?? manifest?.status ?? "unknown";
 
-  const hasData = manifests.data.value !== null
+  const hasData = !manifestsLoading.value
     && listeners.data.value !== null && jobs.data.value !== null;
   const initialLoading = !hasData && (listeners.loading.value
-    || jobs.loading.value || manifests.loading.value);
+    || jobs.loading.value || manifestsLoading.value);
 
   // Correct out-of-range instance index
   // Guarded: only fires when data is fully loaded and confirms instance is invalid

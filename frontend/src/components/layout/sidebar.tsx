@@ -1,7 +1,5 @@
 import { useState } from "preact/hooks";
 import { Link, useLocation, useSearch } from "wouter";
-import { getManifests } from "../../api/endpoints";
-import { useApi } from "../../hooks/use-api";
 import { useAppState } from "../../state/context";
 import { statusToKind } from "../../utils/status";
 import { Spinner } from "../shared/spinner";
@@ -239,15 +237,14 @@ interface SidebarProps {
 export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   const [location] = useLocation();
   const searchString = useSearch();
-  const { systemVersion } = useAppState();
-  const manifests = useApi(getManifests);
+  const { systemVersion, manifests, manifestsLoading } = useAppState();
   const [search, setSearch] = useState("");
 
   const [groupOpen, setGroupOpen] = useState<Record<GroupKey, boolean>>(DEFAULT_GROUP_OPEN);
 
   const version = systemVersion.value;
 
-  const allManifests = manifests.data.value?.manifests ?? [];
+  const allManifests = manifests.value;
   const isFiltering = search.trim().length > 0;
   const filtered = isFiltering
     ? allManifests.filter((m) =>
@@ -359,10 +356,10 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         </div>
 
         {/* Status groups */}
-        {manifests.loading.value && (
+        {manifestsLoading.value && (
           <Spinner />
         )}
-        {!manifests.loading.value && filtered.length === 0 && (
+        {!manifestsLoading.value && filtered.length === 0 && (
           <div class="ht-sidebar__empty">no apps</div>
         )}
         {GROUP_DEFS.map((def) => {

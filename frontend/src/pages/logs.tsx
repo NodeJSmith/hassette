@@ -1,12 +1,11 @@
-import { getManifests } from "../api/endpoints";
 import { LogTable } from "../components/shared/log-table";
-import { useApi } from "../hooks/use-api";
 import { useDocumentTitle } from "../hooks/use-document-title";
+import { useAppState } from "../state/context";
 
 export function LogsPage() {
   useDocumentTitle("Logs");
-  const manifests = useApi(getManifests);
-  const appKeys = manifests.data.value?.manifests.map((m) => m.app_key).sort() ?? [];
+  const { manifests } = useAppState();
+  const appKeys = manifests.value.map((m) => m.app_key).sort();
 
   return (
     <div class="ht-page ht-logs-page">

@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "preact/hooks";
 import { useLocation } from "wouter";
-import { getAllListeners, getManifests, reloadApp, stopApp } from "../../api/endpoints";
+import { getAllListeners, reloadApp, stopApp } from "../../api/endpoints";
 import type { AppManifest, ListenerData } from "../../api/endpoints";
 import { useApi } from "../../hooks/use-api";
 import { useSignal } from "../../hooks/use-signal";
+import { useAppState } from "../../state/context";
 import { statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 
@@ -186,8 +187,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const resultsRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<Element | null>(null);
 
-  const manifests = useApi(getManifests);
-  const allManifests = manifests.data.value?.manifests ?? [];
+  const { manifests: manifestsSignal } = useAppState();
+  const allManifests = manifestsSignal.value;
   const listenersApi = useApi(getAllListeners, [], { lazy: true });
 
   useEffect(() => {

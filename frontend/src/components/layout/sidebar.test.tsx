@@ -4,12 +4,11 @@ import { h } from "preact";
 import { signal } from "@preact/signals";
 import { Sidebar } from "./sidebar";
 import { renderWithAppState } from "../../test/render-helpers";
-import { server } from "../../test/server";
-import { http, HttpResponse } from "msw";
-import { createManifest, createManifestList, createInstance } from "../../test/factories";
-import type { components } from "../../api/generated-types";
+import { createManifest, createInstance } from "../../test/factories";
 
-type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
+function withManifests(manifests: ReturnType<typeof createManifest>[]) {
+  return { stateOverrides: { manifests: signal(manifests), manifestsLoading: signal(false) } };
+}
 
 // Mock wouter to control the current location
 vi.mock("wouter", () => ({
@@ -37,7 +36,7 @@ describe("Sidebar — structure", () => {
     expect(container.querySelector("aside.ht-sidebar")).not.toBeNull();
   });
 
-  it("renders main navigation with accessibility label", async () => {
+  it("renders main navigation with accessibility label", () => {
     const { getByLabelText } = renderWithAppState(<Sidebar />);
     expect(getByLabelText("Main navigation")).toBeDefined();
   });
@@ -134,83 +133,51 @@ describe("Sidebar — nav items", () => {
 });
 
 describe("Sidebar — app list", () => {
-  it("renders apps from the manifests API", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({ app_key: "my_app", display_name: "My App", status: "running" }),
-            ],
-          }),
-        ),
-      ),
+  it("renders apps from the manifests API", () => {
+    const { getByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({ app_key: "my_app", display_name: "My App", status: "running" }),
+      ]),
     );
-    const { findByText } = renderWithAppState(<Sidebar />);
-    expect(await findByText("My App")).toBeDefined();
+    expect(getByText("My App")).toBeDefined();
   });
 
-  it("renders app link with correct href", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [createManifest({ app_key: "my_app", display_name: "My App" })],
-          }),
-        ),
-      ),
+  it("renders app link with correct href", () => {
+    const { getByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([createManifest({ app_key: "my_app", display_name: "My App" })]),
     );
-    const { findByText } = renderWithAppState(<Sidebar />);
-    const link = (await findByText("My App")).closest("a");
+    const link = getByText("My App").closest("a");
     expect(link?.getAttribute("href")).toBe("/apps/my_app");
   });
 
-  it("shows auto badge on auto-loaded apps", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [createManifest({ auto_loaded: true, display_name: "My App" })],
-          }),
-        ),
-      ),
+  it("shows auto badge on auto-loaded apps", () => {
+    const { getByTitle } = renderWithAppState(
+      <Sidebar />,
+      withManifests([createManifest({ auto_loaded: true, display_name: "My App" })]),
     );
-    const { findByTitle } = renderWithAppState(<Sidebar />);
-    expect(await findByTitle("Auto-loaded")).toBeDefined();
+    expect(getByTitle("Auto-loaded")).toBeDefined();
   });
 
-  it("does not show auto badge on non-auto-loaded apps", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [createManifest({ auto_loaded: false, display_name: "My App" })],
-          }),
-        ),
-      ),
+  it("does not show auto badge on non-auto-loaded apps", () => {
+    const { queryByTitle } = renderWithAppState(
+      <Sidebar />,
+      withManifests([createManifest({ auto_loaded: false, display_name: "My App" })]),
     );
-    const { queryByTitle } = renderWithAppState(<Sidebar />);
-    // Wait briefly for data to load
-    await new Promise((r) => setTimeout(r, 10));
     expect(queryByTitle("Auto-loaded")).toBeNull();
   });
 
-  it("groups apps so FAILING group header appears before RUNNING group header in DOM", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({ app_key: "running_app", display_name: "Running App", status: "running" }),
-              createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
-            ],
-          }),
-        ),
-      ),
+  it("groups apps so FAILING group header appears before RUNNING group header in DOM", () => {
+    const { getByText, container } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({ app_key: "running_app", display_name: "Running App", status: "running" }),
+        createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
+      ]),
     );
-    const { findByText, container } = renderWithAppState(<Sidebar />);
     // Failed App is visible in expanded FAILING group
-    expect(await findByText("Failed App")).toBeDefined();
+    expect(getByText("Failed App")).toBeDefined();
     // Group headers are in DOM order: FAILING before RUNNING
     const groupHeaders = Array.from(container.querySelectorAll(".ht-sidebar__group-header"))
       .map((el) => el.textContent);
@@ -221,18 +188,12 @@ describe("Sidebar — app list", () => {
     expect(failingIdx).toBeLessThan(runningIdx);
   });
 
-  it("applies is-blocked class to blocked apps", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [createManifest({ app_key: "b_app", display_name: "Blocked App", status: "blocked" })],
-          }),
-        ),
-      ),
+  it("applies is-blocked class to blocked apps", () => {
+    const { getByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([createManifest({ app_key: "b_app", display_name: "Blocked App", status: "blocked" })]),
     );
-    const { findByText } = renderWithAppState(<Sidebar />);
-    const nameEl = await findByText("Blocked App");
+    const nameEl = getByText("Blocked App");
     const item = nameEl.closest(".ht-sidebar__app-item");
     expect(item?.className).toContain("is-blocked");
   });
@@ -245,21 +206,15 @@ describe("Sidebar — search", () => {
     expect(input).not.toBeNull();
   });
 
-  it("filters apps by display name when user types", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({ app_key: "alpha", display_name: "Alpha App" }),
-              createManifest({ app_key: "beta", display_name: "Beta App" }),
-            ],
-          }),
-        ),
-      ),
+  it("filters apps by display name when user types", () => {
+    const { getByText, queryByText, container } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({ app_key: "alpha", display_name: "Alpha App" }),
+        createManifest({ app_key: "beta", display_name: "Beta App" }),
+      ]),
     );
-    const { findByText, queryByText, container } = renderWithAppState(<Sidebar />);
-    await findByText("Alpha App");
+    expect(getByText("Alpha App")).toBeDefined();
     const input = container.querySelector("input[type='search']")!;
     fireEvent.input(input, { target: { value: "Alpha" } });
     expect(queryByText("Beta App")).toBeNull();
@@ -268,114 +223,89 @@ describe("Sidebar — search", () => {
 });
 
 describe("Sidebar — multi-instance apps", () => {
-  it("shows expand button for multi-instance apps", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({
-                app_key: "multi_app",
-                display_name: "Multi App",
-                instance_count: 2,
-                instances: [
-                  createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-                  createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
-                ],
-              }),
-            ],
-          }),
-        ),
-      ),
+  it("shows expand button for multi-instance apps", () => {
+    const { getByLabelText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({
+          app_key: "multi_app",
+          display_name: "Multi App",
+          instance_count: 2,
+          instances: [
+            createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+            createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+          ],
+        }),
+      ]),
     );
-    const { findByLabelText } = renderWithAppState(<Sidebar />);
-    const expandBtn = await findByLabelText("Expand Multi App");
-    expect(expandBtn).toBeDefined();
+    expect(getByLabelText("Expand Multi App")).toBeDefined();
   });
 
-  it("clicking expand shows instance links", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({
-                app_key: "multi_app",
-                display_name: "Multi App",
-                instance_count: 2,
-                instances: [
-                  createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-                  createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
-                ],
-              }),
-            ],
-          }),
-        ),
-      ),
+  it("clicking expand shows instance links", () => {
+    const { getByLabelText, getByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({
+          app_key: "multi_app",
+          display_name: "Multi App",
+          instance_count: 2,
+          instances: [
+            createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+            createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+          ],
+        }),
+      ]),
     );
-    const { findByLabelText, findByText } = renderWithAppState(<Sidebar />);
-    const expandBtn = await findByLabelText("Expand Multi App");
+    const expandBtn = getByLabelText("Expand Multi App");
     fireEvent.click(expandBtn);
-    expect(await findByText("inst_0")).toBeDefined();
-    expect(await findByText("inst_1")).toBeDefined();
+    expect(getByText("inst_0")).toBeDefined();
+    expect(getByText("inst_1")).toBeDefined();
   });
 
-  it("instance links use ?instance=N query param format", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({
-                app_key: "multi_app",
-                display_name: "Multi App",
-                instance_count: 2,
-                instances: [
-                  createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-                  createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
-                ],
-              }),
-            ],
-          }),
-        ),
-      ),
+  it("instance links use ?instance=N query param format", () => {
+    const { getByLabelText, getByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({
+          app_key: "multi_app",
+          display_name: "Multi App",
+          instance_count: 2,
+          instances: [
+            createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+            createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+          ],
+        }),
+      ]),
     );
-    const { findByLabelText, findByText } = renderWithAppState(<Sidebar />);
-    const expandBtn = await findByLabelText("Expand Multi App");
+    const expandBtn = getByLabelText("Expand Multi App");
     fireEvent.click(expandBtn);
-    const inst0Link = (await findByText("inst_0")).closest("a");
-    const inst1Link = (await findByText("inst_1")).closest("a");
+    const inst0Link = getByText("inst_0").closest("a");
+    const inst1Link = getByText("inst_1").closest("a");
     expect(inst0Link?.getAttribute("href")).toBe("/apps/multi_app?instance=0");
     expect(inst1Link?.getAttribute("href")).toBe("/apps/multi_app?instance=1");
   });
 
-  it("instance link is active when location matches app path with correct instance query param", async () => {
+  it("instance link is active when location matches app path with correct instance query param", () => {
     useLocation.mockReturnValue(["/apps/multi_app", vi.fn()]);
     useSearch.mockReturnValue("instance=1");
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({
-                app_key: "multi_app",
-                display_name: "Multi App",
-                instance_count: 2,
-                instances: [
-                  createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-                  createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
-                ],
-              }),
-            ],
-          }),
-        ),
-      ),
+    const { getByLabelText, getByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({
+          app_key: "multi_app",
+          display_name: "Multi App",
+          instance_count: 2,
+          instances: [
+            createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+            createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+          ],
+        }),
+      ]),
     );
-    const { findByLabelText, findByText } = renderWithAppState(<Sidebar />);
-    const expandBtn = await findByLabelText("Expand Multi App");
+    const expandBtn = getByLabelText("Expand Multi App");
     fireEvent.click(expandBtn);
-    const inst1Link = (await findByText("inst_1")).closest("a");
-    const inst0Link = (await findByText("inst_0")).closest("a");
+    const inst1Link = getByText("inst_1").closest("a");
+    const inst0Link = getByText("inst_0").closest("a");
     expect(inst1Link?.className).toContain("is-active");
     expect(inst0Link?.className).not.toContain("is-active");
   });
@@ -411,52 +341,36 @@ describe("Sidebar — version display", () => {
 });
 
 describe("Sidebar — APPS section header", () => {
-  it("renders APPS header above the search input", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({ manifests: [createManifest({ display_name: "My App" })] }),
-        ),
-      ),
+  it("renders APPS header above the search input", () => {
+    const { getByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([createManifest({ display_name: "My App" })]),
     );
-    const { findByText } = renderWithAppState(<Sidebar />);
-    expect(await findByText(/^APPS/)).toBeDefined();
+    expect(getByText(/^APPS/)).toBeDefined();
   });
 
-  it("APPS header shows total count", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({ app_key: "a1", display_name: "App One" }),
-              createManifest({ app_key: "a2", display_name: "App Two" }),
-            ],
-          }),
-        ),
-      ),
+  it("APPS header shows total count", () => {
+    const { container, getByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({ app_key: "a1", display_name: "App One" }),
+        createManifest({ app_key: "a2", display_name: "App Two" }),
+      ]),
     );
-    const { container, findByText } = renderWithAppState(<Sidebar />);
-    await findByText("App One");
+    expect(getByText("App One")).toBeDefined();
     const header = container.querySelector(".ht-sidebar__section-header");
     expect(header?.textContent).toContain("2");
   });
 
-  it("shows filtered/total counts when search is active", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({ app_key: "a1", display_name: "Alpha App" }),
-              createManifest({ app_key: "a2", display_name: "Beta App" }),
-            ],
-          }),
-        ),
-      ),
+  it("shows filtered/total counts when search is active", () => {
+    const { container, getByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({ app_key: "a1", display_name: "Alpha App" }),
+        createManifest({ app_key: "a2", display_name: "Beta App" }),
+      ]),
     );
-    const { container, findByText } = renderWithAppState(<Sidebar />);
-    await findByText("Alpha App");
+    expect(getByText("Alpha App")).toBeDefined();
     const input = container.querySelector("input[type='search']")!;
     fireEvent.input(input, { target: { value: "Alpha" } });
     const header = container.querySelector(".ht-sidebar__section-header");
@@ -465,69 +379,45 @@ describe("Sidebar — APPS section header", () => {
 });
 
 describe("Sidebar — status groups", () => {
-  it("groups failed apps under FAILING header", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
-            ],
-          }),
-        ),
-      ),
+  it("groups failed apps under FAILING header", () => {
+    const { getByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
+      ]),
     );
-    const { findByText } = renderWithAppState(<Sidebar />);
-    expect(await findByText("FAILING")).toBeDefined();
-    expect(await findByText("Failed App")).toBeDefined();
+    expect(getByText("FAILING")).toBeDefined();
+    expect(getByText("Failed App")).toBeDefined();
   });
 
-  it("groups running apps under RUNNING header", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({ app_key: "running_app", display_name: "Running App", status: "running" }),
-            ],
-          }),
-        ),
-      ),
+  it("groups running apps under RUNNING header", () => {
+    const { getByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({ app_key: "running_app", display_name: "Running App", status: "running" }),
+      ]),
     );
-    const { findByText } = renderWithAppState(<Sidebar />);
-    expect(await findByText("RUNNING")).toBeDefined();
+    expect(getByText("RUNNING")).toBeDefined();
   });
 
-  it("groups disabled apps under DISABLED header", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({ app_key: "dis_app", display_name: "Disabled App", status: "disabled" }),
-            ],
-          }),
-        ),
-      ),
+  it("groups disabled apps under DISABLED header", () => {
+    const { getByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({ app_key: "dis_app", display_name: "Disabled App", status: "disabled" }),
+      ]),
     );
-    const { findByText } = renderWithAppState(<Sidebar />);
-    expect(await findByText("DISABLED")).toBeDefined();
+    expect(getByText("DISABLED")).toBeDefined();
   });
 
-  it("hides empty groups", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({ app_key: "running_app", display_name: "Running App", status: "running" }),
-            ],
-          }),
-        ),
-      ),
+  it("hides empty groups", () => {
+    const { container, getByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({ app_key: "running_app", display_name: "Running App", status: "running" }),
+      ]),
     );
-    const { container, findByText } = renderWithAppState(<Sidebar />);
-    await findByText("Running App");
+    expect(getByText("Running App")).toBeDefined();
     const groupHeaders = Array.from(container.querySelectorAll(".ht-sidebar__group-header")).map(
       (el) => el.textContent,
     );
@@ -535,43 +425,31 @@ describe("Sidebar — status groups", () => {
     expect(groupHeaders.some((t) => t?.includes("RUNNING"))).toBe(true);
   });
 
-  it("clicking group header collapses the group", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
-            ],
-          }),
-        ),
-      ),
+  it("clicking group header collapses the group", () => {
+    const { getByText, queryByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
+      ]),
     );
-    const { findByText, queryByText } = renderWithAppState(<Sidebar />);
-    const header = await findByText("FAILING");
+    const header = getByText("FAILING");
     // Failed App visible before collapse
-    expect(await findByText("Failed App")).toBeDefined();
+    expect(getByText("Failed App")).toBeDefined();
     // Click header to collapse
     fireEvent.click(header.closest(".ht-sidebar__group-header")!);
     // Failed App hidden after collapse
     expect(queryByText("Failed App")).toBeNull();
   });
 
-  it("pressing Enter on group header toggles collapse", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
-            ],
-          }),
-        ),
-      ),
+  it("pressing Enter on group header toggles collapse", () => {
+    const { getByText, queryByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
+      ]),
     );
-    const { findByText, queryByText } = renderWithAppState(<Sidebar />);
-    const header = await findByText("FAILING");
-    expect(await findByText("Failed App")).toBeDefined();
+    const header = getByText("FAILING");
+    expect(getByText("Failed App")).toBeDefined();
     // Collapse via click (native <button> handles Enter/Space → click automatically)
     fireEvent.click(header.closest(".ht-sidebar__group-header")!);
     expect(queryByText("Failed App")).toBeNull();
@@ -580,66 +458,48 @@ describe("Sidebar — status groups", () => {
     expect(queryByText("Failed App")).not.toBeNull();
   });
 
-  it("maps exhausted_dead to FAILING group", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({
-                app_key: "dead_app",
-                display_name: "Dead App",
-                status: "exhausted_dead",
-              }),
-            ],
-          }),
-        ),
-      ),
+  it("maps exhausted_dead to FAILING group", () => {
+    const { getByText, container } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({
+          app_key: "dead_app",
+          display_name: "Dead App",
+          status: "exhausted_dead",
+        }),
+      ]),
     );
-    const { findByText, container } = renderWithAppState(<Sidebar />);
-    expect(await findByText("FAILING")).toBeDefined();
-    expect(await findByText("Dead App")).toBeDefined();
+    expect(getByText("FAILING")).toBeDefined();
+    expect(getByText("Dead App")).toBeDefined();
     const groupHeaders = Array.from(container.querySelectorAll(".ht-sidebar__group-header"))
       .map((el) => el.textContent);
     expect(groupHeaders.some((t) => t?.includes("RUNNING"))).toBe(false);
   });
 
-  it("pressing Space on group header toggles collapse", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
-            ],
-          }),
-        ),
-      ),
+  it("pressing Space on group header toggles collapse", () => {
+    const { getByText, queryByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
+      ]),
     );
-    const { findByText, queryByText } = renderWithAppState(<Sidebar />);
-    const header = await findByText("FAILING");
-    expect(await findByText("Failed App")).toBeDefined();
+    const header = getByText("FAILING");
+    expect(getByText("Failed App")).toBeDefined();
     fireEvent.click(header.closest(".ht-sidebar__group-header")!);
     expect(queryByText("Failed App")).toBeNull();
     fireEvent.click(header.closest(".ht-sidebar__group-header")!);
     expect(queryByText("Failed App")).not.toBeNull();
   });
 
-  it("forces RUNNING group open when all apps are healthy", async () => {
-    server.use(
-      http.get("/api/apps/manifests", () =>
-        HttpResponse.json<ManifestListResponse>(
-          createManifestList({
-            manifests: [
-              createManifest({ app_key: "app1", display_name: "App One", status: "running" }),
-              createManifest({ app_key: "app2", display_name: "App Two", status: "running" }),
-            ],
-          }),
-        ),
-      ),
+  it("forces RUNNING group open when all apps are healthy", () => {
+    const { getByText } = renderWithAppState(
+      <Sidebar />,
+      withManifests([
+        createManifest({ app_key: "app1", display_name: "App One", status: "running" }),
+        createManifest({ app_key: "app2", display_name: "App Two", status: "running" }),
+      ]),
     );
-    const { findByText } = renderWithAppState(<Sidebar />);
-    expect(await findByText("App One")).toBeDefined();
-    expect(await findByText("App Two")).toBeDefined();
+    expect(getByText("App One")).toBeDefined();
+    expect(getByText("App Two")).toBeDefined();
   });
 });
