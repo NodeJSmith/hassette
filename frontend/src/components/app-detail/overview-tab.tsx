@@ -4,9 +4,14 @@ import { EmptyState } from "../shared/empty-state";
 import { StatusShape } from "../shared/status-shape";
 import { buildItems } from "./handler-list";
 import type { UnifiedItem } from "./unified-handler-row";
-import { handlerKindLabel } from "../../utils/status";
-import { pluralize } from "../../utils/format";
-import type { ListenerData, JobData } from "../../api/endpoints";
+import { handlerKindLabel, levelToKind, executionStatusKind } from "../../utils/status";
+import { pluralize, formatDurationOrDash, formatRelativeTime } from "../../utils/format";
+import type { ListenerData, JobData, ActivityFeedEntryData, LogEntry } from "../../api/endpoints";
+import { getAppActivity, getRecentLogs } from "../../api/endpoints";
+import { useScopedApi } from "../../hooks/use-scoped-api";
+import { useApi } from "../../hooks/use-api";
+import { useAppState } from "../../state/context";
+import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
 
 const SPOTLIGHT_LIMIT = 3;
 
@@ -15,6 +20,7 @@ interface Props {
   jobs: JobData[];
   appKey: string;
   instanceQs: string;
+  resolvedInstanceIndex: number;
 }
 
 function handlerPath(appKey: string, item: UnifiedItem, instanceQs: string): string {
@@ -216,9 +222,141 @@ function HandlerHealthGrid({ items, appKey, instanceQs }: HandlerHealthGridProps
   );
 }
 
+// ── Recent Activity Section ───────────────────────────────────────────────────
+
+const ACTIVITY_LIMIT = 20;
+const LOGS_LIMIT = 10;
+
+interface ActivityRowProps {
+  entry: ActivityFeedEntryData;
+}
+
+function ActivityRow({ entry }: ActivityRowProps) {
+  const kind = executionStatusKind(entry.status);
+  return (
+    <tr class="ht-overview-activity-row" data-testid="overview-activity-row">
+      <td class="ht-overview-activity__status" aria-label={`status: ${entry.status}`}>
+        <StatusShape kind={kind} size={8} />
+      </td>
+      <td class="ht-overview-activity__name">{entry.handler_name}</td>
+      <td class="ht-overview-activity__duration">{formatDurationOrDash(entry.duration_ms)}</td>
+      <td class="ht-overview-activity__time">{formatRelativeTime(entry.timestamp)}</td>
+    </tr>
+  );
+}
+
+interface RecentActivitySectionProps {
+  appKey: string;
+  resolvedInstanceIndex: number;
+}
+
+function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivitySectionProps) {
+  const { data: activity, loading, refetch } = useScopedApi(
+    (since) => getAppActivity(appKey, resolvedInstanceIndex, ACTIVITY_LIMIT, since),
+    { deps: [appKey, resolvedInstanceIndex] },
+  );
+
+  const { invocationCompleted, executionCompleted } = useAppState();
+
+  useDebouncedEffect(
+    () => invocationCompleted.value,
+    500,
+    () => {
+      const events = invocationCompleted.value;
+      if (!events) return;
+      const matches = events.some((e) => e.app_key === appKey);
+      if (matches) void refetch();
+    },
+  );
+
+  useDebouncedEffect(
+    () => executionCompleted.value,
+    500,
+    () => {
+      const events = executionCompleted.value;
+      if (!events) return;
+      const matches = events.some((e) => e.app_key === appKey);
+      if (matches) void refetch();
+    },
+  );
+
+  const entries = activity.value ?? [];
+
+  return (
+    <section class="ht-overview-tab__section" data-testid="overview-activity-section">
+      <div class="ht-overview-tab__section-heading">recent activity</div>
+      {!loading.value && entries.length === 0 ? (
+        <p class="ht-overview-empty-inline" data-testid="overview-activity-empty">
+          no recent activity
+        </p>
+      ) : (
+        <table class="ht-overview-activity-table">
+          <tbody>
+            {entries.map((entry) => (
+              <ActivityRow key={`${entry.kind}-${entry.handler_name}-${entry.timestamp}`} entry={entry} />
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
+// ── Recent Logs Section ───────────────────────────────────────────────────────
+
+interface LogRowProps {
+  entry: LogEntry;
+}
+
+function LogRow({ entry }: LogRowProps) {
+  const kind = levelToKind(entry.level);
+  return (
+    <tr class="ht-overview-log-row" data-testid="overview-log-row">
+      <td class="ht-overview-log__level" aria-label={`level: ${entry.level}`}>
+        <StatusShape kind={kind} size={8} />
+        <span class="ht-overview-log__level-text">{entry.level}</span>
+      </td>
+      <td class="ht-overview-log__time">{formatRelativeTime(entry.timestamp)}</td>
+      <td class="ht-overview-log__message" title={entry.message}>{entry.message}</td>
+    </tr>
+  );
+}
+
+interface RecentLogsSectionProps {
+  appKey: string;
+}
+
+function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
+  const { data: logs, loading } = useApi(
+    () => getRecentLogs({ app_key: appKey, limit: LOGS_LIMIT }),
+    [appKey],
+  );
+
+  const entries = logs.value ?? [];
+
+  return (
+    <section class="ht-overview-tab__section" data-testid="overview-logs-section">
+      <div class="ht-overview-tab__section-heading">recent logs</div>
+      {!loading.value && entries.length === 0 ? (
+        <p class="ht-overview-empty-inline" data-testid="overview-logs-empty">
+          no recent logs
+        </p>
+      ) : (
+        <table class="ht-overview-log-table">
+          <tbody>
+            {entries.map((entry) => (
+              <LogRow key={entry.seq ?? `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`} entry={entry} />
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 
-export function OverviewTab({ listeners, jobs, appKey, instanceQs }: Props) {
+export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInstanceIndex }: Props) {
   const allItems = buildItems(listeners, jobs);
 
   const failingItems = allItems.filter(isFailing);
@@ -239,14 +377,9 @@ export function OverviewTab({ listeners, jobs, appKey, instanceQs }: Props) {
         instanceQs={instanceQs}
       />
 
-      {/* Recent activity + logs — content added in T04 */}
-      <section class="ht-overview-tab__section" data-testid="overview-activity-section">
-        <EmptyState
-          title="Recent activity"
-          body="Loading recent activity…"
-          data-testid="overview-activity-placeholder"
-        />
-      </section>
+      <RecentActivitySection appKey={appKey} resolvedInstanceIndex={resolvedInstanceIndex} />
+
+      <RecentLogsSection appKey={appKey} />
     </div>
   );
 }

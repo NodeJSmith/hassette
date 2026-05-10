@@ -1,10 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/preact";
+import { fireEvent, waitFor } from "@testing-library/preact";
+import { signal } from "@preact/signals";
+import { http, HttpResponse } from "msw";
 import { OverviewTab } from "./overview-tab";
-import { createListener, createJob } from "../../test/factories";
+import { createListener, createJob, createLogEntry } from "../../test/factories";
+import { renderWithAppState } from "../../test/render-helpers";
+import { server } from "../../test/server";
+import type { components } from "../../api/generated-types";
 
-// Overview tab does not call useScopedApi or useAppState — no context needed.
-// It receives listeners/jobs as props and renders links (not buttons with state).
+type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
+
+// Overview tab tests are split into two groups:
+//  1. Props-only tests (error spotlight, health grid) — no context needed
+//  2. API-driven tests (activity, logs, real-time) — require AppStateContext + MSW
+// MSW server lifecycle is managed globally in src/test-setup.ts.
 
 // Suppress wouter's missing Router context warning for link rendering
 vi.mock("wouter", () => ({
@@ -18,14 +27,17 @@ function renderOverviewTab({
   jobs = [createJob()],
   appKey = "test_app",
   instanceQs = "",
+  resolvedInstanceIndex = 0,
 } = {}) {
-  return render(
+  return renderWithAppState(
     <OverviewTab
       listeners={listeners}
       jobs={jobs}
       appKey={appKey}
       instanceQs={instanceQs}
+      resolvedInstanceIndex={resolvedInstanceIndex}
     />,
+    { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
   );
 }
 
@@ -294,5 +306,225 @@ describe("OverviewTab — Handler Health Grid", () => {
     const anchor = row.tagName === "A" ? row : row.querySelector("a");
     const href = anchor?.getAttribute("href") ?? row.getAttribute("href");
     expect(href).toBe("/apps/test_app/handlers/h-6?instance=2");
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Recent Activity Section
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe("OverviewTab — Recent Activity", () => {
+  it("renders activity data from the endpoint", async () => {
+    const entries: ActivityFeedEntry[] = [
+      {
+        status: "success",
+        timestamp: 1700000100,
+        app_key: "test_app",
+        handler_name: "on_motion",
+        duration_ms: 42,
+        error_type: null,
+        kind: "handler",
+      },
+    ];
+    server.use(
+      http.get("/api/telemetry/app/:app_key/activity", () =>
+        HttpResponse.json<ActivityFeedEntry[]>(entries),
+      ),
+    );
+
+    const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
+    await waitFor(() => {
+      expect(getByTestId("overview-activity-section")).toBeDefined();
+    });
+    const section = getByTestId("overview-activity-section");
+    await waitFor(() => {
+      expect(section.textContent).toContain("on_motion");
+    });
+  });
+
+  it("renders empty state when activity endpoint returns no entries", async () => {
+    server.use(
+      http.get("/api/telemetry/app/:app_key/activity", () =>
+        HttpResponse.json<ActivityFeedEntry[]>([]),
+      ),
+    );
+
+    const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
+    await waitFor(() => {
+      expect(getByTestId("overview-activity-empty")).toBeDefined();
+    });
+  });
+
+  it("shows status shape, handler name, duration, and relative time per row", async () => {
+    const entries: ActivityFeedEntry[] = [
+      {
+        status: "failure",
+        timestamp: 1700000200,
+        app_key: "test_app",
+        handler_name: "on_door_open",
+        duration_ms: 155,
+        error_type: "ValueError",
+        kind: "handler",
+      },
+    ];
+    server.use(
+      http.get("/api/telemetry/app/:app_key/activity", () =>
+        HttpResponse.json<ActivityFeedEntry[]>(entries),
+      ),
+    );
+
+    const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
+    await waitFor(() => {
+      const section = getByTestId("overview-activity-section");
+      expect(section.textContent).toContain("on_door_open");
+      expect(section.textContent).toContain("155");
+    });
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Recent Logs Section
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe("OverviewTab — Recent Logs", () => {
+  it("renders recent log entries for the app", async () => {
+    const logs = [
+      createLogEntry({ seq: 10, app_key: "test_app", level: "INFO", message: "handler fired" }),
+      createLogEntry({ seq: 11, app_key: "test_app", level: "ERROR", message: "something went wrong" }),
+    ];
+    server.use(
+      http.get("/api/logs/recent", () => HttpResponse.json(logs)),
+    );
+
+    const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
+    await waitFor(() => {
+      expect(getByTestId("overview-logs-section")).toBeDefined();
+    });
+    const section = getByTestId("overview-logs-section");
+    await waitFor(() => {
+      expect(section.textContent).toContain("handler fired");
+    });
+  });
+
+  it("renders empty state when logs endpoint returns no entries", async () => {
+    server.use(
+      http.get("/api/logs/recent", () => HttpResponse.json([])),
+    );
+
+    const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
+    await waitFor(() => {
+      expect(getByTestId("overview-logs-empty")).toBeDefined();
+    });
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Real-Time Updates
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe("OverviewTab — Real-time refetch", () => {
+  it("refetches activity when invocationCompleted signal changes with matching app_key", async () => {
+    let fetchCount = 0;
+    server.use(
+      http.get("/api/telemetry/app/:app_key/activity", () => {
+        fetchCount++;
+        return HttpResponse.json<ActivityFeedEntry[]>([]);
+      }),
+    );
+
+    const invocationCompleted = signal<Array<{ listener_id: number; app_key: string; instance_index: number; status: string; duration_ms: number; error_type: string | null }> | null>(null);
+
+    renderWithAppState(
+      <OverviewTab
+        listeners={[]}
+        jobs={[]}
+        appKey="test_app"
+        instanceQs=""
+        resolvedInstanceIndex={0}
+      />,
+      { stateOverrides: {
+        uptimeSeconds: signal<number | null>(120),
+        invocationCompleted,
+      }},
+    );
+
+    // Wait for initial fetch
+    await waitFor(() => expect(fetchCount).toBeGreaterThan(0));
+    const countAfterMount = fetchCount;
+
+    // Simulate a matching WebSocket event
+    invocationCompleted.value = [{ listener_id: 1, app_key: "test_app", instance_index: 0, status: "success", duration_ms: 10, error_type: null }];
+
+    // The debounced effect fires after 500ms — use waitFor with longer timeout
+    await waitFor(() => expect(fetchCount).toBeGreaterThan(countAfterMount), { timeout: 1500 });
+  });
+
+  it("does not refetch when invocationCompleted events are for a different app_key", async () => {
+    let fetchCount = 0;
+    server.use(
+      http.get("/api/telemetry/app/:app_key/activity", () => {
+        fetchCount++;
+        return HttpResponse.json<ActivityFeedEntry[]>([]);
+      }),
+    );
+
+    const invocationCompleted = signal<Array<{ listener_id: number; app_key: string; instance_index: number; status: string; duration_ms: number; error_type: string | null }> | null>(null);
+
+    renderWithAppState(
+      <OverviewTab
+        listeners={[]}
+        jobs={[]}
+        appKey="test_app"
+        instanceQs=""
+        resolvedInstanceIndex={0}
+      />,
+      { stateOverrides: {
+        uptimeSeconds: signal<number | null>(120),
+        invocationCompleted,
+      }},
+    );
+
+    await waitFor(() => expect(fetchCount).toBeGreaterThan(0));
+    const countAfterMount = fetchCount;
+
+    // Event for a different app — should not trigger refetch
+    invocationCompleted.value = [{ listener_id: 99, app_key: "other_app", instance_index: 0, status: "success", duration_ms: 5, error_type: null }];
+
+    // Wait a moment and confirm count did not increase
+    await new Promise((r) => setTimeout(r, 700));
+    expect(fetchCount).toBe(countAfterMount);
+  });
+
+  it("refetches activity when executionCompleted signal changes with matching app_key", async () => {
+    let fetchCount = 0;
+    server.use(
+      http.get("/api/telemetry/app/:app_key/activity", () => {
+        fetchCount++;
+        return HttpResponse.json<ActivityFeedEntry[]>([]);
+      }),
+    );
+
+    const executionCompleted = signal<Array<{ job_id: number; app_key: string; instance_index: number; status: string; duration_ms: number; error_type: string | null }> | null>(null);
+
+    renderWithAppState(
+      <OverviewTab
+        listeners={[]}
+        jobs={[]}
+        appKey="test_app"
+        instanceQs=""
+        resolvedInstanceIndex={0}
+      />,
+      { stateOverrides: {
+        uptimeSeconds: signal<number | null>(120),
+        executionCompleted,
+      }},
+    );
+
+    await waitFor(() => expect(fetchCount).toBeGreaterThan(0));
+    const countAfterMount = fetchCount;
+
+    executionCompleted.value = [{ job_id: 5, app_key: "test_app", instance_index: 0, status: "success", duration_ms: 20, error_type: null }];
+
+    await waitFor(() => expect(fetchCount).toBeGreaterThan(countAfterMount), { timeout: 1500 });
   });
 });

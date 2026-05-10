@@ -59,6 +59,12 @@ export function executionStatusVariant(status: string): StatusVariant {
   return "danger";
 }
 
+export function executionStatusKind(status: string): StatusKind {
+  if (status === "success") return "ok";
+  if (status === "timed_out") return "warn";
+  return "err";
+}
+
 const LOG_LEVEL_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, StatusVariant>([
   ["DEBUG", "neutral"],
   ["INFO", "success"],

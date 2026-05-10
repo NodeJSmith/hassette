@@ -3648,7 +3648,7 @@ strong {
 
 .ht-overview-health-row {
   display: grid;
-  grid-template-columns: 12px 1fr auto;
+  grid-template-columns: 12px 1fr auto auto;
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-3);
@@ -3688,6 +3688,100 @@ strong {
   font-size: var(--fs-mono-sm);
   color: var(--ink-3);
   white-space: nowrap;
+}
+
+.ht-overview-health-row__error {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* — Overview: activity and logs sections ————————————————— */
+
+.ht-overview-empty-inline {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+}
+
+.ht-overview-activity-table,
+.ht-overview-log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-small);
+}
+
+.ht-overview-activity-row,
+.ht-overview-log-row {
+  border-bottom: 1px solid var(--line-1);
+}
+
+.ht-overview-activity-row:last-child,
+.ht-overview-log-row:last-child {
+  border-bottom: none;
+}
+
+.ht-overview-activity-row td,
+.ht-overview-log-row td {
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) 0;
+  vertical-align: middle;
+}
+
+.ht-overview-activity__status,
+.ht-overview-log__level {
+  width: 1%;
+  white-space: nowrap;
+  padding-right: var(--sp-2) !important;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.ht-overview-activity__name {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-1);
+}
+
+.ht-overview-activity__duration {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-3);
+  white-space: nowrap;
+  text-align: right;
+  padding-right: var(--sp-3) !important;
+}
+
+.ht-overview-activity__time {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  white-space: nowrap;
+  text-align: right;
+}
+
+.ht-overview-log__level-text {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  margin-left: var(--sp-1);
+}
+
+.ht-overview-log__time {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-3);
+  white-space: nowrap;
+  padding-right: var(--sp-3) !important;
+}
+
+.ht-overview-log__message {
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60ch;
 }
 
 /* — Handlers tab container ————————————————————————————— */

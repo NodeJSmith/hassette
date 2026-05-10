@@ -2,7 +2,7 @@ import { useSignal } from "../../hooks/use-signal";
 import type { HandlerInvocationData } from "../../api/endpoints";
 import { ShowMoreButton } from "../shared/show-more-button";
 import { formatDuration, formatTimestamp } from "../../utils/format";
-import { statusToKind } from "../../utils/status";
+import { executionStatusKind } from "../../utils/status";
 import { EmptyState } from "../shared/empty-state";
 import { StatusShape } from "../shared/status-shape";
 
@@ -62,7 +62,7 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
                   }
                 }}
               >
-                <td><StatusShape kind={statusToKind(inv.status)} size={10} /></td>
+                <td><StatusShape kind={executionStatusKind(inv.status)} size={10} /></td>
                 <td class="ht-text-mono ht-text-xs">{formatTimestamp(inv.execution_start_ts)}</td>
                 <td class="ht-inv-trigger">
                   {inv.trigger_context_id ? (

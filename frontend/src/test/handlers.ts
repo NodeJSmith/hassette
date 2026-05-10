@@ -22,6 +22,7 @@ type DashboardAppGridResponse = components["schemas"]["DashboardAppGridResponse"
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
 type ActionResponse = components["schemas"]["ActionResponse"];
+type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
 
 // ---- Default handlers ----
 
@@ -87,6 +88,11 @@ export const handlers = [
   // GET /api/telemetry/app/:app_key/jobs
   http.get("/api/telemetry/app/:app_key/jobs", () => {
     return HttpResponse.json<JobSummary[]>([]);
+  }),
+
+  // GET /api/telemetry/app/:app_key/activity
+  http.get("/api/telemetry/app/:app_key/activity", () => {
+    return HttpResponse.json<ActivityFeedEntry[]>([]);
   }),
 
   // GET /api/telemetry/handler/:listener_id/invocations

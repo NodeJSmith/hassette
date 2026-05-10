@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Add activity feed, logs section, and real-time updates"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#9", "FR#11", "FR#12", "AC#5", "AC#6", "AC#7"]
 ---

@@ -351,6 +351,7 @@ export function AppDetailPage({ params }: Props) {
             jobs={displayJobs}
             appKey={appKey}
             instanceQs={instanceQs}
+            resolvedInstanceIndex={resolvedInstanceIndex}
           />
         </div>
       )}
