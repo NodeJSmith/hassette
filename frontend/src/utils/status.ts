@@ -89,8 +89,10 @@ export function levelToVariant(level: string): StatusVariant {
  * - "starting": neutral badge vs ok shape (healthy progress)
  * - "stopping"/"shutting_down": neutral badge vs warn shape (transitional)
  *
- * APP_STATUS_MAP and STATUS_KIND_MAP share a key-set — new ResourceStatus
- * variants must be added to both.
+ * APP_STATUS_MAP covers both ResourceStatus and service-health values
+ * ("success", "failure", "unknown"). STATUS_KIND_MAP covers ResourceStatus
+ * only — use executionStatusKind() for execution results, levelToKind() for
+ * log levels. New ResourceStatus variants must be added to both maps.
  */
 export type StatusKind = "ok" | "warn" | "err" | "mute";
 

@@ -253,9 +253,11 @@ The design system uses unprefixed Ink tokens (no `--ht-*` prefix). Light mode is
 
 **Header** — StatusShape + app_key in h1. Meta line: file path, class name. Reload and Stop action buttons (top-right). Error display card when app has recent error (shows error type, message, link to traceback).
 
-**Tab bar** — handlers (with count), code, logs, config. Underline-style active indicator.
+**Tab bar** — overview (default), handlers (with count), code, logs, config. Underline-style active indicator.
 
-**Health strip** — 4-5 cell KPI row: Handlers, Invocations (with time scope), Success Rate, Failed, Timed Out. Mono values, micro uppercase labels.
+**Overview tab** (default landing) — three sections: (1) Error spotlight showing failing handlers/jobs with error type, message, and link to handler detail — capped at 3 expanded with "show N more"; absent when nothing is failing. (2) Handler health grid showing all handlers/jobs in compact StatusShape + kind badge + name + run count rows, failing items first, each linking to handler detail. (3) Recent activity (cross-handler invocations/executions from `GET /telemetry/app/{app_key}/activity`) + recent app-scoped logs. Updates in real time via WebSocket `invocation_completed`/`execution_completed` events.
+
+**Health strip** — 4-5 cell KPI row: Handlers, Invocations (with time scope), Success Rate, Failed, Timed Out. Mono values, micro uppercase labels. Rendered inside the handlers tab (not shared across tabs).
 
 **Handlers tab** — two-panel layout. Left: handler/job list. Each row shows StatusShape + type badge (event/interval/after/cron) + handler name + meta (entity pattern, schedule, run count). Right: detail panel for selected handler showing invocation/execution history table.
 

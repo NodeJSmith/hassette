@@ -358,7 +358,7 @@ describe("OverviewTab — Recent Activity", () => {
   it("shows status shape, handler name, duration, and relative time per row", async () => {
     const entries: ActivityFeedEntry[] = [
       {
-        status: "failure",
+        status: "error",
         timestamp: 1700000200,
         app_key: "test_app",
         handler_name: "on_door_open",

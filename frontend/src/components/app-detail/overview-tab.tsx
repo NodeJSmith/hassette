@@ -9,7 +9,6 @@ import { pluralize, formatDurationOrDash, formatRelativeTime } from "../../utils
 import type { ListenerData, JobData, ActivityFeedEntryData, LogEntry } from "../../api/endpoints";
 import { getAppActivity, getRecentLogs } from "../../api/endpoints";
 import { useScopedApi } from "../../hooks/use-scoped-api";
-import { useApi } from "../../hooks/use-api";
 import { useAppState } from "../../state/context";
 import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
 
@@ -290,7 +289,15 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
           no recent activity
         </p>
       ) : (
-        <table class="ht-overview-activity-table">
+        <table class="ht-table ht-overview-activity-table">
+          <thead>
+            <tr>
+              <th class="ht-overview-activity__status-header"></th>
+              <th class="ht-overview-activity__name-header">Handler</th>
+              <th class="ht-overview-activity__duration-header">Duration</th>
+              <th class="ht-overview-activity__time-header">Time</th>
+            </tr>
+          </thead>
           <tbody>
             {entries.map((entry) => (
               <ActivityRow key={`${entry.kind}-${entry.handler_name}-${entry.timestamp}`} entry={entry} />
@@ -327,9 +334,9 @@ interface RecentLogsSectionProps {
 }
 
 function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
-  const { data: logs, loading } = useApi(
+  const { data: logs, loading } = useScopedApi(
     () => getRecentLogs({ app_key: appKey, limit: LOGS_LIMIT }),
-    [appKey],
+    { deps: [appKey] },
   );
 
   const entries = logs.value ?? [];
@@ -342,7 +349,14 @@ function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
           no recent logs
         </p>
       ) : (
-        <table class="ht-overview-log-table">
+        <table class="ht-table ht-overview-log-table">
+          <thead>
+            <tr>
+              <th class="ht-overview-log__level-header">Level</th>
+              <th class="ht-overview-log__time-header">Time</th>
+              <th class="ht-overview-log__message-header">Message</th>
+            </tr>
+          </thead>
           <tbody>
             {entries.map((entry) => (
               <LogRow key={entry.seq ?? `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`} entry={entry} />
