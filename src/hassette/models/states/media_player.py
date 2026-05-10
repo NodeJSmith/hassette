@@ -125,7 +125,7 @@ class MediaPlayerAttributes(AttributesBase):
     media_duration: int | None = Field(default=None)
     media_episode: str | None = Field(default=None)
     media_image_hash: str | None = Field(default=None)
-    media_image_remotely_accessible: bool = Field(default=None)
+    media_image_remotely_accessible: bool | None = Field(default=None)
     media_image_url: str | None = Field(default=None)
     media_playlist: str | None = Field(default=None)
     media_position_updated_at: ZonedDateTime | None = Field(default=None)
@@ -146,7 +146,7 @@ class MediaPlayerAttributes(AttributesBase):
 
     @field_validator("media_position_updated_at", mode="before")
     @classmethod
-    def _parse_datetime_fields(cls, value: object) -> object:
+    def _parse_datetime_fields(cls, value: str | ZonedDateTime | None) -> ZonedDateTime | None:
         return convert_datetime_str_to_system_tz(value)
 
     @property

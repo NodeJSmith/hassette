@@ -36,7 +36,7 @@ class AlarmControlPanelEntityFeature(IntFlag):
 class AlarmControlPanelAttributes(AttributesBase):
     alarm_state: AlarmControlPanelStateValue | None = Field(default=None)
     changed_by: str | None = Field(default=None)
-    code_arm_required: bool = Field(default=None)
+    code_arm_required: bool | None = Field(default=None)
     code_format: CodeFormat | None = Field(default=None)
 
     @property

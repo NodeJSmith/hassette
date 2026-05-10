@@ -48,9 +48,8 @@ def extract_properties(init_py: Path) -> list[ExtractedProperty]:
 
         has_default = node.value is not None
 
-        if not has_default:
-            if "None" not in type_str:
-                type_str = f"{type_str} | None"
+        if "None" not in type_str:
+            type_str = f"{type_str} | None"
 
         properties.append(ExtractedProperty(name=field_name, python_type=type_str, has_default=has_default))
 

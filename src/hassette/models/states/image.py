@@ -9,14 +9,14 @@ from .base import AttributesBase, StringBaseState
 
 
 class ImageAttributes(AttributesBase):
-    content_type: str = Field(default=None)
+    content_type: str | None = Field(default=None)
     image_last_updated: ZonedDateTime | None = Field(default=None)
     image_url: str | None | object = Field(default=None)
-    should_poll: bool = Field(default=None)
+    should_poll: bool | None = Field(default=None)
 
     @field_validator("image_last_updated", mode="before")
     @classmethod
-    def _parse_datetime_fields(cls, value: object) -> object:
+    def _parse_datetime_fields(cls, value: str | ZonedDateTime | None) -> ZonedDateTime | None:
         return convert_datetime_str_to_system_tz(value)
 
 

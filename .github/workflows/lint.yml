@@ -129,6 +129,9 @@ jobs:
             - name: Install codegen deps
               run: cd codegen && uv sync
 
+            - name: Install ruff
+              run: uv tool install ruff
+
             - name: Check entity codegen freshness
               run: cd codegen && uv run hassette-codegen generate --ha-core-path ../ha-core --check
 

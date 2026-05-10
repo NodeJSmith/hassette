@@ -13,7 +13,7 @@ class DateTimeAttributes(AttributesBase):
 
     @field_validator("native_value", mode="before")
     @classmethod
-    def _parse_datetime_fields(cls, value: object) -> object:
+    def _parse_datetime_fields(cls, value: str | ZonedDateTime | None) -> ZonedDateTime | None:
         return convert_datetime_str_to_system_tz(value)
 
 

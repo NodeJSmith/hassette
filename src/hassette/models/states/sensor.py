@@ -82,11 +82,11 @@ class SensorStateClass(StrEnum):
 
 
 class SensorAttributes(AttributesBase):
-    uptime_drift_tolerance: int = Field(default=None)
+    uptime_drift_tolerance: int | None = Field(default=None)
     device_class: SensorDeviceClass | None = Field(default=None)
     last_reset: ZonedDateTime | None = Field(default=None)
     native_unit_of_measurement: str | None = Field(default=None)
-    native_value: str | int | float | None | Date | ZonedDateTime | Decimal = Field(default=None)
+    native_value: str | int | float | None | Date | ZonedDateTime | Decimal | None = Field(default=None)
     options: list[str] | None = Field(default=None)
     state_class: SensorStateClass | None = Field(default=None)
     suggested_display_precision: int | None = Field(default=None)
@@ -95,7 +95,7 @@ class SensorAttributes(AttributesBase):
 
     @field_validator("last_reset", mode="before")
     @classmethod
-    def _parse_datetime_fields(cls, value: object) -> object:
+    def _parse_datetime_fields(cls, value: str | ZonedDateTime | None) -> ZonedDateTime | None:
         return convert_datetime_str_to_system_tz(value)
 
 

@@ -21,7 +21,7 @@ class FanAttributes(AttributesBase):
     percentage: int | None = Field(default=None)
     preset_mode: str | None = Field(default=None)
     preset_modes: list[str] | None = Field(default=None)
-    speed_count: int = Field(default=None)
+    speed_count: int | None = Field(default=None)
 
     @property
     def supports_set_speed(self) -> bool:
