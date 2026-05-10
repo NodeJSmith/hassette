@@ -9,10 +9,19 @@ from hassette_codegen.extractors.properties import ExtractedProperty
 
 
 @dataclass
+class PropertyOverride:
+    name: str
+    wire_name: str | None = None
+    type: str | None = None
+    add: bool = False
+
+
+@dataclass
 class DomainOverride:
     domain: str
     discovery: str | None = None
     properties: list[ExtractedProperty] = field(default_factory=list)
+    property_overrides: list[PropertyOverride] = field(default_factory=list)
     service_param_renames: dict[str, str] = field(default_factory=dict)
     extra_imports: dict[str, list[str]] = field(default_factory=dict)
     param_type_overrides: dict[str, str] = field(default_factory=dict)
@@ -42,10 +51,21 @@ def load_overrides(overrides_dir: Path | None = None) -> dict[str, DomainOverrid
             for p in data.get("properties", [])
         ]
 
+        property_overrides = [
+            PropertyOverride(
+                name=p["name"],
+                wire_name=p.get("wire_name"),
+                type=p.get("type"),
+                add=p.get("add", False),
+            )
+            for p in data.get("property_overrides", [])
+        ]
+
         result[domain] = DomainOverride(
             domain=domain,
             discovery=data.get("discovery"),
             properties=properties,
+            property_overrides=property_overrides,
             service_param_renames=data.get("service_param_renames", {}),
             extra_imports=data.get("extra_imports", {}),
             param_type_overrides=data.get("param_type_overrides", {}),
@@ -57,6 +77,32 @@ def load_overrides(overrides_dir: Path | None = None) -> dict[str, DomainOverrid
 
 def get_override(overrides: dict[str, DomainOverride], domain: str) -> DomainOverride | None:
     return overrides.get(domain)
+
+
+def apply_property_overrides(
+    properties: list[ExtractedProperty],
+    overrides: list[PropertyOverride],
+) -> list[ExtractedProperty]:
+    """Apply property overrides: rename, retype, or add properties."""
+    if not overrides:
+        return properties
+
+    for ov in overrides:
+        if ov.add:
+            properties.append(
+                ExtractedProperty(name=ov.wire_name or ov.name, python_type=ov.type or "str | None", has_default=True)
+            )
+            continue
+
+        for prop in properties:
+            if prop.name == ov.name:
+                if ov.wire_name:
+                    prop.name = ov.wire_name
+                if ov.type:
+                    prop.python_type = ov.type
+                break
+
+    return properties
 
 
 def validate_overrides(

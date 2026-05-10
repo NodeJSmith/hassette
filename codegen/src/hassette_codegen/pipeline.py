@@ -16,7 +16,7 @@ from hassette_codegen.generators.states import generate_state_model
 from hassette_codegen.ha_source import HASource, check_python_version, check_ruff_available, discover_domains
 from hassette_codegen.manifest import detect_orphans, load_manifest, merge_manifest, save_manifest
 from hassette_codegen.output import atomic_write, check_drift
-from hassette_codegen.overrides import get_override, load_overrides, validate_overrides
+from hassette_codegen.overrides import apply_property_overrides, get_override, load_overrides, validate_overrides
 
 
 def run_pipeline(
@@ -173,6 +173,9 @@ def _extract_domain(ha_core_path: Path, domain_info: object, overrides: dict) ->
     properties = extract_properties(init_py)
     base_class = determine_base_class(init_py)
     services = extract_services(domain_info.path) if domain_info.has_services_yaml else []
+
+    if override and override.property_overrides:
+        properties = apply_property_overrides(properties, override.property_overrides)
 
     return ExtractedDomain(
         name=domain_info.name,

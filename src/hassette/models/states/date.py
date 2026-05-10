@@ -7,9 +7,7 @@ from .base import AttributesBase, StringBaseState
 
 
 class DateAttributes(AttributesBase):
-    device_class: None = Field(default=None)
     native_value: Date | None = Field(default=None)
-    state: None = Field(default=None)
 
 
 class DateState(StringBaseState):

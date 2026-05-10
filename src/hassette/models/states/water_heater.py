@@ -21,7 +21,6 @@ class WaterHeaterAttributes(AttributesBase):
     min_temp: float | None = Field(default=None)
     operation_list: list[str] | None = Field(default=None)
     precision: float | None = Field(default=None)
-    state: None = Field(default=None)
     target_temperature_high: float | None = Field(default=None)
     target_temperature_low: float | None = Field(default=None)
     target_temperature: float | None = Field(default=None)

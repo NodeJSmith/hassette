@@ -17,7 +17,6 @@ class TextAttributes(AttributesBase):
     native_min: int | None = Field(default=None)
     native_max: int | None = Field(default=None)
     pattern: str | None = Field(default=None)
-    state: None = Field(default=None)
 
 
 class TextState(StringBaseState):

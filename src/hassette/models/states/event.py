@@ -19,7 +19,6 @@ class EventDeviceClass(StrEnum):
 class EventAttributes(AttributesBase):
     device_class: EventDeviceClass | None = Field(default=None)
     event_types: list[str] | None = Field(default=None)
-    state: None = Field(default=None)
 
 
 class EventState(StringBaseState):

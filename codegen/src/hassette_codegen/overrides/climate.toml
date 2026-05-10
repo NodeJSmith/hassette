@@ -1,0 +1,7 @@
+[[property_overrides]]
+name = "target_temperature_step"
+wire_name = "target_temp_step"
+
+[[property_overrides]]
+name = "target_humidity"
+wire_name = "humidity"

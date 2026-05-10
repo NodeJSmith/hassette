@@ -40,7 +40,6 @@ class BinarySensorDeviceClass(StrEnum):
 class BinarySensorAttributes(AttributesBase):
     device_class: BinarySensorDeviceClass | None = Field(default=None)
     is_on: bool | None = Field(default=None)
-    state: None = Field(default=None)
 
 
 class BinarySensorState(BoolBaseState):

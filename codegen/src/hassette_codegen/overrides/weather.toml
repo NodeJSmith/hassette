@@ -1,0 +1,47 @@
+[[property_overrides]]
+name = "native_apparent_temperature"
+wire_name = "apparent_temperature"
+
+[[property_overrides]]
+name = "native_dew_point"
+wire_name = "dew_point"
+
+[[property_overrides]]
+name = "native_precipitation_unit"
+wire_name = "precipitation_unit"
+
+[[property_overrides]]
+name = "native_pressure"
+wire_name = "pressure"
+
+[[property_overrides]]
+name = "native_pressure_unit"
+wire_name = "pressure_unit"
+
+[[property_overrides]]
+name = "native_temperature"
+wire_name = "temperature"
+
+[[property_overrides]]
+name = "native_temperature_unit"
+wire_name = "temperature_unit"
+
+[[property_overrides]]
+name = "native_visibility"
+wire_name = "visibility"
+
+[[property_overrides]]
+name = "native_visibility_unit"
+wire_name = "visibility_unit"
+
+[[property_overrides]]
+name = "native_wind_gust_speed"
+wire_name = "wind_gust_speed"
+
+[[property_overrides]]
+name = "native_wind_speed"
+wire_name = "wind_speed"
+
+[[property_overrides]]
+name = "native_wind_speed_unit"
+wire_name = "wind_speed_unit"

@@ -58,11 +58,11 @@ class ClimateAttributes(AttributesBase):
     swing_modes: list[str] | None = Field(default=None)
     swing_horizontal_mode: str | None = Field(default=None)
     swing_horizontal_modes: list[str] | None = Field(default=None)
-    target_humidity: float | None = Field(default=None)
+    humidity: float | None = Field(default=None)
     target_humidity_step: int | None = Field(default=None)
     target_temperature_high: float | None = Field(default=None)
     target_temperature_low: float | None = Field(default=None)
-    target_temperature_step: float | None = Field(default=None)
+    target_temp_step: float | None = Field(default=None)
     target_temperature: float | None = Field(default=None)
     temperature_unit: str | None = Field(default=None)
 

@@ -14,7 +14,6 @@ class ButtonDeviceClass(StrEnum):
 
 class ButtonAttributes(AttributesBase):
     device_class: ButtonDeviceClass | None = Field(default=None)
-    state: None = Field(default=None)
 
 
 class ButtonState(StringBaseState):

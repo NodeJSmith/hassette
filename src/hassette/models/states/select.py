@@ -8,7 +8,6 @@ from .base import AttributesBase, StringBaseState
 class SelectAttributes(AttributesBase):
     current_option: str | None = Field(default=None)
     options: list[str] | None = Field(default=None)
-    state: None = Field(default=None)
 
 
 class SelectState(StringBaseState):

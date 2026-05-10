@@ -74,18 +74,16 @@ class NumberDeviceClass(StrEnum):
 
 class NumberAttributes(AttributesBase):
     device_class: NumberDeviceClass | None = Field(default=None)
-    max_value: None = Field(default=None)
-    min_value: None = Field(default=None)
     mode: NumberMode | None = Field(default=None)
-    state: None = Field(default=None)
-    step: None = Field(default=None)
-    unit_of_measurement: None = Field(default=None)
-    value: None = Field(default=None)
     native_max_value: float | None = Field(default=None)
     native_min_value: float | None = Field(default=None)
     native_step: float | None = Field(default=None)
     native_unit_of_measurement: str | None = Field(default=None)
     native_value: float | None = Field(default=None)
+    step: float | None = Field(default=None)
+    min_value: float | None = Field(default=None)
+    max_value: float | None = Field(default=None)
+    unit_of_measurement: str | None = Field(default=None)
 
 
 class NumberState(NumericBaseState):

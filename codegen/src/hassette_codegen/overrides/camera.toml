@@ -1,0 +1,3 @@
+[[property_overrides]]
+name = "motion_detection_enabled"
+wire_name = "motion_detection"

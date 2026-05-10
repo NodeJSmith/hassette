@@ -13,7 +13,6 @@ class ImageAttributes(AttributesBase):
     image_last_updated: ZonedDateTime | None = Field(default=None)
     image_url: str | None | object = Field(default=None)
     should_poll: bool = Field(default=None)
-    state: None = Field(default=None)
 
     @field_validator("image_last_updated", mode="before")
     @classmethod

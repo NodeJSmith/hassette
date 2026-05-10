@@ -89,10 +89,9 @@ class SensorAttributes(AttributesBase):
     native_value: str | int | float | None | Date | ZonedDateTime | Decimal = Field(default=None)
     options: list[str] | None = Field(default=None)
     state_class: SensorStateClass | None = Field(default=None)
-    state: None = Field(default=None)
     suggested_display_precision: int | None = Field(default=None)
     suggested_unit_of_measurement: str | None = Field(default=None)
-    unit_of_measurement: None = Field(default=None)
+    unit_of_measurement: str | None = Field(default=None)
 
     @field_validator("last_reset", mode="before")
     @classmethod

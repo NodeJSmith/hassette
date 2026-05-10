@@ -9,8 +9,6 @@ from .base import AttributesBase, StringBaseState
 
 
 class DateTimeAttributes(AttributesBase):
-    device_class: None = Field(default=None)
-    state: None = Field(default=None)
     native_value: ZonedDateTime | None = Field(default=None)
 
     @field_validator("native_value", mode="before")

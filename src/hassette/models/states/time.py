@@ -8,8 +8,6 @@ from .base import AttributesBase, StringBaseState
 
 class TimeAttributes(AttributesBase):
     native_value: Time | None = Field(default=None)
-    device_class: None = Field(default=None)
-    state: None = Field(default=None)
 
 
 class TimeState(StringBaseState):

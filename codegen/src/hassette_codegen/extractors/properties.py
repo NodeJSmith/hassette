@@ -40,6 +40,10 @@ def extract_properties(init_py: Path) -> list[ExtractedProperty]:
             continue
 
         type_str = ast.unparse(node.annotation)
+
+        if type_str == "None":
+            continue
+
         has_default = node.value is not None
 
         if not has_default:

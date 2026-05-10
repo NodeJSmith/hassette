@@ -16,7 +16,7 @@ class FanEntityFeature(IntFlag):
 
 
 class FanAttributes(AttributesBase):
-    current_direction: str | None = Field(default=None)
+    direction: str | None = Field(default=None)
     oscillating: bool | None = Field(default=None)
     percentage: int | None = Field(default=None)
     preset_mode: str | None = Field(default=None)

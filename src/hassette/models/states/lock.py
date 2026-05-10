@@ -29,7 +29,6 @@ class LockAttributes(AttributesBase):
     is_opening: bool | None = Field(default=None)
     is_unlocking: bool | None = Field(default=None)
     is_jammed: bool | None = Field(default=None)
-    state: None = Field(default=None)
 
     @property
     def supports_open(self) -> bool:

@@ -44,7 +44,6 @@ class CoverAttributes(AttributesBase):
     is_closed: bool | None = Field(default=None)
     is_closing: bool | None = Field(default=None)
     is_opening: bool | None = Field(default=None)
-    state: None = Field(default=None)
 
     @property
     def supports_open(self) -> bool:

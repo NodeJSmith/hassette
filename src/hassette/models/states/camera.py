@@ -29,9 +29,8 @@ class CameraAttributes(AttributesBase):
     is_recording: bool = Field(default=None)
     is_streaming: bool = Field(default=None)
     model: str | None = Field(default=None)
-    motion_detection_enabled: bool = Field(default=None)
+    motion_detection: bool = Field(default=None)
     should_poll: bool = Field(default=None)
-    state: None = Field(default=None)
 
     @property
     def supports_on_off(self) -> bool:
