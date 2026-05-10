@@ -39,4 +39,7 @@ Add a new method `get_app_recent_activity` to `TelemetryQueryService` in `src/ha
 **Test fixtures**: Look at how existing tests in `test_telemetry_query_service.py` seed data — they use the `hassette_instance` fixture from `tests/integration/conftest.py` and write directly to the database.
 
 ## Verify
-- [ ] FR#10: The endpoint `GET /telemetry/app/{app_key}/activity` returns recent invocations and executions merged and sorted by time, accepting `limit`, `since`, and `source_tier` parameters
+- [ ] FR#10: The endpoint `GET /telemetry/app/{app_key}/activity` returns handler invocations and job executions merged into a single list sorted by timestamp descending
+- [ ] FR#10 (limit): The `limit` query parameter caps the number of returned entries
+- [ ] FR#10 (since): The `since` query parameter filters to entries after the given timestamp
+- [ ] FR#10 (source_tier): The `source_tier` query parameter filters by app vs framework tier

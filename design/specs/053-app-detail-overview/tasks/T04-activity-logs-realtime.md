@@ -16,10 +16,12 @@ Add the activity and logs sections to the overview tab component at `frontend/sr
 
 Fetch data using `useScopedApi` with the `getAppActivity` endpoint function added in T01:
 
+Note: The overview tab receives `instanceQs` (a query string like `?instance=0`) from the parent. Parse the instance index from this or receive it as a separate prop from `app-detail.tsx` (check how the handlers tab resolves `resolvedInstanceIndex` — it's derived in the parent and can be passed directly).
+
 ```
 const activityApi = useScopedApi(
-  (since) => getAppActivity(appKey, instanceIndex, limit, since),
-  { deps: [appKey, instanceIndex] },
+  (since) => getAppActivity(appKey, resolvedInstanceIndex, limit, since),
+  { deps: [appKey, resolvedInstanceIndex] },
 );
 ```
 
@@ -84,14 +86,15 @@ Use MSW for endpoint mocking (the project standard per `project_msw_adoption` me
 - `formatRelativeTime`, `formatDurationOrDash` — existing formatters
 - `StatusShape` — existing status indicator component
 
-**Pattern to follow**: `ListenerDetail` in `handlers-tab.tsx` lines 131-150 shows the exact `useScopedApi` + `useDebouncedEffect` wiring pattern. Copy it, adapted for the activity endpoint and app-level filtering.
+**Pattern to follow**: `ListenerDetail` in `handlers-tab.tsx` shows the exact `useScopedApi` + `useDebouncedEffect` wiring pattern — find the `function ListenerDetail` block where it calls `useScopedApi` for `getHandlerInvocations` and wires `useDebouncedEffect` on `invocationCompleted`. Copy it, adapted for the activity endpoint and app-level filtering (match on `app_key` instead of `listener_id`).
 
 **LogTable consideration**: Check `log-table.tsx` carefully before deciding whether to reuse it directly or create a compact version. It renders toolbar, filters, and sorting chrome that may be too much for a subsection. If reusing, pass props that suppress the toolbar. If not reusing, keep the row rendering minimal — 3-4 columns, no interactivity.
 
 ## Verify
 - [ ] FR#9: Recent activity section shows invocations and executions across all handlers, merged and sorted by time
 - [ ] FR#11: Recent logs section shows app-scoped log entries
-- [ ] FR#12: Overview updates in real time when invocation_completed or execution_completed WebSocket events arrive for this app
+- [ ] FR#12 (invocations): Activity section refetches when `invocation_completed` WebSocket events arrive matching this app's `app_key`
+- [ ] FR#12 (executions): Activity section refetches when `execution_completed` WebSocket events arrive matching this app's `app_key`
 - [ ] AC#5: Recent invocations/executions appear in the activity section from the new backend endpoint
 - [ ] AC#6: Recent app-scoped logs appear in the logs section
 - [ ] AC#7: New invocations/executions appear automatically via WebSocket without manual refresh
