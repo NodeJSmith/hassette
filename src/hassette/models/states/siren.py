@@ -1,3 +1,4 @@
+from enum import IntFlag
 from typing import Literal
 
 from pydantic import Field
@@ -5,8 +6,36 @@ from pydantic import Field
 from .base import AttributesBase, BoolBaseState
 
 
+class SirenEntityFeature(IntFlag):
+    TURN_ON = 1
+    TURN_OFF = 2
+    TONES = 4
+    VOLUME_SET = 8
+    DURATION = 16
+
+
 class SirenAttributes(AttributesBase):
-    available_tones: list[str] | None = Field(default=None)
+    available_tones: list[int | str] | dict[int, str] | None = Field(default=None)
+
+    @property
+    def supports_turn_on(self) -> bool:
+        return self._has_feature(SirenEntityFeature.TURN_ON)
+
+    @property
+    def supports_turn_off(self) -> bool:
+        return self._has_feature(SirenEntityFeature.TURN_OFF)
+
+    @property
+    def supports_tones(self) -> bool:
+        return self._has_feature(SirenEntityFeature.TONES)
+
+    @property
+    def supports_volume_set(self) -> bool:
+        return self._has_feature(SirenEntityFeature.VOLUME_SET)
+
+    @property
+    def supports_duration(self) -> bool:
+        return self._has_feature(SirenEntityFeature.DURATION)
 
 
 class SirenState(BoolBaseState):

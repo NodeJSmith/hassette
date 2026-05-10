@@ -1,15 +1,23 @@
-from typing import Any, Literal
+from enum import StrEnum
+from typing import Literal
 
 from pydantic import Field
 
 from .base import AttributesBase, StringBaseState
 
 
+class TextMode(StrEnum):
+    PASSWORD = "password"
+    TEXT = "text"
+
+
 class TextAttributes(AttributesBase):
-    min: int | float | None = Field(default=None)
-    max: int | float | None = Field(default=None)
-    pattern: Any | None = Field(default=None)
-    mode: str | None = Field(default=None)
+    mode: TextMode | None = Field(default=None)
+    native_value: str | None = Field(default=None)
+    native_min: int | None = Field(default=None)
+    native_max: int | None = Field(default=None)
+    pattern: str | None = Field(default=None)
+    state: None = Field(default=None)
 
 
 class TextState(StringBaseState):

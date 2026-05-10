@@ -1,4 +1,10 @@
+{% if has_intflag and has_strenum %}
+from enum import IntFlag, StrEnum
+{% elif has_intflag %}
 from enum import IntFlag
+{% elif has_strenum %}
+from enum import StrEnum
+{% endif %}
 from typing import Literal
 
 from pydantic import Field
@@ -7,23 +13,27 @@ from .base import AttributesBase, {{ base_class }}
 {% for imp in extra_imports %}
 {{ imp }}
 {% endfor %}
+{% for enum in strenums %}
 
+
+class {{ enum.name }}(StrEnum):
+{% for member_name, member_value in enum.members %}
+    {{ member_name }} = "{{ member_value }}"
+{% endfor %}
+{% endfor %}
 {% for enum in features %}
+
 
 class {{ enum.name }}(IntFlag):
 {% for member_name, member_value in enum.members %}
     {{ member_name }} = {{ member_value }}
 {% endfor %}
-
 {% endfor %}
+
 
 class {{ domain_title }}Attributes(AttributesBase):
 {% for prop in properties %}
-{% if prop.has_default %}
     {{ prop.name }}: {{ prop.python_type }} = Field(default=None)
-{% else %}
-    {{ prop.name }}: {{ prop.python_type }} = Field(default=None)
-{% endif %}
 {% endfor %}
 {% if not properties %}
     pass

@@ -6,7 +6,7 @@ from pathlib import Path
 from hassette_codegen.domain_data import ExtractedDomain
 from hassette_codegen.extractors.base_class import determine_base_class
 from hassette_codegen.extractors.constants import extract_sensor_constants
-from hassette_codegen.extractors.features import extract_features
+from hassette_codegen.extractors.features import extract_features, extract_strenum
 from hassette_codegen.extractors.properties import extract_properties
 from hassette_codegen.extractors.services import extract_services
 from hassette_codegen.generators.constants import generate_sensor_constants
@@ -161,6 +161,7 @@ def _extract_domain(ha_core_path: Path, domain_info: object, overrides: dict) ->
     init_py = domain_info.path / "__init__.py"
 
     features = extract_features(domain_info.path)
+    strenums = extract_strenum(domain_info.path)
     properties = extract_properties(init_py)
     base_class = determine_base_class(init_py)
     services = extract_services(domain_info.path) if domain_info.has_services_yaml else []
@@ -171,6 +172,7 @@ def _extract_domain(ha_core_path: Path, domain_info: object, overrides: dict) ->
         base_class=base_class,
         properties=properties,
         features=features,
+        strenums=strenums,
         services=services,
         override=override,
     )

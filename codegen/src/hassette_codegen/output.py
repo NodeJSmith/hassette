@@ -51,10 +51,9 @@ def format_via_ruff(content: str) -> str:
 
 
 def run_ruff(path: Path) -> None:
-    """Run ruff format + import-sort fix + ruff check on a file path."""
+    """Run ruff format + fix all auto-fixable violations, then validate."""
     run_ruff_step(["ruff", "format", str(path)], "format")
-    run_ruff_step(["ruff", "check", "--fix", "--select", "I", str(path)], "isort")
-    run_ruff_step(["ruff", "check", str(path)], "check")
+    run_ruff_step(["ruff", "check", "--fix", str(path)], "fix")
 
 
 def atomic_write(out_path: Path, content: str) -> bool:

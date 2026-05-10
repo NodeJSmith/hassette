@@ -45,6 +45,8 @@ def extract_services(component_dir: Path) -> list[ExtractedService]:
     for service_name, service_def in raw.items():
         if not isinstance(service_def, dict):
             continue
+        if service_name.startswith("."):
+            continue
 
         fields = _extract_fields(service_def)
         method_name = method_map.get(service_name, service_name)

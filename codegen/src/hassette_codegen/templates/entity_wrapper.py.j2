@@ -1,4 +1,10 @@
+{% if needs_any and type_aliases %}
+from typing import Any, Literal
+{% elif needs_any %}
+from typing import Any
+{% elif type_aliases %}
 from typing import Literal
+{% endif %}
 
 from hassette.models.states import {{ domain_title }}State
 from hassette.models.states.{{ domain }} import {{ domain_title }}Attributes
@@ -24,7 +30,11 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
         self,
         *,
 {% for param in service.params %}
+{% if param.required %}
+        {{ param.name }}: {{ param.python_type }},
+{% else %}
         {{ param.name }}: {{ param.python_type }} = None,
+{% endif %}
 {% endfor %}
     ) -> None:
         await self.api.call_service(

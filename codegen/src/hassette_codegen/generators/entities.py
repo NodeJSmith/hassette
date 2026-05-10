@@ -5,7 +5,7 @@ from pathlib import Path
 
 import jinja2
 
-from hassette_codegen.domain_data import ExtractedDomain
+from hassette_codegen.domain_data import ExtractedDomain, domain_to_title
 from hassette_codegen.type_mapping import map_selector_to_type
 
 _TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
@@ -15,6 +15,7 @@ _TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 class ServiceParam:
     name: str
     python_type: str
+    required: bool = False
 
 
 @dataclass
@@ -74,17 +75,20 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
                 if "None" not in python_type:
                     python_type = f"{python_type} | None"
 
-            params.append(ServiceParam(name=param_name, python_type=python_type))
+            params.append(ServiceParam(name=param_name, python_type=python_type, required=field.required))
 
         services_for_template.append(
             ServiceForTemplate(
                 name=service.name,
                 method_name=service.method_name,
-                params=params,
+                params=sorted(params, key=lambda p: (not p.required, p.name)),
             )
         )
 
-    domain_title = domain.name.replace("_", " ").title().replace(" ", "")
+    domain_title = domain_to_title(domain.name)
+
+    all_param_types = [p.python_type for s in services_for_template for p in s.params]
+    needs_any = any("Any" in t for t in all_param_types)
 
     return template.render(
         domain=domain.name,
@@ -92,6 +96,7 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
         services=services_for_template,
         extra_imports=extra_imports,
         type_aliases=type_aliases,
+        needs_any=needs_any,
     )
 
 

@@ -1,4 +1,66 @@
-from .base import BaseEntity, EntityT
-from .light import LightEntity
+from .alarm_control_panel import AlarmControlPanelEntity
+from .base import BaseEntity, BaseEntitySyncFacade
+from .button import ButtonEntity
+from .camera import CameraEntity, Format
+from .climate import ClimateEntity
+from .cover import CoverEntity
+from .date import DateEntity
+from .datetime import DateTimeEntity
+from .fan import Direction, FanEntity
+from .humidifier import HumidifierEntity
+from .image import ImageEntity
+from .lawn_mower import LawnMowerEntity
+from .light import Flash, LightEntity
+from .lock import LockEntity
+from .media_player import Enqueue, MediaPlayerEntity, Repeat
+from .number import NumberEntity
+from .remote import CommandType, RemoteEntity
+from .select import SelectEntity
+from .siren import SirenEntity
+from .switch import SwitchEntity
+from .text import TextEntity
+from .time import TimeEntity
+from .todo import Status, TodoEntity
+from .update import UpdateEntity
+from .vacuum import VacuumEntity
+from .water_heater import WaterHeaterEntity
+from .weather import Type, WeatherEntity
 
-__all__ = ["BaseEntity", "EntityT", "LightEntity"]
+__all__ = [
+    "AlarmControlPanelEntity",
+    "BaseEntity",
+    "BaseEntitySyncFacade",
+    "ButtonEntity",
+    "CameraEntity",
+    "ClimateEntity",
+    "CommandType",
+    "CoverEntity",
+    "DateEntity",
+    "DateTimeEntity",
+    "Direction",
+    "Enqueue",
+    "FanEntity",
+    "Flash",
+    "Format",
+    "HumidifierEntity",
+    "ImageEntity",
+    "LawnMowerEntity",
+    "LightEntity",
+    "LockEntity",
+    "MediaPlayerEntity",
+    "NumberEntity",
+    "RemoteEntity",
+    "Repeat",
+    "SelectEntity",
+    "SirenEntity",
+    "Status",
+    "SwitchEntity",
+    "TextEntity",
+    "TimeEntity",
+    "TodoEntity",
+    "Type",
+    "UpdateEntity",
+    "VacuumEntity",
+    "WaterHeaterEntity",
+    "WeatherEntity",
+]
