@@ -1,5 +1,6 @@
 """Integration tests — full pipeline against real HA core domains."""
 
+import os
 import py_compile
 import sys
 import tempfile
@@ -22,7 +23,7 @@ from hassette_codegen.generators.states import generate_state_model
 from hassette_codegen.ha_source import discover_domains
 from hassette_codegen.overrides import get_override, load_overrides
 
-_HA_CORE = Path("~/source/core").expanduser()
+_HA_CORE = Path(os.environ.get("HA_CORE_PATH", "~/source/core")).expanduser()
 _HAS_HA_CORE = _HA_CORE.exists()
 _COMPONENTS = _HA_CORE / "homeassistant" / "components"
 

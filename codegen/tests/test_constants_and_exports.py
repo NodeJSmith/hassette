@@ -1,5 +1,6 @@
 """Unit tests for constants extraction and __init__.py generation."""
 
+import os
 import py_compile
 import sys
 import tempfile
@@ -13,7 +14,7 @@ from hassette_codegen.extractors.constants import extract_sensor_constants
 from hassette_codegen.generators.constants import generate_sensor_constants
 from hassette_codegen.generators.exports import generate_init_py
 
-_HA_CORE = Path("~/source/core").expanduser()
+_HA_CORE = Path(os.environ.get("HA_CORE_PATH", "~/source/core")).expanduser()
 _HAS_HA_CORE = _HA_CORE.exists()
 _STATES_DIR = Path(__file__).resolve().parent.parent.parent / "src" / "hassette" / "models" / "states"
 

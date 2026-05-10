@@ -1,5 +1,6 @@
 """Unit tests for hassette_codegen.ha_source — HA source resolution and domain discovery."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -13,7 +14,7 @@ from hassette_codegen.ha_source import (
     discover_domains,
 )
 
-_HA_CORE = Path("~/source/core").expanduser()
+_HA_CORE = Path(os.environ.get("HA_CORE_PATH", "~/source/core")).expanduser()
 _HAS_HA_CORE = _HA_CORE.exists()
 
 

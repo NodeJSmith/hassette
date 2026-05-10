@@ -1,5 +1,6 @@
 """Unit tests for service extraction and type mapping."""
 
+import os
 import sys
 from pathlib import Path
 
@@ -10,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from hassette_codegen.extractors.services import extract_services
 from hassette_codegen.type_mapping import map_selector_to_type
 
-_HA_CORE = Path("~/source/core").expanduser()
+_HA_CORE = Path(os.environ.get("HA_CORE_PATH", "~/source/core")).expanduser()
 _HAS_HA_CORE = _HA_CORE.exists()
 _COMPONENTS = _HA_CORE / "homeassistant" / "components"
 
