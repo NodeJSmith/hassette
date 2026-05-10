@@ -1,73 +1,55 @@
+from enum import IntFlag, StrEnum
 from typing import Literal
 
 from pydantic import Field
 
 from .base import AttributesBase, BoolBaseState
-from .features import LightEntityFeature
+
+
+class ColorMode(StrEnum):
+    UNKNOWN = "unknown"
+    ONOFF = "onoff"
+    BRIGHTNESS = "brightness"
+    COLOR_TEMP = "color_temp"
+    HS = "hs"
+    XY = "xy"
+    RGB = "rgb"
+    RGBW = "rgbw"
+    RGBWW = "rgbww"
+    WHITE = "white"
+
+
+class LightEntityFeature(IntFlag):
+    EFFECT = 4
+    FLASH = 8
+    TRANSITION = 32
 
 
 class LightAttributes(AttributesBase):
-    effect_list: list[str] | None = Field(default=None)
-    """The list of supported effects."""
-
-    supported_color_modes: set[str] | None = Field(default=None)
-    """Flag supported color modes."""
-
-    effect: str | None = Field(default=None)
-    """The current effect."""
-
-    color_mode: str | None = Field(default=None)
-    """The color mode of the light with backwards compatibility."""
-
-    brightness: int | None = Field(default=None, gt=-1, lt=256)
-    """The brightness of this light between 0..255."""
-
+    brightness: int | None = Field(default=None)
+    color_mode: ColorMode | None = Field(default=None)
     color_temp_kelvin: int | None = Field(default=None)
-    """The CT color value in Kelvin."""
-
-    min_color_temp_kelvin: int | None = Field(default=None)
-    """The warmest color_temp_kelvin that this light supports."""
-
-    max_color_temp_kelvin: int | None = Field(default=None)
-    """The coldest color_temp_kelvin that this light supports."""
-
+    effect_list: list[str] | None = Field(default=None)
+    effect: str | None = Field(default=None)
     hs_color: tuple[float, float] | None = Field(default=None)
-    """The hue and saturation color value."""
-
+    max_color_temp_kelvin: int | None = Field(default=None)
+    min_color_temp_kelvin: int | None = Field(default=None)
     rgb_color: tuple[int, int, int] | None = Field(default=None)
-    """The rgb color value."""
-
     rgbw_color: tuple[int, int, int, int] | None = Field(default=None)
-    """The RGBW color value (red, green, blue, white)."""
-
     rgbww_color: tuple[int, int, int, int, int] | None = Field(default=None)
-    """The RGBWW color value (red, green, blue, cold white, warm white)."""
-
-    xy_color: list[float] | None = Field(default=None)
-    """The x and y color value."""
-
-    min_mireds: int | None = Field(default=None, deprecated=True)
-    """Deprecated: The coldest color_temp that this light supports."""
-
-    max_mireds: int | None = Field(default=None, deprecated=True)
-    """Deprecated: The warmest color_temp that this light supports."""
-
-    color_temp: int | None = Field(default=None, deprecated=True)
-    """Deprecated: The CT color value in mireds."""
+    supported_color_modes: set[ColorMode] | None = Field(default=None)
+    xy_color: tuple[float, float] | None = Field(default=None)
 
     @property
     def supports_effect(self) -> bool:
-        """Whether this light supports effects."""
         return self._has_feature(LightEntityFeature.EFFECT)
 
     @property
     def supports_flash(self) -> bool:
-        """Whether this light supports flash."""
         return self._has_feature(LightEntityFeature.FLASH)
 
     @property
     def supports_transition(self) -> bool:
-        """Whether this light supports transition."""
         return self._has_feature(LightEntityFeature.TRANSITION)
 
 

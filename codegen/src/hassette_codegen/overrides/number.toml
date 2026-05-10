@@ -1,0 +1,19 @@
+[[property_overrides]]
+name = "step"
+type = "float | None"
+add = true
+
+[[property_overrides]]
+name = "min_value"
+type = "float | None"
+add = true
+
+[[property_overrides]]
+name = "max_value"
+type = "float | None"
+add = true
+
+[[property_overrides]]
+name = "unit_of_measurement"
+type = "str | None"
+add = true

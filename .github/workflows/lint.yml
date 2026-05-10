@@ -13,6 +13,7 @@ jobs:
         outputs:
             python: ${{ steps.filter.outputs.python }}
             frontend: ${{ steps.filter.outputs.frontend }}
+            codegen: ${{ steps.filter.outputs.codegen }}
         steps:
             - uses: actions/checkout@v4
             - uses: dorny/paths-filter@v3
@@ -30,6 +31,11 @@ jobs:
                       frontend:
                         - 'frontend/**'
                         - '.github/workflows/lint.yml'
+                      codegen:
+                        - 'src/hassette/models/**'
+                        - 'src/hassette/const/**'
+                        - 'codegen/**'
+                        - '.generated-manifest'
 
     python:
         needs: changes
@@ -60,10 +66,10 @@ jobs:
               # normalizes both sides. A plain `git diff` approach would depend on the
               # pre-commit hook and `uv tool install ruff==X` staying in lockstep.
               run: |
-                  if ! uv run tools/generate_sync_facade.py --target both --check; then
+                  if ! uv run python codegen/src/hassette_codegen/sync_facade.py --target both --check; then
                     echo ""
                     echo "ERROR: generated files are out of date. Re-run locally and commit:"
-                    echo "  uv run tools/generate_sync_facade.py --target both"
+                    echo "  uv run python codegen/src/hassette_codegen/sync_facade.py --target both"
                     echo ""
                     exit 1
                   fi
@@ -94,8 +100,56 @@ jobs:
               run: npx tsc --noEmit
               working-directory: frontend
 
+    codegen-freshness:
+        needs: changes
+        if: needs.changes.outputs.codegen == 'true' || github.event_name == 'workflow_dispatch'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Python 3.14
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.14"
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v5
+
+            - name: Cache HA core checkout
+              id: cache-ha
+              uses: actions/cache@v4
+              with:
+                  path: ha-core
+                  key: ha-core-${{ hashFiles('codegen/ha-version.txt') }}
+
+            - name: Clone HA core
+              if: steps.cache-ha.outputs.cache-hit != 'true'
+              run: git clone --depth 1 --branch $(cat codegen/ha-version.txt) https://github.com/home-assistant/core.git ha-core
+
+            - name: Install codegen deps
+              run: cd codegen && uv sync
+
+            - name: Run codegen unit tests
+              run: cd codegen && uv run pytest tests/ -q --rootdir=.
+              env:
+                  HA_CORE_PATH: ${{ github.workspace }}/ha-core
+
+            - name: Check entity codegen freshness
+              run: cd codegen && uv run hassette-codegen generate --ha-core-path ../ha-core --check
+
+            - name: Check HA version staleness
+              continue-on-error: true
+              run: |
+                  PINNED=$(cat codegen/ha-version.txt)
+                  LATEST=$(gh api repos/home-assistant/core/releases/latest --jq .tag_name 2>/dev/null || echo "")
+                  if [ -n "$LATEST" ] && [ "$PINNED" != "$LATEST" ]; then
+                      echo "::warning::Pinned HA version ($PINNED) is behind latest ($LATEST)"
+                  fi
+              env:
+                  GH_TOKEN: ${{ github.token }}
+
     lint-complete:
-        needs: [python, frontend]
+        needs: [python, frontend, codegen-freshness]
         if: always()
         runs-on: ubuntu-latest
         steps:

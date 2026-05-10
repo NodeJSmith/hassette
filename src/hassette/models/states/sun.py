@@ -23,7 +23,7 @@ class SunAttributes(AttributesBase):
         "next_dawn", "next_dusk", "next_midnight", "next_noon", "next_rising", "next_setting", mode="before"
     )
     @classmethod
-    def parse_datetime_fields(cls, value: ZonedDateTime | str | None) -> ZonedDateTime | None:
+    def _parse_datetime_fields(cls, value: str | ZonedDateTime | None) -> ZonedDateTime | None:
         return convert_datetime_str_to_system_tz(value)
 
 

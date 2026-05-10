@@ -18,7 +18,7 @@ class TimerAttributes(AttributesBase):
 
     @field_validator("last_transition", "finishes_at", mode="before")
     @classmethod
-    def parse_timestamps(cls, value: ZonedDateTime | str | None) -> ZonedDateTime | None:
+    def _parse_datetime_fields(cls, value: str | ZonedDateTime | None) -> ZonedDateTime | None:
         return convert_datetime_str_to_system_tz(value)
 
 

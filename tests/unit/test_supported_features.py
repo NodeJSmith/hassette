@@ -3,22 +3,13 @@
 import pytest
 
 from hassette.models.states.base import AttributesBase
-from hassette.models.states.climate import ClimateAttributes
-from hassette.models.states.cover import CoverAttributes
-from hassette.models.states.fan import FanAttributes
-from hassette.models.states.features import (
-    ClimateEntityFeature,
-    CoverEntityFeature,
-    FanEntityFeature,
-    LightEntityFeature,
-    LockEntityFeature,
-    MediaPlayerEntityFeature,
-    VacuumEntityFeature,
-)
-from hassette.models.states.light import LightAttributes
-from hassette.models.states.lock import LockAttributes
-from hassette.models.states.media_player import MediaPlayerAttributes
-from hassette.models.states.vacuum import VacuumAttributes
+from hassette.models.states.climate import ClimateAttributes, ClimateEntityFeature
+from hassette.models.states.cover import CoverAttributes, CoverEntityFeature
+from hassette.models.states.fan import FanAttributes, FanEntityFeature
+from hassette.models.states.light import LightAttributes, LightEntityFeature
+from hassette.models.states.lock import LockAttributes, LockEntityFeature
+from hassette.models.states.media_player import MediaPlayerAttributes, MediaPlayerEntityFeature
+from hassette.models.states.vacuum import VacuumAttributes, VacuumEntityFeature
 
 
 class TestAttributesBaseHasFeature:

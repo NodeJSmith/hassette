@@ -30,7 +30,7 @@ def _run_generator_check(target: str) -> subprocess.CompletedProcess[str]:
     """
     try:
         return subprocess.run(
-            ["uv", "run", "tools/generate_sync_facade.py", "--target", target, "--check"],
+            ["uv", "run", "python", "codegen/src/hassette_codegen/sync_facade.py", "--target", target, "--check"],
             cwd=_REPO_ROOT,
             capture_output=True,
             timeout=_GENERATOR_TIMEOUT_SECONDS,
@@ -43,7 +43,7 @@ def _run_generator_check(target: str) -> subprocess.CompletedProcess[str]:
             f"Generator --target {target} --check timed out after {_GENERATOR_TIMEOUT_SECONDS}s "
             f"— it may be in an infinite loop or blocked on a subprocess call.\n"
             f"Reproduce manually:\n"
-            f"  uv run tools/generate_sync_facade.py --target {target} --check\n\n"
+            f"  uv run python codegen/src/hassette_codegen/sync_facade.py --target {target} --check\n\n"
             f"--- captured stderr ---\n{exc.stderr or '(no output captured)'}\n"
             f"--- captured stdout ---\n{exc.stdout or '(no output captured)'}"
         )
@@ -53,14 +53,14 @@ def test_generator_check_mode_exits_zero() -> None:
     """Generator --target recording --check exits 0 when sync_facade.py is current.
 
     Fails when ``src/hassette/test_utils/sync_facade.py`` has drifted from its
-    sources (``recording_api.py``, ``api.py``, or ``tools/generate_sync_facade.py``).
+    sources (``recording_api.py``, ``api.py``, or ``codegen/src/hassette_codegen/sync_facade.py``).
     On failure the captured stderr describes what changed.
     """
     result = _run_generator_check("recording")
     assert result.returncode == 0, (
         "Generator --target recording --check exited non-zero — sync_facade.py has drifted.\n"
         "Re-run locally to update it:\n"
-        "  uv run tools/generate_sync_facade.py --target recording\n\n"
+        "  uv run python codegen/src/hassette_codegen/sync_facade.py --target recording\n\n"
         f"--- stderr ---\n{result.stderr}\n"
         f"--- stdout ---\n{result.stdout}"
     )
@@ -81,7 +81,7 @@ def test_generator_check_mode_api_exits_zero() -> None:
     assert result.returncode == 0, (
         "Generator --target api --check exited non-zero — sync.py has drifted.\n"
         "Re-run locally to update it:\n"
-        "  uv run tools/generate_sync_facade.py --target api\n\n"
+        "  uv run python codegen/src/hassette_codegen/sync_facade.py --target api\n\n"
         f"--- stderr ---\n{result.stderr}\n"
         f"--- stdout ---\n{result.stdout}"
     )

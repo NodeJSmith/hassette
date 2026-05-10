@@ -18,8 +18,8 @@ from hassette.test_utils.recording_api import RecordingApi
 # would be miscategorized by the parity test as a "write method" and pass or fail
 # based on whether the other side happens to also override it — a brittle coincidence.
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(_REPO_ROOT / "tools"))
-from generate_sync_facade import LIFECYCLE_METHODS  # noqa: E402
+sys.path.insert(0, str(_REPO_ROOT / "codegen" / "src"))
+from hassette_codegen.sync_facade import LIFECYCLE_METHODS  # noqa: E402
 
 # Read-method names — these are excluded from the write-method derivation below.
 # Lifecycle hooks are handled separately via LIFECYCLE_METHODS (imported above) so

@@ -1,4 +1,4 @@
-"""Unit tests for tools/generate_sync_facade.py — recording facade extensions."""
+"""Unit tests for codegen sync facade — recording facade extensions."""
 
 import ast
 import copy
@@ -10,12 +10,12 @@ from pathlib import Path
 
 import pytest
 
-# Add the tools directory to sys.path so we can import the generator
+# Add the codegen package to sys.path so we can import the generator
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-sys.path.insert(0, str(_REPO_ROOT / "tools"))
+sys.path.insert(0, str(_REPO_ROOT / "codegen" / "src"))
 
 
-from generate_sync_facade import (  # noqa: E402
+from hassette_codegen.sync_facade import (  # noqa: E402
     _build_precise_import_block,
     _collect_module_level_import_map,
     _collect_referenced_symbols,

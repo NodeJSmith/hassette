@@ -1,0 +1,57 @@
+{% if needs_any and type_aliases %}
+from typing import Any, Literal
+{% elif needs_any %}
+from typing import Any
+{% elif type_aliases %}
+from typing import Literal
+{% endif %}
+
+from hassette.models.states import {{ domain_title }}State
+from hassette.models.states.{{ domain }} import {{ domain_title }}Attributes
+
+from .base import BaseEntity
+{% for imp in extra_imports %}
+{{ imp }}
+{% endfor %}
+{% for alias_name, alias_type in type_aliases %}
+
+{{ alias_name }} = {{ alias_type }}
+{% endfor %}
+
+
+class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
+    @property
+    def attributes(self) -> {{ domain_title }}Attributes:
+        return self.state.attributes
+{% for service in services %}
+{% if service.params %}
+
+    async def {{ service.method_name }}(
+        self,
+        *,
+{% for param in service.params %}
+{% if param.required %}
+        {{ param.name }}: {{ param.python_type }},
+{% else %}
+        {{ param.name }}: {{ param.python_type }} = None,
+{% endif %}
+{% endfor %}
+    ) -> None:
+        await self.api.call_service(
+            domain=self.domain,
+            service="{{ service.name }}",
+            target={"entity_id": self.entity_id},
+{% for param in service.params %}
+            {{ param.name }}={{ param.name }},
+{% endfor %}
+        )
+{% else %}
+
+    async def {{ service.method_name }}(self) -> None:
+        await self.api.call_service(
+            domain=self.domain,
+            service="{{ service.name }}",
+            target={"entity_id": self.entity_id},
+        )
+{% endif %}
+{% endfor %}

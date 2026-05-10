@@ -1,0 +1,2 @@
+[service_param_renames]
+media_content_type = "media_type"

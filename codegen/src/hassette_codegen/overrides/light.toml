@@ -1,0 +1,5 @@
+[extra_imports]
+entity = ["from hassette.const.colors import Color"]
+
+[param_type_overrides]
+color_name = "Color | None"

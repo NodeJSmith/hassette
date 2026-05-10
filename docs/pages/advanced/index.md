@@ -2,6 +2,8 @@
 
 Most Hassette apps work entirely within the Core Concepts: the Bus, Scheduler, API, and States. The pages in this section are for situations where those building blocks are not enough — when you need to teach Hassette about a new Home Assistant domain, control exactly what type a value converts to, or tune logging to isolate a specific service.
 
+Hassette's entity models are generated from Home Assistant **2026.5.1**. See `codegen/ha-version.txt` for the exact pinned version.
+
 You do not need to read all of these. Start with the one that matches your immediate need.
 
 ## Topics

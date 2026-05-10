@@ -1,0 +1,3 @@
+[[property_overrides]]
+name = "current_direction"
+wire_name = "direction"

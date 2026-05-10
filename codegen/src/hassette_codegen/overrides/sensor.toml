@@ -1,0 +1,4 @@
+[[property_overrides]]
+name = "unit_of_measurement"
+type = "str | None"
+add = true

@@ -1,0 +1,22 @@
+discovery = "manual"
+state_base_class = "BoolBaseState"
+
+[[properties]]
+name = "last_triggered"
+type = "ZonedDateTime | None"
+
+[[properties]]
+name = "mode"
+type = "str | None"
+
+[[properties]]
+name = "current"
+type = "int | float | None"
+
+[[properties]]
+name = "max"
+type = "int | float | None"
+
+[[properties]]
+name = "last_action"
+type = "str | None"

@@ -25,8 +25,8 @@ from hassette.test_utils.recording_api import ApiProtocol
 # set of lifecycle hook names with the generator's filtering logic. This matches
 # the pattern used by test_recording_api_write_parity.py.
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(_REPO_ROOT / "tools"))
-from generate_sync_facade import LIFECYCLE_METHODS  # noqa: E402
+sys.path.insert(0, str(_REPO_ROOT / "codegen" / "src"))
+from hassette_codegen.sync_facade import LIFECYCLE_METHODS  # noqa: E402
 
 
 def _public_async_methods(cls: type) -> set[str]:

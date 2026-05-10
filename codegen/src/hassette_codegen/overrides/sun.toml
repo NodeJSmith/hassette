@@ -1,0 +1,38 @@
+discovery = "manual"
+state_base_class = "StringBaseState"
+
+[[properties]]
+name = "next_dawn"
+type = "ZonedDateTime | None"
+
+[[properties]]
+name = "next_dusk"
+type = "ZonedDateTime | None"
+
+[[properties]]
+name = "next_midnight"
+type = "ZonedDateTime | None"
+
+[[properties]]
+name = "next_noon"
+type = "ZonedDateTime | None"
+
+[[properties]]
+name = "next_rising"
+type = "ZonedDateTime | None"
+
+[[properties]]
+name = "next_setting"
+type = "ZonedDateTime | None"
+
+[[properties]]
+name = "elevation"
+type = "float | None"
+
+[[properties]]
+name = "azimuth"
+type = "float | None"
+
+[[properties]]
+name = "rising"
+type = "bool | None"
