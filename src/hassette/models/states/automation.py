@@ -17,7 +17,7 @@ class AutomationAttributes(AttributesBase):
 
     @field_validator("last_triggered", mode="before")
     @classmethod
-    def parse_last_triggered(cls, value: ZonedDateTime | str | None) -> ZonedDateTime | None:
+    def _parse_datetime_fields(cls, value: object) -> object:
         return convert_datetime_str_to_system_tz(value)
 
 

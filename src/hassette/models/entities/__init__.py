@@ -1,4 +1,5 @@
 from .alarm_control_panel import AlarmControlPanelEntity
+from .automation import AutomationEntity
 from .base import BaseEntity, BaseEntitySyncFacade
 from .button import ButtonEntity
 from .camera import CameraEntity, Format
@@ -15,11 +16,13 @@ from .lock import LockEntity
 from .media_player import Enqueue, MediaPlayerEntity, Repeat
 from .number import NumberEntity
 from .remote import CommandType, RemoteEntity
+from .script import ScriptEntity
 from .select import SelectEntity
 from .siren import SirenEntity
 from .switch import SwitchEntity
 from .text import TextEntity
 from .time import TimeEntity
+from .timer import TimerEntity
 from .todo import Status, TodoEntity
 from .update import UpdateEntity
 from .vacuum import VacuumEntity
@@ -28,6 +31,7 @@ from .weather import Type, WeatherEntity
 
 __all__ = [
     "AlarmControlPanelEntity",
+    "AutomationEntity",
     "BaseEntity",
     "BaseEntitySyncFacade",
     "ButtonEntity",
@@ -51,12 +55,14 @@ __all__ = [
     "NumberEntity",
     "RemoteEntity",
     "Repeat",
+    "ScriptEntity",
     "SelectEntity",
     "SirenEntity",
     "Status",
     "SwitchEntity",
     "TextEntity",
     "TimeEntity",
+    "TimerEntity",
     "TodoEntity",
     "Type",
     "UpdateEntity",

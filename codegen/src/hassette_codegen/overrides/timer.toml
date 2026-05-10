@@ -1,0 +1,26 @@
+discovery = "manual"
+state_base_class = "StringBaseState"
+
+[[properties]]
+name = "duration"
+type = "str | None"
+
+[[properties]]
+name = "editable"
+type = "bool | None"
+
+[[properties]]
+name = "last_transition"
+type = "ZonedDateTime | None"
+
+[[properties]]
+name = "finishes_at"
+type = "ZonedDateTime | None"
+
+[[properties]]
+name = "remaining"
+type = "str | None"
+
+[[properties]]
+name = "restore"
+type = "bool | None"

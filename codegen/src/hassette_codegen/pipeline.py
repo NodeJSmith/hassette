@@ -31,7 +31,11 @@ def run_pipeline(
     check_ruff_available()
 
     all_domains = discover_domains(ha_source.path)
-    print(f"Discovered {len(all_domains)} entity domains", file=sys.stderr)
+    overrides = load_overrides()
+
+    manual_domains = _discover_manual_domains(ha_source.path, overrides, {d.name for d in all_domains})
+    all_domains.extend(manual_domains)
+    print(f"Discovered {len(all_domains)} entity domains ({len(manual_domains)} manual)", file=sys.stderr)
 
     if domain_filter:
         domains = [d for d in all_domains if d.name in domain_filter]
@@ -41,7 +45,6 @@ def run_pipeline(
     else:
         domains = all_domains
 
-    overrides = load_overrides()
     validate_overrides(overrides, {d.name for d in all_domains})
 
     previous_manifest = load_manifest(repo_root)
@@ -158,6 +161,11 @@ def run_pipeline(
 
 def _extract_domain(ha_core_path: Path, domain_info: object, overrides: dict) -> ExtractedDomain:
     """Extract all data for a single domain."""
+    override = get_override(overrides, domain_info.name)
+
+    if override and override.discovery == "manual":
+        return _extract_manual_domain(domain_info, override)
+
     init_py = domain_info.path / "__init__.py"
 
     features = extract_features(domain_info.path)
@@ -165,7 +173,6 @@ def _extract_domain(ha_core_path: Path, domain_info: object, overrides: dict) ->
     properties = extract_properties(init_py)
     base_class = determine_base_class(init_py)
     services = extract_services(domain_info.path) if domain_info.has_services_yaml else []
-    override = get_override(overrides, domain_info.name)
 
     return ExtractedDomain(
         name=domain_info.name,
@@ -176,3 +183,53 @@ def _extract_domain(ha_core_path: Path, domain_info: object, overrides: dict) ->
         services=services,
         override=override,
     )
+
+
+def _extract_manual_domain(domain_info: object, override: object) -> ExtractedDomain:
+    """Build an ExtractedDomain from TOML-declared properties."""
+    base_class = override.state_base_class or "StringBaseState"
+    services = extract_services(domain_info.path) if domain_info.has_services_yaml else []
+
+    return ExtractedDomain(
+        name=domain_info.name,
+        base_class=base_class,
+        properties=list(override.properties),
+        features=[],
+        strenums=[],
+        services=services,
+        override=override,
+    )
+
+
+def _discover_manual_domains(
+    ha_core_path: Path,
+    overrides: dict[str, object],
+    already_discovered: set[str],
+) -> list:
+    """Create DiscoveredDomain entries for manual override domains not already discovered."""
+    from hassette_codegen.ha_source import DiscoveredDomain
+
+    components_dir = ha_core_path / "homeassistant" / "components"
+    manual = []
+
+    for domain, override in overrides.items():
+        if override.discovery != "manual":
+            continue
+        if domain in already_discovered:
+            continue
+
+        domain_path = components_dir / domain
+        if not domain_path.is_dir():
+            print(f"WARNING: Manual domain '{domain}' not found at {domain_path}", file=sys.stderr)
+            continue
+
+        manual.append(
+            DiscoveredDomain(
+                name=domain,
+                path=domain_path,
+                has_services_yaml=(domain_path / "services.yaml").exists(),
+                has_const_py=(domain_path / "const.py").exists(),
+            )
+        )
+
+    return manual

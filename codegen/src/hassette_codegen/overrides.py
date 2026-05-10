@@ -5,10 +5,14 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from hassette_codegen.extractors.properties import ExtractedProperty
+
 
 @dataclass
 class DomainOverride:
     domain: str
+    discovery: str | None = None
+    properties: list[ExtractedProperty] = field(default_factory=list)
     service_param_renames: dict[str, str] = field(default_factory=dict)
     extra_imports: dict[str, list[str]] = field(default_factory=dict)
     param_type_overrides: dict[str, str] = field(default_factory=dict)
@@ -33,8 +37,15 @@ def load_overrides(overrides_dir: Path | None = None) -> dict[str, DomainOverrid
             print(f"WARNING: Failed to parse override {toml_file}: {exc}", file=sys.stderr)
             continue
 
+        properties = [
+            ExtractedProperty(name=p["name"], python_type=p["type"], has_default=True)
+            for p in data.get("properties", [])
+        ]
+
         result[domain] = DomainOverride(
             domain=domain,
+            discovery=data.get("discovery"),
+            properties=properties,
             service_param_renames=data.get("service_param_renames", {}),
             extra_imports=data.get("extra_imports", {}),
             param_type_overrides=data.get("param_type_overrides", {}),
@@ -52,7 +63,9 @@ def validate_overrides(
     overrides: dict[str, DomainOverride],
     discovered_domains: set[str],
 ) -> None:
-    """Warn about overrides referencing unknown domains."""
-    for domain in overrides:
+    """Warn about overrides referencing unknown domains (skips manual discovery domains)."""
+    for domain, override in overrides.items():
+        if override.discovery == "manual":
+            continue
         if domain not in discovered_domains:
             print(f"WARNING: Override file for '{domain}' does not match any discovered domain", file=sys.stderr)

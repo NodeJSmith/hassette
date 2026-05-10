@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from .base import AttributesBase, StringBaseState
+from .base import AttributesBase, BoolBaseState
 
 
 class BinarySensorDeviceClass(StrEnum):
@@ -43,7 +43,7 @@ class BinarySensorAttributes(AttributesBase):
     state: None = Field(default=None)
 
 
-class BinarySensorState(StringBaseState):
+class BinarySensorState(BoolBaseState):
     """Representation of a Home Assistant binary_sensor state.
 
     See: https://www.home-assistant.io/integrations/binary_sensor/
