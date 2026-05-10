@@ -1,9 +1,21 @@
+from enum import IntFlag
 from typing import Literal
 
 from pydantic import Field
 
 from .base import AttributesBase, StringBaseState
-from .features import VacuumEntityFeature
+
+
+class VacuumEntityFeature(IntFlag):
+    PAUSE = 4
+    STOP = 8
+    RETURN_HOME = 16
+    FAN_SPEED = 32
+    SEND_COMMAND = 256
+    LOCATE = 512
+    CLEAN_SPOT = 1024
+    START = 8192
+    CLEAN_AREA = 16384
 
 
 class VacuumAttributes(AttributesBase):

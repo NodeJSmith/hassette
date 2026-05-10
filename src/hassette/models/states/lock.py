@@ -1,9 +1,13 @@
+from enum import IntFlag
 from typing import Literal
 
 from pydantic import Field
 
 from .base import AttributesBase, StringBaseState
-from .features import LockEntityFeature
+
+
+class LockEntityFeature(IntFlag):
+    OPEN = 1
 
 
 class LockAttributes(AttributesBase):

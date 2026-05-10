@@ -1,9 +1,15 @@
+from enum import IntFlag
 from typing import Literal
 
 from pydantic import Field
 
 from .base import AttributesBase, BoolBaseState
-from .features import LightEntityFeature
+
+
+class LightEntityFeature(IntFlag):
+    EFFECT = 4
+    FLASH = 8
+    TRANSITION = 32
 
 
 class LightAttributes(AttributesBase):

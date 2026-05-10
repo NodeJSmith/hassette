@@ -5,21 +5,12 @@ from .automation import AutomationState
 from .base import BaseState
 from .calendar import CalendarState
 from .camera import CameraState
-from .climate import ClimateAttributes, ClimateState
+from .climate import ClimateAttributes, ClimateEntityFeature, ClimateState
 from .counter import CounterAttributes, CounterState
-from .cover import CoverAttributes, CoverState
+from .cover import CoverAttributes, CoverEntityFeature, CoverState
 from .device_tracker import DeviceTrackerAttributes, DeviceTrackerState
 from .event import EventState
-from .fan import FanAttributes, FanState
-from .features import (
-    ClimateEntityFeature,
-    CoverEntityFeature,
-    FanEntityFeature,
-    LightEntityFeature,
-    LockEntityFeature,
-    MediaPlayerEntityFeature,
-    VacuumEntityFeature,
-)
+from .fan import FanAttributes, FanEntityFeature, FanState
 from .humidifier import HumidifierState
 from .image_processing import ImageProcessingState
 from .input import (
@@ -30,9 +21,9 @@ from .input import (
     InputSelectState,
     InputTextState,
 )
-from .light import LightAttributes, LightState
-from .lock import LockAttributes, LockState
-from .media_player import MediaPlayerAttributes, MediaPlayerState
+from .light import LightAttributes, LightEntityFeature, LightState
+from .lock import LockAttributes, LockEntityFeature, LockState
+from .media_player import MediaPlayerAttributes, MediaPlayerEntityFeature, MediaPlayerState
 from .number import NumberState
 from .person import PersonState
 from .remote import RemoteState
@@ -59,7 +50,7 @@ from .sun import SunState
 from .text import TextState
 from .timer import TimerState
 from .update import UpdateState
-from .vacuum import VacuumAttributes, VacuumState
+from .vacuum import VacuumAttributes, VacuumEntityFeature, VacuumState
 from .valve import ValveAttributes, ValveState
 from .water_heater import WaterHeaterState
 from .weather import WeatherState

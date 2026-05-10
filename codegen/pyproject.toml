@@ -1,0 +1,29 @@
+[project]
+name = "hassette-codegen"
+version = "0.1.0"
+description = "Code generator for hassette entity wrappers, state models, and constants from Home Assistant core"
+requires-python = ">=3.14"
+dependencies = [
+    "jinja2",
+    "pyyaml",
+]
+
+[project.scripts]
+hassette-codegen = "hassette_codegen.__main__:main"
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"

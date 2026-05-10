@@ -1,9 +1,18 @@
+from enum import IntFlag
 from typing import Literal
 
 from pydantic import Field
 
 from .base import AttributesBase, BoolBaseState
-from .features import FanEntityFeature
+
+
+class FanEntityFeature(IntFlag):
+    SET_SPEED = 1
+    OSCILLATE = 2
+    DIRECTION = 4
+    PRESET_MODE = 8
+    TURN_OFF = 16
+    TURN_ON = 32
 
 
 class FanAttributes(AttributesBase):
