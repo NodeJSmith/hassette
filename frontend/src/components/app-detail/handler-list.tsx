@@ -1,7 +1,7 @@
 import type { ListenerData, JobData } from "../../api/endpoints";
 import { UnifiedHandlerRow, type UnifiedItem, type UnifiedItemKind } from "./unified-handler-row";
 import { statusToKind } from "../../utils/status";
-import { formatTriggerDetail } from "../../utils/format";
+import { formatTriggerDetail, lastDotSegment } from "../../utils/format";
 
 export interface SelectedHandlerId {
   kind: UnifiedItemKind;
@@ -15,13 +15,13 @@ interface Props {
   onSelect: (id: SelectedHandlerId) => void;
 }
 
-function listenerStatusKind(l: ListenerData) {
+export function listenerStatusKind(l: ListenerData) {
   if (l.failed > 0 || l.timed_out > 0) return statusToKind("failed");
   if (l.total_invocations > 0) return statusToKind("running");
   return statusToKind("stopped");
 }
 
-function jobStatusKind(j: JobData) {
+export function jobStatusKind(j: JobData) {
   if (j.failed > 0 || j.timed_out > 0) return statusToKind("failed");
   if (j.total_executions > 0) return statusToKind("running");
   return statusToKind("stopped");
@@ -31,7 +31,7 @@ export function buildItems(listeners: ListenerData[], jobs: JobData[]): UnifiedI
   const listenerItems: UnifiedItem[] = listeners.map((l) => ({
     kind: "listener" as const,
     id: l.listener_id,
-    name: l.handler_method.split(".").pop() ?? l.handler_method,
+    name: lastDotSegment(l.handler_method),
     humanDescription: l.human_description ?? null,
     statusKind: listenerStatusKind(l),
     data: l,

@@ -77,7 +77,7 @@ describe("HandlersPage", () => {
       ],
     });
     const { getAllByTestId } = renderWithAppState(<HandlersPage />);
-    expect(getAllByTestId(/handler-row-/).length).toBe(1);
+    expect(getAllByTestId(/listener-row-/).length).toBe(1);
     expect(getAllByTestId(/job-row-/).length).toBe(1);
   });
 
@@ -93,7 +93,7 @@ describe("HandlersPage", () => {
       ],
     });
     const { getAllByTestId } = renderWithAppState(<HandlersPage />);
-    expect(getAllByTestId(/handler-row-/).length).toBe(1);
+    expect(getAllByTestId(/listener-row-/).length).toBe(1);
     expect(getAllByTestId(/job-row-/).length).toBe(1);
   });
 
@@ -106,7 +106,7 @@ describe("HandlersPage", () => {
       ],
     });
     const { getAllByTestId } = renderWithAppState(<HandlersPage />);
-    expect(getAllByTestId(/handler-row-/).length).toBe(2);
+    expect(getAllByTestId(/listener-row-/).length).toBe(2);
   });
 
   it("filters by selected app when ?app=app_a is in URL", () => {
@@ -121,9 +121,9 @@ describe("HandlersPage", () => {
       ],
     });
     const { getAllByTestId, queryAllByTestId } = renderWithAppState(<HandlersPage />);
-    expect(getAllByTestId(/handler-row-/).length).toBe(1);
+    expect(getAllByTestId(/listener-row-/).length).toBe(1);
     expect(getAllByTestId(/job-row-/).length).toBe(1);
-    expect(queryAllByTestId("handler-row-h-2")).toHaveLength(0);
+    expect(queryAllByTestId("listener-row-h-2")).toHaveLength(0);
   });
 
   it("renders a search input", () => {
@@ -140,7 +140,7 @@ describe("HandlersPage", () => {
       ],
     });
     const { getAllByTestId } = renderWithAppState(<HandlersPage />);
-    expect(getAllByTestId(/handler-row-/).length).toBe(1);
+    expect(getAllByTestId(/listener-row-/).length).toBe(1);
   });
 
   it("search filters by app_key when ?search= is in URL", () => {
@@ -152,7 +152,7 @@ describe("HandlersPage", () => {
       ],
     });
     const { getAllByTestId } = renderWithAppState(<HandlersPage />);
-    expect(getAllByTestId(/handler-row-/).length).toBe(1);
+    expect(getAllByTestId(/listener-row-/).length).toBe(1);
   });
 
   it("search is case-insensitive when ?search= is in URL", () => {
@@ -164,7 +164,7 @@ describe("HandlersPage", () => {
       ],
     });
     const { getAllByTestId } = renderWithAppState(<HandlersPage />);
-    expect(getAllByTestId(/handler-row-/).length).toBe(1);
+    expect(getAllByTestId(/listener-row-/).length).toBe(1);
   });
 
   it("search filters jobs by job_name when ?search= is in URL", () => {
@@ -191,7 +191,7 @@ describe("HandlersPage", () => {
       ],
     });
     const { getAllByTestId, queryAllByTestId } = renderWithAppState(<HandlersPage />);
-    expect(getAllByTestId(/handler-row-/).length).toBe(1);
+    expect(getAllByTestId(/listener-row-/).length).toBe(1);
     expect(getAllByTestId(/job-row-/).length).toBe(1);
     expect(queryAllByTestId(/job-row-j-11/).length).toBe(0);
   });
@@ -216,13 +216,13 @@ describe("HandlersPage — query param state (FR#5, AC#6)", () => {
     mockSearch = "tier=all";
     const { getAllByTestId } = renderWithAppState(<HandlersPage />);
     // tier=all should show the framework handler too
-    expect(getAllByTestId(/handler-row-/).length).toBe(2);
+    expect(getAllByTestId(/listener-row-/).length).toBe(2);
   });
 
   it("reads tier filter from URL query param — ?tier=framework shows only framework items", () => {
     mockSearch = "tier=framework";
     const { getAllByTestId, queryAllByTestId } = renderWithAppState(<HandlersPage />);
-    expect(getAllByTestId(/handler-row-/).length).toBe(1);
+    expect(getAllByTestId(/listener-row-/).length).toBe(1);
     // the app-tier job should not be visible
     expect(queryAllByTestId(/job-row-/).length).toBe(0);
   });
@@ -231,13 +231,13 @@ describe("HandlersPage — query param state (FR#5, AC#6)", () => {
     // "on_event" is the app-tier handler; default tier=app, so search "event" should return it
     mockSearch = "search=event";
     const { getAllByTestId } = renderWithAppState(<HandlersPage />);
-    expect(getAllByTestId(/handler-row-/).length).toBe(1);
+    expect(getAllByTestId(/listener-row-/).length).toBe(1);
   });
 
   it("reads app filter from URL query param — ?app=app_a filters to that app", () => {
     mockSearch = "app=app_a";
     const { getAllByTestId, queryAllByTestId } = renderWithAppState(<HandlersPage />);
-    expect(getAllByTestId(/handler-row-/).length).toBe(1);
+    expect(getAllByTestId(/listener-row-/).length).toBe(1);
     // app_b job should be excluded
     expect(queryAllByTestId(/job-row-/).length).toBe(0);
   });

@@ -516,7 +516,6 @@ describe("AppDetailPage", () => {
     );
     expect(mockCorrectUrl).toHaveBeenCalledWith(
       "/apps/test_app/handlers?instance=0",
-      "instance 99 out of range, using 0",
     );
   });
 

@@ -149,7 +149,7 @@ function Tab({ id, label, badge, appKey, instanceQs, activeTab }: {
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
   const activeTab: TabId = params.tab ?? "overview";
-  const { appStatus } = useAppState();
+  const { appStatus, manifests, manifestsLoading } = useAppState();
   const [, navigate] = useLocation();
   const queryParams = useQueryParams();
   const correctUrl = useCorrectUrl();
@@ -158,9 +158,6 @@ export function AppDetailPage({ params }: Props) {
   const instanceParam = queryParams.get("instance");
   const parsedInstance = instanceParam !== null ? parseInt(instanceParam, 10) : undefined;
   const instanceIndex = parsedInstance !== undefined && Number.isFinite(parsedInstance) ? parsedInstance : undefined;
-
-
-  const { manifests, manifestsLoading } = useAppState();
 
   // For instance detail view: fetch listeners, jobs
   const resolvedInstanceIndex = instanceIndex ?? 0;
@@ -202,7 +199,7 @@ export function AppDetailPage({ params }: Props) {
   useEffect(() => {
     if (initialLoading) return;
     if (manifest && instanceIndex !== undefined && instanceIndex >= manifest.instance_count) {
-      correctUrl(`/apps/${appKey}/${activeTab}?instance=0`, `instance ${instanceIndex} out of range, using 0`);
+      correctUrl(`/apps/${appKey}/${activeTab}?instance=0`);
     }
   }, [initialLoading, manifest, instanceIndex, appKey, activeTab, correctUrl]);
 
@@ -221,7 +218,7 @@ export function AppDetailPage({ params }: Props) {
       <div>
         {/* Breadcrumb */}
         <nav class="ht-breadcrumb ht-mb-3" aria-label="Breadcrumb">
-          <a href="/apps">Apps</a>
+          <a href="/apps">apps</a>
           <span class="ht-breadcrumb__separator" aria-hidden="true">/</span>
           <span class="ht-breadcrumb__current" aria-current="page">
             {manifest.display_name ?? appKey}
@@ -244,7 +241,7 @@ export function AppDetailPage({ params }: Props) {
       <nav class="ht-breadcrumb ht-mb-3" aria-label="Breadcrumb">
         {isMultiInstance ? (
           <>
-            <a href="/apps">Apps</a>
+            <a href="/apps">apps</a>
             <span class="ht-breadcrumb__separator" aria-hidden="true">/</span>
             <a
               href={`/apps/${appKey}`}
@@ -263,7 +260,7 @@ export function AppDetailPage({ params }: Props) {
           </>
         ) : (
           <>
-            <a href="/apps">Apps</a>
+            <a href="/apps">apps</a>
             <span class="ht-breadcrumb__separator" aria-hidden="true">/</span>
             <span class="ht-breadcrumb__current" aria-current="page">
               {appKey}
@@ -364,10 +361,11 @@ export function AppDetailPage({ params }: Props) {
           appKey={appKey}
           instanceQs={instanceQs}
           onSwitchToCode={(line) => {
-            // Navigate to code tab with ?line=N (and preserve ?instance= if set)
-            const lineParam = line !== undefined ? `?line=${line}` : "";
-            const instParam = instanceParam !== null && instanceParam !== "" ? `${lineParam ? "&" : "?"}instance=${instanceParam}` : "";
-            navigate(`/apps/${appKey}/code${lineParam}${instParam}`);
+            const qs = new URLSearchParams();
+            if (line !== undefined) qs.set("line", String(line));
+            if (instanceParam) qs.set("instance", instanceParam);
+            const query = qs.toString();
+            navigate(`/apps/${appKey}/code${query ? `?${query}` : ""}`);
           }}
         />
         </div>

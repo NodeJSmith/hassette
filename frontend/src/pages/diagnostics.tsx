@@ -75,7 +75,8 @@ interface DiagServiceRowProps {
   tick: number;
 }
 
-function DiagServiceRow({ service, tick }: DiagServiceRowProps) {
+function DiagServiceRow({ service, tick: _tick }: DiagServiceRowProps) {
+  void _tick; // prop triggers re-render for live relative times
   const [exceptionOpen, setExceptionOpen] = useState(false);
   const isCooling = service.status === "exhausted_cooling";
   const kind = statusToKind(service.status);
@@ -107,8 +108,7 @@ function DiagServiceRow({ service, tick }: DiagServiceRowProps) {
             class="ht-diag__service-retry ht-text-mono"
             data-testid={`diag-service-retry-${service.resource_name}`}
           >
-            {/* tick reference forces re-render on each 30s tick for live relative time */}
-            {tick !== undefined && `retry ${formatRelativeTime(service.retry_at)}`}
+            retry {formatRelativeTime(service.retry_at)}
           </span>
         )}
         {service.exception && (
@@ -175,12 +175,12 @@ interface BootIssuesPanelProps {
   bootIssues: BootIssue[];
 }
 
+const SEVERITY_ORDER: Record<string, number> = { err: 0, warn: 1, info: 2 };
+
 function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
-  // Sort: errors first, then warnings
-  const sorted = [...bootIssues].sort((a, b) => {
-    if (a.severity === b.severity) return 0;
-    return a.severity === "err" ? -1 : 1;
-  });
+  const sorted = [...bootIssues].sort((a, b) =>
+    (SEVERITY_ORDER[a.severity] ?? 99) - (SEVERITY_ORDER[b.severity] ?? 99),
+  );
 
   return (
     <section

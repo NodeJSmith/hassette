@@ -105,7 +105,7 @@ export function ConfigPage() {
         <div class="ht-config-groups">
           {groups.map((group) => (
             <section key={group.label} class="ht-config-group ht-mb-8">
-              <h2 class="ht-config-group__label">{group.label}</h2>
+              <h2 class="ht-section-label">{group.label}</h2>
               <div class="ht-card ht-card--config">
                 <table class="ht-table ht-table--compact ht-config-table">
                   <tbody>

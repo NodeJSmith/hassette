@@ -94,6 +94,8 @@ export function useApi<T>(
   const depsDidChange = depsChanged(prevDeps.current, deps);
   const enabledDidChange = prevEnabled.current !== enabled;
 
+  // Render-phase signal writes — safe because Preact signals are synchronous and this
+  // runs before JSX evaluation, ensuring children see the reset state in the same render.
   if (depsDidChange || enabledDidChange) {
     prevDeps.current = deps;
     prevEnabled.current = enabled;

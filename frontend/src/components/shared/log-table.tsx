@@ -58,6 +58,8 @@ export function sortEntries(entries: readonly LogEntry[], column: SortColumn, as
   });
 }
 
+const VALID_SORT_COLUMNS: ReadonlySet<string> = new Set(["timestamp", "level", "app", "source", "message"]);
+
 const LEVEL_ABBREV: Record<string, string> = {
   DEBUG: "D",
   INFO: "I",
@@ -83,7 +85,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
   const isTablet = useMediaQuery(BREAKPOINT_TABLET);
   const showSourceColumn = !isTablet;
   const { logs, updateLogSubscription, reconnectVersion, tick } = useAppState();
-  useSubscribe(tick, logs.version);
+  useSubscribe(isMobile && tick, logs.version);
   const qp = useQueryParams();
   // Keep a stable ref to the latest qp so event handlers always use the most
   // recent URL params without needing to close over the render-cycle value.
@@ -103,7 +105,8 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
       ? tierFilterRaw
       : (appKey ? "all" : "app");
   const search = qp.get("search") ?? "";
-  const sortColumn = (qp.get("sort") ?? "timestamp") as SortColumn;
+  const rawSort = qp.get("sort") ?? "timestamp";
+  const sortColumn: SortColumn = VALID_SORT_COLUMNS.has(rawSort) ? (rawSort as SortColumn) : "timestamp";
   const sortDir = qp.get("dir");
   // Default dir: "desc" for timestamp (asc: false), "desc" for all others (asc: false as well
   // when clicking a new non-timestamp column). "asc" is only set when explicitly in URL.
@@ -119,7 +122,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
   // Sync WS subscription to current level — re-syncs on back/forward navigation
   useEffect(() => {
     updateLogSubscription(minLevel || "DEBUG");
-  }, [minLevel]);
+  }, [minLevel, updateLogSubscription]);
 
   // Fetch initial entries on mount and after reconnect
   const rv = reconnectVersion.value;

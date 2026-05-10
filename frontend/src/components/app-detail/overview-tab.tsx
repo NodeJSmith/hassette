@@ -5,7 +5,7 @@ import { StatusShape } from "../shared/status-shape";
 import { buildItems } from "./handler-list";
 import type { UnifiedItem } from "./unified-handler-row";
 import { handlerKindLabel, levelToKind, executionStatusKind } from "../../utils/status";
-import { pluralize, formatDurationOrDash, formatRelativeTime } from "../../utils/format";
+import { pluralize, formatDurationOrDash, formatRelativeTime, lastDotSegment } from "../../utils/format";
 import type { ListenerData, JobData, ActivityFeedEntryData, LogEntry } from "../../api/endpoints";
 import { getAppActivity, getRecentLogs } from "../../api/endpoints";
 import { useScopedApi } from "../../hooks/use-scoped-api";
@@ -28,7 +28,7 @@ function handlerPath(appKey: string, item: UnifiedItem, instanceQs: string): str
 }
 
 function isFailing(item: UnifiedItem): boolean {
-  return item.data.failed > 0 || item.data.timed_out > 0;
+  return item.statusKind === "err";
 }
 
 function itemRunCount(item: UnifiedItem): number {
@@ -117,7 +117,7 @@ function ErrorSpotlight({ failingItems, appKey, instanceQs }: ErrorSpotlightProp
       class="ht-overview-tab__section ht-overview-spotlight"
       data-testid="overview-error-spotlight"
     >
-      <h3 class="ht-config-group__label">failing handlers</h3>
+      <h3 class="ht-section-label">failing handlers</h3>
       {visibleItems.map((item) => (
         <SpotlightEntry
           key={`${item.kind}-${item.id}`}
@@ -192,7 +192,7 @@ function HandlerHealthGrid({ items, appKey, instanceQs }: HandlerHealthGridProps
   if (items.length === 0) {
     return (
       <section class="ht-overview-tab__section" data-testid="overview-health-grid">
-        <h3 class="ht-config-group__label">handler health</h3>
+        <h3 class="ht-section-label">handler health</h3>
         <EmptyState
           title="No handlers registered"
           body="This app has not registered any event handlers or scheduled jobs."
@@ -206,7 +206,7 @@ function HandlerHealthGrid({ items, appKey, instanceQs }: HandlerHealthGridProps
 
   return (
     <section class="ht-overview-tab__section" data-testid="overview-health-grid">
-      <h3 class="ht-config-group__label">handler health</h3>
+      <h3 class="ht-section-label">handler health</h3>
       <div class="ht-overview-health-grid">
         {sorted.map((item) => (
           <HealthGridRow
@@ -239,7 +239,7 @@ function ActivityRow({ entry }: ActivityRowProps) {
           <StatusShape kind={kind} size={8} />
         </span>
       </td>
-      <td class="ht-overview-activity__name">{entry.handler_name}</td>
+      <td class="ht-overview-activity__name" title={entry.handler_name}>{lastDotSegment(entry.handler_name)}</td>
       <td class="ht-overview-activity__duration">{formatDurationOrDash(entry.duration_ms)}</td>
       <td class="ht-overview-activity__time">{formatRelativeTime(entry.timestamp)}</td>
     </tr>
@@ -285,7 +285,7 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
 
   return (
     <section class="ht-overview-tab__section" data-testid="overview-activity-section">
-      <h3 class="ht-config-group__label">recent activity</h3>
+      <h3 class="ht-section-label">recent activity</h3>
       {activityError.value ? (
         <p class="ht-overview-empty-inline ht-text-danger" data-testid="overview-activity-error">
           could not load activity
@@ -351,7 +351,7 @@ function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
 
   return (
     <section class="ht-overview-tab__section" data-testid="overview-logs-section">
-      <h3 class="ht-config-group__label">recent logs</h3>
+      <h3 class="ht-section-label">recent logs</h3>
       {logsError.value ? (
         <p class="ht-overview-empty-inline ht-text-danger" data-testid="overview-logs-error">
           could not load logs

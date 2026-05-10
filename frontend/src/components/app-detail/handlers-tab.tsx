@@ -3,7 +3,7 @@ import { useSignal } from "../../hooks/use-signal";
 import { useLocation } from "wouter";
 import type { ListenerData, JobData } from "../../api/endpoints";
 import { getHandlerInvocations, getJobExecutions } from "../../api/endpoints";
-import { HandlerList, type SelectedHandlerId } from "./handler-list";
+import { HandlerList, type SelectedHandlerId, listenerStatusKind, jobStatusKind } from "./handler-list";
 import { HandlerInvocations } from "./handler-invocations";
 import { JobExecutions } from "./job-executions";
 import { HandlersHealthStrip } from "./health-strip";
@@ -13,7 +13,7 @@ import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
 import { formatTriggerDetail, formatDurationOrDash, formatOptionalDuration, formatRelativeTime, lastDotSegment, parseSourceLocation, TIME_PRESET_LABELS } from "../../utils/format";
 
-import { handlerKindLabel, statusToKind } from "../../utils/status";
+import { handlerKindLabel } from "../../utils/status";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
 import { EmptyState } from "../shared/empty-state";
 import { ErrorBanner } from "../shared/error-banner";
@@ -150,8 +150,8 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
   );
 
   const kindLabel = handlerKindLabel("listener", listener.listener_kind, null);
-  const isFailing = listener.failed > 0 || listener.timed_out > 0;
-  const listenerKind = isFailing ? statusToKind("failed") : statusToKind("running");
+  const listenerKind = listenerStatusKind(listener);
+  const isFailing = listenerKind === "err";
   const { filename: sourceFilename, line: sourceLine } = parseSourceLocation(listener.source_location);
 
   return (
@@ -275,7 +275,7 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
 
   const { filename: sourceFilename, line: sourceLine } = parseSourceLocation(job.source_location);
 
-  const jobKind = job.failed > 0 ? statusToKind("failed") : statusToKind("running");
+  const jobKind = jobStatusKind(job);
 
   return (
     <div class="ht-detail-pane__wrapper" data-testid={`job-detail-${job.job_id}`}>
@@ -431,7 +431,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
       ? listeners.some((l) => l.listener_id === parsed.id)
       : jobs.some((j) => j.job_id === parsed.id);
     if (!found) {
-      correctUrl(`/apps/${appKey}/handlers${instanceQs}`, `handler ${parsed.id} not found`);
+      correctUrl(`/apps/${appKey}/handlers${instanceQs}`);
     }
   }, [selectedHandler, parsed, hasItems, listeners, jobs, appKey, instanceQs, correctUrl]);
 
@@ -497,7 +497,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
             ) : selectedJob ? (
               <JobDetail job={selectedJob} onSwitchToCode={onSwitchToCode} />
             ) : (
-              <EmptyState title="Select a handler or job to see details." data-testid="detail-placeholder" />
+              <EmptyState icon="←" title="Select a handler or job to see details." data-testid="detail-placeholder" />
             )}
           </div>
         )}

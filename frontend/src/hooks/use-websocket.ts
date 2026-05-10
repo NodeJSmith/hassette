@@ -63,6 +63,7 @@ export function useWebSocket(state: AppState): void {
                 clearTimeout(handshakeTimer);
                 handshakeTimer = null;
               }
+              // Reset backoff here (not in onopen) — only a fully completed handshake should reset retry delay
               backoffRef.current = INITIAL_BACKOFF_MS;
               state.connection.value = "connected";
               // uptime_seconds is the loading gate for useScopedApi

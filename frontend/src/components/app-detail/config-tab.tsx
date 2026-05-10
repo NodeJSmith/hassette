@@ -1,4 +1,4 @@
-import { useEffect } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { getAppConfig } from "../../api/endpoints";
 import { useSignal } from "../../hooks/use-signal";
 import { EmptyState } from "../shared/empty-state";
@@ -24,8 +24,35 @@ type ConfigSchema = {
 
 function formatConfigValue(val: unknown): string {
   if (val === null || val === undefined) return "—";
-  if (typeof val === "object") return JSON.stringify(val);
+  if (Array.isArray(val)) return `[${val.length} items]`;
+  if (typeof val === "object") return `{${Object.keys(val as Record<string, unknown>).length} keys}`;
   return String(val);
+}
+
+function ConfigValue({ val }: { val: unknown }) {
+  const [expanded, setExpanded] = useState(false);
+  const isComplex = val !== null && typeof val === "object";
+
+  if (!isComplex) return <>{formatConfigValue(val)}</>;
+
+  return (
+    <span>
+      <button
+        type="button"
+        class="ht-config-table__expand-btn"
+        onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+      >
+        <svg class="ht-config-table__expand-icon" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+          <polyline points={expanded ? "2,4 6,8 10,4" : "4,2 8,6 4,10"} fill="none" stroke="currentColor" stroke-width="1.5" />
+        </svg>
+        {formatConfigValue(val)}
+      </button>
+      {expanded && (
+        <pre class="ht-config-table__expanded-value">{JSON.stringify(val, null, 2)}</pre>
+      )}
+    </span>
+  );
 }
 
 function resolveType(prop: SchemaProperty): string {
@@ -78,7 +105,7 @@ function SchemaConfigTable({
                 <span class="ht-text-muted ht-text-xs">{typeName}</span>
               </td>
               <td class={`ht-config-table__value${!hasValue ? " ht-config-table__value--empty" : ""}`}>
-                {formatConfigValue(value)}
+                <ConfigValue val={value} />
               </td>
             </tr>
           );
@@ -109,7 +136,7 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
           <tr key={key}>
             <td><code class="ht-text-mono ht-text-sm">{key}</code></td>
             <td class="ht-config-tab__value" data-testid={`config-value-${key}`}>
-              <code class="ht-text-mono ht-text-sm">{formatConfigValue(val)}</code>
+              <code class="ht-text-mono ht-text-sm"><ConfigValue val={val} /></code>
             </td>
           </tr>
         ))}
@@ -190,7 +217,7 @@ export function ConfigTab({ appKey }: Props) {
       {/* 2-column layout: config table + raw values */}
       <div class="ht-config-tab__layout">
         <div class="ht-config-tab__fields-card">
-          <h3 class="ht-config-group__label">configuration</h3>
+          <h3 class="ht-section-label">configuration</h3>
           <div class="ht-card ht-card--config">
           {isListConfig ? (
             <div class="ht-config-tab__instances">
@@ -219,7 +246,7 @@ export function ConfigTab({ appKey }: Props) {
 
         {/* Raw config card */}
         <div class="ht-config-tab__raw-card">
-          <h3 class="ht-config-group__label">raw config</h3>
+          <h3 class="ht-section-label">raw config</h3>
           <div class="ht-card ht-card--config">
           <span class="ht-text-mono ht-text-xs ht-text-muted">hassette.toml → apps.{appKey}.config</span>
           <pre class="ht-config-tab__raw-code">{JSON.stringify(appConfig, null, 2)}</pre>

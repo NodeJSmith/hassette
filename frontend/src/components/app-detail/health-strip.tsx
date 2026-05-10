@@ -23,7 +23,7 @@ export function HandlersHealthStrip({ listeners, jobs, timeLabel }: HandlersHeal
 
   const cells: StatsStripCell[] = [
     { label: "Handlers", value: listeners.length + jobs.length },
-    { label: `Invocations${timeLabel ? ` · ${timeLabel}` : ""}`, value: totalAll },
+    { label: isSmallMobile ? "Calls" : `Invocations${timeLabel ? ` · ${timeLabel}` : ""}`, value: totalAll },
     { label: "Success Rate", value: totalAll > 0 ? `${successRate}%` : "—", tone: totalErrors > 0 ? "warn" : undefined },
   ];
 

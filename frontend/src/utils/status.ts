@@ -98,7 +98,7 @@ export type StatusKind = "ok" | "warn" | "err" | "mute";
 
 const LOG_LEVEL_KIND_MAP: ReadonlyMap<string, StatusKind> = new Map<string, StatusKind>([
   ["DEBUG", "mute"],
-  ["INFO", "ok"],
+  ["INFO", "mute"],
   ["WARNING", "warn"],
   ["ERROR", "err"],
   ["CRITICAL", "err"],

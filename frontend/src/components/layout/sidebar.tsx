@@ -8,11 +8,7 @@ import type { components } from "../../api/generated-types";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
 
-let _isMac: boolean | null = null;
-function isMac(): boolean {
-  if (_isMac === null) _isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
-  return _isMac;
-}
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Status group definitions
@@ -162,7 +158,6 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
             // location may include a query string — split before comparing.
             const locPath = location;
             const locSearch = searchString;
-            const appPath = `/apps/${manifest.app_key}`;
             const pathMatches = locPath === appPath || locPath.startsWith(appPath + "/");
             const instanceParam = new URLSearchParams(locSearch).get("instance");
             const instActive = pathMatches && instanceParam === String(inst.index);
@@ -304,12 +299,12 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
       <button
         type="button"
         class="ht-sidebar__cmdkey"
-        title={`Command palette (${isMac() ? "⌘K" : "Ctrl+K"})`}
+        title={`Command palette (${IS_MAC ? "⌘K" : "Ctrl+K"})`}
         aria-label="Open command palette"
         onClick={onOpenPalette}
       >
         <span>jump to…</span>
-        <kbd class="ht-sidebar__cmdkey-hint">{isMac() ? "⌘K" : "Ctrl+K"}</kbd>
+        <kbd class="ht-sidebar__cmdkey-hint">{IS_MAC ? "⌘K" : "Ctrl+K"}</kbd>
       </button>
 
       {/* Top-level navigation */}

@@ -48,11 +48,14 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-// Depends on Shiki emitting exactly `<span class="line">` with no extra attributes.
-// If this breaks after a Shiki upgrade, check codeToHtml output format.
+const SHIKI_LINE_RE = /<span class="line">/g;
+
 function injectLineNumbers(html: string, annotationMap: Map<number, string[]>): string {
+  if (!SHIKI_LINE_RE.test(html)) return html;
+  SHIKI_LINE_RE.lastIndex = 0;
+
   let lineNum = 0;
-  return html.replace(/<span class="line">/g, () => {
+  return html.replace(SHIKI_LINE_RE, () => {
     lineNum++;
     const annotations = annotationMap.get(lineNum);
     const annotatedClass = annotations ? " line--annotated" : "";

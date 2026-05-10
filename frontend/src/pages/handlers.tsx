@@ -10,12 +10,12 @@ import { SortHeader, type SortState } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { TableCard } from "../components/shared/table-card";
 import { TierToolbar } from "../components/shared/tier-toolbar";
-import { formatRelativeTime, formatDurationOrDash, pluralize } from "../utils/format";
+import { formatRelativeTime, formatDurationOrDash, pluralize, lastDotSegment } from "../utils/format";
 
 // ---- Unified row model ----
 
 interface UnifiedRow {
-  kind: "handler" | "job";
+  kind: "listener" | "job";
   id: string;
   app_key: string;
   name: string;
@@ -32,10 +32,10 @@ interface UnifiedRow {
 
 function listenerToRow(l: ListenerData): UnifiedRow {
   return {
-    kind: "handler",
+    kind: "listener",
     id: `h-${l.listener_id}`,
     app_key: l.app_key,
-    name: l.handler_method.split(".").pop() ?? l.handler_method,
+    name: lastDotSegment(l.handler_method),
     handler_method: l.handler_method,
     trigger: l.listener_kind,
     runs: l.total_invocations,
@@ -156,10 +156,11 @@ function MobileCard({ href, appKey, name, failing, metrics, footer, ...rest }: M
 
 // ---- Kind indicator ----
 
-function KindBadge({ kind }: { kind: "handler" | "job" }) {
+// "listener" displays as "event" in the UI — the user-facing term
+function KindBadge({ kind }: { kind: "listener" | "job" }) {
   return (
     <span class="ht-chip ht-chip--muted ht-chip--sm">
-      {kind === "handler" ? "event" : "job"}
+      {kind === "listener" ? "event" : "job"}
     </span>
   );
 }
@@ -239,7 +240,7 @@ export function HandlersPage() {
 
       <TableCard
         count={<>
-          {pluralize(sorted.filter((r) => r.kind === "handler").length, "handler")}
+          {pluralize(sorted.filter((r) => r.kind === "listener").length, "handler")}
           {" · "}
           {pluralize(sorted.filter((r) => r.kind === "job").length, "job")}
         </>}
@@ -319,7 +320,7 @@ export function HandlersPage() {
                         <td class="ht-text-mono ht-text-sm">
                           <AppLink appKey={row.app_key} />
                         </td>
-                        <td class="ht-text-mono ht-text-sm">
+                        <td class="ht-text-mono ht-text-sm" title={row.handler_method}>
                           <a href={`/apps/${row.app_key}/handlers/${row.id}`} class="ht-app-link">{row.name}</a>
                         </td>
                         <td class="ht-text-mono ht-text-sm">{row.trigger ?? "—"}</td>

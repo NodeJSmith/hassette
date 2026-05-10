@@ -79,7 +79,11 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
                   {noteText}
                   {isError && inv.error_message && <span class="ht-exec-error-mobile">{inv.error_message}</span>}
                 </td>
-                <td class="ht-text-mono ht-text-xs ht-text-muted">{isOpen ? "▾" : "▸"}</td>
+                <td class="ht-text-muted">
+                  <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+                    <polyline points={isOpen ? "2,4 6,8 10,4" : "4,2 8,6 4,10"} fill="none" stroke="currentColor" stroke-width="1.5" />
+                  </svg>
+                </td>
               </tr>,
               isOpen && (
                 <tr key={`${rowKey}-detail`}>

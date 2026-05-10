@@ -1,5 +1,5 @@
 import { signal } from "@preact/signals";
-import { useRef } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useQueryParams } from "../hooks/use-query-params";
 import { getDashboardAppGrid } from "../api/endpoints";
@@ -108,6 +108,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
   isExpanded: boolean;
   onToggle: () => void;
 }) {
+  const [errorExpanded, setErrorExpanded] = useState(false);
   const status = liveStatus ?? app.status;
   const kind = statusToKind(status);
   const isMulti = app.instance_count > 1;
@@ -122,11 +123,15 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
       >
         {/* Name */}
         <td class="ht-apps-row__name-cell">
-          {isMulti && (
-            <button type="button" class="ht-apps-row__expand" onClick={onToggle} aria-expanded={isExpanded} aria-label={`${isExpanded ? "Collapse" : "Expand"} ${app.app_key}`}>
-              {isExpanded ? "▾" : "▸"}
-            </button>
-          )}
+          <span class="ht-apps-row__expand-gutter">
+            {isMulti && (
+              <button type="button" class="ht-apps-row__expand" onClick={onToggle} aria-expanded={isExpanded} aria-label={`${isExpanded ? "Collapse" : "Expand"} ${app.app_key}`}>
+                <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+                  <polyline points={isExpanded ? "2,4 6,8 10,4" : "4,2 8,6 4,10"} fill="none" stroke="currentColor" stroke-width="1.5" />
+                </svg>
+              </button>
+            )}
+          </span>
           <StatusShape kind={kind} size={7} />
           <AppLink appKey={app.app_key} />
           <span class="ht-apps-row__class-name">{app.class_name}</span>
@@ -138,12 +143,17 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
           {isMulti && <span class="ht-apps-row__instance-count">{app.instance_count} instances</span>}
         </td>
         {/* Error */}
-        <td class="ht-apps-row__error-cell">
+        <td
+          class={`ht-apps-row__error-cell${errorExpanded ? " is-expanded" : ""}`}
+          {...(app.error_message ? {
+            role: "button", tabIndex: 0,
+            "aria-label": `${errorExpanded ? "Collapse" : "Expand"} error: ${app.error_message}`,
+            onClick: (e: Event) => { e.stopPropagation(); setErrorExpanded(!errorExpanded); },
+            onKeyDown: (e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setErrorExpanded(!errorExpanded); } },
+          } : {})}
+        >
           {app.error_message ? (
-            <span
-              class="ht-text-mono ht-text-sm ht-text-danger"
-              title={app.error_message}
-            >
+            <span class="ht-text-mono ht-text-sm ht-text-danger">
               {app.error_message}
               {app.last_error_ts && (
                 <span class="ht-apps-row__error-age"> · {formatRelativeTime(app.last_error_ts)}</span>

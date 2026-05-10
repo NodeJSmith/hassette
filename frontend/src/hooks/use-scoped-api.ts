@@ -62,10 +62,9 @@ export function useScopedApi<T>(
 
   const preset = effectiveTimePreset.value;
   const uptime = uptimeSeconds.value;
-  const since = resolveSince(preset, uptime);
 
   // Block fetches until the WS connected message has arrived and we have uptime_seconds.
-  const waitingForUptime = since === undefined;
+  const waitingForUptime = preset === "since-restart" && uptime === null;
 
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
@@ -74,7 +73,7 @@ export function useScopedApi<T>(
   const allDeps = [preset, uptime, ...extraDeps];
 
   return useApi(
-    () => fetcherRef.current(since as number),
+    () => fetcherRef.current(resolveSince(preset, uptime) as number),
     allDeps,
     { ...apiOptions, enabled: !waitingForUptime },
   );

@@ -84,9 +84,9 @@ describe("CommandPalette — structure", () => {
 describe("CommandPalette — static items (pages and actions)", () => {
   it("shows page items when query is empty", async () => {
     renderPalette();
-    expect(await screen.findByText("Apps")).toBeDefined();
-    expect(screen.getByText("Logs")).toBeDefined();
-    expect(screen.getByText("Config")).toBeDefined();
+    expect(await screen.findByText("apps")).toBeDefined();
+    expect(screen.getByText("logs")).toBeDefined();
+    expect(screen.getByText("config")).toBeDefined();
   });
 
   it("shows action items when query is empty", async () => {
@@ -98,7 +98,7 @@ describe("CommandPalette — static items (pages and actions)", () => {
 
   it("shows section headers for pages and actions", async () => {
     const { container } = renderPalette();
-    await screen.findByText("Apps");
+    await screen.findByText("apps");
     const headers = Array.from(container.querySelectorAll(".ht-cmd-palette__section-header")).map(
       (el) => el.textContent,
     );
@@ -225,7 +225,7 @@ describe("CommandPalette — filtering", () => {
 describe("CommandPalette — keyboard navigation", () => {
   it("pressing ArrowDown moves selection to next item", async () => {
     renderPalette();
-    await screen.findByText("Apps");
+    await screen.findByText("apps");
     const input = screen.getByPlaceholderText("Search apps, handlers, pages, actions…");
     fireEvent.keyDown(input, { key: "ArrowDown" });
     // First item should now be selected — check for ht-cmd-palette__result--active
@@ -235,7 +235,7 @@ describe("CommandPalette — keyboard navigation", () => {
 
   it("pressing ArrowUp wraps back when at first item", async () => {
     renderPalette();
-    await screen.findByText("Apps");
+    await screen.findByText("apps");
     const input = screen.getByPlaceholderText("Search apps, handlers, pages, actions…");
     // Press down once to select first item, then up to go back to -1
     fireEvent.keyDown(input, { key: "ArrowDown" });
@@ -248,13 +248,13 @@ describe("CommandPalette — keyboard navigation", () => {
 describe("CommandPalette — selection actions", () => {
   it("pressing Enter on a page item calls navigate", async () => {
     const { container } = renderPalette();
-    await screen.findByText("Apps");
+    await screen.findByText("apps");
     const input = screen.getByPlaceholderText("Search apps, handlers, pages, actions…");
     // Navigate to Apps item
     fireEvent.keyDown(input, { key: "ArrowDown" });
     // Find active item and confirm it's Apps
     const activeItem = container.querySelector(".ht-cmd-palette__result--active");
-    expect(activeItem?.textContent).toContain("Apps");
+    expect(activeItem?.textContent).toContain("apps");
     fireEvent.keyDown(input, { key: "Enter" });
     expect(mockNavigate).toHaveBeenCalledWith("/apps");
   });
@@ -285,7 +285,7 @@ describe("CommandPalette — selection actions", () => {
 describe("CommandPalette — type chips", () => {
   it("renders type chips for result items", async () => {
     const { container } = renderPalette();
-    await screen.findByText("Apps");
+    await screen.findByText("apps");
     const chips = container.querySelectorAll(".ht-cmd-palette__chip");
     expect(chips.length).toBeGreaterThan(0);
   });
@@ -356,6 +356,6 @@ describe("CommandPalette — handlers", () => {
     );
     renderPalette();
     // Should still show pages and apps
-    expect(await screen.findByText("Apps")).toBeDefined();
+    expect(await screen.findByText("apps")).toBeDefined();
   });
 });

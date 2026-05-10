@@ -69,7 +69,13 @@ export function mergeManifestsAndGrid(
 export type AppSortKey = "name" | "status" | "error" | "runs" | "last";
 export type AppSortState = SortState<AppSortKey>;
 
-const STATUS_SORT_ORDER: Record<string, number> = { failed: 0, blocked: 1, running: 2, stopped: 3, disabled: 4 };
+const STATUS_SORT_ORDER: Record<string, number> = {
+  failed: 0, crashed: 0, exhausted_dead: 0,
+  blocked: 1, exhausted_cooling: 1, stopping: 1, shutting_down: 1,
+  running: 2, starting: 2,
+  stopped: 3, not_started: 3,
+  disabled: 4,
+};
 
 export function compareAppRows(
   a: AppRow,

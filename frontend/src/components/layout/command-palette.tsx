@@ -28,35 +28,35 @@ function buildStaticPageItems(navigate: (path: string) => void): PaletteItem[] {
     {
       id: "page-apps",
       kind: "page",
-      label: "Apps",
+      label: "apps",
       sub: "/apps",
       action: () => navigate("/apps"),
     },
     {
       id: "page-handlers",
       kind: "page",
-      label: "Handlers",
+      label: "handlers",
       sub: "/handlers",
       action: () => navigate("/handlers"),
     },
     {
       id: "page-logs",
       kind: "page",
-      label: "Logs",
+      label: "logs",
       sub: "/logs",
       action: () => navigate("/logs"),
     },
     {
       id: "page-diagnostics",
       kind: "page",
-      label: "Diagnostics",
+      label: "diagnostics",
       sub: "/diagnostics",
       action: () => navigate("/diagnostics"),
     },
     {
       id: "page-config",
       kind: "page",
-      label: "Config",
+      label: "config",
       sub: "/config",
       action: () => navigate("/config"),
     },
@@ -102,7 +102,8 @@ function buildActionItems(
 
 function buildAppItems(manifests: AppManifest[], navigate: (path: string) => void, onClose: () => void): PaletteItem[] {
   const items: PaletteItem[] = [];
-  for (const m of manifests) {
+  const sorted = [...manifests].sort((a, b) => a.app_key.localeCompare(b.app_key));
+  for (const m of sorted) {
     items.push({
       id: `app-${m.app_key}`,
       kind: "app",
@@ -214,12 +215,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     };
   }, [open, onClose]);
 
-  // Build full item list (pageItems are stable — cache across renders)
-  const pageItemsRef = useRef<PaletteItem[] | null>(null);
-
   if (!open) return null;
-  if (!pageItemsRef.current) pageItemsRef.current = buildStaticPageItems(navigate);
-  const pageItems = pageItemsRef.current;
+  const pageItems = buildStaticPageItems(navigate);
   const actionItems = buildActionItems(allManifests, onClose);
   const appItems = buildAppItems(allManifests, navigate, onClose);
   const handlerItems = buildHandlerItems(listenersApi.data.value ?? [], navigate, onClose);
@@ -235,6 +232,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   // Flat ordered results for keyboard navigation
   const flatResults = sections.flatMap((s) => s.items);
+  const flatIndexMap = new Map(flatResults.map((item, i) => [item, i] as const));
 
   function handleKeyDown(e: KeyboardEvent) {
     if (e.key === "ArrowDown") {
@@ -334,7 +332,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             <div key={section.kind} class="ht-cmd-palette__section">
               <div class="ht-cmd-palette__section-header">{KIND_LABEL[section.kind]}</div>
               {section.items.map((item) => {
-                const flatIdx = flatResults.indexOf(item);
+                const flatIdx = flatIndexMap.get(item) ?? -1;
                 const isActive = flatIdx === selectedIndex.value;
                 return (
                   <button

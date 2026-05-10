@@ -371,7 +371,6 @@ describe("HandlersTab", () => {
     renderHandlersTab(listeners, [], "h-999");
     expect(mockCorrectUrl).toHaveBeenCalledWith(
       "/apps/test_app/handlers",
-      "handler 999 not found",
     );
   });
 
@@ -380,7 +379,6 @@ describe("HandlersTab", () => {
     renderHandlersTab([], jobs, "j-999");
     expect(mockCorrectUrl).toHaveBeenCalledWith(
       "/apps/test_app/handlers",
-      "handler 999 not found",
     );
   });
 
