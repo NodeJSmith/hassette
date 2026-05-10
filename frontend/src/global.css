@@ -3542,6 +3542,10 @@ strong {
   gap: var(--sp-6);
 }
 
+.ht-overview-tab--stale {
+  opacity: 0.6;
+}
+
 .ht-overview-tab__section {
   /* section containers */
 }

@@ -28,7 +28,7 @@ function handlerPath(appKey: string, item: UnifiedItem, instanceQs: string): str
 }
 
 function isFailing(item: UnifiedItem): boolean {
-  return item.statusKind === "err";
+  return item.data.failed > 0 || item.data.timed_out > 0;
 }
 
 function itemRunCount(item: UnifiedItem): number {
@@ -383,12 +383,14 @@ function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 
 export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInstanceIndex }: Props) {
+  const { connection } = useAppState();
+  const wsConnected = connection.value === "connected";
   const allItems = useMemo(() => buildItems(listeners, jobs), [listeners, jobs]);
 
   const failingItems = useMemo(() => allItems.filter(isFailing), [allItems]);
 
   return (
-    <div class="ht-overview-tab" data-testid="overview-tab">
+    <div class={`ht-overview-tab${!wsConnected ? " ht-overview-tab--stale" : ""}`} data-testid="overview-tab">
       {failingItems.length > 0 && (
         <ErrorSpotlight
           failingItems={failingItems}
