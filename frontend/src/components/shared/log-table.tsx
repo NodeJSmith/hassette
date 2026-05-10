@@ -1,5 +1,5 @@
-import { signal } from "@preact/signals";
 import { useEffect, useRef, useCallback } from "preact/hooks";
+import { useSignal } from "../../hooks/use-signal";
 import type { LogEntry } from "../../api/endpoints";
 import { getRecentLogs } from "../../api/endpoints";
 import { useMediaQuery, BREAKPOINT_MOBILE, BREAKPOINT_TABLET } from "../../hooks/use-media-query";
@@ -96,6 +96,8 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
   const minLevel = levelParam === "all" ? "" : (levelParam ?? "INFO");
   const appFilter = qp.get("app") ?? "";
   const tierFilterRaw = qp.get("tier");
+  // App-scoped views default to "all" (show both app + framework logs for that app).
+  // Global views default to "app" (hide noisy framework logs unless explicitly requested).
   const tierFilter: "all" | "app" | "framework" =
     tierFilterRaw === "all" || tierFilterRaw === "framework"
       ? tierFilterRaw
@@ -109,8 +111,8 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
   const sortConfig: SortConfig = { column: sortColumn, asc: sortAsc };
 
   // UI-only state (not URL state)
-  const initialEntries = useRef(signal<LogEntry[]>([])).current;
-  const expandedRows = useRef(signal<Set<string>>(new Set())).current;
+  const initialEntries = useSignal<LogEntry[]>([]);
+  const expandedRows = useSignal<Set<string>>(new Set());
 
   const watermarkRef = useRef(0);
 
@@ -216,7 +218,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
   // (`canExpand = truncatedRows.value.has(rowKey) || isExpanded`) is load-bearing:
   // it keeps expanded rows collapsible even when recheckTruncation() doesn't
   // include them. Do NOT remove that guard.
-  const truncatedRows = useRef(signal(new Set<string>())).current;
+  const truncatedRows = useSignal(new Set<string>());
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
@@ -379,7 +381,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={isMobile ? 3 : (showAppColumn ? (showSourceColumn ? 5 : 4) : (showSourceColumn ? 4 : 3))} class="ht-empty">
+                <td colSpan={isMobile ? 3 : 2 + (showAppColumn ? 1 : 0) + (showSourceColumn ? 1 : 0) + 1} class="ht-empty">
                   <div class="ht-empty__icon">∅</div>
                   <div class="ht-empty__title">no log lines in window</div>
                   <div class="ht-empty__body">nothing has been logged recently. change the level filter or extend the time window to see older lines.</div>

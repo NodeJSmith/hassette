@@ -1,5 +1,4 @@
-import { signal } from "@preact/signals";
-import { useRef } from "preact/hooks";
+import { useSignal } from "../../hooks/use-signal";
 import type { HandlerInvocationData } from "../../api/endpoints";
 import { ShowMoreButton } from "../shared/show-more-button";
 import { formatDuration, formatTimestamp } from "../../utils/format";
@@ -16,8 +15,8 @@ interface Props {
 }
 
 export function HandlerInvocations({ invocations, listenerId }: Props) {
-  const showAll = useRef(signal(false)).current;
-  const openRow = useRef(signal<number | null>(null)).current;
+  const showAll = useSignal(false);
+  const openRow = useSignal<number | null>(null);
 
   if (invocations.length === 0) {
     return (

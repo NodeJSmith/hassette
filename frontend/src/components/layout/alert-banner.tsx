@@ -2,7 +2,7 @@ import { useAppState } from "../../state/context";
 import { AppLink } from "../shared/app-link";
 import { IconWarning } from "../shared/icons";
 
-// ---- AlertBanner: failed-apps list (unchanged from WP04) -------------------
+// ---- AlertBanner: failed-apps list -----------------------------------------
 
 interface FailedApp {
   app_key: string;

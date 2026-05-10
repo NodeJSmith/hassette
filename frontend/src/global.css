@@ -3245,7 +3245,7 @@ strong {
 }
 
 .ht-diag__section-heading {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: var(--fs-h2);
   line-height: var(--lh-h2);
   letter-spacing: var(--tr-h2, -0.01em);

@@ -40,28 +40,27 @@ const FILTER_TONES: Record<FilterId, StatusKind | null> = {
 // ---- Stats strip helpers ----
 
 function buildAppsCells(apps: AppRow[], windowSeconds: number | null, isMobile: boolean): StatsStripCell[] {
-  const counts = { total: apps.length, running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0 };
+  const statusCounts: Record<string, number> = { running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0 };
   let totalHandlers = 0;
   let totalRuns = 0;
   for (const a of apps) {
-    const s = a.status as keyof typeof counts;
-    if (s in counts && s !== "total") (counts as Record<string, number>)[s]++;
+    if (a.status in statusCounts) statusCounts[a.status]++;
     totalHandlers += a.handler_count + a.job_count;
     totalRuns += a.total_invocations + a.total_executions;
   }
   const runsPerHour = windowSeconds && windowSeconds >= 60 ? totalRuns / (windowSeconds / 3600) : null;
 
   const cells: StatsStripCell[] = [
-    { label: "total", value: counts.total },
-    { label: "running", value: counts.running, tone: "ok" },
-    { label: "failed", value: counts.failed, tone: counts.failed > 0 ? "err" : undefined },
+    { label: "total", value: apps.length },
+    { label: "running", value: statusCounts.running, tone: "ok" },
+    { label: "failed", value: statusCounts.failed, tone: statusCounts.failed > 0 ? "err" : undefined },
   ];
 
   if (isMobile) {
-    cells.push({ label: "inactive", value: counts.stopped + counts.disabled });
+    cells.push({ label: "inactive", value: statusCounts.stopped + statusCounts.disabled });
   } else {
-    cells.push({ label: "stopped", value: counts.stopped });
-    cells.push({ label: "disabled", value: counts.disabled });
+    cells.push({ label: "stopped", value: statusCounts.stopped });
+    cells.push({ label: "disabled", value: statusCounts.disabled });
   }
 
   cells.push({ label: "handlers", value: totalHandlers });
@@ -205,7 +204,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
 export function AppsPage() {
   useDocumentTitle("Apps");
 
-  const { appStatus, timePreset, uptimeSeconds } = useAppState();
+  const { appStatus, effectiveTimePreset, uptimeSeconds } = useAppState();
   const { data: manifestData, loading: manifestLoading } = useApi(getManifests);
   const { data: gridData } = useScopedApi(
     (since) => getDashboardAppGrid(since),
@@ -243,7 +242,7 @@ export function AppsPage() {
   const allApps = mergeManifestsAndGrid(manifests, gridEntries);
 
   const windowSeconds = uptimeSeconds.value !== null && uptimeSeconds.value !== undefined
-    ? (timePreset.value === "since-restart" ? uptimeSeconds.value : PRESET_WINDOW_SECONDS[timePreset.value])
+    ? (effectiveTimePreset.value === "since-restart" ? uptimeSeconds.value : PRESET_WINDOW_SECONDS[effectiveTimePreset.value])
     : null;
 
   // Status counts from all apps (unfiltered)

@@ -1,5 +1,5 @@
-import { signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
+import { useSignal } from "../../hooks/use-signal";
 import { useLocation } from "wouter";
 import type { ListenerData, JobData } from "../../api/endpoints";
 import { getHandlerInvocations, getJobExecutions } from "../../api/endpoints";
@@ -14,12 +14,12 @@ import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
 import { formatTriggerDetail, formatDurationOrDash, formatOptionalDuration, formatRelativeTime, lastDotSegment, parseSourceLocation, TIME_PRESET_LABELS } from "../../utils/format";
 
 import { handlerKindLabel, statusToKind } from "../../utils/status";
+import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
 import { EmptyState } from "../shared/empty-state";
 import { ErrorBanner } from "../shared/error-banner";
 import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
 
-const MOBILE_BREAKPOINT = 768;
 
 interface Props {
   listeners: ListenerData[];
@@ -392,8 +392,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
   const [, navigate] = useLocation();
   const correctUrl = useCorrectUrl();
 
-  // Whether we're in mobile layout (< MOBILE_BREAKPOINT px)
-  const isMobile = useRef(signal(false)).current;
+  const isMobile = useSignal(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // ResizeObserver-based mobile detection (not media queries)
@@ -403,7 +402,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
 
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        isMobile.value = entry.contentRect.width < MOBILE_BREAKPOINT;
+        isMobile.value = entry.contentRect.width < BREAKPOINT_MOBILE;
       }
     });
     ro.observe(el);

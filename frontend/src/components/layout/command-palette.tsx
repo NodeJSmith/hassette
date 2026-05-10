@@ -3,9 +3,9 @@ import { useLocation } from "wouter";
 import { getAllListeners, getManifests, reloadApp, stopApp } from "../../api/endpoints";
 import type { AppManifest, ListenerData } from "../../api/endpoints";
 import { useApi } from "../../hooks/use-api";
+import { useSignal } from "../../hooks/use-signal";
 import { statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
-import { signal } from "@preact/signals";
 
 // ---- Types ----
 
@@ -180,8 +180,8 @@ interface CommandPaletteProps {
 
 export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const [, navigate] = useLocation();
-  const query = useRef(signal("")).current;
-  const selectedIndex = useRef(signal(-1)).current;
+  const query = useSignal("");
+  const selectedIndex = useSignal(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<Element | null>(null);

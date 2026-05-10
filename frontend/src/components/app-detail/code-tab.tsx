@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "preact/hooks";
-import { signal } from "@preact/signals";
+import { useEffect } from "preact/hooks";
+import { useSignal } from "../../hooks/use-signal";
 import { useQueryParams } from "../../hooks/use-query-params";
 import type { HighlighterGeneric } from "shiki";
 import { getAppSource } from "../../api/endpoints";
@@ -66,10 +66,10 @@ export function CodeTab({ appKey, listeners }: Props) {
   const qp = useQueryParams();
   const lineParam = qp.get("line");
   const focusLine = lineParam ? parseInt(lineParam, 10) : undefined;
-  const loading = useRef(signal(true)).current;
-  const error = useRef(signal<string | null>(null)).current;
-  const source = useRef(signal<AppSourceData | null>(null)).current;
-  const highlightedHtml = useRef(signal<string | null>(null)).current;
+  const loading = useSignal(true);
+  const error = useSignal<string | null>(null);
+  const source = useSignal<AppSourceData | null>(null);
+  const highlightedHtml = useSignal<string | null>(null);
 
   const annotationMap = buildAnnotationMap(listeners);
 

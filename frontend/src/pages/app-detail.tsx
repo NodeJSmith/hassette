@@ -126,12 +126,12 @@ function MultiInstanceOverview({
   );
 }
 
-function Tab({ id, label, badge, appKey: appKey_, instanceQs: qs, activeTab: active, navigate: nav }: {
+function Tab({ id, label, badge, appKey, instanceQs, activeTab }: {
   id: TabId; label: string; badge?: number;
-  appKey: string; instanceQs: string; activeTab: TabId; navigate: (to: string, opts?: { replace?: boolean }) => void;
+  appKey: string; instanceQs: string; activeTab: TabId;
 }) {
-  const isActive = active === id;
-  const href = `/apps/${appKey_}/${id}${qs}`;
+  const isActive = activeTab === id;
+  const href = `/apps/${appKey}/${id}${instanceQs}`;
   return (
     <Link
       href={href}
@@ -140,12 +140,6 @@ function Tab({ id, label, badge, appKey: appKey_, instanceQs: qs, activeTab: act
       aria-selected={isActive}
       aria-controls={`tabpanel-${id}`}
       class={`ht-tab-btn${isActive ? " ht-tab-btn--active" : ""}`}
-      onKeyDown={(e: KeyboardEvent) => {
-        if (e.key === " ") {
-          e.preventDefault();
-          nav(href);
-        }
-      }}
     >
       {label}{badge !== undefined && <span class="ht-tab-btn__badge">{badge}</span>}
     </Link>
@@ -165,7 +159,6 @@ export function AppDetailPage({ params }: Props) {
   const parsedInstance = instanceParam !== null ? parseInt(instanceParam, 10) : undefined;
   const instanceIndex = parsedInstance !== undefined && Number.isFinite(parsedInstance) ? parsedInstance : undefined;
 
-  // T03: codeFocusLine signal removed — CodeTab reads ?line= from URL directly
 
   const manifests = useApi(getManifests);
 
@@ -204,7 +197,7 @@ export function AppDetailPage({ params }: Props) {
   const initialLoading = !hasData && (listeners.loading.value
     || jobs.loading.value || manifests.loading.value);
 
-  // Correct out-of-range instance index (FR#16, AC#14)
+  // Correct out-of-range instance index
   // Guarded: only fires when data is fully loaded and confirms instance is invalid
   useEffect(() => {
     if (initialLoading) return;
@@ -218,7 +211,7 @@ export function AppDetailPage({ params }: Props) {
   // Build instance query string for tab links — preserve ?instance=N, omit if not set
   const instanceQs = instanceParam !== null && instanceParam !== "" ? `?instance=${instanceParam}` : "";
 
-  const tabProps = { appKey, instanceQs, activeTab, navigate };
+  const tabProps = { appKey, instanceQs, activeTab };
 
   const handlerCount = (listeners.data.value?.length ?? 0) + (jobs.data.value?.length ?? 0);
 

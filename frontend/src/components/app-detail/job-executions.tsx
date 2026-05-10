@@ -1,5 +1,4 @@
-import { signal } from "@preact/signals";
-import { useRef } from "preact/hooks";
+import { useSignal } from "../../hooks/use-signal";
 import type { JobExecutionData } from "../../api/endpoints";
 import { ShowMoreButton } from "../shared/show-more-button";
 import { formatDuration, formatTimestamp } from "../../utils/format";
@@ -16,8 +15,8 @@ interface Props {
 }
 
 export function JobExecutions({ executions, jobId }: Props) {
-  const showAll = useRef(signal(false)).current;
-  const expandedTracebacks = useRef(signal<Set<number>>(new Set())).current;
+  const showAll = useSignal(false);
+  const expandedTracebacks = useSignal<Set<number>>(new Set());
 
   if (executions.length === 0) {
     return <EmptyState title="no executions recorded." />;

@@ -41,8 +41,6 @@ export function useWebSocket(state: AppState): void {
       let handshakeTimer: ReturnType<typeof setTimeout> | null = null;
 
       socket.onopen = () => {
-        backoffRef.current = INITIAL_BACKOFF_MS;
-        // If server doesn't send "connected" message within timeout, close and retry
         handshakeTimer = setTimeout(() => {
           if (!hasConnectedRef.current || state.connection.value !== "connected") {
             socket.close();
@@ -65,10 +63,10 @@ export function useWebSocket(state: AppState): void {
                 clearTimeout(handshakeTimer);
                 handshakeTimer = null;
               }
+              backoffRef.current = INITIAL_BACKOFF_MS;
               state.connection.value = "connected";
               // uptime_seconds is the loading gate for useScopedApi
               state.uptimeSeconds.value = msg.data.uptime_seconds;
-              // version from backend (WP16 backend field)
               if (msg.data.version !== undefined) {
                 state.systemVersion.value = msg.data.version;
               }
@@ -177,6 +175,7 @@ export function useWebSocket(state: AppState): void {
       unmounted = true;
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
       }
       wsRef.current?.close();
       state.connection.value = "disconnected";

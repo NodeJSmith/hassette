@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "preact/hooks";
-import { signal } from "@preact/signals";
+import { useEffect } from "preact/hooks";
 import { getAppConfig } from "../../api/endpoints";
+import { useSignal } from "../../hooks/use-signal";
 import { EmptyState } from "../shared/empty-state";
 import { Spinner } from "../shared/spinner";
 import type { AppConfigData } from "../../api/endpoints";
@@ -119,9 +119,9 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
 }
 
 export function ConfigTab({ appKey }: Props) {
-  const loading = useRef(signal(true)).current;
-  const error = useRef(signal<string | null>(null)).current;
-  const configData = useRef(signal<AppConfigData | null>(null)).current;
+  const loading = useSignal(true);
+  const error = useSignal<string | null>(null);
+  const configData = useSignal<AppConfigData | null>(null);
 
   useEffect(() => {
     let cancelled = false;

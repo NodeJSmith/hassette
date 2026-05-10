@@ -68,7 +68,7 @@ function jobToRow(j: JobData): UnifiedRow {
 
 // ---- Formatting helpers ----
 
-function fmtRate(failed: number, total: number): string {
+function formatRate(failed: number, total: number): string {
   return total > 0 ? ((failed / total) * 100).toFixed(1) + "%" : "—";
 }
 
@@ -262,7 +262,7 @@ export function HandlersPage() {
           ) : isMobile ? (
             <div class="ht-mobile-cards" data-testid="handlers-table-container">
               {sorted.map((row) => {
-                const errorRate = fmtRate(row.failed, row.runs);
+                const errorRate = formatRate(row.failed, row.runs);
                 const avgDur = formatDurationOrDash(row.avg_duration_ms);
                 return (
                   <MobileCard
@@ -307,7 +307,7 @@ export function HandlersPage() {
                 </thead>
                 <tbody>
                   {sorted.map((row) => {
-                    const errorRate = fmtRate(row.failed, row.runs);
+                    const errorRate = formatRate(row.failed, row.runs);
                     const avgDur = formatDurationOrDash(row.avg_duration_ms);
                     return (
                       <tr

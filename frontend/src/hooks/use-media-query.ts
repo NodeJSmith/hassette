@@ -1,8 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
 
-/** Must match CSS `@media (max-width: 900px)` sidebar breakpoint in global.css. CSS-only — sidebar show/hide is pure CSS, not a JS guard. */
-export const BREAKPOINT_SIDEBAR = 900;
-
 /** Must match CSS `@media (max-width: 768px)` breakpoints in global.css */
 export const BREAKPOINT_MOBILE = 768;
 

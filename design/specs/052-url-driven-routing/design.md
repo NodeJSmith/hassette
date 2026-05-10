@@ -1,7 +1,7 @@
 # Design: URL-Driven Routing
 
 **Date:** 2026-05-09
-**Status:** approved
+**Status:** archived
 **Scope-mode:** expand
 
 ## Problem

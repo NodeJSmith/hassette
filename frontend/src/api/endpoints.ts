@@ -34,26 +34,26 @@ function buildUrl(path: string, params: Record<string, string | number | null | 
 
 export const getManifests = () => apiFetch<ManifestListResponse>("/apps/manifests");
 
-export const startApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${appKey}/start`);
-export const stopApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${appKey}/stop`);
-export const reloadApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${appKey}/reload`);
+export const startApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/start`);
+export const stopApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/stop`);
+export const reloadApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/reload`);
 
 export const getAppConfig = (appKey: string) =>
-  apiFetch<AppConfigData>(`/apps/${appKey}/config`);
+  apiFetch<AppConfigData>(`/apps/${encodeURIComponent(appKey)}/config`);
 
 export const getAppSource = (appKey: string) =>
-  apiFetch<AppSourceData>(`/apps/${appKey}/source`);
+  apiFetch<AppSourceData>(`/apps/${encodeURIComponent(appKey)}/source`);
 
 // ---- Telemetry ----
 
 export const getAppHealth = (appKey: string, instanceIndex = 0, since?: number | null) =>
-  apiFetch<AppHealthData>(buildUrl(`/telemetry/app/${appKey}/health`, { instance_index: instanceIndex, since }));
+  apiFetch<AppHealthData>(buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/health`, { instance_index: instanceIndex, since }));
 
 export const getAppListeners = (appKey: string, instanceIndex = 0, since?: number | null) =>
-  apiFetch<ListenerData[]>(buildUrl(`/telemetry/app/${appKey}/listeners`, { instance_index: instanceIndex, since }));
+  apiFetch<ListenerData[]>(buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/listeners`, { instance_index: instanceIndex, since }));
 
 export const getAppJobs = (appKey: string, instanceIndex = 0, since?: number | null) =>
-  apiFetch<JobData[]>(buildUrl(`/telemetry/app/${appKey}/jobs`, { instance_index: instanceIndex, since }));
+  apiFetch<JobData[]>(buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/jobs`, { instance_index: instanceIndex, since }));
 
 export const getHandlerInvocations = (listenerId: number, limit = 50, since?: number | null) =>
   apiFetch<HandlerInvocationData[]>(buildUrl(`/telemetry/handler/${listenerId}/invocations`, { limit, since }));

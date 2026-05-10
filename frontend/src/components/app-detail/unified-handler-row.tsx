@@ -17,15 +17,15 @@ interface Props {
   onSelect: () => void;
 }
 
-/** Map a handler kind label to a visual glyph character.
- * Listener kind values come from _TOPIC_KIND_MAP in web/mappers.py. */
+const KIND_GLYPHS: Record<string, string> = {
+  "state change": "◇",
+  "service call": "▷",
+  "cron": "↻", "interval": "↻", "every": "↻", "daily": "↻",
+  "once": "↻", "after": "↻", "schedule": "↻",
+};
+
 function kindGlyph(label: string): string {
-  switch (label) {
-    case "state change": return "◇";
-    case "service call": return "☎";
-    case "cron": case "interval": case "every": case "daily": case "once": case "after": case "schedule": return "↻";
-    default: return "◆";
-  }
+  return KIND_GLYPHS[label] ?? "◆";
 }
 
 /**

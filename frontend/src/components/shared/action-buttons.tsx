@@ -1,5 +1,5 @@
-import { signal } from "@preact/signals";
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect } from "preact/hooks";
+import { useSignal } from "../../hooks/use-signal";
 import { reloadApp, startApp, stopApp } from "../../api/endpoints";
 import { ConfirmDialog } from "./confirm-dialog";
 import { IconPlay, IconRefresh, IconSquare } from "./icons";
@@ -12,9 +12,9 @@ interface Props {
 }
 
 export function ActionButtons({ appKey, status, variant = "icon", confirmStop = false }: Props) {
-  const loading = useRef(signal(false)).current;
-  const error = useRef(signal<string | null>(null)).current;
-  const showStopConfirm = useRef(signal(false)).current;
+  const loading = useSignal(false);
+  const error = useSignal<string | null>(null);
+  const showStopConfirm = useSignal(false);
 
   const exec = async (action: (key: string) => Promise<unknown>) => {
     if (loading.value) return;

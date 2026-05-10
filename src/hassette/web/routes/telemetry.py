@@ -313,8 +313,10 @@ async def dashboard_app_grid(
         job_count=0,
         total_invocations=0,
         total_errors=0,
+        total_timed_out=0,
         total_executions=0,
         total_job_errors=0,
+        total_job_timed_out=0,
         avg_duration_ms=0.0,
         last_activity_ts=None,
     )
