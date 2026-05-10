@@ -27,7 +27,7 @@ function jobStatusKind(j: JobData) {
   return statusToKind("stopped");
 }
 
-function buildItems(listeners: ListenerData[], jobs: JobData[]): UnifiedItem[] {
+export function buildItems(listeners: ListenerData[], jobs: JobData[]): UnifiedItem[] {
   const listenerItems: UnifiedItem[] = listeners.map((l) => ({
     kind: "listener" as const,
     id: l.listener_id,

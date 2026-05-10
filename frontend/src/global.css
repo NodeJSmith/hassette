@@ -3543,7 +3543,151 @@ strong {
 }
 
 .ht-overview-tab__section {
-  /* section containers — T03/T04 add content-specific styles */
+  /* section containers */
+}
+
+/* — Overview tab section headings —————————————————————— */
+.ht-overview-tab__section-heading {
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
+  margin-bottom: var(--sp-3);
+}
+
+/* — Error spotlight section ——————————————————————————————— */
+.ht-overview-spotlight {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.ht-overview-spotlight__entry {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  align-items: start;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+}
+
+.ht-overview-spotlight__body {
+  min-width: 0;
+}
+
+.ht-overview-spotlight__header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.ht-overview-spotlight__name {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ht-overview-spotlight__error-type {
+  font-size: var(--fs-small);
+  color: var(--err);
+  white-space: nowrap;
+}
+
+.ht-overview-spotlight__error-msg {
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60ch;
+  margin-top: var(--sp-1);
+}
+
+.ht-overview-spotlight__link {
+  font-size: var(--fs-small);
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+  align-self: start;
+}
+
+.ht-overview-spotlight__link:hover {
+  text-decoration: underline;
+}
+
+.ht-overview-spotlight__show-more {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  cursor: pointer;
+  padding: var(--sp-2) var(--sp-3);
+  text-align: left;
+}
+
+.ht-overview-spotlight__show-more:hover {
+  color: var(--ink-1);
+}
+
+/* — Handler health grid ————————————————————————————————— */
+.ht-overview-health-grid {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.ht-overview-health-row {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--line-2);
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--t-fast);
+}
+
+.ht-overview-health-row:last-child {
+  border-bottom: none;
+}
+
+.ht-overview-health-row:hover {
+  background: var(--bg-sunken);
+}
+
+.ht-overview-health-row__name {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ht-overview-health-row__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.ht-overview-health-row__count {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-3);
+  white-space: nowrap;
 }
 
 /* — Handlers tab container ————————————————————————————— */

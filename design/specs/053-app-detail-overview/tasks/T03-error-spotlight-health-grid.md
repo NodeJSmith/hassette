@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Build error spotlight and handler health grid"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#2", "FR#3", "FR#4", "FR#5", "FR#6", "FR#7", "FR#8", "AC#2", "AC#3", "AC#4"]
 ---
