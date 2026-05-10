@@ -1,7 +1,7 @@
 # Design: Entity Code Generator
 
 **Date:** 2026-05-10
-**Status:** approved
+**Status:** archived
 **Scope-mode:** expand
 **Research:** /tmp/claude-mine-define-research-Vj5q7M/brief.md, /tmp/claude-mine-prior-art-BR8Pos/codegen-feasibility.md
 
