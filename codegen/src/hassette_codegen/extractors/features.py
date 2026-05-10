@@ -1,6 +1,7 @@
 """Extract IntFlag and StrEnum classes from HA core component files."""
 
 import ast
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -8,7 +9,7 @@ from pathlib import Path
 @dataclass
 class ExtractedEnum:
     name: str
-    members: list[tuple[str, int | str]]
+    members: Sequence[tuple[str, int | str]]
     kind: str = "IntFlag"
 
 

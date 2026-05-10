@@ -629,7 +629,7 @@ def _collect_referenced_symbols(body_nodes: list[ast.stmt]) -> set[str]:
     return referenced
 
 
-def _derive_recording_imports_strict(
+def _derive_recording_imports_strict(  # pyright: ignore[reportUnusedFunction] — used by main project tests
     body_nodes: list[ast.stmt],
     symbol_map: dict[str, str],
     method_name: str = "<unknown>",

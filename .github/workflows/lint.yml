@@ -130,7 +130,7 @@ jobs:
               run: cd codegen && uv sync
 
             - name: Run codegen unit tests
-              run: cd codegen && uv run pytest tests/ -q
+              run: cd codegen && uv run pytest tests/ -q --rootdir=.
 
             - name: Check entity codegen freshness
               run: cd codegen && uv run hassette-codegen generate --ha-core-path ../ha-core --check
