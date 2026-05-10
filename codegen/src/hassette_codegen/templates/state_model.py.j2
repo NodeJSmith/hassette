@@ -1,0 +1,49 @@
+from enum import IntFlag
+from typing import Literal
+
+from pydantic import Field
+
+from .base import AttributesBase, {{ base_class }}
+{% for imp in extra_imports %}
+{{ imp }}
+{% endfor %}
+
+{% for enum in features %}
+
+class {{ enum.name }}(IntFlag):
+{% for member_name, member_value in enum.members %}
+    {{ member_name }} = {{ member_value }}
+{% endfor %}
+
+{% endfor %}
+
+class {{ domain_title }}Attributes(AttributesBase):
+{% for prop in properties %}
+{% if prop.has_default %}
+    {{ prop.name }}: {{ prop.python_type }} = Field(default=None)
+{% else %}
+    {{ prop.name }}: {{ prop.python_type }} = Field(default=None)
+{% endif %}
+{% endfor %}
+{% if not properties %}
+    pass
+{% endif %}
+{% for enum in features %}
+{% for member_name, _member_value in enum.members %}
+
+    @property
+    def supports_{{ member_name | lower }}(self) -> bool:
+        return self._has_feature({{ enum.name }}.{{ member_name }})
+{% endfor %}
+{% endfor %}
+
+
+class {{ domain_title }}State({{ base_class }}):
+    """Representation of a Home Assistant {{ domain }} state.
+
+    See: https://www.home-assistant.io/integrations/{{ domain }}/
+    """
+
+    domain: Literal["{{ domain }}"]
+
+    attributes: {{ domain_title }}Attributes
