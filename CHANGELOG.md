@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.30.0](https://github.com/NodeJSmith/hassette/compare/v0.29.0...v0.30.0) (2026-05-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* entity codegen pipeline with 34 generated domains ([#716](https://github.com/NodeJSmith/hassette/issues/716))
+
+### Features
+
+* entity codegen pipeline with 34 generated domains ([#716](https://github.com/NodeJSmith/hassette/issues/716)) ([dc71224](https://github.com/NodeJSmith/hassette/commit/dc71224f9c856141a6a0d331eb2ac56cf01a7228))
+
+
+### Documentation
+
+* add changelog quality rule for release-please commit messages ([#720](https://github.com/NodeJSmith/hassette/issues/720)) ([466b03c](https://github.com/NodeJSmith/hassette/commit/466b03ca85b293431e683fb9f6584ea5e222494a))
+
 ## [0.29.0](https://github.com/NodeJSmith/hassette/compare/v0.28.0...v0.29.0) (2026-05-09)
 
 
