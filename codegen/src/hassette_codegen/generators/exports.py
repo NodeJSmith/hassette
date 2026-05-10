@@ -68,9 +68,15 @@ def _extract_public_names(py_file: Path) -> list[str]:
 
 
 def _is_type_alias_or_constant(node: ast.Assign) -> bool:
-    """Check if an assignment is a type alias (e.g., Flash = Literal[...]) or a module-level constant."""
+    """Check if an assignment is a type alias (e.g., Flash = Literal[...]), TypeVar, or module-level constant."""
     if isinstance(node.value, ast.Subscript):
         if isinstance(node.value.value, ast.Name) and node.value.value.id in ("Literal", "TypeAlias"):
+            return True
+    if isinstance(node.value, ast.Call):
+        func = node.value.func
+        if isinstance(func, ast.Attribute) and func.attr == "TypeVar":
+            return True
+        if isinstance(func, ast.Name) and func.id == "TypeVar":
             return True
     return False
 

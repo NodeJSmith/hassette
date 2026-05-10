@@ -106,8 +106,6 @@ def apply_property_overrides(
 
     return result
 
-    return properties
-
 
 def validate_overrides(
     overrides: dict[str, DomainOverride],

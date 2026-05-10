@@ -1,6 +1,6 @@
 from .alarm_control_panel import AlarmControlPanelEntity
 from .automation import AutomationEntity
-from .base import BaseEntity, BaseEntitySyncFacade
+from .base import BaseEntity, BaseEntitySyncFacade, EntityT
 from .button import ButtonEntity
 from .camera import CameraEntity, Format
 from .climate import ClimateEntity
@@ -43,6 +43,7 @@ __all__ = [
     "DateTimeEntity",
     "Direction",
     "Enqueue",
+    "EntityT",
     "FanEntity",
     "Flash",
     "Format",

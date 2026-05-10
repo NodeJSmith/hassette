@@ -132,6 +132,9 @@ jobs:
             - name: Install ruff
               run: uv tool install ruff
 
+            - name: Run codegen unit tests
+              run: cd codegen && uv run pytest tests/ -q
+
             - name: Check entity codegen freshness
               run: cd codegen && uv run hassette-codegen generate --ha-core-path ../ha-core --check
 
