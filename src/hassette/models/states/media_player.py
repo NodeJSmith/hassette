@@ -1,8 +1,10 @@
 from enum import IntFlag, StrEnum
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from whenever import ZonedDateTime
+
+from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
 from .base import AttributesBase, StringBaseState
 
@@ -141,6 +143,11 @@ class MediaPlayerAttributes(AttributesBase):
     state: MediaPlayerStateValue | None = Field(default=None)
     volume_level: float | None = Field(default=None)
     volume_step: float | None = Field(default=None)
+
+    @field_validator("media_position_updated_at", mode="before")
+    @classmethod
+    def _parse_datetime_fields(cls, value: object) -> object:
+        return convert_datetime_str_to_system_tz(value)
 
     @property
     def supports_pause(self) -> bool:

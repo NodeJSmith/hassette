@@ -112,10 +112,10 @@ class TestLightFullPipeline:
 
 @pytest.mark.skipif(not _HAS_HA_CORE, reason="HA core checkout not available")
 class TestSensorFullPipeline:
-    def test_state_model_uses_override_base(self) -> None:
+    def test_state_model_uses_string_base(self) -> None:
         domain = _extract_full_domain("sensor")
         output = generate_state_model(domain)
-        assert "class SensorState(NumericBaseState):" in output
+        assert "class SensorState(StringBaseState):" in output
 
     def test_no_entity_wrapper(self) -> None:
         domain = _extract_full_domain("sensor")

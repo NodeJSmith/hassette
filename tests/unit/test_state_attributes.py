@@ -4,6 +4,7 @@ Covers all attributes added and removed as part of #289.
 """
 
 import pytest
+from whenever import ZonedDateTime
 
 from hassette.models.states.alarm_control_panel import AlarmControlPanelAttributes
 from hassette.models.states.camera import CameraAttributes
@@ -22,7 +23,7 @@ from hassette.models.states.weather import WeatherAttributes
 class TestSensorAttributes:
     def test_last_reset_present(self) -> None:
         attrs = SensorAttributes(last_reset="2024-01-01T00:00:00+00:00")
-        assert attrs.last_reset == "2024-01-01T00:00:00+00:00"
+        assert isinstance(attrs.last_reset, ZonedDateTime)
 
     def test_last_reset_defaults_to_none(self) -> None:
         attrs = SensorAttributes()
@@ -211,7 +212,6 @@ class TestMediaPlayerAttributes:
             ("media_content_type", "music"),
             ("media_duration", 300),
             ("media_position", 120),
-            ("media_position_updated_at", "2024-01-01T12:00:00+00:00"),
             ("media_title", "Song Title"),
             ("media_artist", "Artist Name"),
             ("media_album_name", "Album Name"),
@@ -236,6 +236,10 @@ class TestMediaPlayerAttributes:
     def test_new_field_present(self, field: str, value: object) -> None:
         attrs = MediaPlayerAttributes(**{field: value})
         assert getattr(attrs, field) == value
+
+    def test_media_position_updated_at_present(self) -> None:
+        attrs = MediaPlayerAttributes(media_position_updated_at="2024-01-01T12:00:00+00:00")
+        assert isinstance(attrs.media_position_updated_at, ZonedDateTime)
 
     @pytest.mark.parametrize(
         "field",

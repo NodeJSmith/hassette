@@ -1,7 +1,9 @@
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from whenever import ZonedDateTime
+
+from hassette.utils.date_utils import convert_datetime_str_to_system_tz
 
 from .base import AttributesBase, StringBaseState
 
@@ -12,6 +14,11 @@ class ImageAttributes(AttributesBase):
     image_url: str | None | object = Field(default=None)
     should_poll: bool = Field(default=None)
     state: None = Field(default=None)
+
+    @field_validator("image_last_updated", mode="before")
+    @classmethod
+    def _parse_datetime_fields(cls, value: object) -> object:
+        return convert_datetime_str_to_system_tz(value)
 
 
 class ImageState(StringBaseState):

@@ -2,10 +2,12 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from whenever import Date, ZonedDateTime
 
-from .base import AttributesBase, NumericBaseState
+from hassette.utils.date_utils import convert_datetime_str_to_system_tz
+
+from .base import AttributesBase, StringBaseState
 
 
 class SensorDeviceClass(StrEnum):
@@ -92,8 +94,13 @@ class SensorAttributes(AttributesBase):
     suggested_unit_of_measurement: str | None = Field(default=None)
     unit_of_measurement: None = Field(default=None)
 
+    @field_validator("last_reset", mode="before")
+    @classmethod
+    def _parse_datetime_fields(cls, value: object) -> object:
+        return convert_datetime_str_to_system_tz(value)
 
-class SensorState(NumericBaseState):
+
+class SensorState(StringBaseState):
     """Representation of a Home Assistant sensor state.
 
     See: https://www.home-assistant.io/integrations/sensor/

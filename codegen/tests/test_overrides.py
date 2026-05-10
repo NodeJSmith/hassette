@@ -12,7 +12,6 @@ class TestLoadOverrides:
     def test_loads_from_default_dir(self) -> None:
         overrides = load_overrides()
         assert "light" in overrides
-        assert "sensor" in overrides
         assert "media_player" in overrides
 
     def test_light_has_extra_imports(self) -> None:
@@ -31,10 +30,11 @@ class TestLoadOverrides:
         mp = overrides["media_player"]
         assert mp.service_param_renames.get("media_content_type") == "media_type"
 
-    def test_sensor_has_base_class_override(self) -> None:
-        overrides = load_overrides()
-        sensor = overrides["sensor"]
-        assert sensor.state_base_class == "NumericBaseState"
+    def test_state_base_class_override(self, tmp_path: Path) -> None:
+        toml = tmp_path / "sensor.toml"
+        toml.write_text('state_base_class = "NumericBaseState"\n')
+        overrides = load_overrides(tmp_path)
+        assert overrides["sensor"].state_base_class == "NumericBaseState"
 
     def test_get_override_returns_none_for_unknown(self) -> None:
         overrides = load_overrides()

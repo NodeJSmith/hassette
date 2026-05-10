@@ -85,3 +85,64 @@ class TestStateModelGenerator:
         )
         output = generate_state_model(domain)
         assert "Field(default=None)" in output
+
+    def test_output_with_datetime_field_compiles(self) -> None:
+        domain = ExtractedDomain(
+            name="script",
+            base_class="BoolBaseState",
+            properties=[
+                ExtractedProperty(name="last_triggered", python_type="ZonedDateTime | None", has_default=True),
+                ExtractedProperty(name="mode", python_type="str | None", has_default=True),
+            ],
+            features=[],
+        )
+        output = generate_state_model(domain)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(output)
+            f.flush()
+            py_compile.compile(f.name, doraise=True)
+
+    def test_datetime_fields_get_validator(self) -> None:
+        domain = ExtractedDomain(
+            name="script",
+            base_class="BoolBaseState",
+            properties=[
+                ExtractedProperty(name="last_triggered", python_type="ZonedDateTime | None", has_default=True),
+                ExtractedProperty(name="mode", python_type="str | None", has_default=True),
+            ],
+            features=[],
+        )
+        output = generate_state_model(domain)
+        assert "field_validator" in output
+        assert '"last_triggered"' in output
+        assert "convert_datetime_str_to_system_tz" in output
+        assert "_parse_datetime_fields" in output
+
+    def test_mixed_union_datetime_fields_excluded_from_validator(self) -> None:
+        domain = ExtractedDomain(
+            name="sensor",
+            base_class="NumericBaseState",
+            properties=[
+                ExtractedProperty(name="last_reset", python_type="ZonedDateTime | None", has_default=True),
+                ExtractedProperty(
+                    name="native_value", python_type="str | int | float | None | ZonedDateTime", has_default=True
+                ),
+            ],
+            features=[],
+        )
+        output = generate_state_model(domain)
+        assert '"last_reset"' in output
+        assert '"native_value"' not in output
+
+    def test_no_validator_when_no_datetime_fields(self) -> None:
+        domain = ExtractedDomain(
+            name="switch",
+            base_class="BoolBaseState",
+            properties=[
+                ExtractedProperty(name="device_class", python_type="str | None", has_default=True),
+            ],
+            features=[],
+        )
+        output = generate_state_model(domain)
+        assert "field_validator" not in output
+        assert "convert_datetime_str_to_system_tz" not in output
