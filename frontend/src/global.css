@@ -2790,10 +2790,10 @@ strong {
 .ht-stats-strip__label {
   display: block;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--ink-2);
+  color: var(--ink-3);
 }
 
 .ht-stats-strip__value {
@@ -4403,14 +4403,19 @@ strong {
 }
 
 .ht-config-group {
-  /* margin-bottom handled by ht-mb-6 utility */
+  /* margin-bottom handled by ht-mb-8 utility */
+}
+
+.ht-config-group + .ht-config-group {
+  border-top: 1px solid var(--line-2);
+  padding-top: var(--sp-8);
 }
 
 .ht-config-group__label {
   font-family: var(--font-display);
   font-size: var(--fs-h3);
   font-weight: 400;
-  color: var(--ink-2);
+  color: var(--ink-1);
   letter-spacing: var(--tr-h3);
   margin-bottom: var(--sp-2);
 }
