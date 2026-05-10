@@ -4,6 +4,10 @@ import argparse
 import sys
 from pathlib import Path
 
+_CODEGEN_SRC = str(Path(__file__).resolve().parent.parent)
+if _CODEGEN_SRC not in sys.path:
+    sys.path.insert(0, _CODEGEN_SRC)
+
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -51,8 +55,16 @@ def main() -> int:
         return _run_sync_facade(args)
 
     if args.command == "generate":
-        print("Entity generation not yet implemented.", file=sys.stderr)
-        return 1
+        from hassette_codegen.ha_source import resolve_source
+        from hassette_codegen.pipeline import run_pipeline
+
+        ha_source = resolve_source(ha_core_path=args.ha_core_path, ha_release_tag=args.ha_release_tag)
+        try:
+            repo_root = Path(__file__).resolve().parent.parent.parent.parent
+            domain_filter = set(args.domain.split(",")) if args.domain else None
+            return run_pipeline(ha_source, repo_root, check_mode=args.check, domain_filter=domain_filter)
+        finally:
+            ha_source.cleanup()
 
     return 0
 

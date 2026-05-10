@@ -18,6 +18,7 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
     def attributes(self) -> {{ domain_title }}Attributes:
         return self.state.attributes
 {% for service in services %}
+{% if service.params %}
 
     async def {{ service.method_name }}(
         self,
@@ -34,4 +35,13 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
             {{ param.name }}={{ param.name }},
 {% endfor %}
         )
+{% else %}
+
+    async def {{ service.method_name }}(self) -> None:
+        await self.api.call_service(
+            domain=self.domain,
+            service="{{ service.name }}",
+            target={"entity_id": self.entity_id},
+        )
+{% endif %}
 {% endfor %}
