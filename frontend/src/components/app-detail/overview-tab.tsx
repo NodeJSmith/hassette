@@ -117,7 +117,7 @@ function ErrorSpotlight({ failingItems, appKey, instanceQs }: ErrorSpotlightProp
       class="ht-overview-tab__section ht-overview-spotlight"
       data-testid="overview-error-spotlight"
     >
-      <div class="ht-overview-tab__section-heading">failing handlers</div>
+      <h3 class="ht-config-group__label">failing handlers</h3>
       {visibleItems.map((item) => (
         <SpotlightEntry
           key={`${item.kind}-${item.id}`}
@@ -192,7 +192,7 @@ function HandlerHealthGrid({ items, appKey, instanceQs }: HandlerHealthGridProps
   if (items.length === 0) {
     return (
       <section class="ht-overview-tab__section" data-testid="overview-health-grid">
-        <div class="ht-overview-tab__section-heading">handler health</div>
+        <h3 class="ht-config-group__label">handler health</h3>
         <EmptyState
           title="No handlers registered"
           body="This app has not registered any event handlers or scheduled jobs."
@@ -206,7 +206,7 @@ function HandlerHealthGrid({ items, appKey, instanceQs }: HandlerHealthGridProps
 
   return (
     <section class="ht-overview-tab__section" data-testid="overview-health-grid">
-      <div class="ht-overview-tab__section-heading">handler health</div>
+      <h3 class="ht-config-group__label">handler health</h3>
       <div class="ht-overview-health-grid">
         {sorted.map((item) => (
           <HealthGridRow
@@ -233,9 +233,11 @@ interface ActivityRowProps {
 function ActivityRow({ entry }: ActivityRowProps) {
   const kind = executionStatusKind(entry.status);
   return (
-    <tr class="ht-overview-activity-row" data-testid="overview-activity-row">
-      <td class="ht-overview-activity__status" aria-label={`status: ${entry.status}`}>
-        <StatusShape kind={kind} size={8} />
+    <tr data-testid="overview-activity-row">
+      <td aria-label={`status: ${entry.status}`}>
+        <span class="ht-log-level-badge">
+          <StatusShape kind={kind} size={8} />
+        </span>
       </td>
       <td class="ht-overview-activity__name">{entry.handler_name}</td>
       <td class="ht-overview-activity__duration">{formatDurationOrDash(entry.duration_ms)}</td>
@@ -283,7 +285,7 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
 
   return (
     <section class="ht-overview-tab__section" data-testid="overview-activity-section">
-      <div class="ht-overview-tab__section-heading">recent activity</div>
+      <h3 class="ht-config-group__label">recent activity</h3>
       {!loading.value && entries.length === 0 ? (
         <p class="ht-overview-empty-inline" data-testid="overview-activity-empty">
           no recent activity
@@ -318,10 +320,12 @@ interface LogRowProps {
 function LogRow({ entry }: LogRowProps) {
   const kind = levelToKind(entry.level);
   return (
-    <tr class="ht-overview-log-row" data-testid="overview-log-row">
-      <td class="ht-overview-log__level" aria-label={`level: ${entry.level}`}>
-        <StatusShape kind={kind} size={8} />
-        <span class="ht-overview-log__level-text">{entry.level}</span>
+    <tr data-level={entry.level} data-testid="overview-log-row">
+      <td aria-label={`level: ${entry.level}`}>
+        <span class="ht-log-level-badge">
+          <StatusShape kind={kind} size={8} />
+          <span class="ht-log-level-badge__text">{entry.level}</span>
+        </span>
       </td>
       <td class="ht-overview-log__time">{formatRelativeTime(entry.timestamp)}</td>
       <td class="ht-overview-log__message" title={entry.message}>{entry.message}</td>
@@ -343,7 +347,7 @@ function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
 
   return (
     <section class="ht-overview-tab__section" data-testid="overview-logs-section">
-      <div class="ht-overview-tab__section-heading">recent logs</div>
+      <h3 class="ht-config-group__label">recent logs</h3>
       {!loading.value && entries.length === 0 ? (
         <p class="ht-overview-empty-inline" data-testid="overview-logs-empty">
           no recent logs
