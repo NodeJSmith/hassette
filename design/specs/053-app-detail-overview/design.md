@@ -1,7 +1,7 @@
 # Design: App Detail Overview Tab
 
 **Date:** 2026-05-10
-**Status:** approved
+**Status:** archived
 **Scope-mode:** expand
 **Research:** /tmp/claude-mine-define-research-oMeZG0/brief.md
 
