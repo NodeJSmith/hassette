@@ -3535,6 +3535,17 @@ strong {
   overflow-y: auto;
 }
 
+/* — Overview tab container —————————————————————————————— */
+.ht-overview-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+}
+
+.ht-overview-tab__section {
+  /* section containers — T03/T04 add content-specific styles */
+}
+
 /* — Handlers tab container ————————————————————————————— */
 .ht-handlers-tab {
   /* no extra padding — master-detail provides structure */

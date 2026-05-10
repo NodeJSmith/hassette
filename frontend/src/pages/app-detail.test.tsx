@@ -41,6 +41,9 @@ vi.mock("../components/app-detail/code-tab", () => ({
 vi.mock("../components/app-detail/config-tab", () => ({
   ConfigTab: () => <div data-testid="config-tab" />,
 }));
+vi.mock("../components/app-detail/overview-tab", () => ({
+  OverviewTab: () => <div data-testid="overview-tab" />,
+}));
 vi.mock("../components/shared/log-table", () => ({
   LogTable: () => <div data-testid="log-table" />,
 }));
@@ -125,14 +128,14 @@ describe("AppDetailPage", () => {
     expect(getByTestId("action-buttons")).toBeDefined();
   });
 
-  it("renders handlers tab by default (health strip is inside HandlersTab)", () => {
+  it("renders overview tab by default (no params.tab provided)", () => {
     setupManifestAndApi(createManifest());
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
     );
-    // HandlersTab (which contains the health strip) is rendered by default
-    expect(getByTestId("handlers-tab")).toBeDefined();
+    // OverviewTab is rendered by default
+    expect(getByTestId("overview-tab")).toBeDefined();
   });
 
   it("renders tab strip with Handlers tab", () => {
@@ -171,20 +174,20 @@ describe("AppDetailPage", () => {
     expect(getByRole("tab", { name: /config/i })).toBeDefined();
   });
 
-  it("Handlers tab is selected by default", () => {
+  it("Overview tab is selected by default", () => {
     setupManifestAndApi(createManifest());
     const { getByRole } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
     );
-    const handlersTab = getByRole("tab", { name: /handlers/i });
-    expect(handlersTab.getAttribute("aria-selected")).toBe("true");
+    const overviewTab = getByRole("tab", { name: /overview/i });
+    expect(overviewTab.getAttribute("aria-selected")).toBe("true");
   });
 
   it("renders handlers-tab content when Handlers tab is active", () => {
     setupManifestAndApi(createManifest());
     const { getByTestId } = render(
-      <AppDetailPage params={{ key: "test_app" }} />,
+      <AppDetailPage params={{ key: "test_app", tab: "handlers" }} />,
       { wrapper: createWrapper(state) },
     );
     expect(getByTestId("handlers-tab")).toBeDefined();
@@ -388,15 +391,26 @@ describe("AppDetailPage", () => {
     expect(codeTab.getAttribute("aria-selected")).toBe("true");
   });
 
-  it("handlers tab is selected by default when no params.tab provided", () => {
+  it("overview tab is selected by default when no params.tab provided", () => {
     const manifest = createManifest();
     setupManifestAndApi(manifest);
     const { getByRole } = render(
       <AppDetailPage params={{ key: "test_app" }} />,
       { wrapper: createWrapper(state) },
     );
-    const handlersTab = getByRole("tab", { name: /handlers/i });
-    expect(handlersTab.getAttribute("aria-selected")).toBe("true");
+    const overviewTab = getByRole("tab", { name: /overview/i });
+    expect(overviewTab.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("overview tab appears first in the tab bar", () => {
+    const manifest = createManifest();
+    setupManifestAndApi(manifest);
+    const { getAllByRole } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    const tabs = getAllByRole("tab");
+    expect(tabs[0].textContent).toMatch(/overview/i);
   });
 
   it("tab links point to the correct path with instance query param preserved", () => {

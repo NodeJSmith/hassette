@@ -8,8 +8,9 @@ import type { AppInstance } from "../api/endpoints";
 import { ActionButtons } from "../components/shared/action-buttons";
 import { CodeTab } from "../components/app-detail/code-tab";
 import { ConfigTab } from "../components/app-detail/config-tab";
-import { ErrorBanner } from "../components/shared/error-banner";
 import { HandlersTab } from "../components/app-detail/handlers-tab";
+import { OverviewTab } from "../components/app-detail/overview-tab";
+import { ErrorBanner } from "../components/shared/error-banner";
 import { LogTable } from "../components/shared/log-table";
 import { Spinner } from "../components/shared/spinner";
 import { useScopedApi } from "../hooks/use-scoped-api";
@@ -17,7 +18,7 @@ import { useAppState } from "../state/context";
 import { statusToKind, statusToVariant } from "../utils/status";
 import { StatusShape } from "../components/shared/status-shape";
 
-export type TabId = "handlers" | "code" | "logs" | "config";
+export type TabId = "overview" | "handlers" | "code" | "logs" | "config";
 
 interface Props {
   params: { key: string; tab?: TabId; handler?: string };
@@ -147,7 +148,7 @@ function Tab({ id, label, badge, appKey, instanceQs, activeTab }: {
 
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
-  const activeTab: TabId = params.tab ?? "handlers";
+  const activeTab: TabId = params.tab ?? "overview";
   const { appStatus } = useAppState();
   const [, navigate] = useLocation();
   const queryParams = useQueryParams();
@@ -335,6 +336,7 @@ export function AppDetailPage({ params }: Props) {
 
       {/* Tab strip */}
       <div class="ht-tab-strip ht-mb-4" role="tablist" aria-label="App sections">
+        <Tab id="overview" label="overview" {...tabProps} />
         <Tab id="handlers" label="handlers" badge={handlerCount} {...tabProps} />
         <Tab id="code" label="code" {...tabProps} />
         <Tab id="logs" label="logs" {...tabProps} />
@@ -342,6 +344,16 @@ export function AppDetailPage({ params }: Props) {
       </div>
 
       {/* Tab content */}
+      {activeTab === "overview" && (
+        <div role="tabpanel" id="tabpanel-overview" aria-labelledby="tab-overview">
+          <OverviewTab
+            listeners={displayListeners}
+            jobs={displayJobs}
+            appKey={appKey}
+            instanceQs={instanceQs}
+          />
+        </div>
+      )}
       {activeTab === "handlers" && (
         <div role="tabpanel" id="tabpanel-handlers" aria-labelledby="tab-handlers">
         <HandlersTab

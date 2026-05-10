@@ -117,6 +117,7 @@ export function App() {
               <Route path="/apps/:key/code">{(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "code" }} />}</Route>
               <Route path="/apps/:key/logs">{(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "logs" }} />}</Route>
               <Route path="/apps/:key/config">{(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "config" }} />}</Route>
+              <Route path="/apps/:key/overview">{(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "overview" }} />}</Route>
               <Route path="/apps/:key">{(params: { key: string }) => <AppDetailPage params={{ key: params.key }} />}</Route>
               <Route path="/apps" component={AppsPage} />
               <Route path="/handlers" component={HandlersPage} />

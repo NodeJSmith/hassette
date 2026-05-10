@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Add overview tab routing and wiring"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#13", "FR#14", "AC#1", "AC#8", "AC#9"]
 ---
