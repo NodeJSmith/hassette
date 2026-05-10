@@ -1498,6 +1498,7 @@ export interface operations {
                 limit?: number;
                 app_key?: string | null;
                 level?: string | null;
+                since?: number | null;
             };
             header?: never;
             path?: never;

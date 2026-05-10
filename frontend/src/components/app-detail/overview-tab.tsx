@@ -339,7 +339,7 @@ interface RecentLogsSectionProps {
 
 function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
   const { data: logs, loading } = useScopedApi(
-    () => getRecentLogs({ app_key: appKey, limit: LOGS_LIMIT }),
+    (since) => getRecentLogs({ app_key: appKey, limit: LOGS_LIMIT, since }),
     { deps: [appKey] },
   );
 

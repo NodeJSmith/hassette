@@ -346,12 +346,21 @@ class RuntimeQueryService(Resource):
 
     # --- Log access ---
 
-    def get_recent_logs(self, limit: int = 100, app_key: str | None = None, level: str | None = None) -> list[dict]:
+    def get_recent_logs(
+        self,
+        limit: int = 100,
+        app_key: str | None = None,
+        level: str | None = None,
+        since: float | None = None,
+    ) -> list[dict]:
         handler = get_log_capture_handler()
         if handler is None:
             return []
 
         entries: list[LogEntry] = handler.get_buffer_snapshot()
+
+        if since is not None:
+            entries = [e for e in entries if e.timestamp >= since]
 
         if app_key:
             entries = [e for e in entries if e.app_key == app_key]

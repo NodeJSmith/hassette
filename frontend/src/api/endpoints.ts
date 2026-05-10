@@ -79,11 +79,12 @@ export const getConfig = () => apiFetch<SystemConfig>("/config");
 
 // ---- Logs ----
 
-export const getRecentLogs = (params?: { level?: string; app_key?: string; limit?: number }) =>
+export const getRecentLogs = (params?: { level?: string; app_key?: string; limit?: number; since?: number | null }) =>
   apiFetch<LogEntry[]>(buildUrl("/logs/recent", {
     level: params?.level,
     app_key: params?.app_key,
     limit: params?.limit,
+    since: params?.since,
   }));
 
 // ---- Bus ----
