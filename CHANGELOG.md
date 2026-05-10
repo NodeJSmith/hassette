@@ -7,184 +7,132 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.30.0](https://github.com/NodeJSmith/hassette/compare/v0.29.0...v0.30.0) (2026-05-10)
 
+### Breaking Changes
 
-### ⚠ BREAKING CHANGES
+- **Field type narrowing (StrEnum)** — Fields previously typed as `str` are now typed with their domain StrEnum. StrEnums accept string construction so `state.attributes.hvac_mode == "heat"` still works, but type checkers will flag comparisons against raw strings. Affected fields: `ClimateAttributes.hvac_action`, `hvac_mode`, `hvac_modes`; `LightAttributes.color_mode`, `supported_color_modes`. (#716)
+- **Field type changes (runtime)** — `MediaPlayerAttributes.media_position_updated_at`: `str | None` → `ZonedDateTime | None` (validator now parses the ISO string). `ClimateAttributes.current_temperature`: `int | float | None` → `float | None`. (#716)
+- **Removed deprecated fields** — Fields typed as `None` in HA source (deprecated) are no longer declared on the model. Values still land in `model_extra` (accessible via `.extra("field_name")`): `LightAttributes.color_temp`, `max_mireds`, `min_mireds`, `xy_color`; `MediaPlayerAttributes.entity_picture_local`. (#716)
+- **Removed constraints** — `LightAttributes.brightness` no longer has `gt=-1, lt=256` field validators. (#716)
+- **`hassette.models.states.features` deleted** — IntFlag enums moved to per-domain files. All enums are still re-exported from `hassette.models.states` so `from hassette.models.states import LightEntityFeature` continues to work. (#716)
 
-* entity codegen pipeline with 34 generated domains ([#716](https://github.com/NodeJSmith/hassette/issues/716))
+### State Models
 
-### Features
-
-* entity codegen pipeline with 34 generated domains ([#716](https://github.com/NodeJSmith/hassette/issues/716)) ([dc71224](https://github.com/NodeJSmith/hassette/commit/dc71224f9c856141a6a0d331eb2ac56cf01a7228))
-
-
-### Documentation
-
-* add changelog quality rule for release-please commit messages ([#720](https://github.com/NodeJSmith/hassette/issues/720)) ([466b03c](https://github.com/NodeJSmith/hassette/commit/466b03ca85b293431e683fb9f6584ea5e222494a))
+- State model attributes are now code-generated from Home Assistant core source via AST analysis, replacing the previous hand-maintained models. 34 entity domains have generated state models with proper `@field_validator` for ZonedDateTime wire conversion, StrEnum attribute types, and `supports_*` boolean properties. (#716)
+- The codegen pipeline includes a CI freshness check — if the pinned HA version falls behind, CI warns so models stay aligned with upstream. (#716)
 
 ## [0.29.0](https://github.com/NodeJSmith/hassette/compare/v0.28.0...v0.29.0) (2026-05-09)
 
+### Breaking Changes
 
-### ⚠ BREAKING CHANGES
+- **`state.value` type change for toggle entities** — `state.value` for light, switch, fan, automation, humidifier, remote, script, siren, and update entities now returns `bool` instead of `str`. Code using `state.value == "on"` must change to `state.value is True`. (#711)
 
-* state.value for toggle entities (light, switch, fan, etc.) now returns bool instead of str. Code using state.value == "on" must change to state.value is True.
+### State Models
 
-### Features
+- Audited all 50 `BaseState` subclasses against HA core source — corrected value types (9 toggle entities → `BoolBaseState`, 5 timestamp entities → `DateTimeBaseState`, air_quality → `NumericBaseState`), added missing attributes (person location fields, timer transitions, valve position, script/cover/device_tracker fields), and removed stale attributes not present in HA core. (#711)
 
-* lifecycle state machines, connection state, and startup registry validation ([#702](https://github.com/NodeJSmith/hassette/issues/702)) ([99bee24](https://github.com/NodeJSmith/hassette/commit/99bee24b7802e9729cde5d95152f90325784d2cd))
-* one-command visual QA environment with demo apps ([#705](https://github.com/NodeJSmith/hassette/issues/705)) ([30eee72](https://github.com/NodeJSmith/hassette/commit/30eee72d194ad5e38f22a49aed48621f5a785e1d))
-* produce human-readable predicate and handler summary strings ([#700](https://github.com/NodeJSmith/hassette/issues/700)) ([eda2c85](https://github.com/NodeJSmith/hassette/commit/eda2c85f958f632e53327e4db8e0326f9a7c3c7b))
-* surface service readiness (not just status) in the frontend ([#688](https://github.com/NodeJSmith/hassette/issues/688)) ([913c31b](https://github.com/NodeJSmith/hassette/commit/913c31b72ff7df5270cf4bfaa916a1426b206a25))
+### Web UI
 
+- Handler and condition summaries in the dashboard now display human-readable text (e.g., `entity light.kitchen and state → on`) instead of Python repr output. (#700)
+- Service readiness (not just status) now visible in the frontend monitoring dashboard — services show whether they are actually ready to serve, not just that they started. (#688)
 
 ### Bug Fixes
 
-* align state models against HA core entity attributes ([#711](https://github.com/NodeJSmith/hassette/issues/711)) ([b003ec6](https://github.com/NodeJSmith/hassette/commit/b003ec6caa074f5fe04a2ce8c3f9917af5137861))
-* bundle five small-scope issue fixes ([#680](https://github.com/NodeJSmith/hassette/issues/680)) ([4e5ce5a](https://github.com/NodeJSmith/hassette/commit/4e5ce5a08afda69a0ce4a8eefa164873fc819d59))
-* **ws:** add flake8-async hook and fix swallowed CancelledError ([#682](https://github.com/NodeJSmith/hassette/issues/682)) ([03aaf8e](https://github.com/NodeJSmith/hassette/commit/03aaf8ece0ed0d94ebf243546b28eb55d7248e87))
-
-
-### Documentation
-
-* add prior art research for internal event system design ([#683](https://github.com/NodeJSmith/hassette/issues/683)) ([d6bf7b0](https://github.com/NodeJSmith/hassette/commit/d6bf7b0c2d0b83582261e779bbf08ff86a715398))
-* add prior art research on logging patterns ([#696](https://github.com/NodeJSmith/hassette/issues/696)) ([4ee8daf](https://github.com/NodeJSmith/hassette/commit/4ee8dafa7bf2d03639e6a64c245b0b91b81ca520))
-* add prior art research on Python+TS frontend type consistency ([#693](https://github.com/NodeJSmith/hassette/issues/693)) ([3ed9758](https://github.com/NodeJSmith/hassette/commit/3ed9758730e88b6c70824bf7711db53478168496))
-* replace milestones with topic/epic/release label taxonomy ([#689](https://github.com/NodeJSmith/hassette/issues/689)) ([702a2b2](https://github.com/NodeJSmith/hassette/commit/702a2b2de809bedaeab0b4865a07b7b22be2679f))
-
-
-### CI/CD
-
-* add pull_request trigger to tests, lint, and e2e workflows ([#673](https://github.com/NodeJSmith/hassette/issues/673)) ([37cf465](https://github.com/NodeJSmith/hassette/commit/37cf465505d302468e99b5d68ace9242b2acaf21))
-* install fd-find so docker requirements tests run in CI ([#644](https://github.com/NodeJSmith/hassette/issues/644)) ([acab7ba](https://github.com/NodeJSmith/hassette/commit/acab7badea4eef5a29ed619a7191a6c2aefbf256))
+- WebSocket `CancelledError` no longer swallowed during task cancellation (#682)
+- REST API returns 404 (not 500) for non-existent `app_key` on start/stop/reload endpoints (#603, #680)
+- Immediate-fire synthetic events now display "---" instead of a misleading UUID in telemetry (#640, #680)
 
 ## [0.28.0](https://github.com/NodeJSmith/hassette/compare/v0.27.0...v0.28.0) (2026-05-02)
 
+### Breaking Changes
 
-### ⚠ BREAKING CHANGES
+- **`HassettePayload.event_id` changed from `int` to `str` (UUID4)** — any user code comparing `event.payload.event_id` against integers will silently fail. Update comparisons to use string UUIDs. (#641)
 
-* add per-execution correlation IDs for handler and job tracing ([#641](https://github.com/NodeJSmith/hassette/issues/641))
+### Telemetry
 
-### Features
-
-* add per-execution correlation IDs for handler and job tracing ([#641](https://github.com/NodeJSmith/hassette/issues/641)) ([2d258ea](https://github.com/NodeJSmith/hassette/commit/2d258eaebfe40f1105fed55d5acdb9212afed808))
-
-
-### Documentation
-
-* add prior art research briefs for 20 framework areas ([#645](https://github.com/NodeJSmith/hassette/issues/645)) ([d80a693](https://github.com/NodeJSmith/hassette/commit/d80a693bf702de381c95b6b050b04d93017cb91e))
+- Every handler invocation and job execution now receives a globally unique `execution_id` (UUID4) for end-to-end tracing, with the triggering event's `context_id` and `origin` captured alongside it. (#641)
+- `CURRENT_EXECUTION_ID` ContextVar is set for the duration of each execution, enabling future causal chain tracking. (#641)
+- Frontend shows "Trace ID", "Trigger", and "Origin" columns in handler invocation and job execution tables — truncated monospace UUIDs with full value on hover. (#641)
 
 ## [0.27.0](https://github.com/NodeJSmith/hassette/compare/v0.26.0...v0.27.0) (2026-04-29)
 
+### Service Supervision
 
-### Features
+- Per-service `RestartSpec` replaces the global one-size-fits-all restart policy — each service declares its own restart type (`PERMANENT`, `TRANSIENT`, or `TEMPORARY`), sliding-window budget, backoff parameters, and error classification. The 5 global `service_restart_*` config fields are removed. (#638)
+- `EXHAUSTED_DEAD` and `EXHAUSTED_COOLING` service statuses with frontend rendering including a countdown timer for cooling services. (#638)
 
-* add early-drop retry and modernize WebSocket service resilience ([#631](https://github.com/NodeJSmith/hassette/issues/631)) ([3561a19](https://github.com/NodeJSmith/hassette/commit/3561a195cb3eaaba9eb911394b47d583d9d2afe5))
-* add start_children_and_wait convenience method to Resource ([#636](https://github.com/NodeJSmith/hassette/issues/636)) ([9782f26](https://github.com/NodeJSmith/hassette/commit/9782f26bedc35d1c6ec092e49cd6d29d814c7282))
-* redesign service supervision with per-service RestartSpec ([#638](https://github.com/NodeJSmith/hassette/issues/638)) ([5681c92](https://github.com/NodeJSmith/hassette/commit/5681c92a7cf823cac677609ecc613756ea393776))
+### WebSocket Resilience
 
+- Early-drop retry loop detects post-ready connection drops within a configurable stable window (default 30s) and retries transparently — Home Assistant restarts no longer burn the ServiceWatcher restart budget or crash hassette after 5 cycles. (#631)
+- Total recovery timeout cap (default 5 minutes) prevents multiplicative worst-case retry windows. 8 new config fields externalize all retry parameters. (#631)
 
 ### Bug Fixes
 
-* defer AppHandler readiness until app bootstrap completes ([#635](https://github.com/NodeJSmith/hassette/issues/635)) ([0d59699](https://github.com/NodeJSmith/hassette/commit/0d596991520159c1841ea57908e0467703686289))
+- App bootstrap now completes before the app is marked ready, preventing premature requests against partially-initialized apps (#635)
 
 ## [0.26.0](https://github.com/NodeJSmith/hassette/compare/v0.25.0...v0.26.0) (2026-04-28)
 
-
-### Features
-
-* add startup timing instrumentation to docker entrypoint ([#617](https://github.com/NodeJSmith/hassette/issues/617)) ([5e67530](https://github.com/NodeJSmith/hassette/commit/5e675306d6a32feebe43eb4acc4cdd742247c62b))
-
-
 ### Bug Fixes
 
-* address 4 issues discovered during system test rewrite ([#626](https://github.com/NodeJSmith/hassette/issues/626)) ([cb0d7c5](https://github.com/NodeJSmith/hassette/commit/cb0d7c5c672bf01f35714386e16c8cd7087d1d3e))
-* guard shutdown against ClosedResourceError and restore strict filterwarnings ([#627](https://github.com/NodeJSmith/hassette/issues/627)) ([f120cba](https://github.com/NodeJSmith/hassette/commit/f120cba19d4d18bf8c610ce4138715b79e2f0c50))
-* narrow per-class lock in AppTestHarness for concurrent same-class harnesses ([#614](https://github.com/NodeJSmith/hassette/issues/614)) ([5b4c710](https://github.com/NodeJSmith/hassette/commit/5b4c710efb80303f14c497a149a158f73237cee7))
-
-
-### Documentation
-
-* add prior art research on resource/service lifecycle architecture ([#606](https://github.com/NodeJSmith/hassette/issues/606)) ([940a461](https://github.com/NodeJSmith/hassette/commit/940a46158e7ac5625b7b78f0c69be243610a6f9e))
-
-
-### Tests
-
-* add unit tests for StateManager.__getattr__ and DomainStates cache ([#613](https://github.com/NodeJSmith/hassette/issues/613)) ([f107482](https://github.com/NodeJSmith/hassette/commit/f10748287dac3e0aa727817172d16956ea49b2fa)), closes [#563](https://github.com/NodeJSmith/hassette/issues/563)
-* rewrite system tests — 7 → 43 tests across all subsystems ([#624](https://github.com/NodeJSmith/hassette/issues/624)) ([9d4dd57](https://github.com/NodeJSmith/hassette/commit/9d4dd573afa8eda78bac1b99af535f084335ab2d))
-* **test_utils:** enable module-scoped hassette_with_app_handler fixture ([#618](https://github.com/NodeJSmith/hassette/issues/618)) ([02df6f7](https://github.com/NodeJSmith/hassette/commit/02df6f7a424dbd21f094ab960b5461c2d375c88a))
+- Graceful shutdown no longer crashes on `ClosedResourceError` (#627)
+- `ZonedDateTime` values in REST API responses no longer include IANA timezone suffix (`[America/Chicago]`), fixing URL interpolation in `get_history` and `get_logbook` (#619, #626)
+- `TaskBucket` crash logs now show meaningful task names (e.g., `AppLifecycleService.bootstrap_apps`) instead of `Task-42` (#623, #626)
+- `wait_for` utility supports async predicates, eliminating hand-rolled async polling loops (#622, #626)
+- `AppTestHarness` per-class lock narrowed for concurrent same-class harnesses — multiple tests using the same app class can now run in parallel (#614)
 
 ## [0.25.0](https://github.com/NodeJSmith/hassette/compare/v0.24.0...v0.25.0) (2026-04-26)
 
+### Breaking Changes
 
-### ⚠ BREAKING CHANGES
+- **Scheduler API redesigned around trigger objects** — `run_cron("0 7 * * 1-5")`, `run_daily(at="07:00")` replace the old keyword-per-field API. Custom triggers must implement `TriggerProtocol`. See the updated [scheduler docs](https://hassette.readthedocs.io/en/stable/scheduler.html). (#517)
+- **`RecordingApi.get_entity` requires explicit model argument** — the previous `BaseState`-sentinel default silently aliased to `get_state()` and hid real bugs. Callers that want registry-converted state without a specific entity model should call `get_state(entity_id)` instead. (#525)
+- **Docker startup uses constraints-based dependency protection** — runtime `uv sync` replaced with a constraints file generated at build time. User dependency installs that conflict with hassette's pinned version now error instead of silently downgrading the framework. (#480)
 
-* StartupPhase enum removed from hassette.types
-* **test_utils:** complete event simulation for AppTestHarness ([#525](https://github.com/NodeJSmith/hassette/issues/525))
-* **scheduler:** trigger-based API redesign + frontend integration (specs 032+033) ([#517](https://github.com/NodeJSmith/hassette/issues/517))
-* **test_utils:** `RecordingApi.get_entity` and `get_entity_or_none` now require an explicit `BaseEntity` subclass model argument, matching the production `Api.get_entity` signature. The previous `BaseState`-sentinel default silently aliased to `get_state()` and hid real bugs in test apps that forgot the model argument. Callers that want registry-converted state without a specific entity model should call `get_state(entity_id)` instead.
-* redesign Docker startup deps with constraints-based protection ([#480](https://github.com/NodeJSmith/hassette/issues/480))
+### Test Utilities
 
-### Features
+- `AppTestHarness` — async context manager that wires a user's `App` class into test `Bus`, `Scheduler`, `StateManager`, and `RecordingApi` with zero boilerplate: `async with AppTestHarness(MyApp, config={...}) as harness:` (#492)
+- `RecordingApi` records write calls for assertions and delegates reads to `StateProxy`, with `ApiProtocol` conformance checking at import time (#492)
+- Time control for scheduler tests: `freeze_time()`, `advance_time()`, `trigger_due_jobs()` via custom `_TestClock` (#492)
+- Event simulation: `simulate_state_change`, `simulate_attribute_change`, `simulate_call_service` with reliable task-bucket drain (#492, #525)
+- State seeding: `set_state`, `set_states` via `StateProxy._test_seed_state()` (#492)
 
-* add error handlers for event listeners and scheduled jobs ([#575](https://github.com/NodeJSmith/hassette/issues/575)) ([3ef61df](https://github.com/NodeJSmith/hassette/commit/3ef61dfaaafa981a730e8021b342f5ea8b716984))
-* add execution timeout enforcement for scheduler jobs and event handlers ([#552](https://github.com/NodeJSmith/hassette/issues/552)) ([97b4cdc](https://github.com/NodeJSmith/hassette/commit/97b4cdc5d168852a5bf0dc5bbecc43d2d5998314))
-* add resource dependency ordering with wave-based startup/shutdown ([#584](https://github.com/NodeJSmith/hassette/issues/584)) ([9a97898](https://github.com/NodeJSmith/hassette/commit/9a978984f94c18ab866db12335f497f0221e33ff))
-* **api:** add typed Home Assistant helper CRUD (input_*, counter, timer) ([#506](https://github.com/NodeJSmith/hassette/issues/506)) ([0dcda5d](https://github.com/NodeJSmith/hassette/commit/0dcda5d6e729ef6489f72a06c8b5287f227e9961))
-* **bus:** add immediate-fire and duration-hold for state/attribute handlers ([#570](https://github.com/NodeJSmith/hassette/issues/570)) ([075f3d4](https://github.com/NodeJSmith/hassette/commit/075f3d417ff950d4497fb24b314add9117e6f500))
-* color system overhaul + responsive mobile adaptation ([#483](https://github.com/NodeJSmith/hassette/issues/483)) ([679fe4f](https://github.com/NodeJSmith/hassette/commit/679fe4f8d054f35129cf67c5c9c27bac339de0b0))
-* end-user test utilities — AppTestHarness, RecordingApi, time control ([#492](https://github.com/NodeJSmith/hassette/issues/492)) ([399a081](https://github.com/NodeJSmith/hassette/commit/399a0814c0a06831e097174f4f80106fe381069a))
-* framework error identity, traceback in feed, unified dashboard ([#537](https://github.com/NodeJSmith/hassette/issues/537)) ([5b4132a](https://github.com/NodeJSmith/hassette/commit/5b4132a3b0d321657e8488c929d3c8a794ffb70d))
-* preserve listener/job registrations across sessions ([#466](https://github.com/NodeJSmith/hassette/issues/466)) ([#487](https://github.com/NodeJSmith/hassette/issues/487)) ([f62a2a7](https://github.com/NodeJSmith/hassette/commit/f62a2a7c69093ad7760e1d23d30e4dec42ffe197))
-* **scheduler:** trigger-based API redesign + frontend integration (specs 032+033) ([#517](https://github.com/NodeJSmith/hassette/issues/517)) ([c510a35](https://github.com/NodeJSmith/hassette/commit/c510a350790e6ba56931e872332b2ea735d6702c))
-* telemetry source-tier unification ([#484](https://github.com/NodeJSmith/hassette/issues/484)) ([#495](https://github.com/NodeJSmith/hassette/issues/495)) ([804f8ed](https://github.com/NodeJSmith/hassette/commit/804f8ed0b429de2f705184acddc49628090197bc))
-* **test_utils:** complete event simulation for AppTestHarness ([#525](https://github.com/NodeJSmith/hassette/issues/525)) ([2d3f044](https://github.com/NodeJSmith/hassette/commit/2d3f044e643d12d75bd3a6cc4f7bf7ff7df75d19))
-* **test_utils:** docs sync + close 3 safety holes in test utilities ([#502](https://github.com/NodeJSmith/hassette/issues/502)) ([2743e4e](https://github.com/NodeJSmith/hassette/commit/2743e4e6d95ccdb1e7e3775049f7596374b3003b))
-* **test_utils:** generate _RecordingSyncFacade via codegen and unify drain exceptions ([#503](https://github.com/NodeJSmith/hassette/issues/503)) ([89b6f2c](https://github.com/NodeJSmith/hassette/commit/89b6f2cd90621adbcce4a291e815980912e58b51))
-* **ui:** dashboard hierarchy, app detail polish, and design system refinements ([#523](https://github.com/NodeJSmith/hassette/issues/523)) ([7be31ab](https://github.com/NodeJSmith/hassette/commit/7be31ab2840803f69e355df9cbad81406b52523b))
-* **ui:** dashboard polish — KPI hierarchy, quiet-canvas status, sorted grids ([#485](https://github.com/NodeJSmith/hassette/issues/485)) ([dfdbc61](https://github.com/NodeJSmith/hassette/commit/dfdbc6143d7f5c42494cb77d7a8d158882ed7290))
+### Scheduler
 
+- Built-in trigger types: `After`, `Once`, `Every`, `Daily`, `Cron` — all importable from `hassette.scheduler.triggers` (#517)
+- Job groups (`group=`, `cancel_group()`, `list_jobs(group=)`) and jitter support (`jitter=`) (#517)
+- Frontend shows structured trigger labels, group filter chips (URL-persisted), jitter tags, cancelled badges, and expandable job rows with "Next: fires in..." countdown (#517)
+
+### Bus
+
+- `immediate=True` fires handlers at registration time when the target entity already matches predicates. Synthetic event has `old_state=None`. Composes with `once`, `debounce`, `throttle`. (#570)
+- `duration=N` holds require the entity to remain in the matching state for N continuous seconds before the handler fires. Consults `last_changed` on restart for resilience. (#570)
+- `Bus.on_error(handler)` and `Scheduler.on_error(handler)` register app-level error handlers; per-registration `on_error=` parameter takes priority. Both sync and async handlers supported. (#575)
+
+### Error Handling
+
+- Execution timeout enforcement (600s default) for all scheduled jobs and event handlers via `asyncio.timeout()` — `timed_out` shown as a distinct status in telemetry with amber warning badges (#552)
+- `timeout` and `timeout_disabled` parameters on all `Scheduler` and `Bus` registration methods (#552)
+- Error tracebacks visible in the dashboard error feed with expand/collapse toggle; framework-tier errors separated from app-tier errors (#537)
+
+### API
+
+- Typed Home Assistant helper CRUD methods for `input_boolean`, `input_number`, `input_select`, `input_text`, `input_datetime`, `counter`, and `timer` entities (#506)
+
+### Web UI
+
+- Dashboard hierarchy redesign with app detail polish, quiet-canvas status indicators, and sorted grids (#485, #523)
+- Listener and job registrations now persist across session restarts — telemetry no longer loses data on reconnect (#466, #487)
 
 ### Bug Fixes
 
-* **bus,scheduler:** subscription race fix + cancel semantics redesign ([#451](https://github.com/NodeJSmith/hassette/issues/451), [#518](https://github.com/NodeJSmith/hassette/issues/518)) ([#520](https://github.com/NodeJSmith/hassette/issues/520)) ([260e0a7](https://github.com/NodeJSmith/hassette/commit/260e0a7da8a3490812d6cd55389ce9a98ac507da))
-* dashboard shows zero handlers/jobs despite correct API data ([#578](https://github.com/NodeJSmith/hassette/issues/578)) ([857076f](https://github.com/NodeJSmith/hassette/commit/857076f6efb76ca4afe053be680d1426d1c67826))
-* **docker:** prune uv cache on startup to prevent unbounded volume growth ([#542](https://github.com/NodeJSmith/hassette/issues/542)) ([dc5b503](https://github.com/NodeJSmith/hassette/commit/dc5b503280d8e0ccd25df38bc8baf6a3c8f9ee87))
-* handle SIGTERM for graceful Docker shutdown ([#479](https://github.com/NodeJSmith/hassette/issues/479)) ([91eba12](https://github.com/NodeJSmith/hassette/commit/91eba1276c24c509b20b7a3cc14b0140b125f173))
-* **ui:** fix dashboard error log filter flash, vanishing tabs, and framework orphan mislabel ([#546](https://github.com/NodeJSmith/hassette/issues/546)) ([bee9d3d](https://github.com/NodeJSmith/hassette/commit/bee9d3d4fad0974bda73ecab0352a5e10702e74f))
-
-
-### Refactoring
-
-* eliminate _HassetteMock, two-phase Hassette construction, fixture migration ([#593](https://github.com/NodeJSmith/hassette/issues/593)) ([791e4b8](https://github.com/NodeJSmith/hassette/commit/791e4b84e6974ec95f528b4a531ef9857e3e4e0b))
-* formalize startup phases with StartupPhase enum ([#580](https://github.com/NodeJSmith/hassette/issues/580)) ([97e5c4a](https://github.com/NodeJSmith/hassette/commit/97e5c4a350dd51063e9c265da2e86f4ba146589c))
-* redesign Docker startup deps with constraints-based protection ([#480](https://github.com/NodeJSmith/hassette/issues/480)) ([1775a62](https://github.com/NodeJSmith/hassette/commit/1775a621248ebc7dbf3739bcab403f87aacb37b2))
-* tech debt cleanup across 13 issues ([#579](https://github.com/NodeJSmith/hassette/issues/579)) ([cd4b797](https://github.com/NodeJSmith/hassette/commit/cd4b797a6b94034f08e82d1c8e6773c05e2fbdbe))
-* test infrastructure cleanup (spec 039) ([#586](https://github.com/NodeJSmith/hassette/issues/586)) ([57a3630](https://github.com/NodeJSmith/hassette/commit/57a3630ecaf419bfa08d4c30b88b187939ca3a7c))
-
+- Subscription race between `cancel()` and in-flight dispatch fixed; cancel semantics prevent double-fire (#451, #518, #520)
+- Dashboard no longer shows zero handlers/jobs after page refresh (#578)
+- Docker uv cache pruned on startup to prevent unbounded volume growth (#542)
+- SIGTERM handled for graceful Docker shutdown (#479)
 
 ### Documentation
 
-* add event bus API prior art research brief ([#531](https://github.com/NodeJSmith/hassette/issues/531)) ([c620526](https://github.com/NodeJSmith/hassette/commit/c6205263edccd031e244e628de5775c22715ae99))
-* add prior art research for execution overlap modes ([#544](https://github.com/NodeJSmith/hassette/issues/544)) ([a8059ac](https://github.com/NodeJSmith/hassette/commit/a8059ac08ed84ad6370170fb712ce21305f0ee4d)), closes [#543](https://github.com/NodeJSmith/hassette/issues/543)
-* add prior art research on disk cache layer design ([#596](https://github.com/NodeJSmith/hassette/issues/596)) ([42a4ad5](https://github.com/NodeJSmith/hassette/commit/42a4ad53c3f22a275ad24703facca53293f1c565))
-* add system internals page with architecture deep-dive diagrams ([#605](https://github.com/NodeJSmith/hassette/issues/605)) ([b2c8f2b](https://github.com/NodeJSmith/hassette/commit/b2c8f2b8f55039e32eb88e2eab04cb67cbe73bb7))
-* comprehensive docs rewrite, review pass, recipes, and scheduler expansion ([#507](https://github.com/NodeJSmith/hassette/issues/507)) ([2056262](https://github.com/NodeJSmith/hassette/commit/20562625ea5bb9663b49cdf507616ee22394671a))
-
-
-### Miscellaneous
-
-* add .claude/agent-memory/ to gitignore ([#601](https://github.com/NodeJSmith/hassette/issues/601)) ([eec045e](https://github.com/NodeJSmith/hassette/commit/eec045ee28765bf56e8127fed87a3638396ea371))
-* remove manual changelog content and note release-please ownership ([#497](https://github.com/NodeJSmith/hassette/issues/497)) ([215819c](https://github.com/NodeJSmith/hassette/commit/215819ce403e2ab8c082468e2a7fe05bddc73c02))
-
-
-### CI/CD
-
-* replace sha-tagged docker images with pr-N and main tags ([#499](https://github.com/NodeJSmith/hassette/issues/499)) ([10f51fb](https://github.com/NodeJSmith/hassette/commit/10f51fba3b325b325dd6068ebc9703c73e26d4c0))
-
-
-### Tests
-
-* improve web frontend test infrastructure and coverage ([#600](https://github.com/NodeJSmith/hassette/issues/600)) ([7e349d5](https://github.com/NodeJSmith/hassette/commit/7e349d540a87c3fa5dd6e6ee62c53422e6c907c9))
-* replace flaky sleep waits with deterministic polling ([#585](https://github.com/NodeJSmith/hassette/issues/585)) ([50054c7](https://github.com/NodeJSmith/hassette/commit/50054c70825d7a899b32febd77f3bbe5836bc817))
+- Comprehensive docs rewrite with scheduler parameter tables, troubleshooting index, security admonition for unauthenticated web API, and simplified getting-started first app (#507)
+- System internals page with architecture deep-dive diagrams (#605)
 
 ## [0.24.0](https://github.com/NodeJSmith/hassette/compare/v0.23.0...v0.24.0) - 2026-04-03
 
