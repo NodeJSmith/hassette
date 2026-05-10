@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest"]
+dev = ["pytest", "ruff"]
 
 [project.scripts]
 hassette-codegen = "hassette_codegen.__main__:main"

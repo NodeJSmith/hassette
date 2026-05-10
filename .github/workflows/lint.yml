@@ -129,9 +129,6 @@ jobs:
             - name: Install codegen deps
               run: cd codegen && uv sync
 
-            - name: Install ruff
-              run: uv tool install ruff
-
             - name: Run codegen unit tests
               run: cd codegen && uv run pytest tests/ -q
 
