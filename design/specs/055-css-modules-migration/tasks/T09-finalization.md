@@ -3,7 +3,7 @@ task_id: "T09"
 title: "Finalize migration and activate CI guards"
 status: "planned"
 depends_on: ["T08"]
-implements: ["FR#9", "FR#10", "AC#1", "AC#7", "AC#8"]
+implements: ["FR#9", "FR#10", "AC#1", "AC#7", "AC#8", "AC#9"]
 ---
 
 ## Summary
@@ -48,3 +48,4 @@ Audit the remaining `global.css` content, activate CI guards in blocking mode, u
 - [ ] AC#1: `global.css` is under 500 lines (report exact count)
 - [ ] AC#7: The allowlist script in full-file blocking mode is wired into `lint.yml`
 - [ ] AC#8: The dead CSS script in blocking mode is wired into `lint.yml`
+- [ ] AC#9: `git diff frontend/src/tokens.css` shows no changes — file is byte-identical

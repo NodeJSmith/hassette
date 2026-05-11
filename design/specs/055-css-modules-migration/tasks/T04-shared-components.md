@@ -7,7 +7,7 @@ implements: ["FR#1", "FR#5", "FR#8", "FR#11", "FR#12", "FR#13", "AC#2", "AC#4", 
 ---
 
 ## Summary
-Migrate 7 self-contained shared components: confirm-dialog, error-banner, action-buttons, sort-header, tier-toolbar, time-preset-selector, and stats-strip. These are used by multiple pages but all classes are rendered only within the component itself. Includes first use of `:global()` for state modifiers and responsive media query migration from labeled blocks.
+Migrate 8 self-contained shared components: confirm-dialog, error-banner, action-buttons, sort-header, tier-toolbar, time-preset-selector, stats-strip, and log-table. These are used by multiple pages but all classes are rendered only within the component itself. Includes first use of `:global()` for state modifiers and responsive media query migration from labeled blocks.
 
 ## Prompt
 For each component, follow the same migration pattern as T03:
@@ -20,6 +20,7 @@ For each component, follow the same migration pattern as T03:
 5. `tier-toolbar.tsx` — classes: `.ht-tier-toolbar`, `.ht-tier-toggle*`. Has responsive override in the 900px block (labeled `/* ht-tier-toggle__btn — owner: tier-toolbar */` from T02). Move that responsive block into the module.
 6. `time-preset-selector.tsx` — classes: `.ht-time-preset-selector*`. Has responsive override in the 900px block (labeled from T02). Move it.
 7. `stats-strip.tsx` — classes: `.ht-stats-strip*`. Has responsive override in 768px block. Move it.
+8. `log-table.tsx` — classes: `.ht-table-log*`, `.ht-log-message-cell*`, `.ht-log-message__text`, `.ht-log-expanded-row*`, `.ht-log-source__fn`, `.ht-log-source-inline`, `.ht-log-level-badge*`, `.ht-log-table-container`. Per the adjudication table, `ht-log-level-badge` moves here (canonical owner). Has `.ht-table-toolbar*` classes — check if these belong to `table-card` (already migrated in T05) or are log-table-specific. Has 1024px media query for source column hiding. Has extensive responsive overrides in 768px block.
 
 **Key patterns for this batch:**
 - `:global()` for state modifiers: `.dialog:global(.is-active) { ... }`
