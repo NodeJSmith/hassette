@@ -44,7 +44,7 @@ Run verification baseline. Test all 4 app-detail tabs manually (overview, handle
 
 ## Verify
 - [ ] FR#1: Each migrated component has a co-located `.module.css` file
-- [ ] FR#5: `:global()` rules for state modifiers and contextual selectors render correctly
+- [ ] FR#5: Active tab in tab strip has visual active indicator; master-detail split renders correctly at desktop width
 - [ ] FR#7: Dark theme overrides (if any in these components) function in both themes
 - [ ] FR#11: Unit tests use `data-testid`/ARIA
 - [ ] FR#12: E2e selectors use `data-testid`

@@ -22,7 +22,8 @@ Before any component migration, establish Playwright screenshot baselines at all
 2. **Generate baselines**: Run `cd tests/e2e && pytest test_visual_baselines.py --update-snapshots` to create the initial baseline PNGs. These must be generated on Ubuntu (CI platform) to avoid OS rendering divergence. If running locally on a different OS, note this in a comment and re-generate in CI.
 
 3. **Decompose the 900px media query block** (`frontend/src/global.css:1955-2032`): Split into per-component sections with ownership annotations. Each section gets a header comment naming the owning component and which batch migrates it:
-   - `/* shared — permanent */` — `.ht-hamburger`, `.ht-layout` grid, `.ht-layout > .ht-sidebar`, `.ht-drawer .ht-sidebar`, `.ht-main`, `.ht-btn--sm`/`--xs`/`--icon`
+   - `/* shared — permanent */` — `.ht-hamburger`, `.ht-layout` grid, `.ht-main`, `.ht-btn--sm`/`--xs`/`--icon`
+   - `/* ht-layout > .ht-sidebar + .ht-drawer .ht-sidebar — owner: sidebar — migrates in T05 */`
    - `/* ht-theme-toggle — owner: status-bar — migrates in T04 */`
    - `/* ht-tab-btn — owner: app-detail — migrates in T07 */`
    - `/* ht-tier-toggle__btn — owner: tier-toolbar — migrates in T04 */`

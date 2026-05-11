@@ -18,6 +18,7 @@ Migrate 5 layout shell components: sidebar, status-bar, alert-banner, command-pa
    - **CRITICAL**: `:global(.ht-drawer) .sidebar { display: flex; }` MUST be present in `sidebar.module.css`. Delete the corresponding `global.css:1968` rule. Test at ≤900px viewport with mobile drawer open.
    - `:global(.ht-layout) > .sidebar { display: none; }` — also from the 900px "shared" block, but this targets sidebar specifically. Move to `sidebar.module.css`.
    - State modifiers: `.ht-nav-item.is-active` → `.navItem:global(.is-active)`. Same for `.ht-sidebar__app-item.is-active`, `.is-blocked`.
+   - **ARIA attributes for state migration**: `is-active` nav items need `aria-current="page"`. `is-blocked` app items need `aria-disabled="true"` (or equivalent) added to the component so tests can migrate from `className.toContain("is-blocked")` to ARIA assertions. Add these ARIA attributes in the same commit.
    - Responsive: move sidebar-labeled 900px rules from `global.css` into the module.
    - E2e tests: `test_navigation.py` (18 refs), `test_responsive.py` (17 refs) — heavy migration.
 
@@ -28,7 +29,7 @@ Migrate 5 layout shell components: sidebar, status-bar, alert-banner, command-pa
    - E2e: `test_responsive.py`, `test_theme.py`
 
 3. **`alert-banner.tsx`** (`frontend/src/components/layout/alert-banner.tsx`)
-   - Classes: `.ht-alert*`, `.ht-alert-list`
+   - Classes: `.ht-alert*`, `.ht-alert-list`, `.ht-degraded-banner`, `.ht-degraded-banner--warn`, `.ht-degraded-banner__text` (the file exports both `AlertBanner` and `TelemetryDegradedBanner` — migrate all classes from both components)
    - Contextual rule: `.ht-main > .ht-alert` → `:global(.ht-main) > .alert` in module
    - Test: `alert-banner.test.tsx:22, 59` query `.ht-alert--danger`, `.ht-text-secondary`
 

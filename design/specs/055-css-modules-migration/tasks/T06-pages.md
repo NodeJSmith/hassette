@@ -23,8 +23,7 @@ Migrate 6 page components: apps, handlers, diagnostics, logs, config, and not-fo
    - E2e: no dedicated handlers e2e file, but check `test_navigation.py`, `test_responsive.py`
    - Unit test: `handlers.test.tsx`
 
-3. **`diagnostics.tsx`** — classes: `.ht-diag__*`, `.ht-degraded-banner*`, `.ht-framework-health*`.
-   - Self-contained — all classes exclusive to this page
+3. **`diagnostics.tsx`** — classes: `.ht-diag__*` (including `.ht-diag__degraded-banner` which is a diagnostics-prefixed variant, distinct from alert-banner's `.ht-degraded-banner` migrated in T05). Grep for the actual class names in `global.css` before extracting — verify each one is exclusive to this file.
    - Unit test: `diagnostics.test.tsx`
 
 4. **`logs.tsx`** — classes: `.ht-logs-page`.

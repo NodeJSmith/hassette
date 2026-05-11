@@ -57,8 +57,8 @@ Run verification baseline. Test dark mode on the code tab specifically — Shiki
 
 ## Verify
 - [ ] FR#1: Each migrated component with component-specific CSS has a `.module.css` file
-- [ ] FR#5: `:global()` rules render correctly (code-tab Shiki theme, invocation table scroll)
-- [ ] FR#7: Dark theme Shiki syntax highlighting works correctly in code-tab
+- [ ] FR#5: Invocation table scrolls horizontally at ≤900px; code-tab Shiki theme override applies in dark mode (syntax colors change)
+- [ ] FR#7: Code-tab in dark mode shows colored syntax tokens (not all-white text); light mode shows distinct token colors
 - [ ] FR#11: Unit tests use `data-testid`/ARIA
 - [ ] FR#12: E2e selectors use `data-testid`
 - [ ] FR#13: No `ht-` prefix in module files
