@@ -219,8 +219,7 @@ describe("useFilteredSignalRefetch", () => {
     act(() => { vi.advanceTimersByTime(500); });
 
     const callCount = refetchFn.mock.calls.length;
-    // Must have fired at least once but no more than 4 times
-    // (ceil(5000ms / 1500ms maxWait) = 4 max, plus 1 trailing after the burst)
+    // ceil(5000ms / 1500ms maxWait) = 4 max (trailing fires are included in this count)
     expect(callCount).toBeGreaterThanOrEqual(1);
     expect(callCount).toBeLessThanOrEqual(4);
   });
