@@ -54,5 +54,7 @@ def test_spa_handles_direct_deep_link(page: Page, base_url: str) -> None:
     handles routing client-side via wouter.
     """
     page.goto(base_url + "/apps/my_app")
-    expect(page.locator("body")).to_contain_text("My App")
-    expect(page.locator("[data-testid='health-strip']")).to_be_visible()
+    # App detail title shows the app_key
+    expect(page.locator("[data-testid='app-title']")).to_contain_text("my_app")
+    # Overview tab renders by default
+    expect(page.locator("[data-testid='overview-tab']")).to_be_visible()

@@ -13,7 +13,7 @@ pytestmark = pytest.mark.e2e
 PAGES = [
     ("/apps", "apps", "apps"),
     ("/logs", None, None),
-    ("/config", "Configuration", "Configuration"),
+    ("/config", "config", "config"),
 ]
 
 
@@ -31,7 +31,7 @@ def test_logs_page_loads(page: Page, base_url: str) -> None:
 
 def test_config_page_loads(page: Page, base_url: str) -> None:
     page.goto(base_url + "/config")
-    expect(page.locator("body")).to_contain_text("Configuration")
+    expect(page.locator("body")).to_contain_text("config")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ def test_config_page_loads(page: Page, base_url: str) -> None:
 SIDEBAR_LINKS = [
     ("nav-apps", "/apps", "apps"),
     ("nav-logs", "/logs", "logs"),
-    ("nav-config", "/config", "Configuration"),
+    ("nav-config", "/config", "config"),
 ]
 
 
@@ -195,11 +195,18 @@ def test_sidebar_app_list_renders(page: Page, base_url: str) -> None:
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
-    app_list = page.locator("ul[aria-label='App list']")
-    expect(app_list).to_be_visible()
-    # Seed apps should appear by display name
-    expect(app_list).to_contain_text("My App")
-    expect(app_list).to_contain_text("Broken App")
+    # Apps are grouped by status in the sidebar app-nav section.
+    # FAILING group (broken_app) is open by default.
+    app_nav = page.locator(".ht-sidebar__app-nav")
+    expect(app_nav).to_be_visible()
+    expect(app_nav).to_contain_text("Broken App")
+    # RUNNING group is collapsed by default when other groups exist;
+    # open it, then verify My App appears.
+    running_header = page.locator(".ht-sidebar__group-header", has_text="RUNNING")
+    expect(running_header).to_be_visible()
+    running_header.click()
+    page.wait_for_timeout(300)
+    expect(app_nav).to_contain_text("My App")
 
 
 def test_sidebar_app_search_filters(page: Page, base_url: str) -> None:
@@ -211,10 +218,10 @@ def test_sidebar_app_search_filters(page: Page, base_url: str) -> None:
     expect(search).to_be_visible()
     search.fill("My App")
     page.wait_for_timeout(300)
-    # Only My App should be visible in the list
-    app_list = page.locator("ul[aria-label='App list']")
-    expect(app_list).to_contain_text("My App")
-    expect(app_list).not_to_contain_text("Broken App")
+    # Only My App should be visible in the app nav section
+    app_nav = page.locator(".ht-sidebar__app-nav")
+    expect(app_nav).to_contain_text("My App")
+    expect(app_nav).not_to_contain_text("Broken App")
 
 
 def test_sidebar_clicking_app_navigates(page: Page, base_url: str) -> None:
@@ -222,8 +229,11 @@ def test_sidebar_clicking_app_navigates(page: Page, base_url: str) -> None:
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
-    app_list = page.locator("ul[aria-label='App list']")
-    app_list.get_by_text("My App").click()
+    # my_app is in the RUNNING group which is collapsed — open it first
+    page.locator(".ht-sidebar__group-header", has_text="RUNNING").click()
+    page.wait_for_timeout(300)
+    # Click the app link in the sidebar
+    page.locator(".ht-sidebar__app-link", has_text="My App").click()
     expect(page).to_have_url(re.compile(r"/apps/my_app"))
 
 
@@ -232,8 +242,14 @@ def test_sidebar_multi_instance_expand(page: Page, base_url: str) -> None:
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
+    # multi_app is RUNNING; the RUNNING group starts collapsed when other
+    # status groups have apps. Open the RUNNING group first.
+    running_header = page.locator(".ht-sidebar__group-header", has_text="RUNNING")
+    expect(running_header).to_be_visible()
+    running_header.click()
+    page.wait_for_timeout(300)
     # multi_app has 3 instances — expand button should be visible
-    expand_btn = page.get_by_label("Expand Multi App")
+    expand_btn = page.get_by_label("Expand Multi App", exact=False)
     expect(expand_btn).to_be_visible()
     expand_btn.click()
     page.wait_for_timeout(300)
@@ -274,5 +290,7 @@ def test_spa_navigates_without_full_reload(page: Page, base_url: str) -> None:
 def test_spa_handles_direct_deep_link(page: Page, base_url: str) -> None:
     """Direct navigation to a deep link (e.g. /apps/my_app) works."""
     page.goto(base_url + "/apps/my_app")
-    expect(page.locator("body")).to_contain_text("My App")
-    expect(page.locator("[data-testid='health-strip']")).to_be_visible()
+    # App detail title shows the app_key
+    expect(page.locator("[data-testid='app-title']")).to_contain_text("my_app")
+    # Overview tab renders by default
+    expect(page.locator("[data-testid='overview-tab']")).to_be_visible()

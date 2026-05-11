@@ -46,16 +46,16 @@ def test_apps_page_renders_without_ws(page: Page, base_url: str) -> None:
 
 
 def test_app_detail_renders_without_ws(page: Page, base_url: str) -> None:
-    """App detail page renders health strip and handler list from REST API."""
+    """App detail page renders overview tab content from REST API."""
     page.goto(base_url + "/apps/my_app")
 
-    # Handler list should be visible (unified list — no separate job-list)
-    handler_list = page.locator("[data-testid='handler-list']")
-    expect(handler_list).to_be_visible()
+    # Overview tab renders by default with handler health grid
+    overview = page.locator("[data-testid='overview-tab']")
+    expect(overview).to_be_visible()
 
-    # Health strip should be visible
-    health_strip = page.locator("[data-testid='health-strip']")
-    expect(health_strip).to_be_visible()
+    # Handler health grid should be visible on the overview tab
+    health_grid = page.locator("[data-testid='overview-health-grid']")
+    expect(health_grid).to_be_visible()
 
 
 # ── Expand state stability ────────────────────────────────────────────
@@ -67,7 +67,8 @@ def test_handler_row_clickable_without_ws(page: Page, base_url: str) -> None:
     In the Preact SPA, master/detail state is managed by local signals
     and does not depend on a WS connection.
     """
-    page.goto(base_url + "/apps/my_app")
+    # Navigate to the handlers tab where the master/detail layout lives
+    page.goto(base_url + "/apps/my_app/handlers")
 
     # Click the first listener row
     row = page.locator("[data-testid='unified-row-listener-1']")
