@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add row_id to activity feed backend query and regenerate types"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#6", "AC#6"]
 ---

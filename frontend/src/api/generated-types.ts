@@ -462,6 +462,8 @@ export interface components {
          * @description A single activity entry for the cross-app recent activity feed.
          */
         ActivityFeedEntry: {
+            /** Row Id */
+            row_id: string;
             /** Status */
             status: string;
             /** Timestamp */

@@ -838,9 +838,10 @@ class TelemetryQueryService(Resource):
             instance_params = {"instance_index": instance_index}
 
         query = f"""
-            SELECT status, timestamp, app_key, handler_name, duration_ms, error_type, kind
+            SELECT row_id, status, timestamp, app_key, handler_name, duration_ms, error_type, kind
             FROM (
                 SELECT
+                    'h-' || CAST(hi.rowid AS TEXT) AS row_id,
                     hi.status,
                     hi.execution_start_ts AS timestamp,
                     l.app_key,
@@ -858,6 +859,7 @@ class TelemetryQueryService(Resource):
                 UNION ALL
 
                 SELECT
+                    'j-' || CAST(je.rowid AS TEXT) AS row_id,
                     je.status,
                     je.execution_start_ts AS timestamp,
                     sj.app_key,

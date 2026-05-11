@@ -1347,6 +1347,10 @@
       },
       "ActivityFeedEntry": {
         "properties": {
+          "row_id": {
+            "type": "string",
+            "title": "Row Id"
+          },
           "status": {
             "type": "string",
             "title": "Status"
@@ -1396,6 +1400,7 @@
         },
         "type": "object",
         "required": [
+          "row_id",
           "status",
           "timestamp",
           "app_key",

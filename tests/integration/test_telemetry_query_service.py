@@ -1663,3 +1663,51 @@ class TestGetAppRecentActivity:
 
         assert len(results) == 1
         assert results[0].app_key == "app_a"
+
+    async def test_row_id_uniqueness_and_prefixes(
+        self,
+        svc: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """row_id values are unique across all rows and use the correct kind prefix."""
+        db_svc, session_id = db
+
+        # Same timestamp for both invocations to stress-test uniqueness
+        shared_ts = 1_000_000.0
+
+        listener_id = await _insert_listener(db_svc, app_key="test_app", handler_method="on_event")
+        job_id = await _insert_job(db_svc, app_key="test_app", job_name="my_job", handler_method="run_job")
+
+        # Two handler invocations with the same timestamp
+        await _insert_invocation(db_svc, listener_id, session_id, status="success", execution_start_ts=shared_ts)
+        await _insert_invocation(
+            db_svc, listener_id, session_id, status="error", execution_start_ts=shared_ts, error_type="ValueError"
+        )
+        # One job execution with the same timestamp
+        await _insert_execution(db_svc, job_id, session_id, status="success", execution_start_ts=shared_ts)
+
+        results = await svc.get_app_recent_activity(
+            app_key="test_app",
+            instance_index=None,
+            limit=50,
+            since=None,
+            source_tier="app",
+        )
+
+        assert len(results) == 3
+
+        # All row_id values must be present and unique
+        row_ids = [r.row_id for r in results]
+        assert len(set(row_ids)) == 3, f"Expected 3 unique row_ids, got: {row_ids}"
+
+        # Handler rows prefixed with 'h-', job rows with 'j-'
+        handler_rows = [r for r in results if r.kind == "handler"]
+        job_rows = [r for r in results if r.kind == "job"]
+
+        assert len(handler_rows) == 2
+        assert len(job_rows) == 1
+
+        for r in handler_rows:
+            assert r.row_id.startswith("h-"), f"Handler row_id should start with 'h-', got: {r.row_id!r}"
+        for r in job_rows:
+            assert r.row_id.startswith("j-"), f"Job row_id should start with 'j-', got: {r.row_id!r}"
