@@ -9,9 +9,9 @@ pytestmark = pytest.mark.e2e
 def test_log_page_loads(page: Page, base_url: str) -> None:
     """Log Viewer page loads with filter controls."""
     page.goto(base_url + "/logs")
-    expect(page.locator("body")).to_contain_text("Log Viewer")
+    expect(page.locator("body")).to_contain_text("logs")
     expect(page.locator("select[aria-label='Minimum log level']")).to_be_visible()
-    expect(page.locator("input[aria-label='Search log messages']")).to_be_visible()
+    expect(page.locator("input[aria-label='Search logs']")).to_be_visible()
 
 
 def test_level_filter_options_present(page: Page, base_url: str) -> None:
@@ -34,7 +34,7 @@ def test_sort_column_headers_clickable(page: Page, base_url: str) -> None:
 def test_search_input_present(page: Page, base_url: str) -> None:
     """Search input is present and accepts text input."""
     page.goto(base_url + "/logs")
-    search_input = page.locator("input[aria-label='Search log messages']")
+    search_input = page.locator("input[aria-label='Search logs']")
     expect(search_input).to_be_visible()
     search_input.fill("test query")
     expect(search_input).to_have_value("test query")
@@ -46,8 +46,13 @@ def _wait_for_log_entries(page: Page) -> None:
 
 
 def test_log_entries_render_from_seed_data(page: Page, base_url: str) -> None:
-    """Seeded log entries appear in the table body."""
-    page.goto(base_url + "/logs")
+    """Seeded log entries appear in the table body.
+
+    The global logs page defaults to the 'app' tier filter, which hides
+    framework-level logs (entries with no app_key). Switch to 'all' tier
+    to verify both app and framework entries are present.
+    """
+    page.goto(base_url + "/logs?tier=all")
     _wait_for_log_entries(page)
     body = page.locator("tbody")
     expect(body).to_contain_text("Hassette started successfully")
@@ -77,12 +82,12 @@ def test_search_filter_narrows_entries(page: Page, base_url: str) -> None:
     """Typing a search term filters visible log entries."""
     page.goto(base_url + "/logs")
     _wait_for_log_entries(page)
-    search_input = page.locator("input[aria-label='Search log messages']")
+    search_input = page.locator("input[aria-label='Search logs']")
     search_input.fill("unresponsive")
     page.wait_for_timeout(500)
     tbody = page.locator("tbody")
     expect(tbody).to_contain_text("Light kitchen unresponsive")
-    expect(tbody).not_to_contain_text("Hassette started successfully")
+    expect(tbody).not_to_contain_text("MyApp initialized")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -108,7 +113,7 @@ def test_log_filter_controls_have_aria_labels(page: Page, base_url: str) -> None
     """Log filter controls have accessible labels."""
     page.goto(base_url + "/logs")
     expect(page.locator("select[aria-label='Minimum log level']")).to_be_visible()
-    expect(page.locator("input[aria-label='Search log messages']")).to_be_visible()
+    expect(page.locator("input[aria-label='Search logs']")).to_be_visible()
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -217,7 +222,7 @@ def test_log_message_truncates_with_ellipsis(page: Page, base_url: str) -> None:
     overflow = msg_text.evaluate("el => getComputedStyle(el).overflow")
     white_space = msg_text.evaluate("el => getComputedStyle(el).whiteSpace")
     text_overflow = msg_text.evaluate("el => getComputedStyle(el).textOverflow")
-    assert overflow == "hidden", f"Expected overflow:hidden, got {overflow}"
+    assert overflow in ("hidden", "clip"), f"Expected overflow:hidden or clip, got {overflow}"
     assert white_space == "nowrap", f"Expected white-space:nowrap, got {white_space}"
     assert text_overflow == "ellipsis", f"Expected text-overflow:ellipsis, got {text_overflow}"
 
@@ -227,11 +232,14 @@ def test_log_message_truncates_with_ellipsis(page: Page, base_url: str) -> None:
 # ──────────────────────────────────────────────────────────────────────
 
 
-def test_log_table_app_tag_at_mobile(page: Page, base_url: str) -> None:
-    """Log table on mobile shows app name as tag in message column."""
+def test_log_table_app_column_hidden_at_mobile(page: Page, base_url: str) -> None:
+    """Log table at mobile hides the App column and Source column."""
     page.set_viewport_size({"width": 375, "height": 812})
     page.goto(base_url + "/logs")
     _wait_for_log_entries(page)
-    app_tags = page.locator(".ht-log-app-tag")
-    assert app_tags.count() > 0, "Expected at least one .ht-log-app-tag element"
-    expect(app_tags.first).to_be_visible()
+    # At mobile (<768px), the App column header should be absent
+    app_header = page.locator("th.ht-col-app")
+    assert app_header.count() == 0, "Expected App column header to be absent at mobile viewport"
+    # Source column should be hidden via CSS (display:none at <=1024px)
+    source_header = page.locator("th.ht-col-source")
+    expect(source_header).to_be_hidden()

@@ -146,8 +146,8 @@ def test_apps_filter_persists_on_refresh(page: Page, base_url: str) -> None:
     """Setting status filter on /apps and refreshing restores the filter (AC#1)."""
     page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
-    # Click "Running" filter tab
-    page.locator("[data-testid='tab-running'] button").click()
+    # Click "Running" filter pill
+    page.locator("[data-testid='filter-running']").click()
     page.wait_for_timeout(300)
     # URL should contain filter=running
     expect(page).to_have_url(re.compile(r"filter=running"))
@@ -192,7 +192,7 @@ def test_sort_change_does_not_push_history(page: Page, base_url: str) -> None:
     # Remember the initial URL (no sort params)
     initial_url = page.url
     # Click a sort column header to change sort
-    sort_button = page.locator("[data-sort-col]").first
+    sort_button = page.locator("button.ht-sort-header").first
     expect(sort_button).to_be_visible()
     sort_button.click()
     page.wait_for_timeout(300)
@@ -221,7 +221,7 @@ def test_browser_back_after_tab_switch(page: Page, base_url: str) -> None:
     page.wait_for_load_state("networkidle")
     expect(page.locator("[data-testid='handler-list']")).to_be_visible(timeout=5000)
     # Click the Logs tab (should push a history entry)
-    logs_tab_btn = page.locator("button[role='tab']", has_text="Logs")
+    logs_tab_btn = page.locator("a[role='tab']", has_text="logs")
     expect(logs_tab_btn).to_be_visible()
     logs_tab_btn.click()
     page.wait_for_timeout(500)
@@ -241,7 +241,7 @@ def test_browser_forward_after_back(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps/my_app/handlers")
     page.wait_for_load_state("networkidle")
     # Switch to code tab
-    code_tab_btn = page.locator("button[role='tab']", has_text="Code")
+    code_tab_btn = page.locator("a[role='tab']", has_text="code")
     expect(code_tab_btn).to_be_visible()
     code_tab_btn.click()
     page.wait_for_timeout(500)
@@ -276,8 +276,8 @@ def test_apps_page_reset_to_all_removes_filter_param(page: Page, base_url: str) 
     """Resetting filter to 'all' removes the filter query param (AC#9)."""
     page.goto(base_url + "/apps?filter=running")
     page.wait_for_load_state("networkidle")
-    # Click "All" tab to reset to default
-    page.locator("[data-testid='tab-all'] button").click()
+    # Click "All" pill to reset to default
+    page.locator("[data-testid='filter-all']").click()
     page.wait_for_timeout(300)
     # URL should not contain filter= anymore
     current_url = page.url
@@ -469,7 +469,7 @@ def test_view_in_code_from_handler_sets_line_param(page: Page, base_url: str) ->
     detail = page.locator("[data-testid='listener-detail-1']")
     expect(detail).to_be_visible(timeout=5000)
     # Click the "view in code" button
-    view_in_code = page.locator("[data-testid='view-in-code']")
+    view_in_code = page.locator("[data-testid='view-in-code-btn']")
     expect(view_in_code).to_be_visible()
     view_in_code.click()
     page.wait_for_timeout(500)
@@ -502,7 +502,7 @@ def test_clicking_tab_button_produces_path_segment_url(page: Page, base_url: str
     page.goto(base_url + "/apps/my_app")
     page.wait_for_load_state("networkidle")
     # Click Logs tab
-    page.locator("button[role='tab']", has_text="Logs").click()
+    page.locator("a[role='tab']", has_text="logs").click()
     page.wait_for_timeout(300)
     expect(page).to_have_url(re.compile(r"/apps/my_app/logs"))
 
@@ -512,8 +512,14 @@ def test_sidebar_instance_link_uses_query_param_format(page: Page, base_url: str
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
+    # Open the RUNNING sidebar group first (collapsed by default when
+    # other status groups have apps)
+    running_header = page.locator(".ht-sidebar__group-header", has_text="RUNNING")
+    expect(running_header).to_be_visible()
+    running_header.click()
+    page.wait_for_timeout(300)
     # Expand multi_app in sidebar
-    expand_btn = page.get_by_label("Expand Multi App")
+    expand_btn = page.get_by_label("Expand Multi App", exact=False)
     expect(expand_btn).to_be_visible()
     expand_btn.click()
     page.wait_for_timeout(300)
