@@ -8,7 +8,7 @@ import { getSystemStatus } from "../api/endpoints";
 import type { BootIssue } from "../api/endpoints";
 import type { components } from "../api/generated-types";
 import { statusToKind } from "../utils/status";
-import { formatRelativeTime } from "../utils/format";
+import { useRelativeTime } from "../hooks/use-relative-time";
 import { Spinner } from "../components/shared/spinner";
 import { StatusShape } from "../components/shared/status-shape";
 
@@ -72,12 +72,11 @@ function mergeServices(
 
 interface DiagServiceRowProps {
   service: MergedService;
-  tick: number;
 }
 
-function DiagServiceRow({ service, tick: _tick }: DiagServiceRowProps) {
-  void _tick; // prop triggers re-render for live relative times
+function DiagServiceRow({ service }: DiagServiceRowProps) {
   const [exceptionOpen, setExceptionOpen] = useState(false);
+  const retryAtLabel = useRelativeTime(service.retry_at);
   const isCooling = service.status === "exhausted_cooling";
   const kind = statusToKind(service.status);
 
@@ -108,7 +107,7 @@ function DiagServiceRow({ service, tick: _tick }: DiagServiceRowProps) {
             class="ht-diag__service-retry ht-text-mono"
             data-testid={`diag-service-retry-${service.resource_name}`}
           >
-            retry {formatRelativeTime(service.retry_at)}
+            retry {retryAtLabel}
           </span>
         )}
         {service.exception && (
@@ -136,10 +135,9 @@ function DiagServiceRow({ service, tick: _tick }: DiagServiceRowProps) {
 interface ServicesPanelProps {
   services: MergedService[];
   wsConnected: boolean;
-  tick: number;
 }
 
-function ServicesPanel({ services, wsConnected, tick }: ServicesPanelProps) {
+function ServicesPanel({ services, wsConnected }: ServicesPanelProps) {
   return (
     <section
       class="ht-card ht-diag__section"
@@ -159,7 +157,7 @@ function ServicesPanel({ services, wsConnected, tick }: ServicesPanelProps) {
       ) : (
         <ul class="ht-diag__service-list" aria-label="Service list">
           {services.map((svc) => (
-            <DiagServiceRow key={svc.resource_name} service={svc} tick={tick} />
+            <DiagServiceRow key={svc.resource_name} service={svc} />
           ))}
         </ul>
       )}
@@ -336,7 +334,6 @@ export function DiagnosticsPage() {
   const {
     serviceStatus,
     connection,
-    tick,
     droppedOverflow,
     droppedExhausted,
     droppedNoSession,
@@ -372,7 +369,6 @@ export function DiagnosticsPage() {
           <ServicesPanel
             services={mergedServices}
             wsConnected={wsConnected}
-            tick={tick.value}
           />
 
           <BootIssuesPanel bootIssues={bootIssues} />

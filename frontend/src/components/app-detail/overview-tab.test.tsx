@@ -317,6 +317,7 @@ describe("OverviewTab — Recent Activity", () => {
   it("renders activity data from the endpoint", async () => {
     const entries: ActivityFeedEntry[] = [
       {
+        row_id: "h-1",
         status: "success",
         timestamp: 1700000100,
         app_key: "test_app",
@@ -358,6 +359,7 @@ describe("OverviewTab — Recent Activity", () => {
   it("shows status shape, handler name, duration, and relative time per row", async () => {
     const entries: ActivityFeedEntry[] = [
       {
+        row_id: "h-2",
         status: "error",
         timestamp: 1700000200,
         app_key: "test_app",

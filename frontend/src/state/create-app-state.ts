@@ -93,7 +93,7 @@ export function createAppState() {
      * Per-app status keyed by app_key, updated via WS.
      *
      * INVARIANT: appStatus changes trigger *debounced* page-level refetches
-     * (via useDebouncedEffect in page components). This is intentionally separate
+     * (via useFilteredSignalRefetch in page components). This is intentionally separate
      * from reconnectVersion, which triggers *immediate* refetches (via useApi's
      * useSignalEffect). These two signals must remain independent code paths —
      * routing reconnection through appStatus would silently eat the reconnect

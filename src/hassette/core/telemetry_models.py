@@ -275,6 +275,10 @@ class JobErrorRecord(BaseModel):
 class ActivityFeedEntry(BaseModel):
     """A single activity entry for the cross-app recent activity feed."""
 
+    row_id: str
+    """Stable unique identifier for this entry. Prefixed with ``'h-'`` for handler invocations
+    and ``'j-'`` for job executions, followed by the SQLite rowid."""
+
     status: str
     """Invocation/execution status (e.g. 'success', 'error', 'timed_out')."""
 

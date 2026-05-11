@@ -10,7 +10,8 @@ import { SortHeader, type SortState } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { TableCard } from "../components/shared/table-card";
 import { TierToolbar } from "../components/shared/tier-toolbar";
-import { formatRelativeTime, formatDurationOrDash, pluralize, lastDotSegment } from "../utils/format";
+import { formatDurationOrDash, pluralize, lastDotSegment } from "../utils/format";
+import { useRelativeTime } from "../hooks/use-relative-time";
 
 // ---- Unified row model ----
 
@@ -25,7 +26,6 @@ interface UnifiedRow {
   failed: number;
   timed_out: number;
   avg_duration_ms: number;
-  next_run: string | null;
   next_run_ts: number | null;
   source_tier: string;
 }
@@ -42,7 +42,6 @@ function listenerToRow(l: ListenerData): UnifiedRow {
     failed: l.failed,
     timed_out: l.timed_out,
     avg_duration_ms: l.avg_duration_ms,
-    next_run: null,
     next_run_ts: null,
     source_tier: l.source_tier,
   };
@@ -60,7 +59,6 @@ function jobToRow(j: JobData): UnifiedRow {
     failed: j.failed,
     timed_out: j.timed_out,
     avg_duration_ms: j.avg_duration_ms,
-    next_run: formatNextRunValue(j),
     next_run_ts: j.next_run === null || j.next_run === undefined ? null : j.next_run,
     source_tier: j.source_tier,
   };
@@ -70,13 +68,6 @@ function jobToRow(j: JobData): UnifiedRow {
 
 function formatRate(failed: number, total: number): string {
   return total > 0 ? ((failed / total) * 100).toFixed(1) + "%" : "—";
-}
-
-function formatNextRunValue(job: JobData): string {
-  if (job.next_run === null || job.next_run === undefined) return "—";
-  const now = Date.now() / 1000;
-  if (job.next_run < now) return "overdue";
-  return formatRelativeTime(job.next_run);
 }
 
 // ---- Tier filter ----
@@ -162,6 +153,88 @@ function KindBadge({ kind }: { kind: "listener" | "job" }) {
     <span class="ht-chip ht-chip--muted ht-chip--sm">
       {kind === "listener" ? "event" : "job"}
     </span>
+  );
+}
+
+// ---- Row components (need hooks — cannot be inline map callbacks) ----
+
+interface HandlerRowProps {
+  row: UnifiedRow;
+}
+
+function HandlerTableRow({ row }: HandlerRowProps) {
+  const nextRunRelative = useRelativeTime(row.next_run_ts);
+  const errorRate = formatRate(row.failed, row.runs);
+  const avgDur = formatDurationOrDash(row.avg_duration_ms);
+
+  const now = Date.now() / 1000;
+  const isOverdue = row.next_run_ts !== null && row.next_run_ts < now;
+  const nextRunDisplay = row.next_run_ts !== null
+    ? (isOverdue ? "overdue" : nextRunRelative)
+    : "—";
+
+  return (
+    <tr
+      class={`ht-handlers-row${row.failed > 0 ? " ht-handlers-row--failing" : ""}`}
+      data-testid={`${row.kind}-row-${row.id}`}
+    >
+      <td><KindBadge kind={row.kind} /></td>
+      <td class="ht-text-mono ht-text-sm">
+        <AppLink appKey={row.app_key} />
+      </td>
+      <td class="ht-text-mono ht-text-sm" title={row.handler_method}>
+        <a href={`/apps/${row.app_key}/handlers/${row.id}`} class="ht-app-link">{row.name}</a>
+      </td>
+      <td class="ht-text-mono ht-text-sm">{row.trigger ?? "—"}</td>
+      <td class="ht-text-mono ht-text-sm">{row.runs}</td>
+      <td class={`ht-text-mono ht-text-sm${row.failed > 0 ? " ht-text-danger" : ""}`}>
+        {row.failed > 0 ? row.failed : "—"}
+      </td>
+      <td class={`ht-text-mono ht-text-sm${row.timed_out > 0 ? " ht-text-warning" : ""}`}>
+        {row.timed_out > 0 ? row.timed_out : "—"}
+      </td>
+      <td class={`ht-text-mono ht-text-sm${row.failed > 0 ? " ht-text-danger" : ""}`}>
+        {errorRate}
+      </td>
+      <td class="ht-text-mono ht-text-sm">{avgDur}</td>
+      <td class={`ht-text-mono ht-text-sm${isOverdue ? " ht-text-warning" : ""}`}>
+        {nextRunDisplay}
+      </td>
+    </tr>
+  );
+}
+
+function HandlerMobileRow({ row }: HandlerRowProps) {
+  const nextRunRelative = useRelativeTime(row.next_run_ts);
+  const errorRate = formatRate(row.failed, row.runs);
+  const avgDur = formatDurationOrDash(row.avg_duration_ms);
+
+  const now = Date.now() / 1000;
+  const isOverdue = row.next_run_ts !== null && row.next_run_ts < now;
+  const nextRunDisplay = row.next_run_ts !== null
+    ? (isOverdue ? "overdue" : nextRunRelative)
+    : null;
+
+  return (
+    <MobileCard
+      href={`/apps/${row.app_key}/handlers/${row.id}`}
+      appKey={row.app_key}
+      name={row.name}
+      failing={row.failed > 0}
+      data-testid={`${row.kind}-row-${row.id}`}
+      metrics={<>
+        <KindBadge kind={row.kind} />
+        {row.trigger && <span>{row.trigger}</span>}
+        <span>{row.runs} runs</span>
+        {row.failed > 0 && <span class="ht-text-danger">{row.failed} failed</span>}
+        {row.timed_out > 0 && <span class="ht-text-warning">{row.timed_out} timed out</span>}
+        {row.runs > 0 && <span>{errorRate} err</span>}
+        {row.avg_duration_ms > 0 && <span>avg {avgDur}</span>}
+      </>}
+      footer={row.kind === "job" && nextRunDisplay !== null ? (
+        <span class="ht-text-muted">next {nextRunDisplay}</span>
+      ) : undefined}
+    />
   );
 }
 
@@ -262,32 +335,9 @@ export function HandlersPage() {
             <EmptyState title="no handlers found." data-testid="handlers-empty" />
           ) : isMobile ? (
             <div class="ht-mobile-cards" data-testid="handlers-table-container">
-              {sorted.map((row) => {
-                const errorRate = formatRate(row.failed, row.runs);
-                const avgDur = formatDurationOrDash(row.avg_duration_ms);
-                return (
-                  <MobileCard
-                    key={row.id}
-                    href={`/apps/${row.app_key}/handlers/${row.id}`}
-                    appKey={row.app_key}
-                    name={row.name}
-                    failing={row.failed > 0}
-                    data-testid={`${row.kind}-row-${row.id}`}
-                    metrics={<>
-                      <KindBadge kind={row.kind} />
-                      {row.trigger && <span>{row.trigger}</span>}
-                      <span>{row.runs} runs</span>
-                      {row.failed > 0 && <span class="ht-text-danger">{row.failed} failed</span>}
-                      {row.timed_out > 0 && <span class="ht-text-warning">{row.timed_out} timed out</span>}
-                      {row.runs > 0 && <span>{errorRate} err</span>}
-                      {row.avg_duration_ms > 0 && <span>avg {avgDur}</span>}
-                    </>}
-                    footer={row.kind === "job" && row.next_run !== "—" ? (
-                      <span class="ht-text-muted">next {row.next_run}</span>
-                    ) : undefined}
-                  />
-                );
-              })}
+              {sorted.map((row) => (
+                <HandlerMobileRow key={row.id} row={row} />
+              ))}
             </div>
           ) : (
             <div data-testid="handlers-table-container">
@@ -307,40 +357,9 @@ export function HandlersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map((row) => {
-                    const errorRate = formatRate(row.failed, row.runs);
-                    const avgDur = formatDurationOrDash(row.avg_duration_ms);
-                    return (
-                      <tr
-                        key={row.id}
-                        class={`ht-handlers-row${row.failed > 0 ? " ht-handlers-row--failing" : ""}`}
-                        data-testid={`${row.kind}-row-${row.id}`}
-                      >
-                        <td><KindBadge kind={row.kind} /></td>
-                        <td class="ht-text-mono ht-text-sm">
-                          <AppLink appKey={row.app_key} />
-                        </td>
-                        <td class="ht-text-mono ht-text-sm" title={row.handler_method}>
-                          <a href={`/apps/${row.app_key}/handlers/${row.id}`} class="ht-app-link">{row.name}</a>
-                        </td>
-                        <td class="ht-text-mono ht-text-sm">{row.trigger ?? "—"}</td>
-                        <td class="ht-text-mono ht-text-sm">{row.runs}</td>
-                        <td class={`ht-text-mono ht-text-sm${row.failed > 0 ? " ht-text-danger" : ""}`}>
-                          {row.failed > 0 ? row.failed : "—"}
-                        </td>
-                        <td class={`ht-text-mono ht-text-sm${row.timed_out > 0 ? " ht-text-warning" : ""}`}>
-                          {row.timed_out > 0 ? row.timed_out : "—"}
-                        </td>
-                        <td class={`ht-text-mono ht-text-sm${row.failed > 0 ? " ht-text-danger" : ""}`}>
-                          {errorRate}
-                        </td>
-                        <td class="ht-text-mono ht-text-sm">{avgDur}</td>
-                        <td class={`ht-text-mono ht-text-sm${row.next_run === "overdue" ? " ht-text-warning" : ""}`}>
-                          {row.next_run ?? "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {sorted.map((row) => (
+                    <HandlerTableRow key={row.id} row={row} />
+                  ))}
                 </tbody>
               </table>
             </div>

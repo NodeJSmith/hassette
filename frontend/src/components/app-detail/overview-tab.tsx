@@ -5,12 +5,13 @@ import { StatusShape } from "../shared/status-shape";
 import { buildItems } from "./handler-list";
 import type { UnifiedItem } from "./unified-handler-row";
 import { handlerKindLabel, levelToKind, executionStatusKind } from "../../utils/status";
-import { pluralize, formatDurationOrDash, formatRelativeTime, lastDotSegment } from "../../utils/format";
+import { pluralize, formatDurationOrDash, lastDotSegment } from "../../utils/format";
+import { useRelativeTime } from "../../hooks/use-relative-time";
 import type { ListenerData, JobData, ActivityFeedEntryData, LogEntry } from "../../api/endpoints";
 import { getAppActivity, getRecentLogs } from "../../api/endpoints";
 import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useAppState } from "../../state/context";
-import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
+import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-filtered-signal-refetch";
 
 const SPOTLIGHT_LIMIT = 3;
 
@@ -189,6 +190,8 @@ interface HandlerHealthGridProps {
 }
 
 function HandlerHealthGrid({ items, appKey, instanceQs }: HandlerHealthGridProps) {
+  const sorted = useMemo(() => sortedByFailingFirst(items), [items]);
+
   if (items.length === 0) {
     return (
       <section class="ht-overview-tab__section" data-testid="overview-health-grid">
@@ -201,8 +204,6 @@ function HandlerHealthGrid({ items, appKey, instanceQs }: HandlerHealthGridProps
       </section>
     );
   }
-
-  const sorted = useMemo(() => sortedByFailingFirst(items), [items]);
 
   return (
     <section class="ht-overview-tab__section" data-testid="overview-health-grid">
@@ -232,6 +233,7 @@ interface ActivityRowProps {
 
 function ActivityRow({ entry }: ActivityRowProps) {
   const kind = executionStatusKind(entry.status);
+  const timeLabel = useRelativeTime(entry.timestamp);
   return (
     <tr data-testid="overview-activity-row">
       <td aria-label={`status: ${entry.status}`}>
@@ -241,7 +243,7 @@ function ActivityRow({ entry }: ActivityRowProps) {
       </td>
       <td class="ht-overview-activity__name" title={entry.handler_name}>{lastDotSegment(entry.handler_name)}</td>
       <td class="ht-overview-activity__duration">{formatDurationOrDash(entry.duration_ms)}</td>
-      <td class="ht-overview-activity__time">{formatRelativeTime(entry.timestamp)}</td>
+      <td class="ht-overview-activity__time">{timeLabel}</td>
     </tr>
   );
 }
@@ -259,26 +261,20 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
 
   const { invocationCompleted, executionCompleted } = useAppState();
 
-  useDebouncedEffect(
-    () => invocationCompleted.value,
-    500,
-    () => {
-      const events = invocationCompleted.value;
-      if (!events) return;
-      const matches = events.some((e) => e.app_key === appKey);
-      if (matches) void refetch();
-    },
+  useFilteredSignalRefetch(
+    invocationCompleted,
+    (events) => events?.some((e) => e.app_key === appKey) ?? false,
+    () => void refetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
-  useDebouncedEffect(
-    () => executionCompleted.value,
-    500,
-    () => {
-      const events = executionCompleted.value;
-      if (!events) return;
-      const matches = events.some((e) => e.app_key === appKey);
-      if (matches) void refetch();
-    },
+  useFilteredSignalRefetch(
+    executionCompleted,
+    (events) => events?.some((e) => e.app_key === appKey) ?? false,
+    () => void refetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
   const entries = activity.value ?? [];
@@ -304,9 +300,9 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
               <th class="ht-overview-activity__time-header">Time</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody aria-live="polite" aria-atomic="false">
             {entries.map((entry) => (
-              <ActivityRow key={`${entry.kind}-${entry.handler_name}-${entry.timestamp}`} entry={entry} />
+              <ActivityRow key={entry.row_id} entry={entry} />
             ))}
           </tbody>
         </table>
@@ -323,6 +319,7 @@ interface LogRowProps {
 
 function LogRow({ entry }: LogRowProps) {
   const kind = levelToKind(entry.level);
+  const timeLabel = useRelativeTime(entry.timestamp);
   return (
     <tr data-level={entry.level} data-testid="overview-log-row">
       <td aria-label={`level: ${entry.level}`}>
@@ -331,7 +328,7 @@ function LogRow({ entry }: LogRowProps) {
           <span class="ht-log-level-badge__text">{entry.level}</span>
         </span>
       </td>
-      <td class="ht-overview-log__time">{formatRelativeTime(entry.timestamp)}</td>
+      <td class="ht-overview-log__time">{timeLabel}</td>
       <td class="ht-overview-log__message" title={entry.message}>{entry.message}</td>
     </tr>
   );
@@ -342,9 +339,27 @@ interface RecentLogsSectionProps {
 }
 
 function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
-  const { data: logs, loading, error: logsError } = useScopedApi(
+  const { data: logs, loading, error: logsError, refetch } = useScopedApi(
     (since) => getRecentLogs({ app_key: appKey, limit: LOGS_LIMIT, since }),
     { deps: [appKey] },
+  );
+
+  const { invocationCompleted, executionCompleted } = useAppState();
+
+  useFilteredSignalRefetch(
+    invocationCompleted,
+    (events) => events?.some((e) => e.app_key === appKey) ?? false,
+    () => void refetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
+  );
+
+  useFilteredSignalRefetch(
+    executionCompleted,
+    (events) => events?.some((e) => e.app_key === appKey) ?? false,
+    () => void refetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
   const entries = logs.value ?? [];
@@ -371,7 +386,7 @@ function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
           </thead>
           <tbody>
             {entries.map((entry) => (
-              <LogRow key={entry.seq ?? `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`} entry={entry} />
+              <LogRow key={entry.seq} entry={entry} />
             ))}
           </tbody>
         </table>

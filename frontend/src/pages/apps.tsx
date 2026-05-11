@@ -4,10 +4,12 @@ import { useDocumentTitle } from "../hooks/use-document-title";
 import { useQueryParams } from "../hooks/use-query-params";
 import { getDashboardAppGrid } from "../api/endpoints";
 import { useScopedApi, PRESET_WINDOW_SECONDS } from "../hooks/use-scoped-api";
+import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-filtered-signal-refetch";
 import { useAppState } from "../state/context";
 import { statusToKind, statusToVariant, INACTIVE_STATUSES, type StatusKind } from "../utils/status";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
-import { formatRelativeTime, formatTimestamp, pluralize } from "../utils/format";
+import { formatTimestamp, pluralize } from "../utils/format";
+import { useRelativeTime } from "../hooks/use-relative-time";
 import { type AppRow, type AppSortState, mergeManifestsAndGrid, compareAppRows } from "../utils/app-data";
 import { AppLink } from "../components/shared/app-link";
 import { EmptyState } from "../components/shared/empty-state";
@@ -109,6 +111,8 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
   onToggle: () => void;
 }) {
   const [errorExpanded, setErrorExpanded] = useState(false);
+  const lastErrorLabel = useRelativeTime(app.last_error_ts ?? null);
+  const lastActivityLabel = useRelativeTime(app.last_activity_ts ?? null);
   const status = liveStatus ?? app.status;
   const kind = statusToKind(status);
   const isMulti = app.instance_count > 1;
@@ -156,7 +160,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
             <span class="ht-text-mono ht-text-sm ht-text-danger">
               {app.error_message}
               {app.last_error_ts && (
-                <span class="ht-apps-row__error-age"> · {formatRelativeTime(app.last_error_ts)}</span>
+                <span class="ht-apps-row__error-age"> · {lastErrorLabel}</span>
               )}
             </span>
           ) : "—"}
@@ -169,7 +173,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
         {/* Last fired */}
         <td class="ht-text-mono ht-text-muted ht-text-sm">
           {app.last_activity_ts ? (
-            <span title={formatTimestamp(app.last_activity_ts)}>{formatRelativeTime(app.last_activity_ts)}</span>
+            <span title={formatTimestamp(app.last_activity_ts)}>{lastActivityLabel}</span>
           ) : "—"}
         </td>
         {/* Actions */}
@@ -210,9 +214,25 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
 export function AppsPage() {
   useDocumentTitle("Apps");
 
-  const { appStatus, effectiveTimePreset, uptimeSeconds, manifests: manifestsState, manifestsLoading } = useAppState();
-  const { data: gridData } = useScopedApi(
+  const { appStatus, effectiveTimePreset, uptimeSeconds, manifests: manifestsState, manifestsLoading, invocationCompleted, executionCompleted } = useAppState();
+  const { data: gridData, refetch: gridRefetch } = useScopedApi(
     (since) => getDashboardAppGrid(since),
+  );
+
+  useFilteredSignalRefetch(
+    invocationCompleted,
+    (events) => events !== null,
+    () => void gridRefetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
+  );
+
+  useFilteredSignalRefetch(
+    executionCompleted,
+    (events) => events !== null,
+    () => void gridRefetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);

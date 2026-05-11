@@ -32,7 +32,12 @@ export function App() {
 
   useEffect(() => {
     const id = setInterval(() => { if (!document.hidden) state.tick.value++; }, RELATIVE_TIME_TICK_MS);
-    return () => clearInterval(id);
+    const onVisible = () => { if (!document.hidden) state.tick.value++; };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [state]);
 
   useEffect(() => {
