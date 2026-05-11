@@ -57,7 +57,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
     invocationsOrRuns = l.total_invocations;
     failed = l.failed;
     timedOut = l.timed_out;
-    isFailing = failed > 0 || timedOut > 0;
+    isFailing = item.statusKind === "err";
     lastErrorMessage = isFailing ? (l.last_error_message ?? null) : null;
   } else {
     const j = item.data;
@@ -65,7 +65,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
     invocationsOrRuns = j.total_executions;
     failed = j.failed;
     timedOut = j.timed_out;
-    isFailing = failed > 0 || timedOut > 0;
+    isFailing = item.statusKind === "err";
     // Next-run line for schedule jobs
     if (j.next_run) {
       nextRunLabel = `next ${nextRunRelative}`;

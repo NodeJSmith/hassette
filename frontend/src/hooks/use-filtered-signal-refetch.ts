@@ -45,6 +45,8 @@ export function useFilteredSignalRefetch<T>(
   const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refetchFnRef = useRef(refetchFn);
   refetchFnRef.current = refetchFn;
+  const filterFnRef = useRef(filterFn);
+  filterFnRef.current = filterFn;
 
   const lastValueRef = useRef<T>(signal.peek());
 
@@ -56,8 +58,7 @@ export function useFilteredSignalRefetch<T>(
     }
     lastValueRef.current = value;
 
-    // If the filter doesn't match, do nothing — no timer started or reset.
-    if (!filterFn(value)) {
+    if (!filterFnRef.current(value)) {
       return;
     }
 

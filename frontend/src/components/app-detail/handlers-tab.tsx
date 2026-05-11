@@ -332,7 +332,7 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
       )}
 
       {/* Error banner */}
-      {(job.failed > 0 || job.timed_out > 0) && (job.last_error_message || job.last_error_type) && (
+      {jobKind === "err" && (job.last_error_message || job.last_error_type) && (
         <ErrorBanner
           errorType={job.last_error_type ?? null}
           errorMessage={job.last_error_message ?? null}
