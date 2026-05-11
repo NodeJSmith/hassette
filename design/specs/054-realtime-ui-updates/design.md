@@ -1,7 +1,7 @@
 # Design: Real-Time UI Updates
 
 **Date:** 2026-05-11
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 
 ## Problem
