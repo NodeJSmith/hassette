@@ -4,6 +4,7 @@ import { useDocumentTitle } from "../hooks/use-document-title";
 import { useQueryParams } from "../hooks/use-query-params";
 import { getDashboardAppGrid } from "../api/endpoints";
 import { useScopedApi, PRESET_WINDOW_SECONDS } from "../hooks/use-scoped-api";
+import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-filtered-signal-refetch";
 import { useAppState } from "../state/context";
 import { statusToKind, statusToVariant, INACTIVE_STATUSES, type StatusKind } from "../utils/status";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
@@ -213,9 +214,25 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
 export function AppsPage() {
   useDocumentTitle("Apps");
 
-  const { appStatus, effectiveTimePreset, uptimeSeconds, manifests: manifestsState, manifestsLoading } = useAppState();
-  const { data: gridData } = useScopedApi(
+  const { appStatus, effectiveTimePreset, uptimeSeconds, manifests: manifestsState, manifestsLoading, invocationCompleted, executionCompleted } = useAppState();
+  const { data: gridData, refetch: gridRefetch } = useScopedApi(
     (since) => getDashboardAppGrid(since),
+  );
+
+  useFilteredSignalRefetch(
+    invocationCompleted,
+    (events) => events !== null,
+    () => void gridRefetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
+  );
+
+  useFilteredSignalRefetch(
+    executionCompleted,
+    (events) => events !== null,
+    () => void gridRefetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);

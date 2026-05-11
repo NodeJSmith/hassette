@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Wire WS signal subscriptions to apps landing page dashboard grid"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#9", "AC#9"]
 ---
