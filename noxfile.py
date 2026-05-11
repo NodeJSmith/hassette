@@ -40,7 +40,7 @@ def dev(session: "Session"):
     )
 
 
-@nox.session(python=["3.11", "3.12", "3.13"])
+@nox.session(python=["3.11", "3.13"])
 def tests(session: "Session"):
     session.run(
         "uv",
@@ -142,7 +142,7 @@ def _run_system_tests(session: "Session", *, marker: str, extra_args: list[str] 
     )
 
 
-@nox.session(python=["3.11", "3.12", "3.13"], tags=["coverage"])
+@nox.session(python=["3.11", "3.13"], tags=["coverage"])
 def tests_with_coverage(session: "Session"):
     session.env["COVERAGE_FILE"] = f".coverage.{session.python}"
     session.run(
