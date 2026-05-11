@@ -67,9 +67,9 @@ def test_palette_search_filters_items(page: Page, base_url: str) -> None:
     page.wait_for_timeout(200)
     # "Logs" page item should match
     palette = page.locator("[role='dialog'][aria-label='Command palette']")
-    expect(palette).to_contain_text("Logs")
-    # "Overview" should not match "logs" query
-    expect(palette).not_to_contain_text("Overview")
+    expect(palette).to_contain_text("logs")
+    # "apps" should not match "logs" query
+    expect(palette).not_to_contain_text("/apps")
 
 
 def test_palette_empty_state_for_no_match(page: Page, base_url: str) -> None:
@@ -111,10 +111,10 @@ def test_palette_navigates_to_logs_on_select(page: Page, base_url: str) -> None:
     _open_palette(page)
     # Type to narrow to "Logs"
     search = page.locator("input[aria-label='Search command palette']")
-    search.fill("Logs")
+    search.fill("logs")
     page.wait_for_timeout(200)
-    # Click the Logs result
-    logs_result = page.locator(".ht-cmd-palette__result", has_text="Logs").first
+    # Click the logs result
+    logs_result = page.locator(".ht-cmd-palette__result", has_text="logs").first
     expect(logs_result).to_be_visible()
     logs_result.click()
     expect(page).to_have_url(re.compile(r"/logs"))
