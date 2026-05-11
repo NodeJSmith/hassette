@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Wire WS signal subscriptions to app detail page and migrate existing call sites"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#1", "FR#2", "FR#3", "AC#1", "AC#2", "AC#3"]
 ---

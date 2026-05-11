@@ -11,7 +11,7 @@ import type { ListenerData, JobData, ActivityFeedEntryData, LogEntry } from "../
 import { getAppActivity, getRecentLogs } from "../../api/endpoints";
 import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useAppState } from "../../state/context";
-import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
+import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-filtered-signal-refetch";
 
 const SPOTLIGHT_LIMIT = 3;
 
@@ -261,26 +261,20 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
 
   const { invocationCompleted, executionCompleted } = useAppState();
 
-  useDebouncedEffect(
-    () => invocationCompleted.value,
-    500,
-    () => {
-      const events = invocationCompleted.value;
-      if (!events) return;
-      const matches = events.some((e) => e.app_key === appKey);
-      if (matches) void refetch();
-    },
+  useFilteredSignalRefetch(
+    invocationCompleted,
+    (events) => events?.some((e) => e.app_key === appKey) ?? false,
+    () => void refetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
-  useDebouncedEffect(
-    () => executionCompleted.value,
-    500,
-    () => {
-      const events = executionCompleted.value;
-      if (!events) return;
-      const matches = events.some((e) => e.app_key === appKey);
-      if (matches) void refetch();
-    },
+  useFilteredSignalRefetch(
+    executionCompleted,
+    (events) => events?.some((e) => e.app_key === appKey) ?? false,
+    () => void refetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
   const entries = activity.value ?? [];
@@ -306,9 +300,9 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
               <th class="ht-overview-activity__time-header">Time</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody aria-live="polite" aria-atomic="false">
             {entries.map((entry) => (
-              <ActivityRow key={`${entry.kind}-${entry.handler_name}-${entry.timestamp}`} entry={entry} />
+              <ActivityRow key={entry.row_id} entry={entry} />
             ))}
           </tbody>
         </table>
@@ -345,9 +339,19 @@ interface RecentLogsSectionProps {
 }
 
 function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
-  const { data: logs, loading, error: logsError } = useScopedApi(
+  const { data: logs, loading, error: logsError, refetch } = useScopedApi(
     (since) => getRecentLogs({ app_key: appKey, limit: LOGS_LIMIT, since }),
     { deps: [appKey] },
+  );
+
+  const { executionCompleted } = useAppState();
+
+  useFilteredSignalRefetch(
+    executionCompleted,
+    (events) => events?.some((e) => e.app_key === appKey) ?? false,
+    () => void refetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
   const entries = logs.value ?? [];
@@ -374,7 +378,7 @@ function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
           </thead>
           <tbody>
             {entries.map((entry) => (
-              <LogRow key={entry.seq ?? `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`} entry={entry} />
+              <LogRow key={entry.seq} entry={entry} />
             ))}
           </tbody>
         </table>

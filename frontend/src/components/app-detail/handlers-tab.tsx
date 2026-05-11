@@ -10,7 +10,7 @@ import { HandlersHealthStrip } from "./health-strip";
 import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useAppState } from "../../state/context";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
-import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
+import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-filtered-signal-refetch";
 import { formatTriggerDetail, formatDurationOrDash, formatOptionalDuration, lastDotSegment, parseSourceLocation, TIME_PRESET_LABELS } from "../../utils/format";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 
@@ -140,15 +140,12 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
   const lastInvokedLabel = useRelativeTime(listener.last_invoked_at ?? null);
 
   // Targeted real-time refetch when a matching invocation_completed event arrives
-  useDebouncedEffect(
-    () => invocationCompleted.value,
-    500,
-    () => {
-      const events = invocationCompleted.value;
-      if (!events) return;
-      const matches = events.some((e) => e.listener_id === listener.listener_id);
-      if (matches) void refetch();
-    },
+  useFilteredSignalRefetch(
+    invocationCompleted,
+    (events) => events?.some((e) => e.listener_id === listener.listener_id) ?? false,
+    () => void refetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
   const kindLabel = handlerKindLabel("listener", listener.listener_kind, null);
@@ -258,15 +255,12 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
   const fireAtLabel = useRelativeTime(job.fire_at ?? null);
 
   // Targeted real-time refetch when a matching execution_completed event arrives
-  useDebouncedEffect(
-    () => executionCompleted.value,
-    500,
-    () => {
-      const events = executionCompleted.value;
-      if (!events) return;
-      const matches = events.some((e) => e.job_id === job.job_id);
-      if (matches) void refetch();
-    },
+  useFilteredSignalRefetch(
+    executionCompleted,
+    (events) => events?.some((e) => e.job_id === job.job_id) ?? false,
+    () => void refetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
   const kindLabel = handlerKindLabel("job", null, job.trigger_type);

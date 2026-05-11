@@ -17,6 +17,7 @@ import { useScopedApi } from "../hooks/use-scoped-api";
 import { useAppState } from "../state/context";
 import { statusToKind, statusToVariant } from "../utils/status";
 import { StatusShape } from "../components/shared/status-shape";
+import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-filtered-signal-refetch";
 
 export type TabId = "overview" | "handlers" | "code" | "logs" | "config";
 
@@ -149,7 +150,7 @@ function Tab({ id, label, badge, appKey, instanceQs, activeTab }: {
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
   const activeTab: TabId = params.tab ?? "overview";
-  const { appStatus, manifests, manifestsLoading } = useAppState();
+  const { appStatus, manifests, manifestsLoading, invocationCompleted, executionCompleted } = useAppState();
   const [, navigate] = useLocation();
   const queryParams = useQueryParams();
   const correctUrl = useCorrectUrl();
@@ -168,6 +169,24 @@ export function AppDetailPage({ params }: Props) {
   const jobs = useScopedApi(
     (since) => getAppJobs(appKey, resolvedInstanceIndex, since),
     { deps: [appKey, resolvedInstanceIndex] },
+  );
+
+  // Parent-level refetch: refresh handler/job counts and last-fired timestamps when
+  // a WS event arrives for the currently viewed app. Both invocation and execution
+  // events can change listener/job summary data (counts, last-fired, health metrics).
+  useFilteredSignalRefetch(
+    invocationCompleted,
+    (events) => events?.some((e) => e.app_key === appKey) ?? false,
+    () => { void listeners.refetch(); void jobs.refetch(); },
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
+  );
+  useFilteredSignalRefetch(
+    executionCompleted,
+    (events) => events?.some((e) => e.app_key === appKey) ?? false,
+    () => { void listeners.refetch(); void jobs.refetch(); },
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
   // Preserve stale handler/job data during refetch to avoid losing selection
