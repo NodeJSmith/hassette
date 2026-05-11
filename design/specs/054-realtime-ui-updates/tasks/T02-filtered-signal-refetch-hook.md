@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Create useFilteredSignalRefetch hook with signal-effect subscription"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#5", "FR#7", "AC#5", "AC#7"]
 ---
