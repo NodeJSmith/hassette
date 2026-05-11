@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time
 from typing import Any
 
 import httpx
@@ -74,19 +75,25 @@ async def test_telemetry_after_activity(ha_container: str, tmp_path) -> None:
         await wait_for_web_server(base_url)
 
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
+        app_key = hassette.app_key
+        pre_toggle_ts = time.time()
         await toggle_and_capture(bus, hassette.api, _ENTITY)
 
         async with httpx.AsyncClient() as client:
 
             async def _has_invocations() -> bool:
-                r = await client.get(f"{base_url}/api/telemetry/dashboard/app-grid", timeout=5.0)
+                r = await client.get(
+                    f"{base_url}/api/telemetry/app/{app_key}/health",
+                    params={"source_tier": "framework"},
+                    timeout=5.0,
+                )
                 if r.status_code != 200:
                     return False
                 data = r.json()
-                apps = data.get("apps", [])
-                return any(app.get("total_invocations", 0) > 0 or app.get("total_executions", 0) > 0 for app in apps)
+                ts = data.get("last_activity_ts")
+                return ts is not None and ts >= pre_toggle_ts
 
-            await wait_for(_has_invocations, timeout=20.0, interval=0.3, desc="telemetry app-grid to show invocations")
+            await wait_for(_has_invocations, timeout=20.0, interval=0.3, desc="telemetry to show handler activity")
 
 
 async def test_websocket_receives_events(ha_container: str, tmp_path) -> None:
