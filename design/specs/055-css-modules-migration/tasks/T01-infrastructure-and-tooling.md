@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add CSS Modules infrastructure and CI tooling"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#3", "FR#9", "FR#10", "FR#14", "AC#3", "AC#7", "AC#8", "AC#14"]
 ---

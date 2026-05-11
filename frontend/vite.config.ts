@@ -1,10 +1,11 @@
 import preact from "@preact/preset-vite";
 import { defineConfig } from "vite";
+import { patchCssModules } from "vite-css-modules";
 
 const apiTarget = process.env.VITE_PROXY_TARGET || "http://localhost:8126";
 
 export default defineConfig({
-  plugins: [preact()],
+  plugins: [preact(), patchCssModules({ generateSourceTypes: true })],
   // Enable SPA history fallback so direct URL access (pasting a deep URL into
   // the browser) serves index.html instead of 404 during development.
   // The /api and /api/ws proxies are unaffected — Vite applies proxy rules
