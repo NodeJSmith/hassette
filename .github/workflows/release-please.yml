@@ -70,15 +70,67 @@ jobs:
                       git push origin HEAD
                   fi
 
-    publish-pypi:
+    build-pypi:
         needs: release-please
         if: needs.release-please.outputs.release_created == 'true'
-        uses: ./.github/workflows/python_package.yml
-        with:
-            tag_name: ${{ needs.release-please.outputs.tag_name }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
         permissions:
             contents: read
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ needs.release-please.outputs.tag_name }}
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v6
+              with:
+                  activate-environment: true
+                  enable-cache: true
+
+            - name: Set up Python
+              run: uv python install
+
+            - name: Install python packages
+              run: uv sync
+
+            - name: Verify tag matches project version
+              env:
+                  TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+              run: |
+                  PROJECT_VERSION=$(uv version --short)
+                  uv run ./tools/check_tag_version.py --ref-name "$TAG_NAME" --project-version "$PROJECT_VERSION"
+
+            - name: Build a binary wheel and a source tarball
+              run: uv build
+
+            - name: Publish build artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: pypi-dists
+                  path: "./dist"
+
+    publish-pypi:
+        needs: [release-please, build-pypi]
+        if: needs.release-please.outputs.release_created == 'true'
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        environment:
+            name: release
+            url: https://pypi.org/p/hassette
+        permissions:
             id-token: write
+        steps:
+            - name: Download build artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: pypi-dists
+                  path: "./dist"
+
+            - name: Publish distribution to PyPI
+              uses: pypa/gh-action-pypi-publish@release/v1
+              with:
+                  skip-existing: true
 
     publish-docker:
         needs: release-please
@@ -92,12 +144,13 @@ jobs:
             id-token: write
 
     release-verify:
-        needs: [release-please, publish-pypi, publish-docker]
+        needs: [release-please, build-pypi, publish-pypi, publish-docker]
         if: always() && needs.release-please.outputs.release_created == 'true'
         runs-on: ubuntu-latest
         steps:
             - name: Check publish results
               env:
+                  BUILD_RESULT: ${{ needs.build-pypi.result }}
                   PYPI_RESULT: ${{ needs.publish-pypi.result }}
                   DOCKER_RESULT: ${{ needs.publish-docker.result }}
                   TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
@@ -109,6 +162,9 @@ jobs:
                   fi
 
                   failed=""
+                  if [ "$BUILD_RESULT" != "success" ]; then
+                      failed="$failed Build($BUILD_RESULT)"
+                  fi
                   if [ "$PYPI_RESULT" != "success" ]; then
                       failed="$failed PyPI($PYPI_RESULT)"
                   fi

@@ -1,12 +1,6 @@
 name: Publish Python package
 
 on:
-    workflow_call:
-        inputs:
-            tag_name:
-                description: "Release tag (e.g. v0.24.0) — passed by release-please"
-                required: true
-                type: string
     workflow_dispatch:
         inputs:
             tag_name:
