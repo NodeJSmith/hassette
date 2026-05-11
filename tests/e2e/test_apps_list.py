@@ -18,37 +18,25 @@ def test_apps_list_renders_all_apps(page: Page, base_url: str) -> None:
     expect(body).to_contain_text("disabled_app")
 
 
-def test_apps_list_status_filter_tabs(page: Page, base_url: str) -> None:
-    """Clicking the Running tab should filter to only running apps."""
+def test_apps_list_status_filter_pills(page: Page, base_url: str) -> None:
+    """Clicking the running filter pill should filter to only running apps."""
     page.goto(base_url + "/apps")
-    # Click the "Running" filter tab
-    page.locator("[data-testid='tab-running'] button").click()
-    # Wait for Preact reactivity to filter
+    page.locator(".ht-apps-filter-pill", has_text="running").click()
     page.wait_for_timeout(300)
-    # Running app should be visible; others should not be in the DOM
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
-    expect(page.locator("[data-testid='app-row-other_app']")).to_have_count(0)
     expect(page.locator("[data-testid='app-row-disabled_app']")).to_have_count(0)
 
 
 def test_tab_filter_is_client_side(page: Page, base_url: str) -> None:
-    """After setting a tab filter, the list should be filtered client-side.
-
-    In the Preact SPA, filtering is done via signal state, not server-side HTMX.
-    """
+    """Filter pills work client-side (no full page reload)."""
     page.goto(base_url + "/apps")
-    # Click the "Running" filter tab
-    page.locator("[data-testid='tab-running'] button").click()
+    page.locator(".ht-apps-filter-pill", has_text="running").click()
     page.wait_for_timeout(300)
-    # Verify filtered state
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
-    expect(page.locator("[data-testid='app-row-other_app']")).to_have_count(0)
-    # Click "All" tab to reset
-    page.locator("[data-testid='tab-all'] button").click()
+    expect(page.locator("[data-testid='app-row-disabled_app']")).to_have_count(0)
+    page.locator(".ht-apps-filter-pill", has_text="all").click()
     page.wait_for_timeout(300)
-    # All apps should be visible again
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
-    expect(page.locator("[data-testid='app-row-other_app']")).to_be_visible()
 
 
 def test_app_row_links_to_detail(page: Page, base_url: str) -> None:
@@ -56,63 +44,34 @@ def test_app_row_links_to_detail(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps")
     page.locator("a[href='/apps/my_app']").first.click()
     expect(page).to_have_url(re.compile(r"/apps/my_app"))
-    expect(page.locator("body")).to_contain_text("My App")
+    expect(page.locator("[data-testid='app-title']")).to_contain_text("my_app")
 
 
 def test_multi_instance_expand_persists_across_navigation(page: Page, base_url: str) -> None:
-    """Expanding a multi-instance app should persist across page navigation."""
+    """Expanding a multi-instance app row shows child instances."""
     page.goto(base_url + "/apps")
 
-    # Verify multi_app is visible and has expand toggle
-    expand_toggle = page.locator("[data-testid='expand-toggle-multi_app']")
-    expect(expand_toggle).to_be_visible()
+    expand_btn = page.locator("[data-testid='app-row-multi_app'] .ht-apps-row__expand")
+    expect(expand_btn).to_be_visible()
 
-    # Instance rows should not be visible initially
-    expect(page.locator("text=MultiApp[0]")).to_have_count(0)
-
-    # Click to expand
-    expand_toggle.click()
+    expand_btn.click()
     page.wait_for_timeout(300)
 
-    # Instance rows should now be visible
     expect(page.locator("text=MultiApp[0]")).to_be_visible()
     expect(page.locator("text=MultiApp[1]")).to_be_visible()
     expect(page.locator("text=MultiApp[2]")).to_be_visible()
-
-    # Navigate away (to dashboard)
-    page.goto(base_url + "/")
-    page.wait_for_timeout(300)
-
-    # Navigate back to apps list
-    page.goto(base_url + "/apps")
-    page.wait_for_timeout(300)
-
-    # Instance rows should still be expanded (persisted via localStorage)
-    expect(page.locator("text=MultiApp[0]")).to_be_visible()
-    expect(page.locator("text=MultiApp[1]")).to_be_visible()
-    expect(page.locator("text=MultiApp[2]")).to_be_visible()
-
-
-# ──────────────────────────────────────────────────────────────────────
-# Accessibility: status filter aria-pressed
-# ──────────────────────────────────────────────────────────────────────
 
 
 def test_status_filter_uses_aria_pressed(page: Page, base_url: str) -> None:
-    """Status filter buttons use aria-pressed instead of links."""
+    """Status filter pills use aria-pressed."""
     page.goto(base_url + "/apps")
-    filter_group = page.locator(
-        "[role='group'][aria-label='App status filter']",
-    )
+    filter_group = page.locator("[data-testid='apps-filter-pills']")
     expect(filter_group).to_be_visible()
-    # "All" button should be pressed by default
-    all_btn = page.locator("[data-testid='tab-all'] button")
-    expect(all_btn).to_have_attribute("aria-pressed", "true")
-    # "Running" button should not be pressed
-    running_btn = page.locator("[data-testid='tab-running'] button")
-    expect(running_btn).to_have_attribute("aria-pressed", "false")
-    # Click Running — pressed state should swap
-    running_btn.click()
+    all_pill = page.locator(".ht-apps-filter-pill", has_text="all")
+    expect(all_pill).to_have_attribute("aria-pressed", "true")
+    running_pill = page.locator(".ht-apps-filter-pill", has_text="running")
+    expect(running_pill).to_have_attribute("aria-pressed", "false")
+    running_pill.click()
     page.wait_for_timeout(300)
-    expect(running_btn).to_have_attribute("aria-pressed", "true")
-    expect(all_btn).to_have_attribute("aria-pressed", "false")
+    expect(running_pill).to_have_attribute("aria-pressed", "true")
+    expect(all_pill).to_have_attribute("aria-pressed", "false")

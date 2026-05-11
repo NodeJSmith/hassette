@@ -9,7 +9,6 @@ from fastapi import APIRouter
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from hassette.web.mappers import connected_payload_from
-from hassette.web.telemetry_helpers import safe_session_id
 
 router = APIRouter(tags=["websocket"])
 LOGGER = getLogger(__name__)
@@ -90,9 +89,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     queue = await runtime.register_ws_client()
     ws_state: dict = {"subscribe_logs": False, "min_log_level": "INFO"}
     try:
-        # Send initial connection info (includes session_id for telemetry scoping)
+        # Send initial connection info (includes uptime_seconds for time-window filtering)
         status = runtime.get_system_status()
-        payload = connected_payload_from(status, safe_session_id(runtime))
+        payload = connected_payload_from(status)
         await websocket.send_json({"type": "connected", "data": payload.model_dump(), "timestamp": time.time()})
         async with anyio.create_task_group() as tg:
             tg.start_soon(_read_client, websocket, ws_state)

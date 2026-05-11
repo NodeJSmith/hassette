@@ -2,12 +2,14 @@
 
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
 from hassette.core.domain_models import SystemStatus
+from hassette.core.telemetry_models import ListenerSummary
 from hassette.types.enums import ResourceStatus
 from hassette.web.mappers import (
     app_manifest_list_response_from,
     app_status_response_from,
     connected_payload_from,
     system_status_response_from,
+    to_listener_with_summary,
 )
 from hassette.web.models import AppManifestListResponse, AppStatusResponse, ConnectedPayload, SystemStatusResponse
 
@@ -244,32 +246,117 @@ def test_system_status_response_from_empty_services():
 
 
 def test_connected_payload_from_uses_system_status_fields():
-    """entity_count and app_count from SystemStatus, session_id from parameter."""
-    domain = _make_system_status(entity_count=100, app_count=5)
+    """entity_count, app_count, and uptime_seconds come from SystemStatus."""
+    domain = _make_system_status(entity_count=100, app_count=5, uptime_seconds=300.0)
 
-    result = connected_payload_from(domain, session_id=42)
+    result = connected_payload_from(domain)
 
     assert isinstance(result, ConnectedPayload)
     assert result.entity_count == 100
     assert result.app_count == 5
-    assert result.session_id == 42
+    assert result.uptime_seconds == 300.0
 
 
-def test_connected_payload_from_none_session_id():
-    """session_id=None passes through."""
+def test_connected_payload_from_uptime_seconds_from_status():
+    """uptime_seconds is derived from SystemStatus, not a separate parameter."""
+    domain = _make_system_status(uptime_seconds=42.5)
+
+    result = connected_payload_from(domain)
+
+    assert result.uptime_seconds == 42.5
+
+
+def test_connected_payload_from_no_session_id():
+    """ConnectedPayload no longer carries session_id."""
     domain = _make_system_status()
 
-    result = connected_payload_from(domain, session_id=None)
+    result = connected_payload_from(domain)
 
-    assert result.session_id is None
+    assert not hasattr(result, "session_id")
 
 
-def test_connected_payload_from_session_id_is_separate_parameter():
-    """session_id is not part of SystemStatus — must come from parameter."""
-    domain = _make_system_status()
-    # Verify SystemStatus has no session_id attribute
-    assert not hasattr(domain, "session_id")
+# ---------------------------------------------------------------------------
+# to_listener_with_summary — last_error_traceback passthrough
+# ---------------------------------------------------------------------------
 
-    result = connected_payload_from(domain, session_id=99)
 
-    assert result.session_id == 99
+def _make_listener_summary(**overrides) -> ListenerSummary:
+    defaults = {
+        "listener_id": 1,
+        "app_key": "test_app",
+        "instance_index": 0,
+        "handler_method": "on_event",
+        "topic": "hass.event.state_changed",
+        "debounce": None,
+        "throttle": None,
+        "once": 0,
+        "priority": 0,
+        "predicate_description": None,
+        "human_description": None,
+        "source_location": "test.py:1",
+        "registration_source": None,
+        "source_tier": "app",
+        "total_invocations": 0,
+        "successful": 0,
+        "failed": 0,
+        "di_failures": 0,
+        "cancelled": 0,
+        "timed_out": 0,
+        "total_duration_ms": 0.0,
+        "avg_duration_ms": 0.0,
+        "min_duration_ms": None,
+        "max_duration_ms": None,
+        "last_invoked_at": None,
+        "last_error_type": None,
+        "last_error_message": None,
+        "last_error_traceback": None,
+    }
+    defaults.update(overrides)
+    return ListenerSummary(**defaults)
+
+
+def test_to_listener_with_summary_passes_through_last_error_traceback():
+    """last_error_traceback from ListenerSummary passes through to ListenerWithSummary."""
+
+    traceback_text = "Traceback (most recent call last):\n  File test.py, line 1\nValueError: oops"
+    summary = _make_listener_summary(
+        last_error_type="ValueError",
+        last_error_message="oops",
+        last_error_traceback=traceback_text,
+    )
+
+    result = to_listener_with_summary(summary)
+
+    assert result.last_error_traceback == traceback_text
+
+
+def test_to_listener_with_summary_none_traceback_when_no_error():
+    """last_error_traceback is None when ListenerSummary has no error."""
+
+    summary = _make_listener_summary()
+
+    result = to_listener_with_summary(summary)
+
+    assert result.last_error_traceback is None
+
+
+def test_to_listener_with_summary_min_max_none_passthrough():
+    """min_duration_ms and max_duration_ms pass through as None (no invocations)."""
+
+    summary = _make_listener_summary(min_duration_ms=None, max_duration_ms=None)
+
+    result = to_listener_with_summary(summary)
+
+    assert result.min_duration_ms is None
+    assert result.max_duration_ms is None
+
+
+def test_to_listener_with_summary_min_max_numeric_passthrough():
+    """min_duration_ms and max_duration_ms pass through as numeric values."""
+
+    summary = _make_listener_summary(min_duration_ms=5.0, max_duration_ms=100.0, total_invocations=3)
+
+    result = to_listener_with_summary(summary)
+
+    assert result.min_duration_ms == 5.0
+    assert result.max_duration_ms == 100.0

@@ -83,7 +83,8 @@ class ScheduledJobRegistration:
     """
 
     trigger_label: str
-    """Short stable label for telemetry / UI display (from trigger.trigger_label())."""
+    """Human-readable display label (from trigger.trigger_label()). Distinct from
+    trigger_type (the DB-stable discriminator)."""
 
     trigger_detail: str | None
     """Optional human-readable detail string (from trigger.trigger_detail())."""
@@ -105,3 +106,6 @@ class ScheduledJobRegistration:
 
     group: str | None = None
     """Scheduler group name, or None if not assigned to a group."""
+
+    name_auto: bool = False
+    """Whether the job name was auto-generated from the callable and trigger ID."""

@@ -16,5 +16,6 @@ async def get_logs(
     limit: Annotated[int, Query(ge=1, le=2000)] = 100,
     app_key: Annotated[str | None, Query()] = None,
     level: Annotated[str | None, Query()] = None,
+    since: Annotated[float | None, Query()] = None,
 ) -> list[dict]:
-    return runtime.get_recent_logs(limit=limit, app_key=app_key, level=level)
+    return runtime.get_recent_logs(limit=limit, app_key=app_key, level=level, since=since)

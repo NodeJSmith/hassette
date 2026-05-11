@@ -3,6 +3,9 @@ import { useEffect, useState } from "preact/hooks";
 /** Must match CSS `@media (max-width: 768px)` breakpoints in global.css */
 export const BREAKPOINT_MOBILE = 768;
 
+/** Must match CSS `@media (max-width: 480px)` breakpoints in global.css */
+export const BREAKPOINT_SMALL_MOBILE = 480;
+
 /** Must match CSS `@media (max-width: 1024px)` breakpoints in global.css */
 export const BREAKPOINT_TABLET = 1024;
 

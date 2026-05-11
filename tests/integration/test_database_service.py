@@ -445,6 +445,7 @@ EXPECTED_TABLES = {
         "source_tier",
         "group",
         "cancelled_at",
+        "name_auto",
     },
     "handler_invocations": {
         "id",

@@ -13,7 +13,9 @@ from hassette.core.app_registry import AppFullSnapshot, AppStatusSnapshot
 from hassette.core.bus_service import BusService
 from hassette.core.domain_models import (
     AppStatusChangedData,
+    BootIssue,
     ConnectivityData,
+    ServiceInfo,
     ServiceStatusData,
     StateChangedData,
     SystemStatus,
@@ -29,6 +31,7 @@ from hassette.types.types import LOG_LEVEL_TYPE
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Subscription
+    from hassette.events.hassette import ExecutionCompletedPayload, InvocationCompletedPayload
 
 LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
 
@@ -49,6 +52,26 @@ class RuntimeQueryService(Resource):
     _start_time: float
     _subscriptions: "list[Subscription]"
 
+    _listener_meta: dict[int, tuple[str, int]]
+    """Maps listener DB-ID → (app_key, instance_index) for completion event enrichment.
+
+    Populated by :meth:`register_listener_meta` (called from ``CommandExecutor`` at
+    registration time).  Stale entries are pruned by :meth:`prune_meta` during
+    reconciliation after app reloads.
+    """
+
+    _job_meta: dict[int, tuple[str, int]]
+    """Maps job DB-ID → (app_key, instance_index) for completion event enrichment."""
+
+    _pending_invocations: list[dict]
+    """Invocation completion dicts accumulated within the current drain tick, flushed as a batch."""
+
+    _pending_executions: list[dict]
+    """Execution completion dicts accumulated within the current drain tick, flushed as a batch."""
+
+    _flush_scheduled: bool
+    """True when an asyncio.sleep(0) flush has been scheduled for the current tick."""
+
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self.bus = self.add_child(Bus)
@@ -60,6 +83,11 @@ class RuntimeQueryService(Resource):
         self._ws_drops_last_logged: float = 0.0
         self._start_time = time.time()
         self._subscriptions = []
+        self._listener_meta: dict[int, tuple[str, int]] = {}
+        self._job_meta: dict[int, tuple[str, int]] = {}
+        self._pending_invocations: list[dict] = []
+        self._pending_executions: list[dict] = []
+        self._flush_scheduled = False
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -88,6 +116,18 @@ class RuntimeQueryService(Resource):
         )
         self._subscriptions.append(self.bus.on_websocket_connected(handler=self._on_ws_connected))
         self._subscriptions.append(self.bus.on_websocket_disconnected(handler=self._on_ws_disconnected))
+        self._subscriptions.append(
+            self.bus.on(
+                topic=Topic.HASSETTE_EVENT_INVOCATION_COMPLETED,
+                handler=self._on_invocation_completed,
+            )
+        )
+        self._subscriptions.append(
+            self.bus.on(
+                topic=Topic.HASSETTE_EVENT_EXECUTION_COMPLETED,
+                handler=self._on_execution_completed,
+            )
+        )
 
         # Wire up log capture handler for WS broadcast
         handler = get_log_capture_handler()
@@ -181,6 +221,114 @@ class RuntimeQueryService(Resource):
         self._event_buffer.append(entry)
         await self.broadcast(entry)
 
+    async def _on_invocation_completed(self, event: Event[Any]) -> None:
+        """Accumulate an invocation completion into the pending batch for this drain tick."""
+        data: InvocationCompletedPayload = event.payload.data
+        lid = data.listener_id if data.listener_id is not None else 0
+        app_key, instance_index = self._listener_meta.get(lid, ("", 0))
+        self._pending_invocations.append(
+            {
+                "listener_id": lid,
+                "app_key": app_key,
+                "instance_index": instance_index,
+                "status": data.status,
+                "duration_ms": data.duration_ms,
+                "error_type": data.error_type,
+            }
+        )
+        await self._schedule_flush()
+
+    async def _on_execution_completed(self, event: Event[Any]) -> None:
+        """Accumulate a job execution completion into the pending batch for this drain tick."""
+        data: ExecutionCompletedPayload = event.payload.data
+        jid = data.job_id if data.job_id is not None else 0
+        app_key, instance_index = self._job_meta.get(jid, ("", 0))
+        self._pending_executions.append(
+            {
+                "job_id": jid,
+                "app_key": app_key,
+                "instance_index": instance_index,
+                "status": data.status,
+                "duration_ms": data.duration_ms,
+                "error_type": data.error_type,
+            }
+        )
+        await self._schedule_flush()
+
+    async def _schedule_flush(self) -> None:
+        """Schedule a single flush task for the current event-loop tick if not already scheduled.
+
+        All completion events arriving within the same drain cycle are collected in
+        ``_pending_invocations`` / ``_pending_executions`` before a single WS message
+        is broadcast — one message per ``_drain_and_persist()`` cycle, not one per record.
+        """
+        if self._flush_scheduled:
+            return
+        self._flush_scheduled = True
+        self.task_bucket.spawn(self._flush_completions(), name="rqs:flush_completions")
+
+    async def _flush_completions(self) -> None:
+        """Broadcast one WS message per type summarising all completions from the current drain tick.
+
+        Emits an ``invocation_completed`` message (with a list payload) if any invocations are
+        pending, and an ``execution_completed`` message if any executions are pending.  Each
+        covers the full set persisted in one ``_drain_and_persist()`` cycle — one message per
+        drain, not one message per record.
+        """
+        # Reset BEFORE the awaits so new events arriving during broadcast land in
+        # the fresh pending lists and _schedule_flush re-arms correctly.
+        self._flush_scheduled = False
+        now = time.time()
+
+        invocations = self._pending_invocations
+        executions = self._pending_executions
+        self._pending_invocations = []
+        self._pending_executions = []
+
+        if invocations:
+            entry = {"type": "invocation_completed", "data": invocations, "timestamp": now}
+            self._event_buffer.append(entry)
+            await self.broadcast(entry)
+
+        if executions:
+            entry = {"type": "execution_completed", "data": executions, "timestamp": now}
+            self._event_buffer.append(entry)
+            await self.broadcast(entry)
+
+    # --- Listener/job meta registration ---
+
+    def register_listener_meta(self, listener_db_id: int, app_key: str, instance_index: int) -> None:
+        """Record the (app_key, instance_index) for a newly registered listener DB row.
+
+        Called by ``CommandExecutor.register_listener`` immediately after the DB insert so that
+        ``RuntimeQueryService`` can enrich completion WS messages with app identity without the
+        ``CommandExecutor`` needing to know about the web layer.
+
+        Args:
+            listener_db_id: The ``id`` of the newly inserted ``listeners`` row.
+            app_key: The app key that owns this listener.
+            instance_index: The instance index within the app.
+        """
+        self._listener_meta[listener_db_id] = (app_key, instance_index)
+
+    def register_job_meta(self, job_db_id: int, app_key: str, instance_index: int) -> None:
+        """Record the (app_key, instance_index) for a newly registered scheduled job DB row.
+
+        Called by ``CommandExecutor.register_job`` immediately after the DB insert so that
+        ``RuntimeQueryService`` can enrich completion WS messages with app identity.
+
+        Args:
+            job_db_id: The ``id`` of the newly inserted ``scheduled_jobs`` row.
+            app_key: The app key that owns this job.
+            instance_index: The instance index within the app.
+        """
+        self._job_meta[job_db_id] = (app_key, instance_index)
+
+    def prune_meta(self, live_listener_ids: set[int], live_job_ids: set[int]) -> None:
+        """Remove stale entries from the meta dicts after reconciliation."""
+        self._listener_meta = {k: v for k, v in self._listener_meta.items() if k in live_listener_ids}
+        self._job_meta = {k: v for k, v in self._job_meta.items() if k in live_job_ids}
+
     # --- App status ---
 
     def get_app_status_snapshot(self) -> AppStatusSnapshot:
@@ -198,12 +346,21 @@ class RuntimeQueryService(Resource):
 
     # --- Log access ---
 
-    def get_recent_logs(self, limit: int = 100, app_key: str | None = None, level: str | None = None) -> list[dict]:
+    def get_recent_logs(
+        self,
+        limit: int = 100,
+        app_key: str | None = None,
+        level: str | None = None,
+        since: float | None = None,
+    ) -> list[dict]:
         handler = get_log_capture_handler()
         if handler is None:
             return []
 
         entries: list[LogEntry] = handler.get_buffer_snapshot()
+
+        if since is not None:
+            entries = [e for e in entries if e.timestamp >= since]
 
         if app_key:
             entries = [e for e in entries if e.app_key == app_key]
@@ -231,11 +388,18 @@ class RuntimeQueryService(Resource):
         except (AttributeError, RuntimeError):
             app_count = 0
 
-        services_running = [
-            child.class_name
+        services = [
+            ServiceInfo(
+                name=child.class_name,
+                status=child.status.value if hasattr(child, "status") else "unknown",
+                role=child.role.value if hasattr(child, "role") and hasattr(child.role, "value") else "",
+                ready_phase=getattr(child, "_ready_reason", None),
+                retry_at=getattr(child, "_retry_at", None),
+            )
             for child in self.hassette.children
-            if hasattr(child, "status") and child.status == ResourceStatus.RUNNING
+            if hasattr(child, "status")
         ]
+        services_running = [s.name for s in services if s.status == ResourceStatus.RUNNING.value]
 
         try:
             proxy_ready = self.hassette.state_proxy.is_ready()
@@ -249,6 +413,8 @@ class RuntimeQueryService(Resource):
         else:
             status = "starting"
 
+        boot_issues = self._collect_boot_issues()
+
         return SystemStatus(
             status=status,
             websocket_connected=ws_connected,
@@ -256,7 +422,42 @@ class RuntimeQueryService(Resource):
             entity_count=entity_count,
             app_count=app_count,
             services_running=services_running,
+            services=services,
+            boot_issues=boot_issues,
         )
+
+    def _collect_boot_issues(self) -> list[BootIssue]:
+        """Collect boot-time issues from blocked apps and failed app instances.
+
+        Returns a list of ``BootIssue`` objects derived from:
+        - Apps that are blocked (e.g. import error, pre-check failure) — severity ``warn``
+        - Apps that failed to start — severity ``err``
+        """
+        issues: list[BootIssue] = []
+        try:
+            full_snapshot = self.hassette.app_handler.registry.get_full_snapshot()
+        except (AttributeError, RuntimeError):
+            return issues
+
+        for manifest in full_snapshot.manifests:
+            if manifest.status == "blocked" and manifest.block_reason:
+                issues.append(
+                    BootIssue(
+                        severity="warn",
+                        label=f"App blocked: {manifest.display_name}",
+                        detail=manifest.block_reason,
+                    )
+                )
+            elif manifest.status == "failed" and manifest.error_message:
+                issues.append(
+                    BootIssue(
+                        severity="err",
+                        label=f"App failed: {manifest.display_name}",
+                        detail=manifest.error_message,
+                    )
+                )
+
+        return issues
 
     # --- WebSocket client management ---
 

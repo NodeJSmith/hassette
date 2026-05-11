@@ -1,18 +1,19 @@
-import { useEffect } from "preact/hooks";
-import { getManifests } from "../api/endpoints";
 import { LogTable } from "../components/shared/log-table";
-import { useApi } from "../hooks/use-api";
+import { useDocumentTitle } from "../hooks/use-document-title";
+import { useAppState } from "../state/context";
 
 export function LogsPage() {
-  useEffect(() => { document.title = "Logs - Hassette"; }, []);
-  const manifests = useApi(getManifests);
-  const appKeys = manifests.data.value?.manifests.map((m) => m.app_key).sort() ?? [];
+  useDocumentTitle("Logs");
+  const { manifests } = useAppState();
+  const appKeys = manifests.value.map((m) => m.app_key).sort();
 
   return (
-    <div>
-      <h1 class="ht-heading-4 ht-mb-4">Log Viewer</h1>
-      <div class="ht-card">
-        <LogTable showAppColumn={true} appKeys={appKeys} />
+    <div class="ht-page ht-logs-page">
+      <div class="ht-page-header">
+        <h1 class="ht-display">logs</h1>
+      </div>
+      <div class="ht-card ht-card--compact ht-card--logs-full">
+        <LogTable showAppColumn={true} appKeys={appKeys} hideTitle />
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 
 Tests verify:
 - app_jobs enriches DB rows with live heap data when a live match exists
-- app_jobs leaves live fields None when no live match exists (but keeps DB cancelled)
+- app_jobs leaves live fields None when no live match exists
 - app_jobs returns DB rows without enrichment when get_all_jobs() raises (graceful degradation)
 """
 
@@ -37,7 +37,6 @@ def _make_job_summary(
     job_id: int = 1,
     app_key: str = "my_app",
     job_name: str = "test_job",
-    cancelled_at_set: bool = False,
 ) -> JobSummary:
     """Build a JobSummary as would be returned by get_job_summary()."""
     return JobSummary(
@@ -60,14 +59,13 @@ def _make_job_summary(
         total_duration_ms=100.0,
         avg_duration_ms=20.0,
         group="morning",
-        cancelled=cancelled_at_set,  # reflects DB cancelled_at IS NOT NULL
     )
 
 
 class TestAppJobsEnrichmentWithLiveMatch:
     """When a live heap job matches by db_id, enriched fields are populated."""
 
-    async def test_next_run_fire_at_jitter_cancelled_from_live(self, enrichment_client) -> None:
+    async def test_next_run_fire_at_jitter_from_live(self, enrichment_client) -> None:
         client, mock_hassette = enrichment_client
 
         # Arrange: one DB job summary
@@ -104,24 +102,17 @@ class TestAppJobsEnrichmentWithLiveMatch:
         # jitter is set
         assert row["jitter"] == 15.0
 
-        # cancelled comes from live job (not cancelled)
-        assert row["cancelled"] is False
-
 
 class TestAppJobsEnrichmentNoLiveMatch:
-    """When no live heap job matches by db_id, live fields are None, cancelled from DB."""
+    """When no live heap job matches by db_id, live fields are None."""
 
     async def test_no_live_match_live_fields_none(self, enrichment_client) -> None:
         client, mock_hassette = enrichment_client
 
-        # Arrange: DB job with cancelled_at IS NOT NULL (cancelled=True in DB)
-        db_summary = _make_job_summary(job_id=99, cancelled_at_set=True)
+        db_summary = _make_job_summary(job_id=99)
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
-
-        # Arrange: live jobs list is empty (no match)
         mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
 
-        # Act
         response = await client.get("/api/telemetry/app/my_app/jobs")
 
         assert response.status_code == 200
@@ -129,31 +120,9 @@ class TestAppJobsEnrichmentNoLiveMatch:
         assert len(data) == 1
         row = data[0]
 
-        # No live match — live fields are None
         assert row["next_run"] is None
         assert row["fire_at"] is None
         assert row["jitter"] is None
-
-        # cancelled comes from DB (cancelled_at IS NOT NULL → cancelled=True)
-        assert row["cancelled"] is True
-
-    async def test_no_live_match_uncancelled_db_row(self, enrichment_client) -> None:
-        client, mock_hassette = enrichment_client
-
-        # Arrange: DB job with cancelled_at IS NULL (cancelled=False in DB)
-        db_summary = _make_job_summary(job_id=77, cancelled_at_set=False)
-        mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
-        mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
-
-        response = await client.get("/api/telemetry/app/my_app/jobs")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        row = data[0]
-
-        assert row["next_run"] is None
-        assert row["cancelled"] is False
 
 
 class TestAppJobsEnrichmentHeapFailureDegrades:

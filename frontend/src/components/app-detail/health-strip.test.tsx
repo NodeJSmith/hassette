@@ -1,107 +1,111 @@
 import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/preact";
-import { HealthStrip } from "./health-strip";
-import { createHealthData } from "../../test/factories";
+import { HandlersHealthStrip } from "./health-strip";
+import { createListener, createJob } from "../../test/factories";
 
-describe("HealthStrip", () => {
-  it("renders nothing when health is null", () => {
-    const { container } = render(<HealthStrip health={null} status="running" />);
-    expect(container.firstChild).toBeNull();
+describe("HandlersHealthStrip", () => {
+  it("renders 5 columns with correct labels", () => {
+    const { container } = render(
+      <HandlersHealthStrip listeners={[createListener()]} jobs={[createJob()]} />,
+    );
+    const cards = container.querySelectorAll(".ht-stats-strip__cell");
+    expect(cards.length).toBe(5);
+    // Check all 5 labels (CSS text-transform: uppercase applies visually; DOM text is mixed case)
+    const text = container.textContent ?? "";
+    expect(text.toLowerCase()).toContain("handlers");
+    expect(text.toLowerCase()).toContain("invocations");
+    expect(text.toLowerCase()).toContain("success rate");
+    expect(text.toLowerCase()).toContain("failed");
+    expect(text.toLowerCase()).toContain("timed out");
   });
 
-  it("renders the health strip container when health is provided", () => {
+  it("renders combined handler + job count in HANDLERS column", () => {
+    const listeners = [createListener({ listener_id: 1 }), createListener({ listener_id: 2 })];
+    const jobs = [createJob({ job_id: 10 })];
+    const { container } = render(
+      <HandlersHealthStrip listeners={listeners} jobs={jobs} />,
+    );
+    const cards = container.querySelectorAll(".ht-stats-strip__cell");
+    expect(cards[0].textContent).toContain("3");
+  });
+
+  it("renders combined invocations + executions in INVOCATIONS column", () => {
+    const listeners = [createListener({ listener_id: 1, total_invocations: 10 })];
+    const jobs = [createJob({ job_id: 1, total_executions: 5 })];
+    const { container } = render(
+      <HandlersHealthStrip listeners={listeners} jobs={jobs} />,
+    );
+    const cards = container.querySelectorAll(".ht-stats-strip__cell");
+    const text = cards[1].textContent ?? "";
+    expect(text).toContain("15");
+  });
+
+  it("renders 100% success rate when no errors", () => {
+    const listeners = [createListener({ listener_id: 1, total_invocations: 5, failed: 0, timed_out: 0 })];
     const { getByTestId } = render(
-      <HealthStrip health={createHealthData()} status="running" />,
+      <HandlersHealthStrip listeners={listeners} jobs={[]} />,
     );
-    expect(getByTestId("health-strip")).toBeDefined();
+    const strip = getByTestId("handlers-health-strip");
+    expect(strip.textContent).toContain("100%");
   });
 
-  it("renders Status metric with capitalized status value", () => {
-    const { getByText } = render(
-      <HealthStrip health={createHealthData()} status="running" />,
-    );
-    expect(getByText("Status")).toBeDefined();
-    expect(getByText("Running")).toBeDefined();
-  });
-
-  it("renders Error Rate metric with formatted percentage", () => {
-    const { getByText } = render(
-      <HealthStrip health={createHealthData({ error_rate: 12.5, error_rate_class: "warn" })} status="running" />,
-    );
-    expect(getByText("Error Rate")).toBeDefined();
-    expect(getByText("12.5%")).toBeDefined();
-  });
-
-  it("renders Handler Avg metric with formatted duration when > 0", () => {
-    const { getByText } = render(
-      <HealthStrip health={createHealthData({ handler_avg_duration: 125 })} status="running" />,
-    );
-    expect(getByText("Handler Avg")).toBeDefined();
-    expect(getByText("125.0ms")).toBeDefined();
-  });
-
-  it("renders Handler Avg as em dash when handler_avg_duration is 0", () => {
-    const { getAllByText } = render(
-      <HealthStrip health={createHealthData({ handler_avg_duration: 0 })} status="running" />,
-    );
-    // The em dash "—" appears for both handler and job avg when zero
-    const dashes = getAllByText("—");
-    expect(dashes.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("renders Job Avg as em dash when job_avg_duration is 0", () => {
-    const { getAllByText } = render(
-      <HealthStrip health={createHealthData({ job_avg_duration: 0 })} status="running" />,
-    );
-    const dashes = getAllByText("—");
-    expect(dashes.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("applies success variant class for running status", () => {
+  it("applies warn tone to SUCCESS RATE when there are errors", () => {
+    const listeners = [
+      createListener({ listener_id: 1, total_invocations: 10, failed: 2, timed_out: 0 }),
+    ];
     const { container } = render(
-      <HealthStrip health={createHealthData()} status="running" />,
+      <HandlersHealthStrip listeners={listeners} jobs={[]} />,
     );
-    const statusValue = container.querySelector(".ht-health-card__value--success");
-    expect(statusValue).not.toBeNull();
+    const warnCard = container.querySelector(".ht-stats-strip__value--warn");
+    expect(warnCard).not.toBeNull();
   });
 
-  it("applies danger variant class for failed status", () => {
+  it("shows failed count and applies err tone when > 0", () => {
+    const listeners = [
+      createListener({ listener_id: 1, failed: 3, total_invocations: 10 }),
+    ];
     const { container } = render(
-      <HealthStrip health={createHealthData()} status="failed" />,
+      <HandlersHealthStrip listeners={listeners} jobs={[]} />,
     );
-    const statusValue = container.querySelector(".ht-health-card__value--danger");
-    expect(statusValue).not.toBeNull();
+    const errCard = container.querySelector(".ht-stats-strip__value--err");
+    expect(errCard).not.toBeNull();
+    expect(errCard?.textContent).toContain("3");
   });
 
-  it("applies success variant class for good error_rate_class", () => {
+  it("shows timed_out count and applies warn tone when > 0", () => {
+    const listeners = [
+      createListener({ listener_id: 1, timed_out: 1, total_invocations: 5 }),
+    ];
     const { container } = render(
-      <HealthStrip health={createHealthData({ error_rate_class: "good" })} status="running" />,
+      <HandlersHealthStrip listeners={listeners} jobs={[]} />,
     );
-    const errorRateCards = container.querySelectorAll(".ht-health-card__value--success");
-    // Both status and error rate should be success
-    expect(errorRateCards.length).toBeGreaterThanOrEqual(2);
+    const warnCards = container.querySelectorAll(".ht-stats-strip__value--warn");
+    // At least one warn-toned value for timed_out
+    expect(warnCards.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("applies warning variant class for warn error_rate_class", () => {
+  it("renders em dash for FAILED when count is 0", () => {
     const { container } = render(
-      <HealthStrip health={createHealthData({ error_rate_class: "warn" })} status="running" />,
+      <HandlersHealthStrip listeners={[createListener({ failed: 0 })]} jobs={[]} />,
     );
-    const warnEl = container.querySelector(".ht-health-card__value--warning");
-    expect(warnEl).not.toBeNull();
+    const cards = container.querySelectorAll(".ht-stats-strip__cell");
+    // FAILED card (index 3) should show em dash
+    expect(cards[3].textContent).toContain("—");
   });
 
-  it("applies danger variant class for bad error_rate_class", () => {
+  it("renders em dash for TIMED OUT when count is 0", () => {
     const { container } = render(
-      <HealthStrip health={createHealthData({ error_rate_class: "bad" })} status="running" />,
+      <HandlersHealthStrip listeners={[createListener({ timed_out: 0 })]} jobs={[]} />,
     );
-    const dangerEl = container.querySelector(".ht-health-card__value--danger");
-    expect(dangerEl).not.toBeNull();
+    const cards = container.querySelectorAll(".ht-stats-strip__cell");
+    // TIMED OUT card (index 4) should show em dash
+    expect(cards[4].textContent).toContain("—");
   });
 
-  it("renders 0.0% error rate without crashing", () => {
-    const { getByText } = render(
-      <HealthStrip health={createHealthData({ error_rate: 0, error_rate_class: "good" })} status="running" />,
+  it("renders testid handlers-health-strip", () => {
+    const { getByTestId } = render(
+      <HandlersHealthStrip listeners={[]} jobs={[]} />,
     );
-    expect(getByText("0.0%")).toBeDefined();
+    expect(getByTestId("handlers-health-strip")).toBeDefined();
   });
 });

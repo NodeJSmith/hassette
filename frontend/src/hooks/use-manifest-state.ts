@@ -1,6 +1,7 @@
-import { signal, useSignalEffect } from "@preact/signals";
+import { useSignalEffect } from "@preact/signals";
 import type { Signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
+import { useSignal } from "./use-signal";
 import type { AppManifest } from "../api/endpoints";
 import { getStoredSet, setStoredSet } from "../utils/local-storage";
 
@@ -19,9 +20,7 @@ interface ManifestState {
  * - Syncs changes back to localStorage via signal effect
  */
 export function useManifestState(manifests: AppManifest[] | null): ManifestState {
-  // Single source of truth for expanded app keys.
-  // Initialized from localStorage, synced back on changes via useSignalEffect.
-  const expandedRef = useRef(signal(getStoredSet(EXPANDED_KEY)));
+  const expanded = useSignal(getStoredSet(EXPANDED_KEY));
 
   // Prune stale keys once after manifests first load.
   const prunedRef = useRef(false);
@@ -29,11 +28,11 @@ export function useManifestState(manifests: AppManifest[] | null): ManifestState
     if (!manifests || prunedRef.current) return;
     prunedRef.current = true;
 
-    const current = expandedRef.current.value;
+    const current = expanded.value;
     const validKeys = new Set(manifests.map((m) => m.app_key));
     const pruned = new Set([...current].filter((k) => validKeys.has(k)));
     if (pruned.size !== current.size) {
-      expandedRef.current.value = pruned;
+      expanded.value = pruned;
     }
   }, [manifests]);
 
@@ -41,7 +40,7 @@ export function useManifestState(manifests: AppManifest[] | null): ManifestState
   // useSignalEffect subscribes to the signal, not the render cycle.
   const isFirstRef = useRef(true);
   useSignalEffect(() => {
-    const current = expandedRef.current.value;
+    const current = expanded.value;
     // Skip the initial value (already in localStorage from getStoredSet).
     if (isFirstRef.current) {
       isFirstRef.current = false;
@@ -51,15 +50,15 @@ export function useManifestState(manifests: AppManifest[] | null): ManifestState
   });
 
   const toggleExpand = (appKey: string) => {
-    const current = expandedRef.current.value;
+    const current = expanded.value;
     const next = new Set(current);
     if (next.has(appKey)) {
       next.delete(appKey);
     } else {
       next.add(appKey);
     }
-    expandedRef.current.value = next;
+    expanded.value = next;
   };
 
-  return { expanded: expandedRef.current, toggleExpand };
+  return { expanded: expanded, toggleExpand };
 }

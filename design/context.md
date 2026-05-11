@@ -1,21 +1,35 @@
 ---
 schema_version: 1
-updated_at: 2026-04-17
+updated_at: 2026-05-09
 ---
 
 ## Users & Purpose
 
-A developer at their desk — either verifying a fresh deployment is green, or mid-incident figuring out why the garage door automation didn't fire. Pulls up the UI with a question already in mind, not for passive monitoring.
+A technical hobbyist — not a developer by trade, but savvy enough to run Home Assistant, configure YAML, and drop Python files into an apps directory. They're comfortable with entity IDs and config keys but don't live in a terminal. They pull up the UI with a question already in mind, not for passive monitoring.
 
-**Task**: Diagnose. Verify. Confirm or refute a hypothesis fast. "Did my handler fire? What values did it see? Did it error? What was the exception?" — then close the tab.
+**Task**: Diagnose. Verify. Confirm or refute a hypothesis fast. "Did my handler fire? What values did it see? Did it error? What was the exception?" — then close the tab. Occasionally: check that everything is healthy after a restart, or browse the logs after something unexpected happened.
 
-**Context**: Home Assistant power users who write Python automations. Comfortable with terminals, logs, entity IDs. They don't need hand-holding — they need fast answers.
+**Context**: The UI is one tab among many. The user doesn't spend hours in it. They arrive, find what they need, and leave. Speed of comprehension matters more than aesthetic delight.
 
 ## Brand Personality
 
-Like opening a well-organized toolbox. Everything has a place, you grab what you need, close it, move on. Not a dashboard you stare at — a diagnostic instrument you reach for.
+The contrast IS the personality. A warm editorial shell — Newsreader serif headings, cream-toned backgrounds, considered spacing — wrapping raw technical data: monospace handler names, entity IDs, Python tracebacks, invocation counts. Don't resolve this tension; lean into it.
 
-**Tone**: Quiet confidence. Technical without being hostile. Dense without being cluttered. The UI should feel like it was built by someone who uses it daily.
+Like a well-typeset technical manual. The cover is beautiful, the content is precise. The UI should feel like it was built by someone who cares about typography AND reads stack traces daily.
+
+**Tone**: Neutral and slightly understated. Hassette tells the user what's happening; it doesn't editorialize. No exclamation points except in genuine error states. No "Oops!" or "Looks like..." No emoji.
+
+## Content Fundamentals
+
+**Voice**: Second person sparingly. Most copy is descriptive ("3 apps failing" not "You have 3 failing apps"). System messages prefer the imperative ("Restart the app to apply changes" not "You'll need to restart...").
+
+**Casing**: Sentence case throughout — "Stop motion_lights?", not "Stop Motion_Lights?". Code identifiers (app names, entity IDs, file paths) keep their literal casing.
+
+**Numbers**: Integers for counts, no thousands separator under 10k. Durations use `2.4s`, `380ms`, never "2.4 seconds". Times are 12-hour with seconds where precision matters (`7:25:37 PM`), or relative for recency ("4m ago", "yesterday").
+
+**Errors**: Lead with what happened, then what to do. "Could not connect to broker — check `mqtt.host` in config." Not "Error: connection failed."
+
+**Empty states**: Short, factual, friendly. "No events match this filter." Not "Nothing to see here!"
 
 ## Aesthetic Direction
 
@@ -29,195 +43,308 @@ Like opening a well-organized toolbox. Everything has a place, you grab what you
   - **Take**: KPI card pattern, status badge language, surface layering approach
   - **Leave**: The aggressive minimalism that sacrifices information density
 
-- **Terminal aesthetic (grown up)** — near-black with emerald and amber has the vibe of a terminal that evolved into a product. Data-forward, chrome-minimal.
-  - **Take**: The color temperature, the monospace-heavy data presentation
-  - **Leave**: The raw/unpolished feel — this needs to look like a product, not a prototype
+- **The Well-Made Notebook** — warm off-whites, serif headings, careful ink — the sensation of a good technical manual. Newsreader for headings brings character; Geist body text keeps it modern and fast to read.
+  - **Take**: The warmth of off-white backgrounds, the personality of a real serif for display type
+  - **Leave**: Slow-reading text columns, ornamental spacing
 
-- **Prefect (Miter Design)** — state-driven color where every hue earns its place by representing a workflow state. Colorblind-accessible themes. Speed as a feature.
+- **Prefect (Miter Design)** — state-driven color where every hue earns its place by representing a workflow state. Colorblind-accessible status shapes. Speed as a feature.
   - **Take**: Deliberateness of state color assignment, the visual hierarchy in flow run pages
   - **Leave**: Radial/constellation visualizations (Hassette's domain is flat lists, not DAGs)
 
-**Visual movement**: Data-dense utility — the "developer tool that happens to have a UI" school. Not editorial minimalism, not SaaS product, not consumer app.
+**Visual movement**: Editorial tension — a warm, typographically considered shell wrapping raw diagnostic data. Not pure editorial minimalism, not developer terminal, not consumer SaaS. The tension between the two registers is deliberate.
 
 ### Domain Concepts
 
-- **Wiring** — handlers connected to entities
-- **Pulse** — system liveness via WebSocket
-- **Threshold** — state transitions trigger actions
-- **Trace** — following what happened from effect to cause
-- **Registry** — what's registered, active, dormant
+- **Wiring** — handlers connected to entity events, jobs on intervals, delayed tasks. The app detail page surfaces this with type badges (event, interval, after).
+- **Pulse** — system liveness. The breathing dot, the "up 7m" label, the "connected" status. Multiple heartbeats layered: WebSocket, telemetry health, service readiness.
+- **Greeting** — the UI knows what time it is and what state the system is in. "Good evening. all apps are healthy." Diagnostic triage disguised as hospitality.
+- **Activity** — runs per hour, sparklines, invocation counts. The system has a metabolic rate.
+- **Registry** — what's loaded, running, disabled. The sidebar IS the registry — status-grouped, filterable, showing invocation counts in real time.
+- **Trace** — following what happened from effect to cause. Logs, recent errors, handler invocation detail. Monospace content inside editorial containers.
 
 ### Color World
 
-The green LED on a running Raspberry Pi. The cool gray of a breaker panel. The red blink of a low-battery smoke detector. The soft glow of a phone screen in a dark room pulling up the UI at midnight. The matte black of a well-made tool.
+Ink on warm cream paper. Status lights on a quiet instrument panel — green, amber, red, grey — each appearing only to communicate state, never for decoration. The warm off-white background prevents the clinical feel of pure white. In dark mode, deep charcoal with a periwinkle-blue accent that feels restrained, not the ubiquitous indigo.
 
-### Signature Element
+The color world is deliberately narrow: most of the page is neutral (ink on cream). The only hue that "lives" on the page is green — because most of the time, things are running. Red and amber are visitors, not residents.
 
-The breathing pulse dot — a slow inhale/exhale animation on the WebSocket connection indicator. Emerald when connected (breathing). Red and static when disconnected. The only continuously animated element. It exists because the system maintains a persistent WebSocket to Home Assistant — the dot breathes because the connection is alive.
+### Signature Elements
 
-- Appears in the **StatusBar** (top bar), not the sidebar
-- 8px circle, `--ht-accent` color with `breathe` keyframe animation (2.5s ease-in-out infinite)
-- Additional states: `connecting` (amber pulse), `degraded` (amber, for DB degradation or dropped events)
+Two signature elements work in tandem:
+
+**The breathing pulse dot** — 8px circle in the status bar, accent-colored with a 2.5s ease-in-out inhale/exhale animation when connected. Static and red when disconnected, amber when degraded. The only continuously animated element. It breathes because the WebSocket connection is alive.
+
+- Appears in the **StatusBar** (top-right) and **sidebar version area** (below wordmark)
+- States: `connected` (accent, breathing), `connecting` (muted, static), `degraded` (warn, static), `disconnected` (err, static)
 - Reduced motion: static dot, no animation
+
+**The greeting** — "Good evening." in Newsreader serif, followed by a plain-language system summary. Not a dashboard title — a sentence that tells you what's happening. Changes with system state: "garage_alerts needs your attention" vs "nothing needs your attention right now." This is the editorial tension in action.
 
 ### Defaults Rejected
 
 | Default | Why it's wrong | Better alternative |
 |---------|---------------|-------------------|
-| Indigo/violet accent | Tailwind default, every AI-generated UI uses this — zero personality | Emerald: "alive, connected, working" — the LED on a running Pi |
-| Dark sidebar on light page | Jarring mixed-mode contrast that fights for attention | Sidebar uses same `--ht-bg` and `--ht-surface`, separated by border not color |
-| Borders-only depth | Makes the UI feel flat and cheap at low information density | Subtle shadows + borders; shadows establish card hierarchy, borders separate rows |
-| Inter/Roboto/system-ui | Generic, says nothing about the product | DM Sans body, Space Grotesk headings, JetBrains Mono data |
+| Indigo/violet accent | Tailwind default, every AI-generated UI uses this — zero personality | Ink-1 (near-black) in light mode; periwinkle-blue in dark — accent earns its place through restraint |
+| Dark sidebar on light page | Jarring mixed-mode contrast that fights for attention | Sidebar uses same `--bg-page`, separated by border not color contrast |
+| Sidebar with icons | Icon+label is generic SaaS nav | Text-only nav labels; the app registry below the nav IS the primary interaction surface |
+| Dashboard as KPI grid | Rows of identical metric cards is a monitoring dashboard, not a diagnostic tool | Greeting + system state subtitle, stats strip, and summary cards — the page adapts its emphasis based on what's happening |
+| Skeleton loaders | Shimmer placeholders are consumer-app polish | Single spinner for initial load; stale data with `opacity: 0.6` during refetch |
 | Card nesting | Cards inside cards creates visual noise | Handler rows are list items in bordered containers |
-| Bounce/elastic easing | The UI is a tool, not a toy | All transitions use ease-out |
-| Warm amber as primary accent | Was the old palette — rejected by user | Amber reserved for state values only |
+| Bounce/elastic easing | The UI is a tool, not a toy | All transitions use the Ink easing curve |
+| Warm amber as primary accent | Overused, dilutes status meaning | Status tones (ok/warn/err) are semantic-only; never decorative |
 
 ## Concrete Constraints
 
-- **No rounded corners above 10px** (except pills/badges at `radius-full`) — the product is technical
-- **Body text is DM Sans, never a serif** — the diagnostic-tool feel requires geometric sans
-- **Maximum 3 color families beyond neutrals** (emerald accent, amber values, red errors) — density demands restraint
-- **No drop shadows as primary depth in dark mode** — use border highlights and surface tint differentiation instead; shadows supplement but don't carry depth alone against near-black backgrounds
-- **Monospace for all data** — entity IDs, timestamps, handler names, invocation counts, log entries. Most content on the page is mono.
-- **No icons without text labels** in main content areas — exceptions: sidebar icon rail, and dense data-row action clusters (e.g., Stop/Reload in app list rows) where universal icons (play/stop/refresh) with `aria-label` and `title` suffice
-- **Density is a feature** — row padding is compact (10-12px vertical), meta text gaps are tight (12-16px), whitespace is for section separation not breathing room inside components
+- **No rounded corners above 8px** (except pills at `--r-pill`) — the product is technical
+- **Body text is Geist, never a raw system font** — controlled and on-brand
+- **Display headings (h1-h3) use Newsreader** — this is where the editorial tension lives
+- **Maximum 4 semantic hues beyond neutrals** (ok, warn, err, mute) — density demands restraint
+- **Monospace for all data** — entity IDs, timestamps, handler names, invocation counts, log entries, config keys. Most content on the page is mono. This is the "raw technical data" half of the tension.
+- **No icons without text labels** in main nav or content — sidebar nav is text-only; exceptions: dense action clusters (reload/stop) and the status bar (pulse dot, theme toggle)
+- **Density is a feature** — row padding is compact (10-12px vertical), meta text gaps tight, whitespace for section separation not breathing room
+- **No status colors on non-status elements** — `--ok`/`--warn`/`--err` reserved for state communication only
+- **Borders for depth, shadows for floating** — cards use `--line-1` borders; shadows only on genuinely floating surfaces (modal, command palette, dropdown)
+- **Greeting, not dashboard title** — the overview page opens with a time-of-day greeting and system state sentence, not "Dashboard" or "Overview"
+- **No left-border accents** — AI slop pattern; use indentation, spacing, or weight instead
+- **No emoji** — not in tone, not in code samples, not in microcopy
 
 ## Design Principles
 
 1. **Answer the question** — every page exists to answer a specific diagnostic question. If a component doesn't help answer it, remove it.
-2. **Hierarchy through type, not decoration** — font family (heading vs body vs mono), weight, and size create hierarchy. Not borders, backgrounds, or color.
-3. **Emerald means alive** — green is reserved for "connected, running, healthy." Don't dilute it on links, buttons, or decorative elements.
-4. **Show state, don't narrate it** — a red dot says "failed" faster than a paragraph. Status badges, health bars, and color-coded values over prose descriptions.
-5. **Respect the developer** — no onboarding tours, no tooltips on obvious things, no confirmation dialogs for reversible actions. The user knows what they're doing.
+2. **Hierarchy through type, not decoration** — Newsreader headings vs Geist body vs Geist Mono data create hierarchy. Not borders, backgrounds, or color for its own sake.
+3. **Green means ok** — `--ok` is reserved for "connected, running, healthy." Don't dilute it on links, buttons, or decorative elements.
+4. **Show state, don't narrate it** — a colored dot says "failed" faster than a paragraph. Status badges, sparklines, and color-coded values over prose descriptions.
+5. **Respect the user** — no onboarding tours, no tooltips on obvious things, no confirmation dialogs for reversible actions. The user is technically capable.
+
+## Iconography
+
+Minimal. Most "icons" are typographic: bullets, arrows (`→` `↑` `↓`), keyboard hints (`⌘K`). When real icons are needed, use inline SVGs at 14-16px. Never decorative — every icon should communicate something the text doesn't.
+
+Status indicators combine **shape + color**: filled circle for ok, triangle for warn, square for err, outline ring for muted. Status is readable in greyscale — color is reinforcement, not the only signal.
 
 ## Design Tokens
 
-### Color — Dark Mode (Graphite + Emerald) — Default
+The design system uses unprefixed Ink tokens (no `--ht-*` prefix). Light mode is the `:root` default; dark mode activates via `[data-theme="dark"]`.
 
-| Token | Value | Role |
-|-------|-------|------|
-| `--ht-bg` | `#111113` | Page canvas — near-black graphite |
-| `--ht-surface` | `#222226` | Cards, panels, list rows — perceptible separation from bg |
-| `--ht-surface-recessed` | `#2a2a2f` | Hover states, inset areas, expanded details |
-| `--ht-surface-sticky` | `#222226` | Sticky headers (same as surface) |
-| `--ht-border` | `rgba(255, 255, 255, 0.06)` | Default separation — visible when you look, invisible when you don't |
-| `--ht-border-strong` | `rgba(255, 255, 255, 0.10)` | Interactive element borders (inputs, buttons, toggles) |
-| `--ht-border-highlight` | `rgba(255, 255, 255, 0.08)` | Card top-edge highlight — simulates light source for depth |
-| `--ht-text` | `#ececef` | Primary text |
-| `--ht-text-secondary` | `#9898a0` | Secondary labels, meta text |
-| `--ht-text-dim` | `#5c5c66` | Tertiary text, timestamps, placeholders |
-| `--ht-link` | `#6bab94` | Interactive text — muted emerald, distinct from vivid accent and neutral text |
-| `--ht-link-hover` | `#8cc4ad` | Interactive hover state |
-| `--ht-accent` | `#34d399` | Status accent — emerald. Reserved for alive/connected/running states, pulse dot |
-| `--ht-accent-light` | `rgba(52, 211, 153, 0.10)` | Status accent backgrounds (badges, highlights) |
-| `--ht-value` | `#fbbf24` | State values in handler summaries — amber, distinct from accent |
-| `--ht-success` | `#34d399` | Healthy/running — same as accent (emerald = "all systems go") |
-| `--ht-success-light` | `rgba(52, 211, 153, 0.10)` | Success badge backgrounds |
-| `--ht-danger` | `#f87171` | Error, failed, disconnected |
-| `--ht-danger-light` | `rgba(248, 113, 113, 0.10)` | Error badge/trace backgrounds |
-| `--ht-warning` | `#fbbf24` | Warning states, elevated error rates |
-| `--ht-warning-light` | `rgba(251, 191, 36, 0.08)` | Warning badge backgrounds |
-| `--ht-shadow-sm` | `0 1px 3px rgba(0, 0, 0, 0.3)` | Cards, containers |
-| `--ht-shadow-md` | `0 4px 12px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.2)` | Hover lift, dropdowns |
+### Surfaces
 
-**Rationale**: Graphite neutrals (no blue tint, no warm tint — true neutral gray) keep the same temperature in both modes. Emerald as the primary accent because green = "alive, connected, working" in this domain — the LED on a running Pi, the "all systems go" signal. Amber for state values creates semantic separation from the accent without adding a third hue family. Red for errors is universal and unambiguous.
+| Token | Light | Dark | Role |
+|-------|-------|------|------|
+| `--bg-page` | `#FAFAF8` | `#111316` | Page canvas — warm off-white / deep neutral |
+| `--bg-surface` | `#FFFFFF` | `#191B1F` | Cards, panels, list rows |
+| `--bg-sunken` | `#F4F4F1` | `#15171B` | Inset areas, code backgrounds |
+| `--bg-active` | `#F0F0EC` | `#1D2026` | Hover states, expanded details, active sidebar item |
 
-### Color — Light Mode (Chalk + Emerald)
+### Ink (Text)
 
-| Token | Value | Role |
-|-------|-------|------|
-| `--ht-bg` | `#ededf0` | Page canvas — cool chalk with visible separation from cards |
-| `--ht-surface` | `#f9f9fa` | Cards, panels, list rows |
-| `--ht-surface-recessed` | `#e6e6ea` | Hover states, inset areas, expanded details |
-| `--ht-surface-sticky` | `#f9f9fa` | Sticky headers |
-| `--ht-border` | `rgba(0, 0, 0, 0.08)` | Default separation |
-| `--ht-border-strong` | `rgba(0, 0, 0, 0.13)` | Interactive element borders |
-| `--ht-border-highlight` | `rgba(0, 0, 0, 0.04)` | Card top-edge highlight |
-| `--ht-text` | `#111113` | Primary text — near-black graphite |
-| `--ht-text-secondary` | `#55555e` | Secondary labels, meta text |
-| `--ht-text-dim` | `#9898a0` | Tertiary text, timestamps |
-| `--ht-link` | `#1a7a5a` | Interactive text — muted emerald for light backgrounds |
-| `--ht-link-hover` | `#0f5c42` | Interactive hover state |
-| `--ht-accent` | `#047857` | Status accent — deeper emerald, WCAG AA compliant (5.0:1 on white) |
-| `--ht-accent-light` | `rgba(4, 120, 87, 0.07)` | Status accent backgrounds |
-| `--ht-value` | `#b45309` | State values — darker amber for light backgrounds |
-| `--ht-success` | `#047857` | Healthy/running |
-| `--ht-success-light` | `rgba(4, 120, 87, 0.07)` | Success badge backgrounds |
-| `--ht-danger` | `#dc2626` | Error, failed, disconnected |
-| `--ht-danger-light` | `rgba(220, 38, 38, 0.07)` | Error badge/trace backgrounds |
-| `--ht-warning` | `#a16207` | Warning states |
-| `--ht-warning-light` | `rgba(161, 98, 7, 0.06)` | Warning badge backgrounds |
-| `--ht-shadow-sm` | `0 1px 2px rgba(0, 0, 0, 0.04)` | Cards, containers |
-| `--ht-shadow-md` | `0 4px 12px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03)` | Hover lift, dropdowns |
+| Token | Light | Dark | Role |
+|-------|-------|------|------|
+| `--ink-1` | `#16181C` | `#EDEFF3` | Primary text |
+| `--ink-2` | `#4A4D54` | `#B5B9C0` | Secondary labels, meta text |
+| `--ink-3` | `#787C84` | `#888D97` | Tertiary text, timestamps, placeholders |
+| `--ink-4` | `#B0B3B8` | `#5A5E66` | Disabled text |
+
+### Lines (Borders)
+
+| Token | Light | Dark | Role |
+|-------|-------|------|------|
+| `--line-1` | `#E6E6E2` | `#272A30` | Default separation |
+| `--line-2` | `#ECECE8` | `#1F2227` | Subtle/secondary separators |
+| `--line-strong` | `#D0D0CC` | `#3A3E46` | Interactive element borders, focused inputs |
+
+### Accent
+
+| Token | Light | Dark | Role |
+|-------|-------|------|------|
+| `--accent` | `var(--ink-1)` | `#7A8AFF` | Primary interactive color |
+| `--accent-ink` | `var(--bg-page)` | `#0F1115` | Text on accent background |
+| `--accent-hover` | `#2A2D33` | `#93A0FF` | Hover state |
+| `--accent-soft` | `#E8E8E5` | `#1A1F36` | Soft accent background (active tabs, selections) |
+
+**Rationale**: In light mode, accent is `ink-1` (near-black). The system has personality through type (Newsreader) and surface warmth (`#FAFAF8`), not through a colored accent. In dark mode, periwinkle-blue earns its place without the "every AI-generated UI uses indigo" feel.
+
+### Status
+
+| Token | Light | Dark | Role |
+|-------|-------|------|------|
+| `--ok` / `--ok-bg` | `#1F7A4D` / `#EAF3EE` | `#5FB988` / `#19241E` | Running, healthy, connected |
+| `--warn` / `--warn-bg` | `#9A6A12` / `#F5EEDD` | `#D9B36E` / `#272219` | Warning, elevated error rate, degraded |
+| `--err` / `--err-bg` | `#B53024` / `#F5DEDC` | `#E08278` / `#28191A` | Error, failed, disconnected, crashed |
+| `--mute` / `--mute-bg` | `#9097A0` / `#EFF0EC` | `#6A707A` / `#1D1F23` | Stopped, disabled, unknown |
 
 ### Typography
 
-- **Headings**: Space Grotesk (600/700) — geometric, technical character. Distinguishes Hassette from generic admin panels. The only place personality shows in the type system.
-- **Body**: DM Sans (400/500) — clean geometric sans that pairs with Space Grotesk without competing. Readable at small sizes for meta text and descriptions.
-- **Mono**: JetBrains Mono (400/500/600) — entity IDs, timestamps, handler names, invocation data, log entries. The workhorse font — most data on the page is monospace.
+- **Display/headings (h1-h3)**: Newsreader 400 — a refined newspaper serif. Gives the UI character and warmth. Headings feel authored, not generated. This is the editorial half of the tension.
+- **Body**: Geist 400/500 — clean, modern sans-serif by Vercel. Fast to read, pairs with Newsreader without competing.
+- **Mono**: Geist Mono 400/500 — entity IDs, timestamps, handler names, invocation data, log entries, config keys. The workhorse font — most data on the page is monospace. This is the technical half of the tension.
 - **Scale**:
-  - `--ht-text-xs`: 13px — uppercase labels (INIT STATUS, FIRES, AVG)
-  - `--ht-text-sm`: 14px — meta text, badge text, timestamps
-  - `--ht-text-base`: 16px — handler summaries, table data, log entries
-  - `--ht-text-md`: 17px — body text, descriptions
-  - `--ht-text-lg`: 19px — section headings (Event Handlers, Scheduled Jobs)
-  - `--ht-text-xl`: 23px — page titles (Garage Proximity)
-  - `--ht-text-2xl`: 27px — hero numbers in health cards (0.4%, 18ms, 3m ago)
-- **Weights**: 400 (body), 500 (mono emphasis, meta strong values), 600 (headings, stat values), 700 (page title only)
-- **Self-hosted**: WOFF2 files in `/frontend/public/fonts/` — DM Sans 400/500/700, Space Grotesk 400/500/600/700, JetBrains Mono 400/500
+  - `--fs-display` / `--lh-display`: 38px / 1.05 — hero display text (greeting)
+  - `--fs-h1` / `--lh-h1`: 28px / 1.15 — page titles
+  - `--fs-h2` / `--lh-h2`: 20px / 1.25 — section headings
+  - `--fs-h3` / `--lh-h3`: 16px / 1.35 — subsection headings
+  - `--fs-body` / `--lh-body`: 14px / 1.55 — body text, table data
+  - `--fs-small` / `--lh-small`: 12.5px / 1.5 — meta text, captions
+  - `--fs-micro` / `--lh-micro`: 11px / 1.4 — labels, uppercase tags
+  - `--fs-mono-sm` / `--fs-mono-md`: 12px / 13px — code, data
+- **Letter spacing**: Display and headings use negative tracking (`--tr-display: -0.025em` through `--tr-h3: -0.005em`) for optical tightness at large sizes.
+- **Self-hosted**: WOFF2 files in `/frontend/public/fonts/` — Newsreader 400, Geist 400/500, Geist Mono 400/500
 
 ### Spacing
 
-- **Base**: 4px (`--ht-sp-1`)
-- **Scale**: `--ht-sp-1` (4px), `--ht-sp-2` (8px), `--ht-sp-3` (12px), `--ht-sp-4` (16px), `--ht-sp-5` (20px), `--ht-sp-6` (24px), `--ht-sp-8` (32px), `--ht-sp-10` (40px)
-- **Density**: Diagnostic tool — density is a feature. Row padding compact (10-12px vertical). Meta text gaps tight (12-16px). Health strip cards modest padding (12px 14px). Whitespace for section separation, not breathing room inside components.
+- **Base**: 4px (`--sp-1`)
+- **Scale**: `--sp-1` (4px) through `--sp-10` (72px)
+- **Density**: Diagnostic tool — density is a feature. Row padding compact (10-12px vertical). Meta text gaps tight (12-16px). Whitespace for section separation, not breathing room inside components. Information-dense surfaces (logs, tables) shrink to `--sp-2`/`--sp-3`; calmer surfaces (overview cards, modals) breathe with `--sp-5`/`--sp-6`.
 
-### Depth
+### Shadows
 
-- **Strategy**: Subtle shadows + borders. Shadows establish card-level hierarchy. Borders separate rows within lists.
-- **Why**: Borders-only was explicitly rejected ("flat and cheap"). Full Bulma-style shadows are too heavy. Single shadow-sm on cards adds dimensionality without weight.
-- **Levels**: `--ht-shadow-sm` on cards and containers, `--ht-shadow-md` on hover lift and dropdowns.
-- **Dark mode**: Surface bump (#111113 → #222226) provides perceptible luminance separation. Border highlights (`--ht-border-highlight` at 0.08 alpha) on card top edges simulate a light source. Together with shadows, cards are unambiguously visible.
+- **`--shadow-1`**: `0 1px 2px rgba(20, 22, 26, 0.04)` — subtle card lift (light mode)
+- **`--shadow-2`**: `0 2px 8px ... + 0 1px 2px ...` — card prominence
+- **`--shadow-3`**: `0 8px 24px ... + 0 2px 6px ...` — dropdowns, modals, command palette
+- **Dark mode**: Same shadow variables use higher opacity (0.3 / 0.4 / 0.5) against near-black backgrounds.
+- **Usage rule**: Borders are the primary depth mechanism. Shadows reserved for genuinely floating surfaces only.
 
 ### Border Radius
 
-- **Scale**: `--ht-radius-sm` (6px), `--ht-radius-md` (9px), `--ht-radius-lg` (10px), `--ht-radius-full` (9999px)
-- **Character**: Slightly rounded — not sharp (too clinical), not pill-shaped (too playful). 9-10px on cards and list containers. 6px on buttons and inputs. Full round on badges and status dots. The radius says "tool with considered edges."
+- **`--r-sm`**: 4px — inputs, code spans, kbd badges
+- **`--r-md`**: 6px — buttons, cards, list containers
+- **`--r-lg`**: 8px — panels, larger cards
+- **`--r-xl`**: 12px — modals, large containers
+- **`--r-pill`**: 999px — status badges, status dots
 
 ### Motion
 
-- **Micro**: 120ms `ease-out` — hover state transitions (background, border color)
-- **Transition**: 200ms `ease-out` — expand/collapse handler detail, tab switching
-- **Signature**: 2.5s `ease-in-out` infinite — the pulse dot breathe animation. Only continuous animation.
-- **Reduced motion**: All animations and transitions collapse to `0.01ms`. Pulse dot becomes static.
+- **`--t-fast`**: 120ms — hover state transitions (background, border color)
+- **`--t-med`**: 200ms — expand/collapse, tab switching, drawer slide
+- **`--ease`**: `cubic-bezier(0.4, 0, 0.2, 1)` — the Ink easing curve. Used everywhere.
+- **Signature animation**: pulse dot breathe, 2.5s ease-in-out infinite. Only continuous animation.
+- **Reduced motion**: `@media (prefers-reduced-motion: reduce)` — all animations collapse to 0.01ms
+
+## Component Inventory
+
+### Layout
+
+**Sidebar** — 240px fixed panel, left side. Text-only nav (apps, logs, config) — no icons. Below the nav: APPS section header with count, search input, then status-grouped app entries (FAILING, BLOCKED, SLOW, RUNNING, STOPPED, DISABLED). Each group is collapsible. App entries show StatusShape + display name + optional auto badge + invocation count. Multi-instance apps have an expand chevron showing individual instances with tree connectors (`└`). Wordmark ("hassette") at top with version and connection status below it. Command palette trigger ("jump to... Ctrl+K") between wordmark and nav.
+
+**Mobile layout** (below 900px) — sidebar hides; hamburger button (top-left, 44px) opens an off-canvas drawer that slides in from the left with the full sidebar content. Backdrop overlay for dismissal. Main content gets top padding to clear the hamburger. The 900px threshold was chosen to eliminate the 769-900px dead zone where the sidebar consumed too much of the viewport. General mobile layout changes (grid stacking, compact tables, touch targets) still trigger at 768px.
+
+**StatusBar** — horizontal bar at top of main content area. Left side: TimePresetSelector (Since restart / 1h / 24h / 7d with uptime label). Right side: WebSocket indicator (pulse dot + label when not connected), telemetry degraded indicator, dropped events indicator, error handler failures indicator, theme toggle (sun/moon icon).
+
+**Command Palette** — modal overlay triggered by Cmd+K / Ctrl+K. Search input with fuzzy matching. Items categorized: pages (apps, logs, config), apps (navigate to app), instances (for multi-instance apps), handlers (navigate to app's handler), actions (reload/stop apps). Each item shows StatusShape, label, sub-label, and optional status. Keyboard navigation with highlighted selection.
+
+**TelemetryDegradedBanner** — amber warning banner rendered inside the layout shell (`app.tsx`), appearing on all pages when the telemetry database is degraded (queue overflow, backpressure, or unreachable). Reads `telemetryDegraded`, `droppedOverflow`, and `droppedExhausted` signals from `useAppState()`. No props; mounts between `StatusBar` and the page router output.
+
+### Apps Page
+
+**Default landing page** — `/` redirects to `/apps`. This is the primary entry point for the UI; there is no separate overview or dashboard page.
+
+**Page header** — "apps" in Newsreader h1.
+
+**Stats strip** — 7-cell grid: Total, Running, Failed, Stopped, Disabled, Handlers, Runs/hr. Status-colored values (running count in green, failed in red).
+
+**Status filter** — pill toggle row: all (with count), running (with count), disabled (with count). Active pill uses accent styling.
+
+**Search** — text input, right-aligned, filters by app name or key.
+
+**App table** — sortable columns: APP (StatusShape + display name + class name), STATUS (badge), LAST ERROR, RUNS (count + sparkline), LAST FIRED, ACTIONS (reload/stop icons). Multi-instance apps show expand chevron with instance count. Mobile hides columns 3+ and class names.
+
+### App Detail
+
+**Breadcrumb** — "Apps / app_key" with link back.
+
+**Header** — StatusShape + app_key in h1. Meta line: file path, class name. Reload and Stop action buttons (top-right). Error display card when app has recent error (shows error type, message, link to traceback).
+
+**Tab bar** — overview (default), handlers (with count), code, logs, config. Underline-style active indicator.
+
+**Overview tab** (default landing) — three sections: (1) Error spotlight showing failing handlers/jobs with error type, message, and link to handler detail — capped at 3 expanded with "show N more"; absent when nothing is failing. (2) Handler health grid showing all handlers/jobs in compact StatusShape + kind badge + name + run count rows, failing items first, each linking to handler detail. (3) Recent activity (cross-handler invocations/executions from `GET /telemetry/app/{app_key}/activity`) + recent app-scoped logs. Updates in real time via WebSocket `invocation_completed`/`execution_completed` events.
+
+**Health strip** — 4-5 cell KPI row: Handlers, Invocations (with time scope), Success Rate, Failed, Timed Out. Mono values, micro uppercase labels. Rendered inside the handlers tab (not shared across tabs).
+
+**Handlers tab** — two-panel layout. Left: handler/job list. Each row shows StatusShape + type badge (event/interval/after/cron) + handler name + meta (entity pattern, schedule, run count). Right: detail panel for selected handler showing invocation/execution history table.
+
+**Code tab** — syntax-highlighted Python source with line numbers. Horizontal scroll for long lines.
+
+**Logs tab** — filtered log table scoped to this app. Same columns as the main logs page.
+
+**Config tab** — key-value table showing the app's resolved configuration.
+
+### Logs Page
+
+**Page header** — "logs" in Newsreader h1.
+
+**Toolbar** — entry count (left). Right side: tier filter (All / Apps / Framework), live toggle (green dot + "live"), level filter (INFO+), app filter dropdown, search input.
+
+**Log table** — columns: Level (StatusShape + label), Timestamp, App, SOURCE (handler name + file:line), Message. Sortable. Alternating row backgrounds for warnings. Expandable message cells for truncated content. Mobile hides non-essential columns.
+
+### Config Page
+
+**Page header** — "config" in Newsreader h1.
+
+**Grouped key-value tables** — sections: General, Connection, Buffers, Timeouts, Scheduler, Paths, Database, Features. Each section has an h2 heading. Two-column table: key (mono) and value (mono). No editing — read-only config viewer.
+
+### Handlers Page (`/handlers`)
+
+**Page header** — "handlers" in Newsreader display size.
+
+**Toolbar** — tier filter (All / Apps / Framework), app filter dropdown (all apps or a specific app key), search input. Defaults to app-tier only; toggling includes framework-tier items.
+
+**Unified table** — handlers and jobs in a single sortable table. Sortable columns: TYPE (event/job badge), APP, NAME, TRIGGER, RUNS, FAILED, TIMED OUT, ERROR RATE, AVG, NEXT RUN. Rows link to app detail with handler focused. The TYPE column distinguishes handlers from jobs; columns that don't apply to a row show "—" (e.g., handlers have no NEXT RUN, jobs with zero runs show "—" for AVG). Header shows combined counts ("19 handlers · 14 jobs"). Empty state: "no handlers found."
+
+Cancelled jobs are filtered at the backend (SQL `WHERE sj.cancelled_at IS NULL`). The STATUS column was removed — all returned jobs are active by definition.
+
+Data sources: `GET /api/bus/listeners` and `GET /api/scheduler/jobs`.
+
+### Diagnostics Page (`/diagnostics`)
+
+**Page header** — "diagnostics" in Newsreader display size.
+
+**Services panel** — two-phase initialization: seeded from `GET /api/health` on mount (returns `ServiceInfoResponse` with `name`, `status`, `role`, `ready_phase`, `retry_at`), then live WS `service_status` broadcasts overlay keyed by `resource_name`. Displays each service as a row: StatusShape + resource_name (mono, bold) + role (mono, muted) + status (mono) + optional ready_phase (italic). Services in `exhausted_cooling` state show a relative retry timestamp ("retry in 3m") that refreshes as the WS signal updates. Services with exceptions show a "show exception" toggle revealing a `<pre>` block. When WS is disconnected, a "stale" badge appears in the panel header. Empty state: "No services registered."
+
+**Boot issues panel** — reads from the same `GET /api/health` response (shared fetch). Issues sorted by severity (errors first). Each row: StatusShape (err/warn) + label (bold) + detail text below. Empty state: "Clean startup — no issues."
+
+**Telemetry health panel** — reads from `useAppState()` signals populated by the global 30s `useTelemetryHealth` poller (no additional fetch). Shows a degraded banner when `telemetryDegraded` is true. Displays per-category drop counters: Buffer overflow, Write failed, No session, During shutdown, Error handler failures — each as a label/count row. When all counters are zero: "No telemetry drops."
+
+Data sources: `GET /api/health` (services + boot issues), `useAppState()` signals (drop counters).
+
+### Shared Components
+
+**StatusBadge** — two variants:
+- Full: pill with dot + label (`ht-status-badge--{variant}`)
+- Small: compact pill (`ht-badge--sm ht-badge--{variant}`)
+
+**StatusShape** — inline SVG combining shape + color for colorblind accessibility:
+- ok: filled circle (green)
+- warn: filled triangle (amber)
+- err: filled square (red)
+- mute: outline circle (grey)
+
+**Spinner** — loading indicator for initial page loads.
+
+**ConfirmDialog** — modal for destructive actions (stop app). Dark overlay, card with title + message + cancel/confirm buttons. Danger variant uses `--err` confirm button.
+
+**AlertBanner** — dismissible banner at top of main content showing failed app names with error messages. Uses `--err-bg` background.
+
+**LogTable** — reusable log viewer with level filtering, sorting, and expandable message cells. Used on the main logs page and per-app logs tab.
+
+**ShowMoreButton** — "show more" trigger for expanding truncated lists.
+
+**ActionButtons** — reload/stop icon buttons with loading states and confirmation flow.
 
 ### Anti-patterns
 
-- **No warm amber/gold as primary accent** — amber is reserved for state values only
-- **No dark sidebar on light page** — sidebar uses same `--ht-bg` and `--ht-surface` as main content
-- **No borders-only depth** — every card and list container gets `--ht-shadow-sm`, supplemented by border highlights in dark mode
-- **No pure black or pure gray** — all neutrals have the graphite tint (`#111113`, `#1a1a1e`)
-- **No Inter, Roboto, or system-ui as primary font**
-- **No indigo/violet accents** — Tailwind default, AI slop signal
+- **No `--ht-*` prefixed tokens** — the old Graphite+Emerald system is replaced; all tokens are unprefixed Ink tokens
+- **No raw hex values in component CSS** — always reference tokens
+- **No sidebar icons** — text-only nav is intentional, not a gap
+- **No shadows for card depth** — borders are the primary mechanism; shadows for floating surfaces only
+- **No blue/indigo/violet accent** — light mode accent is `ink-1`; dark mode uses restrained periwinkle
 - **No card nesting** — handler rows are list items in bordered containers, not cards inside cards
-- **No bounce/elastic easing** — all transitions use `ease-out`
-- **No emerald on non-status elements** — accent is reserved for status (alive/connected/running). Links use `--ht-link` (muted emerald). Nav, tabs, toggles, and buttons use neutral treatments. Three semantic layers: vivid emerald = status, muted emerald = interactive, neutral = static text.
-
-## Component Notes
-
-- **Handler rows**: Grid layout — `8px dot | 1fr content | auto stats`. Plain-language summary as primary text. Invocation count, last-fired, avg duration as mono meta text below. Expandable.
-- **Health strip**: 4-column grid of compact cards at top of App Detail. Init status, error rate, avg duration, last activity.
-- **StatusBar**: Top bar with pulse dot (WebSocket indicator), theme toggle, session scope toggle, and degraded/dropped-events indicators. Pulse dot uses `--ht-accent` with breathe animation when connected; `--ht-danger` and static when disconnected; amber when connecting or degraded.
-- **Status badges**: Pill-shaped (radius-full), mono font, colored dot + text. Running = emerald, Failed = red, Stopped/Disabled = dim gray. Background uses `-light` token variant.
-- **Log level toggle**: Segmented button group (DEBUG | INFO | WARN). Active state uses `--ht-accent-light` background with `--ht-accent` text.
-- **Sidebar**: 56px icon rail (no expanded state). Same background temperature as page (`--ht-bg`). Active nav item uses `--ht-surface-recessed` background (neutral, not accent). Hidden below 768px — replaced by bottom nav on mobile.
+- **No bounce/elastic easing** — all transitions use `--ease`
+- **No status colors on non-status elements** — `--ok` / `--warn` / `--err` reserved for state communication only
+- **No left-border accents** — use indentation, spacing, or weight instead
+- **No emoji** — not in UI copy, not in error messages, not anywhere
+- **No skeleton loaders** — use spinner or stale-data-with-opacity
+- **No bottom navigation on mobile** — hamburger + off-canvas drawer pattern
 
 ## Open Questions
 
-### Remaining polish opportunities
-
-Surface hierarchy and accent reservation are addressed. Remaining gaps from the critique:
-
-- **KPI card hierarchy**: labels and values still lack visual weight differentiation. Consider varying hero number sizes by importance. → `/i-arrange`
-- **Health bar treatment**: 4px bars with no label or percentage. Either make them visible (8px, percentage label) or remove from app cards. → `/i-distill`
-- **Empty states**: blank space with no guidance. Sessions page, first-run, no-logs states need treatment. → `/i-onboard`
+- **Logo / wordmark** — currently text-only ("hassette" in Newsreader). Real mark deferred.
+- **Empty states** — empty states for no logs matching filter, no handlers, sessions page need treatment.

@@ -26,6 +26,7 @@ export function ErrorBoundary({ children, resetKey }: Props) {
         <h2>Something went wrong</h2>
         <p class="ht-text-secondary">{error instanceof Error ? error.message : String(error)}</p>
         <button
+          type="button"
           class="ht-btn ht-btn--primary"
           onClick={resetError}
         >

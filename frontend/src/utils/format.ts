@@ -15,6 +15,16 @@ export function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+/** Format a duration or "—" if null/undefined/zero. Use for averages where 0 means "no data". */
+export function formatDurationOrDash(ms: number | null | undefined): string {
+  return ms !== null && ms !== undefined && ms > 0 ? formatDuration(ms) : "—";
+}
+
+/** Format a duration or "—" if null/undefined. Use for min/max where 0 is a valid value. */
+export function formatOptionalDuration(ms: number | null | undefined): string {
+  return ms !== null && ms !== undefined ? formatDuration(ms) : "—";
+}
+
 /** Pluralize a label based on count (e.g., pluralize(1, "entry", "entries") → "1 entry"). */
 export function pluralize(count: number, singular: string, plural?: string): string {
   const label = count === 1 ? singular : (plural ?? `${singular}s`);
@@ -48,12 +58,59 @@ export function truncateId(id: string | null | undefined): string {
   return id.slice(0, 8) + "…";
 }
 
-/** Format a Unix timestamp as a relative time string (e.g., "2m ago"). */
+/** Parse source_location "filename.py:LINE" into { filename, line }. */
+export function parseSourceLocation(sourceLocation: string): { filename: string; line: number | null } {
+  const colonIdx = sourceLocation.lastIndexOf(":");
+  if (colonIdx <= 0) return { filename: sourceLocation, line: null };
+  const filename = sourceLocation.slice(0, colonIdx);
+  const n = parseInt(sourceLocation.slice(colonIdx + 1), 10);
+  return { filename, line: Number.isFinite(n) ? n : null };
+}
+
+/** Format a Unix timestamp as a relative time string (e.g., "2m ago", "in 8m"). */
 export function formatRelativeTime(ts: number): string {
   const now = Date.now() / 1000;
   const diff = now - ts;
+  if (diff < 0) {
+    const abs = -diff;
+    if (abs < 60) return "in <1m";
+    if (abs < 3600) return `in ${Math.floor(abs / 60)}m`;
+    if (abs < 86400) return `in ${Math.floor(abs / 3600)}h`;
+    return `in ${Math.floor(abs / 86400)}d`;
+  }
   if (diff < 60) return "just now";
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
+}
+
+/** Canonical display labels for time presets. */
+export const TIME_PRESET_LABELS: Record<string, string> = {
+  "since-restart": "since restart",
+  "1h": "in last hour",
+  "24h": "in last 24h",
+  "7d": "in last 7 days",
+};
+
+/** Format a Unix timestamp as a compact age string (e.g., "12s", "3m", "1h", "2d"). */
+export function formatAge(ts: number): string {
+  const now = Date.now() / 1000;
+  const diff = Math.max(0, now - ts);
+  if (diff < 60) return `${Math.floor(diff)}s`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}
+
+/** Extract the last segment after the final dot (e.g. "foo.bar.Baz" → "Baz"). */
+export function lastDotSegment(s: string): string {
+  const idx = s.lastIndexOf(".");
+  return idx === -1 ? s : s.slice(idx + 1);
+}
+
+export function formatUptime(seconds: number): string {
+  if (seconds < 60) return `${Math.floor(seconds)}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+  return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
 }

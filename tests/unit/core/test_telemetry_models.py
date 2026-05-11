@@ -34,7 +34,7 @@ def test_job_summary_new_fields_defaults() -> None:
     assert summary.next_run is None
     assert summary.fire_at is None
     assert summary.jitter is None
-    assert summary.cancelled is False
+    assert "cancelled" not in JobSummary.model_fields
 
 
 def test_job_summary_repeat_field_removed() -> None:
@@ -71,31 +71,9 @@ def test_job_summary_group_can_be_set() -> None:
     assert summary.group == "morning"
 
 
-def test_job_summary_cancelled_can_be_set_true() -> None:
-    """cancelled field accepts True when the job is cancelled."""
-    summary = JobSummary(
-        job_id=3,
-        app_key="my_app",
-        instance_index=0,
-        job_name="cancelled_job",
-        handler_method="MyApp.cancelled",
-        trigger_type="once",
-        trigger_label="once",
-        trigger_detail=None,
-        args_json="[]",
-        kwargs_json="{}",
-        source_location="test.py:3",
-        registration_source=None,
-        total_executions=1,
-        successful=1,
-        failed=0,
-        last_executed_at=1700000000.0,
-        total_duration_ms=100.0,
-        avg_duration_ms=100.0,
-        cancelled=True,
-    )
-
-    assert summary.cancelled is True
+def test_job_summary_cancelled_field_removed() -> None:
+    """cancelled field has been removed — cancelled jobs are filtered at the SQL layer."""
+    assert "cancelled" not in JobSummary.model_fields
 
 
 def test_job_summary_next_run_and_fire_at_are_floats() -> None:

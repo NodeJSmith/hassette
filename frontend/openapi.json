@@ -204,6 +204,92 @@
         }
       }
     },
+    "/api/apps/{app_key}/config": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Get App Config",
+        "description": "Return the raw app configuration for the given app key.",
+        "operationId": "get_app_config_api_apps__app_key__config_get",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppConfigResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/apps/{app_key}/source": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Get App Source",
+        "description": "Return the source code of the app file for the given app key.",
+        "operationId": "get_app_source_api_apps__app_key__source_get",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppSourceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/services": {
       "get": {
         "tags": [
@@ -328,6 +414,22 @@
               ],
               "title": "Level"
             }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
           }
         ],
         "responses": {
@@ -393,20 +495,43 @@
             }
           },
           {
-            "name": "session_id",
+            "name": "since",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "number"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Session Id"
+              "title": "Since"
             }
+          },
+          {
+            "name": "source_tier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "app",
+                    "framework",
+                    "all"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "title": "Source Tier"
+            },
+            "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
           }
         ],
         "responses": {
@@ -491,56 +616,6 @@
         }
       }
     },
-    "/api/telemetry/sessions": {
-      "get": {
-        "tags": [
-          "telemetry"
-        ],
-        "summary": "Sessions",
-        "description": "List recent sessions with lifecycle data.",
-        "operationId": "sessions_api_telemetry_sessions_get",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 200,
-              "minimum": 1,
-              "default": 50,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SessionRecord"
-                  },
-                  "title": "Response Sessions Api Telemetry Sessions Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/telemetry/app/{app_key}/health": {
       "get": {
         "tags": [
@@ -572,19 +647,19 @@
             }
           },
           {
-            "name": "session_id",
+            "name": "since",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "number"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Session Id"
+              "title": "Since"
             }
           },
           {
@@ -666,19 +741,19 @@
             }
           },
           {
-            "name": "session_id",
+            "name": "since",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "number"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Session Id"
+              "title": "Since"
             }
           },
           {
@@ -733,13 +808,129 @@
         }
       }
     },
+    "/api/telemetry/app/{app_key}/activity": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "App Activity",
+        "description": "Recent handler invocations and job executions for a single app, merged and sorted by time.",
+        "operationId": "app_activity_api_telemetry_app__app_key__activity_get",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Use `__hassette__` to query framework-internal actor telemetry.",
+              "title": "App Key"
+            },
+            "description": "Use `__hassette__` to query framework-internal actor telemetry."
+          },
+          {
+            "name": "instance_index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Instance Index"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "name": "source_tier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "app",
+                    "framework",
+                    "all"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "title": "Source Tier"
+            },
+            "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ActivityFeedEntry"
+                  },
+                  "title": "Response App Activity Api Telemetry App  App Key  Activity Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/telemetry/app/{app_key}/jobs": {
       "get": {
         "tags": [
           "telemetry"
         ],
         "summary": "App Jobs",
-        "description": "Job summaries for a single app instance, enriched with live heap data.\n\nLive fields (``next_run``, ``fire_at``, ``jitter``, ``cancelled``) are joined\nfrom the live scheduler heap by ``db_id``. On heap failure the DB rows are\nreturned without enrichment (degraded but functional; logged warning, no 500).",
+        "description": "Job summaries for a single app instance, enriched with live heap data.\n\nLive fields (``next_run``, ``fire_at``, ``jitter``) are joined\nfrom the live scheduler heap by ``db_id``. On heap failure the DB rows are\nreturned without enrichment (degraded but functional; logged warning, no 500).",
         "operationId": "app_jobs_api_telemetry_app__app_key__jobs_get",
         "parameters": [
           {
@@ -764,19 +955,19 @@
             }
           },
           {
-            "name": "session_id",
+            "name": "since",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "number"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Session Id"
+              "title": "Since"
             }
           },
           {
@@ -862,19 +1053,19 @@
             }
           },
           {
-            "name": "session_id",
+            "name": "since",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "number"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Session Id"
+              "title": "Since"
             }
           }
         ],
@@ -937,19 +1128,19 @@
             }
           },
           {
-            "name": "session_id",
+            "name": "since",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "number"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Session Id"
+              "title": "Since"
             }
           }
         ],
@@ -981,79 +1172,6 @@
         }
       }
     },
-    "/api/telemetry/dashboard/kpis": {
-      "get": {
-        "tags": [
-          "telemetry"
-        ],
-        "summary": "Dashboard Kpis",
-        "description": "Global KPI metrics for the dashboard strip.",
-        "operationId": "dashboard_kpis_api_telemetry_dashboard_kpis_get",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session Id"
-            }
-          },
-          {
-            "name": "source_tier",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "enum": [
-                    "app",
-                    "framework",
-                    "all"
-                  ],
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
-              "title": "Source Tier"
-            },
-            "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DashboardKpisResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/telemetry/dashboard/app-grid": {
       "get": {
         "tags": [
@@ -1064,19 +1182,19 @@
         "operationId": "dashboard_app_grid_api_telemetry_dashboard_app_grid_get",
         "parameters": [
           {
-            "name": "session_id",
+            "name": "since",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "number"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Session Id"
+              "title": "Since"
             }
           }
         ],
@@ -1104,29 +1222,29 @@
         }
       }
     },
-    "/api/telemetry/dashboard/errors": {
+    "/api/scheduler/jobs": {
       "get": {
         "tags": [
-          "telemetry"
+          "scheduler"
         ],
-        "summary": "Dashboard Errors",
-        "description": "Recent errors for the dashboard error feed.",
-        "operationId": "dashboard_errors_api_telemetry_dashboard_errors_get",
+        "summary": "All Jobs",
+        "description": "All scheduled jobs across all apps, enriched with live heap data.\n\nLive fields (``next_run``, ``fire_at``, ``jitter``) are joined\nfrom the live scheduler heap by ``db_id``.  On heap failure the DB rows are\nreturned without enrichment (degraded but functional; logged warning, no 500).\n\nThe heap snapshot is taken once \u2014 not per app \u2014 to avoid fan-out overhead.",
+        "operationId": "all_jobs_api_scheduler_jobs_get",
         "parameters": [
           {
-            "name": "session_id",
+            "name": "since",
             "in": "query",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "number"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Session Id"
+              "title": "Since"
             }
           },
           {
@@ -1159,57 +1277,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DashboardErrorsResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/telemetry/dashboard/framework-summary": {
-      "get": {
-        "tags": [
-          "telemetry"
-        ],
-        "summary": "Dashboard Framework Summary",
-        "description": "Framework error counts for the System Health badge.\n\nAlways scoped to the last 24 hours. When session_id is provided,\nfurther narrows to errors from that session.",
-        "operationId": "dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FrameworkSummaryResponse"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobSummary"
+                  },
+                  "title": "Response All Jobs Api Scheduler Jobs Get"
                 }
               }
             }
@@ -1253,6 +1325,143 @@
         ],
         "title": "ActionResponse",
         "description": "Response for app mutation endpoints (start/stop/reload)."
+      },
+      "ActivityBucket": {
+        "properties": {
+          "ok": {
+            "type": "integer",
+            "title": "Ok"
+          },
+          "err": {
+            "type": "integer",
+            "title": "Err"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "err"
+        ],
+        "title": "ActivityBucket",
+        "description": "A single time-window bucket for the sparkline chart."
+      },
+      "ActivityFeedEntry": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "timestamp": {
+            "type": "number",
+            "title": "Timestamp"
+          },
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "handler_name": {
+            "type": "string",
+            "title": "Handler Name"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "error_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Type"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "handler",
+              "job"
+            ],
+            "title": "Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "timestamp",
+          "app_key",
+          "handler_name",
+          "kind"
+        ],
+        "title": "ActivityFeedEntry",
+        "description": "A single activity entry for the cross-app recent activity feed."
+      },
+      "AppConfigResponse": {
+        "properties": {
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "class_name": {
+            "type": "string",
+            "title": "Class Name"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "app_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "App Config"
+          },
+          "config_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Schema"
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_key",
+          "filename",
+          "class_name",
+          "enabled",
+          "app_config"
+        ],
+        "title": "AppConfigResponse",
+        "description": "Response model for GET /apps/{app_key}/config."
       },
       "AppHealthResponse": {
         "properties": {
@@ -1498,6 +1707,12 @@
               }
             ],
             "title": "Error Traceback"
+          },
+          "recent_invocations_1h": {
+            "type": "integer",
+            "title": "Recent Invocations 1H",
+            "description": "Total handler invocations in the last hour across all instances.",
+            "default": 0
           }
         },
         "type": "object",
@@ -1511,6 +1726,35 @@
           "status"
         ],
         "title": "AppManifestResponse"
+      },
+      "AppSourceResponse": {
+        "properties": {
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "line_count": {
+            "type": "integer",
+            "title": "Line Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_key",
+          "filename",
+          "content",
+          "line_count"
+        ],
+        "title": "AppSourceResponse",
+        "description": "Response model for GET /apps/{app_key}/source."
       },
       "AppStatusResponse": {
         "properties": {
@@ -1553,6 +1797,34 @@
           "apps"
         ],
         "title": "AppStatusResponse"
+      },
+      "BootIssueResponse": {
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "err",
+              "warn"
+            ],
+            "title": "Severity"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "severity",
+          "label",
+          "detail"
+        ],
+        "title": "BootIssueResponse",
+        "description": "A boot-time issue entry in the system status response."
       },
       "ConfigResponse": {
         "properties": {
@@ -1677,6 +1949,21 @@
             "type": "boolean",
             "title": "Web Ui Hot Reload",
             "default": false
+          },
+          "app_dir": {
+            "type": "string",
+            "title": "App Dir",
+            "default": ""
+          },
+          "data_dir": {
+            "type": "string",
+            "title": "Data Dir",
+            "default": ""
+          },
+          "config_dir": {
+            "type": "string",
+            "title": "Config Dir",
+            "default": ""
           }
         },
         "type": "object",
@@ -1763,6 +2050,46 @@
           "error_rate_class": {
             "type": "string",
             "title": "Error Rate Class"
+          },
+          "activity_buckets": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityBucket"
+            },
+            "type": "array",
+            "title": "Activity Buckets"
+          },
+          "last_error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Message"
+          },
+          "last_error_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Type"
+          },
+          "last_error_ts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Ts"
           }
         },
         "type": "object",
@@ -1802,129 +2129,6 @@
         "title": "DashboardAppGridResponse",
         "description": "Dashboard app grid with per-app health data."
       },
-      "DashboardErrorsResponse": {
-        "properties": {
-          "errors": {
-            "items": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/HandlerErrorEntry"
-                },
-                {
-                  "$ref": "#/components/schemas/JobErrorEntry"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Errors"
-          }
-        },
-        "type": "object",
-        "required": [
-          "errors"
-        ],
-        "title": "DashboardErrorsResponse",
-        "description": "Recent errors for the dashboard error feed."
-      },
-      "DashboardKpisResponse": {
-        "properties": {
-          "total_handlers": {
-            "type": "integer",
-            "title": "Total Handlers"
-          },
-          "total_jobs": {
-            "type": "integer",
-            "title": "Total Jobs"
-          },
-          "total_invocations": {
-            "type": "integer",
-            "title": "Total Invocations"
-          },
-          "total_executions": {
-            "type": "integer",
-            "title": "Total Executions"
-          },
-          "total_errors": {
-            "type": "integer",
-            "title": "Total Errors"
-          },
-          "total_timed_out": {
-            "type": "integer",
-            "title": "Total Timed Out"
-          },
-          "total_job_errors": {
-            "type": "integer",
-            "title": "Total Job Errors"
-          },
-          "total_job_timed_out": {
-            "type": "integer",
-            "title": "Total Job Timed Out"
-          },
-          "avg_handler_duration_ms": {
-            "type": "number",
-            "title": "Avg Handler Duration Ms"
-          },
-          "avg_job_duration_ms": {
-            "type": "number",
-            "title": "Avg Job Duration Ms"
-          },
-          "error_rate": {
-            "type": "number",
-            "title": "Error Rate"
-          },
-          "error_rate_class": {
-            "type": "string",
-            "title": "Error Rate Class"
-          },
-          "uptime_seconds": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Uptime Seconds"
-          }
-        },
-        "type": "object",
-        "required": [
-          "total_handlers",
-          "total_jobs",
-          "total_invocations",
-          "total_executions",
-          "total_errors",
-          "total_timed_out",
-          "total_job_errors",
-          "total_job_timed_out",
-          "avg_handler_duration_ms",
-          "avg_job_duration_ms",
-          "error_rate",
-          "error_rate_class"
-        ],
-        "title": "DashboardKpisResponse",
-        "description": "Global KPI metrics for the dashboard strip."
-      },
-      "FrameworkSummaryResponse": {
-        "properties": {
-          "total_errors": {
-            "type": "integer",
-            "title": "Total Errors"
-          },
-          "total_job_errors": {
-            "type": "integer",
-            "title": "Total Job Errors"
-          }
-        },
-        "type": "object",
-        "required": [
-          "total_errors",
-          "total_job_errors"
-        ],
-        "title": "FrameworkSummaryResponse",
-        "description": "Framework KPI counts for the System Health badge.\n\nNote: total_errors and total_job_errors include timed_out status.\nget_error_counts() returns combined counts; splitting would require\na separate query path."
-      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1937,117 +2141,6 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
-      },
-      "HandlerErrorEntry": {
-        "properties": {
-          "kind": {
-            "type": "string",
-            "const": "handler",
-            "title": "Kind",
-            "default": "handler"
-          },
-          "listener_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Listener Id"
-          },
-          "topic": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Topic"
-          },
-          "handler_method": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Handler Method"
-          },
-          "error_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Message"
-          },
-          "error_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Type"
-          },
-          "execution_start_ts": {
-            "type": "number",
-            "title": "Execution Start Ts"
-          },
-          "app_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "App Key"
-          },
-          "source_tier": {
-            "type": "string",
-            "enum": [
-              "app",
-              "framework"
-            ],
-            "title": "Source Tier",
-            "default": "app"
-          },
-          "error_traceback": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Traceback"
-          }
-        },
-        "type": "object",
-        "required": [
-          "listener_id",
-          "topic",
-          "handler_method",
-          "error_message",
-          "error_type",
-          "execution_start_ts",
-          "app_key"
-        ],
-        "title": "HandlerErrorEntry"
       },
       "HandlerInvocation": {
         "properties": {
@@ -2149,105 +2242,6 @@
         ],
         "title": "HandlerInvocation",
         "description": "Single invocation record returned by ``get_handler_invocations()``."
-      },
-      "JobErrorEntry": {
-        "properties": {
-          "kind": {
-            "type": "string",
-            "const": "job",
-            "title": "Kind",
-            "default": "job"
-          },
-          "job_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Job Id"
-          },
-          "job_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Job Name"
-          },
-          "error_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Message"
-          },
-          "error_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Type"
-          },
-          "execution_start_ts": {
-            "type": "number",
-            "title": "Execution Start Ts"
-          },
-          "app_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "App Key"
-          },
-          "source_tier": {
-            "type": "string",
-            "enum": [
-              "app",
-              "framework"
-            ],
-            "title": "Source Tier",
-            "default": "app"
-          },
-          "error_traceback": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Traceback"
-          }
-        },
-        "type": "object",
-        "required": [
-          "job_id",
-          "job_name",
-          "error_message",
-          "error_type",
-          "execution_start_ts",
-          "app_key"
-        ],
-        "title": "JobErrorEntry"
       },
       "JobExecution": {
         "properties": {
@@ -2489,10 +2483,76 @@
             ],
             "title": "Jitter"
           },
-          "cancelled": {
+          "name_auto": {
             "type": "boolean",
-            "title": "Cancelled",
+            "title": "Name Auto",
             "default": false
+          },
+          "last_error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Message"
+          },
+          "last_error_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Type"
+          },
+          "last_error_ts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Ts"
+          },
+          "last_error_traceback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Traceback"
+          },
+          "min_duration_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Duration Ms"
+          },
+          "max_duration_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Duration Ms"
           }
         },
         "type": "object",
@@ -2536,6 +2596,11 @@
             "type": "string",
             "title": "Topic"
           },
+          "listener_kind": {
+            "type": "string",
+            "title": "Listener Kind",
+            "default": "event"
+          },
           "handler_method": {
             "type": "string",
             "title": "Handler Method"
@@ -2566,14 +2631,26 @@
             "default": 0.0
           },
           "min_duration_ms": {
-            "type": "number",
-            "title": "Min Duration Ms",
-            "default": 0.0
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Duration Ms"
           },
           "max_duration_ms": {
-            "type": "number",
-            "title": "Max Duration Ms",
-            "default": 0.0
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Duration Ms"
           },
           "total_duration_ms": {
             "type": "number",
@@ -2666,6 +2743,22 @@
               }
             ],
             "title": "Last Error Type"
+          },
+          "last_error_traceback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Traceback"
+          },
+          "timed_out": {
+            "type": "integer",
+            "title": "Timed Out",
+            "default": 0
           },
           "source_location": {
             "type": "string",
@@ -2805,32 +2898,22 @@
         ],
         "title": "LogEntryResponse"
       },
-      "SessionRecord": {
+      "ServiceInfoResponse": {
         "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "started_at": {
-            "type": "number",
-            "title": "Started At"
-          },
-          "stopped_at": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stopped At"
+          "name": {
+            "type": "string",
+            "title": "Name"
           },
           "status": {
             "type": "string",
             "title": "Status"
           },
-          "error_type": {
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "default": ""
+          },
+          "ready_phase": {
             "anyOf": [
               {
                 "type": "string"
@@ -2839,20 +2922,9 @@
                 "type": "null"
               }
             ],
-            "title": "Error Type"
+            "title": "Ready Phase"
           },
-          "error_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Message"
-          },
-          "duration_seconds": {
+          "retry_at": {
             "anyOf": [
               {
                 "type": "number"
@@ -2861,41 +2933,16 @@
                 "type": "null"
               }
             ],
-            "title": "Duration Seconds"
-          },
-          "dropped_overflow": {
-            "type": "integer",
-            "title": "Dropped Overflow",
-            "default": 0
-          },
-          "dropped_exhausted": {
-            "type": "integer",
-            "title": "Dropped Exhausted",
-            "default": 0
-          },
-          "dropped_no_session": {
-            "type": "integer",
-            "title": "Dropped No Session",
-            "default": 0
-          },
-          "dropped_shutdown": {
-            "type": "integer",
-            "title": "Dropped Shutdown",
-            "default": 0
+            "title": "Retry At"
           }
         },
         "type": "object",
         "required": [
-          "id",
-          "started_at",
-          "stopped_at",
-          "status",
-          "error_type",
-          "error_message",
-          "duration_seconds"
+          "name",
+          "status"
         ],
-        "title": "SessionRecord",
-        "description": "Single session record returned by ``get_session_list()``."
+        "title": "ServiceInfoResponse",
+        "description": "Structured info for one internal service."
       },
       "SystemStatusResponse": {
         "properties": {
@@ -2925,6 +2972,25 @@
             },
             "type": "array",
             "title": "Services Running"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceInfoResponse"
+            },
+            "type": "array",
+            "title": "Services"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "default": ""
+          },
+          "boot_issues": {
+            "items": {
+              "$ref": "#/components/schemas/BootIssueResponse"
+            },
+            "type": "array",
+            "title": "Boot Issues"
           }
         },
         "type": "object",

@@ -10,9 +10,10 @@ vi.mock("../../utils/local-storage", () => ({
   getStoredValue: vi.fn(),
 }));
 
-// Mock SessionScopeToggle — it has its own tests
-vi.mock("./session-scope-toggle", () => ({
-  SessionScopeToggle: () => <div data-testid="scope-toggle-stub" />,
+// TimePresetSelector now calls useQueryParams (useSearch from wouter).
+// StatusBar tests render without a Router provider, so mock the hook.
+vi.mock("../../hooks/use-query-params", () => ({
+  useQueryParams: () => ({ get: () => null, set: vi.fn() }),
 }));
 
 describe("StatusBar — connection states", () => {
@@ -67,35 +68,35 @@ describe("StatusBar — connection states", () => {
   });
 });
 
-describe("StatusBar — DB degraded indicator", () => {
-  it("shows DB degraded indicator when connected and degraded", () => {
+describe("StatusBar — database degraded indicator", () => {
+  it("shows database degraded indicator when connected and degraded", () => {
     const { getByLabelText } = renderWithAppState(<StatusBar />, {
       stateOverrides: {
         connection: signal("connected"),
         telemetryDegraded: signal(true),
       },
     });
-    expect(getByLabelText("DB degraded")).toBeDefined();
+    expect(getByLabelText("database degraded")).toBeDefined();
   });
 
-  it("hides DB degraded indicator when disconnected even if degraded", () => {
+  it("hides database degraded indicator when disconnected even if degraded", () => {
     const { queryByLabelText } = renderWithAppState(<StatusBar />, {
       stateOverrides: {
         connection: signal("disconnected"),
         telemetryDegraded: signal(true),
       },
     });
-    expect(queryByLabelText("DB degraded")).toBeNull();
+    expect(queryByLabelText("database degraded")).toBeNull();
   });
 
-  it("hides DB degraded indicator when not degraded", () => {
+  it("hides database degraded indicator when not degraded", () => {
     const { queryByLabelText } = renderWithAppState(<StatusBar />, {
       stateOverrides: {
         connection: signal("connected"),
         telemetryDegraded: signal(false),
       },
     });
-    expect(queryByLabelText("DB degraded")).toBeNull();
+    expect(queryByLabelText("database degraded")).toBeNull();
   });
 });
 
@@ -183,5 +184,20 @@ describe("StatusBar — theme toggle", () => {
     expect(button.getAttribute("aria-label")).toBe("Switch to dark mode");
     fireEvent.click(button);
     expect(themeSignal.value).toBe("dark");
+  });
+});
+
+describe("StatusBar — time preset selector", () => {
+  it("renders the time preset selector", () => {
+    const { container } = renderWithAppState(<StatusBar />);
+    expect(container.querySelector(".ht-time-preset-selector")).not.toBeNull();
+  });
+
+  it("renders all 4 time preset buttons", () => {
+    const { getByText } = renderWithAppState(<StatusBar />);
+    expect(getByText("Since restart")).toBeDefined();
+    expect(getByText("1h")).toBeDefined();
+    expect(getByText("24h")).toBeDefined();
+    expect(getByText("7d")).toBeDefined();
   });
 });

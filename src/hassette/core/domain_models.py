@@ -16,9 +16,44 @@ models via ``hassette.web.mappers``. Core services must NOT import from
 ``hassette.web``.
 """
 
+import importlib.metadata
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+def _get_hassette_version() -> str:
+    """Return the installed hassette package version, or 'unknown' if unavailable."""
+    try:
+        return importlib.metadata.version("hassette")
+    except importlib.metadata.PackageNotFoundError:
+        return "unknown"
+
+
+class BootIssue(BaseModel):
+    """A single boot-time issue collected during startup."""
+
+    severity: Literal["err", "warn"]
+    """Severity level: 'err' for errors, 'warn' for warnings."""
+
+    label: str
+    """Short human-readable label (e.g. 'App blocked', 'Config invalid')."""
+
+    detail: str
+    """Longer description or context for the issue."""
+
+
+class ServiceInfo(BaseModel):
+    """Structured info for one internal service."""
+
+    name: str
+    status: str
+    role: str = ""
+    """Role of the service (e.g. 'service', 'resource'). Empty string when not available."""
+    ready_phase: str | None = None
+    """Human-readable description of the current readiness phase, or None if not available."""
+    retry_at: float | None = None
+    """Unix timestamp when the next restart will be attempted (cooling state), or None."""
 
 
 class SystemStatus(BaseModel):
@@ -40,7 +75,16 @@ class SystemStatus(BaseModel):
     """Number of running app instances."""
 
     services_running: list[str]
-    """Names of internal services currently in RUNNING state."""
+    """Names of internal services currently in RUNNING state (deprecated — use services)."""
+
+    services: list[ServiceInfo] = Field(default_factory=list)
+    """Structured info for all tracked services."""
+
+    version: str = Field(default_factory=_get_hassette_version)
+    """Installed hassette package version."""
+
+    boot_issues: list[BootIssue] = Field(default_factory=list)
+    """Boot-time issues collected during startup (config errors, blocked apps)."""
 
 
 class StateChangedData(BaseModel):

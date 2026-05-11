@@ -15,13 +15,16 @@ Enum coercion note
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
 from hassette.core.domain_models import SystemStatus
 from hassette.core.telemetry_models import ListenerSummary
+from hassette.types.enums import Topic
 from hassette.web.models import (
     AppInstanceResponse,
     AppManifestListResponse,
     AppManifestResponse,
     AppStatusResponse,
+    BootIssueResponse,
     ConnectedPayload,
     ListenerWithSummary,
+    ServiceInfoResponse,
     SystemStatusResponse,
 )
 from hassette.web.telemetry_helpers import format_handler_summary
@@ -98,6 +101,20 @@ def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListRes
 
 def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
     """Convert a ``SystemStatus`` domain object to ``SystemStatusResponse``."""
+    boot_issues = [
+        BootIssueResponse(severity=issue.severity, label=issue.label, detail=issue.detail)
+        for issue in status.boot_issues
+    ]
+    services = [
+        ServiceInfoResponse(
+            name=svc.name,
+            status=svc.status,
+            role=svc.role,
+            ready_phase=svc.ready_phase,
+            retry_at=svc.retry_at,
+        )
+        for svc in status.services
+    ]
     return SystemStatusResponse(
         status=status.status,
         websocket_connected=status.websocket_connected,
@@ -105,21 +122,37 @@ def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
         entity_count=status.entity_count,
         app_count=status.app_count,
         services_running=status.services_running,
+        services=services,
+        version=status.version,
+        boot_issues=boot_issues,
     )
 
 
-def connected_payload_from(status: SystemStatus, session_id: int | None) -> ConnectedPayload:
-    """Build a ``ConnectedPayload`` from a ``SystemStatus`` and session ID.
+def connected_payload_from(status: SystemStatus) -> ConnectedPayload:
+    """Build a ``ConnectedPayload`` from a ``SystemStatus``.
 
-    ``session_id`` is not part of ``SystemStatus`` — it must be obtained by
-    the caller (e.g. via ``safe_session_id()``) and passed as a separate
-    argument.
+    ``uptime_seconds`` is sourced from ``SystemStatus.uptime_seconds``, which
+    is computed from the same ``_start_time`` used by ``GET /health``.
     """
     return ConnectedPayload(
-        session_id=session_id,
+        uptime_seconds=status.uptime_seconds,
         entity_count=status.entity_count,
         app_count=status.app_count,
+        version=status.version,
     )
+
+
+_TOPIC_KIND_MAP: dict[str, str] = {
+    Topic.HASS_EVENT_STATE_CHANGED: "state change",
+    Topic.HASS_EVENT_CALL_SERVICE: "service call",
+}
+
+
+def _listener_kind_from_topic(topic: str) -> str:
+    for prefix, kind in _TOPIC_KIND_MAP.items():
+        if topic.startswith(prefix):
+            return kind
+    return "event"
 
 
 def to_listener_with_summary(ls: ListenerSummary) -> ListenerWithSummary:
@@ -133,12 +166,14 @@ def to_listener_with_summary(ls: ListenerSummary) -> ListenerWithSummary:
         app_key=ls.app_key,
         instance_index=ls.instance_index,
         topic=ls.topic,
+        listener_kind=_listener_kind_from_topic(ls.topic),
         handler_method=ls.handler_method,
         total_invocations=ls.total_invocations,
         successful=ls.successful,
         failed=ls.failed,
         di_failures=ls.di_failures,
         cancelled=ls.cancelled,
+        timed_out=ls.timed_out,
         avg_duration_ms=ls.avg_duration_ms,
         min_duration_ms=ls.min_duration_ms,
         max_duration_ms=ls.max_duration_ms,
@@ -152,6 +187,8 @@ def to_listener_with_summary(ls: ListenerSummary) -> ListenerWithSummary:
         last_invoked_at=ls.last_invoked_at,
         last_error_message=ls.last_error_message,
         last_error_type=ls.last_error_type,
+        last_error_traceback=ls.last_error_traceback,
+        source_tier=ls.source_tier,
         source_location=ls.source_location,
         registration_source=ls.registration_source,
         handler_summary=format_handler_summary(ls),

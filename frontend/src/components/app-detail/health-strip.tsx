@@ -1,43 +1,38 @@
-import type { AppHealthData } from "../../api/endpoints";
-import { formatDuration } from "../../utils/format";
-import { errorRateToVariant, statusToVariant } from "../../utils/status";
+import type { ListenerData, JobData } from "../../api/endpoints";
+import { computeHandlerStats } from "../../utils/handler-stats";
+import { useMediaQuery, BREAKPOINT_SMALL_MOBILE } from "../../hooks/use-media-query";
+import { StatsStrip, type StatsStripCell } from "../shared/stats-strip";
 
-interface Props {
-  health: AppHealthData | null;
-  status: string;
+interface HandlersHealthStripProps {
+  listeners: ListenerData[];
+  jobs: JobData[];
+  timeLabel?: string;
 }
 
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
+export function HandlersHealthStrip({ listeners, jobs, timeLabel }: HandlersHealthStripProps) {
+  const isSmallMobile = useMediaQuery(BREAKPOINT_SMALL_MOBILE);
 
-export function HealthStrip({ health, status }: Props) {
-  if (!health) return null;
+  const { totalInvocations, totalExecutions, totalFailed, totalTimedOut } =
+    computeHandlerStats(listeners, jobs);
 
-  return (
-    <div class="ht-health-strip" data-testid="health-strip">
-      <div class="ht-health-card">
-        <span class="ht-health-card__label">Status</span>
-        <span class={`ht-health-card__value ht-health-card__value--${statusToVariant(status)}`}>{capitalize(status)}</span>
-      </div>
-      <div class="ht-health-card">
-        <span class="ht-health-card__label">Error Rate</span>
-        <span class={`ht-health-card__value ht-health-card__value--${errorRateToVariant(health.error_rate_class)}`}>
-          {health.error_rate.toFixed(1)}%
-        </span>
-      </div>
-      <div class="ht-health-card">
-        <span class="ht-health-card__label">Handler Avg</span>
-        <span class="ht-health-card__value">
-          {health.handler_avg_duration > 0 ? formatDuration(health.handler_avg_duration) : "—"}
-        </span>
-      </div>
-      <div class="ht-health-card">
-        <span class="ht-health-card__label">Job Avg</span>
-        <span class="ht-health-card__value">
-          {health.job_avg_duration > 0 ? formatDuration(health.job_avg_duration) : "—"}
-        </span>
-      </div>
-    </div>
-  );
+  const totalAll = totalInvocations + totalExecutions;
+  const totalErrors = totalFailed + totalTimedOut;
+  const successRate = totalAll > 0
+    ? Math.round(((totalAll - totalErrors) / totalAll) * 100)
+    : 100;
+
+  const cells: StatsStripCell[] = [
+    { label: "Handlers", value: listeners.length + jobs.length },
+    { label: isSmallMobile ? "Calls" : `Invocations${timeLabel ? ` · ${timeLabel}` : ""}`, value: totalAll },
+    { label: "Success Rate", value: totalAll > 0 ? `${successRate}%` : "—", tone: totalErrors > 0 ? "warn" : undefined },
+  ];
+
+  if (isSmallMobile) {
+    cells.push({ label: "Errors", value: totalErrors > 0 ? totalErrors : "—", tone: totalErrors > 0 ? "err" : undefined });
+  } else {
+    cells.push({ label: "Failed", value: totalFailed > 0 ? totalFailed : "—", tone: totalFailed > 0 ? "err" : undefined });
+    cells.push({ label: "Timed Out", value: totalTimedOut > 0 ? totalTimedOut : "—", tone: totalTimedOut > 0 ? "warn" : undefined });
+  }
+
+  return <StatsStrip cells={cells} cols={isSmallMobile ? 4 : 5} data-testid="handlers-health-strip" />;
 }

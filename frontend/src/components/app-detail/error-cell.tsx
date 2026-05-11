@@ -24,7 +24,7 @@ export function ErrorCell({ traceback, message, expanded, onToggle }: Props) {
         aria-expanded={expanded}
         aria-label={expanded ? "Hide traceback" : "Show traceback"}
       >
-        {expanded ? "Hide traceback" : "Traceback"}
+        {expanded ? "hide traceback" : "show traceback"}
       </button>
     </div>
   );

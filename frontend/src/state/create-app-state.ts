@@ -1,11 +1,19 @@
-import { batch, signal, type Signal } from "@preact/signals";
+import { batch, computed, signal, type Signal } from "@preact/signals";
 import { RingBuffer } from "../utils/ring-buffer";
 import { getStoredValue } from "../utils/local-storage";
-import { isSessionScope } from "../utils/session-scope";
 import { isTheme } from "../utils/theme";
-import type { WsLogPayload } from "../api/ws-types";
+import type { AppManifest } from "../api/endpoints";
+import type { WsLogPayload, WsInvocationCompletedPayload, WsExecutionCompletedPayload } from "../api/ws-types";
 
 export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
+
+/** Time-window presets for telemetry queries. */
+export type TimePreset = "since-restart" | "1h" | "24h" | "7d";
+
+/** Type guard for TimePreset values (localStorage and URL ?window= param). */
+export function isTimePreset(v: unknown): v is TimePreset {
+  return v === "since-restart" || v === "1h" || v === "24h" || v === "7d";
+}
 
 export interface AppStatusEntry {
   status: string;
@@ -64,12 +72,28 @@ export function createAppState() {
   /** Server-side log level update callback; wired by useWebSocket after connect. */
   let _updateLogSubscription: (level: string) => void = () => {};
 
+  // Pre-create signals that are referenced by computed values.
+  const timePreset = signal<TimePreset>(
+    getStoredValue<TimePreset>("timePreset", "since-restart", isTimePreset)
+  );
+  const urlWindowParam = signal<TimePreset | null>(null);
+
+  /**
+   * Effective time-window preset: URL `?window=` override takes priority over
+   * the localStorage-backed `timePreset` when set. Falls back to `timePreset`
+   * when `urlWindowParam` is null.
+   *
+   * `useScopedApi` reads this instead of `timePreset` directly so that URL
+   * overrides reach the data layer without writing to localStorage.
+   */
+  const effectiveTimePreset = computed<TimePreset>(() => urlWindowParam.value ?? timePreset.value);
+
   return {
     /**
      * Per-app status keyed by app_key, updated via WS.
      *
      * INVARIANT: appStatus changes trigger *debounced* page-level refetches
-     * (via useDebouncedEffect in dashboard.tsx). This is intentionally separate
+     * (via useDebouncedEffect in page components). This is intentionally separate
      * from reconnectVersion, which triggers *immediate* refetches (via useApi's
      * useSignalEffect). These two signals must remain independent code paths —
      * routing reconnection through appStatus would silently eat the reconnect
@@ -89,21 +113,70 @@ export function createAppState() {
     /** WebSocket connection state machine. */
     connection: signal<ConnectionStatus>("connecting"),
 
+    /** Shared manifest data — fetched once by useManifestFetcher, consumed by all pages. */
+    manifests: signal<AppManifest[]>([]),
+    manifestsLoading: signal(true),
+    manifestsError: signal<string | null>(null),
+
     /** Log entries in a ring buffer with a version signal for efficient rendering. */
     logs: createLogStore(),
 
     /** Dark/light theme (initialized from localStorage via local-storage utility). */
     theme: signal<"dark" | "light">(
-      getStoredValue<"dark" | "light">("theme", "dark", isTheme)
+      getStoredValue<"dark" | "light">("theme", "light", isTheme)
     ),
 
-    /** Current Hassette session ID (from WS connected message). */
-    sessionId: signal<number | null>(null),
+    /**
+     * Selected time-window preset for telemetry queries.
+     * "since-restart" uses uptime_seconds from the WS connected message as the window boundary.
+     * Persisted to localStorage.
+     */
+    timePreset,
 
-    /** Session scope for telemetry queries (initialized from localStorage). */
-    sessionScope: signal<"current" | "all">(
-      getStoredValue<"current" | "all">("sessionScope", "current", isSessionScope)
-    ),
+    /**
+     * Page-scoped URL time window override. Written by pages when a `?window=`
+     * query parameter is present. Not persisted to localStorage.
+     *
+     * Null when no URL override is active (falls back to `timePreset`).
+     * Pages set this on mount when they detect a `?window=` param, and clear it
+     * (or leave it) on navigation away.
+     */
+    urlWindowParam,
+
+    /**
+     * Effective time-window preset: URL `?window=` override takes priority.
+     * Falls back to `timePreset` (localStorage-backed) when `urlWindowParam` is null.
+     * Read by `useScopedApi` instead of `timePreset` directly.
+     */
+    effectiveTimePreset,
+
+    /**
+     * Server uptime in seconds, received from the WS connected message.
+     * Null until the first WS connected message is received.
+     * Used by useScopedApi to compute the "since-restart" window boundary.
+     */
+    uptimeSeconds: signal<number | null>(null),
+
+    /**
+     * Hassette version string, received from the WS connected message.
+     * Null until the first WS connected message is received.
+     * Used by the sidebar version display.
+     */
+    systemVersion: signal<string | null>(null),
+
+    /**
+     * Latest batch of invocation_completed WS events.
+     * Written by useWebSocket when an invocation_completed message arrives.
+     * Consumers subscribe to this signal to trigger debounced refetches.
+     */
+    invocationCompleted: signal<WsInvocationCompletedPayload[] | null>(null),
+
+    /**
+     * Latest batch of execution_completed WS events.
+     * Written by useWebSocket when an execution_completed message arrives.
+     * Consumers subscribe to this signal to trigger debounced refetches.
+     */
+    executionCompleted: signal<WsExecutionCompletedPayload[] | null>(null),
 
     /**
      * Incremented on WS reconnection (not first connect). useApi reads this
@@ -114,7 +187,7 @@ export function createAppState() {
      */
     reconnectVersion: signal(0),
 
-    /** Monotonic counter incremented every 30s to trigger relative-time re-renders. */
+    /** Monotonic counter incremented every RELATIVE_TIME_TICK_MS to trigger relative-time re-renders. */
     tick: signal(0),
 
     /**
@@ -138,7 +211,7 @@ export function createAppState() {
     droppedExhausted: signal(0),
 
     /**
-     * Count of telemetry events dropped because session_id was unavailable at drain time.
+     * Count of telemetry events dropped due to missing write prerequisite at drain time.
      * Startup-transient — typically ignorable unless chronic.
      */
     droppedNoSession: signal(0),
@@ -171,5 +244,7 @@ export function createAppState() {
     },
   };
 }
+
+export const RELATIVE_TIME_TICK_MS = 30_000;
 
 export type AppState = ReturnType<typeof createAppState>;

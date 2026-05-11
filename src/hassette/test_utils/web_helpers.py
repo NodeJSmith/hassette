@@ -137,7 +137,6 @@ def make_job(
     name: str = "check_lights",
     owner_id: str = "MyApp.MyApp[0]",
     next_run: str = "2024-01-01T00:05:00",
-    cancelled: bool = False,
     trigger_type: str = "interval",
     trigger_detail: str | None = None,
     db_id: int | None = None,
@@ -176,7 +175,6 @@ def make_job(
         app_key=app_key,
         instance_index=instance_index,
         next_run=next_run,
-        cancelled=cancelled,
         trigger=trigger,
     )
 

@@ -75,7 +75,8 @@ CREATE TABLE scheduled_jobs (
     source_tier           TEXT    NOT NULL DEFAULT 'app' CHECK (source_tier IN ('app', 'framework')),
     retired_at            REAL,
     "group"               TEXT,
-    cancelled_at          REAL
+    cancelled_at          REAL,
+    name_auto             INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE UNIQUE INDEX idx_scheduled_jobs_natural
@@ -187,7 +188,12 @@ def _make_listener_registration(*, topic: str = "hass.event.state_changed") -> L
     )
 
 
-def _make_job_registration(*, job_name: str = "test_job", group: str | None = None) -> ScheduledJobRegistration:
+def _make_job_registration(
+    *,
+    job_name: str = "test_job",
+    group: str | None = None,
+    name_auto: bool = False,
+) -> ScheduledJobRegistration:
     return ScheduledJobRegistration(
         app_key="test_app",
         instance_index=0,
@@ -201,6 +207,7 @@ def _make_job_registration(*, job_name: str = "test_job", group: str | None = No
         source_location="test_telemetry_repository.py:1",
         registration_source=None,
         group=group,
+        name_auto=name_auto,
     )
 
 
@@ -276,6 +283,34 @@ async def test_register_job_persists_null_group(
     row = await cursor.fetchone()
     assert row is not None
     assert row[0] is None, f"Expected group=None, got {row[0]!r}"
+
+
+async def test_register_job_persists_name_auto_true(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+) -> None:
+    """register_job() writes name_auto=1 when the name was auto-generated."""
+    reg = _make_job_registration(job_name="run:after:5", name_auto=True)
+    job_id = await repo.register_job(reg)
+
+    cursor = await db.execute("SELECT name_auto FROM scheduled_jobs WHERE id = ?", (job_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == 1
+
+
+async def test_register_job_persists_name_auto_false(
+    repo: TelemetryRepository,
+    db: aiosqlite.Connection,
+) -> None:
+    """register_job() writes name_auto=0 by default."""
+    reg = _make_job_registration()
+    job_id = await repo.register_job(reg)
+
+    cursor = await db.execute("SELECT name_auto FROM scheduled_jobs WHERE id = ?", (job_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == 0
 
 
 async def test_mark_job_cancelled_sets_cancelled_at(

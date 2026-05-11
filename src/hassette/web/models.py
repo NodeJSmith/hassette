@@ -5,8 +5,28 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field
 
 from hassette.core.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
-from hassette.core.telemetry_models import SessionRecord
 from hassette.types.types import SourceTier
+
+
+class BootIssueResponse(BaseModel):
+    """A boot-time issue entry in the system status response."""
+
+    severity: Literal["err", "warn"]
+    label: str
+    detail: str
+
+
+class ServiceInfoResponse(BaseModel):
+    """Structured info for one internal service."""
+
+    name: str
+    status: str
+    role: str = ""
+    """Role of the service (e.g. 'service', 'resource'). Empty string when not available."""
+    ready_phase: str | None = None
+    """Human-readable description of the current readiness phase, or None if not available."""
+    retry_at: float | None = None
+    """Unix timestamp when the next restart will be attempted (cooling state), or None."""
 
 
 class SystemStatusResponse(BaseModel):
@@ -16,6 +36,9 @@ class SystemStatusResponse(BaseModel):
     entity_count: int
     app_count: int
     services_running: list[str]
+    services: list[ServiceInfoResponse] = Field(default_factory=list)
+    version: str = ""
+    boot_issues: list[BootIssueResponse] = Field(default_factory=list)
 
 
 class EntityStateResponse(BaseModel):
@@ -66,6 +89,10 @@ class AppManifestResponse(BaseModel):
     instances: list[AppInstanceResponse] = Field(default_factory=list)
     error_message: str | None = None
     error_traceback: str | None = None
+    recent_invocations_1h: int = Field(
+        default=0,
+        description="Total handler invocations in the last hour across all instances.",
+    )
 
 
 class AppManifestListResponse(BaseModel):
@@ -109,9 +136,10 @@ class LogEntryResponse(BaseModel):
 
 
 class ConnectedPayload(BaseModel):
-    session_id: int | None = None
+    uptime_seconds: float
     entity_count: int
     app_count: int
+    version: str = ""
 
 
 class AppStatusChangedWsMessage(BaseModel):
@@ -150,48 +178,53 @@ class ServiceStatusWsMessage(BaseModel):
     timestamp: float
 
 
+class InvocationCompletedData(BaseModel):
+    """Payload for invocation_completed WebSocket messages."""
+
+    listener_id: int
+    app_key: str
+    instance_index: int
+    status: str
+    duration_ms: float
+    error_type: str | None = None
+
+
+class ExecutionCompletedData(BaseModel):
+    """Payload for execution_completed WebSocket messages."""
+
+    job_id: int
+    app_key: str
+    instance_index: int
+    status: str
+    duration_ms: float
+    error_type: str | None = None
+
+
+class InvocationCompletedWsMessage(BaseModel):
+    type: Literal["invocation_completed"]
+    data: list[InvocationCompletedData]
+    """Per-drain batch: all invocations persisted in one ``_drain_and_persist()`` cycle."""
+    timestamp: float
+
+
+class ExecutionCompletedWsMessage(BaseModel):
+    type: Literal["execution_completed"]
+    data: list[ExecutionCompletedData]
+    """Per-drain batch: all executions persisted in one ``_drain_and_persist()`` cycle."""
+    timestamp: float
+
+
 WsServerMessage = Annotated[
     AppStatusChangedWsMessage
     | LogWsMessage
     | ConnectedWsMessage
     | ConnectivityWsMessage
     | StateChangedWsMessage
-    | ServiceStatusWsMessage,
+    | ServiceStatusWsMessage
+    | InvocationCompletedWsMessage
+    | ExecutionCompletedWsMessage,
     Field(discriminator="type"),
 ]
-
-
-# ---------------------------------------------------------------------------
-# Typed error entry models (for get_recent_errors)
-# ---------------------------------------------------------------------------
-
-
-class HandlerErrorEntry(BaseModel):
-    kind: Literal["handler"] = "handler"
-    listener_id: int | None
-    topic: str | None
-    handler_method: str | None
-    error_message: str | None
-    error_type: str | None
-    execution_start_ts: float
-    app_key: str | None
-    source_tier: SourceTier = "app"
-    error_traceback: str | None = None
-
-
-class JobErrorEntry(BaseModel):
-    kind: Literal["job"] = "job"
-    job_id: int | None
-    job_name: str | None
-    error_message: str | None
-    error_type: str | None
-    execution_start_ts: float
-    app_key: str | None
-    source_tier: SourceTier = "app"
-    error_traceback: str | None = None
-
-
-RecentErrorEntry = Annotated[HandlerErrorEntry | JobErrorEntry, Field(discriminator="kind")]
 
 
 # ---------------------------------------------------------------------------
@@ -217,6 +250,7 @@ class ListenerWithSummary(BaseModel):
     app_key: str
     instance_index: int = 0
     topic: str
+    listener_kind: str = "event"
     handler_method: str
     total_invocations: int
     successful: int
@@ -224,8 +258,8 @@ class ListenerWithSummary(BaseModel):
     di_failures: int
     cancelled: int
     avg_duration_ms: float = 0.0
-    min_duration_ms: float = 0.0
-    max_duration_ms: float = 0.0
+    min_duration_ms: float | None = None
+    max_duration_ms: float | None = None
     total_duration_ms: float = 0.0
     predicate_description: str | None = None
     human_description: str | None = None
@@ -236,6 +270,8 @@ class ListenerWithSummary(BaseModel):
     last_invoked_at: float | None = None
     last_error_message: str | None = None
     last_error_type: str | None = None
+    last_error_traceback: str | None = None
+    timed_out: int = 0
     source_location: str = ""
     registration_source: str | None = None
     handler_summary: str = ""
@@ -245,22 +281,14 @@ class ListenerWithSummary(BaseModel):
     entity_id: str | None = None
 
 
-class DashboardKpisResponse(BaseModel):
-    """Global KPI metrics for the dashboard strip."""
+class ActivityBucket(BaseModel):
+    """A single time-window bucket for the sparkline chart."""
 
-    total_handlers: int
-    total_jobs: int
-    total_invocations: int
-    total_executions: int
-    total_errors: int
-    total_timed_out: int
-    total_job_errors: int
-    total_job_timed_out: int
-    avg_handler_duration_ms: float
-    avg_job_duration_ms: float
-    error_rate: float
-    error_rate_class: str
-    uptime_seconds: float | None = None
+    ok: int
+    """Number of successful invocations/executions in this bucket."""
+
+    err: int
+    """Number of error/timed-out invocations/executions in this bucket."""
 
 
 class DashboardAppGridEntry(BaseModel):
@@ -286,33 +314,17 @@ class DashboardAppGridEntry(BaseModel):
     health_status: str
     error_rate: float
     error_rate_class: str
+    activity_buckets: list[ActivityBucket] = Field(default_factory=list)
+    """Per-app sparkline buckets (ok/err counts per time window)."""
+    last_error_message: str | None = None
+    last_error_type: str | None = None
+    last_error_ts: float | None = None
 
 
 class DashboardAppGridResponse(BaseModel):
     """Dashboard app grid with per-app health data."""
 
     apps: list[DashboardAppGridEntry]
-
-
-class DashboardErrorsResponse(BaseModel):
-    """Recent errors for the dashboard error feed."""
-
-    errors: list[HandlerErrorEntry | JobErrorEntry]
-
-
-class FrameworkSummaryResponse(BaseModel):
-    """Framework KPI counts for the System Health badge.
-
-    Note: total_errors and total_job_errors include timed_out status.
-    get_error_counts() returns combined counts; splitting would require
-    a separate query path.
-    """
-
-    total_errors: int
-    total_job_errors: int
-
-
-SessionListEntry = SessionRecord
 
 
 class TelemetryStatusResponse(BaseModel):
@@ -361,3 +373,26 @@ class ConfigResponse(BaseModel):
     asyncio_debug_mode: bool = False
     allow_reload_in_prod: bool = False
     web_ui_hot_reload: bool = False
+    app_dir: str = ""
+    data_dir: str = ""
+    config_dir: str = ""
+
+
+class AppConfigResponse(BaseModel):
+    """Response model for GET /apps/{app_key}/config."""
+
+    app_key: str
+    filename: str
+    class_name: str
+    enabled: bool
+    app_config: dict[str, Any] | list[dict[str, Any]]
+    config_schema: dict[str, Any] | None = None
+
+
+class AppSourceResponse(BaseModel):
+    """Response model for GET /apps/{app_key}/source."""
+
+    app_key: str
+    filename: str
+    content: str
+    line_count: int

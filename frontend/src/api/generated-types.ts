@@ -106,6 +106,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/apps/{app_key}/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get App Config
+         * @description Return the raw app configuration for the given app key.
+         */
+        get: operations["get_app_config_api_apps__app_key__config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/apps/{app_key}/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get App Source
+         * @description Return the source code of the app file for the given app key.
+         */
+        get: operations["get_app_source_api_apps__app_key__source_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/services": {
         parameters: {
             query?: never;
@@ -218,26 +258,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/telemetry/sessions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Sessions
-         * @description List recent sessions with lifecycle data.
-         */
-        get: operations["sessions_api_telemetry_sessions_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/telemetry/app/{app_key}/health": {
         parameters: {
             query?: never;
@@ -278,6 +298,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/telemetry/app/{app_key}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * App Activity
+         * @description Recent handler invocations and job executions for a single app, merged and sorted by time.
+         */
+        get: operations["app_activity_api_telemetry_app__app_key__activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/telemetry/app/{app_key}/jobs": {
         parameters: {
             query?: never;
@@ -289,7 +329,7 @@ export interface paths {
          * App Jobs
          * @description Job summaries for a single app instance, enriched with live heap data.
          *
-         *     Live fields (``next_run``, ``fire_at``, ``jitter``, ``cancelled``) are joined
+         *     Live fields (``next_run``, ``fire_at``, ``jitter``) are joined
          *     from the live scheduler heap by ``db_id``. On heap failure the DB rows are
          *     returned without enrichment (degraded but functional; logged warning, no 500).
          */
@@ -342,26 +382,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/telemetry/dashboard/kpis": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Dashboard Kpis
-         * @description Global KPI metrics for the dashboard strip.
-         */
-        get: operations["dashboard_kpis_api_telemetry_dashboard_kpis_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/telemetry/dashboard/app-grid": {
         parameters: {
             query?: never;
@@ -385,7 +405,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/telemetry/dashboard/errors": {
+    "/api/scheduler/jobs": {
         parameters: {
             query?: never;
             header?: never;
@@ -393,33 +413,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Dashboard Errors
-         * @description Recent errors for the dashboard error feed.
-         */
-        get: operations["dashboard_errors_api_telemetry_dashboard_errors_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/telemetry/dashboard/framework-summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Dashboard Framework Summary
-         * @description Framework error counts for the System Health badge.
+         * All Jobs
+         * @description All scheduled jobs across all apps, enriched with live heap data.
          *
-         *     Always scoped to the last 24 hours. When session_id is provided,
-         *     further narrows to errors from that session.
+         *     Live fields (``next_run``, ``fire_at``, ``jitter``) are joined
+         *     from the live scheduler heap by ``db_id``.  On heap failure the DB rows are
+         *     returned without enrichment (degraded but functional; logged warning, no 500).
+         *
+         *     The heap snapshot is taken once — not per app — to avoid fan-out overhead.
          */
-        get: operations["dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get"];
+        get: operations["all_jobs_api_scheduler_jobs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -443,6 +446,63 @@ export interface components {
             app_key: string;
             /** Action */
             action: string;
+        };
+        /**
+         * ActivityBucket
+         * @description A single time-window bucket for the sparkline chart.
+         */
+        ActivityBucket: {
+            /** Ok */
+            ok: number;
+            /** Err */
+            err: number;
+        };
+        /**
+         * ActivityFeedEntry
+         * @description A single activity entry for the cross-app recent activity feed.
+         */
+        ActivityFeedEntry: {
+            /** Status */
+            status: string;
+            /** Timestamp */
+            timestamp: number;
+            /** App Key */
+            app_key: string;
+            /** Handler Name */
+            handler_name: string;
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /** Error Type */
+            error_type?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "handler" | "job";
+        };
+        /**
+         * AppConfigResponse
+         * @description Response model for GET /apps/{app_key}/config.
+         */
+        AppConfigResponse: {
+            /** App Key */
+            app_key: string;
+            /** Filename */
+            filename: string;
+            /** Class Name */
+            class_name: string;
+            /** Enabled */
+            enabled: boolean;
+            /** App Config */
+            app_config: {
+                [key: string]: unknown;
+            } | {
+                [key: string]: unknown;
+            }[];
+            /** Config Schema */
+            config_schema?: {
+                [key: string]: unknown;
+            } | null;
         };
         /**
          * AppHealthResponse
@@ -530,6 +590,26 @@ export interface components {
             error_message?: string | null;
             /** Error Traceback */
             error_traceback?: string | null;
+            /**
+             * Recent Invocations 1H
+             * @description Total handler invocations in the last hour across all instances.
+             * @default 0
+             */
+            recent_invocations_1h: number;
+        };
+        /**
+         * AppSourceResponse
+         * @description Response model for GET /apps/{app_key}/source.
+         */
+        AppSourceResponse: {
+            /** App Key */
+            app_key: string;
+            /** Filename */
+            filename: string;
+            /** Content */
+            content: string;
+            /** Line Count */
+            line_count: number;
         };
         /** AppStatusResponse */
         AppStatusResponse: {
@@ -543,6 +623,21 @@ export interface components {
             apps: components["schemas"]["AppInstanceResponse"][];
             /** Only App */
             only_app?: string | null;
+        };
+        /**
+         * BootIssueResponse
+         * @description A boot-time issue entry in the system status response.
+         */
+        BootIssueResponse: {
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "err" | "warn";
+            /** Label */
+            label: string;
+            /** Detail */
+            detail: string;
         };
         /**
          * ConfigResponse
@@ -666,6 +761,21 @@ export interface components {
              * @default false
              */
             web_ui_hot_reload: boolean;
+            /**
+             * App Dir
+             * @default
+             */
+            app_dir: string;
+            /**
+             * Data Dir
+             * @default
+             */
+            data_dir: string;
+            /**
+             * Config Dir
+             * @default
+             */
+            config_dir: string;
         };
         /**
          * DashboardAppGridEntry
@@ -716,6 +826,14 @@ export interface components {
             error_rate: number;
             /** Error Rate Class */
             error_rate_class: string;
+            /** Activity Buckets */
+            activity_buckets?: components["schemas"]["ActivityBucket"][];
+            /** Last Error Message */
+            last_error_message?: string | null;
+            /** Last Error Type */
+            last_error_type?: string | null;
+            /** Last Error Ts */
+            last_error_ts?: number | null;
         };
         /**
          * DashboardAppGridResponse
@@ -725,95 +843,10 @@ export interface components {
             /** Apps */
             apps: components["schemas"]["DashboardAppGridEntry"][];
         };
-        /**
-         * DashboardErrorsResponse
-         * @description Recent errors for the dashboard error feed.
-         */
-        DashboardErrorsResponse: {
-            /** Errors */
-            errors: (components["schemas"]["HandlerErrorEntry"] | components["schemas"]["JobErrorEntry"])[];
-        };
-        /**
-         * DashboardKpisResponse
-         * @description Global KPI metrics for the dashboard strip.
-         */
-        DashboardKpisResponse: {
-            /** Total Handlers */
-            total_handlers: number;
-            /** Total Jobs */
-            total_jobs: number;
-            /** Total Invocations */
-            total_invocations: number;
-            /** Total Executions */
-            total_executions: number;
-            /** Total Errors */
-            total_errors: number;
-            /** Total Timed Out */
-            total_timed_out: number;
-            /** Total Job Errors */
-            total_job_errors: number;
-            /** Total Job Timed Out */
-            total_job_timed_out: number;
-            /** Avg Handler Duration Ms */
-            avg_handler_duration_ms: number;
-            /** Avg Job Duration Ms */
-            avg_job_duration_ms: number;
-            /** Error Rate */
-            error_rate: number;
-            /** Error Rate Class */
-            error_rate_class: string;
-            /** Uptime Seconds */
-            uptime_seconds?: number | null;
-        };
-        /**
-         * FrameworkSummaryResponse
-         * @description Framework KPI counts for the System Health badge.
-         *
-         *     Note: total_errors and total_job_errors include timed_out status.
-         *     get_error_counts() returns combined counts; splitting would require
-         *     a separate query path.
-         */
-        FrameworkSummaryResponse: {
-            /** Total Errors */
-            total_errors: number;
-            /** Total Job Errors */
-            total_job_errors: number;
-        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
-        };
-        /** HandlerErrorEntry */
-        HandlerErrorEntry: {
-            /**
-             * Kind
-             * @default handler
-             * @constant
-             */
-            kind: "handler";
-            /** Listener Id */
-            listener_id: number | null;
-            /** Topic */
-            topic: string | null;
-            /** Handler Method */
-            handler_method: string | null;
-            /** Error Message */
-            error_message: string | null;
-            /** Error Type */
-            error_type: string | null;
-            /** Execution Start Ts */
-            execution_start_ts: number;
-            /** App Key */
-            app_key: string | null;
-            /**
-             * Source Tier
-             * @default app
-             * @enum {string}
-             */
-            source_tier: "app" | "framework";
-            /** Error Traceback */
-            error_traceback?: string | null;
         };
         /**
          * HandlerInvocation
@@ -844,35 +877,6 @@ export interface components {
             trigger_context_id?: string | null;
             /** Trigger Origin */
             trigger_origin?: string | null;
-        };
-        /** JobErrorEntry */
-        JobErrorEntry: {
-            /**
-             * Kind
-             * @default job
-             * @constant
-             */
-            kind: "job";
-            /** Job Id */
-            job_id: number | null;
-            /** Job Name */
-            job_name: string | null;
-            /** Error Message */
-            error_message: string | null;
-            /** Error Type */
-            error_type: string | null;
-            /** Execution Start Ts */
-            execution_start_ts: number;
-            /** App Key */
-            app_key: string | null;
-            /**
-             * Source Tier
-             * @default app
-             * @enum {string}
-             */
-            source_tier: "app" | "framework";
-            /** Error Traceback */
-            error_traceback?: string | null;
         };
         /**
          * JobExecution
@@ -967,10 +971,22 @@ export interface components {
             /** Jitter */
             jitter?: number | null;
             /**
-             * Cancelled
+             * Name Auto
              * @default false
              */
-            cancelled: boolean;
+            name_auto: boolean;
+            /** Last Error Message */
+            last_error_message?: string | null;
+            /** Last Error Type */
+            last_error_type?: string | null;
+            /** Last Error Ts */
+            last_error_ts?: number | null;
+            /** Last Error Traceback */
+            last_error_traceback?: string | null;
+            /** Min Duration Ms */
+            min_duration_ms?: number | null;
+            /** Max Duration Ms */
+            max_duration_ms?: number | null;
         };
         /**
          * ListenerWithSummary
@@ -988,6 +1004,11 @@ export interface components {
             instance_index: number;
             /** Topic */
             topic: string;
+            /**
+             * Listener Kind
+             * @default event
+             */
+            listener_kind: string;
             /** Handler Method */
             handler_method: string;
             /** Total Invocations */
@@ -1005,16 +1026,10 @@ export interface components {
              * @default 0
              */
             avg_duration_ms: number;
-            /**
-             * Min Duration Ms
-             * @default 0
-             */
-            min_duration_ms: number;
-            /**
-             * Max Duration Ms
-             * @default 0
-             */
-            max_duration_ms: number;
+            /** Min Duration Ms */
+            min_duration_ms?: number | null;
+            /** Max Duration Ms */
+            max_duration_ms?: number | null;
             /**
              * Total Duration Ms
              * @default 0
@@ -1044,6 +1059,13 @@ export interface components {
             last_error_message?: string | null;
             /** Last Error Type */
             last_error_type?: string | null;
+            /** Last Error Traceback */
+            last_error_traceback?: string | null;
+            /**
+             * Timed Out
+             * @default 0
+             */
+            timed_out: number;
             /**
              * Source Location
              * @default
@@ -1094,44 +1116,23 @@ export interface components {
             app_key?: string | null;
         };
         /**
-         * SessionRecord
-         * @description Single session record returned by ``get_session_list()``.
+         * ServiceInfoResponse
+         * @description Structured info for one internal service.
          */
-        SessionRecord: {
-            /** Id */
-            id: number;
-            /** Started At */
-            started_at: number;
-            /** Stopped At */
-            stopped_at: number | null;
+        ServiceInfoResponse: {
+            /** Name */
+            name: string;
             /** Status */
             status: string;
-            /** Error Type */
-            error_type: string | null;
-            /** Error Message */
-            error_message: string | null;
-            /** Duration Seconds */
-            duration_seconds: number | null;
             /**
-             * Dropped Overflow
-             * @default 0
+             * Role
+             * @default
              */
-            dropped_overflow: number;
-            /**
-             * Dropped Exhausted
-             * @default 0
-             */
-            dropped_exhausted: number;
-            /**
-             * Dropped No Session
-             * @default 0
-             */
-            dropped_no_session: number;
-            /**
-             * Dropped Shutdown
-             * @default 0
-             */
-            dropped_shutdown: number;
+            role: string;
+            /** Ready Phase */
+            ready_phase?: string | null;
+            /** Retry At */
+            retry_at?: number | null;
         };
         /** SystemStatusResponse */
         SystemStatusResponse: {
@@ -1147,6 +1148,15 @@ export interface components {
             app_count: number;
             /** Services Running */
             services_running: string[];
+            /** Services */
+            services?: components["schemas"]["ServiceInfoResponse"][];
+            /**
+             * Version
+             * @default
+             */
+            version: string;
+            /** Boot Issues */
+            boot_issues?: components["schemas"]["BootIssueResponse"][];
         };
         /**
          * TelemetryStatusResponse
@@ -1365,6 +1375,68 @@ export interface operations {
             };
         };
     };
+    get_app_config_api_apps__app_key__config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppConfigResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_app_source_api_apps__app_key__source_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppSourceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_services_api_services_get: {
         parameters: {
             query?: never;
@@ -1426,6 +1498,7 @@ export interface operations {
                 limit?: number;
                 app_key?: string | null;
                 level?: string | null;
+                since?: number | null;
             };
             header?: never;
             path?: never;
@@ -1458,7 +1531,9 @@ export interface operations {
             query?: {
                 app_key?: string | null;
                 instance_index?: number;
-                session_id?: number | null;
+                since?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
             };
             header?: never;
             path?: never;
@@ -1535,42 +1610,11 @@ export interface operations {
             };
         };
     };
-    sessions_api_telemetry_sessions_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SessionRecord"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     app_health_api_telemetry_app__app_key__health_get: {
         parameters: {
             query?: {
                 instance_index?: number;
-                session_id?: number | null;
+                since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
                 source_tier?: ("app" | "framework" | "all") | null;
             };
@@ -1607,7 +1651,7 @@ export interface operations {
         parameters: {
             query?: {
                 instance_index?: number;
-                session_id?: number | null;
+                since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
                 source_tier?: ("app" | "framework" | "all") | null;
             };
@@ -1640,11 +1684,49 @@ export interface operations {
             };
         };
     };
+    app_activity_api_telemetry_app__app_key__activity_get: {
+        parameters: {
+            query?: {
+                instance_index?: number | null;
+                limit?: number;
+                since?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
+            };
+            header?: never;
+            path: {
+                /** @description Use `__hassette__` to query framework-internal actor telemetry. */
+                app_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityFeedEntry"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     app_jobs_api_telemetry_app__app_key__jobs_get: {
         parameters: {
             query?: {
                 instance_index?: number;
-                session_id?: number | null;
+                since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
                 source_tier?: ("app" | "framework" | "all") | null;
             };
@@ -1681,7 +1763,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
-                session_id?: number | null;
+                since?: number | null;
             };
             header?: never;
             path: {
@@ -1715,7 +1797,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
-                session_id?: number | null;
+                since?: number | null;
             };
             header?: never;
             path: {
@@ -1745,43 +1827,10 @@ export interface operations {
             };
         };
     };
-    dashboard_kpis_api_telemetry_dashboard_kpis_get: {
-        parameters: {
-            query?: {
-                session_id?: number | null;
-                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-                source_tier?: ("app" | "framework" | "all") | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DashboardKpisResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     dashboard_app_grid_api_telemetry_dashboard_app_grid_get: {
         parameters: {
             query?: {
-                session_id?: number | null;
+                since?: number | null;
             };
             header?: never;
             path?: never;
@@ -1809,10 +1858,10 @@ export interface operations {
             };
         };
     };
-    dashboard_errors_api_telemetry_dashboard_errors_get: {
+    all_jobs_api_scheduler_jobs_get: {
         parameters: {
             query?: {
-                session_id?: number | null;
+                since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
                 source_tier?: ("app" | "framework" | "all") | null;
             };
@@ -1828,38 +1877,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DashboardErrorsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    dashboard_framework_summary_api_telemetry_dashboard_framework_summary_get: {
-        parameters: {
-            query?: {
-                session_id?: number | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FrameworkSummaryResponse"];
+                    "application/json": components["schemas"]["JobSummary"][];
                 };
             };
             /** @description Validation Error */

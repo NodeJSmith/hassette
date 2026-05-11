@@ -1,9 +1,9 @@
-import { signal } from "@preact/signals";
-import { useRef } from "preact/hooks";
+import { useSignal } from "../../hooks/use-signal";
 import type { JobExecutionData } from "../../api/endpoints";
 import { ShowMoreButton } from "../shared/show-more-button";
-import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
+import { formatDuration, formatTimestamp } from "../../utils/format";
 import { executionStatusVariant } from "../../utils/status";
+import { EmptyState } from "../shared/empty-state";
 import { ErrorCell } from "./error-cell";
 
 const INITIAL_ROWS = 5;
@@ -15,11 +15,11 @@ interface Props {
 }
 
 export function JobExecutions({ executions, jobId }: Props) {
-  const showAll = useRef(signal(false)).current;
-  const expandedTracebacks = useRef(signal<Set<number>>(new Set())).current;
+  const showAll = useSignal(false);
+  const expandedTracebacks = useSignal<Set<number>>(new Set());
 
   if (executions.length === 0) {
-    return <p class="ht-text-muted ht-text-xs">No executions recorded.</p>;
+    return <EmptyState title="no executions recorded." />;
   }
   const visible = showAll.value ? executions : executions.slice(0, INITIAL_ROWS);
   const hasMore = executions.length > INITIAL_ROWS;
@@ -35,22 +35,26 @@ export function JobExecutions({ executions, jobId }: Props) {
       <table class="ht-table ht-table--compact" data-testid={`execution-table-${jobId}`}>
         <thead>
           <tr>
-            <th class="ht-col-status">Status</th>
-            <th class="ht-col-time">Timestamp</th>
-            <th class="ht-col-duration">Duration</th>
-            <th>Error</th>
-            <th>Trace ID</th>
+            <th class="ht-col-status" scope="col">Status</th>
+            <th class="ht-col-time" scope="col">Timestamp</th>
+            <th class="ht-col-duration" scope="col">Duration</th>
+            <th class="ht-col-error" scope="col">Error</th>
+            <th class="ht-col-trace" scope="col">Trace ID</th>
           </tr>
         </thead>
         <tbody>
           {visible.map((ex, i) => {
+            const rowKey = ex.execution_id ?? `ex-${i}`;
             const isExpanded = expandedTracebacks.value.has(i);
             return [
-              <tr key={i}>
-                <td><span class={`ht-badge ht-badge--sm ht-badge--${executionStatusVariant(ex.status)}`}>{ex.status}</span></td>
+              <tr key={rowKey}>
+                <td>
+                  <span class={`ht-badge ht-badge--sm ht-badge--${executionStatusVariant(ex.status)}`}>{ex.status}</span>
+                  {ex.error_message && <span class="ht-exec-error-mobile">{ex.error_message}</span>}
+                </td>
                 <td class="ht-text-mono ht-text-xs">{formatTimestamp(ex.execution_start_ts)}</td>
                 <td>{formatDuration(ex.duration_ms)}</td>
-                <td class="ht-text-secondary ht-text-sm">
+                <td class="ht-col-error ht-text-secondary ht-text-sm">
                   <ErrorCell
                     traceback={ex.error_traceback}
                     message={ex.error_message}
@@ -58,10 +62,10 @@ export function JobExecutions({ executions, jobId }: Props) {
                     onToggle={() => toggleTraceback(i)}
                   />
                 </td>
-                <td class="ht-text-mono ht-text-xs" title={ex.execution_id ?? undefined}>{truncateId(ex.execution_id)}</td>
+                <td class="ht-col-trace ht-text-mono ht-text-xs">{ex.execution_id ?? "—"}</td>
               </tr>,
               isExpanded && ex.error_traceback && (
-                <tr key={`${i}-tb`} class="ht-traceback-row">
+                <tr key={`${rowKey}-tb`} class="ht-traceback-row">
                   <td colSpan={COL_COUNT}>
                     <pre class="ht-traceback" data-testid="execution-traceback">{ex.error_traceback}</pre>
                   </td>

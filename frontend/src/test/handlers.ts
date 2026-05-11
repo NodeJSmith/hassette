@@ -12,19 +12,17 @@ import type { components } from "../api/generated-types";
 // ---- Type aliases (keep in sync with endpoints.ts) ----
 
 type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
+type ConfigResponse = components["schemas"]["ConfigResponse"];
 type AppHealthResponse = components["schemas"]["AppHealthResponse"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
 type HandlerInvocation = components["schemas"]["HandlerInvocation"];
 type JobExecution = components["schemas"]["JobExecution"];
-type DashboardKpisResponse = components["schemas"]["DashboardKpisResponse"];
 type DashboardAppGridResponse = components["schemas"]["DashboardAppGridResponse"];
-type DashboardErrorsResponse = components["schemas"]["DashboardErrorsResponse"];
-type FrameworkSummaryResponse = components["schemas"]["FrameworkSummaryResponse"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
-type SessionRecord = components["schemas"]["SessionRecord"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
 type ActionResponse = components["schemas"]["ActionResponse"];
+type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
 
 // ---- Default handlers ----
 
@@ -92,6 +90,11 @@ export const handlers = [
     return HttpResponse.json<JobSummary[]>([]);
   }),
 
+  // GET /api/telemetry/app/:app_key/activity
+  http.get("/api/telemetry/app/:app_key/activity", () => {
+    return HttpResponse.json<ActivityFeedEntry[]>([]);
+  }),
+
   // GET /api/telemetry/handler/:listener_id/invocations
   http.get("/api/telemetry/handler/:listener_id/invocations", () => {
     return HttpResponse.json<HandlerInvocation[]>([]);
@@ -102,41 +105,9 @@ export const handlers = [
     return HttpResponse.json<JobExecution[]>([]);
   }),
 
-  // GET /api/telemetry/dashboard/kpis
-  http.get("/api/telemetry/dashboard/kpis", () => {
-    return HttpResponse.json<DashboardKpisResponse>({
-      total_handlers: 0,
-      total_jobs: 0,
-      total_invocations: 0,
-      total_executions: 0,
-      total_errors: 0,
-      total_timed_out: 0,
-      total_job_errors: 0,
-      total_job_timed_out: 0,
-      avg_handler_duration_ms: 0,
-      avg_job_duration_ms: 0,
-      error_rate: 0,
-      error_rate_class: "good",
-      uptime_seconds: null,
-    });
-  }),
-
   // GET /api/telemetry/dashboard/app-grid
   http.get("/api/telemetry/dashboard/app-grid", () => {
     return HttpResponse.json<DashboardAppGridResponse>({ apps: [] });
-  }),
-
-  // GET /api/telemetry/dashboard/errors
-  http.get("/api/telemetry/dashboard/errors", () => {
-    return HttpResponse.json<DashboardErrorsResponse>({ errors: [] });
-  }),
-
-  // GET /api/telemetry/dashboard/framework-summary
-  http.get("/api/telemetry/dashboard/framework-summary", () => {
-    return HttpResponse.json<FrameworkSummaryResponse>({
-      total_errors: 0,
-      total_job_errors: 0,
-    });
   }),
 
   // GET /api/telemetry/status
@@ -151,13 +122,67 @@ export const handlers = [
     });
   }),
 
-  // GET /api/telemetry/sessions
-  http.get("/api/telemetry/sessions", () => {
-    return HttpResponse.json<SessionRecord[]>([]);
-  }),
-
   // GET /api/logs/recent
   http.get("/api/logs/recent", () => {
     return HttpResponse.json<LogEntryResponse[]>([]);
+  }),
+
+  // GET /api/apps/:app_key/source
+  http.get("/api/apps/:app_key/source", ({ params }) => {
+    return HttpResponse.json({
+      app_key: String(params["app_key"]),
+      filename: "test_app.py",
+      content: "class TestApp:\n    pass\n",
+      line_count: 2,
+    });
+  }),
+
+  // GET /api/apps/:app_key/config
+  http.get("/api/apps/:app_key/config", ({ params }) => {
+    return HttpResponse.json({
+      app_key: String(params["app_key"]),
+      filename: "test_app.py",
+      class_name: "TestApp",
+      enabled: true,
+      app_config: {},
+    });
+  }),
+
+  // GET /api/bus/listeners
+  http.get("/api/bus/listeners", () => {
+    return HttpResponse.json<ListenerWithSummary[]>([]);
+  }),
+
+  // GET /api/config
+  http.get("/api/config", () => {
+    return HttpResponse.json<ConfigResponse>({
+      dev_mode: false,
+      log_level: "INFO",
+      base_url: "",
+      run_web_api: true,
+      run_web_ui: true,
+      web_api_host: "0.0.0.0",
+      web_api_port: 8126,
+      web_api_cors_origins: [],
+      web_api_event_buffer_size: 500,
+      web_api_log_buffer_size: 2000,
+      web_api_job_history_size: 1000,
+      web_api_log_level: "INFO",
+      autodetect_apps: true,
+      startup_timeout_seconds: 10,
+      app_startup_timeout_seconds: 20,
+      app_shutdown_timeout_seconds: 10,
+      watch_files: true,
+      file_watcher_debounce_milliseconds: 3000,
+      scheduler_min_delay_seconds: 1,
+      scheduler_max_delay_seconds: 30,
+      scheduler_default_delay_seconds: 15,
+      asyncio_debug_mode: false,
+      allow_reload_in_prod: false,
+      web_ui_hot_reload: false,
+      app_dir: "/home/user/apps",
+      data_dir: "/home/user/.hassette/data",
+      config_dir: "/home/user/.hassette",
+    });
   }),
 ];

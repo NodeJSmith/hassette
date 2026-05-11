@@ -29,10 +29,10 @@ describe("ErrorCell", () => {
     expect(getByText("Something failed")).toBeDefined();
     const btn = getByRole("button", { name: /show traceback/i });
     expect(btn).toBeDefined();
-    expect(btn.textContent).toBe("Traceback");
+    expect(btn.textContent).toBe("show traceback");
   });
 
-  it("button label reflects expanded state — shows 'Hide traceback' when expanded", () => {
+  it("button label reflects expanded state — shows 'hide traceback' when expanded", () => {
     const { getByRole } = render(
       <ErrorCell
         traceback="Traceback..."
@@ -43,7 +43,7 @@ describe("ErrorCell", () => {
     );
     const btn = getByRole("button", { name: /hide traceback/i });
     expect(btn).toBeDefined();
-    expect(btn.textContent).toBe("Hide traceback");
+    expect(btn.textContent).toBe("hide traceback");
     expect(btn.getAttribute("aria-expanded")).toBe("true");
   });
 

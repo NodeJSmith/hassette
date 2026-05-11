@@ -41,8 +41,6 @@ export function useWebSocket(state: AppState): void {
       let handshakeTimer: ReturnType<typeof setTimeout> | null = null;
 
       socket.onopen = () => {
-        backoffRef.current = INITIAL_BACKOFF_MS;
-        // If server doesn't send "connected" message within timeout, close and retry
         handshakeTimer = setTimeout(() => {
           if (!hasConnectedRef.current || state.connection.value !== "connected") {
             socket.close();
@@ -65,8 +63,14 @@ export function useWebSocket(state: AppState): void {
                 clearTimeout(handshakeTimer);
                 handshakeTimer = null;
               }
+              // Reset backoff here (not in onopen) — only a fully completed handshake should reset retry delay
+              backoffRef.current = INITIAL_BACKOFF_MS;
               state.connection.value = "connected";
-              state.sessionId.value = msg.data.session_id;
+              // uptime_seconds is the loading gate for useScopedApi
+              state.uptimeSeconds.value = msg.data.uptime_seconds;
+              if (msg.data.version !== undefined) {
+                state.systemVersion.value = msg.data.version;
+              }
 
               if (hasConnectedRef.current) {
                 // Reconnection — clear stale log buffer and service status before re-subscribing
@@ -131,6 +135,14 @@ export function useWebSocket(state: AppState): void {
                 },
               };
               break;
+
+            case "invocation_completed":
+              state.invocationCompleted.value = msg.data;
+              break;
+
+            case "execution_completed":
+              state.executionCompleted.value = msg.data;
+              break;
           }
         });
       };
@@ -164,6 +176,7 @@ export function useWebSocket(state: AppState): void {
       unmounted = true;
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
       }
       wsRef.current?.close();
       state.connection.value = "disconnected";

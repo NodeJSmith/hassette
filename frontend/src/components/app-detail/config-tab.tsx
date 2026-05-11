@@ -1,0 +1,258 @@
+import { useEffect, useState } from "preact/hooks";
+import { getAppConfig } from "../../api/endpoints";
+import { useSignal } from "../../hooks/use-signal";
+import { EmptyState } from "../shared/empty-state";
+import { Spinner } from "../shared/spinner";
+import type { AppConfigData } from "../../api/endpoints";
+
+interface Props {
+  appKey: string;
+}
+
+type ConfigRecord = Record<string, unknown>;
+type SchemaProperty = {
+  type?: string;
+  default?: unknown;
+  description?: string;
+  title?: string;
+  anyOf?: { type?: string }[];
+};
+type ConfigSchema = {
+  properties?: Record<string, SchemaProperty>;
+  required?: string[];
+};
+
+function formatConfigValue(val: unknown): string {
+  if (val === null || val === undefined) return "—";
+  if (Array.isArray(val)) return `[${val.length} items]`;
+  if (typeof val === "object") return `{${Object.keys(val as Record<string, unknown>).length} keys}`;
+  return String(val);
+}
+
+function ConfigValue({ val }: { val: unknown }) {
+  const [expanded, setExpanded] = useState(false);
+  const isComplex = val !== null && typeof val === "object";
+
+  if (!isComplex) return <>{formatConfigValue(val)}</>;
+
+  return (
+    <span>
+      <button
+        type="button"
+        class="ht-config-table__expand-btn"
+        onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+      >
+        <svg class="ht-config-table__expand-icon" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+          <polyline points={expanded ? "2,4 6,8 10,4" : "4,2 8,6 4,10"} fill="none" stroke="currentColor" stroke-width="1.5" />
+        </svg>
+        {formatConfigValue(val)}
+      </button>
+      {expanded && (
+        <pre class="ht-config-table__expanded-value">{JSON.stringify(val, null, 2)}</pre>
+      )}
+    </span>
+  );
+}
+
+function resolveType(prop: SchemaProperty): string {
+  if (prop.type) return prop.type;
+  if (prop.anyOf) {
+    const types = prop.anyOf.map((t) => t.type).filter(Boolean);
+    return types.join(" | ") || "any";
+  }
+  return "any";
+}
+
+function SchemaConfigTable({
+  config,
+  schema,
+}: {
+  config: ConfigRecord;
+  schema: ConfigSchema;
+}) {
+  const properties = schema.properties ?? {};
+  const propKeys = Object.keys(properties);
+  const extraKeys = Object.keys(config).filter((k) => !propKeys.includes(k));
+  const allKeys = [...propKeys, ...extraKeys];
+
+  if (allKeys.length === 0) {
+    return (
+      <EmptyState title="no configuration fields" body="this app uses the default AppConfig with no custom fields." />
+    );
+  }
+
+  return (
+    <table class="ht-table ht-table--compact ht-config-table" data-testid="config-values-table">
+      <thead>
+        <tr>
+          <th class="ht-config-table__key" scope="col">Key</th>
+          <th class="ht-config-table__col-type" scope="col">Type</th>
+          <th class="ht-config-table__col-value" scope="col">Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {allKeys.map((key) => {
+          const prop = properties[key];
+          const value = config[key];
+          const hasValue = value !== null && value !== undefined;
+          const typeName = prop ? resolveType(prop) : typeof value;
+
+          return (
+            <tr key={key} data-testid={`config-value-${key}`}>
+              <td class="ht-config-table__key">{key}</td>
+              <td class="ht-config-table__col-type">
+                <span class="ht-text-muted ht-text-xs">{typeName}</span>
+              </td>
+              <td class={`ht-config-table__value${!hasValue ? " ht-config-table__value--empty" : ""}`}>
+                <ConfigValue val={value} />
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function SimpleConfigTable({ config }: { config: ConfigRecord }) {
+  const entries = Object.entries(config);
+  if (entries.length === 0) {
+    return (
+      <EmptyState title="no configuration values" />
+    );
+  }
+
+  return (
+    <table class="ht-table ht-config-tab__table" data-testid="config-values-table">
+      <thead>
+        <tr>
+          <th class="ht-config-tab__col-key" scope="col">Key</th>
+          <th class="ht-config-tab__col-value" scope="col">Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {entries.map(([key, val]) => (
+          <tr key={key}>
+            <td><code class="ht-text-mono ht-text-sm">{key}</code></td>
+            <td class="ht-config-tab__value" data-testid={`config-value-${key}`}>
+              <code class="ht-text-mono ht-text-sm"><ConfigValue val={val} /></code>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+export function ConfigTab({ appKey }: Props) {
+  const loading = useSignal(true);
+  const error = useSignal<string | null>(null);
+  const configData = useSignal<AppConfigData | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    loading.value = true;
+    error.value = null;
+    configData.value = null;
+
+    async function load() {
+      try {
+        const data = await getAppConfig(appKey);
+        if (cancelled) return;
+        configData.value = data as AppConfigData;
+      } catch (err) {
+        if (cancelled) return;
+        error.value = err instanceof Error ? err.message : String(err);
+      } finally {
+        if (!cancelled) loading.value = false;
+      }
+    }
+
+    void load();
+    return () => { cancelled = true; };
+  }, [appKey]);
+
+  if (loading.value) {
+    return (
+      <Spinner />
+    );
+  }
+
+  if (error.value) {
+    return (
+      <div class="ht-card" data-testid="config-tab-error">
+        <p class="ht-text-muted ht-text-sm">{error.value}</p>
+      </div>
+    );
+  }
+
+  if (!configData.value) return null;
+
+  const cfg = configData.value;
+  const appConfig = cfg.app_config;
+  const schema = (cfg as { config_schema?: ConfigSchema }).config_schema;
+  const isListConfig = Array.isArray(appConfig);
+
+  return (
+    <div class="ht-config-tab" data-testid="config-tab-content">
+      {/* Metadata header */}
+      <div class="ht-config-tab__meta" data-testid="config-meta">
+        <div class="ht-config-tab__meta-row">
+          <span class="ht-detail-label">File</span>
+          <code class="ht-text-mono ht-text-sm">{cfg.filename}</code>
+        </div>
+        <div class="ht-config-tab__meta-row">
+          <span class="ht-detail-label">Class</span>
+          <code class="ht-text-mono ht-text-sm">{cfg.class_name}</code>
+        </div>
+        <div class="ht-config-tab__meta-row">
+          <span class="ht-detail-label">Enabled</span>
+          <span class={`ht-badge ${cfg.enabled ? "ht-badge--success" : "ht-badge--neutral"}`}>
+            {cfg.enabled ? "yes" : "no"}
+          </span>
+        </div>
+      </div>
+
+      {/* 2-column layout: config table + raw values */}
+      <div class="ht-config-tab__layout">
+        <div class="ht-config-tab__fields-card">
+          <h3 class="ht-section-label">configuration</h3>
+          <div class="ht-card ht-card--config">
+          {isListConfig ? (
+            <div class="ht-config-tab__instances">
+              {(appConfig as unknown[]).map((instanceCfg, idx) => (
+                <div key={idx} class="ht-config-tab__instance-block" data-testid={`config-instance-${idx}`}>
+                  <h4 class="ht-config-tab__instance-heading">Instance {idx}</h4>
+                  {instanceCfg && typeof instanceCfg === "object" && !Array.isArray(instanceCfg) ? (
+                    schema
+                      ? <SchemaConfigTable config={instanceCfg as ConfigRecord} schema={schema} />
+                      : <SimpleConfigTable config={instanceCfg as ConfigRecord} />
+                  ) : (
+                    <p class="ht-text-muted ht-text-sm">{String(instanceCfg)}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : appConfig && typeof appConfig === "object" && !Array.isArray(appConfig) ? (
+            schema
+              ? <SchemaConfigTable config={appConfig as ConfigRecord} schema={schema} />
+              : <SimpleConfigTable config={appConfig as ConfigRecord} />
+          ) : (
+            <EmptyState title="no configuration values" />
+          )}
+          </div>
+        </div>
+
+        {/* Raw config card */}
+        <div class="ht-config-tab__raw-card">
+          <h3 class="ht-section-label">raw config</h3>
+          <div class="ht-card ht-card--config">
+          <span class="ht-text-mono ht-text-xs ht-text-muted">hassette.toml → apps.{appKey}.config</span>
+          <pre class="ht-config-tab__raw-code">{JSON.stringify(appConfig, null, 2)}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

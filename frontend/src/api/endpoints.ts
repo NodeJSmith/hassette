@@ -10,17 +10,15 @@ export type AppInstance = components["schemas"]["AppInstanceResponse"];
 export type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
 export type AppHealthData = components["schemas"]["AppHealthResponse"];
 export type ListenerData = components["schemas"]["ListenerWithSummary"];
-export type DashboardKpis = components["schemas"]["DashboardKpisResponse"];
 export type DashboardAppGridEntry = components["schemas"]["DashboardAppGridEntry"];
-export type HandlerErrorEntry = components["schemas"]["HandlerErrorEntry"];
-export type JobErrorEntry = components["schemas"]["JobErrorEntry"];
-export type DashboardErrorEntry = HandlerErrorEntry | JobErrorEntry;
 export type JobData = components["schemas"]["JobSummary"];
 export type HandlerInvocationData = components["schemas"]["HandlerInvocation"];
 export type JobExecutionData = components["schemas"]["JobExecution"];
 export type TelemetryStatus = components["schemas"]["TelemetryStatusResponse"];
 export type LogEntry = components["schemas"]["LogEntryResponse"];
-export type SessionListEntry = components["schemas"]["SessionRecord"];
+export type AppConfigData = components["schemas"]["AppConfigResponse"];
+export type AppSourceData = components["schemas"]["AppSourceResponse"];
+export type ActivityFeedEntryData = components["schemas"]["ActivityFeedEntry"];
 
 // ---- Query string helpers ----
 
@@ -37,62 +35,71 @@ function buildUrl(path: string, params: Record<string, string | number | null | 
 
 export const getManifests = () => apiFetch<ManifestListResponse>("/apps/manifests");
 
-export const startApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${appKey}/start`);
-export const stopApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${appKey}/stop`);
-export const reloadApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${appKey}/reload`);
+export const startApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/start`);
+export const stopApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/stop`);
+export const reloadApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/reload`);
+
+export const getAppConfig = (appKey: string) =>
+  apiFetch<AppConfigData>(`/apps/${encodeURIComponent(appKey)}/config`);
+
+export const getAppSource = (appKey: string) =>
+  apiFetch<AppSourceData>(`/apps/${encodeURIComponent(appKey)}/source`);
 
 // ---- Telemetry ----
 
-export const getAppHealth = (appKey: string, instanceIndex = 0, sessionId?: number | null) =>
-  apiFetch<AppHealthData>(buildUrl(`/telemetry/app/${appKey}/health`, { instance_index: instanceIndex, session_id: sessionId }));
+export const getAppHealth = (appKey: string, instanceIndex = 0, since?: number | null) =>
+  apiFetch<AppHealthData>(buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/health`, { instance_index: instanceIndex, since }));
 
-export const getAppListeners = (appKey: string, instanceIndex = 0, sessionId?: number | null) =>
-  apiFetch<ListenerData[]>(buildUrl(`/telemetry/app/${appKey}/listeners`, { instance_index: instanceIndex, session_id: sessionId }));
+export const getAppListeners = (appKey: string, instanceIndex = 0, since?: number | null) =>
+  apiFetch<ListenerData[]>(buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/listeners`, { instance_index: instanceIndex, since }));
 
-export const getAppJobs = (appKey: string, instanceIndex = 0, sessionId?: number | null) =>
-  apiFetch<JobData[]>(buildUrl(`/telemetry/app/${appKey}/jobs`, { instance_index: instanceIndex, session_id: sessionId }));
+export const getAppJobs = (appKey: string, instanceIndex = 0, since?: number | null) =>
+  apiFetch<JobData[]>(buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/jobs`, { instance_index: instanceIndex, since }));
 
-export const getHandlerInvocations = (listenerId: number, limit = 50, sessionId?: number | null) =>
-  apiFetch<HandlerInvocationData[]>(buildUrl(`/telemetry/handler/${listenerId}/invocations`, { limit, session_id: sessionId }));
+export const getAppActivity = (appKey: string, instanceIndex?: number | null, limit = 50, since?: number | null) =>
+  apiFetch<ActivityFeedEntryData[]>(buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/activity`, { instance_index: instanceIndex, limit, since }));
 
-export const getJobExecutions = (jobId: number, limit = 50, sessionId?: number | null) =>
-  apiFetch<JobExecutionData[]>(buildUrl(`/telemetry/job/${jobId}/executions`, { limit, session_id: sessionId }));
+export const getHandlerInvocations = (listenerId: number, limit = 50, since?: number | null) =>
+  apiFetch<HandlerInvocationData[]>(buildUrl(`/telemetry/handler/${listenerId}/invocations`, { limit, since }));
 
-export type SourceTier = "app" | "framework" | "all";
+export const getJobExecutions = (jobId: number, limit = 50, since?: number | null) =>
+  apiFetch<JobExecutionData[]>(buildUrl(`/telemetry/job/${jobId}/executions`, { limit, since }));
 
-export const getDashboardKpis = (sessionId?: number | null, sourceTier?: SourceTier) =>
-  apiFetch<DashboardKpis>(buildUrl("/telemetry/dashboard/kpis", {
-    session_id: sessionId,
-    source_tier: sourceTier && sourceTier !== "all" ? sourceTier : undefined,
-  }));
-
-export const getDashboardAppGrid = (sessionId?: number | null) =>
-  apiFetch<{ apps: DashboardAppGridEntry[] }>(buildUrl("/telemetry/dashboard/app-grid", { session_id: sessionId }));
-
-export type FrameworkSummary = components["schemas"]["FrameworkSummaryResponse"];
-
-export const getFrameworkSummary = (sessionId?: number | null) =>
-  apiFetch<FrameworkSummary>(buildUrl("/telemetry/dashboard/framework-summary", { session_id: sessionId }));
-
-export const getDashboardErrors = (sessionId?: number | null, sourceTier?: SourceTier) =>
-  apiFetch<{ errors: DashboardErrorEntry[] }>(buildUrl("/telemetry/dashboard/errors", {
-    session_id: sessionId,
-    source_tier: sourceTier && sourceTier !== "all" ? sourceTier : undefined,
-  }));
+export const getDashboardAppGrid = (since?: number | null) =>
+  apiFetch<{ apps: DashboardAppGridEntry[] }>(buildUrl("/telemetry/dashboard/app-grid", { since }));
 
 export const getTelemetryStatus = (signal?: AbortSignal) =>
   apiFetch<TelemetryStatus>("/telemetry/status", signal ? { signal } : undefined);
 
-// ---- Sessions ----
+// ---- System config ----
 
-export const getSessionList = (limit = 50) =>
-  apiFetch<SessionListEntry[]>(buildUrl("/telemetry/sessions", { limit }));
+export type SystemConfig = components["schemas"]["ConfigResponse"];
+
+export const getConfig = () => apiFetch<SystemConfig>("/config");
 
 // ---- Logs ----
 
-export const getRecentLogs = (params?: { level?: string; app_key?: string; limit?: number }) =>
+export const getRecentLogs = (params?: { level?: string; app_key?: string; limit?: number; since?: number | null }) =>
   apiFetch<LogEntry[]>(buildUrl("/logs/recent", {
     level: params?.level,
     app_key: params?.app_key,
     limit: params?.limit,
+    since: params?.since,
   }));
+
+// ---- Bus ----
+
+export const getAllListeners = (since?: number | null) =>
+  apiFetch<ListenerData[]>(buildUrl("/bus/listeners", { since }));
+
+// ---- Scheduler (global) ----
+
+export const getAllJobs = (since?: number | null) =>
+  apiFetch<JobData[]>(buildUrl("/scheduler/jobs", { since }));
+
+// ---- System status ----
+
+export type SystemStatus = components["schemas"]["SystemStatusResponse"];
+export type BootIssue = components["schemas"]["BootIssueResponse"];
+
+export const getSystemStatus = () => apiFetch<SystemStatus>("/health");

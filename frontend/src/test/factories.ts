@@ -10,18 +10,16 @@
  */
 
 import type { components } from "../api/generated-types";
+import type { WsInvocationCompletedPayload, WsExecutionCompletedPayload } from "../api/ws-types";
 
 type AppManifestResponse = components["schemas"]["AppManifestResponse"];
+type ConfigResponse = components["schemas"]["ConfigResponse"];
 type AppManifestListResponse = components["schemas"]["AppManifestListResponse"];
 type DashboardAppGridEntry = components["schemas"]["DashboardAppGridEntry"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
 type AppHealthResponse = components["schemas"]["AppHealthResponse"];
-type DashboardKpisResponse = components["schemas"]["DashboardKpisResponse"];
-type HandlerErrorEntry = components["schemas"]["HandlerErrorEntry"];
-type JobErrorEntry = components["schemas"]["JobErrorEntry"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
-type SessionRecord = components["schemas"]["SessionRecord"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type AppInstanceResponse = components["schemas"]["AppInstanceResponse"];
 type HandlerInvocation = components["schemas"]["HandlerInvocation"];
@@ -57,6 +55,7 @@ export function createManifest(overrides: Partial<AppManifestResponse> = {}): Ap
     instances: [],
     error_message: null,
     error_traceback: null,
+    recent_invocations_1h: 0,
     ...overrides,
   } satisfies AppManifestResponse;
 }
@@ -94,6 +93,10 @@ export function createAppGridEntry(overrides: Partial<DashboardAppGridEntry> = {
     health_status: "good",
     error_rate: 0,
     error_rate_class: "good",
+    activity_buckets: [],
+    last_error_message: null,
+    last_error_type: null,
+    last_error_ts: null,
     ...overrides,
   } satisfies DashboardAppGridEntry;
 }
@@ -104,15 +107,17 @@ export function createListener(overrides: Partial<ListenerWithSummary> = {}): Li
     app_key: "test_app",
     instance_index: 0,
     topic: "state_changed",
+    listener_kind: "state change",
     handler_method: "on_state_change",
     total_invocations: 0,
     successful: 0,
     failed: 0,
     di_failures: 0,
     cancelled: 0,
+    timed_out: 0,
     avg_duration_ms: 0,
-    min_duration_ms: 0,
-    max_duration_ms: 0,
+    min_duration_ms: null,
+    max_duration_ms: null,
     total_duration_ms: 0,
     predicate_description: null,
     human_description: null,
@@ -130,6 +135,7 @@ export function createListener(overrides: Partial<ListenerWithSummary> = {}): Li
     immediate: 0,
     duration: null,
     entity_id: null,
+    last_error_traceback: null,
     ...overrides,
   } satisfies ListenerWithSummary;
 }
@@ -141,7 +147,7 @@ export function createJob(overrides: Partial<JobSummary> = {}): JobSummary {
     instance_index: 0,
     job_name: "test_job",
     handler_method: "run_task",
-    trigger_type: "Every",
+    trigger_type: "interval",
     trigger_label: "every 60s",
     trigger_detail: null,
     args_json: "[]",
@@ -160,7 +166,13 @@ export function createJob(overrides: Partial<JobSummary> = {}): JobSummary {
     next_run: null,
     fire_at: null,
     jitter: null,
-    cancelled: false,
+    name_auto: false,
+    last_error_message: null,
+    last_error_type: null,
+    last_error_ts: null,
+    last_error_traceback: null,
+    min_duration_ms: null,
+    max_duration_ms: null,
     ...overrides,
   } satisfies JobSummary;
 }
@@ -175,56 +187,6 @@ export function createHealthData(overrides: Partial<AppHealthResponse> = {}): Ap
     health_status: "good",
     ...overrides,
   } satisfies AppHealthResponse;
-}
-
-export function createKpis(overrides: Partial<DashboardKpisResponse> = {}): DashboardKpisResponse {
-  return {
-    total_handlers: 0,
-    total_jobs: 0,
-    total_invocations: 0,
-    total_executions: 0,
-    total_errors: 0,
-    total_timed_out: 0,
-    total_job_errors: 0,
-    total_job_timed_out: 0,
-    avg_handler_duration_ms: 0,
-    avg_job_duration_ms: 0,
-    error_rate: 0,
-    error_rate_class: "good",
-    uptime_seconds: null,
-    ...overrides,
-  } satisfies DashboardKpisResponse;
-}
-
-export function createHandlerError(overrides: Partial<HandlerErrorEntry> = {}): HandlerErrorEntry {
-  return {
-    kind: "handler",
-    listener_id: 42,
-    topic: "state_changed",
-    handler_method: "on_light_change",
-    error_message: "something broke",
-    error_type: "ValueError",
-    execution_start_ts: 1700000000,
-    app_key: "test_app",
-    source_tier: "app",
-    error_traceback: null,
-    ...overrides,
-  } satisfies HandlerErrorEntry;
-}
-
-export function createJobError(overrides: Partial<JobErrorEntry> = {}): JobErrorEntry {
-  return {
-    kind: "job",
-    job_id: 7,
-    job_name: "cleanup",
-    error_message: "something broke",
-    error_type: "ValueError",
-    execution_start_ts: 1700000000,
-    app_key: "test_app",
-    source_tier: "app",
-    error_traceback: null,
-    ...overrides,
-  } satisfies JobErrorEntry;
 }
 
 export function createLogEntry(overrides: Partial<LogEntryResponse> = {}): LogEntryResponse {
@@ -242,21 +204,32 @@ export function createLogEntry(overrides: Partial<LogEntryResponse> = {}): LogEn
   } satisfies LogEntryResponse;
 }
 
-export function createSession(overrides: Partial<SessionRecord> = {}): SessionRecord {
+export function createInvocationCompletedPayload(
+  overrides: Partial<WsInvocationCompletedPayload> = {},
+): WsInvocationCompletedPayload {
   return {
-    id: 1,
-    started_at: 1700000000,
-    stopped_at: null,
-    status: "running",
+    listener_id: 1,
+    app_key: "test_app",
+    instance_index: 0,
+    status: "success",
+    duration_ms: 42,
     error_type: null,
-    error_message: null,
-    duration_seconds: null,
-    dropped_overflow: 0,
-    dropped_exhausted: 0,
-    dropped_no_session: 0,
-    dropped_shutdown: 0,
     ...overrides,
-  } satisfies SessionRecord;
+  };
+}
+
+export function createExecutionCompletedPayload(
+  overrides: Partial<WsExecutionCompletedPayload> = {},
+): WsExecutionCompletedPayload {
+  return {
+    job_id: 1,
+    app_key: "test_app",
+    instance_index: 0,
+    status: "success",
+    duration_ms: 75,
+    error_type: null,
+    ...overrides,
+  };
 }
 
 export function createTelemetryStatus(overrides: Partial<TelemetryStatusResponse> = {}): TelemetryStatusResponse {
@@ -297,4 +270,37 @@ export function createExecution(overrides: Partial<JobExecution> = {}): JobExecu
     execution_id: null,
     ...overrides,
   } satisfies JobExecution;
+}
+
+export function createSystemConfig(overrides: Partial<ConfigResponse> = {}): ConfigResponse {
+  return {
+    dev_mode: false,
+    log_level: "INFO",
+    base_url: "",
+    run_web_api: true,
+    run_web_ui: true,
+    web_api_host: "0.0.0.0",
+    web_api_port: 8126,
+    web_api_cors_origins: [],
+    web_api_event_buffer_size: 500,
+    web_api_log_buffer_size: 2000,
+    web_api_job_history_size: 1000,
+    web_api_log_level: "INFO",
+    autodetect_apps: true,
+    startup_timeout_seconds: 10,
+    app_startup_timeout_seconds: 20,
+    app_shutdown_timeout_seconds: 10,
+    watch_files: true,
+    file_watcher_debounce_milliseconds: 3000,
+    scheduler_min_delay_seconds: 1,
+    scheduler_max_delay_seconds: 30,
+    scheduler_default_delay_seconds: 15,
+    asyncio_debug_mode: false,
+    allow_reload_in_prod: false,
+    web_ui_hot_reload: false,
+    app_dir: "/home/user/apps",
+    data_dir: "/home/user/.hassette/data",
+    config_dir: "/home/user/.hassette",
+    ...overrides,
+  } satisfies ConfigResponse;
 }

@@ -20,7 +20,6 @@ const APP_STATUS_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, Statu
   // Service exhaustion statuses
   ["exhausted_dead", "danger"],     // Permanent failure — budget exhausted, no further restarts
   ["exhausted_cooling", "warning"], // Long cooldown in progress — will retry after cooldown period
-  // Session statuses (shared map so StatusBadge works for both apps and sessions)
   ["success", "success"],
   ["failure", "danger"],
   ["unknown", "neutral"],
@@ -60,6 +59,12 @@ export function executionStatusVariant(status: string): StatusVariant {
   return "danger";
 }
 
+export function executionStatusKind(status: string): StatusKind {
+  if (status === "success") return "ok";
+  if (status === "timed_out") return "warn";
+  return "err";
+}
+
 const LOG_LEVEL_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, StatusVariant>([
   ["DEBUG", "neutral"],
   ["INFO", "success"],
@@ -72,6 +77,70 @@ const LOG_LEVEL_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, Status
  * (no console.warn — unlike sibling functions, custom log levels from the wire are expected). */
 export function levelToVariant(level: string): StatusVariant {
   return LOG_LEVEL_MAP.get(level) ?? "neutral";
+}
+
+/**
+ * StatusKind: semantic shape/color for StatusShape SVG indicators.
+ * Use StatusKind (via statusToKind) for shape indicators (dots, triangles, squares).
+ * Use StatusVariant (via statusToVariant) for text badges and CSS class suffixes.
+ *
+ * These two systems intentionally diverge for some statuses:
+ * - "stopped": warning badge (needs attention) vs mute shape (inactive)
+ * - "starting": neutral badge vs ok shape (healthy progress)
+ * - "stopping"/"shutting_down": neutral badge vs warn shape (transitional)
+ *
+ * APP_STATUS_MAP covers both ResourceStatus and service-health values
+ * ("success", "failure", "unknown"). STATUS_KIND_MAP covers ResourceStatus
+ * only — use executionStatusKind() for execution results, levelToKind() for
+ * log levels. New ResourceStatus variants must be added to both maps.
+ */
+export type StatusKind = "ok" | "warn" | "err" | "mute";
+
+const LOG_LEVEL_KIND_MAP: ReadonlyMap<string, StatusKind> = new Map<string, StatusKind>([
+  ["DEBUG", "mute"],
+  ["INFO", "mute"],
+  ["WARNING", "warn"],
+  ["ERROR", "err"],
+  ["CRITICAL", "err"],
+]);
+
+/** Map a log level string to a StatusKind for use with StatusShape.
+ * Unknown levels return "mute". */
+export function levelToKind(level: string): StatusKind {
+  return LOG_LEVEL_KIND_MAP.get(level) ?? "mute";
+}
+
+const STATUS_KIND_MAP: ReadonlyMap<string, StatusKind> = new Map<string, StatusKind>([
+  ["running", "ok"],
+  ["starting", "ok"],
+  ["failed", "err"],
+  ["crashed", "err"],
+  ["exhausted_dead", "err"],
+  ["blocked", "warn"],
+  ["stopping", "warn"],
+  ["shutting_down", "warn"],
+  ["exhausted_cooling", "warn"],
+  ["stopped", "mute"],
+  ["disabled", "mute"],
+  ["not_started", "mute"],
+]);
+
+export function statusToKind(status: string): StatusKind {
+  return STATUS_KIND_MAP.get(status) ?? "mute";
+}
+
+/** Derive a display chip label from handler/job metadata.
+ * Listeners use backend-provided `listener_kind`; jobs use trigger_type.
+ */
+export function handlerKindLabel(
+  kind: "listener" | "job",
+  listenerKind: string | null | undefined,
+  triggerType: string | null | undefined,
+): string {
+  if (kind === "job") {
+    return triggerType?.toLowerCase() || "schedule";
+  }
+  return listenerKind || "event";
 }
 
 /**

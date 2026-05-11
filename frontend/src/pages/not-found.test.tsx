@@ -13,10 +13,10 @@ describe("NotFoundPage", () => {
     expect(getByText("Page not found.")).toBeDefined();
   });
 
-  it("renders a link back to dashboard", () => {
+  it("renders a link back to apps", () => {
     const { getByRole } = render(<NotFoundPage />);
-    const link = getByRole("link", { name: /back to dashboard/i });
-    expect(link.getAttribute("href")).toBe("/");
+    const link = getByRole("link", { name: /back to apps/i });
+    expect(link.getAttribute("href")).toBe("/apps");
   });
 
   it("renders within the ht-error-page container", () => {

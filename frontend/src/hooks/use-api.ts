@@ -1,5 +1,6 @@
-import { signal, useSignalEffect, type Signal } from "@preact/signals";
+import { useSignalEffect, type Signal } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
+import { useSignal } from "./use-signal";
 import { useAppState } from "../state/context";
 
 export interface UseApiResult<T> {
@@ -50,9 +51,9 @@ export function useApi<T>(
 ): UseApiResult<T> {
   const { lazy = false, enabled = true } = options;
 
-  const data = useRef(signal<T | null>(null)).current;
-  const loading = useRef(signal(enabled ? !lazy : true)).current;
-  const error = useRef(signal<string | null>(null)).current;
+  const data = useSignal<T | null>(null);
+  const loading = useSignal(enabled ? !lazy : true);
+  const error = useSignal<string | null>(null);
 
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
@@ -93,6 +94,8 @@ export function useApi<T>(
   const depsDidChange = depsChanged(prevDeps.current, deps);
   const enabledDidChange = prevEnabled.current !== enabled;
 
+  // Render-phase signal writes — safe because Preact signals are synchronous and this
+  // runs before JSX evaluation, ensuring children see the reset state in the same render.
   if (depsDidChange || enabledDidChange) {
     prevDeps.current = deps;
     prevEnabled.current = enabled;

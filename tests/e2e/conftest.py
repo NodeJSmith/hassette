@@ -29,6 +29,8 @@ from tests.e2e.mock_fixtures import (
     build_scheduler_jobs,
     build_session_list,
     wire_app_health_summaries,
+    wire_app_manifest_lookups,
+    wire_config,
     wire_error_telemetry,
     wire_global_summary,
     wire_invocation_telemetry,
@@ -104,11 +106,14 @@ def mock_hassette():
     framework_summary, default_summary = build_global_summaries()
     wire_global_summary(hassette, framework_summary, default_summary)
 
-    # Session ID for error feed session scoping.
-    hassette.session_id = 1
-
     # Owner resolution wiring.
     wire_owner_resolution(hassette)
+
+    # Wire manifest lookups for /apps/{key}/config and /apps/{key}/source endpoints.
+    wire_app_manifest_lookups(hassette, build_manifests())
+
+    # Wire realistic config stub so GET /config returns valid data.
+    wire_config(hassette)
 
     hassette.telemetry_query_service = hassette._telemetry_query_service
 
@@ -233,22 +238,33 @@ def base_url(live_server: str) -> str:
 
 
 @pytest.fixture(autouse=True)
-def _default_scope_all(request, page, base_url: str) -> None:
-    """Set session scope to 'all' so telemetry loads without a WS-provided sessionId.
+def _set_time_preset_to_1h(request: pytest.FixtureRequest, page, base_url: str) -> None:
+    """Force timePreset='1h' in localStorage before every test page load.
 
-    The E2E test server disables WebSocket (ws='none'), so the frontend
-    never receives a sessionId. With scope='current' (the user-facing
-    default), useScopedApi returns a loading state. Setting scope to
-    'all' lets all existing tests see real data.
+    The new UI uses useScopedApi which gates fetches on uptimeSeconds received
+    from the WebSocket connected message.  When ws='none' (the default test
+    server), the WS never connects and uptimeSeconds stays null, so the default
+    preset "since-restart" permanently blocks all scoped API calls and app detail
+    pages never finish loading.
 
-    Individual tests can override by setting localStorage themselves.
-    Skipped for WS tests — they manage their own origin and scope.
+    Switching to the "1h" preset unblocks useScopedApi: resolveSince("1h", null)
+    returns Date.now()/1000 - 3600, which is a valid timestamp regardless of WS.
+
+    Tests that use live_server_ws explicitly exercise the WS path and must NOT
+    have the preset forced — they receive uptimeSeconds from the real WS
+    connected message and test the "since-restart" gate.
+
+    Strategy: navigate to the app's origin first (to establish the right
+    localStorage origin), set the key, then let the test navigate freely.
+    The SPA reads timePreset from localStorage on each mount, so any subsequent
+    page.goto() will see the pre-set value.
     """
     if "live_server_ws" in request.fixturenames:
         return
+    # Navigate to the origin to establish correct localStorage scope, then seed
+    # the timePreset key so useScopedApi is unblocked from the first render.
     page.goto(base_url + "/")
-    page.evaluate('localStorage.setItem("hassette:sessionScope", JSON.stringify("all"))')
-    page.reload()
+    page.evaluate("localStorage.setItem('hassette:timePreset', JSON.stringify('1h'));")
 
 
 # ── WebSocket-enabled server fixtures ─────────────────────────────────

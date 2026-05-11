@@ -15,6 +15,7 @@ from hassette.web.routes.config import router as config_router
 from hassette.web.routes.events import router as events_router
 from hassette.web.routes.health import router as health_router
 from hassette.web.routes.logs import router as logs_router
+from hassette.web.routes.scheduler import router as scheduler_router
 from hassette.web.routes.services import router as services_router
 from hassette.web.routes.telemetry import router as telemetry_router
 from hassette.web.routes.ws import router as ws_router
@@ -68,6 +69,7 @@ def create_fastapi_app(hassette: "Hassette") -> FastAPI:
     app.include_router(config_router, prefix="/api")
     app.include_router(ws_router, prefix="/api")
     app.include_router(telemetry_router, prefix="/api")
+    app.include_router(scheduler_router, prefix="/api")
 
     # SPA serving (Preact)
     if hassette.config.run_web_ui and _SPA_DIR.exists():

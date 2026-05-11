@@ -12,7 +12,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 from hassette.core.app_registry import AppManifestInfo, AppStatusSnapshot
 from hassette.core.runtime_query_service import RuntimeQueryService
-from hassette.core.telemetry_models import GlobalSummary, JobGlobalStats, ListenerGlobalStats
 from hassette.test_utils.web_helpers import make_full_snapshot
 from hassette.types.enums import ResourceStatus
 
@@ -22,31 +21,17 @@ def _wire_telemetry_stubs(hassette: MagicMock) -> None:
     ts = hassette._telemetry_query_service
     ts.get_listener_summary = AsyncMock(return_value=[])
     ts.get_job_summary = AsyncMock(return_value=[])
+    ts.get_all_jobs_summary = AsyncMock(return_value=[])
     ts.get_all_app_summaries = AsyncMock(return_value={})
-    ts.get_global_summary = AsyncMock(
-        return_value=GlobalSummary(
-            listeners=ListenerGlobalStats(
-                total_listeners=0,
-                invoked_listeners=0,
-                total_invocations=0,
-                total_errors=0,
-                total_di_failures=0,
-                avg_duration_ms=None,
-            ),
-            jobs=JobGlobalStats(
-                total_jobs=0,
-                executed_jobs=0,
-                total_executions=0,
-                total_errors=0,
-            ),
-        )
-    )
     ts.get_handler_invocations = AsyncMock(return_value=[])
     ts.get_job_executions = AsyncMock(return_value=[])
-    ts.get_recent_errors = AsyncMock(return_value=[])
     ts.get_slow_handlers = AsyncMock(return_value=[])
     ts.get_session_list = AsyncMock(return_value=[])
     ts.check_health = AsyncMock(return_value=None)
+    ts.get_per_app_activity_buckets = AsyncMock(return_value={})
+    ts.get_per_app_last_errors = AsyncMock(return_value={})
+    ts.get_recent_invocations_1h_all_apps = AsyncMock(return_value={})
+    ts.get_app_recent_activity = AsyncMock(return_value=[])
     hassette.telemetry_query_service = ts
 
 
@@ -169,6 +154,16 @@ def create_mock_runtime_query_service(
     svc._lock = asyncio.Lock() if use_real_lock else MagicMock()
     svc._start_time = start_time
     svc._subscriptions = []
+    svc._ws_drops = 0
+    svc._ws_drops_since_last_log = 0
+    svc._ws_drops_last_logged = 0.0
+    svc._pending_invocations: list[dict] = []
+    svc._pending_executions: list[dict] = []
+    svc._flush_scheduled = False
+    svc._listener_meta: dict[int, tuple[str, int]] = {}
+    svc._job_meta: dict[int, tuple[str, int]] = {}
+    svc.task_bucket = MagicMock()
+    svc.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: coro.close())
     svc.logger = MagicMock()
     mock_hassette._runtime_query_service = svc
     mock_hassette.runtime_query_service = svc

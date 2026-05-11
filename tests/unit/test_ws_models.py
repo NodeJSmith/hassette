@@ -93,16 +93,16 @@ class TestStateChangedNormalizedEnvelope:
         assert "entity_id" not in dumped  # not at top level
 
 
-class TestConnectedPayloadIncludesSessionId:
-    """Verify ConnectedPayload includes session_id field."""
+class TestConnectedPayloadIncludesUptimeSeconds:
+    """Verify ConnectedPayload includes uptime_seconds field."""
 
-    def test_session_id_present(self) -> None:
-        payload = ConnectedPayload(session_id=42, entity_count=10, app_count=3)
-        assert payload.session_id == 42
+    def test_uptime_seconds_present(self) -> None:
+        payload = ConnectedPayload(uptime_seconds=123.4, entity_count=10, app_count=3)
+        assert payload.uptime_seconds == 123.4
 
-    def test_session_id_optional(self) -> None:
-        payload = ConnectedPayload(entity_count=10, app_count=3)
-        assert payload.session_id is None
+    def test_uptime_seconds_zero(self) -> None:
+        payload = ConnectedPayload(uptime_seconds=0.0, entity_count=10, app_count=3)
+        assert payload.uptime_seconds == 0.0
 
 
 class TestWsServerMessageDiscriminates:
@@ -141,12 +141,12 @@ class TestWsServerMessageDiscriminates:
     def test_connected(self) -> None:
         raw = {
             "type": "connected",
-            "data": {"session_id": 1, "entity_count": 5, "app_count": 2},
+            "data": {"uptime_seconds": 300.0, "entity_count": 5, "app_count": 2},
             "timestamp": 1234567890.0,
         }
         msg = self.adapter.validate_python(raw)
         assert isinstance(msg, ConnectedWsMessage)
-        assert msg.data.session_id == 1
+        assert msg.data.uptime_seconds == 300.0
         assert msg.timestamp == 1234567890.0
 
     def test_connectivity(self) -> None:
@@ -178,6 +178,92 @@ class TestWsServerMessageDiscriminates:
         raw = {"type": "unknown_type", "data": {}, "timestamp": 1234567890.0}
         with pytest.raises(ValueError, match="does not match any of the expected tags"):
             self.adapter.validate_python(raw)
+
+
+class TestCompletionWsMessages:
+    """invocation_completed and execution_completed carry list payloads (per-drain batching)."""
+
+    adapter = TypeAdapter(WsServerMessage)
+
+    def test_invocation_completed_discriminates(self) -> None:
+        from hassette.web.models import InvocationCompletedWsMessage
+
+        raw = {
+            "type": "invocation_completed",
+            "data": [
+                {
+                    "listener_id": 1,
+                    "app_key": "my_app",
+                    "instance_index": 0,
+                    "status": "success",
+                    "duration_ms": 12.5,
+                    "error_type": None,
+                }
+            ],
+            "timestamp": 1234567890.0,
+        }
+        msg = self.adapter.validate_python(raw)
+        assert isinstance(msg, InvocationCompletedWsMessage)
+        assert len(msg.data) == 1
+        assert msg.data[0].listener_id == 1
+        assert msg.data[0].app_key == "my_app"
+        assert msg.data[0].status == "success"
+        assert msg.data[0].error_type is None
+
+    def test_execution_completed_discriminates(self) -> None:
+        from hassette.web.models import ExecutionCompletedWsMessage
+
+        raw = {
+            "type": "execution_completed",
+            "data": [
+                {
+                    "job_id": 7,
+                    "app_key": "scheduler_app",
+                    "instance_index": 1,
+                    "status": "failed",
+                    "duration_ms": 99.9,
+                    "error_type": "TimeoutError",
+                }
+            ],
+            "timestamp": 1234567890.0,
+        }
+        msg = self.adapter.validate_python(raw)
+        assert isinstance(msg, ExecutionCompletedWsMessage)
+        assert len(msg.data) == 1
+        assert msg.data[0].job_id == 7
+        assert msg.data[0].error_type == "TimeoutError"
+
+    def test_invocation_completed_empty_batch_valid(self) -> None:
+        """An empty batch list is valid (flush with nothing to emit never happens, but schema must accept it)."""
+        from hassette.web.models import InvocationCompletedWsMessage
+
+        raw = {"type": "invocation_completed", "data": [], "timestamp": 1234567890.0}
+        msg = self.adapter.validate_python(raw)
+        assert isinstance(msg, InvocationCompletedWsMessage)
+        assert msg.data == []
+
+    def test_invocation_completed_multi_record_batch(self) -> None:
+        from hassette.web.models import InvocationCompletedWsMessage
+
+        raw = {
+            "type": "invocation_completed",
+            "data": [
+                {"listener_id": 1, "app_key": "a", "instance_index": 0, "status": "success", "duration_ms": 1.0},
+                {
+                    "listener_id": 2,
+                    "app_key": "b",
+                    "instance_index": 1,
+                    "status": "failed",
+                    "duration_ms": 2.0,
+                    "error_type": "ValueError",
+                },
+            ],
+            "timestamp": 1234567890.0,
+        }
+        msg = self.adapter.validate_python(raw)
+        assert isinstance(msg, InvocationCompletedWsMessage)
+        assert len(msg.data) == 2
+        assert msg.data[1].error_type == "ValueError"
 
 
 class TestServiceStatusDataRetryAt:

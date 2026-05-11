@@ -72,11 +72,38 @@ describe("useWebSocket", () => {
     const ws = MockWebSocket.instances[0];
     act(() => {
       ws.simulateOpen();
-      ws.simulateMessage({ type: "connected", data: { session_id: 1 } });
+      ws.simulateMessage({ type: "connected", data: { uptime_seconds: 120, entity_count: 10, app_count: 2 } });
     });
 
     expect(state.reconnectVersion.value).toBe(0);
-    expect(state.sessionId.value).toBe(1);
+  });
+
+  it("does not set sessionId (signal does not exist)", () => {
+    const state = createAppState();
+
+    renderHook(() => useWebSocket(state));
+
+    const ws = MockWebSocket.instances[0];
+    act(() => {
+      ws.simulateOpen();
+      ws.simulateMessage({ type: "connected", data: { uptime_seconds: 120, entity_count: 10, app_count: 2 } });
+    });
+
+    expect("sessionId" in state).toBe(false);
+  });
+
+  it("sets uptimeSeconds from connected message", () => {
+    const state = createAppState();
+
+    renderHook(() => useWebSocket(state));
+
+    const ws = MockWebSocket.instances[0];
+    act(() => {
+      ws.simulateOpen();
+      ws.simulateMessage({ type: "connected", data: { uptime_seconds: 300, entity_count: 5, app_count: 1 } });
+    });
+
+    expect(state.uptimeSeconds.value).toBe(300);
   });
 
   it("initializes with 'connecting' state", () => {
@@ -104,7 +131,7 @@ describe("useWebSocket", () => {
 
     // Application-level "connected" message should set "connected"
     act(() => {
-      ws.simulateMessage({ type: "connected", data: { session_id: 1 } });
+      ws.simulateMessage({ type: "connected", data: { uptime_seconds: 100, entity_count: 0, app_count: 0 } });
     });
     expect(state.connection.value).toBe("connected");
   });
@@ -160,7 +187,7 @@ describe("useWebSocket", () => {
 
     act(() => {
       ws.simulateOpen();
-      ws.simulateMessage({ type: "connected", data: { session_id: 1 } });
+      ws.simulateMessage({ type: "connected", data: { uptime_seconds: 50, entity_count: 0, app_count: 0 } });
     });
     expect(state.connection.value).toBe("connected");
 
@@ -181,7 +208,7 @@ describe("useWebSocket", () => {
     const ws1 = MockWebSocket.instances[0];
     act(() => {
       ws1.simulateOpen();
-      ws1.simulateMessage({ type: "connected", data: { session_id: 1 } });
+      ws1.simulateMessage({ type: "connected", data: { uptime_seconds: 100, entity_count: 0, app_count: 0 } });
     });
     expect(state.reconnectVersion.value).toBe(0);
 
@@ -202,11 +229,12 @@ describe("useWebSocket", () => {
 
     act(() => {
       ws2.simulateOpen();
-      ws2.simulateMessage({ type: "connected", data: { session_id: 2 } });
+      ws2.simulateMessage({ type: "connected", data: { uptime_seconds: 200, entity_count: 0, app_count: 0 } });
     });
 
     expect(state.reconnectVersion.value).toBe(1);
-    expect(state.sessionId.value).toBe(2);
+    // uptimeSeconds updated on reconnect too
+    expect(state.uptimeSeconds.value).toBe(200);
   });
 
   it("sends log subscribe on connect", () => {
@@ -217,7 +245,7 @@ describe("useWebSocket", () => {
     const ws = MockWebSocket.instances[0];
     act(() => {
       ws.simulateOpen();
-      ws.simulateMessage({ type: "connected", data: { session_id: 1 } });
+      ws.simulateMessage({ type: "connected", data: { uptime_seconds: 60, entity_count: 0, app_count: 0 } });
     });
 
     const subscribeMsgs = ws.sent.map((s) => JSON.parse(s));
@@ -238,7 +266,7 @@ describe("useWebSocket", () => {
     const ws1 = MockWebSocket.instances[0];
     act(() => {
       ws1.simulateOpen();
-      ws1.simulateMessage({ type: "connected", data: { session_id: 1 } });
+      ws1.simulateMessage({ type: "connected", data: { uptime_seconds: 100, entity_count: 0, app_count: 0 } });
     });
     expect(ws1.sent).toHaveLength(1);
 
@@ -255,7 +283,7 @@ describe("useWebSocket", () => {
     const ws2 = MockWebSocket.instances[1];
     act(() => {
       ws2.simulateOpen();
-      ws2.simulateMessage({ type: "connected", data: { session_id: 2 } });
+      ws2.simulateMessage({ type: "connected", data: { uptime_seconds: 200, entity_count: 0, app_count: 0 } });
     });
 
     // Second socket should also have sent subscribe
@@ -275,7 +303,7 @@ describe("useWebSocket", () => {
     const ws = MockWebSocket.instances[0];
     act(() => {
       ws.simulateOpen();
-      ws.simulateMessage({ type: "connected", data: { session_id: 1 } });
+      ws.simulateMessage({ type: "connected", data: { uptime_seconds: 60, entity_count: 0, app_count: 0 } });
     });
 
     // Clear the initial subscribe message
@@ -301,7 +329,7 @@ describe("useWebSocket", () => {
     const ws = MockWebSocket.instances[0];
     act(() => {
       ws.simulateOpen();
-      ws.simulateMessage({ type: "connected", data: { session_id: 1 } });
+      ws.simulateMessage({ type: "connected", data: { uptime_seconds: 60, entity_count: 0, app_count: 0 } });
     });
 
     // Disconnect
@@ -325,7 +353,7 @@ describe("useWebSocket", () => {
     const ws = MockWebSocket.instances[0];
     act(() => {
       ws.simulateOpen();
-      ws.simulateMessage({ type: "connected", data: { session_id: 1 } });
+      ws.simulateMessage({ type: "connected", data: { uptime_seconds: 60, entity_count: 0, app_count: 0 } });
     });
 
     act(() => {
@@ -362,7 +390,7 @@ describe("useWebSocket", () => {
     const ws = MockWebSocket.instances[0];
     act(() => {
       ws.simulateOpen();
-      ws.simulateMessage({ type: "connected", data: { session_id: 1 } });
+      ws.simulateMessage({ type: "connected", data: { uptime_seconds: 60, entity_count: 0, app_count: 0 } });
     });
 
     act(() => {
@@ -397,7 +425,7 @@ describe("useWebSocket", () => {
     const ws1 = MockWebSocket.instances[0];
     act(() => {
       ws1.simulateOpen();
-      ws1.simulateMessage({ type: "connected", data: { session_id: 1 } });
+      ws1.simulateMessage({ type: "connected", data: { uptime_seconds: 60, entity_count: 0, app_count: 0 } });
     });
 
     act(() => {
@@ -432,7 +460,7 @@ describe("useWebSocket", () => {
     const ws2 = MockWebSocket.instances[1];
     act(() => {
       ws2.simulateOpen();
-      ws2.simulateMessage({ type: "connected", data: { session_id: 2 } });
+      ws2.simulateMessage({ type: "connected", data: { uptime_seconds: 200, entity_count: 0, app_count: 0 } });
     });
 
     expect(Object.keys(state.serviceStatus.value)).toHaveLength(0);
@@ -454,7 +482,7 @@ describe("useWebSocket", () => {
     const ws1 = MockWebSocket.instances[0];
     act(() => {
       ws1.simulateOpen();
-      ws1.simulateMessage({ type: "connected", data: { session_id: 1 } });
+      ws1.simulateMessage({ type: "connected", data: { uptime_seconds: 60, entity_count: 0, app_count: 0 } });
     });
 
     // Log store still has the entry from before connect (first connect does not clear)
@@ -473,10 +501,55 @@ describe("useWebSocket", () => {
     const ws2 = MockWebSocket.instances[1];
     act(() => {
       ws2.simulateOpen();
-      ws2.simulateMessage({ type: "connected", data: { session_id: 2 } });
+      ws2.simulateMessage({ type: "connected", data: { uptime_seconds: 200, entity_count: 0, app_count: 0 } });
     });
 
     // Log store should be cleared on reconnect
     expect(state.logs.toArray()).toHaveLength(0);
+  });
+
+  it("writes invocation_completed batch to invocationCompleted signal", () => {
+    const state = createAppState();
+
+    renderHook(() => useWebSocket(state));
+
+    const ws = MockWebSocket.instances[0];
+    act(() => {
+      ws.simulateOpen();
+      ws.simulateMessage({ type: "connected", data: { uptime_seconds: 60, entity_count: 0, app_count: 0 } });
+    });
+
+    const batch = [
+      { listener_id: 1, app_key: "my_app", instance_index: 0, status: "success", duration_ms: 42, error_type: null },
+      { listener_id: 2, app_key: "my_app", instance_index: 0, status: "failed", duration_ms: 10, error_type: "ValueError" },
+    ];
+
+    act(() => {
+      ws.simulateMessage({ type: "invocation_completed", data: batch, timestamp: 1000 });
+    });
+
+    expect(state.invocationCompleted.value).toEqual(batch);
+  });
+
+  it("writes execution_completed batch to executionCompleted signal", () => {
+    const state = createAppState();
+
+    renderHook(() => useWebSocket(state));
+
+    const ws = MockWebSocket.instances[0];
+    act(() => {
+      ws.simulateOpen();
+      ws.simulateMessage({ type: "connected", data: { uptime_seconds: 60, entity_count: 0, app_count: 0 } });
+    });
+
+    const batch = [
+      { job_id: 5, app_key: "my_app", instance_index: 0, status: "success", duration_ms: 80, error_type: null },
+    ];
+
+    act(() => {
+      ws.simulateMessage({ type: "execution_completed", data: batch, timestamp: 1000 });
+    });
+
+    expect(state.executionCompleted.value).toEqual(batch);
   });
 });

@@ -4,11 +4,11 @@ import { HandlerInvocations } from "./handler-invocations";
 import { createInvocation } from "../../test/factories";
 
 describe("HandlerInvocations", () => {
-  it("renders 'No invocations recorded' when invocations array is empty", () => {
+  it("renders empty state when invocations array is empty", () => {
     const { getByText } = render(
       <HandlerInvocations invocations={[]} listenerId={1} />,
     );
-    expect(getByText("No invocations recorded.")).toBeDefined();
+    expect(getByText("no invocations recorded")).toBeDefined();
   });
 
   it("renders table with testid matching listenerId", () => {
@@ -18,69 +18,33 @@ describe("HandlerInvocations", () => {
     expect(getByTestId("invocation-table-42")).toBeDefined();
   });
 
-  it("renders Status, Timestamp, Duration, and Error column headers", () => {
+  it("renders Time, Trigger, Duration, and Note column headers", () => {
     const { getByText } = render(
       <HandlerInvocations invocations={[createInvocation()]} listenerId={1} />,
     );
-    expect(getByText("Status")).toBeDefined();
-    expect(getByText("Timestamp")).toBeDefined();
+    expect(getByText("Time")).toBeDefined();
+    expect(getByText("Trigger")).toBeDefined();
     expect(getByText("Duration")).toBeDefined();
-    expect(getByText("Error")).toBeDefined();
+    expect(getByText("Note")).toBeDefined();
   });
 
-  it("renders success badge for successful invocation", () => {
+  it("renders error message in note column", () => {
     const { container } = render(
-      <HandlerInvocations invocations={[createInvocation({ status: "success" })]} listenerId={1} />,
-    );
-    const badge = container.querySelector(".ht-badge--success");
-    expect(badge).not.toBeNull();
-    expect(badge!.textContent).toBe("success");
-  });
-
-  it("renders danger badge for failed invocation", () => {
-    const { container } = render(
-      <HandlerInvocations
-        invocations={[createInvocation({ status: "error", error_message: "boom" })]}
-        listenerId={1}
-      />,
-    );
-    const badge = container.querySelector(".ht-badge--danger");
-    expect(badge).not.toBeNull();
-  });
-
-  it("renders error message in error column", () => {
-    const { getByText } = render(
       <HandlerInvocations
         invocations={[createInvocation({ status: "error", error_message: "Connection refused" })]}
         listenerId={1}
       />,
     );
-    expect(getByText("Connection refused")).toBeDefined();
+    expect(container.textContent).toContain("Connection refused");
   });
 
-  it("shows traceback toggle button when error_traceback is present", () => {
-    const { getByRole } = render(
+  it("clicking row expands invocation detail with traceback", () => {
+    const { container } = render(
       <HandlerInvocations
         invocations={[
           createInvocation({
             status: "error",
             error_message: "Something failed",
-            error_traceback: "Traceback (most recent call last):\n  File test.py",
-          }),
-        ]}
-        listenerId={1}
-      />,
-    );
-    const btn = getByRole("button", { name: /traceback/i });
-    expect(btn).toBeDefined();
-  });
-
-  it("clicking traceback button expands the traceback row", () => {
-    const { getByRole, container } = render(
-      <HandlerInvocations
-        invocations={[
-          createInvocation({
-            status: "error",
             error_traceback: "Traceback (most recent call last):\n  File test.py, line 1",
           }),
         ]}
@@ -88,13 +52,31 @@ describe("HandlerInvocations", () => {
       />,
     );
 
-    expect(container.querySelector("[data-testid='invocation-traceback']")).toBeNull();
+    expect(container.querySelector("[data-testid='invocation-detail']")).toBeNull();
 
-    fireEvent.click(getByRole("button", { name: /traceback/i }));
+    const row = container.querySelector(".ht-inv-row");
+    expect(row).not.toBeNull();
+    fireEvent.click(row!);
 
-    const pre = container.querySelector("[data-testid='invocation-traceback']");
-    expect(pre).not.toBeNull();
-    expect(pre!.textContent).toContain("Traceback (most recent call last)");
+    const detail = container.querySelector("[data-testid='invocation-detail']");
+    expect(detail).not.toBeNull();
+    expect(detail!.textContent).toContain("Traceback (most recent call last)");
+  });
+
+  it("clicking open row again collapses the detail", () => {
+    const { container } = render(
+      <HandlerInvocations
+        invocations={[createInvocation({ status: "error", error_traceback: "tb" })]}
+        listenerId={1}
+      />,
+    );
+
+    const row = container.querySelector(".ht-inv-row")!;
+    fireEvent.click(row);
+    expect(container.querySelector("[data-testid='invocation-detail']")).not.toBeNull();
+
+    fireEvent.click(row);
+    expect(container.querySelector("[data-testid='invocation-detail']")).toBeNull();
   });
 
   it("shows Show More button when invocations exceed 5", () => {
@@ -117,17 +99,6 @@ describe("HandlerInvocations", () => {
     expect(queryByRole("button", { name: /show all/i })).toBeNull();
   });
 
-  it("shows dash in error column for successful invocation with no message", () => {
-    const { container } = render(
-      <HandlerInvocations
-        invocations={[createInvocation({ status: "success", error_message: null })]}
-        listenerId={1}
-      />,
-    );
-    // The ErrorCell renders "—" for no message and no traceback
-    expect(container.textContent).toContain("—");
-  });
-
   it("renders multiple rows for multiple invocations", () => {
     const invocations = [
       createInvocation({ execution_start_ts: 1700000001 }),
@@ -137,81 +108,41 @@ describe("HandlerInvocations", () => {
     const { container } = render(
       <HandlerInvocations invocations={invocations} listenerId={1} />,
     );
-    const rows = container.querySelectorAll("tbody tr");
+    const rows = container.querySelectorAll(".ht-inv-row");
     expect(rows.length).toBe(3);
   });
 
-  it("renders Trace ID, Trigger, and Origin column headers", () => {
-    const { getByText } = render(
-      <HandlerInvocations invocations={[createInvocation()]} listenerId={1} />,
-    );
-    expect(getByText("Trace ID")).toBeDefined();
-    expect(getByText("Trigger")).toBeDefined();
-    expect(getByText("Origin")).toBeDefined();
-  });
-
-  it("renders execution_id truncated to 8 chars with full value in title", () => {
-    const uuid = "abc12345-6789-abcd-ef01-234567890abc";
+  it("renders trigger origin in trigger column", () => {
     const { container } = render(
       <HandlerInvocations
-        invocations={[createInvocation({ execution_id: uuid })]}
+        invocations={[createInvocation({ trigger_origin: "REMOTE", trigger_context_id: "ctx-1" })]}
         listenerId={1}
       />,
     );
-    const cell = container.querySelector("[title='" + uuid + "']");
-    expect(cell).not.toBeNull();
-    expect(cell!.textContent).toBe("abc12345…");
+    expect(container.textContent).toContain("REMOTE");
   });
 
-  it("renders dash for null execution_id", () => {
-    const { getAllByText } = render(
-      <HandlerInvocations
-        invocations={[createInvocation({ execution_id: null })]}
-        listenerId={1}
-      />,
-    );
-    // At least one em-dash should appear (could also be from error column)
-    expect(getAllByText("—").length).toBeGreaterThan(0);
-  });
-
-  it("renders trigger_context_id truncated to 8 chars", () => {
-    const uuid = "deadbeef-1234-5678-90ab-cdef01234567";
+  it("shows context ID in expanded detail", () => {
     const { container } = render(
       <HandlerInvocations
-        invocations={[createInvocation({ trigger_context_id: uuid })]}
+        invocations={[createInvocation({ trigger_context_id: "ctx-abc-123" })]}
         listenerId={1}
       />,
     );
-    const cell = container.querySelector("[title='" + uuid + "']");
-    expect(cell).not.toBeNull();
-    expect(cell!.textContent).toBe("deadbeef…");
+    fireEvent.click(container.querySelector(".ht-inv-row")!);
+    expect(container.textContent).toContain("ctx-abc-123");
   });
 
-  it("renders trigger_origin as plain text", () => {
-    const { getByText } = render(
+  it("expanded detail shows 2-column grid for execution ID and result", () => {
+    const { container } = render(
       <HandlerInvocations
-        invocations={[createInvocation({ trigger_origin: "LOCAL" })]}
+        invocations={[createInvocation({ execution_id: "exec-123" })]}
         listenerId={1}
       />,
     );
-    expect(getByText("LOCAL")).toBeDefined();
-  });
-
-  it("traceback row spans all 7 columns", () => {
-    const { getByRole, container } = render(
-      <HandlerInvocations
-        invocations={[
-          createInvocation({
-            status: "error",
-            error_traceback: "Traceback (most recent call last):\n  File test.py, line 1",
-          }),
-        ]}
-        listenerId={1}
-      />,
-    );
-    fireEvent.click(getByRole("button", { name: /traceback/i }));
-    const tbRow = container.querySelector(".ht-traceback-row td");
-    expect(tbRow).not.toBeNull();
-    expect(tbRow!.getAttribute("colspan")).toBe("7");
+    fireEvent.click(container.querySelector(".ht-inv-row")!);
+    const grid = container.querySelector(".ht-inv-detail__grid");
+    expect(grid).not.toBeNull();
+    expect(container.textContent).toContain("exec-123");
   });
 });

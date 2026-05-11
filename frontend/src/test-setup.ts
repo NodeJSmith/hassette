@@ -22,6 +22,29 @@ globalThis.cancelAnimationFrame = (id: number): void => {
   clearTimeout(id);
 };
 
+// jsdom does not provide ResizeObserver — stub it for components that use it.
+globalThis.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
+// jsdom does not provide matchMedia — stub it for useMediaQuery and components
+// that depend on it. Always returns false (desktop viewport) by default.
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    onchange: null,
+    dispatchEvent: () => false,
+  }),
+});
+
 beforeAll(() => {
   server.listen({ onUnhandledRequest: "error" });
 });

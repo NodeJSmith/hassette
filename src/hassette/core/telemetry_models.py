@@ -11,11 +11,17 @@ Separation rationale
 - ``domain_models.py`` — live state snapshots and WS event payloads
 """
 
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from pydantic import BaseModel
 
 from hassette.types.types import SourceTier
+
+
+class AppLastError(NamedTuple):
+    error_message: str
+    error_type: str | None
+    timestamp: float
 
 
 class AppHealthSummary(BaseModel):
@@ -82,11 +88,12 @@ class ListenerSummary(BaseModel):
     timed_out: int = 0
     total_duration_ms: float
     avg_duration_ms: float
-    min_duration_ms: float
-    max_duration_ms: float
+    min_duration_ms: float | None = None
+    max_duration_ms: float | None = None
     last_invoked_at: float | None
     last_error_type: str | None
     last_error_message: str | None
+    last_error_traceback: str | None = None
 
 
 class HandlerInvocation(BaseModel):
@@ -142,8 +149,20 @@ class JobSummary(BaseModel):
     """Unix epoch seconds of actual dispatch time when jitter applied; sourced from live heap."""
     jitter: float | None = None
     """Seconds of random jitter offset; sourced from live heap."""
-    cancelled: bool = False
-    """True when the job is cancelled; derived solely from ``cancelled_at IS NOT NULL`` in the DB."""
+    name_auto: bool = False
+    """True when the job name was auto-generated from the callable and trigger ID."""
+    last_error_message: str | None = None
+    """Most recent error message within the query window, or None."""
+    last_error_type: str | None = None
+    """Most recent error exception type within the query window, or None."""
+    last_error_ts: float | None = None
+    """Unix epoch of the most recent error within the query window, or None."""
+    last_error_traceback: str | None = None
+    """Traceback from the most recent error within the query window, or None."""
+    min_duration_ms: float | None = None
+    """Minimum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
+    max_duration_ms: float | None = None
+    """Maximum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
 
 
 class JobExecution(BaseModel):
@@ -231,6 +250,8 @@ class HandlerErrorRecord(BaseModel):
     error_type: str | None
     error_message: str | None
     error_traceback: str | None = None
+    source_location: str | None = None
+    """Source file location of the handler (e.g. 'my_app.py:42')."""
 
 
 class JobErrorRecord(BaseModel):
@@ -247,6 +268,25 @@ class JobErrorRecord(BaseModel):
     error_type: str | None
     error_message: str | None
     error_traceback: str | None = None
+    source_location: str | None = None
+    """Source file location of the job handler (e.g. 'my_app.py:99')."""
+
+
+class ActivityFeedEntry(BaseModel):
+    """A single activity entry for the cross-app recent activity feed."""
+
+    status: str
+    """Invocation/execution status (e.g. 'success', 'error', 'timed_out')."""
+
+    timestamp: float
+    """Unix epoch float for when the invocation/execution started."""
+
+    app_key: str
+    handler_name: str
+    duration_ms: float | None = None
+    error_type: str | None = None
+    kind: Literal["handler", "job"]
+    """Whether this is a handler invocation or a job execution."""
 
 
 class SlowHandlerRecord(BaseModel):

@@ -8,7 +8,7 @@ describe("JobExecutions", () => {
     const { getByText } = render(
       <JobExecutions executions={[]} jobId={1} />,
     );
-    expect(getByText("No executions recorded.")).toBeDefined();
+    expect(getByText("no executions recorded.")).toBeDefined();
   });
 
   it("renders table with testid matching jobId", () => {
@@ -49,13 +49,13 @@ describe("JobExecutions", () => {
   });
 
   it("renders error message in error column", () => {
-    const { getByText } = render(
+    const { getAllByText } = render(
       <JobExecutions
         executions={[createExecution({ status: "error", error_message: "Task failed" })]}
         jobId={1}
       />,
     );
-    expect(getByText("Task failed")).toBeDefined();
+    expect(getAllByText("Task failed").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows traceback toggle button when error_traceback is present", () => {
@@ -145,7 +145,7 @@ describe("JobExecutions", () => {
     expect(getByText("Trace ID")).toBeDefined();
   });
 
-  it("renders execution_id truncated to 8 chars with full value in title", () => {
+  it("renders full execution_id on desktop", () => {
     const uuid = "abc12345-6789-abcd-ef01-234567890abc";
     const { container } = render(
       <JobExecutions
@@ -153,9 +153,7 @@ describe("JobExecutions", () => {
         jobId={1}
       />,
     );
-    const cell = container.querySelector("[title='" + uuid + "']");
-    expect(cell).not.toBeNull();
-    expect(cell!.textContent).toBe("abc12345…");
+    expect(container.textContent).toContain(uuid);
   });
 
   it("renders dash for null execution_id", () => {
