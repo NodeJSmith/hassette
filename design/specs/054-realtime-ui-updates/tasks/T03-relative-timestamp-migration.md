@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Migrate all components to useRelativeTime and add tab-visibility recovery"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#4", "FR#8", "AC#4", "AC#8"]
 ---

@@ -2,7 +2,8 @@ import { StatusShape } from "../shared/status-shape";
 import type { StatusKind } from "../../utils/status";
 import { handlerKindLabel } from "../../utils/status";
 import type { ListenerData, JobData } from "../../api/endpoints";
-import { pluralize, formatRelativeTime, formatTimestamp } from "../../utils/format";
+import { pluralize, formatTimestamp } from "../../utils/format";
+import { useRelativeTime } from "../../hooks/use-relative-time";
 
 export type UnifiedItemKind = "listener" | "job";
 
@@ -35,6 +36,12 @@ function kindGlyph(label: string): string {
  * The kind chip visually distinguishes handlers vs jobs.
  */
 export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
+  // Extract job timestamps for hook calls — hooks must be called unconditionally at top level.
+  // For listener items these will be null, and useRelativeTime(null) returns "".
+  const jobData = item.kind === "job" ? item.data : null;
+  const nextRunRelative = useRelativeTime(jobData?.next_run ?? null);
+  const fireAtRelative = useRelativeTime(jobData?.fire_at ?? null);
+
   let invocationsOrRuns: number;
   let failed: number;
   let timedOut: number;
@@ -61,10 +68,10 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
     isFailing = failed > 0 || timedOut > 0;
     // Next-run line for schedule jobs
     if (j.next_run) {
-      nextRunLabel = `next ${formatRelativeTime(j.next_run)}`;
+      nextRunLabel = `next ${nextRunRelative}`;
       nextRunTitle = formatTimestamp(j.next_run);
     } else if (j.fire_at) {
-      nextRunLabel = `fire at ${formatRelativeTime(j.fire_at)}`;
+      nextRunLabel = `fire at ${fireAtRelative}`;
       nextRunTitle = formatTimestamp(j.fire_at);
     }
   }

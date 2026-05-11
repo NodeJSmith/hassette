@@ -6,7 +6,8 @@ import { useMediaQuery, BREAKPOINT_MOBILE, BREAKPOINT_TABLET } from "../../hooks
 import { useQueryParams } from "../../hooks/use-query-params";
 import { useSubscribe } from "../../hooks/use-subscribe";
 import { useAppState } from "../../state/context";
-import { formatTimestamp, formatRelativeTime, pluralize } from "../../utils/format";
+import { formatTimestamp, pluralize } from "../../utils/format";
+import { useRelativeTime } from "../../hooks/use-relative-time";
 import { levelToKind } from "../../utils/status";
 import { AppLink } from "./app-link";
 import { SortHeader } from "./sort-header";
@@ -68,6 +69,89 @@ const LEVEL_ABBREV: Record<string, string> = {
   CRITICAL: "C",
 };
 
+// ---- Log row component (must be a component to call useRelativeTime hook) ----
+
+interface LogTableRowProps {
+  entry: LogEntry;
+  rowKey: string;
+  isExpanded: boolean;
+  canExpand: boolean;
+  isMobile: boolean;
+  showAppColumn: boolean;
+  showSourceColumn: boolean;
+  colCount: number;
+  onToggle: () => void;
+}
+
+function LogTableRow({
+  entry,
+  rowKey,
+  isExpanded,
+  canExpand,
+  isMobile,
+  showAppColumn,
+  showSourceColumn,
+  colCount,
+  onToggle,
+}: LogTableRowProps) {
+  const relativeTime = useRelativeTime(entry.timestamp);
+  const rows = [
+    <tr key={rowKey} data-level={entry.level}>
+      <td>
+        <span class="ht-log-level-badge">
+          <StatusShape kind={levelToKind(entry.level)} size={10} />
+          <span class="ht-log-level-badge__text">
+            {isMobile ? (LEVEL_ABBREV[entry.level] ?? entry.level) : entry.level}
+          </span>
+        </span>
+      </td>
+      <td class="ht-text-mono">{isMobile ? relativeTime : formatTimestamp(entry.timestamp)}</td>
+      {showAppColumn && !isMobile && (
+        <td>
+          {entry.app_key ? (
+            <AppLink appKey={entry.app_key} />
+          ) : (
+            <span class="ht-text-muted">—</span>
+          )}
+        </td>
+      )}
+      {showSourceColumn || !isMobile ? (
+        <td class="ht-col-source" title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
+          <span class="ht-log-source__fn">{entry.func_name}() · {entry.logger_name.split(".").pop()}:{entry.lineno}</span>
+        </td>
+      ) : null}
+      <td
+        class={`ht-log-message-cell${canExpand ? " is-expandable" : ""}${isExpanded ? " is-expanded" : ""}`}
+        {...(canExpand ? { role: "button", tabIndex: 0, "aria-expanded": isExpanded,
+          "aria-label": isExpanded ? "Collapse log message" : "Expand log message" } : {})}
+        onClick={onToggle}
+        onKeyDown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }}
+      >
+        {isMobile && entry.func_name && (
+          <div class="ht-log-source-inline">
+            {showAppColumn && entry.app_key ? `${entry.app_key}.` : ""}{entry.func_name}()
+          </div>
+        )}
+        <div data-row-key={rowKey} class="ht-log-message__text">
+          {entry.message}
+        </div>
+      </td>
+    </tr>,
+  ];
+  if (isExpanded) {
+    rows.push(
+      <tr key={`${rowKey}-expanded`} class="ht-log-expanded-row">
+        <td colSpan={colCount} class="ht-log-expanded-cell">
+          <pre class="ht-log-expanded-message">{entry.message}</pre>
+        </td>
+      </tr>,
+    );
+  }
+  return <>{rows}</>;
+}
+
+// ---- Log table ----
+
 interface Props {
   showAppColumn?: boolean;
   appKey?: string;
@@ -84,8 +168,8 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
   // but for now we just adjust the colSpan to match the CSS-only hide.
   const isTablet = useMediaQuery(BREAKPOINT_TABLET);
   const showSourceColumn = !isTablet;
-  const { logs, updateLogSubscription, reconnectVersion, tick } = useAppState();
-  useSubscribe(isMobile && tick, logs.version);
+  const { logs, updateLogSubscription, reconnectVersion } = useAppState();
+  useSubscribe(logs.version);
   const qp = useQueryParams();
   // Keep a stable ref to the latest qp so event handlers always use the most
   // recent URL params without needing to close over the render-cycle value.
@@ -405,57 +489,20 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
               const sourceAdjust = showSourceColumn ? 0 : -1;
               const desktopColCount = (showAppColumn ? 5 : 4) + sourceAdjust;
               const colCount = isMobile ? mobileColCount : desktopColCount;
-              const rows = [
-              <tr key={rowKey} data-level={entry.level}>
-                <td>
-                  <span class="ht-log-level-badge">
-                    <StatusShape kind={levelToKind(entry.level)} size={10} />
-                    <span class="ht-log-level-badge__text">
-                      {isMobile ? (LEVEL_ABBREV[entry.level] ?? entry.level) : entry.level}
-                    </span>
-                  </span>
-                </td>
-                <td class="ht-text-mono">{isMobile ? formatRelativeTime(entry.timestamp) : formatTimestamp(entry.timestamp)}</td>
-                {showAppColumn && !isMobile && (
-                  <td>
-                    {entry.app_key ? (
-                      <AppLink appKey={entry.app_key} />
-                    ) : (
-                      <span class="ht-text-muted">—</span>
-                    )}
-                  </td>
-                )}
-                <td class="ht-col-source" title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
-                  <span class="ht-log-source__fn">{entry.func_name}() · {entry.logger_name.split(".").pop()}:{entry.lineno}</span>
-                </td>
-                <td
-                  class={`ht-log-message-cell${canExpand ? " is-expandable" : ""}${isExpanded ? " is-expanded" : ""}`}
-                  {...(canExpand ? { role: "button", tabIndex: 0, "aria-expanded": isExpanded,
-                    "aria-label": isExpanded ? "Collapse log message" : "Expand log message" } : {})}
-                  onClick={toggle}
-                  onKeyDown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
-                >
-                  {isMobile && entry.func_name && (
-                    <div class="ht-log-source-inline">
-                      {showAppColumn && entry.app_key ? `${entry.app_key}.` : ""}{entry.func_name}()
-                    </div>
-                  )}
-                  <div data-row-key={rowKey} class="ht-log-message__text">
-                    {entry.message}
-                  </div>
-                </td>
-              </tr>,
-              ];
-              if (isExpanded) {
-                rows.push(
-                  <tr key={`${rowKey}-expanded`} class="ht-log-expanded-row">
-                    <td colSpan={colCount} class="ht-log-expanded-cell">
-                      <pre class="ht-log-expanded-message">{entry.message}</pre>
-                    </td>
-                  </tr>,
-                );
-              }
-              return rows;
+              return (
+                <LogTableRow
+                  key={rowKey}
+                  entry={entry}
+                  rowKey={rowKey}
+                  isExpanded={isExpanded}
+                  canExpand={canExpand}
+                  isMobile={isMobile}
+                  showAppColumn={showAppColumn}
+                  showSourceColumn={showSourceColumn}
+                  colCount={colCount}
+                  onToggle={toggle}
+                />
+              );
             })}
           </tbody>
         </table>

@@ -11,7 +11,8 @@ import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useAppState } from "../../state/context";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { useDebouncedEffect } from "../../hooks/use-debounced-effect";
-import { formatTriggerDetail, formatDurationOrDash, formatOptionalDuration, formatRelativeTime, lastDotSegment, parseSourceLocation, TIME_PRESET_LABELS } from "../../utils/format";
+import { formatTriggerDetail, formatDurationOrDash, formatOptionalDuration, lastDotSegment, parseSourceLocation, TIME_PRESET_LABELS } from "../../utils/format";
+import { useRelativeTime } from "../../hooks/use-relative-time";
 
 import { handlerKindLabel } from "../../utils/status";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
@@ -91,11 +92,11 @@ function DetailStatsRow({ cells, testId }: { cells: StatsCell[]; testId?: string
   );
 }
 
-function handlerStatsCells(listener: ListenerData, timeLabel: string): StatsCell[] {
+function handlerStatsCells(listener: ListenerData, timeLabel: string, lastInvokedLabel: string): StatsCell[] {
   const cells: StatsCell[] = [
     { label: `Calls${timeLabel ? ` · ${timeLabel}` : ""}`, value: listener.total_invocations },
     { label: "Successful", value: listener.successful },
-    { label: "Last", value: listener.last_invoked_at ? formatRelativeTime(listener.last_invoked_at) : "—" },
+    { label: "Last", value: listener.last_invoked_at ? lastInvokedLabel || "—" : "—" },
     { label: "Failed", value: listener.failed > 0 ? listener.failed : "—", tone: listener.failed > 0 ? "err" : undefined },
     { label: "Timed Out", value: listener.timed_out > 0 ? listener.timed_out : "—", tone: listener.timed_out > 0 ? "warn" : undefined },
   ];
@@ -108,11 +109,11 @@ function handlerStatsCells(listener: ListenerData, timeLabel: string): StatsCell
   return cells;
 }
 
-function jobStatsCells(job: JobData, timeLabel: string): StatsCell[] {
+function jobStatsCells(job: JobData, timeLabel: string, lastExecutedLabel: string): StatsCell[] {
   return [
     { label: `Runs${timeLabel ? ` · ${timeLabel}` : ""}`, value: job.total_executions },
     { label: "Successful", value: job.successful },
-    { label: "Last", value: job.last_executed_at ? formatRelativeTime(job.last_executed_at) : "—" },
+    { label: "Last", value: job.last_executed_at ? lastExecutedLabel || "—" : "—" },
     { label: "Failed", value: job.failed > 0 ? job.failed : "—", tone: job.failed > 0 ? "err" : undefined },
     { label: "Timed Out", value: job.timed_out > 0 ? job.timed_out : "—", tone: job.timed_out > 0 ? "warn" : undefined },
     { label: "Min", value: formatOptionalDuration(job.min_duration_ms) },
@@ -136,6 +137,7 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
 
   const { invocationCompleted, effectiveTimePreset } = useAppState();
   const timeLabel = TIME_PRESET_LABELS[effectiveTimePreset.value] ?? "";
+  const lastInvokedLabel = useRelativeTime(listener.last_invoked_at ?? null);
 
   // Targeted real-time refetch when a matching invocation_completed event arrives
   useDebouncedEffect(
@@ -207,7 +209,7 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
       )}
 
       {/* Stats row */}
-      <DetailStatsRow cells={handlerStatsCells(listener, timeLabel)} testId="handler-stats-row" />
+      <DetailStatsRow cells={handlerStatsCells(listener, timeLabel, lastInvokedLabel)} testId="handler-stats-row" />
 
       {/* View in code link */}
       {onSwitchToCode && listener.source_location && (
@@ -251,6 +253,9 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
 
   const { executionCompleted, effectiveTimePreset: jobEffectivePreset } = useAppState();
   const jobTimeLabel = TIME_PRESET_LABELS[jobEffectivePreset.value] ?? "";
+  const lastExecutedLabel = useRelativeTime(job.last_executed_at);
+  const nextRunLabel = useRelativeTime(job.next_run ?? null);
+  const fireAtLabel = useRelativeTime(job.fire_at ?? null);
 
   // Targeted real-time refetch when a matching execution_completed event arrives
   useDebouncedEffect(
@@ -268,9 +273,9 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
 
   // Next-run strip
   const nextRunText = job.next_run
-    ? `next ${formatRelativeTime(job.next_run)}`
+    ? `next ${nextRunLabel}`
     : job.fire_at
-    ? `fire at ${formatRelativeTime(job.fire_at)}`
+    ? `fire at ${fireAtLabel}`
     : null;
 
   const { filename: sourceFilename, line: sourceLine } = parseSourceLocation(job.source_location);
@@ -343,7 +348,7 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
       )}
 
       {/* Stats row */}
-      <DetailStatsRow cells={jobStatsCells(job, jobTimeLabel)} testId="job-stats-row" />
+      <DetailStatsRow cells={jobStatsCells(job, jobTimeLabel, lastExecutedLabel)} testId="job-stats-row" />
 
       {/* View in code link */}
       {onSwitchToCode && job.source_location && (

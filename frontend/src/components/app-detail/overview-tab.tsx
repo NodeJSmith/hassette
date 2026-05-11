@@ -5,7 +5,8 @@ import { StatusShape } from "../shared/status-shape";
 import { buildItems } from "./handler-list";
 import type { UnifiedItem } from "./unified-handler-row";
 import { handlerKindLabel, levelToKind, executionStatusKind } from "../../utils/status";
-import { pluralize, formatDurationOrDash, formatRelativeTime, lastDotSegment } from "../../utils/format";
+import { pluralize, formatDurationOrDash, lastDotSegment } from "../../utils/format";
+import { useRelativeTime } from "../../hooks/use-relative-time";
 import type { ListenerData, JobData, ActivityFeedEntryData, LogEntry } from "../../api/endpoints";
 import { getAppActivity, getRecentLogs } from "../../api/endpoints";
 import { useScopedApi } from "../../hooks/use-scoped-api";
@@ -189,6 +190,8 @@ interface HandlerHealthGridProps {
 }
 
 function HandlerHealthGrid({ items, appKey, instanceQs }: HandlerHealthGridProps) {
+  const sorted = useMemo(() => sortedByFailingFirst(items), [items]);
+
   if (items.length === 0) {
     return (
       <section class="ht-overview-tab__section" data-testid="overview-health-grid">
@@ -201,8 +204,6 @@ function HandlerHealthGrid({ items, appKey, instanceQs }: HandlerHealthGridProps
       </section>
     );
   }
-
-  const sorted = useMemo(() => sortedByFailingFirst(items), [items]);
 
   return (
     <section class="ht-overview-tab__section" data-testid="overview-health-grid">
@@ -232,6 +233,7 @@ interface ActivityRowProps {
 
 function ActivityRow({ entry }: ActivityRowProps) {
   const kind = executionStatusKind(entry.status);
+  const timeLabel = useRelativeTime(entry.timestamp);
   return (
     <tr data-testid="overview-activity-row">
       <td aria-label={`status: ${entry.status}`}>
@@ -241,7 +243,7 @@ function ActivityRow({ entry }: ActivityRowProps) {
       </td>
       <td class="ht-overview-activity__name" title={entry.handler_name}>{lastDotSegment(entry.handler_name)}</td>
       <td class="ht-overview-activity__duration">{formatDurationOrDash(entry.duration_ms)}</td>
-      <td class="ht-overview-activity__time">{formatRelativeTime(entry.timestamp)}</td>
+      <td class="ht-overview-activity__time">{timeLabel}</td>
     </tr>
   );
 }
@@ -323,6 +325,7 @@ interface LogRowProps {
 
 function LogRow({ entry }: LogRowProps) {
   const kind = levelToKind(entry.level);
+  const timeLabel = useRelativeTime(entry.timestamp);
   return (
     <tr data-level={entry.level} data-testid="overview-log-row">
       <td aria-label={`level: ${entry.level}`}>
@@ -331,7 +334,7 @@ function LogRow({ entry }: LogRowProps) {
           <span class="ht-log-level-badge__text">{entry.level}</span>
         </span>
       </td>
-      <td class="ht-overview-log__time">{formatRelativeTime(entry.timestamp)}</td>
+      <td class="ht-overview-log__time">{timeLabel}</td>
       <td class="ht-overview-log__message" title={entry.message}>{entry.message}</td>
     </tr>
   );
