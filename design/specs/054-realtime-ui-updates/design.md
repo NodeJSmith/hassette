@@ -137,12 +137,6 @@ This is especially harmful when a user is monitoring after a deploy or watching 
 
 **Handlers tab detail tables:** Already have `useDebouncedEffect` subscriptions for invocation/execution detail refetch — no changes needed.
 
-### 5. Apps landing page auto-refresh (#387)
-
-**Add `useDebouncedEffect` (or the new filtered-signal hook) to `apps.tsx`:** Subscribe to `invocationCompleted` and `executionCompleted` signals. On any event (no app_key filter — the dashboard shows all apps), debounce and refetch `getDashboardAppGrid`. This updates invocation counts, total runs, last activity timestamps, sparklines, and error summaries.
-
-The existing `appStatus` signal subscription for live status badges remains unchanged.
-
 ### 4. Reduce re-render blast radius (#714)
 
 **Problem:** `useDebouncedEffect(() => invocationCompleted.value, ...)` reads the signal value inside `getValue()`, which Preact's signal system auto-tracks at render time. Every WS event from any app triggers a re-render of every component using this pattern.
@@ -162,6 +156,12 @@ Define a named constant `WS_DEBOUNCE_MAX_WAIT_MS = 1500` alongside the existing 
 - `overview-tab.tsx:273–281` — `executionCompleted` subscription in `RecentActivitySection`
 - `handlers-tab.tsx:141–149` — `invocationCompleted` subscription in `ListenerDetail`
 - `handlers-tab.tsx:256–264` — `executionCompleted` subscription in `JobDetail`
+
+### 5. Apps landing page auto-refresh (#387)
+
+**Add the filtered-signal hook to `apps.tsx`:** Subscribe to `invocationCompleted` and `executionCompleted` signals. On any event (no app_key filter — the dashboard shows all apps), debounce and refetch `getDashboardAppGrid`. This updates invocation counts, total runs, last activity timestamps, sparklines, and error summaries.
+
+The existing `appStatus` signal subscription for live status badges remains unchanged.
 
 ## Alternatives Considered
 

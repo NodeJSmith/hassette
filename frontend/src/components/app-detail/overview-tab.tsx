@@ -344,7 +344,15 @@ function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
     { deps: [appKey] },
   );
 
-  const { executionCompleted } = useAppState();
+  const { invocationCompleted, executionCompleted } = useAppState();
+
+  useFilteredSignalRefetch(
+    invocationCompleted,
+    (events) => events?.some((e) => e.app_key === appKey) ?? false,
+    () => void refetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
+  );
 
   useFilteredSignalRefetch(
     executionCompleted,
