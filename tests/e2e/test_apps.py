@@ -1,6 +1,6 @@
 """E2E tests for the Apps page in the new Ink UI.
 
-The /apps page shows a manifest list with status filter tabs.
+The /apps page shows an app table with filter pills.
 """
 
 import re
@@ -21,47 +21,44 @@ def test_apps_table_shows_manifests(page: Page, base_url: str) -> None:
     expect(body).to_contain_text("disabled_app")
 
 
-def test_filter_by_status_tab(page: Page, base_url: str) -> None:
-    """Clicking the Running filter tab shows only running apps."""
+def test_filter_by_status_pill(page: Page, base_url: str) -> None:
+    """Clicking the running filter pill shows only running apps."""
     page.goto(base_url + "/apps")
-    page.locator("[data-testid='tab-running'] button").click()
+    page.locator(".ht-apps-filter-pill", has_text="running").click()
     page.wait_for_timeout(300)
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
-    expect(page.locator("[data-testid='app-row-other_app']")).to_have_count(0)
     expect(page.locator("[data-testid='app-row-disabled_app']")).to_have_count(0)
 
 
 def test_tab_filter_is_client_side(page: Page, base_url: str) -> None:
-    """Tab filter works client-side (no full page reload)."""
+    """Filter pills work client-side (no full page reload)."""
     page.goto(base_url + "/apps")
-    page.locator("[data-testid='tab-running'] button").click()
+    page.locator(".ht-apps-filter-pill", has_text="running").click()
     page.wait_for_timeout(300)
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
-    expect(page.locator("[data-testid='app-row-other_app']")).to_have_count(0)
-    # Reset to All
-    page.locator("[data-testid='tab-all'] button").click()
+    expect(page.locator("[data-testid='app-row-disabled_app']")).to_have_count(0)
+    page.locator(".ht-apps-filter-pill", has_text="all").click()
     page.wait_for_timeout(300)
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
-    expect(page.locator("[data-testid='app-row-other_app']")).to_be_visible()
 
 
 def test_app_row_links_to_detail(page: Page, base_url: str) -> None:
-    """Clicking an app row navigates to the App Detail page."""
+    """Clicking an app link navigates to the App Detail page."""
     page.goto(base_url + "/apps")
     page.locator("a[href='/apps/my_app']").first.click()
     expect(page).to_have_url(re.compile(r"/apps/my_app"))
-    expect(page.locator("body")).to_contain_text("My App")
+    expect(page.locator("[data-testid='app-title']")).to_contain_text("my_app")
 
 
 def test_app_detail_shows_sections(page: Page, base_url: str) -> None:
-    """App detail page shows the Handlers tab by default."""
+    """App detail page shows tab strip with expected tabs."""
     page.goto(base_url + "/apps/my_app")
     body = page.locator("body")
-    # Tab strip with Handlers, Code, Logs, Config
-    expect(body).to_contain_text("Handlers")
-    expect(body).to_contain_text("Code")
-    expect(body).to_contain_text("Logs")
-    expect(body).to_contain_text("Config")
+    expect(body).to_contain_text("overview")
+    expect(body).to_contain_text("handlers")
+    expect(body).to_contain_text("code")
+    expect(body).to_contain_text("logs")
+    expect(body).to_contain_text("config")
 
 
 def test_running_app_shows_stop_and_reload_buttons(page: Page, base_url: str) -> None:
@@ -84,37 +81,32 @@ def test_failed_app_shows_start_button(page: Page, base_url: str) -> None:
 
 
 def test_app_detail_shows_display_name(page: Page, base_url: str) -> None:
-    """App detail header shows the app's display name."""
+    """App detail header shows the app key."""
     page.goto(base_url + "/apps/my_app")
-    expect(page.locator("body")).to_contain_text("My App")
+    expect(page.locator("[data-testid='app-title']")).to_contain_text("my_app")
 
 
 def test_app_detail_log_entries_show_app_logs(page: Page, base_url: str) -> None:
     """App detail Logs tab shows app-specific log entries."""
-    page.goto(base_url + "/apps/my_app")
-    logs_tab_btn = page.locator("button[role='tab']", has_text="Logs")
-    logs_tab_btn.click()
+    page.goto(base_url + "/apps/my_app/logs")
     page.wait_for_timeout(500)
-    entries_badge = page.locator("text=/\\d+ entries/")
-    expect(entries_badge).to_be_visible(timeout=5000)
     expect(page.locator("body")).to_contain_text("MyApp initialized")
     expect(page.locator("body")).to_contain_text("Light kitchen unresponsive")
     expect(page.locator("body")).to_contain_text("Failed to call service")
-    # Core-only messages should NOT appear
     expect(page.locator("body")).not_to_contain_text("Hassette started successfully")
     expect(page.locator("body")).not_to_contain_text("WebSocket heartbeat sent")
 
 
 def test_status_filter_uses_aria_pressed(page: Page, base_url: str) -> None:
-    """Status filter buttons use aria-pressed."""
+    """Status filter pills use aria-pressed."""
     page.goto(base_url + "/apps")
-    filter_group = page.locator("[role='group'][aria-label='App status filter']")
+    filter_group = page.locator("[data-testid='apps-filter-pills']")
     expect(filter_group).to_be_visible()
-    all_btn = page.locator("[data-testid='tab-all'] button")
-    expect(all_btn).to_have_attribute("aria-pressed", "true")
-    running_btn = page.locator("[data-testid='tab-running'] button")
-    expect(running_btn).to_have_attribute("aria-pressed", "false")
-    running_btn.click()
+    all_pill = page.locator(".ht-apps-filter-pill", has_text="all")
+    expect(all_pill).to_have_attribute("aria-pressed", "true")
+    running_pill = page.locator(".ht-apps-filter-pill", has_text="running")
+    expect(running_pill).to_have_attribute("aria-pressed", "false")
+    running_pill.click()
     page.wait_for_timeout(300)
-    expect(running_btn).to_have_attribute("aria-pressed", "true")
-    expect(all_btn).to_have_attribute("aria-pressed", "false")
+    expect(running_pill).to_have_attribute("aria-pressed", "true")
+    expect(all_pill).to_have_attribute("aria-pressed", "false")

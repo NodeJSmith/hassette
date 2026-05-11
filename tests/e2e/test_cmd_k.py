@@ -44,9 +44,9 @@ def test_palette_shows_page_items(page: Page, base_url: str) -> None:
     _open_palette(page)
     palette = page.locator("[role='dialog'][aria-label='Command palette']")
     # Static page items from buildStaticPageItems
-    expect(palette).to_contain_text("Overview")
-    expect(palette).to_contain_text("Logs")
-    expect(palette).to_contain_text("Config")
+    expect(palette).to_contain_text("apps")
+    expect(palette).to_contain_text("logs")
+    expect(palette).to_contain_text("config")
 
 
 def test_palette_shows_app_items(page: Page, base_url: str) -> None:
