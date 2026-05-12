@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Create Button and Badge components with module CSS"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "FR#15"]
 ---

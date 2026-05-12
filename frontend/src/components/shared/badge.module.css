@@ -1,0 +1,56 @@
+/* Badge — status indicators, size variants, semantic colors */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  padding: 0.15em 0.55em;
+  border-radius: var(--r-pill);
+  line-height: 1.6;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.xs {
+  font-size: 10px;
+  padding: 0.05em 0.4em;
+  line-height: 1.4;
+}
+
+.sm {
+  font-size: var(--fs-micro);
+  padding: 0.1em 0.45em;
+}
+
+.md {
+  font-size: var(--fs-small);
+  padding: 0.2em 0.65em;
+}
+
+/* Semantic badge variants */
+.success {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+
+.danger {
+  color: var(--err);
+  background: var(--err-bg);
+}
+
+.warning {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+
+.info {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.neutral {
+  color: var(--ink-3);
+  background: var(--bg-sunken);
+}
