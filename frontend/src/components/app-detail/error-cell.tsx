@@ -3,6 +3,7 @@
  * The actual traceback `<pre>` is rendered as a separate `<tr>` by the parent
  * table component — this cell just controls the toggle state.
  */
+import { Button } from "../shared/button";
 import styles from "./error-cell.module.css";
 
 interface Props {
@@ -18,15 +19,16 @@ export function ErrorCell({ traceback, message, expanded, onToggle }: Props) {
   return (
     <div class={styles.errorCell}>
       <span>{message ?? "Error"}</span>
-      <button
-        type="button"
-        class={`ht-btn ht-btn--xs ht-btn--ghost ${styles.tracebackToggle}`}
+      <Button
+        ghost
+        size="xs"
+        class={styles.tracebackToggle}
         onClick={(e) => { e.stopPropagation(); onToggle(); }}
         aria-expanded={expanded}
         aria-label={expanded ? "Hide traceback" : "Show traceback"}
       >
         {expanded ? "hide traceback" : "show traceback"}
-      </button>
+      </Button>
     </div>
   );
 }

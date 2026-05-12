@@ -32,7 +32,7 @@ describe("JobExecutions", () => {
     const { container } = render(
       <JobExecutions executions={[createExecution({ status: "success" })]} jobId={1} />,
     );
-    const badge = container.querySelector(".ht-badge--success");
+    const badge = container.querySelector("[data-testid='execution-status-badge']");
     expect(badge).not.toBeNull();
     expect(badge!.textContent).toBe("success");
   });
@@ -44,7 +44,7 @@ describe("JobExecutions", () => {
         jobId={1}
       />,
     );
-    const badge = container.querySelector(".ht-badge--danger");
+    const badge = container.querySelector("[data-testid='execution-status-badge']");
     expect(badge).not.toBeNull();
   });
 

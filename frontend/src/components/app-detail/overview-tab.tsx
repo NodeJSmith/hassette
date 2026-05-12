@@ -6,6 +6,7 @@ import { StatusShape } from "../shared/status-shape";
 import { buildItems } from "./handler-list";
 import type { UnifiedItem } from "./unified-handler-row";
 import { handlerKindLabel, levelToKind, executionStatusKind } from "../../utils/status";
+import { Chip } from "../shared/chip";
 import { pluralize, formatDurationOrDash, lastDotSegment } from "../../utils/format";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import type { ListenerData, JobData, ActivityFeedEntryData, LogEntry } from "../../api/endpoints";
@@ -168,9 +169,9 @@ function HealthGridRow({ item, appKey, instanceQs }: HealthGridRowProps) {
         <StatusShape kind={item.statusKind} size={10} />
       </span>
       <div class={styles.healthRowMeta}>
-        <span class="ht-chip ht-chip--muted ht-chip--sm" aria-label={`kind: ${chipLabel}`}>
+        <Chip variant="muted" size="sm" aria-label={`kind: ${chipLabel}`}>
           {chipLabel}
-        </span>
+        </Chip>
         <span class={styles.healthRowName}>{item.name}</span>
       </div>
       <span class={styles.healthRowCount} title={`Total ${callLabel}s`}>

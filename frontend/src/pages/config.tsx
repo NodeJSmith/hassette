@@ -2,6 +2,7 @@ import { getConfig } from "../api/endpoints";
 import { Spinner } from "../components/shared/spinner";
 import { useApi } from "../hooks/use-api";
 import { useDocumentTitle } from "../hooks/use-document-title";
+import { Card } from "../components/shared/card";
 import styles from "./config.module.css";
 
 type ConfigRow = { key: string; value: string };
@@ -107,7 +108,7 @@ export function ConfigPage() {
           {groups.map((group) => (
             <section key={group.label} class={`${styles.group} ht-mb-8`}>
               <h2 class="ht-section-label">{group.label}</h2>
-              <div class="ht-card ht-card--config">
+              <Card variant="config">
                 <table class={`ht-table ht-table--compact ${styles.configTable}`}>
                   <tbody>
                     {group.rows.map((row) => (
@@ -118,7 +119,7 @@ export function ConfigPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </Card>
             </section>
           ))}
         </div>

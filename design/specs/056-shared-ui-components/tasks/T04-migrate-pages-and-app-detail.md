@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Migrate pages and app-detail components to shared components"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#13", "FR#14"]
 ---

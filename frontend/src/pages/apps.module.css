@@ -196,7 +196,7 @@
 
 @media (max-width: 768px) {
   .className,
-  .appsTable :global(.ht-chip--auto) {
+  .appsTable [data-variant="muted"] {
     display: none;
   }
 

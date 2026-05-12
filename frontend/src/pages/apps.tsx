@@ -15,6 +15,9 @@ import { type AppRow, type AppSortState, mergeManifestsAndGrid, compareAppRows }
 import { AppLink } from "../components/shared/app-link";
 import { EmptyState } from "../components/shared/empty-state";
 import { StatusShape } from "../components/shared/status-shape";
+import { Badge } from "../components/shared/badge";
+import { Button } from "../components/shared/button";
+import { Chip } from "../components/shared/chip";
 import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { ActionButtons } from "../components/shared/action-buttons";
 import { SortHeader } from "../components/shared/sort-header";
@@ -141,11 +144,11 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
           <StatusShape kind={kind} size={7} />
           <AppLink appKey={app.app_key} />
           <span class={styles.className}>{app.class_name}</span>
-          {app.auto_loaded && <span class="ht-chip ht-chip--auto">auto</span>}
+          {app.auto_loaded && <Chip variant="muted">auto</Chip>}
         </td>
         {/* Status */}
         <td>
-          <span class={`ht-badge ht-badge--${statusToVariant(status)} ht-badge--sm`} data-testid="status-pill">{status}</span>
+          <Badge variant={statusToVariant(status)} size="sm" data-testid="status-pill">{status}</Badge>
           {isMulti && <span class={styles.instanceCount}>{app.instance_count} instances</span>}
         </td>
         {/* Error */}
@@ -193,7 +196,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
               <StatusShape kind={instKind} size={6} />
               <AppLink appKey={app.app_key} instanceIndex={inst.index}>{inst.instance_name}</AppLink>
             </td>
-            <td><span class={`ht-badge ht-badge--${statusToVariant(instStatus)} ht-badge--sm`}>{instStatus}</span></td>
+            <td><Badge variant={statusToVariant(instStatus)} size="sm">{instStatus}</Badge></td>
             <td class={styles.errorCell}>
               {inst.error_message ? (
                 <span class="ht-text-mono ht-text-sm ht-text-danger" title={inst.error_message}>{inst.error_message}</span>
@@ -320,7 +323,7 @@ export function AppsPage() {
         {filtered.length === 0 ? (
           <EmptyState title="no apps match this filter.">
             {(filter !== "all" || q) && (
-              <button type="button" class="ht-btn ht-btn--ghost ht-btn--sm" onClick={() => qp.set({ filter: null, search: null })}>clear filters</button>
+              <Button ghost size="sm" onClick={() => qp.set({ filter: null, search: null })}>clear filters</Button>
             )}
           </EmptyState>
         ) : (

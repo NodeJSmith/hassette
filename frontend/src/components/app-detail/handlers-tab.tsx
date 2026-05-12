@@ -21,6 +21,9 @@ import { EmptyState } from "../shared/empty-state";
 import { ErrorBanner } from "../shared/error-banner";
 import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
+import { Badge } from "../shared/badge";
+import { Button } from "../shared/button";
+import { Chip } from "../shared/chip";
 import styles from "./handlers-tab.module.css";
 
 
@@ -48,9 +51,9 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
   return (
     <div class={styles.chipRow} data-testid="modifier-chips">
       {chips.map((c) => (
-        <span key={c.label} class="ht-chip ht-chip--modifier">
+        <Chip key={c.label} variant="modifier">
           {c.label}{c.value ? ` ${c.value}` : ""}
-        </span>
+        </Chip>
       ))}
     </div>
   );
@@ -67,7 +70,7 @@ function ScheduleChips({ job }: { job: JobData }) {
   return (
     <div class={styles.chipRow} data-testid="schedule-chips">
       {chips.map((c) => (
-        <span key={c.label} class="ht-chip ht-chip--schedule">{c.label}</span>
+        <Chip key={c.label} variant="schedule">{c.label}</Chip>
       ))}
     </div>
   );
@@ -171,13 +174,13 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
     <div class={styles.detailPaneContent}>
       {/* Header: kind badge + name + status pill */}
       <div class={styles.detailPaneHeader}>
-        <span class={`ht-chip ht-chip--kind ht-chip--kind-${listenerKind}`} aria-label={`kind: ${kindLabel}`}>
+        <Chip variant="kind" kind={listenerKind} aria-label={`kind: ${kindLabel}`}>
           <StatusShape kind={listenerKind} size={8} />
           {kindLabel}
-        </span>
+        </Chip>
         <span class={styles.detailPaneHandlerName}>{lastDotSegment(listener.handler_method)}</span>
         {isFailing && (
-          <span class="ht-badge ht-badge--danger ht-badge--sm" data-testid="handler-status-pill">failing</span>
+          <Badge variant="danger" size="sm" data-testid="handler-status-pill">failing</Badge>
         )}
       </div>
 
@@ -223,14 +226,14 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
 
       {/* View in code link */}
       {onSwitchToCode && listener.source_location && (
-        <button
-          type="button"
-          class="ht-btn ht-btn--ghost ht-btn--sm"
+        <Button
+          ghost
+          size="sm"
           data-testid="view-in-code-btn"
           onClick={() => onSwitchToCode(sourceLine ?? undefined)}
         >
           view in code →
-        </button>
+        </Button>
       )}
     </div>
 
@@ -294,10 +297,10 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
     <div class={styles.detailPaneContent}>
       {/* Header: kind badge + name + status pill */}
       <div class={styles.detailPaneHeader}>
-        <span class={`ht-chip ht-chip--kind ht-chip--kind-${jobKind}`} aria-label={`kind: ${kindLabel}`}>
+        <Chip variant="kind" kind={jobKind} aria-label={`kind: ${kindLabel}`}>
           <StatusShape kind={jobKind} size={8} />
           {kindLabel}
-        </span>
+        </Chip>
         <span class={styles.detailPaneHandlerName}>
           {job.job_name}
           {job.name_auto && (
@@ -359,14 +362,14 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
 
       {/* View in code link */}
       {onSwitchToCode && job.source_location && (
-        <button
-          type="button"
-          class="ht-btn ht-btn--ghost ht-btn--sm"
+        <Button
+          ghost
+          size="sm"
           data-testid="view-in-code-btn"
           onClick={() => onSwitchToCode(sourceLine ?? undefined)}
         >
           view in code →
-        </button>
+        </Button>
       )}
     </div>
 
@@ -477,15 +480,16 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
 
       {/* Mobile: back button in detail view — navigate to handler list (no handler ID) */}
       {showMobileDetail && (
-        <button
-          type="button"
-          class="ht-btn ht-btn--ghost ht-btn--sm ht-mb-3"
+        <Button
+          ghost
+          size="sm"
+          class="ht-mb-3"
           data-testid="back-to-list"
           onClick={() => navigate(`/apps/${appKey}/handlers${instanceQs}`)}
           aria-label="Back to handler list"
         >
           ← back
-        </button>
+        </Button>
       )}
 
       <div class={clsx(styles.masterDetail, isMobile.value && styles.masterDetailMobile)}>

@@ -6,6 +6,7 @@ import { getAllListeners, getAllJobs } from "../api/endpoints";
 import type { ListenerData, JobData } from "../api/endpoints";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
 import { AppLink } from "../components/shared/app-link";
+import { Chip } from "../components/shared/chip";
 import { EmptyState } from "../components/shared/empty-state";
 import { SortHeader, type SortState } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
@@ -150,9 +151,9 @@ function MobileCard({ href, appKey, name, failing, metrics, footer, ...rest }: M
 // "listener" displays as "event" in the UI — the user-facing term
 function KindBadge({ kind }: { kind: "listener" | "job" }) {
   return (
-    <span class="ht-chip ht-chip--muted ht-chip--sm">
+    <Chip variant="muted" size="sm">
       {kind === "listener" ? "event" : "job"}
-    </span>
+    </Chip>
   );
 }
 

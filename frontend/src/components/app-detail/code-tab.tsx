@@ -6,6 +6,8 @@ import { getAppSource } from "../../api/endpoints";
 import type { AppSourceData, ListenerData } from "../../api/endpoints";
 import { Spinner } from "../shared/spinner";
 import { parseSourceLocation } from "../../utils/format";
+import { Button } from "../shared/button";
+import { Card } from "../shared/card";
 import styles from "./code-tab.module.css";
 
 interface Props {
@@ -136,9 +138,9 @@ export function CodeTab({ appKey, listeners }: Props) {
 
   if (error.value) {
     return (
-      <div class={`${styles.error} ht-card`} data-testid="code-tab-error">
+      <Card data-testid="code-tab-error">
         <p class="ht-text-muted ht-text-sm">{error.value}</p>
-      </div>
+      </Card>
     );
   }
 
@@ -165,15 +167,15 @@ export function CodeTab({ appKey, listeners }: Props) {
         <div class={styles.headerMeta}>
           <span class="ht-text-muted ht-text-sm">{lineCount} lines</span>
           <span class={styles.readonlyLabel}>read-only</span>
-          <button
-            type="button"
-            class="ht-btn ht-btn--ghost ht-btn--sm"
+          <Button
+            ghost
+            size="sm"
             data-testid="copy-path-btn"
             onClick={handleCopyPath}
             aria-label="Copy file path"
           >
             copy path
-          </button>
+          </Button>
         </div>
       </div>
       <div

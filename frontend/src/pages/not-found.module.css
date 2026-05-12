@@ -4,3 +4,12 @@
   text-align: center;
   padding: var(--sp-10);
 }
+
+.backLink {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.backLink:hover {
+  text-decoration: underline;
+}

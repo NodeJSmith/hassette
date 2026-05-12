@@ -5,6 +5,7 @@ import { useAppState } from "../../state/context";
 import { statusToKind } from "../../utils/status";
 import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
+import { Chip } from "../shared/chip";
 import type { components } from "../../api/generated-types";
 import styles from "./sidebar.module.css";
 
@@ -135,7 +136,7 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
           <StatusShape kind={kind} size={10} />
           <span class={styles.appName}>{manifest.display_name}</span>
           {manifest.auto_loaded && (
-            <span class="ht-chip ht-chip--auto" title="Auto-loaded">auto</span>
+            <Chip variant="muted" title="Auto-loaded">auto</Chip>
           )}
         </Link>
         {isMulti && (
