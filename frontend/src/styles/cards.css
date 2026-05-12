@@ -13,10 +13,9 @@
   padding: var(--sp-3);
 }
 
-.ht-error-card { padding: var(--sp-6); text-align: center; }
-
-/* — Light Mode Overrides ——————————————————————————————— */
-[data-theme="light"] .ht-card {
-  border: 1px solid var(--line-1);
-  border-top: 1px solid var(--line-2);
+.ht-card--config {
+  padding: 0;
+  overflow: hidden;
 }
+
+.ht-error-card { padding: var(--sp-6); text-align: center; }

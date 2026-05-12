@@ -101,7 +101,7 @@ export function ConfirmDialog({
           <button
             type="button"
             ref={cancelRef}
-            class={styles.cancel}
+            class="ht-btn"
             onClick={onCancel}
           >
             Cancel
@@ -109,7 +109,7 @@ export function ConfirmDialog({
           <button
             type="button"
             ref={confirmRef}
-            class={clsx(styles.confirm, tone === "danger" && styles.confirmDanger)}
+            class={clsx("ht-btn", tone === "danger" ? "ht-btn--danger" : "ht-btn--primary")}
             data-testid={tone === "danger" ? "confirm-btn-danger" : "confirm-btn"}
             onClick={onConfirm}
           >

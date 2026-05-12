@@ -12,7 +12,7 @@
   padding-top: var(--sp-8);
 }
 
-/* — Config table — */
+/* — Config table (duplicated in config-tab.module.css for the schema-aware variant) — */
 
 .configTable {
   table-layout: auto;

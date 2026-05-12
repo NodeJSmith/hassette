@@ -57,6 +57,10 @@ ALLOWLIST: list[str] = [
     "ht-error-card",
     # Utilities (text)
     "ht-text-",
+    # Utilities (display)
+    "ht-block",
+    # Utilities (accessibility)
+    "ht-visually-hidden",
     # Utilities (spacing — only values with live selectors)
     "ht-mb-",
     "ht-ml-",
@@ -134,7 +138,10 @@ def run_smoke_test() -> bool:
 
 
 def _read_all_style_files() -> str | None:
-    """Read all shared CSS files: global.css (which may just be @imports) + styles/*.css."""
+    """Read all shared CSS files: global.css (which may just be @imports) + styles/*.css.
+
+    Duplicated in check_dead_global_css.py — kept inline for script self-containment.
+    """
     parts: list[str] = []
     if GLOBAL_CSS.exists():
         parts.append(GLOBAL_CSS.read_text())
@@ -180,7 +187,7 @@ def main() -> int:
         if css_text is None:
             print("ERROR: no global CSS files found (checked global.css and styles/)", file=sys.stderr)
             return 1
-        source_label = "frontend/src/styles/*.css"
+        source_label = "frontend/src/global.css + frontend/src/styles/*.css"
 
     selectors = extract_ht_selectors(css_text)
     unknown = [s for s in selectors if not is_allowed(s)]

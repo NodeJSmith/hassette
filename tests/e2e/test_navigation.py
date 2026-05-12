@@ -113,7 +113,7 @@ def test_mobile_sidebar_hidden(page: Page, base_url: str) -> None:
     """Desktop sidebar is hidden on mobile viewports."""
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/apps")
-    sidebar = page.locator(".ht-layout > [data-testid='sidebar']")
+    sidebar = page.locator("[data-testid='layout'] > [data-testid='sidebar']")
     expect(sidebar).not_to_be_visible()
 
 
@@ -261,7 +261,7 @@ def test_breadcrumb_navigation_on_instance_detail(page: Page, base_url: str) -> 
     """Multi-instance app detail has breadcrumb back to parent overview."""
     page.goto(base_url + "/apps/multi_app?instance=0")
     page.wait_for_load_state("networkidle")
-    breadcrumb = page.locator("nav.ht-breadcrumb")
+    breadcrumb = page.locator("nav[aria-label='Breadcrumb']")
     expect(breadcrumb).to_be_visible()
     # Breadcrumb has link back to parent
     parent_link = breadcrumb.locator("[data-testid='breadcrumb-parent']")

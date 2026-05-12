@@ -166,7 +166,7 @@
   margin-top: var(--sp-0);
 }
 
-/* — Schema config table — */
+/* — Schema config table (base styles duplicated from config.module.css — CSS Modules scope prevents sharing) — */
 
 .configTable {
   table-layout: auto;
@@ -191,13 +191,8 @@
   min-width: 200px;
 }
 
-.configTableColType {
-  /* width is not constrained; type column takes available space */
-}
-
-.configTableColValue {
-  /* value column takes remaining space */
-}
+.configTableColType {}
+.configTableColValue {}
 
 .configTableValue {
   font-family: var(--font-mono);

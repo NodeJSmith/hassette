@@ -48,7 +48,7 @@ def test_sidebar_hidden_at_mobile(page: Page, base_url: str) -> None:
     """Desktop sidebar is hidden on mobile viewports."""
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/")
-    sidebar = page.locator(".ht-layout > [data-testid='sidebar']")
+    sidebar = page.locator("[data-testid='layout'] > [data-testid='sidebar']")
     expect(sidebar).not_to_be_visible()
 
 

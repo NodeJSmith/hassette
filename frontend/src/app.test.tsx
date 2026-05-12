@@ -62,14 +62,14 @@ vi.mock("./components/layout/alert-banner", async (importOriginal) => {
 });
 
 describe("App — layout structure", () => {
-  it("renders the ht-layout container", () => {
+  it("renders the layout container", () => {
     const { container } = render(<App />);
-    expect(container.querySelector(".ht-layout")).not.toBeNull();
+    expect(container.querySelector("[data-testid='layout']")).not.toBeNull();
   });
 
-  it("renders a sidebar element inside ht-layout", () => {
+  it("renders a sidebar element inside layout", () => {
     const { container } = render(<App />);
-    const layout = container.querySelector(".ht-layout");
+    const layout = container.querySelector("[data-testid='layout']");
     expect(layout!.querySelector("aside")).not.toBeNull();
   });
 

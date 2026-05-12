@@ -69,8 +69,6 @@
   text-align: center;
 }
 
-/* — Time Preset Selector —————————————————————————————— */
-
 /* — Off-canvas Drawer (mobile) ————————————————————————— */
 .ht-hamburger {
   display: none; /* hidden on desktop; shown via media query */
@@ -124,11 +122,6 @@
   z-index: var(--z-drawer-bg);
   background: var(--overlay-bg);
 }
-
-/* — Status Shape SVG ——————————————————————————————————— */
-/* StatusShape renders inline SVG — no CSS class needed, color is via style attr */
-
-/* Hamburger + drawer visibility managed in the responsive block below */
 
 /* — Responsive: sidebar hidden below 900px ————————————— */
 

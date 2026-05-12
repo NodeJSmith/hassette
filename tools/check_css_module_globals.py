@@ -26,9 +26,12 @@ FRONTEND_SRC = REPO_ROOT / "frontend" / "src"
 
 # State modifier class names that are applied as string literals at runtime
 # and must NOT be scoped by the CSS Modules compiler.
+# Note: status-bar.module.css also uses runtime classes ("connecting", "disconnected",
+# "degraded") but those are component-specific, not a shared convention — not guarded here.
 STATE_MODIFIERS = [
     "is-active",
     "is-blocked",
+    "is-expandable",
     "is-expanded",
     "is-open",
 ]
@@ -44,7 +47,7 @@ STATE_MODIFIERS = [
 def build_pattern(modifier: str) -> re.Pattern[str]:
     """Build regex that matches bare .className.modifier (not :global()).
 
-    Only detects the four is-* state modifier classes listed in STATE_MODIFIERS.
+    Only detects the is-* state modifier classes listed in STATE_MODIFIERS.
     Does not detect module-scoped classes used inside :global() ancestor chains.
     """
     escaped = re.escape(modifier)
@@ -112,7 +115,8 @@ def main() -> int:
     if all_violations:
         print(f"ERROR: {len(all_violations)} bare state modifier pattern(s) found in .module.css files.")
         print()
-        print("State modifier classes (is-active, is-blocked, is-expanded, is-open) are applied")
+        modifier_list = ", ".join(STATE_MODIFIERS)
+        print(f"State modifier classes ({modifier_list}) are applied")
         print("as string literals at runtime. Without :global(), the CSS Modules compiler will")
         print("scope them to a hashed name that never matches the applied class.")
         print()

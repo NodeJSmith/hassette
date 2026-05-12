@@ -32,8 +32,6 @@ EXEMPTIONS: list[tuple[str, str]] = [
     #   `ht-badge--${variant}` where variant is "success" | "warning" | "error" | ...
     ("ht-badge--", "dynamically assembled: ht-badge--${variant}"),
     ("ht-chip--kind-", "dynamically assembled: ht-chip--kind-${kind}"),
-    ("ht-detail-stats-row__value--", "dynamically assembled: ht-detail-stats-row__value--${status}"),
-    ("ht-stats-strip__value--", "dynamically assembled: ht-stats-strip__value--${status}"),
     # Third-party injected classes from shiki syntax highlighter
     ("shiki", "third-party: injected by shiki syntax highlighter"),
     ("line--", "third-party: injected by shiki (line token classes)"),
@@ -61,12 +59,13 @@ def extract_class_selectors(css_text: str) -> list[str]:
 
 
 def find_frontend_source_files() -> list[Path]:
-    """Return all .ts and .tsx files under frontend/src/ (excluding .d.ts)."""
+    """Return all .ts/.tsx source files under frontend/src/ (excluding .d.ts)."""
     return [f for f in FRONTEND_SRC.rglob("*.ts*") if not f.name.endswith(".d.ts")]
 
 
 def build_tsx_corpus(tsx_files: list[Path]) -> str:
-    """Concatenate all .tsx source for grep-style search."""
+    """Concatenate all source for substring search. Short class names (e.g. "page") may match
+    inside comments or identifiers — accepted trade-off for a grep-style linter."""
     parts = []
     for f in tsx_files:
         with contextlib.suppress(OSError):
@@ -75,7 +74,10 @@ def build_tsx_corpus(tsx_files: list[Path]) -> str:
 
 
 def _read_all_style_files() -> str | None:
-    """Read all shared CSS files: global.css (which may just be @imports) + styles/*.css."""
+    """Read all shared CSS files: global.css (which may just be @imports) + styles/*.css.
+
+    Duplicated in check_global_css_allowlist.py — kept inline for script self-containment.
+    """
     parts: list[str] = []
     if GLOBAL_CSS.exists():
         parts.append(GLOBAL_CSS.read_text())

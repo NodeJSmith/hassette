@@ -19,6 +19,23 @@
 .ht-mb-8 { margin-bottom: var(--sp-8); }
 .ht-ml-2 { margin-left: var(--sp-2); }
 
+/* Display */
+.ht-block { display: block; }
+
+/* Accessibility */
+.ht-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* — Log Level Badge ———————————————————————————————————— */
 .ht-log-level-badge {
   display: inline-flex;
@@ -209,9 +226,4 @@
   color: var(--ink-1);
   letter-spacing: var(--tr-h3);
   margin-bottom: var(--sp-2);
-}
-
-.ht-card--config {
-  padding: 0;
-  overflow: hidden;
 }

@@ -33,12 +33,12 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
       <table class={clsx("ht-table ht-table--compact", styles.invocationTable)} data-testid={`invocation-table-${listenerId}`}>
         <thead>
           <tr>
-            <th class={styles.invColStatus} scope="col"><span class={styles.visuallyHidden}>Status</span></th>
+            <th class={styles.invColStatus} scope="col"><span class="ht-visually-hidden">Status</span></th>
             <th class={styles.invColTime} scope="col">Time</th>
             <th scope="col">Trigger</th>
             <th class={styles.invColDur} scope="col">Duration</th>
             <th scope="col">Note</th>
-            <th class={styles.invColArrow} scope="col"><span class={styles.visuallyHidden}>Details</span></th>
+            <th class={styles.invColArrow} scope="col"><span class="ht-visually-hidden">Details</span></th>
           </tr>
         </thead>
         <tbody>
