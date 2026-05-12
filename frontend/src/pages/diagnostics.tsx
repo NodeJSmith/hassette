@@ -12,6 +12,7 @@ import { statusToKind } from "../utils/status";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import { Spinner } from "../components/shared/spinner";
 import { StatusShape } from "../components/shared/status-shape";
+import cardStyles from "../components/shared/card.module.css";
 import styles from "./diagnostics.module.css";
 
 type ServiceInfoResponse = components["schemas"]["ServiceInfoResponse"];
@@ -142,7 +143,7 @@ interface ServicesPanelProps {
 function ServicesPanel({ services, wsConnected }: ServicesPanelProps) {
   return (
     <section
-      class={`ht-card ${styles.section}`}
+      class={clsx(cardStyles.card, styles.section)}
       aria-label="Internal services"
       data-testid="diag-services-panel"
     >
@@ -184,7 +185,7 @@ function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
 
   return (
     <section
-      class={`ht-card ${styles.section}`}
+      class={clsx(cardStyles.card, styles.section)}
       aria-label="Boot issues"
       data-testid="diag-boot-panel"
     >
@@ -275,7 +276,7 @@ function TelemetryPanel({
 
   return (
     <section
-      class={`ht-card ${styles.section}`}
+      class={clsx(cardStyles.card, styles.section)}
       aria-label="Telemetry health"
       data-testid="diag-telemetry-panel"
     >

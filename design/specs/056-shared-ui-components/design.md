@@ -91,7 +91,7 @@ This is the natural completion of the CSS Modules migration (#736), which moved 
 
 ## Acceptance Criteria
 
-- **AC#1** No TSX file contains a raw `ht-btn`, `ht-badge`, `ht-chip`, or `ht-card` class string (verifiable via grep), except for the three `<section>` elements in `diagnostics.tsx` where Card's `<div>` would cause a semantic regression — these retain raw card class strings with a documented exemption [FR#11, FR#13]
+- **AC#1** No TSX file contains a raw `ht-btn`, `ht-badge`, `ht-chip`, or `ht-card` class string (verifiable via grep). The three `<section>` elements in `diagnostics.tsx` use `cardStyles.card` (imported from `card.module.css`) to preserve semantic HTML while getting Card styling [FR#11, FR#13]
 - **AC#2** The `type="button"` attribute is present on every rendered `<button>` element produced by the Button component without consumers needing to specify it [FR#1]
 - **AC#3** All existing visual appearances are preserved — no visual regression in any component across light and dark themes, with the accepted exception that `code-tab.tsx` and `config-tab.tsx` error containers change from `--sp-6` to `--sp-5` padding (4px reduction) by using the default Card variant [FR#2, FR#4, FR#6, FR#9]
 - **AC#4** The four `styles/*.css` files (buttons.css, badges.css, chips.css, cards.css) are deleted and their `@import` lines removed from `global.css` [FR#11]
