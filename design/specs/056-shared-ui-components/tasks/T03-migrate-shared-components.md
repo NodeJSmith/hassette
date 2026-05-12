@@ -41,8 +41,9 @@ Migrate the following shared components. Each migration replaces raw `ht-*` clas
 3. Replace `<button type="button" class="ht-btn ht-btn--primary">` with `<Button variant="primary">`.
 
 ### Test updates
-1. `frontend/src/components/app-detail/job-executions.test.tsx`: Replace `container.querySelector(".ht-badge--success")` and `.ht-badge--danger` with `data-testid` queries. This requires adding `data-testid` to the Badge usage in `job-executions.tsx` (done in T04).
-2. `frontend/src/components/layout/error-boundary.test.tsx`: Replace `container.querySelector(".ht-error-card")` with `getByTestId("error-card")` or `container.querySelector("[data-testid='error-card']")`. The `data-testid` was added to Card in the error-boundary migration above.
+1. `frontend/src/components/layout/error-boundary.test.tsx`: Replace `container.querySelector(".ht-error-card")` with `getByTestId("error-card")` or `container.querySelector("[data-testid='error-card']")`. The `data-testid` was added to Card in the error-boundary migration above.
+
+Note: `job-executions.test.tsx` badge selector updates are handled in T04 alongside the `data-testid` addition to `job-executions.tsx`.
 
 ## Focus
 - `frontend/src/components/shared/action-buttons.tsx:49,52,55,67,79` — all `ht-btn` usages; no existing `.module.css` file, must create one

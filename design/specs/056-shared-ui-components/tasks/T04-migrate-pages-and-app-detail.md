@@ -73,6 +73,9 @@ Migrate the following files. For each file, replace raw `ht-btn`, `ht-badge`, `h
 ### Layout component
 **sidebar.tsx** — Line 138: `<span class="ht-chip ht-chip--auto">` → `<Chip variant="muted" title="Auto-loaded">`
 
+### Test updates
+`frontend/src/components/app-detail/job-executions.test.tsx`: Replace `container.querySelector(".ht-badge--success")` and `.ht-badge--danger` with `data-testid` queries (e.g., `container.querySelector("[data-testid='execution-status-badge']")`). The `data-testid` attribute is added to `job-executions.tsx` in this same task.
+
 ## Focus
 - `statusToVariant()` and `executionStatusVariant()` return `StatusVariant` which is a subset of Badge's `StatusVariant | "info"` — these pass type-checking directly
 - `apps.tsx` line 148 uses template literal for dynamic variant — converts to `variant={statusToVariant(status)}`
