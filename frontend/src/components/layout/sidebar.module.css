@@ -396,24 +396,6 @@
   color: var(--warn);
 }
 
-/* — App count badge —————————————————————————————————— */
-.appCount {
-  flex-shrink: 0;
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  color: var(--ink-4);
-  margin-left: auto;
-}
-
-/* — Sidebar footer ——————————————————————————————————— */
-.sidebarFooter {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--sp-4) 0;
-}
-
 /* — Responsive: 900px ————————————————————————————————— */
 @media screen and (max-width: 900px) {
   :global(.ht-layout) > .sidebar {

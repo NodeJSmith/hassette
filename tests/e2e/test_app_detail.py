@@ -227,7 +227,7 @@ def test_config_tab_shows_filename(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps/my_app")
     config_tab_btn = page.locator("[role='tab']", has_text="Config")
     config_tab_btn.click()
-    config_content = page.locator(".ht-config-tab")
+    config_content = page.locator("#tabpanel-config")
     expect(config_content).to_be_visible(timeout=5000)
     expect(config_content).to_contain_text("my_app.py")
 

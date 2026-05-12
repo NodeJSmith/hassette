@@ -79,11 +79,10 @@ def _take_and_assert(
     When --update-snapshots is passed: write the PNG to the snapshot dir.
     Otherwise: compare screenshot file size against baseline within a 5% tolerance.
 
-    playwright-python 1.58 does not provide expect(page).to_have_screenshot() —
-    that API is JS-only. Pages contain dynamic content (timestamps, durations) that
-    differs between runs, so binary comparison is not feasible. File-size comparison
-    catches the regressions that matter during CSS migration: blank pages, collapsed
-    sections, missing sidebars, and major layout shifts.
+    Limitation: file-size comparison catches large regressions (blank pages, fully
+    collapsed sections) but cannot detect subtle layout shifts where overall byte
+    count stays similar. A pixel-diff approach (e.g. Pillow ImageChops) would be
+    more reliable but requires masking dynamic content (timestamps, durations).
     """
     SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
     reference_path = SNAPSHOT_DIR / name

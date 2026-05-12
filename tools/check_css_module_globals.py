@@ -42,7 +42,11 @@ STATE_MODIFIERS = [
 #   .appItem:global(.is-active)   <- correct pattern, skip
 #   /* .appItem.is-active */      <- comment, skip
 def build_pattern(modifier: str) -> re.Pattern[str]:
-    """Build regex that matches bare .className.modifier (not :global())."""
+    """Build regex that matches bare .className.modifier (not :global()).
+
+    Only detects the four is-* state modifier classes listed in STATE_MODIFIERS.
+    Does not detect module-scoped classes used inside :global() ancestor chains.
+    """
     escaped = re.escape(modifier)
     # Match .word-chars followed immediately by .modifier (no :global( in between)
     # Negative lookbehind for :global( to skip correct usages

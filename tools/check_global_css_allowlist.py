@@ -73,6 +73,8 @@ ALLOWLIST: list[str] = [
     "ht-drawer-backdrop",
     # Table column width helpers (set on <th>/<td> alongside ht-table)
     "ht-col-",
+    # Responsive mobile error cell (used by handler-invocations and job-executions)
+    "ht-exec-error-mobile",
 ]
 
 
@@ -160,7 +162,7 @@ def main() -> int:
         args.diff_only = True
 
     if args.diff_only:
-        base_ref = args.diff_base or "HEAD"
+        base_ref = args.diff_base or "origin/main"
         css_text = get_diff_text(base_ref)
         source_label = f"git diff {base_ref} -- frontend/src/global.css"
     else:

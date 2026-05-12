@@ -294,7 +294,7 @@ Use `:global()` to target global classes from within a module:
 .tableWrapper :global(.ht-table) tbody tr:hover { background: var(--bg-sunken); }
 
 /* Global class as an ancestor condition */
-:global(.ht-main) > .alertBar { margin-top: 0; }
+:global(.ht-main) > .alert { margin-top: 0; }
 ```
 
 Do NOT use bare class names (`.ht-table`) in module CSS — they will be scoped and broken at runtime.

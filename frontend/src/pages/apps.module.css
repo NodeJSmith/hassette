@@ -50,11 +50,6 @@
 
 /* Table card */
 
-.tableCardOverflow {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
 .appsTable thead th {
   letter-spacing: 0.08em;
 }

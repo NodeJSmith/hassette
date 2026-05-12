@@ -22,7 +22,7 @@ describe("StatusBar — connection states", () => {
       stateOverrides: { connection: signal("connected") },
     });
     const indicator = getByTestId("ws-indicator");
-    expect(indicator.classList.contains("is-connected")).toBe(true);
+    expect(indicator.getAttribute("aria-label")).toBe("Connected");
     expect(queryByText("Connected")).toBeNull(); // label is hidden when connected
   });
 
@@ -39,7 +39,7 @@ describe("StatusBar — connection states", () => {
     });
     expect(getByText("Disconnected")).toBeDefined();
     const indicator = getByTestId("ws-indicator");
-    expect(indicator.classList.contains("is-disconnected")).toBe(true);
+    expect(indicator.getAttribute("aria-label")).toBe("Disconnected");
   });
 
   it("renders reconnecting state with text label", () => {
@@ -48,7 +48,7 @@ describe("StatusBar — connection states", () => {
     });
     expect(getByText("Reconnecting...")).toBeDefined();
     const indicator = getByTestId("ws-indicator");
-    expect(indicator.classList.contains("is-disconnected")).toBe(true);
+    expect(indicator.getAttribute("aria-label")).toBe("Reconnecting...");
   });
 
   it("sets aria-label for connected state", () => {

@@ -99,7 +99,6 @@
   :global(.ht-table--compact) :global(.ht-col-trace)    { display: none; }
   :global(.ht-table--compact) :global(.ht-col-error)    { display: none; }
   :global(.ht-table--compact) td { padding: var(--sp-1); font-size: var(--fs-micro); }
-  :global(.ht-exec-error-mobile) { display: block; font-size: var(--fs-micro); color: var(--err); margin-top: var(--sp-0); }
 
   /* Invocation table specific */
   .invColTime { width: auto; }
@@ -111,10 +110,4 @@
   .invDetailGrid {
     grid-template-columns: 1fr;
   }
-}
-
-/* — Responsive: min-width 769px — */
-
-@media screen and (min-width: 769px) {
-  :global(.ht-exec-error-mobile) { display: none; }
 }

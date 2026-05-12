@@ -454,7 +454,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
 
   if (!hasItems) {
     return (
-      <div class={styles.handlersTab} data-testid="handlers-empty">
+      <div data-testid="handlers-empty">
         <EmptyState title="no handlers or scheduled jobs registered." />
       </div>
     );
@@ -471,7 +471,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
     : null;
 
   return (
-    <div class={styles.handlersTab} ref={containerRef}>
+    <div ref={containerRef}>
       {/* Health strip — above master/detail layout */}
       <HandlersHealthStrip listeners={listeners} jobs={jobs} timeLabel={TIME_PRESET_LABELS[effectiveTimePreset.value] ?? ""} />
 

@@ -1,11 +1,5 @@
 /* Handlers tab — component-scoped styles */
 
-/* — Handlers tab container — */
-
-.handlersTab {
-  /* no extra padding — master-detail provides structure */
-}
-
 /* — Master/Detail layout — */
 
 .masterDetail {

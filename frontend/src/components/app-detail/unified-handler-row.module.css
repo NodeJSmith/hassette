@@ -131,11 +131,3 @@
   color: var(--ink-4);
   white-space: nowrap;
 }
-
-/* Responsive */
-
-@media screen and (max-width: 768px) {
-  .row {
-    padding: var(--sp-3);
-  }
-}

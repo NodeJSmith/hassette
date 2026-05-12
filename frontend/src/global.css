@@ -1,6 +1,6 @@
 /* Naming convention: all classes use `ht-` prefix with BEM structure.
    Pattern: ht-block__element--modifier (e.g. ht-sidebar__app-link--active).
-   TODO: split into per-component CSS files after the redesign lands. */
+   Component-specific styles live in co-located .module.css files. */
 
 /* Self-hosted fonts — Latin subset
    Newsreader: 400 (display/headings)
@@ -429,6 +429,12 @@ strong {
 .ht-table--compact .ht-col-status   { width: 14%; }
 .ht-table--compact .ht-col-time     { width: 25%; }
 .ht-table--compact .ht-col-duration { width: 14%; }
+
+.ht-exec-error-mobile { display: none; }
+
+@media screen and (max-width: 768px) {
+  .ht-exec-error-mobile { display: block; font-size: var(--fs-micro); color: var(--err); margin-top: var(--sp-0); }
+}
 
 
 /* Message cell — interactive only when text is truncated */

@@ -31,22 +31,14 @@ export function StatusBar() {
     setStoredValue("theme", next);
   };
 
-  const statusConfig: Record<typeof status, { className: string; dotClass: string; label: string }> = {
-    connecting: { className: "is-connecting", dotClass: clsx(styles.pulseDot, "connecting"), label: "Connecting..." },
-    connected: { className: "is-connected", dotClass: styles.pulseDot, label: "Connected" },
-    reconnecting: {
-      className: "is-disconnected",
-      dotClass: clsx(styles.pulseDot, "disconnected"),
-      label: "Reconnecting...",
-    },
-    disconnected: {
-      className: "is-disconnected",
-      dotClass: clsx(styles.pulseDot, "disconnected"),
-      label: "Disconnected",
-    },
+  const statusConfig: Record<typeof status, { dotClass: string; label: string }> = {
+    connecting: { dotClass: clsx(styles.pulseDot, "connecting"), label: "Connecting..." },
+    connected: { dotClass: styles.pulseDot, label: "Connected" },
+    reconnecting: { dotClass: clsx(styles.pulseDot, "disconnected"), label: "Reconnecting..." },
+    disconnected: { dotClass: clsx(styles.pulseDot, "disconnected"), label: "Disconnected" },
   };
 
-  const { className, dotClass, label } = statusConfig[status];
+  const { dotClass, label } = statusConfig[status];
 
   // "Disconnected" takes visual precedence over "database degraded"
   const showDegraded = isDegraded && status === "connected";
@@ -57,19 +49,19 @@ export function StatusBar() {
         <TimePresetSelector />
       </div>
       <div class={styles.statusBarRight}>
-        <span class={clsx(styles.wsIndicator, className)} aria-label={label} data-testid="ws-indicator">
+        <span class={styles.wsIndicator} aria-label={label} data-testid="ws-indicator">
           <span class={dotClass} />
           {status !== "connected" && <span class="ht-text-xs">{label}</span>}
         </span>
         {showDegraded && (
-          <span class={clsx(styles.wsIndicator, "is-degraded")} aria-label="database degraded">
+          <span class={styles.wsIndicator} aria-label="database degraded">
             <span class={clsx(styles.pulseDot, "degraded")} />
             <span class="ht-text-xs">database degraded</span>
           </span>
         )}
         {droppedTotal > 0 && (
           <span
-            class={clsx(styles.wsIndicator, "is-degraded")}
+            class={styles.wsIndicator}
             aria-label={`${droppedTotal} telemetry event${droppedTotal !== 1 ? "s" : ""} dropped`}
             title={`buffer full: ${overflow}, write failed: ${exhausted}, no session: ${noSession}, during shutdown: ${shutdown}`}
             data-testid="dropped-events-indicator"
@@ -80,7 +72,7 @@ export function StatusBar() {
         )}
         {ehFailures > 0 && (
           <span
-            class={clsx(styles.wsIndicator, "is-degraded")}
+            class={styles.wsIndicator}
             aria-label={`${ehFailures} handler error${ehFailures !== 1 ? "s" : ""}`}
             title={`${ehFailures} user error handler invocation${ehFailures !== 1 ? "s" : ""} raised or timed out`}
             data-testid="error-handler-failures-indicator"
