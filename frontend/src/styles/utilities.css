@@ -97,17 +97,6 @@
   color: var(--ink-1);
 }
 
-/* — Shared keyframe animations (used in module CSS via :global or animation-name) — */
-@keyframes ht-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-
-@keyframes ht-breathe {
-  0%, 100% { opacity: 0.4; }
-  50%      { opacity: 1; }
-}
-
 /* — Mono Text —————————————————————————————————————————— */
 .ht-text-mono {
   font-family: var(--font-mono);

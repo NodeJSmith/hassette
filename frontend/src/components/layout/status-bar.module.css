@@ -1,12 +1,16 @@
-/* — Pulse dot — uses shared ht-breathe animation from global.css —— */
 .pulseDot {
   width: var(--sp-2);
   height: var(--sp-2);
   border-radius: var(--r-pill);
   display: inline-block;
   background: var(--ok);
-  animation: ht-breathe 2.5s ease-in-out infinite;
+  animation: breathe 2.5s ease-in-out infinite;
   flex-shrink: 0;
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
 }
 
 .pulseDot:global(.connecting) {
