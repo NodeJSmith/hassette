@@ -1,7 +1,7 @@
 # Design: CSS Modules Migration
 
 **Date:** 2026-05-11
-**Status:** approved
+**Status:** archived
 **Scope-mode:** expand
 **Research:** /tmp/claude-mine-define-research-bO7xaT/brief.md
 
