@@ -1,5 +1,6 @@
 import { useMemo, useState } from "preact/hooks";
 import { Link } from "wouter";
+import clsx from "clsx";
 import { EmptyState } from "../shared/empty-state";
 import { StatusShape } from "../shared/status-shape";
 import { buildItems } from "./handler-list";
@@ -12,6 +13,7 @@ import { getAppActivity, getRecentLogs } from "../../api/endpoints";
 import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useAppState } from "../../state/context";
 import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-filtered-signal-refetch";
+import styles from "./overview-tab.module.css";
 
 const SPOTLIGHT_LIMIT = 3;
 
@@ -75,26 +77,26 @@ function SpotlightEntry({ item, appKey, instanceQs }: SpotlightEntryProps) {
 
   return (
     <div
-      class="ht-overview-spotlight__entry"
+      class={styles.spotlightEntry}
       data-testid={`overview-spotlight-entry-${item.kind}-${item.id}`}
     >
       <span aria-hidden="true">
         <StatusShape kind={item.statusKind} size={12} />
       </span>
-      <div class="ht-overview-spotlight__body">
-        <div class="ht-overview-spotlight__header">
-          <span class="ht-overview-spotlight__name">{item.name}</span>
+      <div class={styles.spotlightBody}>
+        <div class={styles.spotlightHeader}>
+          <span class={styles.spotlightName}>{item.name}</span>
           {errorType && (
-            <span class="ht-overview-spotlight__error-type">{errorType}</span>
+            <span class={styles.spotlightErrorType}>{errorType}</span>
           )}
         </div>
         {errorMessage && (
-          <div class="ht-overview-spotlight__error-msg" title={errorMessage}>
+          <div class={styles.spotlightErrorMsg} title={errorMessage}>
             {errorMessage}
           </div>
         )}
       </div>
-      <Link href={href} class="ht-overview-spotlight__link">
+      <Link href={href} class={styles.spotlightLink}>
         view
       </Link>
     </div>
@@ -115,7 +117,7 @@ function ErrorSpotlight({ failingItems, appKey, instanceQs }: ErrorSpotlightProp
 
   return (
     <section
-      class="ht-overview-tab__section ht-overview-spotlight"
+      class={clsx(styles.section, styles.spotlight)}
       data-testid="overview-error-spotlight"
     >
       <h3 class="ht-section-label">failing handlers</h3>
@@ -130,7 +132,7 @@ function ErrorSpotlight({ failingItems, appKey, instanceQs }: ErrorSpotlightProp
       {!expanded && hiddenCount > 0 && (
         <button
           type="button"
-          class="ht-overview-spotlight__show-more"
+          class={styles.spotlightShowMore}
           data-testid="overview-spotlight-show-more"
           onClick={() => setExpanded(true)}
         >
@@ -158,24 +160,24 @@ function HealthGridRow({ item, appKey, instanceQs }: HealthGridRowProps) {
   return (
     <Link
       href={href}
-      class="ht-overview-health-row"
+      class={styles.healthRow}
       data-testid={`overview-health-row-${item.kind}-${item.id}`}
       aria-label={`${item.name} — ${chipLabel}`}
     >
       <span aria-hidden="true">
         <StatusShape kind={item.statusKind} size={10} />
       </span>
-      <div class="ht-overview-health-row__meta">
+      <div class={styles.healthRowMeta}>
         <span class="ht-chip ht-chip--muted ht-chip--sm" aria-label={`kind: ${chipLabel}`}>
           {chipLabel}
         </span>
-        <span class="ht-overview-health-row__name">{item.name}</span>
+        <span class={styles.healthRowName}>{item.name}</span>
       </div>
-      <span class="ht-overview-health-row__count" title={`Total ${callLabel}s`}>
+      <span class={styles.healthRowCount} title={`Total ${callLabel}s`}>
         {pluralize(runCount, callLabel)}
       </span>
       {isFailing(item) && itemErrorType(item) && (
-        <span class="ht-overview-health-row__error ht-text-danger ht-text-sm">
+        <span class={clsx(styles.healthRowError, "ht-text-danger ht-text-sm")}>
           {itemErrorType(item)}
         </span>
       )}
@@ -194,7 +196,7 @@ function HandlerHealthGrid({ items, appKey, instanceQs }: HandlerHealthGridProps
 
   if (items.length === 0) {
     return (
-      <section class="ht-overview-tab__section" data-testid="overview-health-grid">
+      <section class={styles.section} data-testid="overview-health-grid">
         <h3 class="ht-section-label">handler health</h3>
         <EmptyState
           title="No handlers registered"
@@ -206,9 +208,9 @@ function HandlerHealthGrid({ items, appKey, instanceQs }: HandlerHealthGridProps
   }
 
   return (
-    <section class="ht-overview-tab__section" data-testid="overview-health-grid">
+    <section class={styles.section} data-testid="overview-health-grid">
       <h3 class="ht-section-label">handler health</h3>
-      <div class="ht-overview-health-grid">
+      <div class={styles.healthGrid}>
         {sorted.map((item) => (
           <HealthGridRow
             key={`${item.kind}-${item.id}`}
@@ -241,9 +243,9 @@ function ActivityRow({ entry }: ActivityRowProps) {
           <StatusShape kind={kind} size={8} />
         </span>
       </td>
-      <td class="ht-overview-activity__name" title={entry.handler_name}>{lastDotSegment(entry.handler_name)}</td>
-      <td class="ht-overview-activity__duration">{formatDurationOrDash(entry.duration_ms)}</td>
-      <td class="ht-overview-activity__time">{timeLabel}</td>
+      <td class={styles.activityName} title={entry.handler_name}>{lastDotSegment(entry.handler_name)}</td>
+      <td class={styles.activityDuration}>{formatDurationOrDash(entry.duration_ms)}</td>
+      <td class={styles.activityTime}>{timeLabel}</td>
     </tr>
   );
 }
@@ -280,24 +282,24 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
   const entries = activity.value ?? [];
 
   return (
-    <section class="ht-overview-tab__section" data-testid="overview-activity-section">
+    <section class={styles.section} data-testid="overview-activity-section">
       <h3 class="ht-section-label">recent activity</h3>
       {activityError.value ? (
-        <p class="ht-overview-empty-inline ht-text-danger" data-testid="overview-activity-error">
+        <p class={clsx(styles.emptyInline, "ht-text-danger")} data-testid="overview-activity-error">
           could not load activity
         </p>
       ) : !loading.value && entries.length === 0 ? (
-        <p class="ht-overview-empty-inline" data-testid="overview-activity-empty">
+        <p class={styles.emptyInline} data-testid="overview-activity-empty">
           no recent activity
         </p>
       ) : (
-        <table class="ht-table ht-overview-activity-table">
+        <table class={clsx("ht-table", styles.activityTable)}>
           <thead>
             <tr>
-              <th class="ht-overview-activity__status-header"></th>
-              <th class="ht-overview-activity__name-header">Handler</th>
-              <th class="ht-overview-activity__duration-header">Duration</th>
-              <th class="ht-overview-activity__time-header">Time</th>
+              <th></th>
+              <th>Handler</th>
+              <th>Duration</th>
+              <th>Time</th>
             </tr>
           </thead>
           <tbody aria-live="polite" aria-atomic="false">
@@ -328,8 +330,8 @@ function LogRow({ entry }: LogRowProps) {
           <span class="ht-log-level-badge__text">{entry.level}</span>
         </span>
       </td>
-      <td class="ht-overview-log__time">{timeLabel}</td>
-      <td class="ht-overview-log__message" title={entry.message}>{entry.message}</td>
+      <td class={styles.logTime}>{timeLabel}</td>
+      <td class={styles.logMessage} title={entry.message}>{entry.message}</td>
     </tr>
   );
 }
@@ -365,23 +367,23 @@ function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
   const entries = logs.value ?? [];
 
   return (
-    <section class="ht-overview-tab__section" data-testid="overview-logs-section">
+    <section class={styles.section} data-testid="overview-logs-section">
       <h3 class="ht-section-label">recent logs</h3>
       {logsError.value ? (
-        <p class="ht-overview-empty-inline ht-text-danger" data-testid="overview-logs-error">
+        <p class={clsx(styles.emptyInline, "ht-text-danger")} data-testid="overview-logs-error">
           could not load logs
         </p>
       ) : !loading.value && entries.length === 0 ? (
-        <p class="ht-overview-empty-inline" data-testid="overview-logs-empty">
+        <p class={styles.emptyInline} data-testid="overview-logs-empty">
           no recent logs
         </p>
       ) : (
-        <table class="ht-table ht-overview-log-table">
+        <table class={clsx("ht-table", styles.logTable)}>
           <thead>
             <tr>
-              <th class="ht-overview-log__level-header">Level</th>
-              <th class="ht-overview-log__time-header">Time</th>
-              <th class="ht-overview-log__message-header">Message</th>
+              <th>Level</th>
+              <th>Time</th>
+              <th>Message</th>
             </tr>
           </thead>
           <tbody>
@@ -405,7 +407,7 @@ export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInsta
   const failingItems = useMemo(() => allItems.filter(isFailing), [allItems]);
 
   return (
-    <div class={`ht-overview-tab${!wsConnected ? " ht-overview-tab--stale" : ""}`} data-testid="overview-tab">
+    <div class={clsx(styles.overviewTab, !wsConnected && styles.overviewTabStale)} data-testid="overview-tab">
       {failingItems.length > 0 && (
         <ErrorSpotlight
           failingItems={failingItems}

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
 import { Link, useLocation } from "wouter";
+import clsx from "clsx";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useCorrectUrl } from "../hooks/use-correct-url";
 import { useQueryParams } from "../hooks/use-query-params";
@@ -18,6 +19,7 @@ import { useAppState } from "../state/context";
 import { statusToKind, statusToVariant } from "../utils/status";
 import { StatusShape } from "../components/shared/status-shape";
 import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-filtered-signal-refetch";
+import styles from "./app-detail.module.css";
 
 export type TabId = "overview" | "handlers" | "code" | "logs" | "config";
 
@@ -37,7 +39,7 @@ function InstanceSwitcher({
   onNavigate: (index: number) => void;
 }) {
   return (
-    <div class="ht-instance-switcher" data-testid="instance-switcher" role="tablist" aria-label="Instance">
+    <div class={styles.instanceSwitcher} data-testid="instance-switcher" role="tablist" aria-label="Instance">
       {instances.map((inst) => {
         const isActive = inst.index === currentIndex;
         return (
@@ -46,12 +48,12 @@ function InstanceSwitcher({
             type="button"
             role="tab"
             aria-selected={isActive}
-            class={`ht-instance-switcher__btn${isActive ? " ht-instance-switcher__btn--active" : ""}`}
+            class={clsx(styles.instanceSwitcherBtn, isActive && styles.instanceSwitcherBtnActive)}
             data-testid={`switcher-instance-${inst.index}`}
             onClick={() => { if (!isActive) onNavigate(inst.index); }}
           >
             <StatusShape kind={statusToKind(inst.status)} size={8} />
-            <span class="ht-instance-switcher__label">{inst.instance_name}</span>
+            <span class={styles.instanceSwitcherLabel}>{inst.instance_name}</span>
           </button>
         );
       })}
@@ -70,20 +72,20 @@ function InstanceCard({
   return (
     <button
       type="button"
-      class="ht-instance-card"
+      class={styles.instanceCard}
       data-testid={`instance-card-${instance.index}`}
       onClick={() => { onNavigate(instance.index); }}
       aria-label={`View ${instance.instance_name}`}
     >
-      <div class="ht-instance-card__header">
+      <div class={styles.instanceCardHeader}>
         <StatusShape kind={statusToKind(instance.status)} size={10} />
-        <span class="ht-instance-card__name">{instance.instance_name}</span>
-        <span class={`ht-badge ht-badge--sm ht-instance-card__status-badge ht-badge--${statusToVariant(instance.status)}`}>
+        <span class={styles.instanceCardName}>{instance.instance_name}</span>
+        <span class={clsx("ht-badge ht-badge--sm", styles.instanceCardStatusBadge, `ht-badge--${statusToVariant(instance.status)}`)}>
           {instance.status}
         </span>
       </div>
       {instance.error_message && (
-        <p class="ht-instance-card__error-preview">{instance.error_message}</p>
+        <p class={styles.instanceCardErrorPreview}>{instance.error_message}</p>
       )}
     </button>
   );
@@ -104,7 +106,7 @@ function MultiInstanceOverview({
   onNavigate: (index: number) => void;
 }) {
   return (
-    <div class="ht-multi-overview" data-testid="multi-instance-overview">
+    <div class={styles.multiOverview} data-testid="multi-instance-overview">
       <div class="ht-level ht-mb-4">
         <div class="ht-level-start">
           <h1 class="ht-heading-4">{displayName}</h1>
@@ -114,7 +116,7 @@ function MultiInstanceOverview({
         </div>
       </div>
       <code class="ht-text-mono ht-text-sm ht-mb-4 ht-block">{appKey}</code>
-      <div class="ht-instance-grid" data-testid="instance-grid">
+      <div class={styles.instanceGrid} data-testid="instance-grid">
         {instances.map((inst) => (
           <InstanceCard
             key={inst.index}
@@ -140,9 +142,9 @@ function Tab({ id, label, badge, appKey, instanceQs, activeTab }: {
       id={`tab-${id}`}
       aria-selected={isActive}
       aria-controls={`tabpanel-${id}`}
-      class={`ht-tab-btn${isActive ? " ht-tab-btn--active" : ""}`}
+      class={clsx(styles.tabBtn, isActive && styles.tabBtnActive)}
     >
-      {label}{badge !== undefined && <span class="ht-tab-btn__badge">{badge}</span>}
+      {label}{badge !== undefined && <span class={styles.tabBtnBadge}>{badge}</span>}
     </Link>
   );
 }
@@ -351,7 +353,7 @@ export function AppDetailPage({ params }: Props) {
       )}
 
       {/* Tab strip */}
-      <div class="ht-tab-strip ht-mb-4" role="tablist" aria-label="App sections">
+      <div class={clsx(styles.tabStrip, "ht-mb-4")} role="tablist" aria-label="App sections">
         <Tab id="overview" label="overview" {...tabProps} />
         <Tab id="handlers" label="handlers" badge={handlerCount} {...tabProps} />
         <Tab id="code" label="code" {...tabProps} />

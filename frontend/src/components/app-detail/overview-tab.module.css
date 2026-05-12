@@ -1,0 +1,202 @@
+/* Overview tab — component-scoped styles */
+
+/* — Overview tab container — */
+
+.overviewTab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+}
+
+.overviewTabStale {
+  opacity: 0.6;
+}
+
+.section {
+  /* section containers */
+}
+
+/* — Error spotlight section — */
+
+.spotlight {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.spotlightEntry {
+  display: grid;
+  grid-template-columns: var(--sp-3) 1fr auto;
+  align-items: start;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+}
+
+.spotlightBody {
+  min-width: 0;
+}
+
+.spotlightHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.spotlightName {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spotlightErrorType {
+  font-size: var(--fs-small);
+  color: var(--err);
+  white-space: nowrap;
+}
+
+.spotlightErrorMsg {
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60ch;
+  margin-top: var(--sp-1);
+}
+
+.spotlightLink {
+  font-size: var(--fs-small);
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+  align-self: start;
+}
+
+.spotlightLink:hover {
+  text-decoration: underline;
+}
+
+.spotlightShowMore {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  cursor: pointer;
+  padding: var(--sp-2) var(--sp-3);
+  text-align: left;
+}
+
+.spotlightShowMore:hover {
+  color: var(--ink-1);
+}
+
+/* — Handler health grid — */
+
+.healthGrid {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.healthRow {
+  display: grid;
+  grid-template-columns: var(--sp-3) 1fr auto auto;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--line-2);
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--t-fast);
+}
+
+.healthRow:last-child {
+  border-bottom: none;
+}
+
+.healthRow:hover {
+  background: var(--bg-sunken);
+}
+
+.healthRowName {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.healthRowMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.healthRowCount {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.healthRowError {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* — Activity and logs sections — */
+
+.emptyInline {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+}
+
+.activityTable td,
+.logTable td {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-2);
+  vertical-align: middle;
+}
+
+.activityTable .activityName {
+  color: var(--ink-1);
+}
+
+.activityTable .activityDuration,
+.activityTable .activityTime {
+  color: var(--ink-3);
+  white-space: nowrap;
+  text-align: right;
+}
+
+.logTable .logMessage {
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60ch;
+}
+
+.logTable .logTime {
+  color: var(--ink-3);
+  white-space: nowrap;
+}
