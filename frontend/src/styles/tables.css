@@ -1,0 +1,124 @@
+/* Tables — data tables, compact variants, toolbar, scroll container */
+
+/* — Tables ————————————————————————————————————————————— */
+.ht-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-surface);
+}
+
+.ht-table thead tr {
+  background: var(--bg-sunken);
+}
+
+.ht-table th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: var(--fs-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--line-1);
+  white-space: nowrap;
+}
+
+.ht-table td {
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--line-2);
+  vertical-align: middle;
+  font-size: var(--fs-small);
+}
+
+.ht-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ht-table tbody tr:hover {
+  background: var(--bg-sunken);
+}
+
+.ht-table--compact {
+  table-layout: fixed;
+}
+
+.ht-table--compact td {
+  padding: var(--sp-1) var(--sp-2);
+}
+
+.ht-table--compact .ht-col-status   { width: 14%; }
+.ht-table--compact .ht-col-time     { width: 25%; }
+.ht-table--compact .ht-col-duration { width: 14%; }
+
+.ht-exec-error-mobile { display: none; }
+
+@media screen and (max-width: 768px) {
+  .ht-table--compact { table-layout: auto; }
+  .ht-table--compact .ht-col-status   { width: auto; }
+  .ht-table--compact .ht-col-time     { width: auto; white-space: nowrap; }
+  .ht-table--compact .ht-col-duration { width: auto; white-space: nowrap; }
+  .ht-table--compact .ht-col-trace    { display: none; }
+  .ht-table--compact .ht-col-error    { display: none; }
+  .ht-table--compact td { padding: var(--sp-1); font-size: var(--fs-micro); }
+  .ht-exec-error-mobile { display: block; font-size: var(--fs-micro); color: var(--err); margin-top: var(--sp-0); }
+}
+
+/* — Table toolbar (shared by handlers, logs) ———————————— */
+.ht-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.ht-table-toolbar__title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+
+.ht-table-toolbar__heading {
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  font-weight: 400;
+  margin: 0;
+}
+
+.ht-table-toolbar__note {
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+}
+
+.ht-table-toolbar__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+/* Table card + scroll */
+.ht-table-card-scroll {
+  overflow: auto;
+  max-height: var(--table-scroll-height, calc(100vh - 310px));
+}
+
+/* shared — permanent */
+@media screen and (max-width: 768px) {
+  .ht-table-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ht-table-toolbar__controls {
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+  }
+
+  .ht-table-toolbar__controls .ht-search {
+    width: 100%;
+    min-width: unset;
+  }
+}

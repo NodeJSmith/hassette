@@ -259,7 +259,7 @@ describe("HandlersTab", () => {
     expect(statsRow.textContent).toContain("Min");
     expect(statsRow.textContent).toContain("Max");
     // Both show dash when null
-    const cells = statsRow.querySelectorAll(".ht-detail-stats-row__cell");
+    const cells = statsRow.querySelectorAll("[data-testid='handler-stats-row-cell']");
     const minCell = Array.from(cells).find((c) => c.textContent?.includes("Min"));
     const maxCell = Array.from(cells).find((c) => c.textContent?.includes("Max"));
     expect(minCell?.textContent).toContain("—");
@@ -336,8 +336,8 @@ describe("HandlersTab", () => {
     expect(statsRow.textContent).toContain("Failed");
     expect(statsRow.textContent).toContain("Timed Out");
     // Failed uses err color class, Timed Out uses warn color class
-    const errValue = statsRow.querySelector(".ht-detail-stats-row__value--err");
-    const warnValue = statsRow.querySelector(".ht-detail-stats-row__value--warn");
+    const errValue = statsRow.querySelector("[data-tone='err']");
+    const warnValue = statsRow.querySelector("[data-tone='warn']");
     expect(errValue).not.toBeNull();
     expect(warnValue).not.toBeNull();
     expect(errValue?.textContent).toBe("2");

@@ -107,7 +107,7 @@ export function App() {
       )}
 
       {/* Desktop layout */}
-      <div class="ht-layout" {...(drawerOpen ? { inert: true } : {})}>
+      <div class="ht-layout" data-testid="layout" {...(drawerOpen ? { inert: true } : {})}>
 
         <Sidebar onOpenPalette={() => setPaletteOpen(true)} />
         <main class="ht-main" id="main-content" tabIndex={-1}>

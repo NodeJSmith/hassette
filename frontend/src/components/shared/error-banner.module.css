@@ -1,0 +1,41 @@
+.banner {
+  background: var(--err-bg);
+  border: 1px solid color-mix(in srgb, var(--err) 30%, transparent);
+  border-radius: var(--r-md);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+
+.heading {
+  display: block;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--err);
+  margin-bottom: var(--sp-1);
+}
+
+.message {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-2);
+  word-break: break-all;
+}
+
+.tracebackToggle {
+  display: inline-flex;
+  align-items: center;
+  margin-top: var(--sp-2);
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--err);
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+.tracebackToggle:hover {
+  opacity: 1;
+}

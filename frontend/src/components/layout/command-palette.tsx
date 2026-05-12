@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
 import { useLocation } from "wouter";
+import clsx from "clsx";
 import { getAllListeners, reloadApp, stopApp } from "../../api/endpoints";
 import type { AppManifest, ListenerData } from "../../api/endpoints";
 import { useApi } from "../../hooks/use-api";
@@ -7,6 +8,7 @@ import { useSignal } from "../../hooks/use-signal";
 import { useAppState } from "../../state/context";
 import { statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
+import styles from "./command-palette.module.css";
 
 // ---- Types ----
 
@@ -260,8 +262,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     <>
       {/* Backdrop */}
       <div
-        class="ht-cmd-palette__backdrop"
+        class={styles.backdrop}
         aria-hidden="true"
+        data-testid="cmd-palette-backdrop"
         onClick={onClose}
       />
       {/* Panel */}
@@ -269,7 +272,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        class="ht-cmd-palette"
+        class={styles.palette}
+        data-testid="cmd-palette"
       >
         {/* Top sentinel — catches Shift+Tab from search input, wraps focus to last result */}
         <div
@@ -287,9 +291,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         />
 
         {/* Search input */}
-        <div class="ht-cmd-palette__input-wrap">
+        <div class={styles.inputWrap}>
           <svg
-            class="ht-cmd-palette__search-icon"
+            class={styles.searchIcon}
             width="16"
             height="16"
             viewBox="0 0 16 16"
@@ -301,7 +305,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           <input
             ref={inputRef}
             type="text"
-            class="ht-cmd-palette__input"
+            class={styles.input}
             placeholder="Search apps, handlers, pages, actions…"
             value={query.value}
             onInput={(e) => {
@@ -311,7 +315,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             onKeyDown={handleKeyDown}
             aria-label="Search command palette"
             aria-autocomplete="list"
-            aria-controls="ht-cmd-palette-results"
+            aria-controls="cmd-palette-results"
             autocomplete="off"
             spellcheck={false}
           />
@@ -320,17 +324,20 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         {/* Results */}
         <div
           ref={resultsRef}
-          id="ht-cmd-palette-results"
-          class="ht-cmd-palette__results"
+          id="cmd-palette-results"
+          class={styles.results}
           role="listbox"
           aria-label="Command palette results"
+          data-testid="cmd-palette-results"
         >
           {isEmpty && (
-            <div class="ht-cmd-palette__empty">{query.value ? `No results for "${query.value}"` : "No items available"}</div>
+            <div class={styles.empty} data-testid="cmd-palette-empty">
+              {query.value ? `No results for "${query.value}"` : "No items available"}
+            </div>
           )}
           {sections.map((section) => (
-            <div key={section.kind} class="ht-cmd-palette__section">
-              <div class="ht-cmd-palette__section-header">{KIND_LABEL[section.kind]}</div>
+            <div key={section.kind} class={styles.section} data-testid={`cmd-section-${section.kind}`}>
+              <div class={styles.sectionHeader}>{KIND_LABEL[section.kind]}</div>
               {section.items.map((item) => {
                 const flatIdx = flatIndexMap.get(item) ?? -1;
                 const isActive = flatIdx === selectedIndex.value;
@@ -340,19 +347,20 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                     type="button"
                     role="option"
                     aria-selected={isActive}
-                    class={`ht-cmd-palette__result${isActive ? " ht-cmd-palette__result--active" : ""}`}
+                    class={clsx(styles.result, isActive && styles.resultActive)}
+                    data-testid={`cmd-result-${item.id}`}
                     onClick={() => item.action()}
                   >
-                    <span class="ht-cmd-palette__result-label">
+                    <span class={styles.resultLabel}>
                       {item.status !== undefined && (
                         <StatusShape kind={statusToKind(item.status)} size={8} />
                       )}
                       {item.label}
                     </span>
                     {item.sub && (
-                      <span class="ht-cmd-palette__result-sub">{item.sub}</span>
+                      <span class={styles.resultSub}>{item.sub}</span>
                     )}
-                    <span class="ht-cmd-palette__chip">{item.kind}</span>
+                    <span class={styles.chip}>{item.kind}</span>
                   </button>
                 );
               })}
@@ -371,7 +379,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         />
 
         {/* Footer */}
-        <div class="ht-cmd-palette__footer" aria-hidden="true">
+        <div class={styles.footer} aria-hidden="true" data-testid="cmd-palette-footer">
           <span><kbd>↑↓</kbd> navigate</span>
           <span><kbd>↵</kbd> select</span>
           <span><kbd>esc</kbd> close</span>

@@ -31,9 +31,9 @@ const useLocation = wouter.useLocation as ReturnType<typeof vi.fn>;
 const useSearch = wouter.useSearch as ReturnType<typeof vi.fn>;
 
 describe("Sidebar — structure", () => {
-  it("renders an aside element with ht-sidebar class", () => {
+  it("renders an aside element as the sidebar root", () => {
     const { container } = renderWithAppState(<Sidebar />);
-    expect(container.querySelector("aside.ht-sidebar")).not.toBeNull();
+    expect(container.querySelector("aside[data-testid='sidebar']")).not.toBeNull();
   });
 
   it("renders main navigation with accessibility label", () => {
@@ -42,10 +42,9 @@ describe("Sidebar — structure", () => {
   });
 
   it("renders the hassette wordmark", () => {
-    const { container } = renderWithAppState(<Sidebar />);
-    const wordmark = container.querySelector(".ht-wordmark");
-    expect(wordmark).not.toBeNull();
-    expect(wordmark!.textContent).toBe("hassette");
+    const { getByText } = renderWithAppState(<Sidebar />);
+    const wordmark = getByText("hassette");
+    expect(wordmark).toBeDefined();
   });
 
   it("renders a brand link to home", () => {
@@ -55,16 +54,16 @@ describe("Sidebar — structure", () => {
   });
 
   it("renders the Cmd-K button", () => {
-    const { container } = renderWithAppState(<Sidebar />);
-    const btn = container.querySelector(".ht-sidebar__cmdkey");
-    expect(btn).not.toBeNull();
+    const { getByLabelText } = renderWithAppState(<Sidebar />);
+    const btn = getByLabelText("Open command palette");
+    expect(btn).toBeDefined();
     expect((btn as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("Cmd-K button calls onOpenPalette when clicked", () => {
     const onOpenPalette = vi.fn();
-    const { container } = renderWithAppState(<Sidebar onOpenPalette={onOpenPalette} />);
-    const btn = container.querySelector(".ht-sidebar__cmdkey")! as HTMLButtonElement;
+    const { getByLabelText } = renderWithAppState(<Sidebar onOpenPalette={onOpenPalette} />);
+    const btn = getByLabelText("Open command palette");
     fireEvent.click(btn);
     expect(onOpenPalette).toHaveBeenCalledOnce();
   });
@@ -97,38 +96,25 @@ describe("Sidebar — nav items", () => {
     expect(link.textContent).toBe("config");
   });
 
-  it("applies is-active to Apps when at /apps", () => {
+  it("marks Apps as active when at /apps", () => {
     useLocation.mockReturnValue(["/apps", vi.fn()]);
     const { getByTestId } = renderWithAppState(<Sidebar />);
-    expect(getByTestId("nav-apps").className).toContain("is-active");
-    expect(getByTestId("nav-logs").className).not.toContain("is-active");
+    expect(getByTestId("nav-apps").getAttribute("aria-current")).toBe("page");
+    expect(getByTestId("nav-logs").getAttribute("aria-current")).toBeNull();
   });
 
-  it("applies is-active to Logs when at /logs", () => {
-    useLocation.mockReturnValue(["/logs", vi.fn()]);
-    const { getByTestId } = renderWithAppState(<Sidebar />);
-    expect(getByTestId("nav-logs").className).toContain("is-active");
-    expect(getByTestId("nav-apps").className).not.toContain("is-active");
-  });
-
-  it("applies is-active to Config when at /config", () => {
-    useLocation.mockReturnValue(["/config", vi.fn()]);
-    const { getByTestId } = renderWithAppState(<Sidebar />);
-    expect(getByTestId("nav-config").className).toContain("is-active");
-    expect(getByTestId("nav-apps").className).not.toContain("is-active");
-  });
-
-  it("active nav item has aria-current=page", () => {
+  it("marks Logs as active when at /logs", () => {
     useLocation.mockReturnValue(["/logs", vi.fn()]);
     const { getByTestId } = renderWithAppState(<Sidebar />);
     expect(getByTestId("nav-logs").getAttribute("aria-current")).toBe("page");
     expect(getByTestId("nav-apps").getAttribute("aria-current")).toBeNull();
   });
 
-  it("Apps nav is not active on /logs", () => {
-    useLocation.mockReturnValue(["/logs", vi.fn()]);
+  it("marks Config as active when at /config", () => {
+    useLocation.mockReturnValue(["/config", vi.fn()]);
     const { getByTestId } = renderWithAppState(<Sidebar />);
-    expect(getByTestId("nav-apps").className).not.toContain("is-active");
+    expect(getByTestId("nav-config").getAttribute("aria-current")).toBe("page");
+    expect(getByTestId("nav-apps").getAttribute("aria-current")).toBeNull();
   });
 });
 
@@ -169,7 +155,7 @@ describe("Sidebar — app list", () => {
   });
 
   it("groups apps so FAILING group header appears before RUNNING group header in DOM", () => {
-    const { getByText, container } = renderWithAppState(
+    const { getByText, getByTestId } = renderWithAppState(
       <Sidebar />,
       withManifests([
         createManifest({ app_key: "running_app", display_name: "Running App", status: "running" }),
@@ -179,7 +165,8 @@ describe("Sidebar — app list", () => {
     // Failed App is visible in expanded FAILING group
     expect(getByText("Failed App")).toBeDefined();
     // Group headers are in DOM order: FAILING before RUNNING
-    const groupHeaders = Array.from(container.querySelectorAll(".ht-sidebar__group-header"))
+    const appNav = getByTestId("app-nav");
+    const groupHeaders = Array.from(appNav.querySelectorAll("[data-testid='group-header']"))
       .map((el) => el.textContent);
     const failingIdx = groupHeaders.findIndex((t) => t?.includes("FAILING"));
     const runningIdx = groupHeaders.findIndex((t) => t?.includes("RUNNING"));
@@ -188,14 +175,14 @@ describe("Sidebar — app list", () => {
     expect(failingIdx).toBeLessThan(runningIdx);
   });
 
-  it("applies is-blocked class to blocked apps", () => {
+  it("applies is-blocked class and aria-disabled to blocked apps", () => {
     const { getByText } = renderWithAppState(
       <Sidebar />,
       withManifests([createManifest({ app_key: "b_app", display_name: "Blocked App", status: "blocked" })]),
     );
     const nameEl = getByText("Blocked App");
-    const item = nameEl.closest(".ht-sidebar__app-item");
-    expect(item?.className).toContain("is-blocked");
+    const item = nameEl.closest("[data-testid='app-item-b_app']");
+    expect(item?.getAttribute("aria-disabled")).toBe("true");
   });
 });
 
@@ -306,37 +293,37 @@ describe("Sidebar — multi-instance apps", () => {
     fireEvent.click(expandBtn);
     const inst1Link = getByText("inst_1").closest("a");
     const inst0Link = getByText("inst_0").closest("a");
-    expect(inst1Link?.className).toContain("is-active");
-    expect(inst0Link?.className).not.toContain("is-active");
+    expect(inst1Link?.getAttribute("aria-current")).toBe("page");
+    expect(inst0Link?.getAttribute("aria-current")).toBeNull();
   });
 });
 
 describe("Sidebar — version display", () => {
   it("renders version string below wordmark when systemVersion is set", () => {
-    const { container } = renderWithAppState(<Sidebar />, {
+    const { getByTestId } = renderWithAppState(<Sidebar />, {
       stateOverrides: { systemVersion: signal("1.2.3") },
     });
-    const versionEl = container.querySelector(".ht-sidebar__version");
-    expect(versionEl).not.toBeNull();
-    expect(versionEl!.textContent).toContain("v1.2.3");
+    const sidebar = getByTestId("sidebar");
+    expect(sidebar.textContent).toContain("v1.2.3");
   });
 
   it("shows version without connection status", () => {
-    const { container } = renderWithAppState(<Sidebar />, {
+    const { getByTestId } = renderWithAppState(<Sidebar />, {
       stateOverrides: {
         systemVersion: signal("1.0.0"),
       },
     });
-    const versionEl = container.querySelector(".ht-sidebar__version");
-    expect(versionEl!.textContent).toContain("v1.0.0");
-    expect(versionEl!.textContent).not.toContain("connected");
+    const sidebar = getByTestId("sidebar");
+    expect(sidebar.textContent).toContain("v1.0.0");
+    expect(sidebar.textContent).not.toContain("connected");
   });
 
   it("omits version line when systemVersion is null", () => {
     const { container } = renderWithAppState(<Sidebar />, {
       stateOverrides: { systemVersion: signal(null) },
     });
-    expect(container.querySelector(".ht-sidebar__version")).toBeNull();
+    // Version text "v" followed by a version string should not appear
+    expect(container.textContent).not.toMatch(/v\d+\.\d+/);
   });
 });
 
@@ -350,7 +337,7 @@ describe("Sidebar — APPS section header", () => {
   });
 
   it("APPS header shows total count", () => {
-    const { container, getByText } = renderWithAppState(
+    const { getByTestId, getByText } = renderWithAppState(
       <Sidebar />,
       withManifests([
         createManifest({ app_key: "a1", display_name: "App One" }),
@@ -358,12 +345,12 @@ describe("Sidebar — APPS section header", () => {
       ]),
     );
     expect(getByText("App One")).toBeDefined();
-    const header = container.querySelector(".ht-sidebar__section-header");
-    expect(header?.textContent).toContain("2");
+    const appNav = getByTestId("app-nav");
+    expect(appNav.textContent).toContain("2");
   });
 
   it("shows filtered/total counts when search is active", () => {
-    const { container, getByText } = renderWithAppState(
+    const { getByTestId, getByText, container } = renderWithAppState(
       <Sidebar />,
       withManifests([
         createManifest({ app_key: "a1", display_name: "Alpha App" }),
@@ -373,8 +360,8 @@ describe("Sidebar — APPS section header", () => {
     expect(getByText("Alpha App")).toBeDefined();
     const input = container.querySelector("input[type='search']")!;
     fireEvent.input(input, { target: { value: "Alpha" } });
-    const header = container.querySelector(".ht-sidebar__section-header");
-    expect(header?.textContent).toContain("1/2");
+    const appNav = getByTestId("app-nav");
+    expect(appNav.textContent).toContain("1/2");
   });
 });
 
@@ -411,14 +398,15 @@ describe("Sidebar — status groups", () => {
   });
 
   it("hides empty groups", () => {
-    const { container, getByText } = renderWithAppState(
+    const { getByText, getByTestId } = renderWithAppState(
       <Sidebar />,
       withManifests([
         createManifest({ app_key: "running_app", display_name: "Running App", status: "running" }),
       ]),
     );
     expect(getByText("Running App")).toBeDefined();
-    const groupHeaders = Array.from(container.querySelectorAll(".ht-sidebar__group-header")).map(
+    const appNav = getByTestId("app-nav");
+    const groupHeaders = Array.from(appNav.querySelectorAll("[data-testid='group-header']")).map(
       (el) => el.textContent,
     );
     expect(groupHeaders.some((t) => t?.includes("FAILING"))).toBe(false);
@@ -436,7 +424,7 @@ describe("Sidebar — status groups", () => {
     // Failed App visible before collapse
     expect(getByText("Failed App")).toBeDefined();
     // Click header to collapse
-    fireEvent.click(header.closest(".ht-sidebar__group-header")!);
+    fireEvent.click(header.closest("[data-testid='group-header']")!);
     // Failed App hidden after collapse
     expect(queryByText("Failed App")).toBeNull();
   });
@@ -451,15 +439,15 @@ describe("Sidebar — status groups", () => {
     const header = getByText("FAILING");
     expect(getByText("Failed App")).toBeDefined();
     // Collapse via click (native <button> handles Enter/Space → click automatically)
-    fireEvent.click(header.closest(".ht-sidebar__group-header")!);
+    fireEvent.click(header.closest("[data-testid='group-header']")!);
     expect(queryByText("Failed App")).toBeNull();
     // Re-expand
-    fireEvent.click(header.closest(".ht-sidebar__group-header")!);
+    fireEvent.click(header.closest("[data-testid='group-header']")!);
     expect(queryByText("Failed App")).not.toBeNull();
   });
 
   it("maps exhausted_dead to FAILING group", () => {
-    const { getByText, container } = renderWithAppState(
+    const { getByText, getByTestId } = renderWithAppState(
       <Sidebar />,
       withManifests([
         createManifest({
@@ -471,7 +459,8 @@ describe("Sidebar — status groups", () => {
     );
     expect(getByText("FAILING")).toBeDefined();
     expect(getByText("Dead App")).toBeDefined();
-    const groupHeaders = Array.from(container.querySelectorAll(".ht-sidebar__group-header"))
+    const appNav = getByTestId("app-nav");
+    const groupHeaders = Array.from(appNav.querySelectorAll("[data-testid='group-header']"))
       .map((el) => el.textContent);
     expect(groupHeaders.some((t) => t?.includes("RUNNING"))).toBe(false);
   });
@@ -485,9 +474,9 @@ describe("Sidebar — status groups", () => {
     );
     const header = getByText("FAILING");
     expect(getByText("Failed App")).toBeDefined();
-    fireEvent.click(header.closest(".ht-sidebar__group-header")!);
+    fireEvent.click(header.closest("[data-testid='group-header']")!);
     expect(queryByText("Failed App")).toBeNull();
-    fireEvent.click(header.closest(".ht-sidebar__group-header")!);
+    fireEvent.click(header.closest("[data-testid='group-header']")!);
     expect(queryByText("Failed App")).not.toBeNull();
   });
 

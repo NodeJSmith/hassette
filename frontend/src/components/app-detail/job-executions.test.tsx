@@ -179,7 +179,7 @@ describe("JobExecutions", () => {
       />,
     );
     fireEvent.click(getByRole("button", { name: /traceback/i }));
-    const tbRow = container.querySelector(".ht-traceback-row td");
+    const tbRow = container.querySelector("[data-testid='traceback-row'] td");
     expect(tbRow).not.toBeNull();
     expect(tbRow!.getAttribute("colspan")).toBe("5");
   });

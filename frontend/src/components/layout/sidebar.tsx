@@ -1,10 +1,12 @@
 import { useState } from "preact/hooks";
 import { Link, useLocation, useSearch } from "wouter";
+import clsx from "clsx";
 import { useAppState } from "../../state/context";
 import { statusToKind } from "../../utils/status";
 import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
 import type { components } from "../../api/generated-types";
+import styles from "./sidebar.module.css";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
 
@@ -118,15 +120,20 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
   const isActive = location.startsWith(appPath);
 
   return (
-    <li class="ht-sidebar__app-entry">
-      <div class={`ht-sidebar__app-item${isActive ? " is-active" : ""}${isBlocked ? " is-blocked" : ""}`}>
+    <li data-testid={`app-entry-${manifest.app_key}`}>
+      <div
+        class={clsx(styles.appItem, isActive && "is-active", isBlocked && "is-blocked")}
+        aria-disabled={isBlocked ? "true" : undefined}
+        data-testid={`app-item-${manifest.app_key}`}
+      >
         <Link
           href={appPath}
-          class="ht-sidebar__app-link"
+          class={styles.appLink}
           aria-current={isActive ? "page" : undefined}
+          data-testid="app-link"
         >
           <StatusShape kind={kind} size={10} />
-          <span class="ht-sidebar__app-name">{manifest.display_name}</span>
+          <span class={styles.appName}>{manifest.display_name}</span>
           {manifest.auto_loaded && (
             <span class="ht-chip ht-chip--auto" title="Auto-loaded">auto</span>
           )}
@@ -134,9 +141,10 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
         {isMulti && (
           <button
             type="button"
-            class="ht-sidebar__app-expand"
+            class={styles.appExpand}
             aria-label={expanded ? `Collapse ${manifest.display_name}` : `Expand ${manifest.display_name}`}
             aria-expanded={expanded}
+            data-testid="app-expand"
             onClick={() => setExpanded(!expanded)}
           >
             <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
@@ -151,7 +159,7 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
         )}
       </div>
       {isMulti && expanded && (
-        <ul class="ht-sidebar__instance-list">
+        <ul class={styles.instanceList} data-testid="instance-list">
           {(manifest.instances ?? []).map((inst) => {
             const instHref = `/apps/${manifest.app_key}?instance=${inst.index}`;
             // Active when path matches the app and the instance query param matches.
@@ -162,15 +170,15 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
             const instanceParam = new URLSearchParams(locSearch).get("instance");
             const instActive = pathMatches && instanceParam === String(inst.index);
             return (
-              <li key={inst.index} class="ht-sidebar__instance-item">
-                <span class="ht-sidebar__app-connector">└</span>
+              <li key={inst.index} class={styles.instanceItem}>
+                <span class={styles.appConnector}>└</span>
                 <Link
                   href={instHref}
-                  class={`ht-sidebar__instance-link${instActive ? " is-active" : ""}`}
+                  class={clsx(styles.instanceLink, instActive && "is-active")}
                   aria-current={instActive ? "page" : undefined}
                 >
                   <StatusShape kind={statusToKind(inst.status)} size={8} />
-                  <span class="ht-sidebar__instance-name">{inst.instance_name}</span>
+                  <span class={styles.instanceName}>{inst.instance_name}</span>
                 </Link>
               </li>
             );
@@ -196,12 +204,13 @@ function StatusGroupHeader({ def, count, isOpen, onToggle }: StatusGroupHeaderPr
   return (
     <button
       type="button"
-      class={`ht-sidebar__group-header ht-sidebar__group-header--${def.tone}`}
+      class={clsx(styles.groupHeader, def.tone === "err" && styles.groupHeaderErr, def.tone === "warn" && styles.groupHeaderWarn)}
+      data-testid="group-header"
       aria-expanded={isOpen}
       onClick={onToggle}
     >
       <svg
-        class="ht-sidebar__group-chevron"
+        class={styles.groupChevron}
         viewBox="0 0 12 12"
         width="10"
         height="10"
@@ -215,8 +224,8 @@ function StatusGroupHeader({ def, count, isOpen, onToggle }: StatusGroupHeaderPr
         />
       </svg>
       <StatusShape kind={def.tone} size={7} />
-      <span class="ht-sidebar__group-label">{def.label}</span>
-      <span class="ht-sidebar__group-count">{count}</span>
+      <span class={styles.groupLabel}>{def.label}</span>
+      <span class={styles.groupCount}>{count}</span>
     </button>
   );
 }
@@ -282,15 +291,15 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   const filteredCount = filtered.length;
 
   return (
-    <aside class="ht-sidebar">
+    <aside class={styles.sidebar} data-testid="sidebar">
       {/* Wordmark */}
-      <div class="ht-sidebar-brand">
-        <Link href="/apps" class="ht-brand-link" aria-label="Hassette home">
-          <span class="ht-wordmark">hassette</span>
+      <div class={styles.sidebarBrand}>
+        <Link href="/apps" class={styles.brandLink} aria-label="Hassette home">
+          <span class={styles.wordmark}>hassette</span>
         </Link>
         {version !== null && (
-          <div class="ht-sidebar__version">
-            <span class="ht-sidebar__version-text">v{version}</span>
+          <div class={styles.version}>
+            <span class={styles.versionText}>v{version}</span>
           </div>
         )}
       </div>
@@ -298,25 +307,25 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
       {/* Cmd-K trigger */}
       <button
         type="button"
-        class="ht-sidebar__cmdkey"
+        class={styles.cmdkey}
         title={`Command palette (${IS_MAC ? "⌘K" : "Ctrl+K"})`}
         aria-label="Open command palette"
         onClick={onOpenPalette}
       >
         <span>jump to…</span>
-        <kbd class="ht-sidebar__cmdkey-hint">{IS_MAC ? "⌘K" : "Ctrl+K"}</kbd>
+        <kbd class={styles.cmdkeyHint}>{IS_MAC ? "⌘K" : "Ctrl+K"}</kbd>
       </button>
 
       {/* Top-level navigation */}
       <nav aria-label="Main navigation">
-        <ul class="ht-nav-list">
+        <ul class={styles.navList}>
           {NAV_ITEMS.map((item) => {
             const isActive = location.startsWith(item.path);
             return (
               <li key={item.path}>
                 <Link
                   href={item.path}
-                  class={`ht-nav-item${isActive ? " is-active" : ""}`}
+                  class={clsx(styles.navItem, isActive && "is-active")}
                   data-testid={item.testId}
                   aria-current={isActive ? "page" : undefined}
                 >
@@ -329,20 +338,20 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
       </nav>
 
       {/* App section */}
-      <div class="ht-sidebar__app-nav">
+      <div class={styles.appNav} data-testid="app-nav">
         {/* APPS section header */}
-        <div class="ht-sidebar__section-header">
-          <span class="ht-sidebar__section-label">APPS</span>
-          <span class="ht-sidebar__section-count">
+        <div class={styles.sectionHeader}>
+          <span class={styles.sectionLabel}>APPS</span>
+          <span class={styles.sectionCount}>
             {isFiltering ? `${filteredCount}/${totalCount}` : totalCount}
           </span>
         </div>
 
         {/* Search */}
-        <div class="ht-sidebar__search-wrap">
+        <div class={styles.searchWrap}>
           <input
             type="search"
-            class="ht-sidebar__app-search"
+            class={styles.appSearch}
             placeholder="Filter apps…"
             value={search}
             aria-label="Filter apps"
@@ -355,14 +364,14 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
           <Spinner />
         )}
         {!manifestsLoading.value && filtered.length === 0 && (
-          <div class="ht-sidebar__empty">no apps</div>
+          <div class={styles.empty}>no apps</div>
         )}
         {GROUP_DEFS.map((def) => {
           const apps = groups.get(def.key) ?? [];
           if (apps.length === 0) return null;
           const open = isGroupOpen(def.key);
           return (
-            <div key={def.key} class="ht-sidebar__group">
+            <div key={def.key} class={styles.group}>
               <StatusGroupHeader
                 def={def}
                 count={apps.length}
@@ -370,7 +379,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
                 onToggle={() => toggleGroup(def.key)}
               />
               {open && (
-                <ul class="ht-sidebar__app-list" aria-label={`${def.label} apps`}>
+                <ul class={styles.appList} aria-label={`${def.label} apps`}>
                   {apps.map((m) => (
                     <AppEntry key={m.app_key} manifest={m} location={location} searchString={searchString} />
                   ))}

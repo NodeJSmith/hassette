@@ -1,0 +1,192 @@
+/* Layout — grid, main content area, sections, pages, level bars, hamburger, drawer */
+
+/* — Layout grid (240px sidebar + 1fr main) ————————————— */
+.ht-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+  min-height: 100dvh;
+  position: relative;
+}
+
+.ht-main {
+  grid-column: 2;
+  background: var(--bg-page);
+  overflow-y: auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ht-section {
+  padding: var(--sp-6);
+}
+
+.ht-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-7);
+  flex: 1;
+}
+
+.ht-page-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-4);
+}
+
+.ht-page-header .ht-display {
+  margin: 0;
+}
+
+/* Level (horizontal bar) */
+.ht-level {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.ht-level-start {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.ht-level-end {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.ht-level-item {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+}
+
+/* — Off-canvas Drawer (mobile) ————————————————————————— */
+.ht-hamburger {
+  display: none; /* hidden on desktop; shown via media query */
+  position: fixed;
+  top: var(--sp-3);
+  left: var(--sp-3);
+  z-index: var(--z-hamburger);
+  width: var(--sz-touch);
+  height: var(--sz-touch);
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+
+.ht-hamburger:hover {
+  background: var(--bg-active);
+}
+
+.ht-hamburger svg {
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.ht-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 240px;
+  z-index: var(--z-drawer);
+  background: var(--bg-surface);
+  overflow-y: auto;
+  transform: translateX(-100%);
+  transition: transform var(--t-med) var(--ease);
+}
+
+.ht-drawer.is-open {
+  transform: translateX(0);
+}
+
+.ht-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-drawer-bg);
+  background: var(--overlay-bg);
+}
+
+/* — Responsive: sidebar hidden below 900px ————————————— */
+
+/* shared — permanent */
+@media screen and (max-width: 900px) {
+  .ht-hamburger {
+    display: flex;
+  }
+
+  .ht-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .ht-main {
+    grid-column: 1;
+    padding-top: calc(var(--sp-3) * 2 + var(--sz-touch));
+  }
+}
+
+/* — Responsive: mobile layout below 768px ———————————————— */
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
+
+/* shared — permanent */
+@media screen and (max-width: 768px) {
+  .ht-main {
+    padding-top: calc(var(--sp-3) * 2 + var(--sz-touch));
+  }
+
+  .ht-page {
+    padding: var(--sp-4);
+  }
+
+  .ht-section {
+    padding: var(--sp-4);
+  }
+
+  /* Tables: horizontal scroll */
+  .ht-card > .ht-table,
+  .ht-card > div > .ht-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Level: wrap */
+  .ht-level {
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+  }
+
+  .ht-level-start,
+  .ht-level-end {
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+  }
+}
+
+/* — Responsive: small phones (max-width: 480px) ———————— */
+/* sync: BREAKPOINT_SMALL_MOBILE in use-media-query.ts */
+@media screen and (max-width: 480px) {
+  .ht-section {
+    padding: var(--sp-3);
+  }
+
+  .ht-card {
+    padding: var(--sp-3);
+  }
+}

@@ -18,11 +18,11 @@ vi.mock("../../hooks/use-query-params", () => ({
 
 describe("StatusBar — connection states", () => {
   it("renders connected state without status label", () => {
-    const { container, queryByText } = renderWithAppState(<StatusBar />, {
+    const { getByTestId, queryByText } = renderWithAppState(<StatusBar />, {
       stateOverrides: { connection: signal("connected") },
     });
-    const indicator = container.querySelector(".ht-ws-indicator.is-connected");
-    expect(indicator).not.toBeNull();
+    const indicator = getByTestId("ws-indicator");
+    expect(indicator.getAttribute("aria-label")).toBe("Connected");
     expect(queryByText("Connected")).toBeNull(); // label is hidden when connected
   });
 
@@ -34,21 +34,21 @@ describe("StatusBar — connection states", () => {
   });
 
   it("renders disconnected state with text label", () => {
-    const { getByText, container } = renderWithAppState(<StatusBar />, {
+    const { getByText, getByTestId } = renderWithAppState(<StatusBar />, {
       stateOverrides: { connection: signal("disconnected") },
     });
     expect(getByText("Disconnected")).toBeDefined();
-    const indicator = container.querySelector(".ht-ws-indicator.is-disconnected");
-    expect(indicator).not.toBeNull();
+    const indicator = getByTestId("ws-indicator");
+    expect(indicator.getAttribute("aria-label")).toBe("Disconnected");
   });
 
   it("renders reconnecting state with text label", () => {
-    const { getByText, container } = renderWithAppState(<StatusBar />, {
+    const { getByText, getByTestId } = renderWithAppState(<StatusBar />, {
       stateOverrides: { connection: signal("reconnecting") },
     });
     expect(getByText("Reconnecting...")).toBeDefined();
-    const indicator = container.querySelector(".ht-ws-indicator.is-disconnected");
-    expect(indicator).not.toBeNull();
+    const indicator = getByTestId("ws-indicator");
+    expect(indicator.getAttribute("aria-label")).toBe("Reconnecting...");
   });
 
   it("sets aria-label for connected state", () => {
@@ -190,7 +190,7 @@ describe("StatusBar — theme toggle", () => {
 describe("StatusBar — time preset selector", () => {
   it("renders the time preset selector", () => {
     const { container } = renderWithAppState(<StatusBar />);
-    expect(container.querySelector(".ht-time-preset-selector")).not.toBeNull();
+    expect(container.querySelector("[data-testid='time-preset-selector']")).not.toBeNull();
   });
 
   it("renders all 4 time preset buttons", () => {

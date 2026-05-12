@@ -2,6 +2,7 @@ import type { ListenerData, JobData } from "../../api/endpoints";
 import { UnifiedHandlerRow, type UnifiedItem, type UnifiedItemKind } from "./unified-handler-row";
 import { statusToKind } from "../../utils/status";
 import { formatTriggerDetail, lastDotSegment } from "../../utils/format";
+import styles from "./handler-list.module.css";
 
 export interface SelectedHandlerId {
   kind: UnifiedItemKind;
@@ -57,7 +58,7 @@ export function HandlerList({ listeners, jobs, selectedId, onSelect }: Props) {
 
   return (
     <div>
-      <div class="ht-item-list" data-testid="handler-list">
+      <div class={styles.itemList} data-testid="handler-list">
         {items.map((item) => (
           <UnifiedHandlerRow
             key={`${item.kind}-${item.id}`}

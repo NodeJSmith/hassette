@@ -264,3 +264,56 @@ Layout: use `flowchart TD` (top-to-bottom) by default. Use subgraphs with backgr
 - Ruff for linting/formatting, Pyright for type checking
 - Do NOT use `from __future__ import annotations`
 - Do NOT use blanket `# type: ignore` comments — suppress specific Pyright rules inline with `# pyright: ignore[reportXxx]` instead
+
+## CSS Architecture
+
+The frontend uses CSS Modules for component-specific styles, with a single shared `frontend/src/global.css` for the design system.
+
+### Module pattern
+
+Each component/page has a co-located `.module.css` file. Classes are imported and applied with `clsx`:
+
+```tsx
+import styles from "./my-component.module.css";
+import clsx from "clsx";
+
+<div class={clsx(styles.wrapper, isActive && styles.active)}>
+```
+
+### When to use styles/ vs a module
+
+- **`styles/`**: Shared design system classes used across 3+ unrelated files (e.g. `ht-btn`, `ht-card`, `ht-badge`). All classes use the `ht-` prefix. Organized by domain: `fonts.css`, `reset.css`, `typography.css`, `layout.css`, `cards.css`, `tables.css`, `badges.css`, `buttons.css`, `chips.css`, `utilities.css`. Imported via `global.css`.
+- **`.module.css`**: Everything else — component-specific layout, state variants, animations tied to a single component.
+
+### Referencing global classes from module CSS
+
+Use `:global()` to target global classes from within a module:
+
+```css
+/* Scope a global class to this component's context */
+.tableWrapper :global(.ht-table) tbody tr:hover { background: var(--bg-sunken); }
+
+/* Global class as an ancestor condition */
+:global(.ht-main) > .alert { margin-top: 0; }
+```
+
+Do NOT use bare class names (`.ht-table`) in module CSS — they will be scoped and broken at runtime.
+
+### CI guards
+
+Three scripts enforce CSS hygiene, all wired into `.github/workflows/lint.yml`:
+
+- **`tools/check_global_css_allowlist.py`** — blocks any `.ht-*` selector not on the allowlist from entering shared CSS (`styles/*.css`). Run locally: `uv run python tools/check_global_css_allowlist.py`. Add new shared prefixes to `ALLOWLIST` in that file.
+- **`tools/check_dead_global_css.py`** — blocks unreferenced class selectors in shared CSS (`styles/*.css`). Run locally: `uv run python tools/check_dead_global_css.py`. Add dynamically-assembled class prefixes to `EXEMPTIONS` in that file.
+- **`tools/check_css_module_globals.py`** — validates that `:global()` usage in module CSS is correct.
+
+### Adding a new shared class
+
+1. Confirm it is used in 3+ unrelated files (not just BEM descendants of one component)
+2. Add it to the appropriate file in `frontend/src/styles/`
+3. Add its prefix to `ALLOWLIST` in `tools/check_global_css_allowlist.py`
+4. Run `uv run python tools/check_global_css_allowlist.py` to verify
+
+### tokens.css
+
+`frontend/src/tokens.css` contains all design tokens (colors, spacing, typography, radii, z-index). Do not add raw hex or pixel values to `global.css` — always reference a token variable. Do not modify `tokens.css` during CSS refactoring work.

@@ -8,7 +8,7 @@ describe("HandlersHealthStrip", () => {
     const { container } = render(
       <HandlersHealthStrip listeners={[createListener()]} jobs={[createJob()]} />,
     );
-    const cards = container.querySelectorAll(".ht-stats-strip__cell");
+    const cards = container.querySelectorAll("[data-testid='stats-strip-cell']");
     expect(cards.length).toBe(5);
     // Check all 5 labels (CSS text-transform: uppercase applies visually; DOM text is mixed case)
     const text = container.textContent ?? "";
@@ -25,7 +25,7 @@ describe("HandlersHealthStrip", () => {
     const { container } = render(
       <HandlersHealthStrip listeners={listeners} jobs={jobs} />,
     );
-    const cards = container.querySelectorAll(".ht-stats-strip__cell");
+    const cards = container.querySelectorAll("[data-testid='stats-strip-cell']");
     expect(cards[0].textContent).toContain("3");
   });
 
@@ -35,7 +35,7 @@ describe("HandlersHealthStrip", () => {
     const { container } = render(
       <HandlersHealthStrip listeners={listeners} jobs={jobs} />,
     );
-    const cards = container.querySelectorAll(".ht-stats-strip__cell");
+    const cards = container.querySelectorAll("[data-testid='stats-strip-cell']");
     const text = cards[1].textContent ?? "";
     expect(text).toContain("15");
   });
@@ -56,8 +56,8 @@ describe("HandlersHealthStrip", () => {
     const { container } = render(
       <HandlersHealthStrip listeners={listeners} jobs={[]} />,
     );
-    const warnCard = container.querySelector(".ht-stats-strip__value--warn");
-    expect(warnCard).not.toBeNull();
+    const warnValue = container.querySelector("[data-tone='warn']");
+    expect(warnValue).not.toBeNull();
   });
 
   it("shows failed count and applies err tone when > 0", () => {
@@ -67,9 +67,9 @@ describe("HandlersHealthStrip", () => {
     const { container } = render(
       <HandlersHealthStrip listeners={listeners} jobs={[]} />,
     );
-    const errCard = container.querySelector(".ht-stats-strip__value--err");
-    expect(errCard).not.toBeNull();
-    expect(errCard?.textContent).toContain("3");
+    const errValue = container.querySelector("[data-tone='err']");
+    expect(errValue).not.toBeNull();
+    expect(errValue?.textContent).toContain("3");
   });
 
   it("shows timed_out count and applies warn tone when > 0", () => {
@@ -79,16 +79,16 @@ describe("HandlersHealthStrip", () => {
     const { container } = render(
       <HandlersHealthStrip listeners={listeners} jobs={[]} />,
     );
-    const warnCards = container.querySelectorAll(".ht-stats-strip__value--warn");
+    const warnValues = container.querySelectorAll("[data-tone='warn']");
     // At least one warn-toned value for timed_out
-    expect(warnCards.length).toBeGreaterThanOrEqual(1);
+    expect(warnValues.length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders em dash for FAILED when count is 0", () => {
     const { container } = render(
       <HandlersHealthStrip listeners={[createListener({ failed: 0 })]} jobs={[]} />,
     );
-    const cards = container.querySelectorAll(".ht-stats-strip__cell");
+    const cards = container.querySelectorAll("[data-testid='stats-strip-cell']");
     // FAILED card (index 3) should show em dash
     expect(cards[3].textContent).toContain("—");
   });
@@ -97,7 +97,7 @@ describe("HandlersHealthStrip", () => {
     const { container } = render(
       <HandlersHealthStrip listeners={[createListener({ timed_out: 0 })]} jobs={[]} />,
     );
-    const cards = container.querySelectorAll(".ht-stats-strip__cell");
+    const cards = container.querySelectorAll("[data-testid='stats-strip-cell']");
     // TIMED OUT card (index 4) should show em dash
     expect(cards[4].textContent).toContain("—");
   });

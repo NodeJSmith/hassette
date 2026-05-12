@@ -1,0 +1,218 @@
+/* Apps page — component-scoped styles */
+
+.page {
+  min-height: 0;
+}
+
+/* Filter pills */
+
+.filters {
+  display: flex;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+}
+
+.filterPill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1h);
+  padding: var(--sp-1) var(--sp-2);
+  font-family: var(--font-body);
+  font-size: var(--fs-mono-sm);
+  font-weight: 500;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.filterPill:hover {
+  background: var(--bg-sunken);
+}
+
+.filterPillActive {
+  color: var(--bg-surface);
+  background: var(--ink-1);
+  border-color: var(--ink-1);
+}
+
+.filterPillActive:hover {
+  background: var(--ink-1);
+}
+
+.filterPillCount {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  opacity: 0.85;
+}
+
+/* Table card */
+
+.appsTable thead th {
+  letter-spacing: 0.08em;
+}
+
+/* Table rows */
+
+.row {
+  transition: background var(--t-fast) var(--ease);
+  cursor: pointer;
+}
+
+.rowDimmed {
+  opacity: 0.55;
+}
+
+.rowInstance {
+  background: var(--bg-page);
+}
+
+.rowInstance:hover {
+  background: var(--bg-sunken);
+}
+
+/* Name cell */
+
+.nameCell {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.expandGutter {
+  width: var(--sp-4);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.expand {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-2);
+  font-size: var(--fs-mono-md);
+  width: var(--sp-4);
+  padding: 0;
+  line-height: 1;
+}
+
+.expand:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: var(--sp-0);
+}
+
+.className {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+}
+
+.instanceCorner {
+  color: var(--ink-4);
+  font-size: var(--fs-micro);
+  margin-left: calc(var(--sp-4) + var(--sp-0));
+}
+
+.instanceCount {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  margin-left: var(--sp-1);
+}
+
+/* Error cell */
+
+.errorCell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.errorCell[role="button"] {
+  cursor: pointer;
+}
+
+.errorCell:global(.is-expanded) {
+  white-space: normal;
+  word-break: break-word;
+  max-width: none;
+}
+
+.errorAge {
+  color: var(--ink-3);
+}
+
+/* Runs cell */
+
+.runsCell {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+}
+
+/* Actions cell */
+
+.actionsCell {
+  text-align: right;
+}
+
+.actionsCell :global(.ht-btn-group) {
+  justify-content: flex-end;
+  opacity: 0.35;
+  transition: opacity var(--t-fast) var(--ease);
+}
+
+.row:hover .actionsCell :global(.ht-btn-group) {
+  opacity: 1;
+}
+
+/* Responsive: 900px — touch target for expand, hide columns */
+
+@media screen and (max-width: 900px) {
+  .expand {
+    min-width: var(--sz-touch);
+    min-height: var(--sz-touch);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .appsTable thead th:nth-child(n+3),
+  .appsTable tbody td:nth-child(n+3) {
+    display: none;
+  }
+}
+
+/* Responsive: 768px — hide class name, collapse columns, tap affordances */
+
+@media (max-width: 768px) {
+  .className,
+  .appsTable :global(.ht-chip--auto) {
+    display: none;
+  }
+
+  .appsTable th:nth-child(n+3):not(:last-child),
+  .appsTable td:nth-child(n+3):not(:last-child) {
+    display: none;
+  }
+
+  .nameCell::after {
+    content: "›";
+    margin-left: auto;
+    color: var(--ink-4);
+    font-size: var(--fs-h3);
+  }
+
+  .row:active {
+    background: var(--bg-active);
+  }
+}

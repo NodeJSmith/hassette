@@ -1,0 +1,105 @@
+.pulseDot {
+  width: var(--sp-2);
+  height: var(--sp-2);
+  border-radius: var(--r-pill);
+  display: inline-block;
+  background: var(--ok);
+  animation: breathe 2.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
+}
+
+.pulseDot:global(.connecting) {
+  background: var(--mute);
+  animation: none;
+}
+
+.pulseDot:global(.disconnected) {
+  background: var(--err);
+  animation: none;
+}
+
+.pulseDot:global(.degraded) {
+  background: var(--warn);
+  animation: none;
+}
+
+/* — Theme toggle ——————————————————————————————————————— */
+.themeToggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--sp-7);
+  height: var(--sp-7);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
+  flex-shrink: 0;
+}
+
+.themeToggle:hover {
+  background: var(--bg-active);
+  color: var(--ink-1);
+  border-color: var(--line-strong);
+}
+
+.themeToggle svg {
+  width: var(--sp-4);
+  height: var(--sp-4);
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* — Status bar ————————————————————————————————————————— */
+.statusBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--sp-2) var(--sp-7);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--line-1);
+  gap: var(--sp-3);
+  flex-shrink: 0;
+}
+
+.statusBarLeft,
+.statusBarRight {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.wsIndicator {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* — Responsive: 900px ————————————————————————————————— */
+@media screen and (max-width: 900px) {
+  .themeToggle {
+    min-width: var(--sz-touch);
+    min-height: var(--sz-touch);
+  }
+}
+
+/* — Responsive: 768px ————————————————————————————————— */
+@media screen and (max-width: 768px) {
+  .statusBar {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-status-bar);
+    background: var(--bg-surface);
+  }
+}

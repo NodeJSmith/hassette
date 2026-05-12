@@ -1,0 +1,12 @@
+.link {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--ink-1);
+  text-decoration: none;
+}
+
+.link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+}

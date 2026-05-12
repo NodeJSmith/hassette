@@ -48,7 +48,7 @@ def test_sidebar_hidden_at_mobile(page: Page, base_url: str) -> None:
     """Desktop sidebar is hidden on mobile viewports."""
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/")
-    sidebar = page.locator(".ht-layout > .ht-sidebar")
+    sidebar = page.locator("[data-testid='layout'] > [data-testid='sidebar']")
     expect(sidebar).not_to_be_visible()
 
 
@@ -56,7 +56,7 @@ def test_sidebar_visible_at_desktop(page: Page, base_url: str) -> None:
     """Sidebar is visible on desktop viewports."""
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/")
-    sidebar = page.locator(".ht-sidebar")
+    sidebar = page.locator("[data-testid='sidebar']")
     expect(sidebar).to_be_visible()
 
 
@@ -78,7 +78,7 @@ def test_apps_card_layout_at_375px(page: Page, base_url: str) -> None:
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/apps")
     # The apps page always uses a table, but hides columns 3+ on mobile
-    table = page.locator("table.ht-apps-table")
+    table = page.locator("[data-testid='apps-table']")
     expect(table).to_be_visible()
     # Columns 3+ (last error, runs, last fired) are hidden on mobile via CSS
     third_header = table.locator("th:nth-child(3)")
@@ -89,7 +89,7 @@ def test_apps_table_layout_at_1024px(page: Page, base_url: str) -> None:
     """Desktop viewport shows the apps table with all columns visible."""
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/apps")
-    table = page.locator("table.ht-apps-table")
+    table = page.locator("[data-testid='apps-table']")
     expect(table).to_be_visible()
     # All columns should be visible on desktop (including column 3+)
     third_header = table.locator("th:nth-child(3)")
@@ -107,7 +107,7 @@ def test_kpi_error_rate_first_at_375px(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps")
     stats_strip = page.locator("[data-testid='apps-stats-strip']")
     expect(stats_strip).to_be_visible()
-    first_label = stats_strip.locator(".ht-stats-strip__label").first
+    first_label = stats_strip.locator("[data-testid='stats-strip-label']").first
     expect(first_label).to_have_text("total")
 
 
@@ -146,7 +146,7 @@ def test_breakpoint_boundary_768px(page: Page, base_url: str) -> None:
     page.set_viewport_size(TABLET_VIEWPORT)
     page.goto(base_url + "/apps")
     # At 768px, the mobile CSS hides columns 3+ in the apps table
-    table = page.locator("table.ht-apps-table")
+    table = page.locator("[data-testid='apps-table']")
     expect(table).to_be_visible()
     third_header = table.locator("th:nth-child(3)")
     expect(third_header).not_to_be_visible()
@@ -167,12 +167,12 @@ def test_log_table_app_tag_at_375px(page: Page, base_url: str) -> None:
 
     # App column header should not be rendered at mobile breakpoint
     # (the component conditionally omits the App <th>/<td> on mobile)
-    headers = page.locator(".ht-table-log th")
+    headers = page.locator("[data-testid='log-table'] th")
     header_texts = [headers.nth(i).text_content() for i in range(headers.count())]
     assert not any("App" in (t or "") for t in header_texts), f"App header found in: {header_texts}"
 
     # Log entries should still be visible despite missing App column
-    rows = page.locator(".ht-table-log tbody tr")
+    rows = page.locator("[data-testid='log-table'] tbody tr")
     assert rows.count() > 0, "Expected at least one log row on mobile"
 
 

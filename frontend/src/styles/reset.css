@@ -1,0 +1,65 @@
+/* Reset — box model, element defaults, focus indicator, reduced motion */
+
+/* =====================================================
+   Hassette Design System — Base + Components
+   All values reference Ink tokens from tokens.css.
+   No raw hex or pixel values in base styles.
+   ===================================================== */
+
+/* — Reset ——————————————————————————————————————————————— */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+}
+
+h1, h2, h3, h4 {
+  margin: 0;
+}
+
+p, ul, ol, blockquote {
+  margin: 0;
+}
+
+img, svg {
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  width: 100%;
+}
+
+/* — Global Focus Indicator ————————————————————————————— */
+/* Zero specificity via :where() — component-level overrides win cleanly */
+:where(:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: var(--sp-0);
+}
+
+/* — Reduced motion ————————————————————————————————————— */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

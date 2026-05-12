@@ -16,10 +16,10 @@ describe("AlertBanner", () => {
   });
 
   it("renders alert when one app has failed", () => {
-    const { container, getByText } = render(
+    const { getByTestId, getByText } = render(
       <AlertBanner failedApps={[{ app_key: "my_app", error_message: "crash" }]} />,
     );
-    expect(container.querySelector(".ht-alert--danger")).not.toBeNull();
+    expect(getByTestId("alert-banner")).not.toBeNull();
     expect(getByText("1 app failed")).toBeDefined();
   });
 

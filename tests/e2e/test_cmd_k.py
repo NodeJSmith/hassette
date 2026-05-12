@@ -80,7 +80,7 @@ def test_palette_empty_state_for_no_match(page: Page, base_url: str) -> None:
     search.fill("zzzznonexistentxxx")
     page.wait_for_timeout(200)
     palette = page.locator("[role='dialog'][aria-label='Command palette']")
-    empty = palette.locator(".ht-cmd-palette__empty")
+    empty = palette.locator("[data-testid='cmd-palette-empty']")
     expect(empty).to_be_visible()
     expect(empty).to_contain_text("No results for")
 
@@ -98,7 +98,7 @@ def test_palette_closes_on_backdrop_click(page: Page, base_url: str) -> None:
     """Clicking the backdrop closes the command palette."""
     page.goto(base_url + "/")
     _open_palette(page)
-    backdrop = page.locator(".ht-cmd-palette__backdrop")
+    backdrop = page.locator("[data-testid='cmd-palette-backdrop']")
     expect(backdrop).to_be_visible()
     backdrop.click(position={"x": 10, "y": 10})
     palette = page.locator("[role='dialog'][aria-label='Command palette']")
@@ -114,7 +114,7 @@ def test_palette_navigates_to_logs_on_select(page: Page, base_url: str) -> None:
     search.fill("logs")
     page.wait_for_timeout(200)
     # Click the logs result
-    logs_result = page.locator(".ht-cmd-palette__result", has_text="logs").first
+    logs_result = page.locator("[role='option']", has_text="logs").first
     expect(logs_result).to_be_visible()
     logs_result.click()
     expect(page).to_have_url(re.compile(r"/logs"))
@@ -140,7 +140,7 @@ def test_palette_navigates_to_app_on_select(page: Page, base_url: str) -> None:
     search = page.locator("input[aria-label='Search command palette']")
     search.fill("My App")
     page.wait_for_timeout(300)
-    app_result = page.locator(".ht-cmd-palette__result", has_text="My App").first
+    app_result = page.locator("[role='option']", has_text="My App").first
     expect(app_result).to_be_visible()
     app_result.click()
     expect(page).to_have_url(re.compile(r"/apps/my_app"))

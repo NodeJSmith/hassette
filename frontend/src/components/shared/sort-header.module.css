@@ -1,0 +1,28 @@
+.sortHeader {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.sortHeader:hover {
+  color: var(--ink-1);
+}
+
+.sortHeader:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: var(--sp-0);
+  border-radius: var(--r-sm);
+}
+
+.active {
+  color: var(--ink-1);
+  font-weight: 600;
+}

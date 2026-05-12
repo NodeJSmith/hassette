@@ -1,0 +1,24 @@
+.empty {
+  text-align: center;
+  padding: var(--sp-6);
+}
+
+.icon {
+  font-size: var(--fs-h1);
+  color: var(--ink-4);
+  margin-bottom: var(--sp-2);
+}
+
+.title {
+  font-size: var(--fs-small);
+  font-weight: 500;
+  color: var(--ink-2);
+  margin-bottom: var(--sp-1);
+}
+
+.body {
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  max-width: 320px;
+  margin: 0 auto;
+}

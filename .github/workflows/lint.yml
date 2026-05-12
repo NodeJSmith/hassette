@@ -30,6 +30,7 @@ jobs:
                         - '.github/workflows/lint.yml'
                       frontend:
                         - 'frontend/**'
+                        - 'tools/**'
                         - '.github/workflows/lint.yml'
                       codegen:
                         - 'src/hassette/models/**'
@@ -88,6 +89,9 @@ jobs:
                   cache: "npm"
                   cache-dependency-path: frontend/package-lock.json
 
+            - name: Install uv
+              uses: astral-sh/setup-uv@v6
+
             - name: Install frontend dependencies
               run: npm ci
               working-directory: frontend
@@ -96,9 +100,25 @@ jobs:
               run: npm run lint
               working-directory: frontend
 
+            - name: Build frontend (generates CSS module .d.ts files)
+              run: npm run build
+              working-directory: frontend
+
             - name: Type check frontend
               run: npx tsc --noEmit
               working-directory: frontend
+
+            - name: Check CSS module :global() correctness
+              run: uv run python tools/check_css_module_globals.py
+
+            - name: Smoke test CSS allowlist logic
+              run: uv run python tools/check_global_css_allowlist.py --smoke-test
+
+            - name: Check global CSS allowlist (full file)
+              run: uv run python tools/check_global_css_allowlist.py
+
+            - name: Check dead global CSS (blocking)
+              run: uv run python tools/check_dead_global_css.py
 
     codegen-freshness:
         needs: changes

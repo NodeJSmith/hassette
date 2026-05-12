@@ -1,3 +1,6 @@
+import clsx from "clsx";
+import styles from "./sort-header.module.css";
+
 export interface SortState<K extends string = string> {
   key: K;
   dir: "asc" | "desc";
@@ -55,7 +58,8 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
     <th scope="col" class={className} aria-sort={ariaSortValue} data-testid={testId}>
       <button
         type="button"
-        class={`ht-sort-header${active ? " ht-sort-header--active" : ""}`}
+        class={clsx(styles.sortHeader, active && styles.active)}
+        data-testid="sort-header-btn"
         onClick={onClick}
       >
         {children}<span aria-hidden="true">{arrow}</span>

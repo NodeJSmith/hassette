@@ -19,8 +19,8 @@ describe("NotFoundPage", () => {
     expect(link.getAttribute("href")).toBe("/apps");
   });
 
-  it("renders within the ht-error-page container", () => {
-    const { container } = render(<NotFoundPage />);
-    expect(container.querySelector(".ht-error-page")).not.toBeNull();
+  it("renders within the page container", () => {
+    const { getByTestId } = render(<NotFoundPage />);
+    expect(getByTestId("not-found-page")).toBeDefined();
   });
 });

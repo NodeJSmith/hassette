@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@preact/signals": "^2.8.2",
+    "clsx": "^2.1.1",
     "preact": "^10.29.0",
     "shiki": "^4.0.2",
     "wouter": "^3.9.0"
@@ -32,6 +33,7 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.57.1",
     "vite": "^8.0.1",
+    "vite-css-modules": "^1.16.0",
     "vitest": "^4.1.0"
   }
 }

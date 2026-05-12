@@ -1,0 +1,231 @@
+/* App detail page — component-scoped styles */
+
+/* — Tab strip (overview | handlers | code | logs | config) — */
+
+.tabStrip {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--line-1);
+}
+
+.tabBtn {
+  padding: var(--sp-2) var(--sp-4);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  font-family: var(--font-body);
+  font-size: var(--fs-mono-md);
+  font-weight: 500;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color var(--t-fast), border-color var(--t-fast);
+  white-space: nowrap;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.tabBtn:hover {
+  color: var(--ink-1);
+}
+
+.tabBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: var(--sp-0);
+  border-radius: var(--r-sm);
+}
+
+.tabBtnActive {
+  color: var(--ink-1);
+  border-bottom-color: var(--accent);
+  font-weight: 500;
+}
+
+.tabBtnBadge {
+  margin-left: var(--sp-1);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+/* — Instance grid (multi-instance parent overview) — */
+
+.multiOverview {
+  padding: var(--sp-4) 0;
+}
+
+.instanceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--sp-4);
+}
+
+.instanceCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--t-fast);
+  font-family: inherit;
+  font-size: var(--fs-small);
+  color: var(--ink-1);
+}
+
+.instanceCard:hover {
+  border-color: var(--line-strong);
+}
+
+.instanceCard:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: var(--sp-0);
+}
+
+.instanceCardHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.instanceCardName {
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.instanceCardStatusBadge {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.instanceCardErrorPreview {
+  font-size: var(--fs-micro);
+  color: var(--err);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+}
+
+/* — Instance switcher (sibling navigation in header) — */
+
+.instanceSwitcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  align-items: center;
+}
+
+.instanceSwitcherBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  background: none;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: color var(--t-fast), background var(--t-fast);
+  white-space: nowrap;
+}
+
+.instanceSwitcherBtn:hover {
+  color: var(--ink-1);
+  background: var(--bg-active);
+}
+
+.instanceSwitcherBtnActive {
+  background: var(--bg-active);
+  border-color: var(--line-strong);
+  color: var(--ink-1);
+  font-weight: 500;
+  cursor: default;
+}
+
+.instanceSwitcherBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: var(--sp-0);
+}
+
+.instanceSwitcherLabel {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* — Breadcrumb (app detail only) — */
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  margin-bottom: var(--sp-4);
+}
+
+.breadcrumb a {
+  color: var(--ink-3);
+  text-decoration: none;
+}
+
+.breadcrumb a:hover {
+  color: var(--ink-1);
+  text-decoration: underline;
+}
+
+.breadcrumbSeparator {
+  color: var(--ink-3);
+}
+
+.breadcrumbCurrent {
+  color: var(--ink-1);
+  font-weight: 500;
+}
+
+/* — Heading-4 (app detail only) — */
+
+.heading4 {
+  font-family: var(--font-display);
+  font-size: var(--fs-h2);
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+/* — Responsive — */
+
+@media screen and (max-width: 900px) {
+  .tabBtn {
+    min-height: var(--sz-touch);
+    padding: var(--sp-2) var(--sp-3);
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .tabStrip {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tabBtn {
+    min-height: var(--sz-touch);
+    padding: var(--sp-2) var(--sp-3);
+  }
+
+  .heading4 {
+    font-size: var(--fs-body);
+  }
+}

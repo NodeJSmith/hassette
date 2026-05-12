@@ -1,0 +1,11 @@
+/* Job executions — component-scoped styles */
+
+.tracebackRow td {
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Don't highlight traceback rows on hover */
+:global(.ht-table) tbody tr.tracebackRow:hover {
+  background: transparent;
+}

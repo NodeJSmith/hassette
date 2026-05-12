@@ -1,0 +1,109 @@
+/* Typography — body, headings, code, links, selection */
+
+/* — Base Typography ———————————————————————————————————— */
+body {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink-1);
+  background: var(--bg-page);
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  letter-spacing: var(--tr-h1);
+  font-weight: 400;
+  color: var(--ink-1);
+}
+
+.ht-display {
+  font-family: var(--font-display);
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  letter-spacing: var(--tr-h1);
+  font-weight: 400;
+}
+
+h2 {
+  font-family: var(--font-display);
+  font-size: var(--fs-h2);
+  line-height: var(--lh-h2);
+  letter-spacing: var(--tr-h2);
+  font-weight: 400;
+  color: var(--ink-1);
+}
+
+h3 {
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  line-height: var(--lh-h3);
+  letter-spacing: var(--tr-h3);
+  font-weight: 400;
+  color: var(--ink-1);
+}
+
+h4 {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: 500;
+  color: var(--ink-1);
+}
+
+code, pre, kbd {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-md);
+}
+
+code {
+  background: var(--code-bg);
+  color: var(--ink-1);
+  padding: 0.1em 0.35em;
+  border-radius: var(--r-sm);
+}
+
+pre {
+  background: var(--code-bg);
+  color: var(--ink-1);
+  padding: var(--sp-4);
+  border-radius: var(--r-md);
+  overflow-x: auto;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+/* Content links inside tables/data — underline for affordance since
+   light-mode accent is ink-1 (same as body text) */
+.ht-table td a {
+  text-decoration: underline;
+  text-decoration-color: var(--ink-4);
+  text-underline-offset: var(--sp-0);
+}
+
+.ht-table td a:hover {
+  text-decoration-color: var(--accent);
+}
+
+strong {
+  font-weight: 500;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink-1);
+}

@@ -74,6 +74,6 @@ def test_config_values_are_non_empty(page: Page, base_url: str) -> None:
     """Config table cells have actual values (not all em-dashes)."""
     page.goto(base_url + "/config")
     page.wait_for_load_state("networkidle")
-    value_cells = page.locator("td.ht-config-table__value")
+    value_cells = page.locator("[data-testid='config-value']")
     count = value_cells.count()
     assert count >= 10, f"Expected at least 10 config value cells, got {count}"

@@ -192,7 +192,7 @@ def test_sort_change_does_not_push_history(page: Page, base_url: str) -> None:
     # Remember the initial URL (no sort params)
     initial_url = page.url
     # Click a sort column header to change sort
-    sort_button = page.locator("button.ht-sort-header").first
+    sort_button = page.locator("button[data-testid='sort-header-btn']").first
     expect(sort_button).to_be_visible()
     sort_button.click()
     page.wait_for_timeout(300)
@@ -514,7 +514,7 @@ def test_sidebar_instance_link_uses_query_param_format(page: Page, base_url: str
     page.wait_for_load_state("networkidle")
     # Open the RUNNING sidebar group first (collapsed by default when
     # other status groups have apps)
-    running_header = page.locator(".ht-sidebar__group-header", has_text="RUNNING")
+    running_header = page.locator("[data-testid='group-header']", has_text="RUNNING")
     expect(running_header).to_be_visible()
     running_header.click()
     page.wait_for_timeout(300)
@@ -524,7 +524,7 @@ def test_sidebar_instance_link_uses_query_param_format(page: Page, base_url: str
     expand_btn.click()
     page.wait_for_timeout(300)
     # Click instance 0 link
-    instance_list = page.locator("ul.ht-sidebar__instance-list")
+    instance_list = page.locator("[data-testid='instance-list']").first
     expect(instance_list).to_be_visible()
     first_instance_link = instance_list.locator("a").first
     expect(first_instance_link).to_be_visible()

@@ -89,7 +89,7 @@ def test_both_modes_render_without_layout_breakage(page: Page, base_url: str) ->
     _clear_theme_pref(page)
 
     structural_selectors = [
-        ".ht-sidebar",
+        "[data-testid='sidebar']",
         "[data-testid='apps-page']",
     ]
 

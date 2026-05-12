@@ -1,0 +1,183 @@
+/* Handlers tab — component-scoped styles */
+
+/* — Master/Detail layout — */
+
+.masterDetail {
+  display: grid;
+  grid-template-columns: minmax(280px, 420px) 1fr;
+  align-items: start;
+  gap: var(--sp-4);
+}
+
+.masterDetailMobile {
+  display: block;
+}
+
+.masterDetailList {
+  overflow-y: auto;
+  max-height: 70vh;
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+}
+
+.masterDetailMobile .masterDetailList {
+  max-height: none;
+}
+
+.masterDetailDetail {
+  overflow-y: auto;
+}
+
+/* — Detail pane — */
+
+.detailPaneWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.detailPaneContent {
+  padding: var(--sp-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+}
+
+.detailPaneInvocationsPanel {
+  padding: var(--sp-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+}
+
+.detailPanePanelHeading {
+  font-family: var(--font-body);
+  font-size: var(--fs-h3);
+  font-weight: 500;
+  color: var(--ink-1);
+  margin: 0 0 var(--sp-3);
+}
+
+.detailPaneHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-2);
+}
+
+.detailPaneHandlerName {
+  font-family: var(--font-mono);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.detailPaneNameAutoHint {
+  display: inline-block;
+  margin-left: var(--sp-1);
+  font-family: var(--font-body);
+  font-size: var(--fs-micro);
+  font-weight: 400;
+  color: var(--ink-4);
+  cursor: help;
+  vertical-align: middle;
+}
+
+.detailPaneSubtitle {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  margin-bottom: var(--sp-3);
+}
+
+.detailPaneRegistration {
+  margin-bottom: var(--sp-3);
+}
+
+.detailPaneCodeSnippet {
+  margin: var(--sp-1) 0 0;
+  padding: var(--sp-3);
+  background: var(--bg-sunken);
+  border: 1px dashed var(--line-1);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.detailPaneSourceLoc {
+  margin-bottom: var(--sp-3);
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+}
+
+.detailPaneNextRun {
+  margin-bottom: var(--sp-3);
+}
+
+/* — Detail pane stats row — */
+
+.detailStatsRow {
+  display: flex;
+  gap: var(--sp-6);
+  flex-wrap: wrap;
+  padding: var(--sp-3) 0;
+  border-top: 1px solid var(--line-1);
+  border-bottom: 1px solid var(--line-1);
+  margin-bottom: var(--sp-4);
+}
+
+.detailStatsCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: var(--sp-9);
+}
+
+.detailStatsLabel {
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.detailStatsValue {
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  color: var(--ink-1);
+}
+
+.detailStatsValueErr {
+  color: var(--err);
+}
+
+.detailStatsValueWarn {
+  color: var(--warn);
+}
+
+/* — Modifier and schedule chip row — */
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+/* — Responsive — */
+
+@media screen and (max-width: 768px) {
+  .masterDetail {
+    display: block;
+  }
+
+  .masterDetailList {
+    max-height: none;
+    margin-bottom: var(--sp-4);
+  }
+}

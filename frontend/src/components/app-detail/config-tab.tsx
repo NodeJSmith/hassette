@@ -1,9 +1,11 @@
 import { useEffect, useState } from "preact/hooks";
+import clsx from "clsx";
 import { getAppConfig } from "../../api/endpoints";
 import { useSignal } from "../../hooks/use-signal";
 import { EmptyState } from "../shared/empty-state";
 import { Spinner } from "../shared/spinner";
 import type { AppConfigData } from "../../api/endpoints";
+import styles from "./config-tab.module.css";
 
 interface Props {
   appKey: string;
@@ -39,17 +41,17 @@ function ConfigValue({ val }: { val: unknown }) {
     <span>
       <button
         type="button"
-        class="ht-config-table__expand-btn"
+        class={styles.configTableExpandBtn}
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
       >
-        <svg class="ht-config-table__expand-icon" viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+        <svg class={styles.configTableExpandIcon} viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
           <polyline points={expanded ? "2,4 6,8 10,4" : "4,2 8,6 4,10"} fill="none" stroke="currentColor" stroke-width="1.5" />
         </svg>
         {formatConfigValue(val)}
       </button>
       {expanded && (
-        <pre class="ht-config-table__expanded-value">{JSON.stringify(val, null, 2)}</pre>
+        <pre class={styles.configTableExpandedValue}>{JSON.stringify(val, null, 2)}</pre>
       )}
     </span>
   );
@@ -83,12 +85,12 @@ function SchemaConfigTable({
   }
 
   return (
-    <table class="ht-table ht-table--compact ht-config-table" data-testid="config-values-table">
+    <table class={clsx("ht-table ht-table--compact", styles.configTable)} data-testid="config-values-table">
       <thead>
         <tr>
-          <th class="ht-config-table__key" scope="col">Key</th>
-          <th class="ht-config-table__col-type" scope="col">Type</th>
-          <th class="ht-config-table__col-value" scope="col">Value</th>
+          <th class={styles.configTableKey} scope="col">Key</th>
+          <th class={styles.configTableColType} scope="col">Type</th>
+          <th class={styles.configTableColValue} scope="col">Value</th>
         </tr>
       </thead>
       <tbody>
@@ -100,11 +102,11 @@ function SchemaConfigTable({
 
           return (
             <tr key={key} data-testid={`config-value-${key}`}>
-              <td class="ht-config-table__key">{key}</td>
-              <td class="ht-config-table__col-type">
+              <td class={styles.configTableKey}>{key}</td>
+              <td class={styles.configTableColType}>
                 <span class="ht-text-muted ht-text-xs">{typeName}</span>
               </td>
-              <td class={`ht-config-table__value${!hasValue ? " ht-config-table__value--empty" : ""}`}>
+              <td class={clsx(styles.configTableValue, !hasValue && styles.configTableValueEmpty)}>
                 <ConfigValue val={value} />
               </td>
             </tr>
@@ -124,18 +126,18 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
   }
 
   return (
-    <table class="ht-table ht-config-tab__table" data-testid="config-values-table">
+    <table class={clsx("ht-table", styles.table)} data-testid="config-values-table">
       <thead>
         <tr>
-          <th class="ht-config-tab__col-key" scope="col">Key</th>
-          <th class="ht-config-tab__col-value" scope="col">Value</th>
+          <th class={styles.colKey} scope="col">Key</th>
+          <th class={styles.colValue} scope="col">Value</th>
         </tr>
       </thead>
       <tbody>
         {entries.map(([key, val]) => (
           <tr key={key}>
             <td><code class="ht-text-mono ht-text-sm">{key}</code></td>
-            <td class="ht-config-tab__value" data-testid={`config-value-${key}`}>
+            <td class={styles.value} data-testid={`config-value-${key}`}>
               <code class="ht-text-mono ht-text-sm"><ConfigValue val={val} /></code>
             </td>
           </tr>
@@ -181,7 +183,7 @@ export function ConfigTab({ appKey }: Props) {
 
   if (error.value) {
     return (
-      <div class="ht-card" data-testid="config-tab-error">
+      <div class={`ht-card ${styles.configTabError}`} data-testid="config-tab-error">
         <p class="ht-text-muted ht-text-sm">{error.value}</p>
       </div>
     );
@@ -195,18 +197,18 @@ export function ConfigTab({ appKey }: Props) {
   const isListConfig = Array.isArray(appConfig);
 
   return (
-    <div class="ht-config-tab" data-testid="config-tab-content">
+    <div class={styles.configTab} data-testid="config-tab-content">
       {/* Metadata header */}
-      <div class="ht-config-tab__meta" data-testid="config-meta">
-        <div class="ht-config-tab__meta-row">
+      <div class={styles.meta} data-testid="config-meta">
+        <div class={styles.metaRow}>
           <span class="ht-detail-label">File</span>
           <code class="ht-text-mono ht-text-sm">{cfg.filename}</code>
         </div>
-        <div class="ht-config-tab__meta-row">
+        <div class={styles.metaRow}>
           <span class="ht-detail-label">Class</span>
           <code class="ht-text-mono ht-text-sm">{cfg.class_name}</code>
         </div>
-        <div class="ht-config-tab__meta-row">
+        <div class={styles.metaRow}>
           <span class="ht-detail-label">Enabled</span>
           <span class={`ht-badge ${cfg.enabled ? "ht-badge--success" : "ht-badge--neutral"}`}>
             {cfg.enabled ? "yes" : "no"}
@@ -215,15 +217,15 @@ export function ConfigTab({ appKey }: Props) {
       </div>
 
       {/* 2-column layout: config table + raw values */}
-      <div class="ht-config-tab__layout">
-        <div class="ht-config-tab__fields-card">
+      <div class={styles.layout}>
+        <div class={styles.fieldsCard}>
           <h3 class="ht-section-label">configuration</h3>
           <div class="ht-card ht-card--config">
           {isListConfig ? (
-            <div class="ht-config-tab__instances">
+            <div class={styles.instances}>
               {(appConfig as unknown[]).map((instanceCfg, idx) => (
-                <div key={idx} class="ht-config-tab__instance-block" data-testid={`config-instance-${idx}`}>
-                  <h4 class="ht-config-tab__instance-heading">Instance {idx}</h4>
+                <div key={idx} class={styles.instanceBlock} data-testid={`config-instance-${idx}`}>
+                  <h4 class={styles.instanceHeading}>Instance {idx}</h4>
                   {instanceCfg && typeof instanceCfg === "object" && !Array.isArray(instanceCfg) ? (
                     schema
                       ? <SchemaConfigTable config={instanceCfg as ConfigRecord} schema={schema} />
@@ -245,11 +247,11 @@ export function ConfigTab({ appKey }: Props) {
         </div>
 
         {/* Raw config card */}
-        <div class="ht-config-tab__raw-card">
+        <div class={styles.rawCard}>
           <h3 class="ht-section-label">raw config</h3>
           <div class="ht-card ht-card--config">
           <span class="ht-text-mono ht-text-xs ht-text-muted">hassette.toml → apps.{appKey}.config</span>
-          <pre class="ht-config-tab__raw-code">{JSON.stringify(appConfig, null, 2)}</pre>
+          <pre class={styles.rawCode}>{JSON.stringify(appConfig, null, 2)}</pre>
           </div>
         </div>
       </div>

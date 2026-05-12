@@ -6,6 +6,7 @@ import { getAppSource } from "../../api/endpoints";
 import type { AppSourceData, ListenerData } from "../../api/endpoints";
 import { Spinner } from "../shared/spinner";
 import { parseSourceLocation } from "../../utils/format";
+import styles from "./code-tab.module.css";
 
 interface Props {
   appKey: string;
@@ -135,7 +136,7 @@ export function CodeTab({ appKey, listeners }: Props) {
 
   if (error.value) {
     return (
-      <div class="ht-code-tab__error ht-card" data-testid="code-tab-error">
+      <div class={`${styles.error} ht-card`} data-testid="code-tab-error">
         <p class="ht-text-muted ht-text-sm">{error.value}</p>
       </div>
     );
@@ -155,15 +156,15 @@ export function CodeTab({ appKey, listeners }: Props) {
   };
 
   return (
-    <div class="ht-code-tab" data-testid="code-tab-content">
-      <div class="ht-code-tab__header" data-testid="code-tab-header">
-        <div class="ht-code-tab__header-source">
+    <div class={styles.codeTab} data-testid="code-tab-content">
+      <div class={styles.header} data-testid="code-tab-header">
+        <div class={styles.headerSource}>
           <span class="ht-detail-label">Source</span>
           <span class="ht-text-mono ht-text-sm ht-text-muted">{source.value.filename}</span>
         </div>
-        <div class="ht-code-tab__header-meta">
+        <div class={styles.headerMeta}>
           <span class="ht-text-muted ht-text-sm">{lineCount} lines</span>
-          <span class="ht-code-tab__readonly-label">read-only</span>
+          <span class={styles.readonlyLabel}>read-only</span>
           <button
             type="button"
             class="ht-btn ht-btn--ghost ht-btn--sm"
@@ -176,7 +177,7 @@ export function CodeTab({ appKey, listeners }: Props) {
         </div>
       </div>
       <div
-        class="ht-code-tab__body"
+        class={styles.body}
         // biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki output is trusted
         dangerouslySetInnerHTML={{ __html: processedHtml }}
       />

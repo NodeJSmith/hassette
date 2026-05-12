@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "preact/hooks";
 import { useSignal } from "../../hooks/use-signal";
 import { useLocation } from "wouter";
+import clsx from "clsx";
 import type { ListenerData, JobData } from "../../api/endpoints";
 import { getHandlerInvocations, getJobExecutions } from "../../api/endpoints";
 import { HandlerList, type SelectedHandlerId, listenerStatusKind, jobStatusKind } from "./handler-list";
@@ -20,6 +21,7 @@ import { EmptyState } from "../shared/empty-state";
 import { ErrorBanner } from "../shared/error-banner";
 import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
+import styles from "./handlers-tab.module.css";
 
 
 interface Props {
@@ -44,7 +46,7 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
 
   if (chips.length === 0) return null;
   return (
-    <div class="ht-chip-row" data-testid="modifier-chips">
+    <div class={styles.chipRow} data-testid="modifier-chips">
       {chips.map((c) => (
         <span key={c.label} class="ht-chip ht-chip--modifier">
           {c.label}{c.value ? ` ${c.value}` : ""}
@@ -63,7 +65,7 @@ function ScheduleChips({ job }: { job: JobData }) {
 
   if (chips.length === 0) return null;
   return (
-    <div class="ht-chip-row" data-testid="schedule-chips">
+    <div class={styles.chipRow} data-testid="schedule-chips">
       {chips.map((c) => (
         <span key={c.label} class="ht-chip ht-chip--schedule">{c.label}</span>
       ))}
@@ -79,11 +81,22 @@ interface StatsCell {
 
 function DetailStatsRow({ cells, testId }: { cells: StatsCell[]; testId?: string }) {
   return (
-    <div class="ht-detail-stats-row" data-testid={testId}>
+    <div class={styles.detailStatsRow} data-testid={testId}>
       {cells.map((cell) => (
-        <div class="ht-detail-stats-row__cell" key={cell.label}>
-          <span class="ht-detail-stats-row__label">{cell.label}</span>
-          <span class={`ht-detail-stats-row__value${cell.tone ? ` ht-detail-stats-row__value--${cell.tone}` : ""}`}>
+        <div
+          class={styles.detailStatsCell}
+          key={cell.label}
+          data-testid={testId ? `${testId}-cell` : undefined}
+        >
+          <span class={styles.detailStatsLabel}>{cell.label}</span>
+          <span
+            class={clsx(
+              styles.detailStatsValue,
+              cell.tone === "err" && styles.detailStatsValueErr,
+              cell.tone === "warn" && styles.detailStatsValueWarn,
+            )}
+            data-tone={cell.tone}
+          >
             {cell.value}
           </span>
         </div>
@@ -154,15 +167,15 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
   const { filename: sourceFilename, line: sourceLine } = parseSourceLocation(listener.source_location);
 
   return (
-    <div class="ht-detail-pane__wrapper" data-testid={`listener-detail-${listener.listener_id}`}>
-    <div class="ht-detail-pane__content">
+    <div class={styles.detailPaneWrapper} data-testid={`listener-detail-${listener.listener_id}`}>
+    <div class={styles.detailPaneContent}>
       {/* Header: kind badge + name + status pill */}
-      <div class="ht-detail-pane__header">
+      <div class={styles.detailPaneHeader}>
         <span class={`ht-chip ht-chip--kind ht-chip--kind-${listenerKind}`} aria-label={`kind: ${kindLabel}`}>
           <StatusShape kind={listenerKind} size={8} />
           {kindLabel}
         </span>
-        <span class="ht-detail-pane__handler-name">{lastDotSegment(listener.handler_method)}</span>
+        <span class={styles.detailPaneHandlerName}>{lastDotSegment(listener.handler_method)}</span>
         {isFailing && (
           <span class="ht-badge ht-badge--danger ht-badge--sm" data-testid="handler-status-pill">failing</span>
         )}
@@ -170,16 +183,16 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
 
       {/* Subtitle: human_description */}
       {listener.human_description && (
-        <p class="ht-detail-pane__subtitle" data-testid="handler-human-description">
+        <p class={styles.detailPaneSubtitle} data-testid="handler-human-description">
           {listener.human_description}
         </p>
       )}
 
       {/* Registration source: actual code snippet */}
       {listener.registration_source && (
-        <div class="ht-detail-pane__registration" data-testid="handler-registration-source">
+        <div class={styles.detailPaneRegistration} data-testid="handler-registration-source">
           <span class="ht-detail-label">Registration</span>
-          <pre class="ht-detail-pane__code-snippet"><code>{listener.registration_source}</code></pre>
+          <pre class={styles.detailPaneCodeSnippet}><code>{listener.registration_source}</code></pre>
         </div>
       )}
 
@@ -188,7 +201,7 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
 
       {/* Source file location */}
       {listener.source_location && (
-        <div class="ht-detail-pane__source-loc" data-testid="handler-source-location">
+        <div class={styles.detailPaneSourceLoc} data-testid="handler-source-location">
           <span class="ht-text-mono ht-text-sm ht-text-muted">
             {sourceFilename}{sourceLine ? `:${sourceLine}` : ""}
           </span>
@@ -222,8 +235,8 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
     </div>
 
     {/* Invocations panel */}
-    <div class="ht-detail-pane__invocations-panel">
-      <h3 class="ht-detail-pane__panel-heading">invocations</h3>
+    <div class={styles.detailPaneInvocationsPanel}>
+      <h3 class={styles.detailPanePanelHeading}>invocations</h3>
       {loading.value && !invocations.value ? (
         <Spinner />
       ) : (
@@ -277,19 +290,19 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
   const jobKind = jobStatusKind(job);
 
   return (
-    <div class="ht-detail-pane__wrapper" data-testid={`job-detail-${job.job_id}`}>
-    <div class="ht-detail-pane__content">
+    <div class={styles.detailPaneWrapper} data-testid={`job-detail-${job.job_id}`}>
+    <div class={styles.detailPaneContent}>
       {/* Header: kind badge + name + status pill */}
-      <div class="ht-detail-pane__header">
+      <div class={styles.detailPaneHeader}>
         <span class={`ht-chip ht-chip--kind ht-chip--kind-${jobKind}`} aria-label={`kind: ${kindLabel}`}>
           <StatusShape kind={jobKind} size={8} />
           {kindLabel}
         </span>
-        <span class="ht-detail-pane__handler-name">
+        <span class={styles.detailPaneHandlerName}>
           {job.job_name}
           {job.name_auto && (
             <span
-              class="ht-detail-pane__name-auto-hint"
+              class={styles.detailPaneNameAutoHint}
               title={`Auto-generated name. Pass name="..." when scheduling for something descriptive.`}
               aria-label="Auto-generated name"
             >ⓘ</span>
@@ -299,16 +312,16 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
 
       {/* Subtitle: combined trigger label + detail */}
       {(job.trigger_label || job.trigger_detail) && (
-        <p class="ht-detail-pane__subtitle">
+        <p class={styles.detailPaneSubtitle}>
           {[job.trigger_label, job.trigger_detail ? formatTriggerDetail(job.trigger_detail) : null].filter(Boolean).join(" ")}
         </p>
       )}
 
       {/* Registration source */}
       {job.registration_source && (
-        <div class="ht-detail-pane__registration" data-testid="job-registration-source">
+        <div class={styles.detailPaneRegistration} data-testid="job-registration-source">
           <span class="ht-detail-label">Registration</span>
-          <pre class="ht-detail-pane__code-snippet"><code>{job.registration_source}</code></pre>
+          <pre class={styles.detailPaneCodeSnippet}><code>{job.registration_source}</code></pre>
         </div>
       )}
 
@@ -317,14 +330,14 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
 
       {/* Next-run strip */}
       {nextRunText && (
-        <div class="ht-detail-pane__next-run" data-testid="job-next-run">
+        <div class={styles.detailPaneNextRun} data-testid="job-next-run">
           <code class="ht-text-mono ht-text-sm ht-text-muted">{nextRunText}</code>
         </div>
       )}
 
       {/* Source file location */}
       {job.source_location && (
-        <div class="ht-detail-pane__source-loc" data-testid="job-source-location">
+        <div class={styles.detailPaneSourceLoc} data-testid="job-source-location">
           <span class="ht-text-mono ht-text-sm ht-text-muted">
             {sourceFilename}{sourceLine ? `:${sourceLine}` : ""}
           </span>
@@ -358,8 +371,8 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
     </div>
 
     {/* Executions panel */}
-    <div class="ht-detail-pane__invocations-panel">
-      <h3 class="ht-detail-pane__panel-heading">executions</h3>
+    <div class={styles.detailPaneInvocationsPanel}>
+      <h3 class={styles.detailPanePanelHeading}>executions</h3>
       {loading.value && !executions.value ? (
         <Spinner />
       ) : (
@@ -441,7 +454,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
 
   if (!hasItems) {
     return (
-      <div class="ht-handlers-tab" data-testid="handlers-empty">
+      <div data-testid="handlers-empty">
         <EmptyState title="no handlers or scheduled jobs registered." />
       </div>
     );
@@ -458,7 +471,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
     : null;
 
   return (
-    <div class="ht-handlers-tab" ref={containerRef}>
+    <div ref={containerRef}>
       {/* Health strip — above master/detail layout */}
       <HandlersHealthStrip listeners={listeners} jobs={jobs} timeLabel={TIME_PRESET_LABELS[effectiveTimePreset.value] ?? ""} />
 
@@ -475,10 +488,10 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
         </button>
       )}
 
-      <div class={`ht-master-detail${isMobile.value ? " ht-master-detail--mobile" : ""}`}>
+      <div class={clsx(styles.masterDetail, isMobile.value && styles.masterDetailMobile)}>
         {/* Master list */}
         {showMasterList && (
-          <div class="ht-master-detail__list">
+          <div class={styles.masterDetailList}>
             <HandlerList
               listeners={listeners}
               jobs={jobs}
@@ -490,7 +503,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
 
         {/* Detail pane */}
         {showDetailPane && (
-          <div class="ht-master-detail__detail">
+          <div class={styles.masterDetailDetail}>
             {selectedListener ? (
               <ListenerDetail listener={selectedListener} onSwitchToCode={onSwitchToCode} />
             ) : selectedJob ? (

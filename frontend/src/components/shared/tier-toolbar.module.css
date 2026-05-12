@@ -1,0 +1,52 @@
+.tierToolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.tierToggle {
+  display: inline-flex;
+  margin-left: auto;
+  gap: 0;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.btn {
+  background: transparent;
+  border: none;
+  padding: 0.15em 0.5em;
+  font-size: 0.75em;
+  font-family: var(--font-body);
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.btn:not(:last-child) {
+  border-right: 1px solid var(--line-1);
+}
+
+.active {
+  background: var(--bg-surface);
+  color: var(--ink-1);
+  font-weight: 600;
+}
+
+.btn:hover:not(.active) {
+  background: var(--bg-active);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: calc(-1 * var(--sp-0));
+}
+
+@media screen and (max-width: 900px) {
+  .btn {
+    min-height: var(--sz-touch);
+    padding: 0.15em 0.75em;
+  }
+}

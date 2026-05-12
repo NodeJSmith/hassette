@@ -1,9 +1,11 @@
+import clsx from "clsx";
 import { StatusShape } from "../shared/status-shape";
 import type { StatusKind } from "../../utils/status";
 import { handlerKindLabel } from "../../utils/status";
 import type { ListenerData, JobData } from "../../api/endpoints";
 import { pluralize, formatTimestamp } from "../../utils/format";
 import { useRelativeTime } from "../../hooks/use-relative-time";
+import styles from "./unified-handler-row.module.css";
 
 export type UnifiedItemKind = "listener" | "job";
 
@@ -82,45 +84,45 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
   return (
     <button
       type="button"
-      class={`ht-unified-row${isSelected ? " ht-unified-row--selected" : ""}`}
+      class={clsx(styles.row, isSelected && styles.rowSelected)}
       data-testid={`unified-row-${item.kind}-${item.id}`}
       aria-pressed={isSelected}
       aria-label={`${item.name}${item.humanDescription ? ": " + item.humanDescription : ""}`}
       onClick={onSelect}
     >
-      <span class="ht-unified-row__status" aria-hidden="true">
+      <span class={styles.status} aria-hidden="true">
         <StatusShape kind={item.statusKind} size={10} />
       </span>
-      <span class="ht-unified-row__kind-glyph" aria-hidden="true">{glyph}</span>
-      <div class="ht-unified-row__body">
-        <div class="ht-unified-row__header">
-          <span class="ht-unified-row__kind-chip" aria-label={`kind: ${chipLabel}`}>
+      <span class={styles.kindGlyph} aria-hidden="true" data-testid="handler-row-glyph">{glyph}</span>
+      <div class={styles.body}>
+        <div class={styles.header}>
+          <span class={styles.kindChip} aria-label={`kind: ${chipLabel}`}>
             {chipLabel}
           </span>
-          <span class="ht-unified-row__name">{item.name}</span>
+          <span class={styles.name}>{item.name}</span>
           {isFailing && (
             <span class="ht-badge ht-badge--danger ht-badge--xs">failing</span>
           )}
         </div>
         {/* Subline: error message (when failing) or human description (otherwise) */}
         {isFailing && lastErrorMessage ? (
-          <span class="ht-unified-row__subline--err" title={lastErrorMessage}>
+          <span class={styles.sublineErr} title={lastErrorMessage} data-testid="handler-row-subline-err">
             {lastErrorMessage}
           </span>
         ) : item.humanDescription ? (
-          <span class="ht-unified-row__desc">{item.humanDescription}</span>
+          <span class={styles.desc} data-testid="handler-row-desc">{item.humanDescription}</span>
         ) : null}
         {/* Next-run line for schedule jobs */}
         {nextRunLabel !== null && (
-          <span class="ht-unified-row__next-run" title={nextRunTitle ?? undefined}>{nextRunLabel}</span>
+          <span class={styles.nextRun} title={nextRunTitle ?? undefined} data-testid="handler-row-next-run">{nextRunLabel}</span>
         )}
-        <div class="ht-unified-row__stats">
+        <div class={styles.stats}>
           <span title={`Total ${callLabel}s`}>{pluralize(invocationsOrRuns, callLabel)}</span>
           {failed > 0 && (
-            <span class="ht-unified-row__stats--err">{failed} failed</span>
+            <span class={styles.statsErr}>{failed} failed</span>
           )}
           {timedOut > 0 && (
-            <span class="ht-unified-row__stats--warn">{timedOut} timed out</span>
+            <span class={styles.statsWarn}>{timedOut} timed out</span>
           )}
         </div>
       </div>

@@ -52,7 +52,7 @@ describe("CommandPalette — open/close", () => {
   it("calls onClose when backdrop is clicked", () => {
     const onClose = vi.fn();
     const { container } = renderPalette({ onClose });
-    const backdrop = container.querySelector(".ht-cmd-palette__backdrop")!;
+    const backdrop = container.querySelector("[data-testid='cmd-palette-backdrop']")!;
     fireEvent.click(backdrop);
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -66,12 +66,12 @@ describe("CommandPalette — structure", () => {
   });
 
   it("renders keyboard hints footer", () => {
-    const { container } = renderPalette();
-    const footer = container.querySelector(".ht-cmd-palette__footer");
+    const { getByTestId } = renderPalette();
+    const footer = getByTestId("cmd-palette-footer");
     expect(footer).not.toBeNull();
-    expect(footer!.textContent).toContain("navigate");
-    expect(footer!.textContent).toContain("select");
-    expect(footer!.textContent).toContain("close");
+    expect(footer.textContent).toContain("navigate");
+    expect(footer.textContent).toContain("select");
+    expect(footer.textContent).toContain("close");
   });
 
   it("dialog has role=dialog and aria-modal", () => {
@@ -99,11 +99,11 @@ describe("CommandPalette — static items (pages and actions)", () => {
   it("shows section headers for pages and actions", async () => {
     const { container } = renderPalette();
     await screen.findByText("apps");
-    const headers = Array.from(container.querySelectorAll(".ht-cmd-palette__section-header")).map(
-      (el) => el.textContent,
+    const headers = Array.from(container.querySelectorAll("[data-testid^='cmd-section-']")).map(
+      (el) => el.getAttribute("data-testid")?.replace("cmd-section-", ""),
     );
-    expect(headers).toContain("pages");
-    expect(headers).toContain("actions");
+    expect(headers).toContain("page");
+    expect(headers).toContain("action");
   });
 });
 
@@ -123,10 +123,10 @@ describe("CommandPalette — app items", () => {
   it("shows section header for apps", async () => {
     const { container } = renderPalette({ stateOverrides: garageOverrides });
     await screen.findByText("Garage App");
-    const headers = Array.from(container.querySelectorAll(".ht-cmd-palette__section-header")).map(
-      (el) => el.textContent,
+    const headers = Array.from(container.querySelectorAll("[data-testid^='cmd-section-']")).map(
+      (el) => el.getAttribute("data-testid")?.replace("cmd-section-", ""),
     );
-    expect(headers).toContain("apps");
+    expect(headers).toContain("app");
   });
 
   it("shows instance items for multi-instance apps", async () => {
@@ -172,7 +172,7 @@ describe("CommandPalette — app items", () => {
     fireEvent.input(input, { target: { value: "inst_1" } });
     await screen.findByText("inst_1");
     fireEvent.keyDown(input, { key: "ArrowDown" });
-    const activeItem = container.querySelector(".ht-cmd-palette__result--active");
+    const activeItem = container.querySelector("[aria-selected='true']");
     expect(activeItem?.textContent).toContain("inst_1");
     fireEvent.keyDown(input, { key: "Enter" });
     expect(mockNavigate).toHaveBeenCalledWith("/apps/multi_app?instance=1");
@@ -206,11 +206,11 @@ describe("CommandPalette — filtering", () => {
     const { container } = renderPalette({ stateOverrides: twoAppsOverrides });
     // Re-render after input is typed in first render
     fireEvent.input(container.querySelector("input")!, { target: { value: "garage" } });
-    const headers = Array.from(container.querySelectorAll(".ht-cmd-palette__section-header")).map(
-      (el) => el.textContent?.toLowerCase(),
+    const sections = Array.from(container.querySelectorAll("[data-testid^='cmd-section-']")).map(
+      (el) => el.getAttribute("data-testid")?.replace("cmd-section-", ""),
     );
-    // Pages section header should not appear (no page matches "garage")
-    expect(headers).not.toContain("pages");
+    // Pages section should not appear (no page matches "garage")
+    expect(sections).not.toContain("page");
   });
 
   it("shows empty state when nothing matches", async () => {
@@ -228,8 +228,8 @@ describe("CommandPalette — keyboard navigation", () => {
     await screen.findByText("apps");
     const input = screen.getByPlaceholderText("Search apps, handlers, pages, actions…");
     fireEvent.keyDown(input, { key: "ArrowDown" });
-    // First item should now be selected — check for ht-cmd-palette__result--active
-    const activeItems = document.querySelectorAll(".ht-cmd-palette__result--active");
+    // First item should now be selected — check for aria-selected
+    const activeItems = document.querySelectorAll("[role='option'][aria-selected='true']");
     expect(activeItems.length).toBe(1);
   });
 
@@ -240,7 +240,7 @@ describe("CommandPalette — keyboard navigation", () => {
     // Press down once to select first item, then up to go back to -1
     fireEvent.keyDown(input, { key: "ArrowDown" });
     fireEvent.keyDown(input, { key: "ArrowUp" });
-    const activeItems = document.querySelectorAll(".ht-cmd-palette__result--active");
+    const activeItems = document.querySelectorAll("[role='option'][aria-selected='true']");
     expect(activeItems.length).toBe(0);
   });
 });
@@ -253,7 +253,7 @@ describe("CommandPalette — selection actions", () => {
     // Navigate to Apps item
     fireEvent.keyDown(input, { key: "ArrowDown" });
     // Find active item and confirm it's Apps
-    const activeItem = container.querySelector(".ht-cmd-palette__result--active");
+    const activeItem = container.querySelector("[role='option'][aria-selected='true']");
     expect(activeItem?.textContent).toContain("apps");
     fireEvent.keyDown(input, { key: "Enter" });
     expect(mockNavigate).toHaveBeenCalledWith("/apps");
@@ -275,7 +275,7 @@ describe("CommandPalette — selection actions", () => {
     await screen.findByText("My App");
     // Arrow down to select the app item
     fireEvent.keyDown(input, { key: "ArrowDown" });
-    const activeItem = container.querySelector(".ht-cmd-palette__result--active");
+    const activeItem = container.querySelector("[role='option'][aria-selected='true']");
     expect(activeItem?.textContent).toContain("My App");
     fireEvent.keyDown(input, { key: "Enter" });
     expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app");
@@ -284,10 +284,13 @@ describe("CommandPalette — selection actions", () => {
 
 describe("CommandPalette — type chips", () => {
   it("renders type chips for result items", async () => {
-    const { container } = renderPalette();
+    renderPalette();
     await screen.findByText("apps");
-    const chips = container.querySelectorAll(".ht-cmd-palette__chip");
-    expect(chips.length).toBeGreaterThan(0);
+    // Chips are the kind labels inside result buttons — check for "page" chip text
+    const results = screen.getAllByRole("option");
+    expect(results.length).toBeGreaterThan(0);
+    // The first result (a page item) contains a "page" chip
+    expect(results[0].textContent).toContain("page");
   });
 });
 
@@ -328,7 +331,7 @@ describe("CommandPalette — handlers", () => {
     fireEvent.input(input, { target: { value: "on_state_change" } });
     await screen.findByText("on_state_change");
     fireEvent.keyDown(input, { key: "ArrowDown" });
-    const activeItem = container.querySelector(".ht-cmd-palette__result--active");
+    const activeItem = container.querySelector("[role='option'][aria-selected='true']");
     expect(activeItem?.textContent).toContain("on_state_change");
     fireEvent.keyDown(input, { key: "Enter" });
     expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/h-42");
@@ -344,10 +347,10 @@ describe("CommandPalette — handlers", () => {
     );
     const { container } = renderPalette();
     await screen.findByText("on_state_change");
-    const headers = Array.from(container.querySelectorAll(".ht-cmd-palette__section-header")).map(
-      (el) => el.textContent,
+    const sections = Array.from(container.querySelectorAll("[data-testid^='cmd-section-']")).map(
+      (el) => el.getAttribute("data-testid")?.replace("cmd-section-", ""),
     );
-    expect(headers).toContain("handlers");
+    expect(sections).toContain("handler");
   });
 
   it("degrades gracefully when handler fetch fails", async () => {

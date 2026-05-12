@@ -387,12 +387,11 @@ describe("LogTable", () => {
     );
     await flushRAF();
 
-    const msgCell = container.querySelector("td.ht-log-message-cell") as HTMLElement;
+    const msgCell = container.querySelector("[data-testid='log-message-cell']") as HTMLElement;
     expect(msgCell).toBeDefined();
     // No role="button" or aria-expanded on non-expandable cells
     expect(msgCell.getAttribute("role")).toBeNull();
     expect(msgCell.getAttribute("aria-expanded")).toBeNull();
-    expect(msgCell.classList.contains("is-expandable")).toBe(false);
   });
 
   it("clicking non-truncated cell does not add is-expanded", async () => {
@@ -404,9 +403,9 @@ describe("LogTable", () => {
     );
     await flushRAF();
 
-    const msgCell = container.querySelector("td.ht-log-message-cell") as HTMLElement;
+    const msgCell = container.querySelector("[data-testid='log-message-cell']") as HTMLElement;
     fireEvent.click(msgCell);
-    expect(msgCell.classList.contains("is-expanded")).toBe(false);
+    expect(msgCell.getAttribute("aria-expanded")).toBeNull();
   });
 
   it("truncated message cell becomes expandable and toggles on click", async () => {
@@ -426,14 +425,12 @@ describe("LogTable", () => {
       // Flush requestAnimationFrame to trigger recheckTruncation()
       await flushRAF();
 
-      const msgCell = container.querySelector("td.ht-log-message-cell") as HTMLElement;
-      expect(msgCell.classList.contains("is-expandable")).toBe(true);
+      const msgCell = container.querySelector("[data-testid='log-message-cell']") as HTMLElement;
       expect(msgCell.getAttribute("role")).toBe("button");
       expect(msgCell.getAttribute("aria-expanded")).toBe("false");
 
       fireEvent.click(msgCell);
       expect(msgCell.getAttribute("aria-expanded")).toBe("true");
-      expect(msgCell.classList.contains("is-expanded")).toBe(true);
 
       fireEvent.click(msgCell);
       expect(msgCell.getAttribute("aria-expanded")).toBe("false");
@@ -458,7 +455,7 @@ describe("LogTable", () => {
       );
       await flushRAF();
 
-      const msgCell = container.querySelector("td.ht-log-message-cell") as HTMLElement;
+      const msgCell = container.querySelector("[data-testid='log-message-cell']") as HTMLElement;
       fireEvent.keyDown(msgCell, { key: "Enter" });
       expect(msgCell.getAttribute("aria-expanded")).toBe("true");
 
@@ -478,7 +475,7 @@ describe("LogTable", () => {
       { wrapper: createWrapper(state) },
     );
 
-    const textEl = container.querySelector(".ht-log-message__text") as HTMLElement;
+    const textEl = container.querySelector("[data-row-key]") as HTMLElement;
     expect(textEl).not.toBeNull();
     expect(textEl.getAttribute("data-row-key")).toBe("42");
   });
@@ -559,7 +556,7 @@ describe("LogTable", () => {
     );
 
     // The level badge wraps a StatusShape SVG and the level text
-    const badge = container.querySelector(".ht-log-level-badge");
+    const badge = container.querySelector("[data-testid='log-level-badge']");
     expect(badge).not.toBeNull();
     expect(badge!.textContent).toContain("ERROR");
     // err kind renders a rect (rounded square) SVG element
@@ -574,7 +571,7 @@ describe("LogTable", () => {
       { wrapper: createWrapper(state) },
     );
 
-    const badge = container.querySelector(".ht-log-level-badge");
+    const badge = container.querySelector("[data-testid='log-level-badge']");
     expect(badge).not.toBeNull();
     expect(badge!.textContent).toContain("WARNING");
     // warn kind renders a triangle (polygon) SVG element
@@ -589,7 +586,7 @@ describe("LogTable", () => {
       { wrapper: createWrapper(state) },
     );
 
-    const badge = container.querySelector(".ht-log-level-badge");
+    const badge = container.querySelector("[data-testid='log-level-badge']");
     expect(badge).not.toBeNull();
     expect(badge!.textContent).toContain("INFO");
     // ok kind renders a filled circle SVG element
@@ -607,7 +604,7 @@ describe("LogTable", () => {
     // Need to show DEBUG — default filter is INFO
     fireEvent.change(getByTestId("filter-level"), { target: { value: "" } });
 
-    const badge = container.querySelector(".ht-log-level-badge");
+    const badge = container.querySelector("[data-testid='log-level-badge']");
     expect(badge).not.toBeNull();
     expect(badge!.textContent).toContain("DEBUG");
     // mute kind renders a stroke-only circle (no filled rect/polygon)
@@ -1114,7 +1111,7 @@ describe("Mobile responsive rendering", () => {
     );
     fireEvent.change(getByTestId("filter-level"), { target: { value: "" } });
 
-    const levelBadges = container.querySelectorAll(".ht-log-level-badge__text");
+    const levelBadges = container.querySelectorAll("[data-testid='log-level-badge'] span");
     const badgeTexts = Array.from(levelBadges).map((b) => b.textContent);
     expect(badgeTexts).toContain("I");
     expect(badgeTexts).toContain("W");
@@ -1148,7 +1145,7 @@ describe("Mobile responsive rendering", () => {
       { wrapper: createWrapper(state) },
     );
 
-    const sourceInline = container.querySelector(".ht-log-source-inline");
+    const sourceInline = container.querySelector("[data-testid='log-source-inline']");
     expect(sourceInline).not.toBeNull();
     expect(sourceInline!.textContent).toContain("my_app.");
     expect(sourceInline!.textContent).toContain("on_change()");

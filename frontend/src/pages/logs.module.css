@@ -1,0 +1,14 @@
+/* Logs page — component-scoped styles */
+
+.page {
+  height: 100%;
+}
+
+.cardFull {
+  flex: 1;
+}
+
+/* Make log scroll fill available vertical space on the Logs page */
+.page :global(.ht-table-card-scroll) {
+  --table-scroll-height: calc(100vh - 270px);
+}

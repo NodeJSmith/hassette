@@ -1,0 +1,94 @@
+/* Handlers page — component-scoped styles */
+
+.handlersTable td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.row:hover {
+  background: var(--bg-active);
+}
+
+.rowFailing {
+  background: var(--err-bg);
+}
+
+.rowFailing:hover {
+  background: color-mix(in srgb, var(--err-bg) 70%, var(--bg-active));
+}
+
+/* Mobile card layout */
+
+.mobileCards {
+  display: flex;
+  flex-direction: column;
+}
+
+.mobileCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--line-2);
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--t-fast);
+}
+
+.mobileCard:last-child {
+  border-bottom: none;
+}
+
+.mobileCard:hover {
+  background: var(--bg-active);
+}
+
+.mobileCardFailing {
+  background: var(--err-bg);
+}
+
+.mobileCardHeader {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: baseline;
+}
+
+.mobileCardMetrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+}
+
+.mobileCardFooter {
+  display: flex;
+  gap: var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+}
+
+/* Responsive: 768px — touch affordances for mobile cards */
+
+@media (max-width: 768px) {
+  .mobileCard:active {
+    background: var(--bg-active);
+  }
+
+  .mobileCard::after {
+    content: "›";
+    position: absolute;
+    right: var(--sp-3);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--ink-4);
+    font-size: var(--fs-h3);
+  }
+
+  .mobileCard {
+    position: relative;
+  }
+}

@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
+import clsx from "clsx";
+import styles from "./confirm-dialog.module.css";
 
 interface Props {
   title: string;
@@ -81,25 +83,25 @@ export function ConfirmDialog({
 
   return (
     <>
-      <div class="ht-confirm-dialog__backdrop" onClick={onCancel} aria-hidden="true" />
+      <div class={styles.backdrop} data-testid="confirm-dialog-backdrop" onClick={onCancel} aria-hidden="true" />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={bodyId}
-        class="ht-confirm-dialog"
+        class={styles.dialog}
       >
-        <h2 id={titleId} class="ht-confirm-dialog__title">
+        <h2 id={titleId} class={styles.title}>
           {title}
         </h2>
-        <p id={bodyId} class="ht-confirm-dialog__body">
+        <p id={bodyId} class={styles.body}>
           {body}
         </p>
-        <div class="ht-confirm-dialog__actions">
+        <div class={styles.actions}>
           <button
             type="button"
             ref={cancelRef}
-            class="ht-confirm-dialog__cancel"
+            class="ht-btn"
             onClick={onCancel}
           >
             Cancel
@@ -107,7 +109,8 @@ export function ConfirmDialog({
           <button
             type="button"
             ref={confirmRef}
-            class={`ht-confirm-dialog__confirm${tone === "danger" ? " ht-confirm-dialog__confirm--danger" : ""}`}
+            class={clsx("ht-btn", tone === "danger" ? "ht-btn--danger" : "ht-btn--primary")}
+            data-testid={tone === "danger" ? "confirm-btn-danger" : "confirm-btn"}
             onClick={onConfirm}
           >
             {confirmLabel}

@@ -1,3 +1,5 @@
+import styles from "./empty-state.module.css";
+
 interface Props {
   icon?: string;
   title: string;
@@ -8,10 +10,10 @@ interface Props {
 
 export function EmptyState({ icon = "∅", title, body, "data-testid": testId, children }: Props) {
   return (
-    <div class="ht-empty" data-testid={testId}>
-      {icon && <div class="ht-empty__icon">{icon}</div>}
-      <div class="ht-empty__title">{title}</div>
-      {body && <div class="ht-empty__body">{body}</div>}
+    <div class={styles.empty} data-testid={testId}>
+      {icon && <div class={styles.icon}>{icon}</div>}
+      <div class={styles.title}>{title}</div>
+      {body && <div class={styles.body}>{body}</div>}
       {children}
     </div>
   );

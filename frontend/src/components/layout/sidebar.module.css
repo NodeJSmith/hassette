@@ -1,0 +1,420 @@
+/* — Sidebar shell —————————————————————————————————————— */
+.sidebar {
+  width: 240px;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--line-1);
+  color: var(--ink-2);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  flex-shrink: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: var(--z-sidebar);
+}
+
+/* — Brand / wordmark —————————————————————————————————— */
+.sidebarBrand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--sp-4) 0 var(--sp-2);
+  border-bottom: 1px solid var(--line-2);
+  flex-shrink: 0;
+}
+
+.brandLink {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  text-decoration: none;
+  padding: 0 var(--sp-4);
+}
+
+.brandLink:hover {
+  opacity: 0.85;
+  text-decoration: none;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  font-weight: 400;
+  color: var(--ink-1);
+  letter-spacing: var(--tr-h3);
+}
+
+/* — Cmd-K trigger ———————————————————————————————————— */
+.cmdkey {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  background: var(--bg-sunken);
+  color: var(--ink-3);
+  font-size: var(--fs-micro);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.cmdkey:hover {
+  background: var(--bg-active);
+  border-color: var(--line-strong);
+}
+
+.cmdkeyHint {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-4);
+}
+
+/* — Navigation list ——————————————————————————————————— */
+.navList {
+  list-style: none;
+  margin: var(--sp-2) 0;
+  padding: 0 var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0);
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+  text-decoration: none;
+}
+
+.navItem:hover {
+  background: var(--bg-active);
+  color: var(--ink-1);
+  text-decoration: none;
+}
+
+.navItem:global(.is-active) {
+  background: var(--bg-active);
+  color: var(--ink-1);
+  font-weight: 500;
+}
+
+/* — App search ————————————————————————————————————————— */
+.searchWrap {
+  padding: var(--sp-2) var(--sp-3);
+  border-top: 1px solid var(--line-2);
+  margin-top: var(--sp-1);
+}
+
+.appSearch {
+  width: 100%;
+  padding: var(--sp-1) var(--sp-2);
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  color: var(--ink-1);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  outline: none;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+
+.appSearch:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.appSearch::placeholder {
+  color: var(--ink-4);
+}
+
+/* — App nav section ——————————————————————————————————— */
+.appNav {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-1) 0 var(--sp-4);
+}
+
+.appList {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.empty {
+  display: block;
+  padding: var(--sp-3) var(--sp-4);
+  font-size: var(--fs-micro);
+  color: var(--ink-4);
+}
+
+/* — App entry ————————————————————————————————————————— */
+/* .appEntry: wrapper <li> — no styles */
+
+.appItem {
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-md);
+  transition: background var(--t-fast) var(--ease);
+}
+
+.appItem:global(.is-active) {
+  background: var(--bg-active);
+}
+
+.appItem:global(.is-blocked) {
+  opacity: 0.5;
+}
+
+.appLink {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 0;
+  padding: var(--sp-1) var(--sp-3);
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+  text-decoration: none;
+  border-radius: var(--r-md);
+  transition: color var(--t-fast) var(--ease);
+}
+
+.appLink:hover {
+  color: var(--ink-1);
+  text-decoration: none;
+}
+
+.appName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appExpand {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--sp-6);
+  height: var(--sp-6);
+  margin-right: var(--sp-1);
+  border: none;
+  background: none;
+  color: var(--ink-3);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+
+.appExpand:hover {
+  color: var(--ink-1);
+  background: var(--bg-active);
+}
+
+.appExpand svg {
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* — Instance children ————————————————————————————————— */
+.instanceList {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.instanceItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.appConnector {
+  flex-shrink: 0;
+  color: var(--ink-4);
+  font-size: var(--fs-micro);
+  font-family: var(--font-mono);
+  user-select: none;
+}
+
+.instanceLink {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 1;
+  padding: var(--sp-0) var(--sp-2);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  text-decoration: none;
+  border-radius: var(--r-sm);
+  transition: color var(--t-fast) var(--ease);
+}
+
+.instanceLink:hover {
+  color: var(--ink-1);
+  text-decoration: none;
+}
+
+.instanceLink:global(.is-active) {
+  color: var(--ink-1);
+  font-weight: 500;
+}
+
+.instanceName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* — Version display ——————————————————————————————————— */
+.version {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-4) var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  flex-wrap: nowrap;
+}
+
+.versionText {
+  color: var(--ink-3);
+}
+
+/* — APPS section header ——————————————————————————————— */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-4) var(--sp-1);
+  margin-top: var(--sp-1);
+}
+
+.sectionLabel {
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--ink-2);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sectionCount {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-4);
+}
+
+/* — Status group —————————————————————————————————————— */
+.group {
+  margin-bottom: var(--sp-0);
+}
+
+.groupHeader {
+  display: flex;
+  width: calc(100% - var(--sp-2) * 2);
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  margin: 0 var(--sp-2);
+  border: none;
+  border-radius: var(--r-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--t-fast) var(--ease);
+}
+
+.groupHeader:hover {
+  background: var(--bg-active);
+}
+
+.groupHeader:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.groupChevron {
+  flex-shrink: 0;
+  color: var(--ink-4);
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.groupLabel {
+  flex: 1;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--ink-2);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.groupCount {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-4);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  padding: 0 var(--sp-1);
+  line-height: 1.6;
+  flex-shrink: 0;
+}
+
+/* Tone modifiers for group header labels */
+.groupHeaderErr .groupLabel {
+  color: var(--err);
+}
+
+.groupHeaderWarn .groupLabel {
+  color: var(--warn);
+}
+
+/* — Responsive: 900px ————————————————————————————————— */
+@media screen and (max-width: 900px) {
+  :global(.ht-layout) > .sidebar {
+    display: none;
+  }
+
+  :global(.ht-drawer) .sidebar {
+    display: flex;
+  }
+
+  .appExpand {
+    width: var(--sz-touch);
+    height: var(--sz-touch);
+  }
+}
+
+/* — Responsive: 768px ————————————————————————————————— */
+@media (max-width: 768px) {
+  .cmdkeyHint {
+    display: none;
+  }
+}

@@ -1,0 +1,156 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.tableLog {
+  table-layout: fixed;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-md);
+}
+
+.tableLog thead {
+  position: sticky;
+  top: 0;
+  /* Must remain opaque or scrolled rows show through */
+  background: var(--bg-surface);
+  z-index: var(--z-table-head);
+}
+
+.tableLog :global(.ht-text-mono) {
+  white-space: nowrap;
+}
+
+.tableLog td { padding: var(--sp-2) var(--sp-3); vertical-align: top; overflow: hidden; text-overflow: ellipsis; }
+.tableLog :global(.ht-col-level)   { white-space: nowrap; width: 80px; }
+.tableLog :global(.ht-col-time)    { white-space: nowrap; width: 170px; }
+.tableLog :global(.ht-col-app)     { white-space: nowrap; width: 140px; }
+.tableLog :global(.ht-col-source)  { width: 200px; }
+/* Message column: no width set — takes all remaining space */
+
+/* Severity row tinting — visible at scroll speed, not just badge-reading speed */
+.tableLog tr[data-level="WARNING"] { background: var(--warn-bg); }
+.tableLog tr[data-level="ERROR"],
+.tableLog tr[data-level="CRITICAL"] { background: var(--err-bg); }
+
+/* Content links inside log table */
+.tableLog td a {
+  text-decoration: underline;
+  text-decoration-color: var(--ink-4);
+  text-underline-offset: var(--sp-0);
+}
+
+.tableLog td a:hover {
+  text-decoration-color: var(--accent);
+}
+
+/* Message cell */
+.messageCell {
+  outline: none;
+  transition: background var(--t-fast);
+}
+
+.messageCell:global(.is-expandable) {
+  cursor: pointer;
+}
+
+.messageCell:global(.is-expandable):hover,
+.messageCell:global(.is-expandable):focus-visible,
+.messageCell:global(.is-expanded) {
+  background: var(--bg-sunken);
+}
+
+.messageText {
+  line-height: 1.5;
+  max-height: calc(1.5em * 1);
+  overflow: clip;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expandedRow {
+  background: var(--bg-sunken);
+}
+
+.tableLog td.expandedCell {
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.expandedMessage {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.sourceFn {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sourceInline {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-bottom: var(--sp-0);
+}
+
+/* Log level badge (StatusShape + label) */
+.levelBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-mono-sm);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.badgeText {
+  color: var(--ink-2);
+  font-size: var(--fs-mono-sm);
+}
+
+/* Severity: color the label text to match the shape */
+.tableLog tr[data-level="WARNING"] .badgeText {
+  color: var(--warn);
+}
+.tableLog tr[data-level="ERROR"] .badgeText,
+.tableLog tr[data-level="CRITICAL"] .badgeText {
+  color: var(--err);
+}
+.tableLog tr[data-level="DEBUG"] .badgeText {
+  color: var(--mute);
+}
+.tableLog tr[data-level="INFO"] .badgeText {
+  color: var(--ok);
+}
+
+@media screen and (max-width: 1024px) {
+  .tableLog :global(.ht-col-source) {
+    display: none;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  /* Log table: hide App column — source shown inline (app.func) in message column */
+  .tableLog :global(.ht-col-app) {
+    display: none;
+  }
+
+  .tableLog :global(.ht-col-level) { width: calc(var(--sp-7) + var(--sp-1)); }
+  .tableLog :global(.ht-col-time)  { width: var(--sp-10); }
+  .tableLog { font-size: var(--fs-micro); }
+  .tableLog :global(.ht-text-mono) { font-size: var(--fs-micro); }
+}
