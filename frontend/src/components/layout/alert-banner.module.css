@@ -1,0 +1,67 @@
+/* — Alert banner ——————————————————————————————————————— */
+.alert {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  font-size: var(--fs-small);
+  margin-bottom: var(--sp-2);
+}
+
+/* Contextual rule: .ht-main stays global, .alert is the module-scoped child */
+:global(.ht-main) > .alert {
+  margin-left: var(--sp-7);
+  margin-right: var(--sp-7);
+}
+
+.alertWarning {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn);
+  color: var(--warn);
+}
+
+.alertDanger {
+  background: var(--err-bg);
+  border: 1px solid var(--err);
+  color: var(--err);
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.alertList {
+  list-style: none;
+  margin: var(--sp-1) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.alertList li {
+  font-size: var(--fs-small);
+}
+
+/* — Telemetry degraded banner ————————————————————————— */
+.degradedBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  margin-bottom: var(--sp-4);
+  font-size: var(--fs-body);
+  border: 1px solid transparent;
+}
+
+.degradedBannerWarn {
+  background: var(--warn-bg);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.degradedBannerText {
+  flex: 1;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}

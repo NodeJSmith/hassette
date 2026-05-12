@@ -28,7 +28,7 @@ def test_status_bar_shows_disconnected_state(page: Page, base_url: str) -> None:
     so the status bar should show 'Disconnected' or 'Reconnecting'.
     """
     page.goto(base_url + "/")
-    status_bar = page.locator(".ht-status-bar")
+    status_bar = page.locator("[data-testid='status-bar']")
     expect(status_bar).to_be_visible()
     expect(status_bar).to_contain_text("onnect")
 
@@ -96,9 +96,9 @@ def test_websocket_connected_message_has_uptime(page: Page, live_server_ws: str)
 
     # The status bar should reach 'Connected' once the WS handshake completes
     # and the server sends the 'connected' message with uptime_seconds.
-    status_bar = page.locator(".ht-status-bar")
+    status_bar = page.locator("[data-testid='status-bar']")
     expect(status_bar).to_be_visible()
-    ws_indicator = page.locator(".ht-ws-indicator")
+    ws_indicator = page.locator("[data-testid='ws-indicator']")
     expect(ws_indicator.first).to_have_attribute("aria-label", "Connected", timeout=10000)
 
     # After WS connects, useScopedApi unblocks (uptime_seconds gate) and fires
@@ -122,7 +122,7 @@ def test_websocket_no_session_id_in_requests(page: Page, live_server_ws: str) ->
     page.goto(live_server_ws + "/apps")
 
     # Wait for WS to connect and data to load
-    ws_indicator = page.locator(".ht-ws-indicator")
+    ws_indicator = page.locator("[data-testid='ws-indicator']")
     expect(ws_indicator.first).to_have_attribute("aria-label", "Connected", timeout=10000)
     expect(page.locator("[data-testid='apps-page']")).to_be_visible(timeout=10000)
 

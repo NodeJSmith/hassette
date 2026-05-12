@@ -18,11 +18,11 @@ vi.mock("../../hooks/use-query-params", () => ({
 
 describe("StatusBar — connection states", () => {
   it("renders connected state without status label", () => {
-    const { container, queryByText } = renderWithAppState(<StatusBar />, {
+    const { getByTestId, queryByText } = renderWithAppState(<StatusBar />, {
       stateOverrides: { connection: signal("connected") },
     });
-    const indicator = container.querySelector(".ht-ws-indicator.is-connected");
-    expect(indicator).not.toBeNull();
+    const indicator = getByTestId("ws-indicator");
+    expect(indicator.classList.contains("is-connected")).toBe(true);
     expect(queryByText("Connected")).toBeNull(); // label is hidden when connected
   });
 
@@ -34,21 +34,21 @@ describe("StatusBar — connection states", () => {
   });
 
   it("renders disconnected state with text label", () => {
-    const { getByText, container } = renderWithAppState(<StatusBar />, {
+    const { getByText, getByTestId } = renderWithAppState(<StatusBar />, {
       stateOverrides: { connection: signal("disconnected") },
     });
     expect(getByText("Disconnected")).toBeDefined();
-    const indicator = container.querySelector(".ht-ws-indicator.is-disconnected");
-    expect(indicator).not.toBeNull();
+    const indicator = getByTestId("ws-indicator");
+    expect(indicator.classList.contains("is-disconnected")).toBe(true);
   });
 
   it("renders reconnecting state with text label", () => {
-    const { getByText, container } = renderWithAppState(<StatusBar />, {
+    const { getByText, getByTestId } = renderWithAppState(<StatusBar />, {
       stateOverrides: { connection: signal("reconnecting") },
     });
     expect(getByText("Reconnecting...")).toBeDefined();
-    const indicator = container.querySelector(".ht-ws-indicator.is-disconnected");
-    expect(indicator).not.toBeNull();
+    const indicator = getByTestId("ws-indicator");
+    expect(indicator.classList.contains("is-disconnected")).toBe(true);
   });
 
   it("sets aria-label for connected state", () => {

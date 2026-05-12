@@ -93,14 +93,14 @@ def test_sidebar_visible_on_desktop(page: Page, base_url: str) -> None:
     """Sidebar renders on desktop viewport."""
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/apps")
-    sidebar = page.locator(".ht-sidebar")
+    sidebar = page.locator("[data-testid='sidebar']")
     expect(sidebar).to_be_visible()
 
 
 def test_brand_link_navigates_to_apps(page: Page, base_url: str) -> None:
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/logs")
-    page.locator(".ht-brand-link").click()
+    page.locator("[aria-label='Hassette home']").click()
     expect(page).to_have_url(re.compile(r"/apps"))
 
 
@@ -113,7 +113,7 @@ def test_mobile_sidebar_hidden(page: Page, base_url: str) -> None:
     """Desktop sidebar is hidden on mobile viewports."""
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/apps")
-    sidebar = page.locator(".ht-layout > .ht-sidebar")
+    sidebar = page.locator(".ht-layout > [data-testid='sidebar']")
     expect(sidebar).not_to_be_visible()
 
 
@@ -197,12 +197,12 @@ def test_sidebar_app_list_renders(page: Page, base_url: str) -> None:
     page.wait_for_load_state("networkidle")
     # Apps are grouped by status in the sidebar app-nav section.
     # FAILING group (broken_app) is open by default.
-    app_nav = page.locator(".ht-sidebar__app-nav")
+    app_nav = page.locator("[data-testid='app-nav']")
     expect(app_nav).to_be_visible()
     expect(app_nav).to_contain_text("Broken App")
     # RUNNING group is collapsed by default when other groups exist;
     # open it, then verify My App appears.
-    running_header = page.locator(".ht-sidebar__group-header", has_text="RUNNING")
+    running_header = page.locator("[data-testid='group-header']", has_text="RUNNING")
     expect(running_header).to_be_visible()
     running_header.click()
     page.wait_for_timeout(300)
@@ -219,7 +219,7 @@ def test_sidebar_app_search_filters(page: Page, base_url: str) -> None:
     search.fill("My App")
     page.wait_for_timeout(300)
     # Only My App should be visible in the app nav section
-    app_nav = page.locator(".ht-sidebar__app-nav")
+    app_nav = page.locator("[data-testid='app-nav']")
     expect(app_nav).to_contain_text("My App")
     expect(app_nav).not_to_contain_text("Broken App")
 
@@ -230,10 +230,10 @@ def test_sidebar_clicking_app_navigates(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
     # my_app is in the RUNNING group which is collapsed — open it first
-    page.locator(".ht-sidebar__group-header", has_text="RUNNING").click()
+    page.locator("[data-testid='group-header']", has_text="RUNNING").click()
     page.wait_for_timeout(300)
     # Click the app link in the sidebar
-    page.locator(".ht-sidebar__app-link", has_text="My App").click()
+    page.locator("[data-testid='app-link']", has_text="My App").click()
     expect(page).to_have_url(re.compile(r"/apps/my_app"))
 
 
@@ -244,7 +244,7 @@ def test_sidebar_multi_instance_expand(page: Page, base_url: str) -> None:
     page.wait_for_load_state("networkidle")
     # multi_app is RUNNING; the RUNNING group starts collapsed when other
     # status groups have apps. Open the RUNNING group first.
-    running_header = page.locator(".ht-sidebar__group-header", has_text="RUNNING")
+    running_header = page.locator("[data-testid='group-header']", has_text="RUNNING")
     expect(running_header).to_be_visible()
     running_header.click()
     page.wait_for_timeout(300)
@@ -254,7 +254,7 @@ def test_sidebar_multi_instance_expand(page: Page, base_url: str) -> None:
     expand_btn.click()
     page.wait_for_timeout(300)
     # Instance list should now be visible
-    expect(page.locator("ul.ht-sidebar__instance-list")).to_be_visible()
+    expect(page.locator("[data-testid='instance-list']").first).to_be_visible()
 
 
 def test_breadcrumb_navigation_on_instance_detail(page: Page, base_url: str) -> None:

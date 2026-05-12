@@ -1,6 +1,8 @@
+import clsx from "clsx";
 import { useAppState } from "../../state/context";
 import { setStoredValue } from "../../utils/local-storage";
 import { TimePresetSelector } from "./time-preset-selector";
+import styles from "./status-bar.module.css";
 
 export function StatusBar() {
   const {
@@ -30,10 +32,18 @@ export function StatusBar() {
   };
 
   const statusConfig: Record<typeof status, { className: string; dotClass: string; label: string }> = {
-    connecting: { className: "is-connecting", dotClass: "ht-pulse-dot connecting", label: "Connecting..." },
-    connected: { className: "is-connected", dotClass: "ht-pulse-dot", label: "Connected" },
-    reconnecting: { className: "is-disconnected", dotClass: "ht-pulse-dot disconnected", label: "Reconnecting..." },
-    disconnected: { className: "is-disconnected", dotClass: "ht-pulse-dot disconnected", label: "Disconnected" },
+    connecting: { className: "is-connecting", dotClass: clsx(styles.pulseDot, "connecting"), label: "Connecting..." },
+    connected: { className: "is-connected", dotClass: styles.pulseDot, label: "Connected" },
+    reconnecting: {
+      className: "is-disconnected",
+      dotClass: clsx(styles.pulseDot, "disconnected"),
+      label: "Reconnecting...",
+    },
+    disconnected: {
+      className: "is-disconnected",
+      dotClass: clsx(styles.pulseDot, "disconnected"),
+      label: "Disconnected",
+    },
   };
 
   const { className, dotClass, label } = statusConfig[status];
@@ -42,46 +52,46 @@ export function StatusBar() {
   const showDegraded = isDegraded && status === "connected";
 
   return (
-    <div class="ht-status-bar">
-      <div class="ht-status-bar__left">
+    <div class={styles.statusBar} data-testid="status-bar">
+      <div class={styles.statusBarLeft}>
         <TimePresetSelector />
       </div>
-      <div class="ht-status-bar__right">
-        <span class={`ht-ws-indicator ${className}`} aria-label={label}>
+      <div class={styles.statusBarRight}>
+        <span class={clsx(styles.wsIndicator, className)} aria-label={label} data-testid="ws-indicator">
           <span class={dotClass} />
           {status !== "connected" && <span class="ht-text-xs">{label}</span>}
         </span>
         {showDegraded && (
-          <span class="ht-ws-indicator is-degraded" aria-label="database degraded">
-            <span class="ht-pulse-dot degraded" />
+          <span class={clsx(styles.wsIndicator, "is-degraded")} aria-label="database degraded">
+            <span class={clsx(styles.pulseDot, "degraded")} />
             <span class="ht-text-xs">database degraded</span>
           </span>
         )}
         {droppedTotal > 0 && (
           <span
-            class="ht-ws-indicator is-degraded"
+            class={clsx(styles.wsIndicator, "is-degraded")}
             aria-label={`${droppedTotal} telemetry event${droppedTotal !== 1 ? "s" : ""} dropped`}
             title={`buffer full: ${overflow}, write failed: ${exhausted}, no session: ${noSession}, during shutdown: ${shutdown}`}
             data-testid="dropped-events-indicator"
           >
-            <span class="ht-pulse-dot degraded" />
+            <span class={clsx(styles.pulseDot, "degraded")} />
             <span class="ht-text-xs">{droppedTotal} dropped</span>
           </span>
         )}
         {ehFailures > 0 && (
           <span
-            class="ht-ws-indicator is-degraded"
+            class={clsx(styles.wsIndicator, "is-degraded")}
             aria-label={`${ehFailures} handler error${ehFailures !== 1 ? "s" : ""}`}
             title={`${ehFailures} user error handler invocation${ehFailures !== 1 ? "s" : ""} raised or timed out`}
             data-testid="error-handler-failures-indicator"
           >
-            <span class="ht-pulse-dot degraded" />
+            <span class={clsx(styles.pulseDot, "degraded")} />
             <span class="ht-text-xs">{ehFailures} handler error{ehFailures !== 1 ? "s" : ""}</span>
           </span>
         )}
         <button
           type="button"
-          class="ht-theme-toggle"
+          class={styles.themeToggle}
           data-testid="theme-toggle"
           aria-label={`Switch to ${theme.value === "dark" ? "light" : "dark"} mode`}
           onClick={toggleTheme}
