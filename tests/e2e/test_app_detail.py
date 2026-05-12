@@ -52,7 +52,7 @@ def test_stop_button_shows_confirm_dialog(page: Page, base_url: str) -> None:
     expect(stop_btn).to_be_visible()
     stop_btn.click()
     # Confirm dialog should appear
-    dialog = page.locator(".ht-confirm-dialog, [role='alertdialog'], [role='dialog']")
+    dialog = page.locator("[role='alertdialog'], [role='dialog']")
     expect(dialog.first).to_be_visible()
     expect(dialog.first).to_contain_text("Stop")
 

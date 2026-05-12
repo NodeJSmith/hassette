@@ -1,10 +1,12 @@
 import { useEffect } from "preact/hooks";
+import clsx from "clsx";
 import { useAppState } from "../../state/context";
 import type { TimePreset } from "../../state/create-app-state";
 import { isTimePreset } from "../../state/create-app-state";
 import { setStoredValue } from "../../utils/local-storage";
 import { formatUptime } from "../../utils/format";
 import { useQueryParams } from "../../hooks/use-query-params";
+import styles from "./time-preset-selector.module.css";
 
 const PRESETS: { value: TimePreset; label: string }[] = [
   { value: "since-restart", label: "Since restart" },
@@ -43,12 +45,12 @@ export function TimePresetSelector() {
   };
 
   return (
-    <div class="ht-time-preset-selector">
+    <div class={styles.selector} data-testid="time-preset-selector">
       {PRESETS.map(({ value, label }) => (
         <button
           key={value}
           type="button"
-          class={`ht-time-preset-selector__btn${current === value ? " ht-time-preset-selector__btn--active" : ""}`}
+          class={clsx(styles.btn, current === value && styles.active)}
           aria-pressed={current === value}
           onClick={() => handlePreset(value)}
         >
@@ -56,7 +58,7 @@ export function TimePresetSelector() {
         </button>
       ))}
       {Number.isFinite(uptime) && (
-        <span class="ht-time-preset-selector__uptime">
+        <span class={styles.uptime}>
           up {formatUptime(uptime!)}
         </span>
       )}

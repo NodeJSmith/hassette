@@ -206,15 +206,13 @@ a:hover {
 
 /* Content links inside tables/data — underline for affordance since
    light-mode accent is ink-1 (same as body text) */
-.ht-table td a,
-.ht-table-log td a {
+.ht-table td a {
   text-decoration: underline;
   text-decoration-color: var(--ink-4);
   text-underline-offset: var(--sp-0);
 }
 
-.ht-table td a:hover,
-.ht-table-log td a:hover {
+.ht-table td a:hover {
   text-decoration-color: var(--accent);
 }
 
@@ -831,52 +829,6 @@ strong {
 }
 
 /* — Time Preset Selector —————————————————————————————— */
-.ht-time-preset-selector {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-0);
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-md);
-  overflow: hidden;
-  background: var(--bg-surface);
-}
-
-.ht-time-preset-selector__btn {
-  padding: 3px 10px;
-  font-family: var(--font-body);
-  font-size: var(--fs-micro);
-  font-weight: 500;
-  line-height: 1.6;
-  color: var(--ink-3);
-  background: transparent;
-  border: none;
-  border-right: 1px solid var(--line-2);
-  cursor: pointer;
-  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
-  white-space: nowrap;
-}
-
-.ht-time-preset-selector__btn:last-of-type {
-  border-right: none;
-}
-
-.ht-time-preset-selector__btn:hover:not(.ht-time-preset-selector__btn--active) {
-  background: var(--bg-active);
-  color: var(--ink-1);
-}
-
-.ht-time-preset-selector__btn.ht-time-preset-selector__btn--active {
-  background: var(--bg-active);
-  color: var(--ink-1);
-}
-
-.ht-time-preset-selector__uptime {
-  padding: 0 var(--sp-2);
-  font-size: var(--fs-micro);
-  color: var(--ink-4);
-  font-family: var(--font-mono);
-  border-left: 1px solid var(--line-2);
-}
 
 /* — Command Palette ———————————————————————————————————— */
 
@@ -1060,97 +1012,6 @@ strong {
   .ht-sidebar__cmdkey-hint { display: none; }
 }
 
-/* — Confirm Dialog ————————————————————————————————————— */
-.ht-confirm-dialog__backdrop {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay-bg);
-  z-index: var(--z-dialog);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(2px);
-}
-
-.ht-confirm-dialog {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: calc(var(--z-dialog) + 1);
-  background: var(--bg-surface);
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-xl);
-  box-shadow: var(--shadow-3);
-  padding: var(--sp-6);
-  min-width: 320px;
-  max-width: 480px;
-  width: calc(100% - var(--sp-8));
-}
-
-.ht-confirm-dialog__title {
-  font-family: var(--font-display);
-  font-size: var(--fs-h3);
-  font-weight: 400;
-  color: var(--ink-1);
-  margin-bottom: var(--sp-3);
-}
-
-.ht-confirm-dialog__body {
-  font-size: var(--fs-body);
-  color: var(--ink-2);
-  margin-bottom: var(--sp-6);
-  line-height: var(--lh-body);
-}
-
-.ht-confirm-dialog__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--sp-3);
-}
-
-.ht-confirm-dialog__cancel {
-  padding: var(--sp-2) var(--sp-4);
-  font-family: var(--font-body);
-  font-size: var(--fs-body);
-  color: var(--ink-2);
-  background: transparent;
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-md);
-  cursor: pointer;
-  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
-}
-
-.ht-confirm-dialog__cancel:hover {
-  background: var(--bg-active);
-  color: var(--ink-1);
-}
-
-.ht-confirm-dialog__confirm {
-  padding: var(--sp-2) var(--sp-4);
-  font-family: var(--font-body);
-  font-size: var(--fs-body);
-  color: var(--accent-ink);
-  background: var(--accent);
-  border: 1px solid transparent;
-  border-radius: var(--r-md);
-  cursor: pointer;
-  transition: background var(--t-fast) var(--ease);
-}
-
-.ht-confirm-dialog__confirm:hover {
-  background: var(--accent-hover);
-}
-
-.ht-confirm-dialog__confirm--danger {
-  color: var(--bg-page);
-  background: var(--err);
-}
-
-.ht-confirm-dialog__confirm--danger:hover {
-  background: var(--err-dark);
-}
-
 /* — Off-canvas Drawer (mobile) ————————————————————————— */
 .ht-hamburger {
   display: none; /* hidden on desktop; shown via media query */
@@ -1308,48 +1169,6 @@ strong {
 }
 
 /* Message cell — interactive only when text is truncated */
-.ht-log-message-cell {
-  outline: none;
-  transition: background var(--t-fast);
-}
-
-.ht-log-message-cell.is-expandable {
-  cursor: pointer;
-}
-
-.ht-log-message-cell.is-expandable:hover,
-.ht-log-message-cell.is-expandable:focus-visible,
-.ht-log-message-cell.is-expanded {
-  background: var(--bg-sunken);
-}
-
-.ht-log-message__text {
-  line-height: 1.5;
-  max-height: calc(1.5em * 1);
-  overflow: clip;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ht-log-expanded-row {
-  background: var(--bg-sunken);
-}
-
-.ht-log-expanded-cell {
-  padding: var(--sp-2) var(--sp-3) !important;
-}
-
-.ht-log-expanded-message {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
-  white-space: pre-wrap;
-  word-break: break-all;
-  overflow-wrap: anywhere;
-  line-height: 1.5;
-  max-height: 300px;
-  overflow-y: auto;
-}
 
 .ht-table--dense th,
 .ht-table--dense td {
@@ -1723,6 +1542,22 @@ strong {
   align-items: stretch;
 }
 
+/* TODO: remove after overview-tab.tsx migrates to <LogLevelBadge> or uses module import (T07) */
+.ht-log-level-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-mono-sm);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.ht-log-level-badge__text {
+  color: var(--ink-2);
+  font-size: var(--fs-mono-sm);
+}
+
 .ht-traceback {
   margin: var(--sp-2) 0 0;
   padding: var(--sp-2) var(--sp-3);
@@ -1975,21 +1810,7 @@ strong {
   }
 }
 
-/* ht-tier-toggle__btn — owner: tier-toolbar — migrates in T04 */
-@media screen and (max-width: 900px) {
-  .ht-tier-toggle__btn {
-    min-height: var(--sz-touch);
-    padding: 0.15em 0.75em;
-  }
-}
 
-/* ht-time-preset-selector__btn — owner: time-preset-selector — migrates in T04 */
-@media screen and (max-width: 900px) {
-  .ht-time-preset-selector__btn {
-    min-height: var(--sz-touch);
-    padding: var(--sp-1) var(--sp-3);
-  }
-}
 
 /* ht-sidebar__app-expand — owner: sidebar — migrates in T05 */
 @media screen and (max-width: 900px) {
@@ -2100,13 +1921,6 @@ strong {
   }
 }
 
-/* ht-table-log — owner: log-table — migrates in T08 */
-@media screen and (max-width: 768px) {
-  /* Log table: hide App column — source shown inline (app.func) in message column */
-  .ht-table-log .ht-col-app {
-    display: none;
-  }
-}
 
 /* — Responsive: small phones (max-width: 480px) ———————— */
 /* sync: BREAKPOINT_SMALL_MOBILE in use-media-query.ts */
@@ -2241,15 +2055,6 @@ strong {
   text-decoration-color: var(--accent);
 }
 
-.ht-log-source-inline {
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  color: var(--ink-2);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-bottom: var(--sp-0);
-}
 
 .ht-info-hint {
   display: inline-flex;
@@ -2266,44 +2071,6 @@ strong {
   flex-shrink: 0;
 }
 
-.ht-tier-toggle {
-  display: inline-flex;
-  margin-left: auto;
-  gap: 0;
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-sm);
-  overflow: hidden;
-}
-
-.ht-tier-toggle__btn {
-  background: transparent;
-  border: none;
-  padding: 0.15em 0.5em;
-  font-size: 0.75em;
-  font-family: var(--font-body);
-  color: var(--ink-3);
-  cursor: pointer;
-  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
-}
-
-.ht-tier-toggle__btn:not(:last-child) {
-  border-right: 1px solid var(--line-1);
-}
-
-.ht-tier-toggle__btn--active {
-  background: var(--bg-surface);
-  color: var(--ink-1);
-  font-weight: 600;
-}
-
-.ht-tier-toggle__btn:hover:not(.ht-tier-toggle__btn--active) {
-  background: var(--bg-active);
-}
-
-.ht-tier-toggle__btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: calc(-1 * var(--sp-0));
-}
 
 
 /* — Alert List ————————————————————————————————————————— */
@@ -2376,93 +2143,8 @@ strong {
   font-size: inherit;
 }
 
-/* Log source column */
-.ht-log-source__fn {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
-/* — Empty State ———————————————————————————————————————— */
-/* TODO: remove after log-table.tsx migrates to <EmptyState> (T04) */
-.ht-empty {
-  text-align: center;
-  padding: var(--sp-6) !important;
-}
 
-.ht-empty__icon {
-  font-size: var(--fs-h1);
-  color: var(--ink-4);
-  margin-bottom: var(--sp-2);
-}
-
-.ht-empty__title {
-  font-size: var(--fs-small);
-  font-weight: 500;
-  color: var(--ink-2);
-  margin-bottom: var(--sp-1);
-}
-
-.ht-empty__body {
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-  max-width: 320px;
-  margin: 0 auto;
-}
-
-.ht-log-table-container {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-}
-
-/* (ht-log-table-scroll migrated to ht-table-card-scroll) */
-
-.ht-table-log {
-  table-layout: fixed;
-  width: 100%;
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-md);
-}
-
-.ht-table-log thead {
-  position: sticky;
-  top: 0;
-  /* Must remain opaque or scrolled rows show through */
-  background: var(--bg-surface);
-  z-index: var(--z-table-head);
-}
-
-.ht-table-log .ht-text-mono {
-  white-space: nowrap;
-}
-
-.ht-table-log td { padding: var(--sp-2) var(--sp-3); vertical-align: top; overflow: hidden; text-overflow: ellipsis; }
-.ht-table-log .ht-col-level   { white-space: nowrap; width: 80px; }
-.ht-table-log .ht-col-time    { white-space: nowrap; width: 170px; }
-.ht-table-log .ht-col-app     { white-space: nowrap; width: 140px; }
-.ht-table-log .ht-col-source  { width: 200px; }
-/* Message column: no width set — takes all remaining space */
-
-/* Severity row tinting — visible at scroll speed, not just badge-reading speed */
-.ht-table-log tr[data-level="WARNING"] { background: var(--warn-bg); }
-.ht-table-log tr[data-level="ERROR"],
-.ht-table-log tr[data-level="CRITICAL"] { background: var(--err-bg); }
-
-/* owner: log-table — migrates in T08 */
-@media screen and (max-width: 1024px) {
-  .ht-table-log .ht-col-source {
-    display: none;
-  }
-}
-
-/* owner: log-table — migrates in T08 */
-@media screen and (max-width: 768px) {
-  .ht-table-log .ht-col-level { width: calc(var(--sp-7) + var(--sp-1)); }
-  .ht-table-log .ht-col-time  { width: var(--sp-10); }
-  .ht-table-log { font-size: var(--fs-micro); }
-  .ht-table-log .ht-text-mono { font-size: var(--fs-micro); }
-}
 
 /* shared — permanent */
 @media screen and (max-width: 768px) {
@@ -2586,45 +2268,6 @@ strong {
 
 
 /* — Stats Strip ———————————————————————————————————————— */
-.ht-stats-strip {
-  display: grid;
-  grid-template-columns: repeat(var(--stats-cols, 7), 1fr);
-  gap: 0;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-md);
-  overflow: hidden;
-  margin-bottom: var(--sp-4);
-}
-
-.ht-stats-strip__cell {
-  padding: var(--sp-3) var(--sp-3h);
-}
-
-.ht-stats-strip__label {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-3);
-}
-
-.ht-stats-strip__value {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-1h);
-  margin-top: var(--sp-0);
-  font-family: var(--font-display);
-  font-size: var(--fs-stat);
-  line-height: 1.1;
-  color: var(--ink-1);
-}
-
-.ht-stats-strip__value--err { color: var(--err); }
-.ht-stats-strip__value--warn { color: var(--warn); }
-.ht-stats-strip__value--ok { color: var(--ok); }
-.ht-stats-strip__value--mute { color: var(--ink-3); }
 
 
 .ht-apps-filters {
@@ -2700,35 +2343,6 @@ strong {
   letter-spacing: 0.08em;
 }
 
-/* Sort header button */
-.ht-sort-header {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  background: transparent;
-  border: none;
-  padding: 0;
-  font: inherit;
-  text-transform: inherit;
-  letter-spacing: inherit;
-  color: var(--ink-2);
-  cursor: pointer;
-}
-
-.ht-sort-header:hover {
-  color: var(--ink-1);
-}
-
-.ht-sort-header:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: var(--sp-0);
-  border-radius: var(--r-sm);
-}
-
-.ht-sort-header--active {
-  color: var(--ink-1);
-  font-weight: 600;
-}
 
 /* Table rows */
 .ht-apps-row {
@@ -2849,16 +2463,6 @@ strong {
   opacity: 1;
 }
 
-/* owner: stats-strip — migrates in T04 */
-@media (max-width: 768px) {
-  .ht-stats-strip {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .ht-stats-strip__cell:nth-child(n+4) {
-    border-top: 1px solid var(--line-2);
-  }
-}
 
 /* shared — permanent */
 @media (max-width: 768px) {
@@ -2917,13 +2521,6 @@ strong {
    ===================================================== */
 
 
-/* Shared tier toolbar (tier toggle + app filter + optional search) */
-.ht-tier-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
-}
 
 /* Toolbar: app filter + tier toggle */
 .ht-handlers-toolbar {
@@ -3815,47 +3412,6 @@ strong {
   color: var(--ink-3);
 }
 
-.ht-error-banner {
-  background: var(--err-bg);
-  border: 1px solid color-mix(in srgb, var(--err) 30%, transparent);
-  border-radius: var(--r-md);
-  padding: var(--sp-3) var(--sp-4);
-  margin-bottom: var(--sp-4);
-}
-
-.ht-error-banner__heading {
-  display: block;
-  font-size: var(--fs-small);
-  font-weight: 600;
-  color: var(--err);
-  margin-bottom: var(--sp-1);
-}
-
-.ht-error-banner__message {
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
-  color: var(--ink-2);
-  word-break: break-all;
-}
-
-.ht-error-banner__traceback-toggle {
-  display: inline-flex;
-  align-items: center;
-  margin-top: var(--sp-2);
-  background: none;
-  border: none;
-  padding: 0;
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
-  color: var(--err);
-  cursor: pointer;
-  opacity: 0.75;
-  transition: opacity var(--t-fast) var(--ease);
-}
-
-.ht-error-banner__traceback-toggle:hover {
-  opacity: 1;
-}
 
 .ht-detail-pane__next-run {
   margin-bottom: var(--sp-3);
@@ -4393,37 +3949,6 @@ strong {
 }
 
 /* — Logs Page & Config Page ———————————————————————————— */
-
-/* — Log Level Badge (StatusShape + label) ————————————— */
-.ht-log-level-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  font-size: var(--fs-mono-sm);
-  font-family: var(--font-mono);
-  white-space: nowrap;
-  line-height: 1;
-}
-
-.ht-log-level-badge__text {
-  color: var(--ink-2);
-  font-size: var(--fs-mono-sm);
-}
-
-/* Severity: color the label text to match the shape */
-.ht-table-log tr[data-level="WARNING"] .ht-log-level-badge__text {
-  color: var(--warn);
-}
-.ht-table-log tr[data-level="ERROR"] .ht-log-level-badge__text,
-.ht-table-log tr[data-level="CRITICAL"] .ht-log-level-badge__text {
-  color: var(--err);
-}
-.ht-table-log tr[data-level="DEBUG"] .ht-log-level-badge__text {
-  color: var(--mute);
-}
-.ht-table-log tr[data-level="INFO"] .ht-log-level-badge__text {
-  color: var(--ok);
-}
 
 /* — Logs Page — full-height card override ————————————— */
 .ht-logs-page {

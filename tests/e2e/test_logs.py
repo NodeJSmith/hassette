@@ -99,7 +99,7 @@ def test_log_expand_button_toggles_message(page: Page, base_url: str) -> None:
     """Truncated log message cells are expandable via click."""
     page.goto(base_url + "/logs")
     _wait_for_log_entries(page)
-    msg_cell = page.locator("td.ht-log-message-cell.is-expandable").first
+    msg_cell = page.locator("td[data-testid='log-message-cell'][role='button']").first
     expect(msg_cell).to_be_attached()
     expect(msg_cell).to_have_attribute("aria-expanded", "false")
     expect(msg_cell).to_have_attribute("aria-label", "Expand log message")
@@ -126,7 +126,7 @@ def test_log_table_columns_do_not_visually_overlap(page: Page, base_url: str) ->
     page.goto(base_url + "/logs")
     _wait_for_log_entries(page)
     overlaps = page.evaluate("""() => {
-        const rows = document.querySelectorAll('.ht-table-log tbody tr');
+        const rows = document.querySelectorAll('[data-testid="log-table"] tbody tr');
         const problems = [];
         for (let i = 0; i < Math.min(rows.length, 5); i++) {
             const cells = Array.from(rows[i].querySelectorAll('td'));
@@ -169,7 +169,7 @@ def test_truncation_affordance_appears_on_narrow_viewport(page: Page, base_url: 
     page.goto(base_url + "/logs")
     _wait_for_log_entries(page)
     page.wait_for_timeout(500)
-    expandable_cells = page.locator("td.ht-log-message-cell.is-expandable")
+    expandable_cells = page.locator("td[data-testid='log-message-cell'][role='button']")
     expect(expandable_cells.first).to_be_attached()
     count = expandable_cells.count()
     assert count >= 1, f"Expected at least 1 expandable cell at narrow viewport, got {count}"
@@ -182,12 +182,12 @@ def test_truncation_affordance_disappears_on_wide_viewport(page: Page, base_url:
     _wait_for_log_entries(page)
     page.wait_for_timeout(500)
 
-    expandable_cells = page.locator("td.ht-log-message-cell.is-expandable")
+    expandable_cells = page.locator("td[data-testid='log-message-cell'][role='button']")
     narrow_count = expandable_cells.count()
     assert narrow_count >= 1, "Precondition failed: no expandable cells at narrow viewport"
 
     narrow_overflow = page.evaluate("""() => {
-        const els = document.querySelectorAll('.ht-log-message__text');
+        const els = document.querySelectorAll('[data-row-key]');
         let maxOverflow = 0;
         els.forEach(el => {
             const overflow = el.scrollWidth - el.clientWidth;
@@ -200,7 +200,7 @@ def test_truncation_affordance_disappears_on_wide_viewport(page: Page, base_url:
     page.wait_for_timeout(500)
 
     wide_overflow = page.evaluate("""() => {
-        const els = document.querySelectorAll('.ht-log-message__text');
+        const els = document.querySelectorAll('[data-row-key]');
         let maxOverflow = 0;
         els.forEach(el => {
             const overflow = el.scrollWidth - el.clientWidth;
@@ -218,7 +218,7 @@ def test_log_message_truncates_with_ellipsis(page: Page, base_url: str) -> None:
     """Long log messages have text-overflow: ellipsis."""
     page.goto(base_url + "/logs")
     _wait_for_log_entries(page)
-    msg_text = page.locator(".ht-log-message__text").first
+    msg_text = page.locator("[data-row-key]").first
     overflow = msg_text.evaluate("el => getComputedStyle(el).overflow")
     white_space = msg_text.evaluate("el => getComputedStyle(el).whiteSpace")
     text_overflow = msg_text.evaluate("el => getComputedStyle(el).textOverflow")

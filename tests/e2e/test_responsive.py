@@ -107,7 +107,7 @@ def test_kpi_error_rate_first_at_375px(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps")
     stats_strip = page.locator("[data-testid='apps-stats-strip']")
     expect(stats_strip).to_be_visible()
-    first_label = stats_strip.locator(".ht-stats-strip__label").first
+    first_label = stats_strip.locator("[data-testid='stats-strip-label']").first
     expect(first_label).to_have_text("total")
 
 
@@ -167,12 +167,12 @@ def test_log_table_app_tag_at_375px(page: Page, base_url: str) -> None:
 
     # App column header should not be rendered at mobile breakpoint
     # (the component conditionally omits the App <th>/<td> on mobile)
-    headers = page.locator(".ht-table-log th")
+    headers = page.locator("[data-testid='log-table'] th")
     header_texts = [headers.nth(i).text_content() for i in range(headers.count())]
     assert not any("App" in (t or "") for t in header_texts), f"App header found in: {header_texts}"
 
     # Log entries should still be visible despite missing App column
-    rows = page.locator(".ht-table-log tbody tr")
+    rows = page.locator("[data-testid='log-table'] tbody tr")
     assert rows.count() > 0, "Expected at least one log row on mobile"
 
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from "preact/hooks";
+import clsx from "clsx";
 import { useSignal } from "../../hooks/use-signal";
 import type { LogEntry } from "../../api/endpoints";
 import { getRecentLogs } from "../../api/endpoints";
@@ -10,9 +11,11 @@ import { formatTimestamp, pluralize } from "../../utils/format";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { levelToKind } from "../../utils/status";
 import { AppLink } from "./app-link";
+import { EmptyState } from "./empty-state";
 import { SortHeader } from "./sort-header";
 import { StatusShape } from "./status-shape";
 import { TierToolbar } from "./tier-toolbar";
+import styles from "./log-table.module.css";
 
 const LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] as const;
 
@@ -98,9 +101,9 @@ function LogTableRow({
   const rows = [
     <tr key={rowKey} data-level={entry.level}>
       <td>
-        <span class="ht-log-level-badge">
+        <span class={styles.levelBadge} data-testid="log-level-badge">
           <StatusShape kind={levelToKind(entry.level)} size={10} />
-          <span class="ht-log-level-badge__text">
+          <span class={styles.badgeText}>
             {isMobile ? (LEVEL_ABBREV[entry.level] ?? entry.level) : entry.level}
           </span>
         </span>
@@ -117,22 +120,23 @@ function LogTableRow({
       )}
       {showSourceColumn || !isMobile ? (
         <td class="ht-col-source" title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
-          <span class="ht-log-source__fn">{entry.func_name}() · {entry.logger_name.split(".").pop()}:{entry.lineno}</span>
+          <span class={styles.sourceFn}>{entry.func_name}() · {entry.logger_name.split(".").pop()}:{entry.lineno}</span>
         </td>
       ) : null}
       <td
-        class={`ht-log-message-cell${canExpand ? " is-expandable" : ""}${isExpanded ? " is-expanded" : ""}`}
+        class={clsx(styles.messageCell, canExpand && "is-expandable", isExpanded && "is-expanded")}
+        data-testid="log-message-cell"
         {...(canExpand ? { role: "button", tabIndex: 0, "aria-expanded": isExpanded,
           "aria-label": isExpanded ? "Collapse log message" : "Expand log message" } : {})}
         onClick={onToggle}
         onKeyDown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }}
       >
         {isMobile && entry.func_name && (
-          <div class="ht-log-source-inline">
+          <div class={styles.sourceInline} data-testid="log-source-inline">
             {showAppColumn && entry.app_key ? `${entry.app_key}.` : ""}{entry.func_name}()
           </div>
         )}
-        <div data-row-key={rowKey} class="ht-log-message__text">
+        <div data-row-key={rowKey} class={styles.messageText}>
           {entry.message}
         </div>
       </td>
@@ -140,9 +144,9 @@ function LogTableRow({
   ];
   if (isExpanded) {
     rows.push(
-      <tr key={`${rowKey}-expanded`} class="ht-log-expanded-row">
-        <td colSpan={colCount} class="ht-log-expanded-cell">
-          <pre class="ht-log-expanded-message">{entry.message}</pre>
+      <tr key={`${rowKey}-expanded`} class={styles.expandedRow}>
+        <td colSpan={colCount} class={styles.expandedCell}>
+          <pre class={styles.expandedMessage}>{entry.message}</pre>
         </td>
       </tr>,
     );
@@ -163,7 +167,7 @@ interface Props {
 
 export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: Props) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
-  // Source column is CSS-hidden at max-width: 1024px (see global.css .ht-table-log .ht-col-source)
+  // Source column is CSS-hidden at max-width: 1024px (see log-table.module.css .tableLog .ht-col-source)
   // Ideally the Source <th>/<td> would be conditionally rendered like the App column,
   // but for now we just adjust the colSpan to match the CSS-only hide.
   const isTablet = useMediaQuery(BREAKPOINT_TABLET);
@@ -309,11 +313,11 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
-  /** Scan all `.ht-log-message__text` elements and update `truncatedRows` if the set changed. */
+  /** Scan all message text elements (by data-row-key) and update `truncatedRows` if the set changed. */
   const recheckTruncation = useCallback(() => {
     const container = tableContainerRef.current;
     if (!container) return;
-    const elements = container.querySelectorAll<HTMLElement>(".ht-log-message__text");
+    const elements = container.querySelectorAll<HTMLElement>("[data-row-key]");
     const nextTruncated = new Set<string>();
     elements.forEach((el) => {
       const key = el.getAttribute("data-row-key");
@@ -379,7 +383,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
   const levelLabel = minLevel ? `level: ${minLevel}+` : "level: all";
 
   return (
-    <div class="ht-log-table-container" ref={tableContainerRef}>
+    <div class={styles.container} ref={tableContainerRef}>
       <div class="ht-table-toolbar">
         <div class="ht-table-toolbar__title">
           {!hideTitle && <h2 class="ht-table-toolbar__heading">logs</h2>}
@@ -453,7 +457,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
         </div>
       </div>
       <div class="ht-table-card-scroll">
-        <table class="ht-table ht-table--compact ht-table-log">
+        <table class={clsx("ht-table ht-table--compact", styles.tableLog)} data-testid="log-table">
           <thead>
             <tr>
               <LogSortHeader col="level" class="ht-col-level">{isMobile ? "Lvl" : "Level"}</LogSortHeader>
@@ -468,10 +472,11 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={isMobile ? 3 : 2 + (showAppColumn ? 1 : 0) + (showSourceColumn ? 1 : 0) + 1} class="ht-empty">
-                  <div class="ht-empty__icon">∅</div>
-                  <div class="ht-empty__title">no log lines in window</div>
-                  <div class="ht-empty__body">nothing has been logged recently. change the level filter or extend the time window to see older lines.</div>
+                <td colSpan={isMobile ? 3 : 2 + (showAppColumn ? 1 : 0) + (showSourceColumn ? 1 : 0) + 1}>
+                  <EmptyState
+                    title="no log lines in window"
+                    body="nothing has been logged recently. change the level filter or extend the time window to see older lines."
+                  />
                 </td>
               </tr>
             )}

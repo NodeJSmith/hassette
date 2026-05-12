@@ -190,7 +190,7 @@ describe("StatusBar — theme toggle", () => {
 describe("StatusBar — time preset selector", () => {
   it("renders the time preset selector", () => {
     const { container } = renderWithAppState(<StatusBar />);
-    expect(container.querySelector(".ht-time-preset-selector")).not.toBeNull();
+    expect(container.querySelector("[data-testid='time-preset-selector']")).not.toBeNull();
   });
 
   it("renders all 4 time preset buttons", () => {

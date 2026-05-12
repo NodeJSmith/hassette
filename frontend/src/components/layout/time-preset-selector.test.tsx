@@ -52,13 +52,13 @@ describe("TimePresetSelector — rendering", () => {
 });
 
 describe("TimePresetSelector — active state", () => {
-  it("marks the current preset as active", () => {
+  it("marks the current preset as active via aria-pressed", () => {
     const preset = signal<TimePreset>("1h");
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
       stateOverrides: { timePreset: preset },
     });
     const btn = getByText("1h");
-    expect(btn.className).toContain("ht-time-preset-selector__btn--active");
+    expect(btn.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("does not mark other presets as active", () => {
@@ -66,9 +66,9 @@ describe("TimePresetSelector — active state", () => {
     const { getByText } = renderWithAppState(<TimePresetSelector />, {
       stateOverrides: { timePreset: preset },
     });
-    expect(getByText("Since restart").className).not.toContain("ht-time-preset-selector__btn--active");
-    expect(getByText("24h").className).not.toContain("ht-time-preset-selector__btn--active");
-    expect(getByText("7d").className).not.toContain("ht-time-preset-selector__btn--active");
+    expect(getByText("Since restart").getAttribute("aria-pressed")).toBe("false");
+    expect(getByText("24h").getAttribute("aria-pressed")).toBe("false");
+    expect(getByText("7d").getAttribute("aria-pressed")).toBe("false");
   });
 
   it("sets aria-pressed=true on the active preset", () => {

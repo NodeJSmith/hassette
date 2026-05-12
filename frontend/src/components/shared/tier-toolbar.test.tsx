@@ -18,7 +18,7 @@ describe("TierToolbar", () => {
     expect(getByRole("button", { name: /^framework$/i })).toBeDefined();
   });
 
-  it("marks the active tier button with --active class", () => {
+  it("marks the active tier button with aria-pressed", () => {
     const { getByRole } = render(
       <TierToolbar
         tierFilter="app"
@@ -27,9 +27,9 @@ describe("TierToolbar", () => {
       />,
     );
     const appsBtn = getByRole("button", { name: /^apps$/i });
-    expect(appsBtn.classList.contains("ht-tier-toggle__btn--active")).toBe(true);
+    expect(appsBtn.getAttribute("aria-pressed")).toBe("true");
     const allBtn = getByRole("button", { name: /^all$/i });
-    expect(allBtn.classList.contains("ht-tier-toggle__btn--active")).toBe(false);
+    expect(allBtn.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("calls onTierChange with the clicked tier value", () => {

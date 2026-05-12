@@ -1,3 +1,6 @@
+import clsx from "clsx";
+import styles from "./tier-toolbar.module.css";
+
 interface TierToolbarProps {
   tierFilter: "all" | "app" | "framework";
   onTierChange: (tier: "all" | "app" | "framework") => void;
@@ -24,13 +27,14 @@ export function TierToolbar({
   const appLabel = selectedApp ? `app: ${selectedApp}` : "app: all";
 
   return (
-    <div class="ht-tier-toolbar">
-      <div class="ht-tier-toggle" data-testid={`${testIdPrefix}-tier-toggle`}>
+    <div class={styles.tierToolbar}>
+      <div class={styles.tierToggle} data-testid={`${testIdPrefix}-tier-toggle`}>
         {(["all", "app", "framework"] as const).map((t) => (
           <button
             key={t}
             type="button"
-            class={`ht-tier-toggle__btn${tierFilter === t ? " ht-tier-toggle__btn--active" : ""}`}
+            class={clsx(styles.btn, tierFilter === t && styles.active)}
+            aria-pressed={tierFilter === t}
             onClick={() => { onTierChange(t); }}
           >
             {t === "all" ? "All" : t === "app" ? "Apps" : "Framework"}

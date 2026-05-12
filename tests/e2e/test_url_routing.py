@@ -192,7 +192,7 @@ def test_sort_change_does_not_push_history(page: Page, base_url: str) -> None:
     # Remember the initial URL (no sort params)
     initial_url = page.url
     # Click a sort column header to change sort
-    sort_button = page.locator("button.ht-sort-header").first
+    sort_button = page.locator("button[data-testid='sort-header-btn']").first
     expect(sort_button).to_be_visible()
     sort_button.click()
     page.wait_for_timeout(300)

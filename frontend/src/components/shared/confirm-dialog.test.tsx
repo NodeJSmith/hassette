@@ -83,8 +83,8 @@ describe("ConfirmDialog — interactions", () => {
   });
 
   it("calls onCancel when backdrop is clicked", () => {
-    const { container, props } = renderDialog();
-    const backdrop = container.querySelector(".ht-confirm-dialog__backdrop");
+    const { getByTestId, props } = renderDialog();
+    const backdrop = getByTestId("confirm-dialog-backdrop");
     expect(backdrop).not.toBeNull();
     fireEvent.click(backdrop!);
     expect(props.onCancel).toHaveBeenCalledTimes(1);
@@ -92,16 +92,14 @@ describe("ConfirmDialog — interactions", () => {
 });
 
 describe("ConfirmDialog — tone", () => {
-  it("default tone does not apply danger class to confirm button", () => {
-    const { getByText } = renderDialog({ tone: "default" });
-    const confirmBtn = getByText("Delete");
-    expect(confirmBtn.className).not.toContain("ht-confirm-dialog__confirm--danger");
+  it("default tone renders confirm button without danger testid", () => {
+    const { getByTestId } = renderDialog({ tone: "default" });
+    expect(getByTestId("confirm-btn")).not.toBeNull();
   });
 
-  it("danger tone applies danger class to confirm button", () => {
-    const { getByText } = renderDialog({ tone: "danger" });
-    const confirmBtn = getByText("Delete");
-    expect(confirmBtn.className).toContain("ht-confirm-dialog__confirm--danger");
+  it("danger tone renders confirm button with danger testid", () => {
+    const { getByTestId } = renderDialog({ tone: "danger" });
+    expect(getByTestId("confirm-btn-danger")).not.toBeNull();
   });
 });
 
