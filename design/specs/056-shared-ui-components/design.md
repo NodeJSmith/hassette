@@ -1,7 +1,7 @@
 # Design: Shared UI Components (Button, Badge, Chip, Card)
 
 **Date:** 2026-05-12
-**Status:** approved
+**Status:** archived
 **Scope-mode:** expand
 
 ## Problem
