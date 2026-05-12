@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import styles from "./app-link.module.css";
 
 interface Props {
   appKey: string;
@@ -18,6 +19,6 @@ export function AppLink({ appKey, instanceIndex, handlerId, children }: Props) {
   const href = search ? `${path}?${search}` : path;
 
   return (
-    <Link href={href} class="ht-app-link">{children ?? appKey}</Link>
+    <Link href={href} class={styles.link}>{children ?? appKey}</Link>
   );
 }

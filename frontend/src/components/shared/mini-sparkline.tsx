@@ -1,3 +1,5 @@
+import styles from "./mini-sparkline.module.css";
+
 export function MiniSparkline({ buckets, width = 80, height = 20 }: {
   buckets: Array<{ ok: number; err: number }>;
   width?: number;
@@ -15,7 +17,14 @@ export function MiniSparkline({ buckets, width = 80, height = 20 }: {
   const errPoints = points.filter((p) => p.err > 0);
 
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true" class="ht-mini-sparkline">
+    <svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      aria-hidden="true"
+      class={styles.sparkline}
+      data-testid="mini-sparkline"
+    >
       <polyline points={line} fill="none" stroke="var(--ok)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
       {errPoints.map((p, i) => (
         <circle key={i} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="2.5" fill="var(--err)">

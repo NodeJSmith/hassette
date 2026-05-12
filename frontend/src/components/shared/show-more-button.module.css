@@ -1,0 +1,5 @@
+.showMore {
+  margin-top: auto;
+  padding-top: var(--sp-2);
+  color: var(--accent);
+}

@@ -1861,13 +1861,6 @@ strong {
   overflow: hidden;
 }
 
-/* Show more/less toggle below execution tables */
-.ht-show-more {
-  margin-top: auto;
-  padding-top: var(--sp-2);
-  color: var(--accent);
-}
-
 /* — Button: danger variant ———————————————————————————— */
 .ht-btn--danger {
   border-color: var(--err);
@@ -2223,20 +2216,10 @@ strong {
   padding-top: var(--sp-4);
 }
 
-/* — Spinner ———————————————————————————————————————————— */
+/* — Spinner (shared animation — .spinner class migrated to spinner.module.css) — */
 @keyframes ht-spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
-}
-
-.ht-spinner {
-  width: var(--sp-6);
-  height: var(--sp-6);
-  border: 3px solid var(--line-strong);
-  border-top-color: var(--accent);
-  border-radius: var(--r-pill);
-  animation: ht-spin 0.8s linear infinite;
-  margin: var(--sp-4) auto;
 }
 
 /* — Mono Text —————————————————————————————————————————— */
@@ -2244,6 +2227,7 @@ strong {
   font-family: var(--font-mono);
 }
 
+/* TODO: remove after handlers.tsx migrates to <AppLink> (T06) */
 .ht-app-link {
   font-family: var(--font-mono);
   font-size: var(--fs-small);
@@ -2400,6 +2384,7 @@ strong {
 }
 
 /* — Empty State ———————————————————————————————————————— */
+/* TODO: remove after log-table.tsx migrates to <EmptyState> (T04) */
 .ht-empty {
   text-align: center;
   padding: var(--sp-6) !important;
@@ -2862,11 +2847,6 @@ strong {
 
 .ht-apps-row:hover .ht-apps-row__actions-cell .ht-btn-group {
   opacity: 1;
-}
-
-/* Sparkline */
-.ht-mini-sparkline {
-  display: block;
 }
 
 /* owner: stats-strip — migrates in T04 */

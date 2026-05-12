@@ -40,7 +40,7 @@ describe("ConfigPage", () => {
   it("shows loading state while fetching", () => {
     useApi.mockReturnValue(fakeApiResult(null, true));
     const { container } = renderWithAppState(<ConfigPage />);
-    expect(container.querySelector(".ht-spinner")).not.toBeNull();
+    expect(container.querySelector("[data-testid='spinner']")).not.toBeNull();
   });
 
   it("shows error state on fetch failure", () => {
