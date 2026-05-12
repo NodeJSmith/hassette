@@ -22,9 +22,9 @@ function withManifests(manifests: ReturnType<typeof createManifest>[]) {
 
 describe("LogsPage", () => {
   it("renders logs page with card container", () => {
-    const { container } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(container.querySelector(".ht-logs-page")).toBeDefined();
-    expect(container.querySelector(".ht-card--logs-full")).toBeDefined();
+    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
+    expect(getByTestId("logs-page")).toBeDefined();
+    expect(getByTestId("logs-card")).toBeDefined();
   });
 
   it("renders LogTable component", () => {
@@ -53,8 +53,8 @@ describe("LogsPage", () => {
   });
 
   it("renders LogTable inside a card", () => {
-    const { container } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(container.querySelector(".ht-card")).not.toBeNull();
+    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
+    expect(getByTestId("logs-card")).toBeDefined();
   });
 
   it("renders page-level h1 heading", () => {

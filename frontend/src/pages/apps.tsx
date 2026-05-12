@@ -1,5 +1,6 @@
 import { signal } from "@preact/signals";
 import { useRef, useState } from "preact/hooks";
+import clsx from "clsx";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useQueryParams } from "../hooks/use-query-params";
 import { getDashboardAppGrid } from "../api/endpoints";
@@ -20,6 +21,7 @@ import { SortHeader } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { StatsStrip, type StatsStripCell } from "../components/shared/stats-strip";
 import { TableCard } from "../components/shared/table-card";
+import styles from "./apps.module.css";
 
 // ---- Filter types ----
 
@@ -75,7 +77,7 @@ function FilterPills({ counts, active, onChange }: {
 }) {
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return (
-    <div class="ht-apps-filters" role="group" aria-label="Filter by status" data-testid="apps-filter-pills">
+    <div class={styles.filters} role="group" aria-label="Filter by status" data-testid="apps-filter-pills">
       {FILTER_OPTIONS.map((f) => {
         const count = f === "all" ? total : (counts[f] ?? 0);
         if (f !== "all" && count === 0) return null;
@@ -85,14 +87,14 @@ function FilterPills({ counts, active, onChange }: {
           <button
             key={f}
             type="button"
-            class={`ht-apps-filter-pill${isActive ? " ht-apps-filter-pill--active" : ""}`}
+            class={clsx(styles.filterPill, isActive && styles.filterPillActive)}
             aria-pressed={isActive}
             onClick={() => onChange(f)}
             data-testid={`filter-${f}`}
           >
             {tone && <StatusShape kind={tone} size={7} />}
             <span>{f}</span>
-            <span class="ht-apps-filter-pill__count">{count}</span>
+            <span class={styles.filterPillCount}>{count}</span>
           </button>
         );
       })}
@@ -122,14 +124,14 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
   return (
     <>
       <tr
-        class={`ht-apps-row${isDimmed ? " ht-apps-row--dimmed" : ""}`}
+        class={clsx(styles.row, isDimmed && styles.rowDimmed)}
         data-testid={`app-row-${app.app_key}`}
       >
         {/* Name */}
-        <td class="ht-apps-row__name-cell">
-          <span class="ht-apps-row__expand-gutter">
+        <td class={styles.nameCell}>
+          <span class={styles.expandGutter}>
             {isMulti && (
-              <button type="button" class="ht-apps-row__expand" onClick={onToggle} aria-expanded={isExpanded} aria-label={`${isExpanded ? "Collapse" : "Expand"} ${app.app_key}`}>
+              <button type="button" class={styles.expand} onClick={onToggle} aria-expanded={isExpanded} aria-label={`${isExpanded ? "Collapse" : "Expand"} ${app.app_key}`} data-testid="app-row-expand">
                 <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
                   <polyline points={isExpanded ? "2,4 6,8 10,4" : "4,2 8,6 4,10"} fill="none" stroke="currentColor" stroke-width="1.5" />
                 </svg>
@@ -138,17 +140,17 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
           </span>
           <StatusShape kind={kind} size={7} />
           <AppLink appKey={app.app_key} />
-          <span class="ht-apps-row__class-name">{app.class_name}</span>
+          <span class={styles.className}>{app.class_name}</span>
           {app.auto_loaded && <span class="ht-chip ht-chip--auto">auto</span>}
         </td>
         {/* Status */}
         <td>
           <span class={`ht-badge ht-badge--${statusToVariant(status)} ht-badge--sm`} data-testid="status-pill">{status}</span>
-          {isMulti && <span class="ht-apps-row__instance-count">{app.instance_count} instances</span>}
+          {isMulti && <span class={styles.instanceCount}>{app.instance_count} instances</span>}
         </td>
         {/* Error */}
         <td
-          class={`ht-apps-row__error-cell${errorExpanded ? " is-expanded" : ""}`}
+          class={clsx(styles.errorCell, errorExpanded && "is-expanded")}
           {...(app.error_message ? {
             role: "button", tabIndex: 0,
             "aria-label": `${errorExpanded ? "Collapse" : "Expand"} error: ${app.error_message}`,
@@ -160,13 +162,13 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
             <span class="ht-text-mono ht-text-sm ht-text-danger">
               {app.error_message}
               {app.last_error_ts && (
-                <span class="ht-apps-row__error-age"> · {lastErrorLabel}</span>
+                <span class={styles.errorAge}> · {lastErrorLabel}</span>
               )}
             </span>
           ) : "—"}
         </td>
         {/* Runs + sparkline */}
-        <td class="ht-apps-row__runs-cell">
+        <td class={styles.runsCell}>
           <span class="ht-text-mono">{totalRuns}</span>
           <MiniSparkline buckets={app.activity_buckets} />
         </td>
@@ -177,7 +179,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
           ) : "—"}
         </td>
         {/* Actions */}
-        <td class="ht-apps-row__actions-cell">
+        <td class={styles.actionsCell}>
           <ActionButtons appKey={app.app_key} status={status} />
         </td>
       </tr>
@@ -185,21 +187,21 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
         const instStatus = liveStatus ?? inst.status;
         const instKind = statusToKind(instStatus);
         return (
-          <tr key={`${app.app_key}-${inst.index}`} class="ht-apps-row ht-apps-row--instance" data-testid={`instance-row-${app.app_key}-${inst.index}`}>
-            <td class="ht-apps-row__name-cell">
-              <span class="ht-apps-row__instance-corner">└</span>
+          <tr key={`${app.app_key}-${inst.index}`} class={clsx(styles.row, styles.rowInstance)} data-testid={`instance-row-${app.app_key}-${inst.index}`}>
+            <td class={styles.nameCell}>
+              <span class={styles.instanceCorner}>└</span>
               <StatusShape kind={instKind} size={6} />
               <AppLink appKey={app.app_key} instanceIndex={inst.index}>{inst.instance_name}</AppLink>
             </td>
             <td><span class={`ht-badge ht-badge--${statusToVariant(instStatus)} ht-badge--sm`}>{instStatus}</span></td>
-            <td class="ht-apps-row__error-cell">
+            <td class={styles.errorCell}>
               {inst.error_message ? (
                 <span class="ht-text-mono ht-text-sm ht-text-danger" title={inst.error_message}>{inst.error_message}</span>
               ) : "—"}
             </td>
             <td />
             <td />
-            <td class="ht-apps-row__actions-cell">
+            <td class={styles.actionsCell}>
               <ActionButtons appKey={app.app_key} status={instStatus} />
             </td>
           </tr>
@@ -291,7 +293,7 @@ export function AppsPage() {
   if (manifestsLoading.value && manifests.length === 0) return <Spinner />;
 
   return (
-    <div class="ht-page ht-apps-page" data-testid="apps-page">
+    <div class={`ht-page ${styles.page}`} data-testid="apps-page">
       {/* Header */}
       <div class="ht-page-header">
         <h1 class="ht-display">apps</h1>
@@ -322,7 +324,7 @@ export function AppsPage() {
             )}
           </EmptyState>
         ) : (
-          <table class="ht-table ht-apps-table">
+          <table class={`ht-table ${styles.appsTable}`} data-testid="apps-table">
             <thead>
               <tr>
                 <SortHeader sort={sort} onSort={handleSort} sortKey="name">app</SortHeader>

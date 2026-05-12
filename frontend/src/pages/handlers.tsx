@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedApi } from "../hooks/use-scoped-api";
@@ -12,6 +13,7 @@ import { TableCard } from "../components/shared/table-card";
 import { TierToolbar } from "../components/shared/tier-toolbar";
 import { formatDurationOrDash, pluralize, lastDotSegment } from "../utils/format";
 import { useRelativeTime } from "../hooks/use-relative-time";
+import styles from "./handlers.module.css";
 
 // ---- Unified row model ----
 
@@ -131,16 +133,14 @@ interface MobileCardProps {
 }
 
 function MobileCard({ href, appKey, name, failing, metrics, footer, ...rest }: MobileCardProps) {
-  let cls = "ht-mobile-card";
-  if (failing) cls += " ht-mobile-card--failing";
   return (
-    <a href={href} class={cls} data-testid={rest["data-testid"]}>
-      <div class="ht-mobile-card__header">
+    <a href={href} class={clsx(styles.mobileCard, failing && styles.mobileCardFailing)} data-testid={rest["data-testid"]}>
+      <div class={styles.mobileCardHeader}>
         <span class="ht-text-mono ht-text-sm">{appKey}</span>
         <span class="ht-text-mono ht-text-sm ht-text-semibold">{name}</span>
       </div>
-      <div class="ht-mobile-card__metrics">{metrics}</div>
-      {footer && <div class="ht-mobile-card__footer">{footer}</div>}
+      <div class={styles.mobileCardMetrics}>{metrics}</div>
+      {footer && <div class={styles.mobileCardFooter}>{footer}</div>}
     </a>
   );
 }
@@ -175,7 +175,7 @@ function HandlerTableRow({ row }: HandlerRowProps) {
 
   return (
     <tr
-      class={`ht-handlers-row${row.failed > 0 ? " ht-handlers-row--failing" : ""}`}
+      class={clsx(styles.row, row.failed > 0 && styles.rowFailing)}
       data-testid={`${row.kind}-row-${row.id}`}
     >
       <td><KindBadge kind={row.kind} /></td>
@@ -183,7 +183,7 @@ function HandlerTableRow({ row }: HandlerRowProps) {
         <AppLink appKey={row.app_key} />
       </td>
       <td class="ht-text-mono ht-text-sm" title={row.handler_method}>
-        <a href={`/apps/${row.app_key}/handlers/${row.id}`} class="ht-app-link">{row.name}</a>
+        <AppLink appKey={row.app_key} handlerId={row.id}>{row.name}</AppLink>
       </td>
       <td class="ht-text-mono ht-text-sm">{row.trigger ?? "—"}</td>
       <td class="ht-text-mono ht-text-sm">{row.runs}</td>
@@ -306,7 +306,7 @@ export function HandlersPage() {
   }
 
   return (
-    <div class="ht-page ht-handlers-page" data-testid="handlers-page">
+    <div class="ht-page" data-testid="handlers-page">
       <div class="ht-page-header">
         <h1 class="ht-display">handlers</h1>
       </div>
@@ -334,14 +334,14 @@ export function HandlersPage() {
           {sorted.length === 0 ? (
             <EmptyState title="no handlers found." data-testid="handlers-empty" />
           ) : isMobile ? (
-            <div class="ht-mobile-cards" data-testid="handlers-table-container">
+            <div class={styles.mobileCards} data-testid="handlers-table-container">
               {sorted.map((row) => (
                 <HandlerMobileRow key={row.id} row={row} />
               ))}
             </div>
           ) : (
             <div data-testid="handlers-table-container">
-              <table class="ht-table ht-handlers-table">
+              <table class={`ht-table ${styles.handlersTable}`}>
                 <thead>
                   <tr>
                     <SortHeader sort={sort} onSort={onSort} sortKey="kind">type</SortHeader>

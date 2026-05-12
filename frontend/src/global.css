@@ -402,7 +402,6 @@ strong {
   padding: var(--sp-3);
 }
 
-.ht-error-page { text-align: center; padding: var(--sp-10); }
 .ht-error-card { padding: var(--sp-6); text-align: center; }
 
 /* — Tables ————————————————————————————————————————————— */
@@ -1071,26 +1070,6 @@ strong {
 
 
 
-/* ht-apps-row__expand — owner: apps — migrates in T06 */
-@media screen and (max-width: 900px) {
-  .ht-apps-row__expand {
-    min-width: var(--sz-touch);
-    min-height: var(--sz-touch);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-}
-
-/* ht-apps-table — owner: apps — migrates in T06 */
-@media screen and (max-width: 900px) {
-  /* Apps table: hide columns 3+ (error, runs, last fired, actions) in
-     sidebar-free view where horizontal space is limited */
-  .ht-apps-table thead th:nth-child(n+3),
-  .ht-apps-table tbody td:nth-child(n+3) {
-    display: none;
-  }
-}
 
 /* ht-invocation-table — owner: handler-invocations — migrates in T08 */
 @media screen and (max-width: 900px) {
@@ -1288,20 +1267,6 @@ strong {
   font-family: var(--font-mono);
 }
 
-/* TODO: remove after handlers.tsx migrates to <AppLink> (T06) */
-.ht-app-link {
-  font-family: var(--font-mono);
-  font-size: var(--fs-small);
-  color: var(--ink-1);
-  text-decoration: none;
-}
-
-.ht-app-link:hover {
-  color: var(--accent);
-  text-decoration: underline;
-  text-decoration-color: var(--accent);
-}
-
 
 .ht-info-hint {
   display: inline-flex;
@@ -1438,15 +1403,6 @@ strong {
   text-decoration: underline;
 }
 
-/* — Empty Section (compact no-data placeholder) ————————— */
-.ht-empty-section {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-4);
-  border: 1px dashed var(--line-1);
-  border-radius: var(--r-md);
-}
 
 /* — Light Mode Overrides ——————————————————————————————— */
 [data-theme="light"] .ht-card {
@@ -1496,58 +1452,6 @@ strong {
 /* sync: BREAKPOINT_MOBILE in use-media-query.ts */
 
 
-/* — Apps Page ——————————————————————————————————————————— */
-
-.ht-apps-page {
-  min-height: 0;
-}
-
-
-/* — Stats Strip ———————————————————————————————————————— */
-
-
-.ht-apps-filters {
-  display: flex;
-  gap: var(--sp-1);
-  flex-wrap: wrap;
-}
-
-.ht-apps-filter-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1h);
-  padding: var(--sp-1) var(--sp-2);
-  font-family: var(--font-body);
-  font-size: var(--fs-mono-sm);
-  font-weight: 500;
-  color: var(--ink-2);
-  background: transparent;
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-pill);
-  cursor: pointer;
-  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
-}
-
-.ht-apps-filter-pill:hover {
-  background: var(--bg-sunken);
-}
-
-.ht-apps-filter-pill--active {
-  color: var(--bg-surface);
-  background: var(--ink-1);
-  border-color: var(--ink-1);
-}
-
-.ht-apps-filter-pill--active:hover {
-  background: var(--ink-1);
-}
-
-.ht-apps-filter-pill__count {
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  opacity: 0.85;
-}
-
 .ht-search {
   font-family: var(--font-body);
   font-size: var(--fs-mono-sm);
@@ -1569,137 +1473,6 @@ strong {
   color: var(--ink-4);
 }
 
-/* Table card — extends .ht-card with horizontal scroll */
-.ht-apps-table-card {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.ht-apps-table thead th {
-  letter-spacing: 0.08em;
-}
-
-
-/* Table rows */
-.ht-apps-row {
-  transition: background var(--t-fast) var(--ease);
-  cursor: pointer;
-}
-
-.ht-apps-row--dimmed {
-  opacity: 0.55;
-}
-
-.ht-apps-row--instance {
-  background: var(--bg-page);
-}
-
-.ht-apps-row--instance:hover {
-  background: var(--bg-sunken);
-}
-
-/* Name cell */
-.ht-apps-row__name-cell {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  min-width: 0;
-}
-
-.ht-apps-row__expand-gutter {
-  width: var(--sp-4);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.ht-apps-row__expand {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--ink-2);
-  font-size: var(--fs-mono-md);
-  width: var(--sp-4);
-  padding: 0;
-  line-height: 1;
-}
-
-.ht-apps-row__expand:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: var(--sp-0);
-}
-
-
-.ht-apps-row__class-name {
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-}
-
-
-.ht-apps-row__instance-corner {
-  color: var(--ink-4);
-  font-size: var(--fs-micro);
-  margin-left: calc(var(--sp-4) + var(--sp-0));
-}
-
-.ht-apps-row__instance-count {
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-  margin-left: var(--sp-1);
-}
-
-
-/* Error cell */
-.ht-apps-row__error-cell {
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: default;
-}
-
-.ht-apps-row__error-cell[role="button"] {
-  cursor: pointer;
-}
-
-.ht-apps-row__error-cell.is-expanded {
-  white-space: normal;
-  word-break: break-word;
-  max-width: none;
-}
-
-.ht-apps-row__error-age {
-  color: var(--ink-3);
-}
-
-/* Runs cell */
-.ht-apps-row__runs-cell {
-  text-align: right;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0;
-}
-
-/* Actions cell */
-.ht-apps-row__actions-cell {
-  text-align: right;
-}
-
-.ht-apps-row__actions-cell .ht-btn-group {
-  justify-content: flex-end;
-  opacity: 0.35;
-  transition: opacity var(--t-fast) var(--ease);
-}
-
-.ht-apps-row:hover .ht-apps-row__actions-cell .ht-btn-group {
-  opacity: 1;
-}
-
-
 /* shared — permanent */
 @media (max-width: 768px) {
   .ht-search {
@@ -1707,97 +1480,6 @@ strong {
   }
 }
 
-/* owner: apps — migrates in T06 */
-@media (max-width: 768px) {
-  .ht-apps-row__class-name,
-  .ht-apps-table .ht-chip--auto {
-    display: none;
-  }
-
-  .ht-apps-table th:nth-child(n+3):not(:last-child),
-  .ht-apps-table td:nth-child(n+3):not(:last-child) {
-    display: none;
-  }
-
-  .ht-apps-row__name-cell::after {
-    content: "›";
-    margin-left: auto;
-    color: var(--ink-4);
-    font-size: var(--fs-h3);
-  }
-
-  .ht-apps-row:active {
-    background: var(--bg-active);
-  }
-}
-
-/* owner: handlers — migrates in T06 */
-@media (max-width: 768px) {
-  .ht-handlers-card:active {
-    background: var(--bg-active);
-  }
-
-  .ht-handlers-card::after {
-    content: "›";
-    position: absolute;
-    right: var(--sp-3);
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--ink-4);
-    font-size: var(--fs-h3);
-  }
-
-  .ht-handlers-card {
-    position: relative;
-  }
-}
-
-/* =====================================================
-   Handlers Page (global handlers / jobs view)
-   ===================================================== */
-
-
-
-/* Toolbar: app filter + tier toggle */
-.ht-handlers-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-4);
-}
-
-.ht-handlers-app-filter {
-  min-width: 160px;
-}
-
-.ht-handlers-tier-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  font-size: var(--fs-small);
-  color: var(--ink-2);
-  cursor: pointer;
-  user-select: none;
-}
-
-.ht-handlers-tier-toggle:hover {
-  color: var(--ink-1);
-}
-
-.ht-handlers-tier-toggle:focus-within {
-  outline: 2px solid var(--accent);
-  outline-offset: var(--sp-0);
-}
-
-.ht-handlers-tier-toggle input[type="checkbox"] {
-  cursor: pointer;
-  accent-color: var(--accent);
-  width: var(--fs-mono-md);
-  height: var(--fs-mono-md);
-}
-
-.ht-handlers-tier-toggle input[type="checkbox"]:focus-visible {
-  outline: none;
-}
 
 /* — Table toolbar (shared by handlers, logs) ———————————— */
 .ht-table-toolbar {
@@ -1839,273 +1521,6 @@ strong {
   overflow: auto;
   max-height: var(--table-scroll-height, calc(100vh - 310px));
 }
-
-.ht-handlers-table td {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 200px;
-}
-
-.ht-handlers-row:hover {
-  background: var(--bg-active);
-}
-
-.ht-handlers-row--failing {
-  background: var(--err-bg);
-}
-
-.ht-handlers-row--failing:hover {
-  background: color-mix(in srgb, var(--err-bg) 70%, var(--bg-active));
-}
-
-/* — Mobile card layout (handlers + jobs on small screens) ————————— */
-.ht-mobile-cards {
-  display: flex;
-  flex-direction: column;
-}
-
-.ht-mobile-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  padding: var(--sp-3) var(--sp-4);
-  border-bottom: 1px solid var(--line-2);
-  text-decoration: none;
-  color: inherit;
-  transition: background var(--t-fast);
-}
-
-.ht-mobile-card:last-child {
-  border-bottom: none;
-}
-
-.ht-mobile-card:hover {
-  background: var(--bg-active);
-}
-
-.ht-mobile-card--failing {
-  background: var(--err-bg);
-}
-
-.ht-mobile-card__header {
-  display: flex;
-  gap: var(--sp-2);
-  align-items: baseline;
-}
-
-.ht-mobile-card__metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-3);
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-}
-
-.ht-mobile-card__footer {
-  display: flex;
-  gap: var(--sp-3);
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-}
-
-/* =====================================================
-   Diagnostics Page  (ht-diag-*)
-   ===================================================== */
-
-
-/* Section card */
-.ht-diag__section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-}
-
-.ht-diag__section-header {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-}
-
-.ht-diag__section-heading {
-  font-family: var(--font-display);
-  font-size: var(--fs-h2);
-  line-height: var(--lh-h2);
-  letter-spacing: var(--tr-h2, -0.01em);
-  font-weight: 400;
-  margin: 0;
-  color: var(--ink-1);
-}
-
-.ht-diag__stale-badge {
-  font-size: var(--fs-micro);
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--warn);
-  border: 1px solid var(--warn);
-  border-radius: var(--r-pill);
-  padding: 1px var(--sp-2);
-}
-
-/* Services list */
-.ht-diag__service-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.ht-diag__service-row {
-  border-bottom: 1px solid var(--line-2);
-  padding: var(--sp-2) 0;
-}
-
-.ht-diag__service-row:last-child {
-  border-bottom: none;
-}
-
-.ht-diag__service-main {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
-}
-
-.ht-diag__service-name {
-  font-size: var(--fs-mono-md);
-  color: var(--ink-1);
-  font-weight: 500;
-}
-
-.ht-diag__service-role {
-  font-size: var(--fs-mono-sm);
-  color: var(--ink-3);
-}
-
-.ht-diag__service-status {
-  font-size: var(--fs-mono-sm);
-  color: var(--ink-2);
-}
-
-.ht-diag__service-phase {
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-  font-style: italic;
-}
-
-.ht-diag__service-retry {
-  font-size: var(--fs-mono-sm);
-  color: var(--warn);
-}
-
-.ht-diag__exception-toggle {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-  cursor: pointer;
-  text-decoration: underline;
-  font-family: inherit;
-}
-
-.ht-diag__exception-toggle:hover {
-  color: var(--ink-2);
-}
-
-.ht-diag__exception-detail {
-  margin: var(--sp-2) 0 0;
-  padding: var(--sp-3);
-  background: var(--bg-sunken);
-  border-radius: var(--r-sm);
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: var(--ink-2);
-}
-
-/* Boot issues */
-.ht-diag__boot-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-}
-
-.ht-diag__boot-row {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sp-3);
-}
-
-.ht-diag__boot-content {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  flex: 1;
-}
-
-.ht-diag__boot-label {
-  font-size: var(--fs-body);
-  font-weight: 500;
-  color: var(--ink-1);
-}
-
-.ht-diag__boot-detail {
-  font-size: var(--fs-small);
-  color: var(--ink-2);
-}
-
-/* Telemetry health */
-.ht-diag__degraded-banner {
-  background: var(--warn-bg);
-  border: 1px solid var(--warn);
-  border-radius: var(--r-sm);
-  padding: var(--sp-3) var(--sp-4);
-  font-size: var(--fs-small);
-  color: var(--warn);
-}
-
-.ht-diag__drop-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.ht-diag__drop-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2) 0;
-  border-bottom: 1px solid var(--line-2);
-}
-
-.ht-diag__drop-row:last-child {
-  border-bottom: none;
-}
-
-.ht-diag__drop-label {
-  font-size: var(--fs-small);
-  color: var(--ink-2);
-  flex: 1;
-}
-
-.ht-diag__drop-value {
-  font-size: var(--fs-mono-md);
-  color: var(--ink-2);
-  min-width: 3ch;
-  text-align: right;
-}
-
-
 
 /* — Framework Health Toggle ————————————————————————————— */
 .ht-framework-health__toggle {
@@ -3155,36 +2570,7 @@ strong {
   text-overflow: ellipsis;
 }
 
-/* — Logs Page & Config Page ———————————————————————————— */
-
-/* — Logs Page — full-height card override ————————————— */
-.ht-logs-page {
-  height: 100%;
-}
-
-.ht-card--logs-full {
-  flex: 1;
-}
-
-/* Make log scroll fill available vertical space on the Logs page */
-.ht-logs-page .ht-table-card-scroll {
-  --table-scroll-height: calc(100vh - 270px);
-}
-
-/* — Config Page — key-value groups ——————————————————— */
-.ht-config-groups {
-  display: flex;
-  flex-direction: column;
-}
-
-.ht-config-group {
-  /* margin-bottom handled by ht-mb-8 utility */
-}
-
-.ht-config-group + .ht-config-group {
-  border-top: 1px solid var(--line-2);
-  padding-top: var(--sp-8);
-}
+/* — Config shared classes (shared with config-tab — migrate in T08) ——— */
 
 .ht-section-label {
   font-family: var(--font-display);
@@ -3230,7 +2616,6 @@ strong {
   word-break: break-all;
 }
 
-/* Dim placeholder dash values */
 .ht-config-table__value--empty {
   color: var(--ink-4);
 }

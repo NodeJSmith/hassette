@@ -2,6 +2,7 @@ import { getConfig } from "../api/endpoints";
 import { Spinner } from "../components/shared/spinner";
 import { useApi } from "../hooks/use-api";
 import { useDocumentTitle } from "../hooks/use-document-title";
+import styles from "./config.module.css";
 
 type ConfigRow = { key: string; value: string };
 
@@ -88,7 +89,7 @@ export function ConfigPage() {
     : [];
 
   return (
-    <div class="ht-page ht-config-page">
+    <div class="ht-page" data-testid="config-page">
       <div class="ht-page-header">
         <h1 class="ht-display">config</h1>
       </div>
@@ -102,9 +103,9 @@ export function ConfigPage() {
       )}
 
       {config && (
-        <div class="ht-config-groups">
+        <div class={styles.groups}>
           {groups.map((group) => (
-            <section key={group.label} class="ht-config-group ht-mb-8">
+            <section key={group.label} class={`${styles.group} ht-mb-8`}>
               <h2 class="ht-section-label">{group.label}</h2>
               <div class="ht-card ht-card--config">
                 <table class="ht-table ht-table--compact ht-config-table">
@@ -112,7 +113,7 @@ export function ConfigPage() {
                     {group.rows.map((row) => (
                       <tr key={row.key}>
                         <td class="ht-config-table__key">{row.key}</td>
-                        <td class={`ht-config-table__value${row.value === "—" ? " ht-config-table__value--empty" : ""}`}>{row.value}</td>
+                        <td class={`ht-config-table__value${row.value === "—" ? " ht-config-table__value--empty" : ""}`} data-testid="config-value">{row.value}</td>
                       </tr>
                     ))}
                   </tbody>

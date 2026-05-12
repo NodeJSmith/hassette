@@ -1,0 +1,190 @@
+/* Diagnostics page — component-scoped styles */
+
+/* Section card */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.sectionHeading {
+  font-family: var(--font-display);
+  font-size: var(--fs-h2);
+  line-height: var(--lh-h2);
+  letter-spacing: var(--tr-h2, -0.01em);
+  font-weight: 400;
+  margin: 0;
+  color: var(--ink-1);
+}
+
+.staleBadge {
+  font-size: var(--fs-micro);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--warn);
+  border: 1px solid var(--warn);
+  border-radius: var(--r-pill);
+  padding: 1px var(--sp-2);
+}
+
+/* Services list */
+
+.serviceList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.serviceRow {
+  border-bottom: 1px solid var(--line-2);
+  padding: var(--sp-2) 0;
+}
+
+.serviceRow:last-child {
+  border-bottom: none;
+}
+
+.serviceMain {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.serviceName {
+  font-size: var(--fs-mono-md);
+  color: var(--ink-1);
+  font-weight: 500;
+}
+
+.serviceStatus {
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-2);
+}
+
+.servicePhase {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+.serviceRetry {
+  font-size: var(--fs-mono-sm);
+  color: var(--warn);
+}
+
+.exceptionToggle {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  cursor: pointer;
+  text-decoration: underline;
+  font-family: inherit;
+}
+
+.exceptionToggle:hover {
+  color: var(--ink-2);
+}
+
+.exceptionDetail {
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-3);
+  background: var(--bg-sunken);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--ink-2);
+}
+
+/* Boot issues */
+
+.bootList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.bootRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+.bootContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  flex: 1;
+}
+
+.bootLabel {
+  font-size: var(--fs-body);
+  font-weight: 500;
+  color: var(--ink-1);
+}
+
+.bootDetail {
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+}
+
+/* Telemetry health */
+
+.degradedBanner {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn);
+  border-radius: var(--r-sm);
+  padding: var(--sp-3) var(--sp-4);
+  font-size: var(--fs-small);
+  color: var(--warn);
+}
+
+.dropList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dropRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.dropRow:last-child {
+  border-bottom: none;
+}
+
+.dropLabel {
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+  flex: 1;
+}
+
+.dropValue {
+  font-size: var(--fs-mono-md);
+  color: var(--ink-2);
+  min-width: 3ch;
+  text-align: right;
+}

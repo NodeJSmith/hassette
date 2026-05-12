@@ -78,7 +78,7 @@ def test_apps_card_layout_at_375px(page: Page, base_url: str) -> None:
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/apps")
     # The apps page always uses a table, but hides columns 3+ on mobile
-    table = page.locator("table.ht-apps-table")
+    table = page.locator("[data-testid='apps-table']")
     expect(table).to_be_visible()
     # Columns 3+ (last error, runs, last fired) are hidden on mobile via CSS
     third_header = table.locator("th:nth-child(3)")
@@ -89,7 +89,7 @@ def test_apps_table_layout_at_1024px(page: Page, base_url: str) -> None:
     """Desktop viewport shows the apps table with all columns visible."""
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/apps")
-    table = page.locator("table.ht-apps-table")
+    table = page.locator("[data-testid='apps-table']")
     expect(table).to_be_visible()
     # All columns should be visible on desktop (including column 3+)
     third_header = table.locator("th:nth-child(3)")
@@ -146,7 +146,7 @@ def test_breakpoint_boundary_768px(page: Page, base_url: str) -> None:
     page.set_viewport_size(TABLET_VIEWPORT)
     page.goto(base_url + "/apps")
     # At 768px, the mobile CSS hides columns 3+ in the apps table
-    table = page.locator("table.ht-apps-table")
+    table = page.locator("[data-testid='apps-table']")
     expect(table).to_be_visible()
     third_header = table.locator("th:nth-child(3)")
     expect(third_header).not_to_be_visible()
