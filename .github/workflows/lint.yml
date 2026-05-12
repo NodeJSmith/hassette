@@ -114,11 +114,11 @@ jobs:
             - name: Smoke test CSS allowlist logic
               run: uv run python tools/check_global_css_allowlist.py --smoke-test
 
-            - name: Check global CSS allowlist (diff against base)
-              run: uv run python tools/check_global_css_allowlist.py --diff-base origin/${{ github.base_ref || 'main' }}
+            - name: Check global CSS allowlist (full file)
+              run: uv run python tools/check_global_css_allowlist.py
 
-            - name: Check dead global CSS (warning)
-              run: uv run python tools/check_dead_global_css.py || true
+            - name: Check dead global CSS (blocking)
+              run: uv run python tools/check_dead_global_css.py
 
     codegen-freshness:
         needs: changes

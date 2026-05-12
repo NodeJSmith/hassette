@@ -23,47 +23,56 @@ GLOBAL_CSS = REPO_ROOT / "frontend" / "src" / "global.css"
 # BEM modifiers are matched by prefix: ht-btn--sm matches ht-btn.
 # Entries that end in - or _ must be matched as prefixes (e.g. ht-text-, ht-mb-).
 ALLOWLIST: list[str] = [
+    # Layout primitives
     "ht-layout",
     "ht-main",
     "ht-page",
     "ht-section",
     "ht-page-header",
-    "ht-grid",
     "ht-level",
-    "ht-flex",
+    # Surface components
     "ht-card",
     "ht-table",
     "ht-badge",
     "ht-btn",
+    "ht-btn-group",
     "ht-chip",
     "ht-pill",
     "ht-search",
-    "ht-text-",
-    "ht-mb-",
-    "ht-mt-",
-    "ht-ml-",
-    "ht-mr-",
-    "ht-p-",
-    "ht-w-",
-    "ht-visually-hidden",
-    "ht-skip-link",
-    "ht-display",
-    "ht-icon",
-    "ht-heading",
-    "ht-subheading",
-    "ht-label",
-    "ht-select",
+    "ht-alert",
+    # Navigation & wayfinding
+    "ht-breadcrumb",
     "ht-hamburger",
     "ht-drawer",
-    "ht-live-pulse",
-    "ht-block",
-    "ht-nowrap",
-    "ht-error-page",
-    "ht-error-card",
-    "ht-instance-row",
+    "ht-skip-link",
+    # Typography & display
+    "ht-display",
+    "ht-heading-4",
+    "ht-icon",
+    "ht-icon-svg",
     "ht-traceback",
+    "ht-log-level-badge",
+    "ht-detail-label",
+    "ht-section-label",
+    # Table infrastructure
     "ht-table-toolbar",
     "ht-table-card-scroll",
+    "ht-error-card",
+    # Utilities (text)
+    "ht-text-",
+    # Utilities (spacing — only values with live selectors)
+    "ht-mb-",
+    "ht-ml-",
+    # Accessibility
+    "ht-visually-hidden",
+    # Level layout sub-elements
+    "ht-level-start",
+    "ht-level-end",
+    "ht-level-item",
+    # Mobile-responsive drawer overlay
+    "ht-drawer-backdrop",
+    # Table column width helpers (set on <th>/<td> alongside ht-table)
+    "ht-col-",
 ]
 
 

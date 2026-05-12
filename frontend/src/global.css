@@ -274,18 +274,6 @@ strong {
   margin: 0;
 }
 
-/* 12-column CSS grid */
-.ht-grid {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: var(--sp-6);
-}
-
-.ht-grid-col-5  { grid-column: span 5; }
-.ht-grid-col-6  { grid-column: span 6; }
-.ht-grid-col-7  { grid-column: span 7; }
-.ht-grid-col-12 { grid-column: span 12; }
-
 /* Level (horizontal bar) */
 .ht-level {
   display: flex;
@@ -385,19 +373,6 @@ strong {
   padding: var(--sp-5);
 }
 
-.ht-card--full-height {
-  height: 100%;
-}
-
-.ht-card--urgent {
-  background: color-mix(in oklch, var(--err) 4%, var(--bg-surface));
-  border-color: var(--err);
-}
-
-.ht-card--receded {
-  border-top-color: var(--line-1);
-}
-
 .ht-card--compact {
   padding: var(--sp-3);
 }
@@ -455,18 +430,8 @@ strong {
 .ht-table--compact .ht-col-time     { width: 25%; }
 .ht-table--compact .ht-col-duration { width: 14%; }
 
-/* (compact table + exec-error-mobile responsive — migrated to handler-invocations.module.css in T08) */
 
 /* Message cell — interactive only when text is truncated */
-
-.ht-table--dense th,
-.ht-table--dense td {
-  padding: var(--sp-1) var(--sp-2);
-}
-
-.ht-table--striped tbody tr:nth-child(even) {
-  background: var(--bg-sunken);
-}
 
 /* — Badges ————————————————————————————————————————————— */
 .ht-badge {
@@ -653,28 +618,7 @@ strong {
   flex-wrap: wrap;
 }
 
-/* — Forms —————————————————————————————————————————————— */
-.ht-select {
-  display: inline-block;
-  position: relative;
-}
-
-.ht-select--inline { display: inline-block; }
-
-.ht-control {
-  display: inline-flex;
-  align-items: center;
-}
-
-
 /* — Headings ——————————————————————————————————————————— */
-.ht-heading-1 {
-  font-family: var(--font-display);
-  font-size: var(--fs-h1);
-  font-weight: 600;
-  color: var(--ink-3);
-}
-
 .ht-heading-4 {
   font-family: var(--font-display);
   font-size: var(--fs-h2);
@@ -682,46 +626,6 @@ strong {
   display: flex;
   align-items: center;
   gap: 0.35em;
-}
-
-.ht-heading-5 {
-  font-family: var(--font-display);
-  font-size: var(--fs-body);
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.35em;
-}
-
-.ht-heading-link {
-  color: inherit;
-  text-decoration: none;
-}
-
-.ht-heading-link:hover {
-  color: var(--accent-hover);
-  text-decoration: none;
-}
-
-.ht-subheading-4 {
-  font-family: var(--font-display);
-  font-size: var(--fs-h3);
-  font-weight: 400;
-  color: var(--ink-3);
-}
-
-.ht-subheading-6 {
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-}
-
-.ht-label {
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--ink-3);
-  margin-bottom: 0.25em;
 }
 
 /* — Icons —————————————————————————————————————————————— */
@@ -733,76 +637,28 @@ strong {
   height: 1.25em;
 }
 
-.ht-icon--sm {
-  width: 1em;
-  height: 1em;
-}
-
 /* — Utilities —————————————————————————————————————————— */
-/* Text alignment */
-.ht-text-center { text-align: center; }
-.ht-text-right  { text-align: right; }
-
-
 /* Text color */
-.ht-text-muted   { color: var(--ink-3); }
-.ht-text-danger  { color: var(--err); }
-.ht-text-success { color: var(--ok); }
-.ht-text-warning { color: var(--warn); }
+.ht-text-muted     { color: var(--ink-3); }
+.ht-text-secondary { color: var(--ink-3); }
+.ht-text-danger    { color: var(--err); }
+.ht-text-warning   { color: var(--warn); }
 
 /* Text size & weight */
 .ht-text-xs { font-size: var(--fs-micro); }
 .ht-text-sm { font-size: var(--fs-small); }
 .ht-text-semibold { font-weight: 600; }
 
-/* Flex */
-.ht-flex     { display: flex; }
-.ht-flex-col { flex-direction: column; }
-.ht-flex-grow { flex-grow: 1; }
-
 /* Spacing: margin */
+.ht-mb-2 { margin-bottom: var(--sp-2); }
 .ht-mb-3 { margin-bottom: var(--sp-3); }
 .ht-mb-4 { margin-bottom: var(--sp-4); }
-.ht-mb-5 { margin-bottom: var(--sp-5); }
-.ht-mb-6 { margin-bottom: var(--sp-6); }
 .ht-mb-8 { margin-bottom: var(--sp-8); }
-.ht-ml-1 { margin-left: var(--sp-1); }
 .ht-ml-2 { margin-left: var(--sp-2); }
-.ht-mr-2 { margin-right: var(--sp-2); }
-.ht-mt-3 { margin-top: var(--sp-3); }
-.ht-mt-4 { margin-top: var(--sp-4); }
-.ht-mt-auto { margin-top: auto; }
-
-/* Spacing: padding */
-.ht-p-hero  { padding: var(--sp-10) var(--sp-4); }
-.ht-pl-6 { padding-left: var(--sp-6); }
-
-/* Width */
-.ht-w-full { width: 100%; }
-
-/* Display */
-.ht-block { display: block; }
-
-/* Nowrap */
-.ht-nowrap { white-space: nowrap; }
 
 /* — Animations ————————————————————————————————————————— */
-@keyframes ht-pulse {
-  0%   { opacity: 0.5; }
-  100% { opacity: 1; }
-}
 
-.ht-live-pulse {
-  animation: ht-pulse 0.6s ease-in-out;
-}
-
-/* — Group / instance rows —————————————————————————————— */
-.ht-instance-row td:first-child {
-  padding-left: var(--sp-8);
-}
-
-
-/* TODO: remove after overview-tab.tsx migrates to <LogLevelBadge> or uses module import (T07) */
+/* — Log Level Badge ———————————————————————————————————— */
 .ht-log-level-badge {
   display: inline-flex;
   align-items: center;
@@ -831,11 +687,6 @@ strong {
   line-height: 1.6;
 }
 
-/* Error cell + traceback toggle — migrated to error-cell.module.css in T08 */
-/* Traceback row — migrated to job-executions.module.css in T08 */
-
-/* — Invocation table — migrated to handler-invocations.module.css in T08 — */
-
 /* — Detail Label ——————————————————————————————————————— */
 .ht-detail-label {
   font-size: var(--fs-micro);
@@ -847,8 +698,6 @@ strong {
 
 
 
-/* — Item List — migrated to handler-list.module.css in T08 — */
-
 /* — Button: danger variant ———————————————————————————— */
 .ht-btn--danger {
   border-color: var(--err);
@@ -858,6 +707,29 @@ strong {
 
 .ht-btn--danger:hover {
   opacity: 0.9;
+}
+
+/* — Alert banners —————————————————————————————————————— */
+.ht-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  font-size: var(--fs-small);
+  border: 1px solid transparent;
+}
+
+.ht-alert--danger {
+  background: var(--err-bg);
+  border-color: var(--err);
+  color: var(--ink-1);
+}
+
+.ht-alert--warning {
+  background: var(--warn-bg);
+  border-color: var(--warn);
+  color: var(--ink-1);
 }
 
 /* — Icon SVGs (inline Lucide replacements) ———————————— */
@@ -897,18 +769,6 @@ strong {
   font-weight: 500;
 }
 
-/* — Meta Item (mono, dim, strong variant) ————————————— */
-.ht-meta-item {
-  font-family: var(--font-mono);
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-}
-
-.ht-meta-item--strong {
-  color: var(--ink-1);
-  font-weight: 500;
-}
-
 /* — Responsive: sidebar hidden below 900px ————————————— */
 
 /* shared — permanent */
@@ -939,11 +799,6 @@ strong {
 
 
 
-
-
-
-/* (ht-invocation-table 900px responsive — migrated to handler-invocations.module.css in T08) */
-
 /* — Responsive: mobile layout below 768px ———————————————— */
 /* sync: BREAKPOINT_MOBILE in use-media-query.ts */
 
@@ -959,18 +814,6 @@ strong {
 
   .ht-section {
     padding: var(--sp-4);
-  }
-
-  /* Grid: stack columns */
-  .ht-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .ht-grid-col-5,
-  .ht-grid-col-6,
-  .ht-grid-col-7,
-  .ht-grid-col-12 {
-    grid-column: span 1;
   }
 
   /* Tables: horizontal scroll */
@@ -997,10 +840,6 @@ strong {
   .ht-heading-4 {
     font-size: var(--fs-body);
   }
-
-  .ht-heading-5 {
-    font-size: var(--fs-body);
-  }
 }
 
 
@@ -1017,109 +856,12 @@ strong {
   }
 }
 
-/* — App Grid (dashboard card grid) ————————————————————— */
-.ht-app-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--sp-4);
-}
-
-.ht-app-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--line-1);
-  border-top: 1px solid var(--line-2);
-  border-radius: var(--r-md);
-  transition: background var(--t-fast);
-  overflow: hidden;
-}
-
-.ht-app-grid--inactive .ht-app-card {
-  opacity: 0.55;
-}
-
-.ht-app-grid--inactive .ht-app-card:hover {
-  opacity: 0.85;
-}
-
-.ht-app-grid__section-label {
-  font-family: var(--font-body);
-  font-size: var(--fs-micro);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-3);
-  margin: var(--sp-4) 0 var(--sp-2);
-}
-
-.ht-app-card:hover {
-  background: var(--bg-sunken);
-}
-
-.ht-app-card__link {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-4);
-  text-decoration: none;
-  color: inherit;
-  cursor: pointer;
-}
-
-.ht-app-card__link:hover {
-  text-decoration: none;
-}
-
-.ht-app-card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-2);
-}
-
-.ht-app-card__name {
-  font-size: var(--fs-small);
-  font-weight: 600;
-  color: var(--ink-1);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ht-app-card__stats {
-  display: flex;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
-}
-
-.ht-app-card__counts {
-  display: flex;
-  gap: var(--sp-2);
-}
-
-.ht-app-card__footer {
-  margin-top: var(--sp-1);
-}
-
-/* — Framework Health Affordance ———————————————————————— */
-.ht-framework-health__title {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
-
-.ht-framework-health__body {
-  margin-top: var(--sp-4);
-  border-top: 1px solid var(--line-1);
-  padding-top: var(--sp-4);
-}
-
-/* — Spinner (shared animation — .spinner class migrated to spinner.module.css) — */
+/* — Shared keyframe animations (used in module CSS via :global or animation-name) — */
 @keyframes ht-spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
 
-/* — Pulse dot (shared animation — .pulseDot class migrated to status-bar.module.css) — */
 @keyframes ht-breathe {
   0%, 100% { opacity: 0.4; }
   50%      { opacity: 1; }
@@ -1131,28 +873,7 @@ strong {
 }
 
 
-.ht-info-hint {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.1em;
-  height: 1.1em;
-  font-size: 0.7em;
-  font-weight: 600;
-  color: var(--ink-3);
-  border: 1px solid var(--line-1);
-  border-radius: 50%;
-  cursor: help;
-  flex-shrink: 0;
-}
-
-
-
-
-/* — Log Table ————————————————————————————————————————— */
-/* (ht-log-toolbar removed — migrated to ht-table-toolbar) */
-
-/* Pill filter controls */
+/* — Pill filter controls ——————————————————————————————— */
 .ht-pill {
   display: inline-flex;
   align-items: center;
@@ -1164,12 +885,6 @@ strong {
   line-height: 1.5;
   border-radius: var(--r-pill);
   white-space: nowrap;
-}
-
-.ht-pill--accent {
-  color: var(--ok);
-  background: var(--ok-bg);
-  border: 1px solid color-mix(in srgb, var(--ok) 25%, transparent);
 }
 
 .ht-pill--mute {
@@ -1228,59 +943,10 @@ strong {
   }
 }
 
-/* — Sortable Column Header ————————————————————————————— */
-
-/* — Chevron Inline (manifest table) ——————————————————— */
-.ht-item-row__chevron-inline {
-  display: inline;
-  padding: 0;
-  border: none;
-  background: transparent;
-  font: inherit;
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-  user-select: none;
-  cursor: pointer;
-  margin-right: var(--sp-1);
-}
-
-.ht-item-row__chevron-inline:hover {
-  color: var(--ink-1);
-}
-
-.ht-item-row__chevron-inline:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: var(--sp-0);
-}
-
-/* — Button: link variant ————————————————————————————— */
-.ht-btn--link {
-  border-color: transparent;
-  background: transparent;
-  color: var(--accent);
-  padding: 0;
-}
-
-.ht-btn--link:hover {
-  background: transparent;
-  text-decoration: underline;
-}
-
-
 /* — Light Mode Overrides ——————————————————————————————— */
 [data-theme="light"] .ht-card {
   border: 1px solid var(--line-1);
   border-top: 1px solid var(--line-2);
-}
-
-[data-theme="light"] .ht-card--urgent {
-  background: color-mix(in oklch, var(--err) 4%, var(--bg-surface));
-  border-color: var(--err);
-}
-
-[data-theme="light"] .ht-card--receded {
-  box-shadow: none;
-  border-top-color: var(--line-1);
 }
 
 /* — Skip Navigation Link ——————————————————————————————— */
@@ -1310,10 +976,6 @@ strong {
   font-size: var(--fs-body);
   z-index: var(--z-skip);
 }
-
-/* — Manifest Card List (mobile apps view) —————————————— */
-/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
-
 
 .ht-search {
   font-family: var(--font-body);
@@ -1385,22 +1047,7 @@ strong {
   max-height: var(--table-scroll-height, calc(100vh - 310px));
 }
 
-/* — Framework Health Toggle ————————————————————————————— */
-.ht-framework-health__toggle {
-  margin-left: auto;
-  color: var(--ink-3);
-}
-
-/* — App Detail: Handlers Tab + Master/Detail ———————————— */
-/* (tab strip, master-detail, overview, handlers-tab — migrated to module CSS in T07) */
-
-/* — Handlers tab container ————————————————————————————— */
-/* (migrated to handlers-tab.module.css in T07) */
-
-/* — Unified handler row — migrated to unified-handler-row.module.css in T08 — */
-
-/* — Detail pane + stats row + chip-row — migrated to handlers-tab.module.css in T07 — */
-
+/* — Chips ——————————————————————————————————————————————— */
 .ht-chip {
   display: inline-flex;
   align-items: center;
@@ -1463,18 +1110,7 @@ strong {
   border: 1px solid var(--line-2);
 }
 
-/* — Responsive: mobile (max-width: 768px) ——————————————— */
-/* (unified-handler-row responsive migrated to unified-handler-row.module.css in T08) */
-
-/* — Code Tab — migrated to code-tab.module.css in T08 — */
-
-/* — Config Tab — migrated to config-tab.module.css in T08 — */
-
-/* .ht-multi-overview — migrated to app-detail.module.css in T07 */
-/* — Instance Grid + Switcher — migrated to app-detail.module.css in T07 — */
-
-/* — Shared config classes (stays global — used in 3+ files) — */
-
+/* — Section / config shared classes ————————————————————— */
 .ht-section-label {
   font-family: var(--font-display);
   font-size: var(--fs-h3);
@@ -1488,8 +1124,6 @@ strong {
   padding: 0;
   overflow: hidden;
 }
-
-/* (config-table responsive — migrated to config-tab.module.css in T08) */
 
 /* — Visually hidden (accessibility) ———————————————————— */
 .ht-visually-hidden {

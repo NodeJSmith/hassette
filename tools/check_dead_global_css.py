@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
-"""CI warning: detect unused class selectors in frontend/src/global.css.
+"""CI guard: detect unused class selectors in frontend/src/global.css.
 
 Extracts all class selectors from global.css and checks each against all .ts
 and .tsx files under frontend/src/. Reports selectors that are not referenced
-in any source file.
+in any source file. Exits non-zero if any unreferenced selectors are found.
 
 Maintains an annotated exemption list for:
   - Dynamically-assembled class families (e.g. ht-badge--${variant})
   - Third-party injected classes (shiki syntax highlighting)
-
-Exit code is always 0 (warning mode during migration). Upgrade to exit 1
-after migration completes by removing the final sys.exit(0) override.
+  - Parser false positives (e.g. woff2 from @font-face src)
 
 Usage:
     python tools/check_dead_global_css.py
@@ -43,6 +41,7 @@ EXEMPTIONS: list[tuple[str, str]] = [
 # Exact class names that are known-exempt (not prefix-based)
 EXACT_EXEMPTIONS: set[str] = {
     "line",  # shiki injects class="line" on code lines
+    "woff2",  # false positive: appears in @font-face src: url(...) format('woff2')
 }
 
 
@@ -101,22 +100,20 @@ def main() -> int:
             unreferenced.append(class_name)
 
     if unreferenced:
-        print(f"WARNING: {len(unreferenced)} potentially unreferenced class(es) in global.css:")
+        print(f"ERROR: {len(unreferenced)} unreferenced class(es) found in global.css:")
         for cls in sorted(unreferenced):
             print(f"  .{cls}")
         print()
         print(f"({len(exempted)} class(es) skipped — on exemption list)")
         print()
-        print("These classes may be orphaned. Verify manually before removing.")
-        print("If a class is dynamically assembled, add it to EXEMPTIONS in")
-        print("tools/check_dead_global_css.py.")
+        print("These classes are not referenced in any .ts/.tsx file.")
+        print("Either remove them from global.css, or add to EXEMPTIONS in")
+        print("tools/check_dead_global_css.py if the class is dynamically assembled.")
     else:
         print(f"OK: all {len(all_classes)} class selectors in global.css appear to be referenced.")
         print(f"({len(exempted)} class(es) skipped — on exemption list)")
 
-    # Warning mode: always exit 0 during migration.
-    # After migration completes, change this to: return 1 if unreferenced else 0
-    return 0
+    return 1 if unreferenced else 0
 
 
 if __name__ == "__main__":
