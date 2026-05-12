@@ -18,6 +18,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GLOBAL_CSS = REPO_ROOT / "frontend" / "src" / "global.css"
+STYLES_DIR = REPO_ROOT / "frontend" / "src" / "styles"
 
 # Shared class prefixes that are allowed to remain in global.css.
 # BEM modifiers are matched by prefix: ht-btn--sm matches ht-btn.
@@ -41,15 +42,11 @@ ALLOWLIST: list[str] = [
     "ht-search",
     "ht-alert",
     # Navigation & wayfinding
-    "ht-breadcrumb",
     "ht-hamburger",
     "ht-drawer",
     "ht-skip-link",
     # Typography & display
     "ht-display",
-    "ht-heading-4",
-    "ht-icon",
-    "ht-icon-svg",
     "ht-traceback",
     "ht-log-level-badge",
     "ht-detail-label",
@@ -63,8 +60,6 @@ ALLOWLIST: list[str] = [
     # Utilities (spacing — only values with live selectors)
     "ht-mb-",
     "ht-ml-",
-    # Accessibility
-    "ht-visually-hidden",
     # Level layout sub-elements
     "ht-level-start",
     "ht-level-end",
@@ -100,9 +95,9 @@ def extract_ht_selectors(css_text: str) -> list[str]:
 
 
 def get_diff_text(base_ref: str) -> str:
-    """Return added lines from diff against a base ref for global.css."""
+    """Return added lines from diff against a base ref for global CSS files."""
     result = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "diff", base_ref, "--", "frontend/src/global.css"],
+        ["git", "-C", str(REPO_ROOT), "diff", base_ref, "--", "frontend/src/global.css", "frontend/src/styles/"],
         capture_output=True,
         text=True,
     )
@@ -138,6 +133,18 @@ def run_smoke_test() -> bool:
     return True
 
 
+def _read_all_style_files() -> str | None:
+    """Read all shared CSS files: global.css (which may just be @imports) + styles/*.css."""
+    parts: list[str] = []
+    if GLOBAL_CSS.exists():
+        parts.append(GLOBAL_CSS.read_text())
+    if STYLES_DIR.is_dir():
+        parts.extend(css_file.read_text() for css_file in sorted(STYLES_DIR.glob("*.css")))
+    if not parts:
+        return None
+    return "\n".join(parts)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
@@ -169,11 +176,11 @@ def main() -> int:
         css_text = get_diff_text(base_ref)
         source_label = f"git diff {base_ref} -- frontend/src/global.css"
     else:
-        if not GLOBAL_CSS.exists():
-            print(f"ERROR: {GLOBAL_CSS} not found", file=sys.stderr)
+        css_text = _read_all_style_files()
+        if css_text is None:
+            print("ERROR: no global CSS files found (checked global.css and styles/)", file=sys.stderr)
             return 1
-        css_text = GLOBAL_CSS.read_text()
-        source_label = str(GLOBAL_CSS.relative_to(REPO_ROOT))
+        source_label = "frontend/src/styles/*.css"
 
     selectors = extract_ht_selectors(css_text)
     unknown = [s for s in selectors if not is_allowed(s)]

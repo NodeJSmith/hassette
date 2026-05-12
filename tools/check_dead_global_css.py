@@ -21,6 +21,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GLOBAL_CSS = REPO_ROOT / "frontend" / "src" / "global.css"
+STYLES_DIR = REPO_ROOT / "frontend" / "src" / "styles"
 FRONTEND_SRC = REPO_ROOT / "frontend" / "src"
 
 # Exemption list: class name prefixes that are assembled dynamically at runtime
@@ -73,12 +74,24 @@ def build_tsx_corpus(tsx_files: list[Path]) -> str:
     return "\n".join(parts)
 
 
+def _read_all_style_files() -> str | None:
+    """Read all shared CSS files: global.css (which may just be @imports) + styles/*.css."""
+    parts: list[str] = []
+    if GLOBAL_CSS.exists():
+        parts.append(GLOBAL_CSS.read_text())
+    if STYLES_DIR.is_dir():
+        parts.extend(css_file.read_text() for css_file in sorted(STYLES_DIR.glob("*.css")))
+    if not parts:
+        return None
+    return "\n".join(parts)
+
+
 def main() -> int:
-    if not GLOBAL_CSS.exists():
-        print(f"ERROR: {GLOBAL_CSS} not found", file=sys.stderr)
+    css_text = _read_all_style_files()
+    if css_text is None:
+        print("ERROR: no global CSS files found (checked global.css and styles/)", file=sys.stderr)
         return 1
 
-    css_text = GLOBAL_CSS.read_text()
     all_classes = extract_class_selectors(css_text)
 
     source_files = find_frontend_source_files()
@@ -100,17 +113,17 @@ def main() -> int:
             unreferenced.append(class_name)
 
     if unreferenced:
-        print(f"ERROR: {len(unreferenced)} unreferenced class(es) found in global.css:")
+        print(f"ERROR: {len(unreferenced)} unreferenced class(es) found in global CSS:")
         for cls in sorted(unreferenced):
             print(f"  .{cls}")
         print()
         print(f"({len(exempted)} class(es) skipped — on exemption list)")
         print()
         print("These classes are not referenced in any .ts/.tsx file.")
-        print("Either remove them from global.css, or add to EXEMPTIONS in")
+        print("Either remove them from the style files, or add to EXEMPTIONS in")
         print("tools/check_dead_global_css.py if the class is dynamically assembled.")
     else:
-        print(f"OK: all {len(all_classes)} class selectors in global.css appear to be referenced.")
+        print(f"OK: all {len(all_classes)} class selectors in global CSS appear to be referenced.")
         print(f"({len(exempted)} class(es) skipped — on exemption list)")
 
     return 1 if unreferenced else 0

@@ -1,0 +1,8 @@
+/* Icon SVGs — shared sizing for inline Lucide replacements */
+
+.iconSvg {
+  width: var(--sz-icon-sm);
+  height: var(--sz-icon-sm);
+  vertical-align: middle;
+  flex-shrink: 0;
+}

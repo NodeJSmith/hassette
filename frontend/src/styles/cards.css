@@ -1,0 +1,22 @@
+/* Cards — surface containers */
+
+/* — Cards —————————————————————————————————————————————— */
+.ht-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-top: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  padding: var(--sp-5);
+}
+
+.ht-card--compact {
+  padding: var(--sp-3);
+}
+
+.ht-error-card { padding: var(--sp-6); text-align: center; }
+
+/* — Light Mode Overrides ——————————————————————————————— */
+[data-theme="light"] .ht-card {
+  border: 1px solid var(--line-1);
+  border-top: 1px solid var(--line-2);
+}

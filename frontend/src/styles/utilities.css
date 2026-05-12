@@ -1,0 +1,217 @@
+/* Utilities — text helpers, spacing, log badges, alerts, pills, animations, search, skip link */
+
+/* — Utilities —————————————————————————————————————————— */
+/* Text color */
+.ht-text-muted     { color: var(--ink-3); }
+.ht-text-secondary { color: var(--ink-3); }
+.ht-text-danger    { color: var(--err); }
+.ht-text-warning   { color: var(--warn); }
+
+/* Text size & weight */
+.ht-text-xs { font-size: var(--fs-micro); }
+.ht-text-sm { font-size: var(--fs-small); }
+.ht-text-semibold { font-weight: 600; }
+
+/* Spacing: margin */
+.ht-mb-2 { margin-bottom: var(--sp-2); }
+.ht-mb-3 { margin-bottom: var(--sp-3); }
+.ht-mb-4 { margin-bottom: var(--sp-4); }
+.ht-mb-8 { margin-bottom: var(--sp-8); }
+.ht-ml-2 { margin-left: var(--sp-2); }
+
+/* — Log Level Badge ———————————————————————————————————— */
+.ht-log-level-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-mono-sm);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.ht-log-level-badge__text {
+  color: var(--ink-2);
+  font-size: var(--fs-mono-sm);
+}
+
+.ht-traceback {
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-sunken);
+  color: var(--ink-1);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  overflow-x: auto;
+  white-space: pre;
+  line-height: 1.6;
+}
+
+/* — Detail Label ——————————————————————————————————————— */
+.ht-detail-label {
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+/* — Alert banners —————————————————————————————————————— */
+.ht-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  font-size: var(--fs-small);
+  border: 1px solid transparent;
+}
+
+.ht-alert--danger {
+  background: var(--err-bg);
+  border-color: var(--err);
+  color: var(--ink-1);
+}
+
+.ht-alert--warning {
+  background: var(--warn-bg);
+  border-color: var(--warn);
+  color: var(--ink-1);
+}
+
+/* — Shared keyframe animations (used in module CSS via :global or animation-name) — */
+@keyframes ht-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes ht-breathe {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
+}
+
+/* — Mono Text —————————————————————————————————————————— */
+.ht-text-mono {
+  font-family: var(--font-mono);
+}
+
+/* — Pill filter controls ——————————————————————————————— */
+.ht-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-0) var(--sp-2);
+  font-family: var(--font-body);
+  font-size: var(--fs-badge);
+  font-weight: 500;
+  line-height: 1.5;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+}
+
+.ht-pill--mute {
+  color: var(--ink-2);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+}
+
+.ht-pill--warn {
+  color: var(--warn);
+  background: var(--warn-bg);
+  border: 1px solid color-mix(in srgb, var(--warn) 25%, transparent);
+  cursor: pointer;
+}
+
+.ht-pill--warn:hover {
+  border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+}
+
+.ht-pill--interactive {
+  cursor: pointer;
+  position: relative;
+}
+
+.ht-pill--interactive:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.ht-pill__select {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+/* — Skip Navigation Link ——————————————————————————————— */
+.ht-skip-link {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  z-index: var(--z-skip);
+}
+/* :focus (not :focus-visible) — skip-nav must be visible on ALL focus types,
+   including mouse click, since the user explicitly activated it */
+.ht-skip-link:focus {
+  position: fixed;
+  top: var(--sp-2);
+  left: var(--sp-2);
+  width: auto;
+  height: auto;
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--bg-surface);
+  color: var(--ink-1);
+  border: 2px solid var(--accent);
+  border-radius: var(--r-md);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  z-index: var(--z-skip);
+}
+
+.ht-search {
+  font-family: var(--font-body);
+  font-size: var(--fs-mono-sm);
+  padding: var(--sp-1h) var(--sp-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--input-bg);
+  color: var(--ink-1);
+  outline: none;
+  min-width: 160px;
+}
+
+.ht-search:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.ht-search::placeholder {
+  color: var(--ink-4);
+}
+
+/* shared — permanent */
+@media (max-width: 768px) {
+  .ht-search {
+    min-width: unset;
+  }
+}
+
+/* — Section / config shared classes ————————————————————— */
+.ht-section-label {
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  font-weight: 400;
+  color: var(--ink-1);
+  letter-spacing: var(--tr-h3);
+  margin-bottom: var(--sp-2);
+}
+
+.ht-card--config {
+  padding: 0;
+  overflow: hidden;
+}

@@ -109,7 +109,7 @@ function MultiInstanceOverview({
     <div class={styles.multiOverview} data-testid="multi-instance-overview">
       <div class="ht-level ht-mb-4">
         <div class="ht-level-start">
-          <h1 class="ht-heading-4">{displayName}</h1>
+          <h1 class={styles.heading4}>{displayName}</h1>
           <span class="ht-badge ht-badge--neutral" data-testid="instance-count-badge">
             ×{instanceCount} instances
           </span>
@@ -238,10 +238,10 @@ export function AppDetailPage({ params }: Props) {
     return (
       <div>
         {/* Breadcrumb */}
-        <nav class="ht-breadcrumb ht-mb-3" aria-label="Breadcrumb">
+        <nav class={clsx(styles.breadcrumb, "ht-mb-3")} aria-label="Breadcrumb">
           <a href="/apps">apps</a>
-          <span class="ht-breadcrumb__separator" aria-hidden="true">/</span>
-          <span class="ht-breadcrumb__current" aria-current="page">
+          <span class={styles.breadcrumbSeparator} aria-hidden="true">/</span>
+          <span class={styles.breadcrumbCurrent} aria-current="page">
             {manifest.display_name ?? appKey}
           </span>
         </nav>
@@ -259,11 +259,11 @@ export function AppDetailPage({ params }: Props) {
   return (
     <div class="ht-page">
       {/* Breadcrumb */}
-      <nav class="ht-breadcrumb ht-mb-3" aria-label="Breadcrumb">
+      <nav class={clsx(styles.breadcrumb, "ht-mb-3")} aria-label="Breadcrumb">
         {isMultiInstance ? (
           <>
             <a href="/apps">apps</a>
-            <span class="ht-breadcrumb__separator" aria-hidden="true">/</span>
+            <span class={styles.breadcrumbSeparator} aria-hidden="true">/</span>
             <a
               href={`/apps/${appKey}`}
               data-testid="breadcrumb-parent"
@@ -274,16 +274,16 @@ export function AppDetailPage({ params }: Props) {
             >
               {appKey}
             </a>
-            <span class="ht-breadcrumb__separator" aria-hidden="true">/</span>
-            <span class="ht-breadcrumb__current" aria-current="page">
+            <span class={styles.breadcrumbSeparator} aria-hidden="true">/</span>
+            <span class={styles.breadcrumbCurrent} aria-current="page">
               {currentInstance?.instance_name ?? `Instance ${resolvedInstanceIndex}`}
             </span>
           </>
         ) : (
           <>
             <a href="/apps">apps</a>
-            <span class="ht-breadcrumb__separator" aria-hidden="true">/</span>
-            <span class="ht-breadcrumb__current" aria-current="page">
+            <span class={styles.breadcrumbSeparator} aria-hidden="true">/</span>
+            <span class={styles.breadcrumbCurrent} aria-current="page">
               {appKey}
             </span>
           </>
@@ -305,7 +305,7 @@ export function AppDetailPage({ params }: Props) {
       <div class="ht-level ht-mb-2">
         <div class="ht-level-start">
           <div class="ht-level-item">
-            <h1 class="ht-heading-4" data-testid="app-title">
+            <h1 class={styles.heading4} data-testid="app-title">
               <StatusShape kind={statusToKind(liveStatus)} size={14} />
               <span class="ht-ml-2">{appKey}</span>
             </h1>

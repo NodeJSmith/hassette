@@ -280,9 +280,9 @@ import clsx from "clsx";
 <div class={clsx(styles.wrapper, isActive && styles.active)}>
 ```
 
-### When to use global.css vs a module
+### When to use styles/ vs a module
 
-- **`global.css`**: Shared design system classes used across 3+ unrelated files (e.g. `ht-btn`, `ht-card`, `ht-badge`). All classes use the `ht-` prefix.
+- **`styles/`**: Shared design system classes used across 3+ unrelated files (e.g. `ht-btn`, `ht-card`, `ht-badge`). All classes use the `ht-` prefix. Organized by domain: `fonts.css`, `reset.css`, `typography.css`, `layout.css`, `cards.css`, `tables.css`, `badges.css`, `buttons.css`, `chips.css`, `utilities.css`. Imported via `global.css`.
 - **`.module.css`**: Everything else — component-specific layout, state variants, animations tied to a single component.
 
 ### Referencing global classes from module CSS
@@ -303,14 +303,14 @@ Do NOT use bare class names (`.ht-table`) in module CSS — they will be scoped 
 
 Three scripts enforce CSS hygiene, all wired into `.github/workflows/lint.yml`:
 
-- **`tools/check_global_css_allowlist.py`** — blocks any `.ht-*` selector not on the allowlist from entering `global.css`. Run locally: `uv run python tools/check_global_css_allowlist.py`. Add new shared prefixes to `ALLOWLIST` in that file.
-- **`tools/check_dead_global_css.py`** — blocks unreferenced class selectors in `global.css`. Run locally: `uv run python tools/check_dead_global_css.py`. Add dynamically-assembled class prefixes to `EXEMPTIONS` in that file.
+- **`tools/check_global_css_allowlist.py`** — blocks any `.ht-*` selector not on the allowlist from entering shared CSS (`styles/*.css`). Run locally: `uv run python tools/check_global_css_allowlist.py`. Add new shared prefixes to `ALLOWLIST` in that file.
+- **`tools/check_dead_global_css.py`** — blocks unreferenced class selectors in shared CSS (`styles/*.css`). Run locally: `uv run python tools/check_dead_global_css.py`. Add dynamically-assembled class prefixes to `EXEMPTIONS` in that file.
 - **`tools/check_css_module_globals.py`** — validates that `:global()` usage in module CSS is correct.
 
 ### Adding a new shared class
 
 1. Confirm it is used in 3+ unrelated files (not just BEM descendants of one component)
-2. Add it to `global.css` under the appropriate section
+2. Add it to the appropriate file in `frontend/src/styles/`
 3. Add its prefix to `ALLOWLIST` in `tools/check_global_css_allowlist.py`
 4. Run `uv run python tools/check_global_css_allowlist.py` to verify
 

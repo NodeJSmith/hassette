@@ -164,6 +164,47 @@
   text-overflow: ellipsis;
 }
 
+/* — Breadcrumb (app detail only) — */
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  margin-bottom: var(--sp-4);
+}
+
+.breadcrumb a {
+  color: var(--ink-3);
+  text-decoration: none;
+}
+
+.breadcrumb a:hover {
+  color: var(--ink-1);
+  text-decoration: underline;
+}
+
+.breadcrumbSeparator {
+  color: var(--ink-3);
+}
+
+.breadcrumbCurrent {
+  color: var(--ink-1);
+  font-weight: 500;
+}
+
+/* — Heading-4 (app detail only) — */
+
+.heading4 {
+  font-family: var(--font-display);
+  font-size: var(--fs-h2);
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
 /* — Responsive — */
 
 @media screen and (max-width: 900px) {
@@ -182,5 +223,9 @@
   .tabBtn {
     min-height: var(--sz-touch);
     padding: var(--sp-2) var(--sp-3);
+  }
+
+  .heading4 {
+    font-size: var(--fs-body);
   }
 }
