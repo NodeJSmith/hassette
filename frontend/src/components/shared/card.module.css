@@ -1,0 +1,51 @@
+/* Card component — surface containers */
+
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-top: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  padding: var(--sp-5);
+}
+
+/* compact: reduce padding only */
+.compact {
+  padding: var(--sp-3);
+}
+
+/* config: remove padding, clip overflow for flush inner content */
+.config {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* error: absorbs both base card styles AND error-specific overrides.
+   The original CSS had .ht-card and .ht-error-card as independent selectors
+   (not BEM). This single class merges both so variant="error" needs no
+   separate base class alongside it. */
+.error {
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-top: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  padding: var(--sp-6);
+  text-align: center;
+}
+
+/* — Responsive: mobile layout below 768px ———————————————— */
+/* Tables inside cards: horizontal scroll (moved from layout.css) */
+@media screen and (max-width: 768px) {
+  .card :global(.ht-table) {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* — Responsive: small phones (max-width: 480px) ———————— */
+/* sync: BREAKPOINT_SMALL_MOBILE in use-media-query.ts */
+@media (max-width: 480px) {
+  .card {
+    padding: var(--sp-3);
+  }
+}

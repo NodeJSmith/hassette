@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Create Chip and Card components with module CSS"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#6", "FR#7", "FR#8", "FR#9", "FR#10", "FR#16"]
 ---

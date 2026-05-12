@@ -158,14 +158,6 @@
     padding: var(--sp-4);
   }
 
-  /* Tables: horizontal scroll */
-  .ht-card > .ht-table,
-  .ht-card > div > .ht-table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
   /* Level: wrap */
   .ht-level {
     flex-wrap: wrap;
@@ -183,10 +175,6 @@
 /* sync: BREAKPOINT_SMALL_MOBILE in use-media-query.ts */
 @media screen and (max-width: 480px) {
   .ht-section {
-    padding: var(--sp-3);
-  }
-
-  .ht-card {
     padding: var(--sp-3);
   }
 }

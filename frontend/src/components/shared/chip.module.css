@@ -1,0 +1,60 @@
+/* Chip component — compact metadata labels */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--sp-0) var(--sp-2);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+.modifier {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--ink-1);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  font-family: var(--font-mono);
+}
+
+.schedule {
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  color: var(--ink-3);
+  border: 1px solid color-mix(in srgb, var(--ok) 25%, transparent);
+  font-family: var(--font-mono);
+}
+
+/* kind variant: base styles shared across all kind sub-colors */
+.kind {
+  gap: var(--sp-1);
+  border: 1px solid;
+}
+
+/* kind variant: per-color overrides */
+.kindOk   { border-color: var(--ok);    color: var(--ok); }
+.kindWarn { border-color: var(--warn);  color: var(--warn); }
+.kindErr  { border-color: var(--err);   color: var(--err); }
+.kindMute { border-color: var(--ink-4); color: var(--ink-4); }
+
+/* muted merges the formerly-duplicate --auto and --muted variants */
+.muted {
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+}
+
+.origin {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ink-3);
+  border: 1px solid var(--line-2);
+}
+
+/* size modifier */
+.sm {
+  font-size: 10px;
+  padding: 1px var(--sp-1);
+}
