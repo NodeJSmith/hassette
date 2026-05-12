@@ -32,12 +32,7 @@ ALLOWLIST: list[str] = [
     "ht-page-header",
     "ht-level",
     # Surface components
-    "ht-card",
     "ht-table",
-    "ht-badge",
-    "ht-btn",
-    "ht-btn-group",
-    "ht-chip",
     "ht-pill",
     "ht-search",
     "ht-alert",

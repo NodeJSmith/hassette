@@ -28,10 +28,6 @@ FRONTEND_SRC = REPO_ROOT / "frontend" / "src"
 # or injected by third-party libraries. These cannot be detected by static grep.
 # Format: (prefix_or_exact, reason)
 EXEMPTIONS: list[tuple[str, str]] = [
-    # Dynamic BEM modifiers assembled via template literals, e.g.:
-    #   `ht-badge--${variant}` where variant is "success" | "warning" | "error" | ...
-    ("ht-badge--", "dynamically assembled: ht-badge--${variant}"),
-    ("ht-chip--kind-", "dynamically assembled: ht-chip--kind-${kind}"),
     # Third-party injected classes from shiki syntax highlighter
     ("shiki", "third-party: injected by shiki syntax highlighter"),
     ("line--", "third-party: injected by shiki (line token classes)"),

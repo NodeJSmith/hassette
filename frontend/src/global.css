@@ -6,9 +6,5 @@
 @import "./styles/reset.css";
 @import "./styles/typography.css";
 @import "./styles/layout.css";
-@import "./styles/cards.css";
 @import "./styles/tables.css";
-@import "./styles/badges.css";
-@import "./styles/buttons.css";
-@import "./styles/chips.css";
 @import "./styles/utilities.css";
