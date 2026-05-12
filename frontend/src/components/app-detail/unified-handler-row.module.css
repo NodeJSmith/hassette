@@ -1,0 +1,141 @@
+/* Unified handler row — component-scoped styles */
+
+.row {
+  display: grid;
+  grid-template-columns: var(--sz-icon-sm) var(--sz-icon-sm) 1fr;
+  align-items: start;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  cursor: pointer;
+  transition: background var(--t-fast);
+  background: var(--bg-surface);
+  /* Button reset */
+  border: none;
+  border-bottom: 1px solid var(--line-1);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  width: 100%;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row:hover {
+  background: var(--bg-sunken);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: calc(-1 * var(--sp-0));
+}
+
+.rowSelected {
+  background: var(--accent-soft);
+  font-weight: 500;
+}
+
+.status {
+  padding-top: 3px;
+  flex-shrink: 0;
+}
+
+.kindGlyph {
+  padding-top: var(--sp-0);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-3);
+  line-height: 1;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.kindChip {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  padding: 1px var(--sp-1);
+  color: var(--ink-3);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
+.name {
+  font-size: var(--fs-small);
+  font-weight: 500;
+  color: var(--ink-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.desc {
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  flex-wrap: wrap;
+}
+
+.statsErr {
+  color: var(--err);
+  font-weight: 500;
+}
+
+.statsWarn {
+  color: var(--warn);
+  font-weight: 500;
+}
+
+.sublineErr {
+  font-size: var(--fs-micro);
+  color: var(--err);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+}
+
+.nextRun {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--ink-4);
+  white-space: nowrap;
+}
+
+/* Responsive */
+
+@media screen and (max-width: 768px) {
+  .row {
+    padding: var(--sp-3);
+  }
+}

@@ -72,7 +72,7 @@ describe("UnifiedHandlerRow — listener", () => {
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
       { wrapper },
     );
-    expect(container.querySelector(".ht-unified-row__desc")).toBeNull();
+    expect(container.querySelector("[data-testid='handler-row-desc']")).toBeNull();
   });
 
   it("renders invocation count in stats", () => {
@@ -113,22 +113,22 @@ describe("UnifiedHandlerRow — listener", () => {
     expect(queryByText(/timed out/)).toBeNull();
   });
 
-  it("adds --selected class when isSelected is true", () => {
+  it("sets aria-pressed=true when isSelected is true", () => {
     const item = makeListenerItem({ listener_id: 1 });
-    const { container } = render(
+    const { getByTestId } = render(
       <UnifiedHandlerRow item={item} isSelected={true} onSelect={() => {}} />,
       { wrapper },
     );
-    expect(container.querySelector(".ht-unified-row--selected")).not.toBeNull();
+    expect(getByTestId("unified-row-listener-1").getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("does not add --selected class when isSelected is false", () => {
+  it("sets aria-pressed=false when isSelected is false", () => {
     const item = makeListenerItem({ listener_id: 1 });
-    const { container } = render(
+    const { getByTestId } = render(
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
       { wrapper },
     );
-    expect(container.querySelector(".ht-unified-row--selected")).toBeNull();
+    expect(getByTestId("unified-row-listener-1").getAttribute("aria-pressed")).toBe("false");
   });
 
   it("calls onSelect when clicked", () => {
@@ -175,7 +175,7 @@ describe("UnifiedHandlerRow — kind glyph", () => {
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
       { wrapper },
     );
-    expect(container.querySelector(".ht-unified-row__kind-glyph")).not.toBeNull();
+    expect(container.querySelector("[data-testid='handler-row-glyph']")).not.toBeNull();
   });
 
   it("renders ◆ glyph for event kind", () => {
@@ -185,7 +185,7 @@ describe("UnifiedHandlerRow — kind glyph", () => {
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
       { wrapper },
     );
-    const glyph = container.querySelector(".ht-unified-row__kind-glyph");
+    const glyph = container.querySelector("[data-testid='handler-row-glyph']");
     expect(glyph?.textContent).toBe("◆");
   });
 
@@ -196,7 +196,7 @@ describe("UnifiedHandlerRow — kind glyph", () => {
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
       { wrapper },
     );
-    const glyph = container.querySelector(".ht-unified-row__kind-glyph");
+    const glyph = container.querySelector("[data-testid='handler-row-glyph']");
     expect(glyph?.textContent).toBe("◇");
   });
 
@@ -207,7 +207,7 @@ describe("UnifiedHandlerRow — kind glyph", () => {
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
       { wrapper },
     );
-    const glyph = container.querySelector(".ht-unified-row__kind-glyph");
+    const glyph = container.querySelector("[data-testid='handler-row-glyph']");
     expect(glyph?.textContent).toBe("↻");
   });
 
@@ -218,7 +218,7 @@ describe("UnifiedHandlerRow — kind glyph", () => {
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
       { wrapper },
     );
-    const glyph = container.querySelector(".ht-unified-row__kind-glyph");
+    const glyph = container.querySelector("[data-testid='handler-row-glyph']");
     expect(glyph?.textContent).toBe("↻");
   });
 });
@@ -237,7 +237,7 @@ describe("UnifiedHandlerRow — subline switching", () => {
       { wrapper },
     );
     // Error message shown
-    const errSubline = container.querySelector(".ht-unified-row__subline--err");
+    const errSubline = container.querySelector("[data-testid='handler-row-subline-err']");
     expect(errSubline).not.toBeNull();
     expect(errSubline?.textContent).toContain("KeyError");
   });
@@ -255,10 +255,10 @@ describe("UnifiedHandlerRow — subline switching", () => {
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
       { wrapper },
     );
-    const descSubline = container.querySelector(".ht-unified-row__desc");
+    const descSubline = container.querySelector("[data-testid='handler-row-desc']");
     expect(descSubline).not.toBeNull();
     expect(descSubline?.textContent).toContain("Fires on door open");
-    expect(container.querySelector(".ht-unified-row__subline--err")).toBeNull();
+    expect(container.querySelector("[data-testid='handler-row-subline-err']")).toBeNull();
   });
 
   it("shows next-run line for schedule jobs", () => {
@@ -268,7 +268,7 @@ describe("UnifiedHandlerRow — subline switching", () => {
       <UnifiedHandlerRow item={item} isSelected={false} onSelect={() => {}} />,
       { wrapper },
     );
-    expect(container.querySelector(".ht-unified-row__next-run")).not.toBeNull();
+    expect(container.querySelector("[data-testid='handler-row-next-run']")).not.toBeNull();
   });
 });
 

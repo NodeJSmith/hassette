@@ -108,12 +108,12 @@ export function ConfigPage() {
             <section key={group.label} class={`${styles.group} ht-mb-8`}>
               <h2 class="ht-section-label">{group.label}</h2>
               <div class="ht-card ht-card--config">
-                <table class="ht-table ht-table--compact ht-config-table">
+                <table class={`ht-table ht-table--compact ${styles.configTable}`}>
                   <tbody>
                     {group.rows.map((row) => (
                       <tr key={row.key}>
-                        <td class="ht-config-table__key">{row.key}</td>
-                        <td class={`ht-config-table__value${row.value === "—" ? " ht-config-table__value--empty" : ""}`} data-testid="config-value">{row.value}</td>
+                        <td class={styles.configTableKey}>{row.key}</td>
+                        <td class={row.value === "—" ? `${styles.configTableValue} ${styles.configTableValueEmpty}` : styles.configTableValue} data-testid="config-value">{row.value}</td>
                       </tr>
                     ))}
                   </tbody>

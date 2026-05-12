@@ -54,7 +54,7 @@ describe("HandlerInvocations", () => {
 
     expect(container.querySelector("[data-testid='invocation-detail']")).toBeNull();
 
-    const row = container.querySelector(".ht-inv-row");
+    const row = container.querySelector("[data-testid='invocation-row']");
     expect(row).not.toBeNull();
     fireEvent.click(row!);
 
@@ -71,7 +71,7 @@ describe("HandlerInvocations", () => {
       />,
     );
 
-    const row = container.querySelector(".ht-inv-row")!;
+    const row = container.querySelector("[data-testid='invocation-row']")!;
     fireEvent.click(row);
     expect(container.querySelector("[data-testid='invocation-detail']")).not.toBeNull();
 
@@ -108,7 +108,7 @@ describe("HandlerInvocations", () => {
     const { container } = render(
       <HandlerInvocations invocations={invocations} listenerId={1} />,
     );
-    const rows = container.querySelectorAll(".ht-inv-row");
+    const rows = container.querySelectorAll("[data-testid='invocation-row']");
     expect(rows.length).toBe(3);
   });
 
@@ -129,7 +129,7 @@ describe("HandlerInvocations", () => {
         listenerId={1}
       />,
     );
-    fireEvent.click(container.querySelector(".ht-inv-row")!);
+    fireEvent.click(container.querySelector("[data-testid='invocation-row']")!);
     expect(container.textContent).toContain("ctx-abc-123");
   });
 
@@ -140,8 +140,8 @@ describe("HandlerInvocations", () => {
         listenerId={1}
       />,
     );
-    fireEvent.click(container.querySelector(".ht-inv-row")!);
-    const grid = container.querySelector(".ht-inv-detail__grid");
+    fireEvent.click(container.querySelector("[data-testid='invocation-row']")!);
+    const grid = container.querySelector("[data-testid='invocation-detail-grid']");
     expect(grid).not.toBeNull();
     expect(container.textContent).toContain("exec-123");
   });

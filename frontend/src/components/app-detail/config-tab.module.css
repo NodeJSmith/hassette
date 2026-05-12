@@ -1,0 +1,278 @@
+/* Config tab — component-scoped styles */
+
+/* — Config tab container — */
+
+.configTab { padding: var(--sp-4) 0; }
+.configTabError { padding: var(--sp-6); }
+
+/* — Metadata header — */
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  padding: var(--sp-4) 0 var(--sp-4);
+  border-bottom: 1px solid var(--line-1);
+  margin-bottom: var(--sp-4);
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.divider {
+  display: none; /* meta already has border-bottom */
+}
+
+/* — Simple config table (no schema) — */
+
+.table {
+  table-layout: auto;
+}
+
+.colKey {
+  width: 30%;
+  white-space: nowrap;
+}
+
+.colValue {
+  width: 55%;
+}
+
+.colAction {
+  width: 15%;
+  text-align: right;
+}
+
+.redacted {
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  letter-spacing: 0.1em;
+}
+
+.value code {
+  word-break: break-all;
+}
+
+/* — Multi-instance list — */
+
+.instances {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+}
+
+.instanceBlock {
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.instanceHeading {
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--bg-sunken);
+  border-bottom: 1px solid var(--line-1);
+  margin: 0;
+}
+
+.empty {
+  padding: var(--sp-6);
+}
+
+/* — 2-column layout — */
+
+.layout {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: var(--sp-4);
+}
+
+.fieldsCard,
+.rawCard {
+  padding: var(--sp-4);
+}
+
+.rawCode {
+  margin-top: var(--sp-2);
+  padding: var(--sp-3);
+  background: var(--bg-sunken);
+  border: 1px dashed var(--line-1);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* — Schema-aware config fields — */
+
+.configFields {
+  display: flex;
+  flex-direction: column;
+}
+
+.configField {
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--line-1);
+}
+
+.configField:last-child {
+  border-bottom: none;
+}
+
+.configFieldHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-1);
+}
+
+.configFieldName {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-md);
+  font-weight: 600;
+}
+
+.configFieldType {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-4);
+}
+
+.configFieldRequired {
+  font-size: 9px !important;
+  padding: 0 var(--sp-1) !important;
+}
+
+.configFieldValue {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-2);
+}
+
+.configFieldValueMissing {
+  color: var(--err);
+}
+
+.configFieldNote {
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  margin-top: var(--sp-0);
+}
+
+/* — Schema config table — */
+
+.configTable {
+  table-layout: auto;
+}
+
+.configTable td {
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--line-2);
+  vertical-align: top;
+}
+
+.configTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.configTableKey {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-2);
+  white-space: nowrap;
+  width: 320px;
+  min-width: 200px;
+}
+
+.configTableColType {
+  /* width is not constrained; type column takes available space */
+}
+
+.configTableColValue {
+  /* value column takes remaining space */
+}
+
+.configTableValue {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-1);
+  word-break: break-all;
+}
+
+.configTableValueEmpty {
+  color: var(--ink-4);
+}
+
+.configTableExpandBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.configTableExpandIcon {
+  display: inline;
+  vertical-align: middle;
+  margin-right: var(--sp-1);
+}
+
+.configTableExpandedValue {
+  margin-top: var(--sp-1);
+  padding: var(--sp-2);
+  background: var(--bg-sunken);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-mono-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* — Responsive: max-width 768px — */
+
+@media screen and (max-width: 768px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .configTableKey {
+    width: auto;
+    min-width: unset;
+    padding-top: var(--sp-2);
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .configTable td {
+    display: block;
+    padding: var(--sp-1) var(--sp-3);
+  }
+
+  .configTableValue {
+    padding-bottom: var(--sp-2);
+    border-bottom: 1px solid var(--line-2);
+    word-break: break-word;
+    font-weight: 600;
+  }
+
+  .configTable tbody tr:nth-child(even) {
+    background: var(--bg-sunken);
+  }
+
+  .configTable tbody tr:last-child .configTableValue {
+    border-bottom: none;
+  }
+
+  .configTableColType {
+    display: none;
+  }
+}

@@ -5,6 +5,7 @@ import { formatDuration, formatTimestamp } from "../../utils/format";
 import { executionStatusVariant } from "../../utils/status";
 import { EmptyState } from "../shared/empty-state";
 import { ErrorCell } from "./error-cell";
+import styles from "./job-executions.module.css";
 
 const INITIAL_ROWS = 5;
 const COL_COUNT = 5;
@@ -65,7 +66,7 @@ export function JobExecutions({ executions, jobId }: Props) {
                 <td class="ht-col-trace ht-text-mono ht-text-xs">{ex.execution_id ?? "—"}</td>
               </tr>,
               isExpanded && ex.error_traceback && (
-                <tr key={`${rowKey}-tb`} class="ht-traceback-row">
+                <tr key={`${rowKey}-tb`} class={styles.tracebackRow} data-testid="traceback-row">
                   <td colSpan={COL_COUNT}>
                     <pre class="ht-traceback" data-testid="execution-traceback">{ex.error_traceback}</pre>
                   </td>

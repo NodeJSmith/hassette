@@ -1,0 +1,108 @@
+/* Code tab — component-scoped styles */
+
+.codeTab {
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--bg-surface);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--line-1);
+  background: var(--bg-sunken);
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.headerSource {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+.headerMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-shrink: 0;
+}
+
+.readonlyLabel {
+  font-size: var(--fs-micro);
+  color: var(--ink-4);
+  font-family: var(--font-mono);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  padding: 1px var(--sp-2);
+}
+
+.body {
+  overflow: auto;
+  max-height: calc(100vh - 280px);
+  -webkit-overflow-scrolling: touch;
+}
+
+.body :global(.shiki) {
+  margin: 0;
+  padding: var(--sp-3) 0;
+  background-color: var(--bg-page) !important;
+  border-radius: 0;
+  font-size: var(--fs-small);
+  line-height: 1.6;
+}
+
+:global([data-theme="dark"]) .body :global(.shiki) {
+  background-color: var(--bg-page) !important;
+}
+
+.body :global(.shiki) code {
+  background: none;
+  padding: 0;
+  display: block;
+}
+
+.body :global(.shiki) span:global(.line) {
+  display: inline-flex;
+  min-width: 100%;
+  padding: 0 var(--sp-4) 0 0;
+}
+
+.body :global(.shiki) span:global(.line--annotated) {
+  background: var(--code-annotate-bg);
+  box-shadow: inset 3px 0 0 var(--ink-3);
+  cursor: help;
+}
+
+.body :global(.shiki) span:global(.line--focus) {
+  background: var(--code-focus-bg);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.body :global(.shiki) :global(.line-num) {
+  color: var(--ink-4);
+  text-align: right;
+  min-width: 3ch;
+  padding: 0 var(--sp-3);
+  user-select: none;
+  flex-shrink: 0;
+  border-right: 1px solid var(--line-1);
+  margin-right: var(--sp-3);
+}
+
+/* --shiki-light/--shiki-dark are inline style attrs set by Shiki (defaultColor: false).
+   Fallback to --ink-1 so text remains visible if Shiki output format changes. */
+.body :global(.shiki) span:not(:global(.line)):not(:global(.line-num)) {
+  color: var(--shiki-light, var(--ink-1));
+}
+
+:global([data-theme="dark"]) .body :global(.shiki) span:not(:global(.line)):not(:global(.line-num)) {
+  color: var(--shiki-dark, var(--ink-1));
+}
+
+.error {
+  padding: var(--sp-6);
+}
