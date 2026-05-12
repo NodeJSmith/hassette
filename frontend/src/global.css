@@ -826,8 +826,7 @@ strong {
   gap: var(--sp-2);
 }
 
-.ht-text-xs {
-  font-size: var(--fs-micro);
+.ht-status-bar .ht-text-xs {
   color: var(--ink-3);
 }
 
@@ -1055,6 +1054,7 @@ strong {
   margin-right: var(--sp-1);
 }
 
+/* owner: cmd-palette + sidebar — migrates in T05 */
 @media (max-width: 768px) {
   .ht-cmd-palette__footer { display: none; }
   .ht-sidebar__cmdkey-hint { display: none; }
@@ -1290,6 +1290,7 @@ strong {
 .ht-table--compact .ht-col-time     { width: 25%; }
 .ht-table--compact .ht-col-duration { width: 14%; }
 
+/* owner: handler-invocations — migrates in T08 */
 @media screen and (max-width: 768px) {
   .ht-table--compact { table-layout: auto; }
   .ht-table--compact .ht-col-status   { width: auto; }
@@ -1301,6 +1302,7 @@ strong {
   .ht-exec-error-mobile { display: block; font-size: var(--fs-micro); color: var(--err); margin-top: var(--sp-0); }
 }
 
+/* owner: handler-invocations — migrates in T08 */
 @media screen and (min-width: 769px) {
   .ht-exec-error-mobile { display: none; }
 }
@@ -1429,32 +1431,6 @@ strong {
 .ht-badge--cancelled {
   color: var(--err);
   background: var(--err-bg);
-}
-
-/* — Group filter chip bar ————————————————————————————— */
-.ht-group-filter-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-bottom: 0.75rem;
-}
-
-.ht-group-chip {
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
-}
-
-.ht-group-chip:hover {
-  border-color: var(--line-strong);
-}
-
-.ht-group-chip--active,
-.ht-group-chip[aria-pressed="true"] {
-  background: var(--accent-soft);
-  color: var(--accent);
-  border-color: var(--accent);
-  font-weight: 600;
 }
 
 /* — Buttons ———————————————————————————————————————————— */
@@ -1855,6 +1831,7 @@ strong {
   word-break: break-all;
 }
 
+/* owner: handler-invocations — migrates in T08 */
 @media screen and (max-width: 768px) {
   .ht-inv-detail__grid {
     grid-template-columns: 1fr;
@@ -1952,6 +1929,8 @@ strong {
 }
 
 /* — Responsive: sidebar hidden below 900px ————————————— */
+
+/* shared — permanent */
 @media screen and (max-width: 900px) {
   .ht-hamburger {
     display: flex;
@@ -1959,14 +1938,6 @@ strong {
 
   .ht-layout {
     grid-template-columns: 1fr;
-  }
-
-  .ht-layout > .ht-sidebar {
-    display: none;
-  }
-
-  .ht-drawer .ht-sidebar {
-    display: flex;
   }
 
   .ht-main {
@@ -1977,37 +1948,66 @@ strong {
   /* Touch target enforcement (WCAG 2.5.8 — 44px minimum)
      Applied at 900px because devices in this range use the hamburger
      drawer and are likely touch-operated. */
-  .ht-theme-toggle {
-    min-width: var(--sz-touch);
-    min-height: var(--sz-touch);
-  }
-
-  .ht-tab-btn {
-    min-height: var(--sz-touch);
-    padding: var(--sp-2) var(--sp-3);
-  }
-
   .ht-btn--sm,
   .ht-btn--xs,
   .ht-btn--icon {
     min-height: var(--sz-touch);
   }
+}
 
+/* ht-layout > .ht-sidebar + .ht-drawer .ht-sidebar — owner: sidebar — migrates in T05 */
+@media screen and (max-width: 900px) {
+  .ht-layout > .ht-sidebar {
+    display: none;
+  }
+
+  .ht-drawer .ht-sidebar {
+    display: flex;
+  }
+}
+
+/* ht-theme-toggle — owner: status-bar — migrates in T04 */
+@media screen and (max-width: 900px) {
+  .ht-theme-toggle {
+    min-width: var(--sz-touch);
+    min-height: var(--sz-touch);
+  }
+}
+
+/* ht-tab-btn — owner: app-detail — migrates in T07 */
+@media screen and (max-width: 900px) {
+  .ht-tab-btn {
+    min-height: var(--sz-touch);
+    padding: var(--sp-2) var(--sp-3);
+  }
+}
+
+/* ht-tier-toggle__btn — owner: tier-toolbar — migrates in T04 */
+@media screen and (max-width: 900px) {
   .ht-tier-toggle__btn {
     min-height: var(--sz-touch);
     padding: 0.15em 0.75em;
   }
+}
 
+/* ht-time-preset-selector__btn — owner: time-preset-selector — migrates in T04 */
+@media screen and (max-width: 900px) {
   .ht-time-preset-selector__btn {
     min-height: var(--sz-touch);
     padding: var(--sp-1) var(--sp-3);
   }
+}
 
+/* ht-sidebar__app-expand — owner: sidebar — migrates in T05 */
+@media screen and (max-width: 900px) {
   .ht-sidebar__app-expand {
     width: var(--sz-touch);
     height: var(--sz-touch);
   }
+}
 
+/* ht-apps-row__expand — owner: apps — migrates in T06 */
+@media screen and (max-width: 900px) {
   .ht-apps-row__expand {
     min-width: var(--sz-touch);
     min-height: var(--sz-touch);
@@ -2015,14 +2015,20 @@ strong {
     align-items: center;
     justify-content: center;
   }
+}
 
+/* ht-apps-table — owner: apps — migrates in T06 */
+@media screen and (max-width: 900px) {
   /* Apps table: hide columns 3+ (error, runs, last fired, actions) in
      sidebar-free view where horizontal space is limited */
   .ht-apps-table thead th:nth-child(n+3),
   .ht-apps-table tbody td:nth-child(n+3) {
     display: none;
   }
+}
 
+/* ht-invocation-table — owner: handler-invocations — migrates in T08 */
+@media screen and (max-width: 900px) {
   /* Invocation table: allow horizontal scroll when columns overflow */
   .ht-invocation-table {
     display: block;
@@ -2033,6 +2039,8 @@ strong {
 
 /* — Responsive: mobile layout below 768px ———————————————— */
 /* sync: BREAKPOINT_MOBILE in use-media-query.ts */
+
+/* shared — permanent */
 @media screen and (max-width: 768px) {
   .ht-main {
     padding-top: calc(var(--sp-3) * 2 + var(--sz-touch));
@@ -2078,7 +2086,7 @@ strong {
     gap: var(--sp-2);
   }
 
-/* Headings: smaller */
+  /* Headings: smaller */
   .ht-heading-4 {
     font-size: var(--fs-body);
   }
@@ -2086,7 +2094,10 @@ strong {
   .ht-heading-5 {
     font-size: var(--fs-body);
   }
+}
 
+/* ht-status-bar — owner: status-bar — migrates in T04 */
+@media screen and (max-width: 768px) {
   /* StatusBar: sticky so pulse dot and scope toggle stay visible */
   .ht-status-bar {
     position: sticky;
@@ -2094,7 +2105,10 @@ strong {
     z-index: var(--z-status-bar);
     background: var(--bg-surface);
   }
+}
 
+/* ht-table-log — owner: log-table — migrates in T08 */
+@media screen and (max-width: 768px) {
   /* Log table: hide App column — source shown inline (app.func) in message column */
   .ht-table-log .ht-col-app {
     display: none;
@@ -2194,15 +2208,6 @@ strong {
 
 .ht-app-card__footer {
   margin-top: var(--sp-1);
-}
-
-/* — Error Feed ————————————————————————————————————————— */
-.ht-error-feed {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  max-height: 300px;
-  overflow-y: auto;
 }
 
 /* — Framework Health Affordance ———————————————————————— */
@@ -2327,35 +2332,6 @@ strong {
 
 .ht-alert-list li {
   padding: var(--sp-1) 0;
-}
-
-/* — Error Entry (error feed items) ————————————————————— */
-.ht-error-entry {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--line-1);
-  background: var(--err-bg);
-}
-
-.ht-error-entry:last-child {
-  border-bottom: none;
-}
-
-.ht-error-entry__header {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  flex-wrap: wrap;
-}
-
-.ht-error-entry__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  color: var(--ink-3);
-  word-break: break-word;
 }
 
 /* — Log Table ————————————————————————————————————————— */
@@ -2488,18 +2464,23 @@ strong {
 .ht-table-log tr[data-level="ERROR"],
 .ht-table-log tr[data-level="CRITICAL"] { background: var(--err-bg); }
 
+/* owner: log-table — migrates in T08 */
 @media screen and (max-width: 1024px) {
   .ht-table-log .ht-col-source {
     display: none;
   }
 }
 
+/* owner: log-table — migrates in T08 */
 @media screen and (max-width: 768px) {
   .ht-table-log .ht-col-level { width: calc(var(--sp-7) + var(--sp-1)); }
   .ht-table-log .ht-col-time  { width: var(--sp-10); }
   .ht-table-log { font-size: var(--fs-micro); }
   .ht-table-log .ht-text-mono { font-size: var(--fs-micro); }
+}
 
+/* shared — permanent */
+@media screen and (max-width: 768px) {
   .ht-table-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -2888,8 +2869,7 @@ strong {
   display: block;
 }
 
-/* Empty state */
-/* Mobile */
+/* owner: stats-strip — migrates in T04 */
 @media (max-width: 768px) {
   .ht-stats-strip {
     grid-template-columns: repeat(3, 1fr);
@@ -2898,11 +2878,17 @@ strong {
   .ht-stats-strip__cell:nth-child(n+4) {
     border-top: 1px solid var(--line-2);
   }
+}
 
+/* shared — permanent */
+@media (max-width: 768px) {
   .ht-search {
     min-width: unset;
   }
+}
 
+/* owner: apps — migrates in T06 */
+@media (max-width: 768px) {
   .ht-apps-row__class-name,
   .ht-apps-table .ht-chip--auto {
     display: none;
@@ -2925,6 +2911,7 @@ strong {
   }
 }
 
+/* owner: handlers — migrates in T06 */
 @media (max-width: 768px) {
   .ht-handlers-card:active {
     background: var(--bg-active);
@@ -4008,6 +3995,8 @@ strong {
 }
 
 /* — Responsive: mobile (max-width: 768px) ——————————————— */
+
+/* owner: app-detail — migrates in T07 */
 @media screen and (max-width: 768px) {
   .ht-master-detail {
     display: block;
@@ -4027,7 +4016,10 @@ strong {
     min-height: var(--sz-touch);
     padding: var(--sp-2) var(--sp-3);
   }
+}
 
+/* owner: unified-handler-row — migrates in T08 */
+@media screen and (max-width: 768px) {
   .ht-unified-row {
     padding: var(--sp-3);
   }
@@ -4301,6 +4293,7 @@ strong {
   margin-top: var(--sp-0);
 }
 
+/* owner: config-tab — migrates in T08 */
 @media screen and (max-width: 768px) {
   .ht-config-tab__layout {
     grid-template-columns: 1fr;
@@ -4557,6 +4550,7 @@ strong {
   overflow-y: auto;
 }
 
+/* owner: config-tab — migrates in T08 */
 @media screen and (max-width: 768px) {
   .ht-config-table__key {
     width: auto;
