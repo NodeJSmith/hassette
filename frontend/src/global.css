@@ -433,6 +433,13 @@ strong {
 .ht-exec-error-mobile { display: none; }
 
 @media screen and (max-width: 768px) {
+  .ht-table--compact { table-layout: auto; }
+  .ht-table--compact .ht-col-status   { width: auto; }
+  .ht-table--compact .ht-col-time     { width: auto; white-space: nowrap; }
+  .ht-table--compact .ht-col-duration { width: auto; white-space: nowrap; }
+  .ht-table--compact .ht-col-trace    { display: none; }
+  .ht-table--compact .ht-col-error    { display: none; }
+  .ht-table--compact td { padding: var(--sp-1); font-size: var(--fs-micro); }
   .ht-exec-error-mobile { display: block; font-size: var(--fs-micro); color: var(--err); margin-top: var(--sp-0); }
 }
 

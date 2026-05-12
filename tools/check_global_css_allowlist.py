@@ -106,6 +106,9 @@ def get_diff_text(base_ref: str) -> str:
         capture_output=True,
         text=True,
     )
+    if result.returncode != 0:
+        print(f"ERROR: git diff failed (exit {result.returncode}): {result.stderr.strip()}", file=sys.stderr)
+        sys.exit(1)
     added = [line[1:] for line in result.stdout.splitlines() if line.startswith("+") and not line.startswith("+++")]
     return "\n".join(added)
 

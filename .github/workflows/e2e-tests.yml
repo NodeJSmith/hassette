@@ -6,12 +6,6 @@ on:
     pull_request:
         branches: [main]
     workflow_dispatch:
-        inputs:
-            update_snapshots:
-                description: "Regenerate Playwright screenshot baselines (--update-snapshots)"
-                required: false
-                default: "false"
-                type: boolean
 
 jobs:
     changes:
@@ -54,12 +48,7 @@ jobs:
             - run: uv sync
 
             - name: Run e2e tests
-              run: |
-                  if [ "${{ inputs.update_snapshots }}" = "true" ]; then
-                      uv run nox -s e2e -- --update-snapshots
-                  else
-                      uv run nox -s e2e
-                  fi
+              run: uv run nox -s e2e
 
             - name: Upload test results
               if: failure()

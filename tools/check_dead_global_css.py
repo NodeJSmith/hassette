@@ -61,7 +61,7 @@ def extract_class_selectors(css_text: str) -> list[str]:
 
 def find_frontend_source_files() -> list[Path]:
     """Return all .ts and .tsx files under frontend/src/ (excluding .d.ts)."""
-    return [f for f in FRONTEND_SRC.rglob("*.ts*") if f.suffix != ".d.ts"]
+    return [f for f in FRONTEND_SRC.rglob("*.ts*") if not f.name.endswith(".d.ts")]
 
 
 def build_tsx_corpus(tsx_files: list[Path]) -> str:

@@ -91,15 +91,6 @@
 /* — Responsive: max-width 768px — */
 
 @media screen and (max-width: 768px) {
-  /* Compact table resets */
-  :global(.ht-table--compact) { table-layout: auto; }
-  :global(.ht-table--compact) :global(.ht-col-status)   { width: auto; }
-  :global(.ht-table--compact) :global(.ht-col-time)     { width: auto; white-space: nowrap; }
-  :global(.ht-table--compact) :global(.ht-col-duration) { width: auto; white-space: nowrap; }
-  :global(.ht-table--compact) :global(.ht-col-trace)    { display: none; }
-  :global(.ht-table--compact) :global(.ht-col-error)    { display: none; }
-  :global(.ht-table--compact) td { padding: var(--sp-1); font-size: var(--fs-micro); }
-
   /* Invocation table specific */
   .invColTime { width: auto; }
   .invColDur  { display: none; }

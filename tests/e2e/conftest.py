@@ -40,17 +40,6 @@ from tests.e2e.mock_fixtures import (
     wire_session_telemetry,
 )
 
-
-def pytest_addoption(parser: pytest.Parser) -> None:
-    """Register --update-snapshots for visual regression baseline regeneration."""
-    parser.addoption(
-        "--update-snapshots",
-        action="store_true",
-        default=False,
-        help="Regenerate visual baseline screenshots (overwrites existing references).",
-    )
-
-
 # Shared viewport constants for e2e tests.
 # Mobile height 812 = iPhone X (safe-area / notch testing).
 # Desktop 1024x768 = standard desktop above mobile breakpoint.

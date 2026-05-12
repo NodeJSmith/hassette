@@ -301,7 +301,7 @@ Do NOT use bare class names (`.ht-table`) in module CSS — they will be scoped 
 
 ### CI guards
 
-Two scripts enforce CSS hygiene, both wired into `.github/workflows/lint.yml`:
+Three scripts enforce CSS hygiene, all wired into `.github/workflows/lint.yml`:
 
 - **`tools/check_global_css_allowlist.py`** — blocks any `.ht-*` selector not on the allowlist from entering `global.css`. Run locally: `uv run python tools/check_global_css_allowlist.py`. Add new shared prefixes to `ALLOWLIST` in that file.
 - **`tools/check_dead_global_css.py`** — blocks unreferenced class selectors in `global.css`. Run locally: `uv run python tools/check_dead_global_css.py`. Add dynamically-assembled class prefixes to `EXEMPTIONS` in that file.
