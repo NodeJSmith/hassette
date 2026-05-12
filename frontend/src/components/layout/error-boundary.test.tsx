@@ -64,9 +64,9 @@ describe("ErrorBoundary — error fallback", () => {
     expect(getByRole("button", { name: /retry/i })).toBeDefined();
   });
 
-  it("renders with ht-error-card class in the fallback", () => {
-    const { container } = renderWithError("card error");
-    expect(container.querySelector(".ht-error-card")).not.toBeNull();
+  it("renders error card container in the fallback", () => {
+    const { getByTestId } = renderWithError("card error");
+    expect(getByTestId("error-card")).toBeDefined();
   });
 
   it("does not propagate the error to the caller", () => {

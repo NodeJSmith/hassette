@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { StatusShape } from "../shared/status-shape";
 import type { StatusKind } from "../../utils/status";
 import { handlerKindLabel } from "../../utils/status";
+import { Badge } from "../shared/badge";
 import type { ListenerData, JobData } from "../../api/endpoints";
 import { pluralize, formatTimestamp } from "../../utils/format";
 import { useRelativeTime } from "../../hooks/use-relative-time";
@@ -101,7 +102,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
           </span>
           <span class={styles.name}>{item.name}</span>
           {isFailing && (
-            <span class="ht-badge ht-badge--danger ht-badge--xs">failing</span>
+            <Badge variant="danger" size="xs">failing</Badge>
           )}
         </div>
         {/* Subline: error message (when failing) or human description (otherwise) */}

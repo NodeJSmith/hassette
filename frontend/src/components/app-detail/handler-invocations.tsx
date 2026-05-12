@@ -6,6 +6,7 @@ import { formatDuration, formatTimestamp } from "../../utils/format";
 import { executionStatusKind } from "../../utils/status";
 import { EmptyState } from "../shared/empty-state";
 import { StatusShape } from "../shared/status-shape";
+import { Chip } from "../shared/chip";
 import styles from "./handler-invocations.module.css";
 
 const INITIAL_ROWS = 5;
@@ -74,7 +75,7 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
                     <span class="ht-text-mono ht-text-xs ht-text-muted">—</span>
                   )}
                   {inv.trigger_origin && inv.trigger_origin !== "LOCAL" && (
-                    <span class="ht-chip ht-chip--origin">{inv.trigger_origin.toLowerCase()}</span>
+                    <Chip variant="origin">{inv.trigger_origin.toLowerCase()}</Chip>
                   )}
                 </td>
                 <td class="ht-text-mono ht-text-xs">{formatDuration(inv.duration_ms)}</td>

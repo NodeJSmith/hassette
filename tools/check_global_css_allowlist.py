@@ -32,12 +32,7 @@ ALLOWLIST: list[str] = [
     "ht-page-header",
     "ht-level",
     # Surface components
-    "ht-card",
     "ht-table",
-    "ht-badge",
-    "ht-btn",
-    "ht-btn-group",
-    "ht-chip",
     "ht-pill",
     "ht-search",
     "ht-alert",
@@ -54,7 +49,6 @@ ALLOWLIST: list[str] = [
     # Table infrastructure
     "ht-table-toolbar",
     "ht-table-card-scroll",
-    "ht-error-card",
     # Utilities (text)
     "ht-text-",
     # Utilities (display)
@@ -114,7 +108,7 @@ def get_diff_text(base_ref: str) -> str:
 
 def run_smoke_test() -> bool:
     """Built-in smoke test: verify allowed and disallowed selectors are detected."""
-    allowed_sample = ".ht-btn { } .ht-btn--sm { } .ht-card { } .ht-text-muted { }"
+    allowed_sample = ".ht-table { } .ht-table--compact { } .ht-alert { } .ht-text-muted { }"
     disallowed_sample = ".ht-new-widget__header { } .ht-sidebar__app-link { }"
     combined = allowed_sample + "\n" + disallowed_sample
 

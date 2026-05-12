@@ -102,7 +102,3 @@
 :global([data-theme="dark"]) .body :global(.shiki) span:not(:global(.line)):not(:global(.line-num)) {
   color: var(--shiki-dark, var(--ink-1));
 }
-
-.error {
-  padding: var(--sp-6);
-}

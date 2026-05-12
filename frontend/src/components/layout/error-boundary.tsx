@@ -1,5 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useErrorBoundary, useRef } from "preact/hooks";
+import { Card } from "../shared/card";
+import { Button } from "../shared/button";
 
 interface Props {
   children: ComponentChildren;
@@ -22,17 +24,13 @@ export function ErrorBoundary({ children, resetKey }: Props) {
 
   if (error) {
     return (
-      <div class="ht-card ht-error-card">
+      <Card variant="error" data-testid="error-card">
         <h2>Something went wrong</h2>
         <p class="ht-text-secondary">{error instanceof Error ? error.message : String(error)}</p>
-        <button
-          type="button"
-          class="ht-btn ht-btn--primary"
-          onClick={resetError}
-        >
+        <Button variant="primary" onClick={resetError}>
           Retry
-        </button>
-      </div>
+        </Button>
+      </Card>
     );
   }
   return <>{children}</>;

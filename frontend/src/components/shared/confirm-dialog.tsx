@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
-import clsx from "clsx";
 import styles from "./confirm-dialog.module.css";
+import { Button } from "./button";
 
 interface Props {
   title: string;
@@ -98,23 +98,20 @@ export function ConfirmDialog({
           {body}
         </p>
         <div class={styles.actions}>
-          <button
-            type="button"
-            ref={cancelRef}
-            class="ht-btn"
+          <Button
+            buttonRef={(el) => { cancelRef.current = el; }}
             onClick={onCancel}
           >
             Cancel
-          </button>
-          <button
-            type="button"
-            ref={confirmRef}
-            class={clsx("ht-btn", tone === "danger" ? "ht-btn--danger" : "ht-btn--primary")}
+          </Button>
+          <Button
+            variant={tone === "danger" ? "danger" : "primary"}
+            buttonRef={(el) => { confirmRef.current = el; }}
             data-testid={tone === "danger" ? "confirm-btn-danger" : "confirm-btn"}
             onClick={onConfirm}
           >
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </>

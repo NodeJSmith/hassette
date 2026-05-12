@@ -1,7 +1,6 @@
-/* Buttons — base, sizes, variants, button groups */
+/* Button — base, sizes, variants */
 
-/* — Buttons ———————————————————————————————————————————— */
-.ht-btn {
+.btn {
   display: inline-flex;
   align-items: center;
   gap: 0.35em;
@@ -19,118 +18,112 @@
   line-height: 1.5;
 }
 
-.ht-btn:hover {
+.btn:hover {
   background: var(--bg-sunken);
   border-color: var(--line-strong);
   text-decoration: none;
 }
 
-.ht-btn--sm {
+.sm {
   font-size: var(--fs-micro);
   padding: 0.25em 0.6em;
 }
 
-.ht-btn--xs {
+.xs {
   font-size: var(--fs-micro);
   padding: 0.15em 0.45em;
 }
 
 /* Icon-only button — square, centered icon, no text */
-.ht-btn--icon {
+.icon {
   padding: var(--sp-1);
   line-height: 1;
   justify-content: center;
 }
 
-.ht-btn--icon svg {
+.icon svg {
   width: var(--sp-4);
   height: var(--sp-4);
 }
 
-.ht-btn--ghost {
+.ghost {
   border-color: transparent;
   background: transparent;
 }
 
-.ht-btn--ghost:hover {
+.ghost:hover {
   background: var(--bg-sunken);
   border-color: transparent;
 }
 
 /* Ghost + semantic: border stays transparent at rest, only color on hover */
-.ht-btn--ghost.ht-btn--success,
-.ht-btn--ghost.ht-btn--warning,
-.ht-btn--ghost.ht-btn--info,
-.ht-btn--ghost.ht-btn--danger { border-color: transparent; }
+.ghost.success,
+.ghost.warning,
+.ghost.info,
+.ghost.danger { border-color: transparent; }
 
-.ht-btn--ghost.ht-btn--success:hover { background: var(--ok-bg); }
-.ht-btn--ghost.ht-btn--warning:hover { background: var(--warn-bg); }
-.ht-btn--ghost.ht-btn--info:hover { background: var(--bg-sunken); color: var(--accent-hover); }
-.ht-btn--ghost.ht-btn--danger:hover { background: var(--err-bg); }
+.ghost.success:hover { background: var(--ok-bg); }
+.ghost.warning:hover { background: var(--warn-bg); }
+.ghost.info:hover { background: var(--bg-sunken); color: var(--accent-hover); }
+.ghost.danger:hover { background: var(--err-bg); }
 
-.ht-btn--primary {
+.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-ink);
 }
 
-.ht-btn--primary:hover {
+.primary:hover {
   opacity: 0.9;
 }
 
-.ht-btn--success {
+.success {
   border-color: var(--ok);
   color: var(--ok);
 }
 
-.ht-btn--success:hover {
+.success:hover {
   background: var(--ok-bg);
 }
 
-.ht-btn--warning {
+.warning {
   border-color: var(--warn);
   color: var(--warn);
 }
 
-.ht-btn--warning:hover {
+.warning:hover {
   background: var(--warn-bg);
 }
 
-.ht-btn--info {
+.info {
   border-color: var(--line-strong);
   color: var(--accent);
 }
 
-.ht-btn--info:hover {
+.info:hover {
   color: var(--accent-hover);
   background: var(--bg-sunken);
 }
 
-/* — Button: danger variant ———————————————————————————— */
-.ht-btn--danger {
+/* Danger variant */
+.danger {
   border-color: var(--err);
   color: var(--bg-surface);
   background: var(--err);
 }
 
-.ht-btn--danger:hover {
+.danger:hover {
   opacity: 0.9;
 }
 
-.ht-btn-group {
-  display: flex;
-  gap: var(--sp-2);
-  flex-wrap: wrap;
-}
-
-/* — Responsive: touch targets below 900px ————————————— */
+/* Responsive: touch targets below 900px */
 @media screen and (max-width: 900px) {
   /* Touch target enforcement (WCAG 2.5.8 — 44px minimum)
      Applied at 900px because devices in this range use the hamburger
      drawer and are likely touch-operated. */
-  .ht-btn--sm,
-  .ht-btn--xs,
-  .ht-btn--icon {
+  .sm,
+  .xs,
+  .icon {
     min-height: var(--sz-touch);
   }
 }

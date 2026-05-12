@@ -120,6 +120,9 @@ jobs:
             - name: Check dead global CSS (blocking)
               run: uv run python tools/check_dead_global_css.py
 
+            - name: Check undefined CSS refs in TSX (blocking)
+              run: uv run python tools/check_undefined_css_refs.py
+
     codegen-freshness:
         needs: changes
         if: needs.changes.outputs.codegen == 'true' || github.event_name == 'workflow_dispatch'

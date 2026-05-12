@@ -18,6 +18,9 @@ import { useScopedApi } from "../hooks/use-scoped-api";
 import { useAppState } from "../state/context";
 import { statusToKind, statusToVariant } from "../utils/status";
 import { StatusShape } from "../components/shared/status-shape";
+import { Badge } from "../components/shared/badge";
+import { Card } from "../components/shared/card";
+import { Chip } from "../components/shared/chip";
 import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-filtered-signal-refetch";
 import styles from "./app-detail.module.css";
 
@@ -80,9 +83,9 @@ function InstanceCard({
       <div class={styles.instanceCardHeader}>
         <StatusShape kind={statusToKind(instance.status)} size={10} />
         <span class={styles.instanceCardName}>{instance.instance_name}</span>
-        <span class={clsx("ht-badge ht-badge--sm", styles.instanceCardStatusBadge, `ht-badge--${statusToVariant(instance.status)}`)}>
+        <Badge variant={statusToVariant(instance.status)} size="sm" class={styles.instanceCardStatusBadge}>
           {instance.status}
-        </span>
+        </Badge>
       </div>
       {instance.error_message && (
         <p class={styles.instanceCardErrorPreview}>{instance.error_message}</p>
@@ -110,9 +113,9 @@ function MultiInstanceOverview({
       <div class="ht-level ht-mb-4">
         <div class="ht-level-start">
           <h1 class={styles.heading4}>{displayName}</h1>
-          <span class="ht-badge ht-badge--neutral" data-testid="instance-count-badge">
+          <Badge variant="neutral" data-testid="instance-count-badge">
             ×{instanceCount} instances
-          </span>
+          </Badge>
         </div>
       </div>
       <code class="ht-text-mono ht-text-sm ht-mb-4 ht-block">{appKey}</code>
@@ -313,12 +316,9 @@ export function AppDetailPage({ params }: Props) {
         </div>
         <div class="ht-level-end">
           {liveStatus !== "running" && liveStatus !== "starting" && (
-            <span
-              class={`ht-badge ht-badge--sm ht-badge--${statusToVariant(liveStatus)}`}
-              data-testid="app-status-pill"
-            >
+            <Badge variant={statusToVariant(liveStatus)} size="sm" data-testid="app-status-pill">
               <StatusShape kind={statusToKind(liveStatus)} size={8} /> {liveStatus}
-            </span>
+            </Badge>
           )}
           <ActionButtons appKey={appKey} status={liveStatus} variant="text" confirmStop />
         </div>
@@ -332,7 +332,7 @@ export function AppDetailPage({ params }: Props) {
         )}
         {manifest && manifest.instance_count > 1 && <> &middot; instance {resolvedInstanceIndex}</>}
         {manifest?.auto_loaded && (
-          <> &middot; <span class="ht-chip ht-chip--auto" data-testid="auto-loaded-badge">auto</span></>
+          <> &middot; <Chip variant="muted" data-testid="auto-loaded-badge">auto</Chip></>
         )}
       </p>
 
@@ -401,9 +401,9 @@ export function AppDetailPage({ params }: Props) {
       )}
       {activeTab === "logs" && (
         <div role="tabpanel" id="tabpanel-logs" aria-labelledby="tab-logs">
-          <div class="ht-card" data-testid="logs-section">
+          <Card data-testid="logs-section">
             <LogTable showAppColumn={false} appKey={appKey} />
-          </div>
+          </Card>
         </div>
       )}
       {activeTab === "config" && (

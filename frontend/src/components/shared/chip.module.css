@@ -1,7 +1,6 @@
-/* Chips — compact metadata labels */
+/* Chip component — compact metadata labels */
 
-/* — Chips ——————————————————————————————————————————————— */
-.ht-chip {
+.chip {
   display: inline-flex;
   align-items: center;
   padding: var(--sp-0) var(--sp-2);
@@ -12,53 +11,50 @@
   line-height: 1.5;
 }
 
-.ht-chip--modifier {
+.modifier {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--ink-1);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   font-family: var(--font-mono);
 }
 
-.ht-chip--schedule {
+.schedule {
   background: color-mix(in srgb, var(--ok) 10%, transparent);
   color: var(--ink-3);
   border: 1px solid color-mix(in srgb, var(--ok) 25%, transparent);
   font-family: var(--font-mono);
 }
 
-.ht-chip--kind {
+/* kind variant: base styles shared across all kind sub-colors */
+.kind {
   gap: var(--sp-1);
   border: 1px solid;
 }
 
-.ht-chip--kind-ok { border-color: var(--ok); color: var(--ok); }
-.ht-chip--kind-warn { border-color: var(--warn); color: var(--warn); }
-.ht-chip--kind-err { border-color: var(--err); color: var(--err); }
-.ht-chip--kind-mute { border-color: var(--ink-4); color: var(--ink-4); }
+/* kind variant: per-color overrides */
+.kindOk   { border-color: var(--ok);    color: var(--ok); }
+.kindWarn { border-color: var(--warn);  color: var(--warn); }
+.kindErr  { border-color: var(--err);   color: var(--err); }
+.kindMute { border-color: var(--ink-4); color: var(--ink-4); }
 
-.ht-chip--auto {
+/* muted merges the formerly-duplicate --auto and --muted variants */
+.muted {
   font-family: var(--font-mono);
   color: var(--ink-3);
   background: var(--bg-sunken);
   border: 1px solid var(--line-1);
 }
 
-.ht-chip--muted {
-  font-family: var(--font-mono);
-  color: var(--ink-3);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line-1);
-}
-
-.ht-chip--sm {
-  font-size: 10px;
-  padding: 1px var(--sp-1);
-}
-
-.ht-chip--origin {
+.origin {
   font-family: var(--font-mono);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--ink-3);
   border: 1px solid var(--line-2);
+}
+
+/* size modifier */
+.sm {
+  font-size: 10px;
+  padding: 1px var(--sp-1);
 }

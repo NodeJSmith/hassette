@@ -165,13 +165,13 @@
   text-align: right;
 }
 
-.actionsCell :global(.ht-btn-group) {
+.actionsCell [data-role="action-buttons"] {
   justify-content: flex-end;
   opacity: 0.35;
   transition: opacity var(--t-fast) var(--ease);
 }
 
-.row:hover .actionsCell :global(.ht-btn-group) {
+.row:hover .actionsCell [data-role="action-buttons"] {
   opacity: 1;
 }
 
@@ -196,7 +196,7 @@
 
 @media (max-width: 768px) {
   .className,
-  .appsTable :global(.ht-chip--auto) {
+  .appsTable [data-variant="muted"] {
     display: none;
   }
 

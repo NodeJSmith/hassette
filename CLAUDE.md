@@ -280,9 +280,10 @@ import clsx from "clsx";
 <div class={clsx(styles.wrapper, isActive && styles.active)}>
 ```
 
-### When to use styles/ vs a module
+### When to use styles/ vs a module vs a shared component
 
-- **`styles/`**: Shared design system classes used across 3+ unrelated files (e.g. `ht-btn`, `ht-card`, `ht-badge`). All classes use the `ht-` prefix. Organized by domain: `fonts.css`, `reset.css`, `typography.css`, `layout.css`, `cards.css`, `tables.css`, `badges.css`, `buttons.css`, `chips.css`, `utilities.css`. Imported via `global.css`.
+- **`styles/`**: Shared design system classes used across 3+ unrelated files that don't have a component wrapper. All classes use the `ht-` prefix. Organized by domain: `fonts.css`, `reset.css`, `typography.css`, `layout.css`, `tables.css`, `utilities.css`. Imported via `global.css`. Buttons, badges, chips, and cards have been migrated to shared components (see below).
+- **Shared components** (`components/shared/`): `Button`, `Badge`, `Chip`, and `Card` are reusable components with co-located `.module.css` files. Use these instead of raw `ht-btn`, `ht-badge`, `ht-chip`, or `ht-card` class strings. Import and use via props (e.g., `<Button variant="ghost" size="sm">`, `<Badge variant="danger" size="sm">`).
 - **`.module.css`**: Everything else — component-specific layout, state variants, animations tied to a single component.
 
 ### Referencing global classes from module CSS
@@ -306,13 +307,18 @@ Three scripts enforce CSS hygiene, all wired into `.github/workflows/lint.yml`:
 - **`tools/check_global_css_allowlist.py`** — blocks any `.ht-*` selector not on the allowlist from entering shared CSS (`styles/*.css`). Run locally: `uv run python tools/check_global_css_allowlist.py`. Add new shared prefixes to `ALLOWLIST` in that file.
 - **`tools/check_dead_global_css.py`** — blocks unreferenced class selectors in shared CSS (`styles/*.css`). Run locally: `uv run python tools/check_dead_global_css.py`. Add dynamically-assembled class prefixes to `EXEMPTIONS` in that file.
 - **`tools/check_css_module_globals.py`** — validates that `:global()` usage in module CSS is correct.
+- **`tools/check_undefined_css_refs.py`** — blocks raw `ht-*` class references in TSX that have no matching CSS definition in `global.css` or `styles/*.css`. The inverse of the dead-CSS checker. Run locally: `uv run python tools/check_undefined_css_refs.py`. Add false positives (ARIA IDs, test selectors, JS-only classes) to `EXEMPTIONS` in that file.
 
 ### Adding a new shared class
+
+For classes that don't warrant a component (layout utilities, typography helpers):
 
 1. Confirm it is used in 3+ unrelated files (not just BEM descendants of one component)
 2. Add it to the appropriate file in `frontend/src/styles/`
 3. Add its prefix to `ALLOWLIST` in `tools/check_global_css_allowlist.py`
 4. Run `uv run python tools/check_global_css_allowlist.py` to verify
+
+For new reusable visual elements (like buttons, badges), create a shared component with a co-located `.module.css` file in `components/shared/` instead of adding global classes.
 
 ### tokens.css
 

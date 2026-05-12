@@ -5,6 +5,8 @@ import { useSignal } from "../../hooks/use-signal";
 import { EmptyState } from "../shared/empty-state";
 import { Spinner } from "../shared/spinner";
 import type { AppConfigData } from "../../api/endpoints";
+import { Badge } from "../shared/badge";
+import { Card } from "../shared/card";
 import styles from "./config-tab.module.css";
 
 interface Props {
@@ -183,9 +185,9 @@ export function ConfigTab({ appKey }: Props) {
 
   if (error.value) {
     return (
-      <div class={`ht-card ${styles.configTabError}`} data-testid="config-tab-error">
+      <Card data-testid="config-tab-error">
         <p class="ht-text-muted ht-text-sm">{error.value}</p>
-      </div>
+      </Card>
     );
   }
 
@@ -210,9 +212,9 @@ export function ConfigTab({ appKey }: Props) {
         </div>
         <div class={styles.metaRow}>
           <span class="ht-detail-label">Enabled</span>
-          <span class={`ht-badge ${cfg.enabled ? "ht-badge--success" : "ht-badge--neutral"}`}>
+          <Badge variant={cfg.enabled ? "success" : "neutral"}>
             {cfg.enabled ? "yes" : "no"}
-          </span>
+          </Badge>
         </div>
       </div>
 
@@ -220,7 +222,7 @@ export function ConfigTab({ appKey }: Props) {
       <div class={styles.layout}>
         <div class={styles.fieldsCard}>
           <h3 class="ht-section-label">configuration</h3>
-          <div class="ht-card ht-card--config">
+          <Card variant="config">
           {isListConfig ? (
             <div class={styles.instances}>
               {(appConfig as unknown[]).map((instanceCfg, idx) => (
@@ -243,16 +245,16 @@ export function ConfigTab({ appKey }: Props) {
           ) : (
             <EmptyState title="no configuration values" />
           )}
-          </div>
+          </Card>
         </div>
 
         {/* Raw config card */}
         <div class={styles.rawCard}>
           <h3 class="ht-section-label">raw config</h3>
-          <div class="ht-card ht-card--config">
+          <Card variant="config">
           <span class="ht-text-mono ht-text-xs ht-text-muted">hassette.toml → apps.{appKey}.config</span>
           <pre class={styles.rawCode}>{JSON.stringify(appConfig, null, 2)}</pre>
-          </div>
+          </Card>
         </div>
       </div>
     </div>

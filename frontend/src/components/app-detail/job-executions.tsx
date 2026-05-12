@@ -5,6 +5,7 @@ import { formatDuration, formatTimestamp } from "../../utils/format";
 import { executionStatusVariant } from "../../utils/status";
 import { EmptyState } from "../shared/empty-state";
 import { ErrorCell } from "./error-cell";
+import { Badge } from "../shared/badge";
 import styles from "./job-executions.module.css";
 
 const INITIAL_ROWS = 5;
@@ -50,7 +51,7 @@ export function JobExecutions({ executions, jobId }: Props) {
             return [
               <tr key={rowKey}>
                 <td>
-                  <span class={`ht-badge ht-badge--sm ht-badge--${executionStatusVariant(ex.status)}`}>{ex.status}</span>
+                  <Badge variant={executionStatusVariant(ex.status)} size="sm" data-testid="execution-status-badge">{ex.status}</Badge>
                   {ex.error_message && <span class="ht-exec-error-mobile">{ex.error_message}</span>}
                 </td>
                 <td class="ht-text-mono ht-text-xs">{formatTimestamp(ex.execution_start_ts)}</td>

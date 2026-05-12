@@ -1,4 +1,5 @@
 import { useRef } from "preact/hooks";
+import { Card } from "./card";
 
 interface TableCardProps {
   title?: preact.ComponentChildren;
@@ -15,7 +16,7 @@ export function TableCard({ title, count, controls, scrollHeight, class: classNa
   const ref = containerRef ?? fallbackRef;
 
   return (
-    <div class={`ht-card ht-card--compact${className ? ` ${className}` : ""}`} ref={ref}>
+    <Card variant="compact" class={className} containerRef={ref}>
       {(title || count || controls) && (
         <div class="ht-table-toolbar">
           <div class="ht-table-toolbar__title">
@@ -28,6 +29,6 @@ export function TableCard({ title, count, controls, scrollHeight, class: classNa
       <div class="ht-table-card-scroll" style={scrollHeight ? `--table-scroll-height: ${scrollHeight}` : undefined}>
         {children}
       </div>
-    </div>
+    </Card>
   );
 }

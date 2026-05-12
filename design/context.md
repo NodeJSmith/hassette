@@ -329,6 +329,14 @@ Data sources: `GET /api/health` (services + boot issues), `useAppState()` signal
 
 **ActionButtons** — reload/stop icon buttons with loading states and confirmation flow.
 
+**Button** — reusable button component with co-located CSS Module. Props: `variant` (default/primary/success/warning/info/danger), `size` (default/sm/xs), `ghost` (boolean), `icon` (boolean). `type="button"` is hardcoded and cannot be overridden. Use instead of raw `ht-btn` class strings.
+
+**Badge** — status indicator component with co-located CSS Module. Props: `variant` (StatusVariant | "info"), `size` (default/xs/sm/md). Accepts mixed children (text + icons). Use instead of raw `ht-badge` class strings.
+
+**Chip** — compact metadata label component with co-located CSS Module. Props: `variant` (modifier/schedule/kind/origin/muted), `kind` (required when variant="kind"), `size` (default/sm). Emits `data-variant` attribute for stable external targeting. Use instead of raw `ht-chip` class strings.
+
+**Card** — surface container component with co-located CSS Module. Props: `variant` (default/compact/config/error), `containerRef`. Includes responsive rules for mobile table scrolling and small-phone padding. Use instead of raw `ht-card` class strings (exception: `<section>` elements in diagnostics.tsx retain raw classes for semantic HTML).
+
 ### Anti-patterns
 
 - **No `--ht-*` prefixed tokens** — the old Graphite+Emerald system is replaced; all tokens are unprefixed Ink tokens

@@ -3,7 +3,6 @@
 /* — Config tab container — */
 
 .configTab { padding: var(--sp-4) 0; }
-.configTabError { padding: var(--sp-6); }
 
 /* — Metadata header — */
 
