@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Migrate shared components to use Button, Badge, Chip, Card"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#12", "FR#13"]
 ---

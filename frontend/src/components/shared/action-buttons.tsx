@@ -3,6 +3,8 @@ import { useSignal } from "../../hooks/use-signal";
 import { reloadApp, startApp, stopApp } from "../../api/endpoints";
 import { ConfirmDialog } from "./confirm-dialog";
 import { IconPlay, IconRefresh, IconSquare } from "./icons";
+import { Button } from "./button";
+import styles from "./action-buttons.module.css";
 
 interface Props {
   appKey: string;
@@ -46,13 +48,15 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
   };
 
   const isIcon = variant === "icon";
-  const btnBase = isIcon ? "ht-btn ht-btn--icon ht-btn--ghost" : "ht-btn ht-btn--sm";
 
   return (<>
-    <div class="ht-btn-group" data-testid="action-buttons">
+    <div class={styles.btnGroup} data-role="action-buttons" data-testid="action-buttons">
       {canStart && (
-        <button
-          class={`${btnBase} ht-btn--success`}
+        <Button
+          variant="success"
+          size={isIcon ? undefined : "sm"}
+          ghost={isIcon}
+          icon={isIcon}
           data-testid={`btn-start-${appKey}`}
           disabled={loading.value}
           onClick={() => void exec(startApp)}
@@ -60,11 +64,14 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
           aria-label="Start app"
         >
           {isIcon ? <IconPlay /> : <><IconPlay /> Start</>}
-        </button>
+        </Button>
       )}
       {canReload && (
-        <button
-          class={`${btnBase}${isIcon ? " ht-btn--info" : ""}`}
+        <Button
+          variant={isIcon ? "info" : undefined}
+          size={isIcon ? undefined : "sm"}
+          ghost={isIcon}
+          icon={isIcon}
           data-testid={`btn-reload-${appKey}`}
           disabled={loading.value}
           onClick={() => void exec(reloadApp)}
@@ -72,11 +79,14 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
           aria-label="Reload app"
         >
           {isIcon ? <IconRefresh /> : <><IconRefresh /> Reload</>}
-        </button>
+        </Button>
       )}
       {canStop && (
-        <button
-          class={`${btnBase} ${isIcon ? "ht-btn--warning" : "ht-btn--danger"}`}
+        <Button
+          variant={isIcon ? "warning" : "danger"}
+          size={isIcon ? undefined : "sm"}
+          ghost={isIcon}
+          icon={isIcon}
           data-testid={`btn-stop-${appKey}`}
           disabled={loading.value}
           onClick={handleStop}
@@ -84,7 +94,7 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
           aria-label="Stop app"
         >
           {isIcon ? <IconSquare /> : <><IconSquare /> Stop</>}
-        </button>
+        </Button>
       )}
     </div>
     {confirmStop && showStopConfirm.value && (
