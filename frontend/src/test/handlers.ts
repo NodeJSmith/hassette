@@ -21,6 +21,7 @@ type JobExecution = components["schemas"]["JobExecution"];
 type DashboardAppGridResponse = components["schemas"]["DashboardAppGridResponse"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
+type LogsByExecutionResponse = components["schemas"]["LogsByExecutionResponse"];
 type ActionResponse = components["schemas"]["ActionResponse"];
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
 
@@ -125,6 +126,15 @@ export const handlers = [
   // GET /api/logs/recent
   http.get("/api/logs/recent", () => {
     return HttpResponse.json<LogEntryResponse[]>([]);
+  }),
+
+  // GET /api/logs/by-execution/:execution_id
+  http.get("/api/logs/by-execution/:execution_id", () => {
+    return HttpResponse.json<LogsByExecutionResponse>({
+      records: [],
+      truncated: false,
+      retention_expired: false,
+    });
   }),
 
   // GET /api/apps/:app_key/source
