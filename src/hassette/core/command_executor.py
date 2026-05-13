@@ -432,7 +432,7 @@ class CommandExecutor(Service):
         structlog.contextvars.bind_contextvars(
             app_key=app_key or None,
             instance_name=instance_name,
-            instance_index=instance_index or None,
+            instance_index=instance_index,
         )
         try:
 
@@ -472,7 +472,7 @@ class CommandExecutor(Service):
                     )
         finally:
             CURRENT_EXECUTION_ID.reset(token)
-            structlog.contextvars.clear_contextvars()
+            structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
     async def _execute_job(self, cmd: ExecuteJob) -> None:
         """Execute a scheduled job and queue the result record.
@@ -502,7 +502,7 @@ class CommandExecutor(Service):
         structlog.contextvars.bind_contextvars(
             app_key=app_key or None,
             instance_name=instance_name,
-            instance_index=instance_index or None,
+            instance_index=instance_index,
         )
         try:
 
@@ -538,7 +538,7 @@ class CommandExecutor(Service):
                     )
         finally:
             CURRENT_EXECUTION_ID.reset(token)
-            structlog.contextvars.clear_contextvars()
+            structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
     async def _invoke_error_handler(
         self,

@@ -170,7 +170,7 @@ class AppLifecycleService(Resource):
                 self.registry.record_failure(app_key, idx, e)
                 await self._emit_app_state_change(inst, status=FAILED, prev_status=STARTING, exception=e)
             finally:
-                structlog.contextvars.clear_contextvars()
+                structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
         # Post-ready reconciliation: retire stale rows from previous sessions.
         # Runs after the instance loop to ensure all registrations are complete.
@@ -215,7 +215,7 @@ class AppLifecycleService(Resource):
             await self._emit_app_state_change(inst, status=FAILED, prev_status=STOPPING, exception=e)
         finally:
             if instance_index is not None:
-                structlog.contextvars.clear_contextvars()
+                structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
     async def shutdown_instances(
         self,

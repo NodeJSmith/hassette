@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import structlog
 
 from hassette.context import CURRENT_EXECUTION_ID
-from hassette.logging_ import CorrelationFilter, LogCaptureHandler, LogEntry, enable_logging
+from hassette.logging_ import CorrelationFilter, LogCaptureHandler, LogEntry, add_execution_id, enable_logging
 
 
 class TestCorrelationFilterSeqIncrements:
@@ -338,10 +338,12 @@ class TestCorrelationFilter:
         """Filter stamps execution_id=None when CURRENT_EXECUTION_ID is not set."""
         f = CorrelationFilter()
         record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
-        # Ensure no execution context is active
-        CURRENT_EXECUTION_ID.set(None)
-        f.filter(record)
-        assert record.execution_id is None  # pyright: ignore[reportAttributeAccessIssue]
+        token = CURRENT_EXECUTION_ID.set(None)
+        try:
+            f.filter(record)
+            assert record.execution_id is None  # pyright: ignore[reportAttributeAccessIssue]
+        finally:
+            CURRENT_EXECUTION_ID.reset(token)
 
     def test_filter_stamps_seq_monotonically(self) -> None:
         """Filter seq counter increments monotonically across multiple filter calls."""
@@ -382,7 +384,6 @@ class TestAddExecutionIdProcessor:
 
     def test_processor_adds_execution_id_from_context(self) -> None:
         """add_execution_id processor stamps execution_id from CURRENT_EXECUTION_ID."""
-        from hassette.logging_ import add_execution_id
 
         token = CURRENT_EXECUTION_ID.set("test-exec-id")
         try:
@@ -393,11 +394,12 @@ class TestAddExecutionIdProcessor:
 
     def test_processor_adds_none_when_no_execution(self) -> None:
         """add_execution_id stamps None when CURRENT_EXECUTION_ID is not set."""
-        from hassette.logging_ import add_execution_id
-
-        CURRENT_EXECUTION_ID.set(None)
-        event_dict = add_execution_id(None, "info", {"event": "hello"})
-        assert event_dict["execution_id"] is None
+        token = CURRENT_EXECUTION_ID.set(None)
+        try:
+            event_dict = add_execution_id(None, "info", {"event": "hello"})
+            assert event_dict["execution_id"] is None
+        finally:
+            CURRENT_EXECUTION_ID.reset(token)
 
 
 class TestLogEntryCorrelationFields:
@@ -509,7 +511,6 @@ class TestExecutionIdInheritedByChildTask:
 
     async def test_child_task_inherits_execution_id(self) -> None:
         """A child task spawned during an execution inherits the execution_id."""
-        from hassette.logging_ import add_execution_id
 
         child_event_dict: dict = {}
 
