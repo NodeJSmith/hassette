@@ -369,6 +369,7 @@
           "logs"
         ],
         "summary": "Get Logs",
+        "description": "Return recent log records from the database with optional filtering.",
         "operationId": "get_logs_api_logs_recent_get",
         "parameters": [
           {
@@ -430,6 +431,38 @@
               ],
               "title": "Since"
             }
+          },
+          {
+            "name": "execution_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Execution Id"
+            }
+          },
+          {
+            "name": "source_tier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Tier"
+            }
           }
         ],
         "responses": {
@@ -443,6 +476,103 @@
                     "$ref": "#/components/schemas/LogEntryResponse"
                   },
                   "title": "Response Get Logs Api Logs Recent Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/logs/by-execution/{execution_id}": {
+      "get": {
+        "tags": [
+          "logs"
+        ],
+        "summary": "Get Logs By Execution",
+        "description": "Return all log records for a single execution, with retention-expired detection.",
+        "operationId": "get_logs_by_execution_api_logs_by_execution__execution_id__get",
+        "parameters": [
+          {
+            "name": "execution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Execution Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5000,
+              "minimum": 1,
+              "default": 500,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogsByExecutionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/logs/level": {
+      "put": {
+        "tags": [
+          "logs"
+        ],
+        "summary": "Set Log Level",
+        "description": "Change a logger's effective level at runtime without restarting.\n\nThe change takes effect immediately for both structlog and stdlib callers on that logger.",
+        "operationId": "set_log_level_api_logs_level_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogLevelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogLevelResponse"
                 }
               }
             }
@@ -2889,6 +3019,50 @@
               }
             ],
             "title": "App Key"
+          },
+          "execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Id"
+          },
+          "instance_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Name"
+          },
+          "instance_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Index"
+          },
+          "source_tier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Tier"
           }
         },
         "type": "object",
@@ -2902,6 +3076,71 @@
           "message"
         ],
         "title": "LogEntryResponse"
+      },
+      "LogLevelRequest": {
+        "properties": {
+          "logger": {
+            "type": "string",
+            "title": "Logger"
+          },
+          "level": {
+            "type": "string",
+            "title": "Level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "logger",
+          "level"
+        ],
+        "title": "LogLevelRequest",
+        "description": "Request body for PUT /api/logs/level."
+      },
+      "LogLevelResponse": {
+        "properties": {
+          "logger": {
+            "type": "string",
+            "title": "Logger"
+          },
+          "effective_level": {
+            "type": "string",
+            "title": "Effective Level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "logger",
+          "effective_level"
+        ],
+        "title": "LogLevelResponse",
+        "description": "Response for PUT /api/logs/level."
+      },
+      "LogsByExecutionResponse": {
+        "properties": {
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/LogEntryResponse"
+            },
+            "type": "array",
+            "title": "Records"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          },
+          "retention_expired": {
+            "type": "boolean",
+            "title": "Retention Expired"
+          }
+        },
+        "type": "object",
+        "required": [
+          "records",
+          "truncated",
+          "retention_expired"
+        ],
+        "title": "LogsByExecutionResponse",
+        "description": "Response for GET /api/logs/by-execution/{execution_id}."
       },
       "ServiceInfoResponse": {
         "properties": {

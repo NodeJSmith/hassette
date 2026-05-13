@@ -825,3 +825,24 @@ async def get_log_records_by_execution(
     records = [dict(row) for row in rows]
     truncated = total > limit
     return records, truncated
+
+
+async def check_execution_predates_retention_cutoff(db: aiosqlite.Connection, execution_id: str, cutoff: float) -> bool:
+    """Check if an execution record exists and its start timestamp is before the retention cutoff."""
+    cursor = await db.execute(
+        "SELECT execution_start_ts FROM handler_invocations WHERE execution_id = :eid LIMIT 1",
+        {"eid": execution_id},
+    )
+    row = await cursor.fetchone()
+    if row is not None:
+        return float(row[0]) < cutoff
+
+    cursor = await db.execute(
+        "SELECT execution_start_ts FROM job_executions WHERE execution_id = :eid LIMIT 1",
+        {"eid": execution_id},
+    )
+    row = await cursor.fetchone()
+    if row is not None:
+        return float(row[0]) < cutoff
+
+    return False

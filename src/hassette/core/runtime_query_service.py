@@ -22,7 +22,7 @@ from hassette.core.domain_models import (
 )
 from hassette.core.state_proxy import StateProxy
 from hassette.events import Event, RawStateChangeEvent
-from hassette.logging_ import LogEntry, get_log_capture_handler, get_log_persistence_handler
+from hassette.logging_ import get_log_capture_handler, get_log_persistence_handler
 from hassette.resources.base import Resource
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
@@ -32,8 +32,6 @@ if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Subscription
     from hassette.events.hassette import ExecutionCompletedPayload, InvocationCompletedPayload
-
-LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
 
 
 class RuntimeQueryService(Resource):
@@ -352,33 +350,6 @@ class RuntimeQueryService(Resource):
     def get_recent_events(self, limit: int = 50) -> list[dict]:
         events = list(self._event_buffer)
         return events[-limit:]
-
-    # --- Log access ---
-
-    def get_recent_logs(
-        self,
-        limit: int = 100,
-        app_key: str | None = None,
-        level: str | None = None,
-        since: float | None = None,
-    ) -> list[dict]:
-        handler = get_log_capture_handler()
-        if handler is None:
-            return []
-
-        entries: list[LogEntry] = handler.get_buffer_snapshot()
-
-        if since is not None:
-            entries = [e for e in entries if e.timestamp >= since]
-
-        if app_key:
-            entries = [e for e in entries if e.app_key == app_key]
-
-        if level:
-            min_level = LOG_LEVELS.get(level.upper(), 0)
-            entries = [e for e in entries if LOG_LEVELS.get(e.level, 0) >= min_level]
-
-        return [e.to_dict() for e in entries[-limit:]]
 
     # --- System status ---
 

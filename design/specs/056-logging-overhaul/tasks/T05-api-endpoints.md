@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Rewrite log REST API and add runtime log level endpoint"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T04"]
 implements: ["FR#14", "FR#15", "FR#19", "AC#6", "AC#7", "AC#15", "AC#17"]
 ---

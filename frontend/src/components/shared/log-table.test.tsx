@@ -148,6 +148,10 @@ function createLogEntry(overrides: Partial<WsLogPayload> = {}): WsLogPayload {
     message: "Test log message",
     exc_info: null,
     app_key: "my_app",
+    execution_id: null,
+    instance_name: null,
+    instance_index: null,
+    source_tier: null,
     ...overrides,
   };
 }

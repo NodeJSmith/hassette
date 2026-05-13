@@ -64,6 +64,10 @@ export interface WsLogPayload {
   message: string;
   exc_info: string | null;
   app_key: string | null;
+  execution_id: string | null;
+  instance_name: string | null;
+  instance_index: number | null;
+  source_tier: string | null;
 }
 
 export interface WsInvocationCompletedPayload {

@@ -114,6 +114,11 @@ def create_hassette_stub(
     # --- Runtime query service placeholder ---
     hassette.runtime_query_service = hassette._runtime_query_service
 
+    # --- Database service stubs (log endpoints use HassetteDep → database_service) ---
+    hassette.database_service = hassette._database_service
+    hassette._database_service.submit = AsyncMock(return_value=[])
+    hassette._database_service.read_db = MagicMock()
+
     # --- Telemetry query service stubs ---
     _wire_telemetry_stubs(hassette)
 
