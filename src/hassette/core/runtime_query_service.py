@@ -11,6 +11,7 @@ from hassette.bus import Bus
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_registry import AppFullSnapshot, AppStatusSnapshot
 from hassette.core.bus_service import BusService
+from hassette.core.database_service import DatabaseService
 from hassette.core.domain_models import (
     AppStatusChangedData,
     BootIssue,
@@ -22,7 +23,7 @@ from hassette.core.domain_models import (
 )
 from hassette.core.state_proxy import StateProxy
 from hassette.events import Event, RawStateChangeEvent
-from hassette.logging_ import LogEntry, get_log_capture_handler
+from hassette.logging_ import get_log_capture_handler, get_log_persistence_handler
 from hassette.resources.base import Resource
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
@@ -33,17 +34,16 @@ if TYPE_CHECKING:
     from hassette.bus import Subscription
     from hassette.events.hassette import ExecutionCompletedPayload, InvocationCompletedPayload
 
-LOG_LEVELS = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
-
 
 class RuntimeQueryService(Resource):
     """Aggregates and caches live system state for the web UI.
 
     Reads from in-memory sources: AppHandler, event buffer, log buffer, WS clients.
-    All reads are instant — no database I/O.
+    All reads are instant — no database I/O. DatabaseService is in depends_on
+    to guarantee it is ready before set_database() wires LogPersistenceHandler.
     """
 
-    depends_on: ClassVar[list[type[Resource]]] = [BusService, StateProxy, AppHandler]
+    depends_on: ClassVar[list[type[Resource]]] = [BusService, StateProxy, AppHandler, DatabaseService]
 
     bus: Bus
     _event_buffer: deque[dict]
@@ -137,6 +137,15 @@ class RuntimeQueryService(Resource):
                 handler.set_broadcast(self.broadcast, loop)
             except RuntimeError:
                 self.logger.warning("No running event loop, log broadcast will not be available")
+
+        # Wire up log persistence handler for DB writes
+        persistence_handler = get_log_persistence_handler()
+        if persistence_handler is not None:
+            try:
+                loop = asyncio.get_running_loop()
+                persistence_handler.set_database(self.hassette.database_service, loop)
+            except RuntimeError:
+                self.logger.warning("No running event loop, log persistence will not be available")
 
         self.mark_ready(reason="RuntimeQueryService initialized")
 
@@ -344,33 +353,6 @@ class RuntimeQueryService(Resource):
         events = list(self._event_buffer)
         return events[-limit:]
 
-    # --- Log access ---
-
-    def get_recent_logs(
-        self,
-        limit: int = 100,
-        app_key: str | None = None,
-        level: str | None = None,
-        since: float | None = None,
-    ) -> list[dict]:
-        handler = get_log_capture_handler()
-        if handler is None:
-            return []
-
-        entries: list[LogEntry] = handler.get_buffer_snapshot()
-
-        if since is not None:
-            entries = [e for e in entries if e.timestamp >= since]
-
-        if app_key:
-            entries = [e for e in entries if e.app_key == app_key]
-
-        if level:
-            min_level = LOG_LEVELS.get(level.upper(), 0)
-            entries = [e for e in entries if LOG_LEVELS.get(e.level, 0) >= min_level]
-
-        return [e.to_dict() for e in entries[-limit:]]
-
     # --- System status ---
 
     def get_system_status(self) -> SystemStatus:
@@ -424,6 +406,7 @@ class RuntimeQueryService(Resource):
             services_running=services_running,
             services=services,
             boot_issues=boot_issues,
+            log_records_dropped=self.hassette.get_log_records_dropped(),
         )
 
     def _collect_boot_issues(self) -> list[BootIssue]:

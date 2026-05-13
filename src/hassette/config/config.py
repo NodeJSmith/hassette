@@ -2,9 +2,9 @@ from contextlib import suppress
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from pydantic import AliasChoices, BeforeValidator, Field, field_validator
+from pydantic import AliasChoices, BeforeValidator, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from hassette import context as ctx
@@ -90,6 +90,16 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     # General configuration
     log_level: LOG_ANNOTATION = Field(default="INFO")
     """Logging level for Hassette."""
+
+    log_format: Literal["auto", "console", "json"] = Field(default="auto")
+    """Console output format. ``"auto"`` detects TTY vs pipe automatically. ``"console"`` forces
+    colored human-readable output. ``"json"`` forces one-JSON-object-per-line output."""
+
+    log_queue_max: int = Field(default=2000, ge=1)
+    """Maximum size of the inter-thread log queue. Records are dropped when the queue is full."""
+
+    log_persistence_level: LOG_ANNOTATION = Field(default="INFO")
+    """Minimum log level for database persistence. Records below this level are not stored."""
 
     config_dir: Path = Field(default_factory=default_config_dir)
     """Directory to load/save configuration."""
@@ -333,6 +343,9 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     db_retention_days: int = Field(default=7, ge=1)
     """Number of days to retain execution records (handler_invocations, job_executions)."""
 
+    log_retention_days: int = Field(default=3, ge=1)
+    """Number of days to retain persisted log records. Must be <= db_retention_days."""
+
     db_max_size_mb: float = Field(default=500, ge=0)
     """Maximum database file size in MB. When exceeded, oldest execution records are deleted. 0 disables the size
     failsafe."""
@@ -473,6 +486,21 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         if len(self.token) <= 12:
             return f"{self.token[:3]}***"
         return f"{self.token[:6]}...{self.token[-6:]}"
+
+    @model_validator(mode="after")
+    def validate_log_retention_days(self) -> "HassetteConfig":
+        """Ensure log_retention_days <= db_retention_days.
+
+        Log records reference executions; allowing log records to outlive
+        the execution records that produced them would break referential
+        integrity semantics even though the FK is not enforced at the DB level.
+        """
+        if self.log_retention_days > self.db_retention_days:
+            raise ValueError(
+                f"log_retention_days ({self.log_retention_days}) must be <= "
+                f"db_retention_days ({self.db_retention_days})"
+            )
+        return self
 
     @field_validator("apps", mode="before")
     @classmethod

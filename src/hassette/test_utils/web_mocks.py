@@ -114,6 +114,17 @@ def create_hassette_stub(
     # --- Runtime query service placeholder ---
     hassette.runtime_query_service = hassette._runtime_query_service
 
+    # --- Database service stubs (log endpoints use HassetteDep → database_service) ---
+    hassette.database_service = hassette._database_service
+    hassette._database_service.submit = AsyncMock(return_value=[])
+    # read_db: a MagicMock whose execute() returns an async cursor with empty results.
+    # Log routes call repo functions directly with read_db (not through submit).
+    _cursor = MagicMock()
+    _cursor.fetchall = AsyncMock(return_value=[])
+    _cursor.fetchone = AsyncMock(return_value=None)
+    hassette._database_service.read_db = MagicMock()
+    hassette._database_service.read_db.execute = AsyncMock(return_value=_cursor)
+
     # --- Telemetry query service stubs ---
     _wire_telemetry_stubs(hassette)
 
@@ -157,11 +168,11 @@ def create_mock_runtime_query_service(
     svc._ws_drops = 0
     svc._ws_drops_since_last_log = 0
     svc._ws_drops_last_logged = 0.0
-    svc._pending_invocations: list[dict] = []
-    svc._pending_executions: list[dict] = []
+    svc._pending_invocations = []
+    svc._pending_executions = []
     svc._flush_scheduled = False
-    svc._listener_meta: dict[int, tuple[str, int]] = {}
-    svc._job_meta: dict[int, tuple[str, int]] = {}
+    svc._listener_meta = {}
+    svc._job_meta = {}
     svc.task_bucket = MagicMock()
     svc.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: coro.close())
     svc.logger = MagicMock()

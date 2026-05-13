@@ -8,6 +8,7 @@ from pathlib import Path
 from timeit import default_timer as timer
 
 import anyio
+import structlog.contextvars
 
 import hassette.event_handling.accessors as A
 from hassette.bus import Bus
@@ -15,7 +16,6 @@ from hassette.core.app_change_detector import AppChangeDetector, ChangeSet
 from hassette.core.app_factory import AppFactory
 from hassette.events.hassette import HassetteAppStateEvent, HassetteSimpleEvent
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
-from hassette.logging_ import get_log_capture_handler
 from hassette.resources.base import Resource
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import BlockReason
@@ -134,6 +134,11 @@ class AppLifecycleService(Resource):
         class_name = manifest.class_name
 
         for idx, inst in instances.items():
+            structlog.contextvars.bind_contextvars(
+                app_key=app_key,
+                instance_name=inst.app_config.instance_name,
+                instance_index=idx,
+            )
             try:
                 with anyio.fail_after(self.startup_timeout):
                     await inst.initialize()
@@ -164,17 +169,28 @@ class AppLifecycleService(Resource):
                 inst.status = STOPPED
                 self.registry.record_failure(app_key, idx, e)
                 await self._emit_app_state_change(inst, status=FAILED, prev_status=STARTING, exception=e)
+            finally:
+                structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
         # Post-ready reconciliation: retire stale rows from previous sessions.
         # Runs after the instance loop to ensure all registrations are complete.
         await self._reconcile_app_registrations(app_key, instances)
 
-    async def shutdown_instance(self, inst: "App[AppConfig]") -> None:
+    async def shutdown_instance(self, inst: "App[AppConfig]", instance_index: int | None = None) -> None:
         """Shutdown a single app instance.
 
         Args:
             inst: The app instance to shutdown
+            instance_index: Instance index for correlation ID binding. When provided, app identity
+                context vars are bound for the duration of the shutdown call so all log records
+                emitted during on_shutdown carry app identity.
         """
+        if instance_index is not None:
+            structlog.contextvars.bind_contextvars(
+                app_key=inst.app_config.app_key or None,
+                instance_name=inst.app_config.instance_name,
+                instance_index=instance_index,
+            )
         try:
             start_time = timer()
             with anyio.fail_after(self.shutdown_timeout):
@@ -197,6 +213,9 @@ class AppLifecycleService(Resource):
                 get_short_traceback(),
             )
             await self._emit_app_state_change(inst, status=FAILED, prev_status=STOPPING, exception=e)
+        finally:
+            if instance_index is not None:
+                structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
     async def shutdown_instances(
         self,
@@ -212,10 +231,10 @@ class AppLifecycleService(Resource):
 
         self.logger.debug("Stopping %d app instances", len(instances))
 
-        for inst in instances.values():
+        for idx, inst in instances.items():
             event = HassetteAppStateEvent.from_data(app=inst, status=STOPPING, previous_status=inst.status)
             await self.hassette.send_event(Topic.HASSETTE_EVENT_APP_STATE_CHANGED, event)
-            await self.shutdown_instance(inst)
+            await self.shutdown_instance(inst, instance_index=idx)
 
     async def shutdown_all(self) -> None:
         """Shutdown all registered apps."""
@@ -302,10 +321,7 @@ class AppLifecycleService(Resource):
 
         instances = self.registry.get_apps_by_key(app_key)
         if instances:
-            handler = get_log_capture_handler()
             for inst in instances.values():
-                if handler:
-                    handler.register_app_logger(inst.logger.name, app_key)
                 event = HassetteAppStateEvent.from_data(app=inst, status=ResourceStatus.NOT_STARTED)
                 await self.hassette.send_event(Topic.HASSETTE_EVENT_APP_STATE_CHANGED, event)
             await self.initialize_instances(app_key, instances, app_manifest)

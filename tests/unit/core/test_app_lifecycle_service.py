@@ -544,8 +544,7 @@ class TestStartApp:
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_apps_by_key = Mock(return_value={0: mock_app_instance})
 
-        with patch("hassette.core.app_lifecycle_service.get_log_capture_handler", return_value=None):
-            await lifecycle_service.start_app("test_app")
+        await lifecycle_service.start_app("test_app")
 
         calls = mock_hassette.send_event.call_args_list
         not_started_calls = [
@@ -579,8 +578,7 @@ class TestStartApp:
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_apps_by_key = Mock(return_value={0: mock_app_instance})
 
-        with patch("hassette.core.app_lifecycle_service.get_log_capture_handler", return_value=None):
-            await lifecycle_service.start_app("test_app")
+        await lifecycle_service.start_app("test_app")
 
         assert initialize_order == ["initialize", "reconcile"]
 

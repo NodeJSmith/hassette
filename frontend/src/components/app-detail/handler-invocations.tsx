@@ -1,12 +1,15 @@
+import { useEffect } from "preact/hooks";
 import clsx from "clsx";
 import { useSignal } from "../../hooks/use-signal";
-import type { HandlerInvocationData } from "../../api/endpoints";
+import type { HandlerInvocationData, LogEntry, LogsByExecutionResponse } from "../../api/endpoints";
+import { getLogsByExecution } from "../../api/endpoints";
 import { ShowMoreButton } from "../shared/show-more-button";
 import { formatDuration, formatTimestamp } from "../../utils/format";
 import { executionStatusKind } from "../../utils/status";
 import { EmptyState } from "../shared/empty-state";
 import { StatusShape } from "../shared/status-shape";
 import { Chip } from "../shared/chip";
+import { LogTable } from "../shared/log-table";
 import styles from "./handler-invocations.module.css";
 
 const INITIAL_ROWS = 5;
@@ -45,10 +48,11 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
         <tbody>
           {visible.map((inv, i) => {
             const isOpen = openRow.value === i;
-            const isError = inv.status === "error" || inv.status === "timed_out";
+            const isError = inv.status === "error";
+            const isTimeout = inv.status === "timed_out";
             const noteText = inv.error_message
               || (inv.status === "success" ? `completed in ${formatDuration(inv.duration_ms)}` : "—");
-            const noteTone = isError ? "var(--err)" : inv.status === "timed_out" ? "var(--warn)" : "var(--ink-2)";
+            const noteTone = isError ? "var(--err)" : isTimeout ? "var(--warn)" : "var(--ink-2)";
             const rowKey = inv.execution_id ?? `inv-${i}`;
             return [
               <tr
@@ -105,6 +109,98 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
   );
 }
 
+// ── Inline logs section ───────────────────────────────────────────────────────
+
+type LogFetchState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "retention_expired" }
+  | { status: "empty" }
+  | { status: "error" }
+  | { status: "loaded"; records: LogEntry[]; truncated: boolean };
+
+interface LogsSectionProps {
+  executionId: string;
+}
+
+function LogsSection({ executionId }: LogsSectionProps) {
+  const fetchState = useSignal<LogFetchState>({ status: "idle" });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchState.value = { status: "loading" };
+    getLogsByExecution(executionId)
+      .then((resp: LogsByExecutionResponse) => {
+        if (cancelled) return;
+        if (resp.retention_expired) {
+          fetchState.value = { status: "retention_expired" };
+        } else if (resp.records.length === 0) {
+          fetchState.value = { status: "empty" };
+        } else {
+          fetchState.value = { status: "loaded", records: resp.records, truncated: resp.truncated };
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        fetchState.value = { status: "error" };
+      });
+    return () => { cancelled = true; };
+  }, [executionId]);
+
+  const state = fetchState.value;
+  const viewAllHref = `/logs?execution_id=${encodeURIComponent(executionId)}`;
+
+  return (
+    <div class={styles.invLogsSection} data-testid="invocation-logs-section">
+      <span class={styles.invDetailLabel}>logs</span>
+
+      {state.status === "loading" && (
+        <p class={styles.invLogsMessage}>Loading logs…</p>
+      )}
+
+      {state.status === "retention_expired" && (
+        <p class={styles.invLogsMessage}>
+          Logs for this execution were deleted by retention policy.{" "}
+          <a href={viewAllHref} data-testid="view-all-logs-link">View all logs</a>
+        </p>
+      )}
+
+      {state.status === "empty" && (
+        <p class={styles.invLogsMessage}>No logs recorded for this invocation.</p>
+      )}
+
+      {state.status === "error" && (
+        <p class={styles.invLogsMessage}>Failed to load logs.</p>
+      )}
+
+      {state.status === "loaded" && (
+        <>
+          {/* fetcher is a resolved closure — records were pre-fetched to inspect retention_expired/truncated */}
+          <LogTable
+            mode="historical"
+            useLocalState={true}
+            hideExecutionId={true}
+            hideTitle={true}
+            showAppColumn={false}
+            fetcher={() => Promise.resolve(state.records)}
+          />
+          {state.truncated && (
+            <p class={styles.invLogsMessage}>
+              Showing first {state.records.length} of more records.{" "}
+              <a href={viewAllHref} data-testid="view-all-logs-link">View all logs</a>
+            </p>
+          )}
+          {!state.truncated && (
+            <p class={styles.invLogsViewAll}>
+              <a href={viewAllHref} data-testid="view-all-logs-link">View all logs</a>
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function InvocationDetail({ inv }: { inv: HandlerInvocationData }) {
   const isError = inv.status === "error";
   const isTimeout = inv.status === "timed_out";
@@ -153,6 +249,17 @@ function InvocationDetail({ inv }: { inv: HandlerInvocationData }) {
             )}
           </div>
         </div>
+      </div>
+
+      <div class={styles.invLogsSectionWrapper}>
+        {inv.execution_id ? (
+          <LogsSection executionId={inv.execution_id} />
+        ) : (
+          <div class={styles.invLogsSection} data-testid="invocation-logs-section">
+            <span class={styles.invDetailLabel}>logs</span>
+            <p class={styles.invLogsMessage}>No execution ID — logs unavailable.</p>
+          </div>
+        )}
       </div>
     </div>
   );

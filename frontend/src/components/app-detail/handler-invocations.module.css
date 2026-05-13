@@ -88,6 +88,29 @@
   }
 }
 
+/* — Inline logs section — */
+
+.invLogsSectionWrapper {
+  margin-top: var(--sp-3);
+  border-top: 1px solid var(--line-1);
+  padding-top: var(--sp-3);
+}
+
+.invLogsSection {
+  /* intentionally no extra padding — parent .invDetail handles it */
+}
+
+.invLogsMessage {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  margin: var(--sp-2) 0 0;
+}
+
+.invLogsViewAll {
+  font-size: var(--fs-small);
+  margin: var(--sp-2) 0 0;
+}
+
 /* — Responsive: max-width 768px — */
 
 @media screen and (max-width: 768px) {

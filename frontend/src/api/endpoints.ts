@@ -1,7 +1,7 @@
 /** Typed API endpoint functions for all Hassette REST endpoints. */
 
 import type { components } from "./generated-types";
-import { apiFetch, apiPost } from "./client";
+import { apiFetch, apiPost, apiPut } from "./client";
 
 // ---- Generated type aliases ----
 
@@ -79,13 +79,31 @@ export const getConfig = () => apiFetch<SystemConfig>("/config");
 
 // ---- Logs ----
 
-export const getRecentLogs = (params?: { level?: string; app_key?: string; limit?: number; since?: number | null }) =>
+export type LogsByExecutionResponse = components["schemas"]["LogsByExecutionResponse"];
+export type LogLevelResponse = components["schemas"]["LogLevelResponse"];
+
+export const getRecentLogs = (params?: {
+  level?: string;
+  app_key?: string;
+  limit?: number;
+  since?: number | null;
+  execution_id?: string | null;
+  source_tier?: string | null;
+}) =>
   apiFetch<LogEntry[]>(buildUrl("/logs/recent", {
     level: params?.level,
     app_key: params?.app_key,
     limit: params?.limit,
     since: params?.since,
+    execution_id: params?.execution_id,
+    source_tier: params?.source_tier,
   }));
+
+export const getLogsByExecution = (executionId: string, limit?: number) =>
+  apiFetch<LogsByExecutionResponse>(buildUrl(`/logs/by-execution/${encodeURIComponent(executionId)}`, { limit }));
+
+export const setLogLevel = (logger: string, level: string) =>
+  apiPut<LogLevelResponse>("/logs/level", { logger, level });
 
 // ---- Bus ----
 

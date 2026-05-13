@@ -63,7 +63,8 @@ async def main() -> None:
 
 
 def entrypoint() -> None:
-    enable_logging(get_log_level())
+    # Pre-config fallback — Hassette.__init__ re-calls with the full config (including log_format)
+    enable_logging(get_log_level(), log_format="auto")
 
     try:
         asyncio.run(main())

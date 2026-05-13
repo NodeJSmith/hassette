@@ -148,6 +148,10 @@ function createLogEntry(overrides: Partial<WsLogPayload> = {}): WsLogPayload {
     message: "Test log message",
     exc_info: null,
     app_key: "my_app",
+    execution_id: null,
+    instance_name: null,
+    instance_index: null,
+    source_tier: "app",
     ...overrides,
   };
 }
@@ -287,7 +291,8 @@ describe("LogTable", () => {
 
   // -- Search --
 
-  it("filters by search text in message", () => {
+  it("filters by search text in message", async () => {
+    vi.useFakeTimers();
     state.logs.push(createLogEntry({ message: "Starting scheduler" }));
     state.logs.push(createLogEntry({ message: "Bus connected" }));
 
@@ -298,12 +303,15 @@ describe("LogTable", () => {
 
     const searchInput = getByPlaceholderText("Search...");
     fireEvent.input(searchInput, { target: { value: "scheduler" } });
+    await act(() => { vi.advanceTimersByTime(200); }); // flush 150ms debounce + re-render
 
     expect(getByText("Starting scheduler")).toBeDefined();
     expect(queryByText("Bus connected")).toBeNull();
+    vi.useRealTimers();
   });
 
-  it("filters by search text in logger name", () => {
+  it("filters by search text in logger name", async () => {
+    vi.useFakeTimers();
     state.logs.push(createLogEntry({ logger_name: "hassette.bus", message: "msg1" }));
     state.logs.push(createLogEntry({ logger_name: "hassette.scheduler", message: "msg2" }));
 
@@ -313,12 +321,15 @@ describe("LogTable", () => {
     );
 
     fireEvent.input(getByPlaceholderText("Search..."), { target: { value: "bus" } });
+    await act(() => { vi.advanceTimersByTime(200); });
 
     expect(getByText("msg1")).toBeDefined();
     expect(queryByText("msg2")).toBeNull();
+    vi.useRealTimers();
   });
 
-  it("search is case-insensitive", () => {
+  it("search is case-insensitive", async () => {
+    vi.useFakeTimers();
     state.logs.push(createLogEntry({ message: "WebSocket Connected" }));
 
     const { getByText, getByPlaceholderText } = render(
@@ -327,8 +338,10 @@ describe("LogTable", () => {
     );
 
     fireEvent.input(getByPlaceholderText("Search..."), { target: { value: "websocket" } });
+    await act(() => { vi.advanceTimersByTime(200); });
 
     expect(getByText("WebSocket Connected")).toBeDefined();
+    vi.useRealTimers();
   });
 
   // -- Sort toggle --
@@ -468,7 +481,7 @@ describe("LogTable", () => {
   });
 
   it("renders data-row-key attribute on message text elements", () => {
-    state.logs.push(createLogEntry({ seq: 42, message: "Test with key" }));
+    state.logs.push(createLogEntry({ seq: 42, timestamp: 9999, message: "Test with key" }));
 
     const { container } = render(
       <LogTable />,
@@ -477,7 +490,7 @@ describe("LogTable", () => {
 
     const textEl = container.querySelector("[data-row-key]") as HTMLElement;
     expect(textEl).not.toBeNull();
-    expect(textEl.getAttribute("data-row-key")).toBe("42");
+    expect(textEl.getAttribute("data-row-key")).toBe("9999-42");
   });
 
   // -- App column visibility --
@@ -623,11 +636,11 @@ describe("Dedup via seq watermark (#364)", () => {
     entrySeq = 0;
   });
 
-  it("filters WS entries at or below the REST watermark", async () => {
+  it("filters WS entries at or below the REST timestamp watermark", async () => {
     const { getRecentLogs } = await import("../../api/endpoints");
     const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
 
-    // REST returns entries with seq 1-5
+    // REST returns entries with timestamps 1000-5000
     mockGetRecentLogs.mockResolvedValueOnce([
       createLogEntry({ seq: 1, timestamp: 1000, message: "rest-1" }),
       createLogEntry({ seq: 2, timestamp: 2000, message: "rest-2" }),
@@ -636,7 +649,7 @@ describe("Dedup via seq watermark (#364)", () => {
       createLogEntry({ seq: 5, timestamp: 5000, message: "rest-5" }),
     ]);
 
-    // WS buffer has overlapping entries (seq 3-8)
+    // WS buffer has overlapping entries (timestamps 3000-8000)
     state.logs.push(createLogEntry({ seq: 3, timestamp: 3000, message: "ws-3" }));
     state.logs.push(createLogEntry({ seq: 4, timestamp: 4000, message: "ws-4" }));
     state.logs.push(createLogEntry({ seq: 5, timestamp: 5000, message: "ws-5" }));
@@ -649,22 +662,52 @@ describe("Dedup via seq watermark (#364)", () => {
       { wrapper: createWrapper(state) },
     );
 
-    // Wait for REST entries to load (sets watermark = 5)
+    // Wait for REST entries to load (sets watermark = timestamp 5000)
     await findByText("rest-1");
 
     // REST entries should all be visible
     expect(queryByText("rest-1")).not.toBeNull();
     expect(queryByText("rest-5")).not.toBeNull();
 
-    // WS entries at or below watermark (seq 3, 4, 5) should be filtered out
+    // WS entries at or below watermark timestamp should be filtered out
     expect(queryByText("ws-3")).toBeNull();
     expect(queryByText("ws-4")).toBeNull();
     expect(queryByText("ws-5")).toBeNull();
 
-    // WS entries above watermark (seq 6, 7, 8) should be visible
+    // WS entries above watermark timestamp should be visible
     expect(queryByText("ws-6")).not.toBeNull();
     expect(queryByText("ws-7")).not.toBeNull();
     expect(queryByText("ws-8")).not.toBeNull();
+  });
+
+  it("WS entries visible after restart when seq resets but timestamps advance", async () => {
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+
+    // REST returns entries from a previous session (high seq, old timestamps)
+    mockGetRecentLogs.mockResolvedValueOnce([
+      createLogEntry({ seq: 4998, timestamp: 1000, message: "old-session-1" }),
+      createLogEntry({ seq: 4999, timestamp: 2000, message: "old-session-2" }),
+      createLogEntry({ seq: 5000, timestamp: 3000, message: "old-session-3" }),
+    ]);
+
+    // New session WS entries: seq resets to 1 but timestamps are later
+    state.logs.push(createLogEntry({ seq: 1, timestamp: 4000, message: "new-session-1" }));
+    state.logs.push(createLogEntry({ seq: 2, timestamp: 5000, message: "new-session-2" }));
+
+    const { findByText, queryByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    await findByText("old-session-1");
+
+    // Old session entries visible from REST
+    expect(queryByText("old-session-3")).not.toBeNull();
+
+    // New session entries visible despite low seq (timestamp > watermark)
+    expect(queryByText("new-session-1")).not.toBeNull();
+    expect(queryByText("new-session-2")).not.toBeNull();
   });
 });
 
@@ -684,11 +727,11 @@ describe("REST + WS entry merging (#403)", () => {
     const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
     mockGetRecentLogs.mockResolvedValueOnce([
       createLogEntry({ timestamp: 1000, message: "rest-old" }),
-      createLogEntry({ timestamp: 3000, message: "rest-new" }),
+      createLogEntry({ timestamp: 2000, message: "rest-new" }),
     ]);
 
-    // Push WS entries with timestamps that interleave with REST entries
-    state.logs.push(createLogEntry({ timestamp: 2000, message: "ws-mid" }));
+    // WS entries arrive after REST (timestamps > watermark)
+    state.logs.push(createLogEntry({ timestamp: 3000, message: "ws-newer" }));
     state.logs.push(createLogEntry({ timestamp: 4000, message: "ws-newest" }));
 
     const { container, findByText } = render(
@@ -703,8 +746,8 @@ describe("REST + WS entry merging (#403)", () => {
     expect(rows.length).toBe(4);
     // Default descending sort: 4000, 3000, 2000, 1000
     expect(rows[0].textContent).toContain("ws-newest");
-    expect(rows[1].textContent).toContain("rest-new");
-    expect(rows[2].textContent).toContain("ws-mid");
+    expect(rows[1].textContent).toContain("ws-newer");
+    expect(rows[2].textContent).toContain("rest-new");
     expect(rows[3].textContent).toContain("rest-old");
   });
 });
@@ -1276,15 +1319,15 @@ describe("Query param driven state", () => {
 
   it("reads tier filter from ?tier=framework URL param", () => {
     _setMockSearch("tier=framework");
-    state.logs.push(createLogEntry({ app_key: "my_app", message: "app msg" }));
-    state.logs.push(createLogEntry({ app_key: null, message: "framework msg" }));
+    state.logs.push(createLogEntry({ app_key: "my_app", source_tier: "app", message: "app msg" }));
+    state.logs.push(createLogEntry({ app_key: null, source_tier: "framework", message: "framework msg" }));
 
     const { getByText, queryByText } = render(
       <LogTable />,
       { wrapper: createWrapper(state) },
     );
 
-    // tier=framework shows only entries without app_key
+    // tier=framework shows only entries with source_tier="framework"
     expect(queryByText("app msg")).toBeNull();
     expect(getByText("framework msg")).toBeDefined();
   });
@@ -1318,7 +1361,8 @@ describe("Query param driven state", () => {
     expect(url).not.toContain("level");
   });
 
-  it("writes search to URL when search input changes", () => {
+  it("writes search to URL when search input changes", async () => {
+    vi.useFakeTimers();
     _setMockSearch("");
     const { getByPlaceholderText } = render(
       <LogTable />,
@@ -1326,13 +1370,16 @@ describe("Query param driven state", () => {
     );
 
     fireEvent.input(getByPlaceholderText("Search..."), { target: { value: "timeout" } });
+    await act(() => { vi.advanceTimersByTime(200); }); // flush 150ms debounce
 
     expect(mockNavigate).toHaveBeenCalledTimes(1);
     const [url] = mockNavigate.mock.calls[0];
     expect(url).toContain("search=timeout");
+    vi.useRealTimers();
   });
 
-  it("omits search from URL when search is cleared (default empty)", () => {
+  it("omits search from URL when search is cleared (default empty)", async () => {
+    vi.useFakeTimers();
     _setMockSearch("search=timeout");
     const { getByPlaceholderText } = render(
       <LogTable />,
@@ -1340,10 +1387,12 @@ describe("Query param driven state", () => {
     );
 
     fireEvent.input(getByPlaceholderText("Search..."), { target: { value: "" } });
+    await act(() => { vi.advanceTimersByTime(200); });
 
     expect(mockNavigate).toHaveBeenCalledTimes(1);
     const [url] = mockNavigate.mock.calls[0];
     expect(url).not.toContain("search");
+    vi.useRealTimers();
   });
 
   it("writes sort and dir to URL when non-timestamp sort is clicked", () => {
@@ -1377,5 +1426,180 @@ describe("Query param driven state", () => {
     const [url] = mockNavigate.mock.calls[0];
     expect(url).not.toContain("sort=");
     expect(url).not.toContain("dir=");
+  });
+});
+
+// -- Historical mode --
+
+describe("Historical mode", () => {
+  let state: AppState;
+
+  beforeEach(() => {
+    state = createAppState();
+    vi.clearAllMocks();
+    restoreNavigateMock();
+    entrySeq = 0;
+  });
+
+  it("calls custom fetcher instead of getRecentLogs in historical mode", async () => {
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+    mockGetRecentLogs.mockResolvedValue([]);
+
+    const customFetcher = vi.fn().mockResolvedValue([
+      createLogEntry({ message: "fetched-by-custom" }),
+    ]);
+
+    const { findByText } = render(
+      <LogTable mode="historical" fetcher={customFetcher} />,
+      { wrapper: createWrapper(state) },
+    );
+
+    await findByText("fetched-by-custom");
+
+    expect(customFetcher).toHaveBeenCalledOnce();
+    expect(mockGetRecentLogs).not.toHaveBeenCalled();
+  });
+
+  it("does not merge WS entries in historical mode", async () => {
+    const customFetcher = vi.fn().mockResolvedValue([
+      createLogEntry({ seq: 1, message: "historical-entry" }),
+    ]);
+
+    // Push a WS entry above the watermark
+    state.logs.push(createLogEntry({ seq: 99, message: "ws-entry" }));
+
+    const { findByText, queryByText } = render(
+      <LogTable mode="historical" fetcher={customFetcher} />,
+      { wrapper: createWrapper(state) },
+    );
+
+    await findByText("historical-entry");
+
+    // WS entries must NOT appear in historical mode
+    expect(queryByText("ws-entry")).toBeNull();
+  });
+
+  it("does not update URL params in historical mode with useLocalState", () => {
+    const customFetcher = vi.fn().mockResolvedValue([]);
+
+    render(
+      <LogTable mode="historical" fetcher={customFetcher} useLocalState />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // Changing the level dropdown in local state mode should not call navigate
+    // (we just verify render doesn't crash and navigate is not called)
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("uses local signal state for filters when useLocalState is true", async () => {
+    const entries = [
+      createLogEntry({ level: "DEBUG", message: "debug-local" }),
+      createLogEntry({ level: "ERROR", message: "error-local" }),
+    ];
+    const customFetcher = vi.fn().mockResolvedValue(entries);
+
+    const { findByText, queryByText, getByTestId } = render(
+      <LogTable mode="historical" fetcher={customFetcher} useLocalState />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // Wait for data to load
+    await findByText("error-local");
+
+    // Default is INFO filter — debug hidden
+    expect(queryByText("debug-local")).toBeNull();
+
+    // Change level to show all — should work via local state without URL navigation
+    fireEvent.change(getByTestId("filter-level"), { target: { value: "" } });
+    expect(queryByText("debug-local")).not.toBeNull();
+
+    // URL should not have been touched
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+});
+
+// -- Truncation indicator --
+
+describe("Truncation indicator", () => {
+  let state: AppState;
+
+  beforeEach(() => {
+    state = createAppState();
+    vi.clearAllMocks();
+    restoreNavigateMock();
+    entrySeq = 0;
+  });
+
+  it("shows entry count when entries are under the render cap", async () => {
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+    const fewEntries = Array.from({ length: 5 }, (_, i) =>
+      createLogEntry({ message: `entry-${i}` }),
+    );
+    mockGetRecentLogs.mockResolvedValueOnce(fewEntries);
+
+    const { findByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // Normal count display — no "showing X of Y"
+    await findByText("5 entries");
+  });
+
+  it("shows truncation indicator when sorted entries exceed render cap of 500", async () => {
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+
+    // 501 entries to exceed the cap
+    const manyEntries = Array.from({ length: 501 }, (_, i) =>
+      createLogEntry({ seq: i + 1, timestamp: i + 1, message: `entry-${i}` }),
+    );
+    mockGetRecentLogs.mockResolvedValueOnce(manyEntries);
+
+    const { findByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // Wait for data to load — look for truncation indicator
+    await findByText(/showing 500 of 501/);
+  });
+});
+
+// -- Execution ID column visibility --
+
+describe("Execution ID column visibility", () => {
+  let state: AppState;
+
+  beforeEach(() => {
+    state = createAppState();
+    vi.clearAllMocks();
+    restoreNavigateMock();
+    entrySeq = 0;
+  });
+
+  it("shows execution_id column header in live mode by default", () => {
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const headers = container.querySelectorAll("th");
+    const headerTexts = Array.from(headers).map((h) => h.textContent ?? "");
+    expect(headerTexts.some((t) => t.includes("Execution"))).toBe(true);
+  });
+
+  it("hides execution_id column when hideExecutionId prop is true", () => {
+    const { container } = render(
+      <LogTable hideExecutionId />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const headers = container.querySelectorAll("th");
+    const headerTexts = Array.from(headers).map((h) => h.textContent ?? "");
+    expect(headerTexts.some((t) => t.includes("Execution"))).toBe(false);
   });
 });

@@ -474,6 +474,7 @@ describe("useWebSocket", () => {
     state.logs.push({
       seq: 1, timestamp: 1000, level: "INFO", logger_name: "test",
       func_name: "f", lineno: 1, message: "stale", exc_info: null, app_key: null,
+      execution_id: null, instance_name: null, instance_index: null, source_tier: null,
     });
 
     renderHook(() => useWebSocket(state));

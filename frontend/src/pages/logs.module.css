@@ -12,3 +12,12 @@
 .page :global(.ht-table-card-scroll) {
   --table-scroll-height: calc(100vh - 270px);
 }
+
+.executionBanner {
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-info, var(--bg-sunken));
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}

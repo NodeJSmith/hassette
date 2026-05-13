@@ -13,7 +13,7 @@ from unittest.mock import patch
 import pytest
 import uvicorn
 
-from hassette.logging_ import LogCaptureHandler
+from hassette.logging_ import LogCaptureHandler, LogEntry
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.web.app import create_fastapi_app
 from tests.e2e.mock_fixtures import (
@@ -130,7 +130,6 @@ def runtime_query_service(mock_hassette):
 def _log_handler():
     """Create a LogCaptureHandler with seed log entries for e2e tests."""
     handler = LogCaptureHandler(buffer_size=100)
-    handler.register_app_logger("hassette.apps.my_app", "my_app")
     entries = [
         ("hassette.core", logging.INFO, "Hassette started successfully"),
         ("hassette.apps.my_app", logging.INFO, "MyApp initialized"),
@@ -155,6 +154,12 @@ def _log_handler():
             args=(),
             exc_info=None,
         )
+        prefix = "hassette.apps."
+        if logger_name.startswith(prefix):
+            record.app_key = logger_name[len(prefix) :].split(".")[0]
+            record.source_tier = "app"
+        else:
+            record.source_tier = "framework"
         handler.emit(record)
     return handler
 
@@ -179,17 +184,62 @@ def _ensure_spa_built():
         pytest.fail("Frontend build completed but spa/index.html not found")
 
 
+def _make_log_records_from_buffer(handler: LogCaptureHandler):
+    """Return an async function that serves log records from the capture handler buffer.
+
+    Replaces ``telemetry_repository.get_log_records`` in E2E tests so the seeded
+    LogCaptureHandler data is returned by the REST API (which now queries the DB
+    in production, but we don't run a real DB in E2E).
+
+    Filter semantics must match the SQL in ``telemetry_repository.get_log_records()``
+    (exact equality per column, not range-based).
+    """
+
+    async def _get_log_records(
+        _db,
+        *,
+        limit: int = 100,
+        since: float | None = None,
+        app_key: str | None = None,
+        level: str | None = None,
+        execution_id: str | None = None,
+        source_tier: str | None = None,
+    ) -> list[dict]:
+        entries: list[LogEntry] = handler.get_buffer_snapshot()
+        result = [e.to_dict() for e in entries]
+        if since is not None:
+            result = [r for r in result if r["timestamp"] >= since]
+        if app_key is not None:
+            result = [r for r in result if r.get("app_key") == app_key]
+        if level is not None:
+            result = [r for r in result if r.get("level") == level]
+        if execution_id is not None:
+            result = [r for r in result if r.get("execution_id") == execution_id]
+        if source_tier is not None:
+            result = [r for r in result if r.get("source_tier") == source_tier]
+        result.sort(key=lambda r: r["timestamp"], reverse=True)
+        return result[:limit]
+
+    return _get_log_records
+
+
 @pytest.fixture(scope="session")
 def _fastapi_app(mock_hassette, runtime_query_service, _log_handler, _ensure_spa_built):  # noqa: ARG001
     """Create the FastAPI app instance."""
 
-    with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=_log_handler):
+    with (
+        patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=_log_handler),
+        patch("hassette.web.routes.logs._repo.get_log_records", _make_log_records_from_buffer(_log_handler)),
+    ):
         app = create_fastapi_app(mock_hassette)
     # Patch persistently so runtime calls also find the handler
-    patcher = patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=_log_handler)
-    patcher.start()
+    patcher_capture = patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=_log_handler)
+    patcher_repo = patch("hassette.web.routes.logs._repo.get_log_records", _make_log_records_from_buffer(_log_handler))
+    patcher_capture.start()
+    patcher_repo.start()
     yield app
-    patcher.stop()
+    patcher_repo.stop()
+    patcher_capture.stop()
 
 
 def _get_free_port() -> int:

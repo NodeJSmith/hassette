@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import threading
 import typing
 from contextlib import suppress
@@ -14,7 +15,7 @@ from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry, validate_registries
 from hassette.exceptions import AppPrecheckFailedError
-from hassette.logging_ import enable_logging
+from hassette.logging_ import enable_logging, get_log_persistence_handler, shutdown_logging
 from hassette.resources.base import Resource, Service
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
@@ -72,7 +73,13 @@ class Hassette(Resource):
     def __init__(self, config: HassetteConfig) -> None:
         self.config = config
 
-        enable_logging(self.config.log_level, log_buffer_size=self.config.web_api_log_buffer_size)
+        enable_logging(
+            self.config.log_level,
+            log_buffer_size=self.config.web_api_log_buffer_size,
+            log_format=self.config.log_format,
+            log_queue_max=self.config.log_queue_max,
+            log_persistence_level=logging.getLevelNamesMapping()[self.config.log_persistence_level],
+        )
 
         super().__init__(self, task_bucket=TaskBucket(self, parent=self), parent=self)
 
@@ -272,6 +279,20 @@ class Hassette(Resource):
     def get_error_handler_failures(self) -> int:
         """Return the count of user error handler invocations that raised or timed out."""
         return self.command_executor.get_error_handler_failures()
+
+    def get_log_records_dropped(self) -> int:
+        """Return the number of log records dropped by the persistence handler.
+
+        Records are dropped when the persistence handler has not yet been wired
+        to a database connection (early startup) or when the DB write queue is full.
+
+        Returns:
+            Cumulative count of dropped log records since process start.
+        """
+        handler = get_log_persistence_handler()
+        if handler is None:
+            return 0
+        return handler.dropped_count
 
     @property
     def database_service(self) -> DatabaseService:
@@ -593,6 +614,7 @@ class Hassette(Resource):
 
     async def before_shutdown(self) -> None:
         """Remove bus listeners and finalize session before child shutdown."""
+        shutdown_logging()
         try:
             if self._bus is not None:
                 await self._bus.remove_all_listeners()

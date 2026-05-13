@@ -307,3 +307,24 @@ class SlowHandlerRecord(BaseModel):
     execution_start_ts: float
     duration_ms: float
     source_tier: SourceTier
+
+
+class LogRecord(BaseModel):
+    """Single log record returned by ``get_log_records()`` and ``get_log_records_by_execution()``."""
+
+    id: int
+    seq: int
+    timestamp: float
+    level: str
+    logger_name: str
+    func_name: str | None = None
+    lineno: int | None = None
+    message: str
+    exc_info: str | None = None
+    app_key: str | None = None
+    instance_name: str | None = None
+    instance_index: int | None = None
+    execution_id: str | None = None
+    """UUID4 string identifying the execution that produced this log record. None for framework logs."""
+    source_tier: SourceTier | None = None
+    """``'app'`` for user automation logs, ``'framework'`` for internal service logs."""

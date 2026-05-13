@@ -17,10 +17,11 @@ from hassette.core.telemetry_models import (
 if TYPE_CHECKING:
     from httpx import AsyncClient
 from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
-from hassette.logging_ import LogCaptureHandler
 from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.types.enums import ResourceStatus
 from hassette.web.routes.config import _CONFIG_SAFE_FIELDS
+
+_LOGS_REPO = "hassette.web.routes.logs._repo"
 
 
 @pytest.fixture
@@ -256,90 +257,181 @@ class TestBusEndpoints:
         assert entry["total_invocations"] == 5
 
 
+def _make_log_record(
+    seq: int,
+    level: str = "INFO",
+    message: str = "test",
+    app_key: str | None = None,
+    execution_id: str | None = None,
+    source_tier: str | None = "framework",
+) -> dict:
+    return {
+        "seq": seq,
+        "timestamp": float(seq),
+        "level": level,
+        "logger_name": "hassette.test",
+        "func_name": "test_func",
+        "lineno": 1,
+        "message": message,
+        "exc_info": None,
+        "app_key": app_key,
+        "execution_id": execution_id,
+        "instance_name": None,
+        "instance_index": None,
+        "source_tier": source_tier,
+    }
+
+
+def _mock_submit(return_value: object = None, side_effect: object = None) -> AsyncMock:
+    """Create an AsyncMock for database_service.submit that closes the passed coroutine."""
+    values = list(side_effect) if side_effect is not None else None
+    call_count = [0]
+
+    async def _impl(coro: object) -> object:
+        import asyncio
+
+        if asyncio.iscoroutine(coro):
+            coro.close()
+        if values is not None:
+            idx = min(call_count[0], len(values) - 1)
+            call_count[0] += 1
+            result = values[idx]
+            if isinstance(result, BaseException):
+                raise result
+            return result
+        return return_value
+
+    mock = AsyncMock(side_effect=_impl)
+    return mock
+
+
 class TestLogsEndpoints:
     @pytest.fixture
-    def log_handler(self) -> LogCaptureHandler:
-        handler = LogCaptureHandler(buffer_size=100)
-        # Register app_key mappings before emitting so records get app_key set
-        handler.register_app_logger("hassette.apps.my_app", "my_app")
-        handler.register_app_logger("hassette.apps.other_app", "other_app")
-        entries = [
-            ("hassette.core", logging.INFO, "Core started"),
-            ("hassette.apps.my_app", logging.INFO, "MyApp initialized"),
-            ("hassette.apps.my_app", logging.WARNING, "Light unresponsive"),
-            ("hassette.core", logging.DEBUG, "Heartbeat sent"),
-            ("hassette.apps.my_app", logging.ERROR, "Service call failed"),
-            ("hassette.apps.other_app", logging.INFO, "OtherApp ready"),
+    def sample_records(self) -> list[dict]:
+        """Six log records matching the old buffer fixture, now as DB dicts."""
+        return [
+            _make_log_record(1, "INFO", "Core started", app_key=None),
+            _make_log_record(2, "INFO", "MyApp initialized", app_key="my_app"),
+            _make_log_record(3, "WARNING", "Light unresponsive", app_key="my_app"),
+            _make_log_record(4, "DEBUG", "Heartbeat sent", app_key=None),
+            _make_log_record(5, "ERROR", "Service call failed", app_key="my_app"),
+            _make_log_record(6, "INFO", "OtherApp ready", app_key="other_app"),
         ]
-        for logger_name, level, msg in entries:
-            record = logging.LogRecord(
-                name=logger_name,
-                level=level,
-                pathname="test.py",
-                lineno=1,
-                msg=msg,
-                args=(),
-                exc_info=None,
-            )
-            handler.emit(record)
-        return handler
 
-    async def test_get_logs_recent_returns_list(self, client: "AsyncClient", log_handler: LogCaptureHandler) -> None:
-        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
-            response = await client.get("/api/logs/recent")
+    @patch(f"{_LOGS_REPO}.get_log_records", new_callable=AsyncMock)
+    async def test_get_logs_recent_returns_list(
+        self, mock_get: AsyncMock, client: "AsyncClient", sample_records: list[dict]
+    ) -> None:
+        mock_get.return_value = sample_records
+        response = await client.get("/api/logs/recent")
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
         assert len(data) == 6
 
-    async def test_get_logs_filter_by_level(self, client: "AsyncClient", log_handler: LogCaptureHandler) -> None:
-        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
-            response = await client.get("/api/logs/recent?level=ERROR")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        assert data[0]["level"] == "ERROR"
-
-    async def test_get_logs_filter_by_warning_includes_error(
-        self, client: "AsyncClient", log_handler: LogCaptureHandler
+    @patch(f"{_LOGS_REPO}.get_log_records", new_callable=AsyncMock)
+    async def test_get_logs_recent_new_fields_present(
+        self, mock_get: AsyncMock, client: "AsyncClient", sample_records: list[dict]
     ) -> None:
-        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
-            response = await client.get("/api/logs/recent?level=WARNING")
+        """New fields (execution_id, instance_name, instance_index, source_tier) are in the response."""
+        mock_get.return_value = sample_records[:1]
+        response = await client.get("/api/logs/recent")
         assert response.status_code == 200
-        data = response.json()
-        levels = {entry["level"] for entry in data}
-        assert levels == {"WARNING", "ERROR"}
+        entry = response.json()[0]
+        assert "execution_id" in entry
+        assert "instance_name" in entry
+        assert "instance_index" in entry
+        assert "source_tier" in entry
 
-    async def test_get_logs_filter_by_app_key(self, client: "AsyncClient", log_handler: LogCaptureHandler) -> None:
-        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
-            response = await client.get("/api/logs/recent?app_key=my_app")
-        assert response.status_code == 200
-        data = response.json()
-        assert all(entry["app_key"] == "my_app" for entry in data)
-        assert len(data) == 3
-
-    async def test_get_logs_limit(self, client: "AsyncClient", log_handler: LogCaptureHandler) -> None:
-        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
-            response = await client.get("/api/logs/recent?limit=2")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 2
-
-    async def test_get_logs_combined_filters(self, client: "AsyncClient", log_handler: LogCaptureHandler) -> None:
-        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
-            response = await client.get("/api/logs/recent?app_key=my_app&level=WARNING")
-        assert response.status_code == 200
-        data = response.json()
-        assert all(entry["app_key"] == "my_app" for entry in data)
-        levels = {entry["level"] for entry in data}
-        assert levels <= {"WARNING", "ERROR", "CRITICAL"}
-        assert len(data) == 2
-
-    async def test_get_logs_empty_when_no_handler(self, client: "AsyncClient") -> None:
-        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=None):
-            response = await client.get("/api/logs/recent")
-        assert response.status_code == 200
+    @patch(f"{_LOGS_REPO}.get_log_records", new_callable=AsyncMock)
+    async def test_get_logs_recent_returns_503_on_db_error(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
+        mock_get.side_effect = sqlite3.Error("db error")
+        response = await client.get("/api/logs/recent")
+        assert response.status_code == 503
         assert response.json() == []
+
+    @patch(f"{_LOGS_REPO}.get_log_records", new_callable=AsyncMock)
+    async def test_get_logs_recent_accepts_execution_id_param(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
+        mock_get.return_value = []
+        response = await client.get("/api/logs/recent?execution_id=abc-123")
+        assert response.status_code == 200
+
+    @patch(f"{_LOGS_REPO}.get_log_records", new_callable=AsyncMock)
+    async def test_get_logs_recent_accepts_source_tier_param(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
+        mock_get.return_value = []
+        response = await client.get("/api/logs/recent?source_tier=app")
+        assert response.status_code == 200
+
+    @patch(f"{_LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
+    async def test_get_logs_by_execution_returns_records(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
+        records = [_make_log_record(1, "INFO", "started", execution_id="exec-abc")]
+        mock_get.return_value = (records, False)
+        response = await client.get("/api/logs/by-execution/exec-abc")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["truncated"] is False
+        assert data["retention_expired"] is False
+        assert len(data["records"]) == 1
+        assert data["records"][0]["execution_id"] == "exec-abc"
+
+    @patch(f"{_LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
+    async def test_get_logs_by_execution_truncated(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
+        records = [_make_log_record(i, execution_id="exec-xyz") for i in range(500)]
+        mock_get.return_value = (records, True)
+        response = await client.get("/api/logs/by-execution/exec-xyz")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["truncated"] is True
+        assert len(data["records"]) == 500
+
+    @patch(f"{_LOGS_REPO}.check_execution_predates_retention_cutoff", new_callable=AsyncMock)
+    @patch(f"{_LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
+    async def test_get_logs_by_execution_retention_expired(
+        self, mock_get: AsyncMock, mock_cutoff: AsyncMock, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """When records=[] and execution is old, retention_expired=True."""
+        mock_get.return_value = ([], False)
+        mock_cutoff.return_value = True
+        mock_hassette.config.log_retention_days = 3
+        response = await client.get("/api/logs/by-execution/old-exec")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["retention_expired"] is True
+        assert data["records"] == []
+
+    @patch(f"{_LOGS_REPO}.check_execution_predates_retention_cutoff", new_callable=AsyncMock)
+    @patch(f"{_LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
+    async def test_get_logs_by_execution_empty_no_retention(
+        self, mock_get: AsyncMock, mock_cutoff: AsyncMock, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """When records=[] and execution is not old, retention_expired=False."""
+        mock_get.return_value = ([], False)
+        mock_cutoff.return_value = False
+        mock_hassette.config.log_retention_days = 3
+        response = await client.get("/api/logs/by-execution/new-exec")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["retention_expired"] is False
+
+    async def test_put_log_level_valid(self, client: "AsyncClient") -> None:
+        response = await client.put("/api/logs/level", json={"logger": "hassette.test", "level": "DEBUG"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["logger"] == "hassette.test"
+        assert data["effective_level"] == "DEBUG"
+
+    async def test_put_log_level_invalid_level(self, client: "AsyncClient") -> None:
+        response = await client.put("/api/logs/level", json={"logger": "hassette.test", "level": "VERBOSE"})
+        assert response.status_code == 422
+
+    async def test_put_log_level_changes_take_effect(self, client: "AsyncClient") -> None:
+        """Setting DEBUG then INFO changes the effective level each time."""
+        await client.put("/api/logs/level", json={"logger": "hassette.rqs.test.lvl", "level": "DEBUG"})
+        assert logging.getLogger("hassette.rqs.test.lvl").level == logging.DEBUG
+
+        r2 = await client.put("/api/logs/level", json={"logger": "hassette.rqs.test.lvl", "level": "INFO"})
+        assert r2.status_code == 200
+        assert logging.getLogger("hassette.rqs.test.lvl").level == logging.INFO
 
 
 class TestServicesEndpoint:

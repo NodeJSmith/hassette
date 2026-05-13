@@ -13,6 +13,10 @@ function createLogEntry(seq: number): WsLogPayload {
     message: `msg-${seq}`,
     exc_info: null,
     app_key: null,
+    execution_id: null,
+    instance_name: null,
+    instance_index: null,
+    source_tier: null,
   };
 }
 
@@ -137,6 +141,10 @@ describe("createAppState", () => {
       message: "test",
       exc_info: null,
       app_key: null,
+      execution_id: null,
+      instance_name: null,
+      instance_index: null,
+      source_tier: null,
     });
 
     expect(a.logs.toArray()).toHaveLength(1);

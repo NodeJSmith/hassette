@@ -187,9 +187,54 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Logs */
+        /**
+         * Get Logs
+         * @description Return recent log records from the database with optional filtering.
+         */
         get: operations["get_logs_api_logs_recent_get"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/logs/by-execution/{execution_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Logs By Execution
+         * @description Return all log records for a single execution, with retention-expired detection.
+         */
+        get: operations["get_logs_by_execution_api_logs_by_execution__execution_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/logs/level": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Log Level
+         * @description Change a logger's effective level at runtime without restarting.
+         *
+         *     The change takes effect immediately for both structlog and stdlib callers on that logger.
+         */
+        put: operations["set_log_level_api_logs_level_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1116,6 +1161,46 @@ export interface components {
             exc_info?: string | null;
             /** App Key */
             app_key?: string | null;
+            /** Execution Id */
+            execution_id?: string | null;
+            /** Instance Name */
+            instance_name?: string | null;
+            /** Instance Index */
+            instance_index?: number | null;
+            /** Source Tier */
+            source_tier?: string | null;
+        };
+        /**
+         * LogLevelRequest
+         * @description Request body for PUT /api/logs/level.
+         */
+        LogLevelRequest: {
+            /** Logger */
+            logger: string;
+            /** Level */
+            level: string;
+        };
+        /**
+         * LogLevelResponse
+         * @description Response for PUT /api/logs/level.
+         */
+        LogLevelResponse: {
+            /** Logger */
+            logger: string;
+            /** Effective Level */
+            effective_level: string;
+        };
+        /**
+         * LogsByExecutionResponse
+         * @description Response for GET /api/logs/by-execution/{execution_id}.
+         */
+        LogsByExecutionResponse: {
+            /** Records */
+            records: components["schemas"]["LogEntryResponse"][];
+            /** Truncated */
+            truncated: boolean;
+            /** Retention Expired */
+            retention_expired: boolean;
         };
         /**
          * ServiceInfoResponse
@@ -1159,6 +1244,11 @@ export interface components {
             version: string;
             /** Boot Issues */
             boot_issues?: components["schemas"]["BootIssueResponse"][];
+            /**
+             * Log Records Dropped
+             * @default 0
+             */
+            log_records_dropped: number;
         };
         /**
          * TelemetryStatusResponse
@@ -1501,6 +1591,8 @@ export interface operations {
                 app_key?: string | null;
                 level?: string | null;
                 since?: number | null;
+                execution_id?: string | null;
+                source_tier?: string | null;
             };
             header?: never;
             path?: never;
@@ -1515,6 +1607,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LogEntryResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_logs_by_execution_api_logs_by_execution__execution_id__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                execution_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogsByExecutionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_log_level_api_logs_level_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogLevelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogLevelResponse"];
                 };
             };
             /** @description Validation Error */
