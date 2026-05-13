@@ -555,6 +555,62 @@ class TestExecutionIdInheritedByChildTask:
         assert "app_key" not in ctx_vars
 
 
+class TestCorrelationFilterAppliesToChildLoggers:
+    """CorrelationFilter must stamp records from child loggers, not just the parent.
+
+    Python's stdlib logging does NOT apply parent logger filters to records propagated
+    from child loggers — only handler-level filters run during propagation. The filter
+    must be on the QueueHandler (not the hassette logger) to stamp all records.
+    """
+
+    def test_child_logger_records_have_seq_stamped(self) -> None:
+        """A child logger record propagated to the hassette QueueHandler gets seq stamped."""
+        stream = StringIO()
+        enable_logging("DEBUG", log_format="json", stream=stream)
+
+        child = logging.getLogger("hassette.core.test_child_seq")
+        child.info("child record")
+        shutdown_logging()
+
+        capture = get_log_capture_handler()
+        assert capture is not None
+        entries = capture.get_buffer_snapshot()
+        child_entries = [e for e in entries if e.message == "child record"]
+        assert len(child_entries) == 1
+        assert child_entries[0].seq > 0, "seq not stamped on child logger record — filter not running"
+
+    def test_child_logger_records_have_source_tier_stamped(self) -> None:
+        """A child logger record gets source_tier defaulted by CorrelationFilter."""
+        stream = StringIO()
+        enable_logging("DEBUG", log_format="json", stream=stream)
+
+        child = logging.getLogger("hassette.core.test_child_tier")
+        child.info("framework record")
+        shutdown_logging()
+
+        output = stream.getvalue()
+        record_line = [line for line in output.strip().split("\n") if "framework record" in line][0]
+        parsed = json.loads(record_line)
+        assert parsed.get("source_tier") == "framework"
+
+    def test_app_child_logger_gets_app_tier(self) -> None:
+        """A child logger with app_key in context gets source_tier='app'."""
+        stream = StringIO()
+        enable_logging("DEBUG", log_format="json", stream=stream)
+
+        structlog.contextvars.bind_contextvars(app_key="my_app")
+        child = logging.getLogger("hassette.apps.my_app.test_child")
+        child.info("app record")
+        structlog.contextvars.clear_contextvars()
+        shutdown_logging()
+
+        output = stream.getvalue()
+        record_line = [line for line in output.strip().split("\n") if "app record" in line][0]
+        parsed = json.loads(record_line)
+        assert parsed.get("source_tier") == "app"
+        assert parsed.get("app_key") == "my_app"
+
+
 class TestQueueHandlerPipeline:
     """Records flow through the QueueHandler → QueueListener pipeline."""
 
