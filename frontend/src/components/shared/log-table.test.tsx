@@ -636,11 +636,11 @@ describe("Dedup via seq watermark (#364)", () => {
     entrySeq = 0;
   });
 
-  it("filters WS entries at or below the REST watermark", async () => {
+  it("filters WS entries at or below the REST timestamp watermark", async () => {
     const { getRecentLogs } = await import("../../api/endpoints");
     const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
 
-    // REST returns entries with seq 1-5
+    // REST returns entries with timestamps 1000-5000
     mockGetRecentLogs.mockResolvedValueOnce([
       createLogEntry({ seq: 1, timestamp: 1000, message: "rest-1" }),
       createLogEntry({ seq: 2, timestamp: 2000, message: "rest-2" }),
@@ -649,7 +649,7 @@ describe("Dedup via seq watermark (#364)", () => {
       createLogEntry({ seq: 5, timestamp: 5000, message: "rest-5" }),
     ]);
 
-    // WS buffer has overlapping entries (seq 3-8)
+    // WS buffer has overlapping entries (timestamps 3000-8000)
     state.logs.push(createLogEntry({ seq: 3, timestamp: 3000, message: "ws-3" }));
     state.logs.push(createLogEntry({ seq: 4, timestamp: 4000, message: "ws-4" }));
     state.logs.push(createLogEntry({ seq: 5, timestamp: 5000, message: "ws-5" }));
@@ -662,22 +662,52 @@ describe("Dedup via seq watermark (#364)", () => {
       { wrapper: createWrapper(state) },
     );
 
-    // Wait for REST entries to load (sets watermark = 5)
+    // Wait for REST entries to load (sets watermark = timestamp 5000)
     await findByText("rest-1");
 
     // REST entries should all be visible
     expect(queryByText("rest-1")).not.toBeNull();
     expect(queryByText("rest-5")).not.toBeNull();
 
-    // WS entries at or below watermark (seq 3, 4, 5) should be filtered out
+    // WS entries at or below watermark timestamp should be filtered out
     expect(queryByText("ws-3")).toBeNull();
     expect(queryByText("ws-4")).toBeNull();
     expect(queryByText("ws-5")).toBeNull();
 
-    // WS entries above watermark (seq 6, 7, 8) should be visible
+    // WS entries above watermark timestamp should be visible
     expect(queryByText("ws-6")).not.toBeNull();
     expect(queryByText("ws-7")).not.toBeNull();
     expect(queryByText("ws-8")).not.toBeNull();
+  });
+
+  it("WS entries visible after restart when seq resets but timestamps advance", async () => {
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+
+    // REST returns entries from a previous session (high seq, old timestamps)
+    mockGetRecentLogs.mockResolvedValueOnce([
+      createLogEntry({ seq: 4998, timestamp: 1000, message: "old-session-1" }),
+      createLogEntry({ seq: 4999, timestamp: 2000, message: "old-session-2" }),
+      createLogEntry({ seq: 5000, timestamp: 3000, message: "old-session-3" }),
+    ]);
+
+    // New session WS entries: seq resets to 1 but timestamps are later
+    state.logs.push(createLogEntry({ seq: 1, timestamp: 4000, message: "new-session-1" }));
+    state.logs.push(createLogEntry({ seq: 2, timestamp: 5000, message: "new-session-2" }));
+
+    const { findByText, queryByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    await findByText("old-session-1");
+
+    // Old session entries visible from REST
+    expect(queryByText("old-session-3")).not.toBeNull();
+
+    // New session entries visible despite low seq (timestamp > watermark)
+    expect(queryByText("new-session-1")).not.toBeNull();
+    expect(queryByText("new-session-2")).not.toBeNull();
   });
 });
 
@@ -697,11 +727,11 @@ describe("REST + WS entry merging (#403)", () => {
     const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
     mockGetRecentLogs.mockResolvedValueOnce([
       createLogEntry({ timestamp: 1000, message: "rest-old" }),
-      createLogEntry({ timestamp: 3000, message: "rest-new" }),
+      createLogEntry({ timestamp: 2000, message: "rest-new" }),
     ]);
 
-    // Push WS entries with timestamps that interleave with REST entries
-    state.logs.push(createLogEntry({ timestamp: 2000, message: "ws-mid" }));
+    // WS entries arrive after REST (timestamps > watermark)
+    state.logs.push(createLogEntry({ timestamp: 3000, message: "ws-newer" }));
     state.logs.push(createLogEntry({ timestamp: 4000, message: "ws-newest" }));
 
     const { container, findByText } = render(
@@ -716,8 +746,8 @@ describe("REST + WS entry merging (#403)", () => {
     expect(rows.length).toBe(4);
     // Default descending sort: 4000, 3000, 2000, 1000
     expect(rows[0].textContent).toContain("ws-newest");
-    expect(rows[1].textContent).toContain("rest-new");
-    expect(rows[2].textContent).toContain("ws-mid");
+    expect(rows[1].textContent).toContain("ws-newer");
+    expect(rows[2].textContent).toContain("rest-new");
     expect(rows[3].textContent).toContain("rest-old");
   });
 });

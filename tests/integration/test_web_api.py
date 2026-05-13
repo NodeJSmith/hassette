@@ -344,10 +344,10 @@ class TestLogsEndpoints:
         assert "source_tier" in entry
 
     @patch(f"{_LOGS_REPO}.get_log_records", new_callable=AsyncMock)
-    async def test_get_logs_recent_returns_empty_on_db_error(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
+    async def test_get_logs_recent_returns_503_on_db_error(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
         mock_get.side_effect = sqlite3.Error("db error")
         response = await client.get("/api/logs/recent")
-        assert response.status_code == 200
+        assert response.status_code == 503
         assert response.json() == []
 
     @patch(f"{_LOGS_REPO}.get_log_records", new_callable=AsyncMock)

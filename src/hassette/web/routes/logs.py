@@ -4,7 +4,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, HTTPException, Path, Query, Response
 
 from hassette.core import telemetry_repository as _repo
 from hassette.web.dependencies import HassetteDep
@@ -26,6 +26,7 @@ _SECONDS_PER_DAY = 86400
 @router.get("/logs/recent", response_model=list[LogEntryResponse])
 async def get_logs(
     hassette: HassetteDep,
+    response: Response,
     limit: Annotated[int, Query(ge=1, le=2000)] = 100,
     app_key: Annotated[str | None, Query()] = None,
     level: Annotated[str | None, Query()] = None,
@@ -60,12 +61,14 @@ async def get_logs(
         return records
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch recent log records", exc_info=True)
+        response.status_code = 503
         return []
 
 
 @router.get("/logs/by-execution/{execution_id}", response_model=LogsByExecutionResponse)
 async def get_logs_by_execution(
     hassette: HassetteDep,
+    response: Response,
     execution_id: Annotated[str, Path()],
     limit: Annotated[int, Query(ge=1, le=5000)] = 500,
 ) -> LogsByExecutionResponse:
@@ -78,6 +81,7 @@ async def get_logs_by_execution(
         )
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch log records for execution %s", execution_id, exc_info=True)
+        response.status_code = 503
         return LogsByExecutionResponse(records=[], truncated=False, retention_expired=False)
 
     retention_expired = False

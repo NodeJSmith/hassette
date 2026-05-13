@@ -783,7 +783,7 @@ async def get_log_records(
     where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
     params["limit"] = limit
 
-    sql = f"SELECT * FROM log_records{where} ORDER BY timestamp DESC LIMIT :limit"
+    sql = f"SELECT * FROM log_records{where} ORDER BY timestamp DESC, seq DESC LIMIT :limit"
     cursor = await db.execute(sql, params)
     rows = await cursor.fetchall()
     return [dict(row) for row in rows]

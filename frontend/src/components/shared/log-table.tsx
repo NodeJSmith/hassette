@@ -325,23 +325,25 @@ export function LogTable({
       fetcher()
         .then((entries) => {
           initialEntries.value = entries;
-          watermarkRef.current = entries.reduce((max, e) => Math.max(max, e.seq), 0);
+          watermarkRef.current = entries.reduce((max, e) => Math.max(max, e.timestamp), 0);
         })
         .catch(() => { /* fetcher error — stay empty */ });
     } else {
       getRecentLogs({ app_key: appKey, limit: 200 })
         .then((entries) => {
           initialEntries.value = entries;
-          watermarkRef.current = entries.reduce((max, e) => Math.max(max, e.seq), 0);
+          watermarkRef.current = entries.reduce((max, e) => Math.max(max, e.timestamp), 0);
         })
         .catch(() => { /* API error — initial entries stay empty, WS will still stream */ });
     }
   }, [mode, appKey, rv]);
 
-  // Combine initial entries + ring buffer entries, deduplicating by seq watermark.
+  // Combine initial entries + ring buffer entries, deduplicating by timestamp watermark.
+  // Timestamp-based (not seq-based) because seq resets to 1 on process restart while
+  // the DB retains records from previous sessions with higher seq values.
   // In historical mode, skip WS merge entirely.
   const wsEntries = mode === "live" ? logs.toArray().filter((e) => {
-    if (e.seq <= watermarkRef.current) return false;
+    if (e.timestamp <= watermarkRef.current) return false;
     if (appKey && e.app_key !== appKey) return false;
     return true;
   }) : [];

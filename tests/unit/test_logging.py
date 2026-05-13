@@ -677,6 +677,54 @@ class TestLogPersistenceHandlerBatching:
         assert len(handler._batch) == 0
 
 
+class TestLogPersistenceDropCountWithDB:
+    """LogPersistenceHandler counts drops caused by DB queue-full backpressure."""
+
+    @staticmethod
+    def _enqueue_returning_false(coro):
+        coro.close()
+        return False
+
+    @staticmethod
+    def _enqueue_raising_runtime_error(coro):
+        coro.close()
+        raise RuntimeError("DB shut down")
+
+    def test_dropped_count_increments_on_enqueue_failure(self) -> None:
+        """When enqueue() returns False (queue full), dropped_count increases."""
+        handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
+        loop = asyncio.new_event_loop()
+        db_service = MagicMock()
+        db_service.enqueue = MagicMock(side_effect=self._enqueue_returning_false)
+        handler.set_database(db_service, loop)
+
+        for i in range(50):
+            record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
+            handler.emit(record)
+
+        loop.run_until_complete(asyncio.sleep(0))
+
+        assert handler.dropped_count == 50
+        loop.close()
+
+    def test_dropped_count_increments_on_db_shutdown_runtime_error(self) -> None:
+        """When enqueue() raises RuntimeError (DB shut down), dropped_count increases."""
+        handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
+        loop = asyncio.new_event_loop()
+        db_service = MagicMock()
+        db_service.enqueue = MagicMock(side_effect=self._enqueue_raising_runtime_error)
+        handler.set_database(db_service, loop)
+
+        for i in range(50):
+            record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
+            handler.emit(record)
+
+        loop.run_until_complete(asyncio.sleep(0))
+
+        assert handler.dropped_count == 50
+        loop.close()
+
+
 class TestDequeueTimeoutFlush:
     """HassetteQueueListener dequeue-timeout triggers flush_if_pending on idle."""
 

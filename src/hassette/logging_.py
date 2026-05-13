@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import itertools
 import logging
 import logging.handlers
@@ -123,10 +124,15 @@ class LogCaptureHandler(logging.Handler):
         if self._shutting_down:
             return
         if self._broadcast_fn and self._loop and self._loop.is_running():
-            self._loop.call_soon_threadsafe(
-                self._loop.create_task,
-                self._broadcast_fn({"type": "log", "data": entry.to_dict()}),
-            )
+            fn = self._broadcast_fn
+            loop = self._loop
+            payload = {"type": "log", "data": entry.to_dict()}
+
+            def _schedule_broadcast() -> None:
+                with contextlib.suppress(RuntimeError):
+                    loop.create_task(fn(payload))
+
+            loop.call_soon_threadsafe(_schedule_broadcast)
 
 
 class CorrelationFilter(logging.Filter):
@@ -250,7 +256,10 @@ class LogPersistenceHandler(logging.Handler):
         batch_len = len(batch)
 
         def _do_enqueue(b=batch) -> None:
-            if not db_service.enqueue(_telemetry_repository.insert_log_records(db_service.db, b)):  # pyright: ignore[reportAttributeAccessIssue]
+            try:
+                if not db_service.enqueue(_telemetry_repository.insert_log_records(db_service.db, b)):  # pyright: ignore[reportAttributeAccessIssue]
+                    handler._dropped += batch_len
+            except RuntimeError:
                 handler._dropped += batch_len
 
         loop.call_soon_threadsafe(_do_enqueue)
