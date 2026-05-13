@@ -27,6 +27,7 @@
 .tableLog :global(.ht-col-level)   { white-space: nowrap; width: 80px; }
 .tableLog :global(.ht-col-time)    { white-space: nowrap; width: 170px; }
 .tableLog :global(.ht-col-app)     { white-space: nowrap; width: 140px; }
+.tableLog :global(.ht-col-execution) { white-space: nowrap; width: 140px; }
 .tableLog :global(.ht-col-source)  { width: 200px; }
 /* Message column: no width set — takes all remaining space */
 

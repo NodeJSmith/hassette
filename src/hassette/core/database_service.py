@@ -304,7 +304,7 @@ class DatabaseService(Service):
             raise
         return await future
 
-    def enqueue(self, coro: Coroutine[Any, Any, Any]) -> None:
+    def enqueue(self, coro: Coroutine[Any, Any, Any]) -> bool:
         """Submit a coroutine for fire-and-forget execution.
 
         Returns immediately. The coroutine is placed on the write queue and
@@ -313,6 +313,9 @@ class DatabaseService(Service):
 
         Args:
             coro: The coroutine to execute.
+
+        Returns:
+            True if enqueued successfully, False if dropped due to a full queue.
         """
         if self._db_write_queue is None:
             coro.close()
@@ -325,10 +328,11 @@ class DatabaseService(Service):
                 "DB write queue full (%d items) — dropping fire-and-forget task",
                 self._db_write_queue.qsize(),
             )
-            return
+            return False
         qsize = self._db_write_queue.qsize()
         if qsize > 0 and qsize % 100 == 0:
             self.logger.warning("DB write queue depth at %d items — potential backlog", qsize)
+        return True
 
     def _resolve_db_path(self) -> Path:
         """Resolve the database path from config or use default."""

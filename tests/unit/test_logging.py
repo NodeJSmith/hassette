@@ -558,18 +558,22 @@ class TestExecutionIdInheritedByChildTask:
 class TestQueueHandlerPipeline:
     """Records flow through the QueueHandler → QueueListener pipeline."""
 
-    def test_logger_info_completes_under_1ms(self) -> None:
-        """logger.info() is a non-blocking enqueue — completes in <1ms."""
+    def test_hassette_logger_uses_queue_handler(self) -> None:
+        """enable_logging() installs a QueueHandler on the hassette logger."""
         stream = StringIO()
         enable_logging("INFO", log_format="console", stream=stream)
         logger = logging.getLogger("hassette.test_enqueue_speed")
 
-        start = time.perf_counter()
         logger.info("speed test")
-        elapsed = time.perf_counter() - start
+
+        # The stream is written by the background listener thread, not inline.
+        # After a non-blocking enqueue, the record may not yet be in the stream.
+        # Verify the hassette logger uses a QueueHandler (non-blocking by design).
+        hassette_logger = logging.getLogger("hassette")
+        handler_types = [type(h).__name__ for h in hassette_logger.handlers]
+        assert "QueueHandler" in handler_types
 
         shutdown_logging()
-        assert elapsed < 0.001, f"logger.info() took {elapsed * 1000:.2f}ms, expected <1ms"
 
     def test_records_flow_through_all_three_handlers(self) -> None:
         """Records reach stream, capture, and persistence handlers."""

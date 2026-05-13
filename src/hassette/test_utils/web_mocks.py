@@ -168,11 +168,11 @@ def create_mock_runtime_query_service(
     svc._ws_drops = 0
     svc._ws_drops_since_last_log = 0
     svc._ws_drops_last_logged = 0.0
-    svc._pending_invocations: list[dict] = []
-    svc._pending_executions: list[dict] = []
+    svc._pending_invocations = []
+    svc._pending_executions = []
     svc._flush_scheduled = False
-    svc._listener_meta: dict[int, tuple[str, int]] = {}
-    svc._job_meta: dict[int, tuple[str, int]] = {}
+    svc._listener_meta = {}
+    svc._job_meta = {}
     svc.task_bucket = MagicMock()
     svc.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: coro.close())
     svc.logger = MagicMock()

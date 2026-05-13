@@ -7,14 +7,15 @@ import sys
 import threading
 import traceback
 from collections import deque
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from typing import IO, Literal
+from typing import IO, Any, Literal
 
 import structlog
 import structlog.dev
 import structlog.processors
 import structlog.stdlib
+import structlog.types
 
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.core import telemetry_repository as _telemetry_repository
@@ -72,7 +73,7 @@ class LogCaptureHandler(logging.Handler):
     """Captures log records into a bounded deque and broadcasts to WS clients."""
 
     _buffer: deque[LogEntry]
-    _broadcast_fn: Callable[[dict], Awaitable[None]] | None
+    _broadcast_fn: Callable[[dict], Coroutine[Any, Any, None]] | None
     _loop: asyncio.AbstractEventLoop | None
 
     _shutting_down: bool
@@ -101,7 +102,7 @@ class LogCaptureHandler(logging.Handler):
                 continue
         return []
 
-    def set_broadcast(self, fn: Callable[[dict], Awaitable[None]], loop: asyncio.AbstractEventLoop) -> None:
+    def set_broadcast(self, fn: Callable[[dict], Coroutine[Any, Any, None]], loop: asyncio.AbstractEventLoop) -> None:
         """Called by RuntimeQueryService after initialization to wire up WS broadcast."""
         self._broadcast_fn = fn
         self._loop = loop
@@ -154,6 +155,8 @@ class CorrelationFilter(logging.Filter):
         record.instance_name = ctx.get("instance_name")  # pyright: ignore[reportAttributeAccessIssue]
         record.instance_index = ctx.get("instance_index")  # pyright: ignore[reportAttributeAccessIssue]
         record.seq = next(self._seq)  # pyright: ignore[reportAttributeAccessIssue]
+        if not getattr(record, "source_tier", None):
+            record.source_tier = "app" if record.app_key else "framework"  # pyright: ignore[reportAttributeAccessIssue]
         return True
 
 
@@ -243,9 +246,14 @@ class LogPersistenceHandler(logging.Handler):
         if db_service is None or loop is None:
             self._dropped += len(batch)
             return
-        loop.call_soon_threadsafe(
-            lambda b=batch: db_service.enqueue(_telemetry_repository.insert_log_records(db_service.db, b)),  # pyright: ignore[reportAttributeAccessIssue]
-        )
+        handler = self
+        batch_len = len(batch)
+
+        def _do_enqueue(b=batch) -> None:
+            if not db_service.enqueue(_telemetry_repository.insert_log_records(db_service.db, b)):  # pyright: ignore[reportAttributeAccessIssue]
+                handler._dropped += batch_len
+
+        loop.call_soon_threadsafe(_do_enqueue)
 
     def _record_to_dict(self, record: logging.LogRecord) -> dict:
         return {
@@ -283,7 +291,11 @@ def get_log_persistence_handler() -> LogPersistenceHandler | None:
     return _log_persistence_handler
 
 
-def add_execution_id(_logger: object, _method_name: str, event_dict: dict) -> dict:
+def add_execution_id(
+    _logger: object,
+    _method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
     """Structlog processor: stamp execution_id from CURRENT_EXECUTION_ID context var.
 
     Inserted in the shared processor chain after TimeStamper so structlog-native callers
@@ -298,7 +310,11 @@ def add_execution_id(_logger: object, _method_name: str, event_dict: dict) -> di
 _RECORD_FIELDS = ("source_tier", "app_key", "execution_id", "instance_name", "instance_index")
 
 
-def _extract_record_fields(_logger: logging.Logger, _method_name: str, event_dict: dict) -> dict:
+def _extract_record_fields(
+    _logger: object,
+    _method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
     """Pull custom attributes stamped by CorrelationFilter from the LogRecord into the event dict.
 
     Runs in ProcessorFormatter's processors list (before remove_processors_meta) where _record is available.
@@ -344,6 +360,8 @@ def enable_logging(
 
     if stream is None:
         stream = sys.stdout
+    if stream is None:
+        raise RuntimeError("No output stream available and sys.stdout is None")
 
     # --- Determine renderer based on log_format ---
     if log_format == "json":
@@ -442,6 +460,11 @@ def shutdown_logging() -> None:
 
     if _log_capture_handler is not None:
         _log_capture_handler._shutting_down = True
+
+    # Remove the QueueHandler before stopping the listener to prevent
+    # shutdown-time logs from enqueuing into an un-drained queue.
+    logger = logging.getLogger("hassette")
+    logger.handlers = [h for h in logger.handlers if not isinstance(h, logging.handlers.QueueHandler)]
 
     _queue_listener.stop()
     _queue_listener = None

@@ -151,7 +151,7 @@ function createLogEntry(overrides: Partial<WsLogPayload> = {}): WsLogPayload {
     execution_id: null,
     instance_name: null,
     instance_index: null,
-    source_tier: null,
+    source_tier: "app",
     ...overrides,
   };
 }
@@ -1289,15 +1289,15 @@ describe("Query param driven state", () => {
 
   it("reads tier filter from ?tier=framework URL param", () => {
     _setMockSearch("tier=framework");
-    state.logs.push(createLogEntry({ app_key: "my_app", message: "app msg" }));
-    state.logs.push(createLogEntry({ app_key: null, message: "framework msg" }));
+    state.logs.push(createLogEntry({ app_key: "my_app", source_tier: "app", message: "app msg" }));
+    state.logs.push(createLogEntry({ app_key: null, source_tier: "framework", message: "framework msg" }));
 
     const { getByText, queryByText } = render(
       <LogTable />,
       { wrapper: createWrapper(state) },
     );
 
-    // tier=framework shows only entries without app_key
+    // tier=framework shows only entries with source_tier="framework"
     expect(queryByText("app msg")).toBeNull();
     expect(getByText("framework msg")).toBeDefined();
   });

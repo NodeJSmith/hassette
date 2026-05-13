@@ -40,6 +40,8 @@ async def get_logs(
             raise HTTPException(
                 status_code=422, detail=f"Invalid level {level!r}. Must be one of: {', '.join(sorted(_VALID_LEVELS))}"
             )
+    if source_tier is not None:
+        source_tier = source_tier.lower()
     if source_tier is not None and source_tier not in _VALID_SOURCE_TIERS:
         raise HTTPException(
             status_code=422,

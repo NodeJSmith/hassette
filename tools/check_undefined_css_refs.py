@@ -38,6 +38,7 @@ EXEMPTIONS: list[tuple[str, str]] = [
     ("ht-col-source", "defined in log-table.module.css via :global(), not in shared styles/"),
     ("ht-col-level", "defined in log-table.module.css via :global(), not in shared styles/"),
     ("ht-col-app", "defined in log-table.module.css via :global(), not in shared styles/"),
+    ("ht-col-execution", "defined in log-table.module.css via :global(), not in shared styles/"),
 ]
 
 
