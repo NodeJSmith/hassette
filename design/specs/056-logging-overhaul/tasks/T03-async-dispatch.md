@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add QueueHandler async log dispatch with shutdown"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#8", "FR#9", "AC#12", "AC#13"]
 ---

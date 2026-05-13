@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import threading
 import typing
 from contextlib import suppress
@@ -14,7 +15,7 @@ from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry, validate_registries
 from hassette.exceptions import AppPrecheckFailedError
-from hassette.logging_ import enable_logging
+from hassette.logging_ import enable_logging, shutdown_logging
 from hassette.resources.base import Resource, Service
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
@@ -76,6 +77,8 @@ class Hassette(Resource):
             self.config.log_level,
             log_buffer_size=self.config.web_api_log_buffer_size,
             log_format=self.config.log_format,
+            log_queue_max=self.config.log_queue_max,
+            log_persistence_level=logging.getLevelNamesMapping()[self.config.log_persistence_level],
         )
 
         super().__init__(self, task_bucket=TaskBucket(self, parent=self), parent=self)
@@ -597,6 +600,7 @@ class Hassette(Resource):
 
     async def before_shutdown(self) -> None:
         """Remove bus listeners and finalize session before child shutdown."""
+        shutdown_logging()
         try:
             if self._bus is not None:
                 await self._bus.remove_all_listeners()

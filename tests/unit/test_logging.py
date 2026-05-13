@@ -3,13 +3,33 @@
 import asyncio
 import json
 import logging
+import queue
+import time
 from io import StringIO
 from unittest.mock import MagicMock
 
+import pytest
 import structlog
 
 from hassette.context import CURRENT_EXECUTION_ID
-from hassette.logging_ import CorrelationFilter, LogCaptureHandler, LogEntry, add_execution_id, enable_logging
+from hassette.logging_ import (
+    CorrelationFilter,
+    HassetteQueueListener,
+    LogCaptureHandler,
+    LogEntry,
+    LogPersistenceHandler,
+    add_execution_id,
+    enable_logging,
+    get_log_capture_handler,
+    get_log_persistence_handler,
+    shutdown_logging,
+)
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_logging():
+    yield
+    shutdown_logging()
 
 
 class TestCorrelationFilterSeqIncrements:
@@ -127,10 +147,9 @@ class TestEnableLoggingConsoleRenderer:
         enable_logging("INFO", log_format="console", stream=stream)
         logger = logging.getLogger("hassette.test_console")
         logger.info("hello console")
+        shutdown_logging()
         output = stream.getvalue()
-        # ConsoleRenderer produces human-readable output with level and message
         assert "hello console" in output
-        # ConsoleRenderer uses key=value or similar format (not JSON)
         assert "{" not in output or '"event"' not in output
 
     def test_hassette_logger_level_set(self) -> None:
@@ -154,8 +173,8 @@ class TestEnableLoggingJSONRenderer:
         enable_logging("INFO", log_format="json", stream=stream)
         logger = logging.getLogger("hassette.test_json")
         logger.info("hello json")
+        shutdown_logging()
         output = stream.getvalue()
-        # JSONRenderer produces one JSON object per line
         lines = [line for line in output.strip().splitlines() if line.strip()]
         assert len(lines) >= 1
         parsed = json.loads(lines[-1])
@@ -166,6 +185,7 @@ class TestEnableLoggingJSONRenderer:
         enable_logging("INFO", log_format="json", stream=stream)
         logger = logging.getLogger("hassette.test_json_level")
         logger.warning("level test")
+        shutdown_logging()
         output = stream.getvalue()
         lines = [line for line in output.strip().splitlines() if line.strip()]
         parsed = json.loads(lines[-1])
@@ -179,6 +199,7 @@ class TestEnableLoggingJSONRenderer:
             type("F", (logging.Filter,), {"filter": lambda _self, r: setattr(r, "source_tier", "app") or True})()
         )
         logger.info("tier test")
+        shutdown_logging()
         output = stream.getvalue()
         lines = [line for line in output.strip().splitlines() if line.strip()]
         parsed = json.loads(lines[-1])
@@ -199,14 +220,13 @@ class TestEnableLoggingAutoFormat:
 
     def test_auto_uses_json_renderer_when_not_tty(self) -> None:
         stream = StringIO()
-        # StringIO.isatty() returns False — simulates a pipe
         enable_logging("INFO", log_format="auto", stream=stream)
         logger = logging.getLogger("hassette.test_auto_notty")
         logger.info("auto json")
+        shutdown_logging()
         output = stream.getvalue()
         lines = [line for line in output.strip().splitlines() if line.strip()]
         assert len(lines) >= 1
-        # Should be JSON since StringIO is not a TTY
         parsed = json.loads(lines[-1])
         assert parsed["event"] == "auto json"
 
@@ -242,14 +262,13 @@ class TestLogCaptureHandlerStillCaptures:
         stream = StringIO()
         enable_logging("INFO", log_format="console", stream=stream)
 
-        from hassette.logging_ import get_log_capture_handler
-
         capture_handler = get_log_capture_handler()
         assert capture_handler is not None
 
         initial_count = len(capture_handler.get_buffer_snapshot())
         logger = logging.getLogger("hassette.test_capture")
         logger.info("captured message")
+        shutdown_logging()
 
         entries = capture_handler.get_buffer_snapshot()
         assert len(entries) == initial_count + 1
@@ -534,3 +553,195 @@ class TestExecutionIdInheritedByChildTask:
         structlog.contextvars.clear_contextvars()
         ctx_vars = structlog.contextvars.get_contextvars()
         assert "app_key" not in ctx_vars
+
+
+class TestQueueHandlerPipeline:
+    """Records flow through the QueueHandler → QueueListener pipeline."""
+
+    def test_logger_info_completes_under_1ms(self) -> None:
+        """logger.info() is a non-blocking enqueue — completes in <1ms."""
+        stream = StringIO()
+        enable_logging("INFO", log_format="console", stream=stream)
+        logger = logging.getLogger("hassette.test_enqueue_speed")
+
+        start = time.perf_counter()
+        logger.info("speed test")
+        elapsed = time.perf_counter() - start
+
+        shutdown_logging()
+        assert elapsed < 0.001, f"logger.info() took {elapsed * 1000:.2f}ms, expected <1ms"
+
+    def test_records_flow_through_all_three_handlers(self) -> None:
+        """Records reach stream, capture, and persistence handlers."""
+        stream = StringIO()
+        enable_logging("INFO", log_format="json", stream=stream, log_persistence_level=logging.INFO)
+        logger = logging.getLogger("hassette.test_all_handlers")
+        logger.info("pipeline test")
+        shutdown_logging()
+
+        assert "pipeline test" in stream.getvalue()
+
+        capture = get_log_capture_handler()
+        assert capture is not None
+        entries = capture.get_buffer_snapshot()
+        assert any(e.message == "pipeline test" for e in entries)
+
+        persistence = get_log_persistence_handler()
+        assert persistence is not None
+        # No DB wired — records should be dropped
+        assert persistence.dropped_count >= 1
+
+    def test_shutdown_flushes_all_pending_records(self) -> None:
+        """After shutdown_logging(), all enqueued records appear in handler output."""
+        stream = StringIO()
+        enable_logging("INFO", log_format="json", stream=stream)
+        logger = logging.getLogger("hassette.test_shutdown_flush")
+        for i in range(20):
+            logger.info("record_%d", i)
+        shutdown_logging()
+
+        output = stream.getvalue()
+        for i in range(20):
+            assert f"record_{i}" in output, f"record_{i} missing from output after shutdown"
+
+
+class TestLogPersistenceHandlerBatching:
+    """LogPersistenceHandler batches records and flushes at threshold."""
+
+    def test_batch_flushes_at_50_records(self) -> None:
+        """Batch is flushed when it reaches BATCH_SIZE (50)."""
+        handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
+        for i in range(50):
+            record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
+            handler.emit(record)
+
+        # No DB wired — all 50 should be dropped after flush
+        assert handler.dropped_count == 50
+        assert len(handler._batch) == 0
+
+    def test_batch_does_not_flush_below_threshold(self) -> None:
+        """Batch accumulates below BATCH_SIZE without flushing."""
+        handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
+        for i in range(49):
+            record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
+            handler.emit(record)
+
+        assert handler.dropped_count == 0
+        assert len(handler._batch) == 49
+
+    def test_flush_if_pending_drains_partial_batch(self) -> None:
+        """flush_if_pending() drains a partial batch."""
+        handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
+        for i in range(10):
+            record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
+            handler.emit(record)
+
+        handler.flush_if_pending()
+        assert handler.dropped_count == 10
+        assert len(handler._batch) == 0
+
+    def test_drops_records_gracefully_when_no_db(self) -> None:
+        """Records are counted as dropped when no DB is wired."""
+        handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
+        assert handler.dropped_count == 0
+
+        for i in range(100):
+            record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
+            handler.emit(record)
+
+        handler.flush_if_pending()
+        assert handler.dropped_count == 100
+
+    def test_skips_records_below_persistence_level(self) -> None:
+        """Records below persistence_level are not batched."""
+        handler = LogPersistenceHandler(persistence_level=logging.WARNING)
+        record = logging.LogRecord("test", logging.INFO, "", 0, "debug msg", (), None)
+        handler.emit(record)
+
+        assert len(handler._batch) == 0
+        assert handler.dropped_count == 0
+
+    def test_close_flushes_pending(self) -> None:
+        """close() calls flush_if_pending() before closing."""
+        handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
+        for i in range(5):
+            record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
+            handler.emit(record)
+
+        handler.close()
+        assert handler.dropped_count == 5
+        assert len(handler._batch) == 0
+
+
+class TestDequeueTimeoutFlush:
+    """HassetteQueueListener dequeue-timeout triggers flush_if_pending on idle."""
+
+    def test_dequeue_timeout_triggers_flush_if_pending(self) -> None:
+        """After 200ms idle, the listener thread calls flush_if_pending on handlers."""
+        q: queue.Queue[logging.LogRecord] = queue.Queue()
+        persistence = LogPersistenceHandler(persistence_level=logging.DEBUG)
+
+        listener = HassetteQueueListener(q, persistence)
+        listener.start()
+
+        # Enqueue a single record (below BATCH_SIZE, won't auto-flush)
+        record = logging.LogRecord("test", logging.WARNING, "", 0, "timeout test", (), None)
+        q.put(record)
+
+        # Wait for the dequeue-timeout cycle to flush (200ms timeout + processing)
+        time.sleep(0.5)
+
+        listener.stop()
+
+        # The record was flushed by the timeout, then dropped (no DB)
+        assert persistence.dropped_count == 1
+        assert len(persistence._batch) == 0
+
+
+class TestLogCaptureHandlerShutdownGuard:
+    """LogCaptureHandler._shutting_down prevents broadcast during shutdown."""
+
+    def test_shutting_down_skips_broadcast(self) -> None:
+        """When _shutting_down is True, emit() still captures but skips call_soon_threadsafe."""
+        handler = LogCaptureHandler(buffer_size=100)
+        loop = MagicMock()
+        loop.is_running.return_value = True
+        broadcast_fn = MagicMock()
+        handler.set_broadcast(broadcast_fn, loop)
+
+        handler._shutting_down = True
+        record = logging.LogRecord("test", logging.INFO, "", 0, "shutdown msg", (), None)
+        handler.emit(record)
+
+        entries = list(handler.buffer)
+        assert len(entries) == 1
+        assert entries[0].message == "shutdown msg"
+        loop.call_soon_threadsafe.assert_not_called()
+
+    def test_not_shutting_down_broadcasts(self) -> None:
+        """When _shutting_down is False, emit() broadcasts via call_soon_threadsafe."""
+        handler = LogCaptureHandler(buffer_size=100)
+        loop = MagicMock()
+        loop.is_running.return_value = True
+        broadcast_fn = MagicMock()
+        handler.set_broadcast(broadcast_fn, loop)
+
+        record = logging.LogRecord("test", logging.INFO, "", 0, "live msg", (), None)
+        handler.emit(record)
+
+        loop.call_soon_threadsafe.assert_called_once()
+
+
+class TestShutdownLogging:
+    """shutdown_logging() stops the listener and is idempotent."""
+
+    def test_shutdown_logging_is_idempotent(self) -> None:
+        """Calling shutdown_logging() multiple times does not raise."""
+        enable_logging("INFO", log_format="console", stream=StringIO())
+        shutdown_logging()
+        shutdown_logging()
+        shutdown_logging()
+
+    def test_shutdown_before_enable_is_safe(self) -> None:
+        """Calling shutdown_logging() before enable_logging() does not raise."""
+        shutdown_logging()

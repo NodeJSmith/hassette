@@ -95,6 +95,12 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Console output format. ``"auto"`` detects TTY vs pipe automatically. ``"console"`` forces
     colored human-readable output. ``"json"`` forces one-JSON-object-per-line output."""
 
+    log_queue_max: int = Field(default=2000, ge=1)
+    """Maximum size of the inter-thread log queue. Records are dropped when the queue is full."""
+
+    log_persistence_level: LOG_ANNOTATION = Field(default="INFO")
+    """Minimum log level for database persistence. Records below this level are not stored."""
+
     config_dir: Path = Field(default_factory=default_config_dir)
     """Directory to load/save configuration."""
 
