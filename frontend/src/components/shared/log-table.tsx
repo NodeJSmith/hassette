@@ -641,7 +641,7 @@ export function LogTable({
               </tr>
             )}
             {sorted.slice(0, renderCap).map((entry) => {
-              const rowKey = entry.seq ? String(entry.seq) : `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`;
+              const rowKey = entry.seq ? `${entry.timestamp}-${entry.seq}` : `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`;
               const isExpanded = expandedRows.value.has(rowKey);
               const canExpand = truncatedRows.value.has(rowKey) || isExpanded;
               const toggle = () => {

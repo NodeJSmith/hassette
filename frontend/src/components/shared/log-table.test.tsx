@@ -481,7 +481,7 @@ describe("LogTable", () => {
   });
 
   it("renders data-row-key attribute on message text elements", () => {
-    state.logs.push(createLogEntry({ seq: 42, message: "Test with key" }));
+    state.logs.push(createLogEntry({ seq: 42, timestamp: 9999, message: "Test with key" }));
 
     const { container } = render(
       <LogTable />,
@@ -490,7 +490,7 @@ describe("LogTable", () => {
 
     const textEl = container.querySelector("[data-row-key]") as HTMLElement;
     expect(textEl).not.toBeNull();
-    expect(textEl.getAttribute("data-row-key")).toBe("42");
+    expect(textEl.getAttribute("data-row-key")).toBe("9999-42");
   });
 
   // -- App column visibility --

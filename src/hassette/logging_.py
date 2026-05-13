@@ -138,8 +138,8 @@ class LogCaptureHandler(logging.Handler):
 class CorrelationFilter(logging.Filter):
     """Stamps correlation IDs and seq on log records before they leave the calling context.
 
-    Attached to the ``hassette`` logger (upstream of QueueHandler). Reads context vars in the
-    calling async context so the values are captured before the background-thread handoff.
+    Attached to the ``QueueHandler`` (not the logger) so it runs for records propagated from
+    child loggers. Reads context vars in the calling thread before the background-thread handoff.
 
     Stamps:
         - ``execution_id``: from ``CURRENT_EXECUTION_ID`` context var.
