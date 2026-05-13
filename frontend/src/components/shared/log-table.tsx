@@ -82,6 +82,7 @@ interface LogTableRowProps {
   isMobile: boolean;
   showAppColumn: boolean;
   showSourceColumn: boolean;
+  showExecutionIdColumn: boolean;
   colCount: number;
   onToggle: () => void;
 }
@@ -94,6 +95,7 @@ function LogTableRow({
   isMobile,
   showAppColumn,
   showSourceColumn,
+  showExecutionIdColumn,
   colCount,
   onToggle,
 }: LogTableRowProps) {
@@ -113,6 +115,15 @@ function LogTableRow({
         <td>
           {entry.app_key ? (
             <AppLink appKey={entry.app_key} />
+          ) : (
+            <span class="ht-text-muted">—</span>
+          )}
+        </td>
+      )}
+      {showExecutionIdColumn && !isMobile && (
+        <td class="ht-text-mono ht-text-muted">
+          {entry.execution_id ? (
+            <span title={entry.execution_id}>{entry.execution_id.slice(0, 8)}&hellip;</span>
           ) : (
             <span class="ht-text-muted">—</span>
           )}
@@ -154,6 +165,39 @@ function LogTableRow({
   return <>{rows}</>;
 }
 
+// ---- Sort header (defined outside LogTable to avoid re-definition on each render) ----
+
+interface LogSortHeaderProps {
+  col: SortColumn;
+  children: preact.ComponentChildren;
+  class?: string;
+  sortConfig: SortConfig;
+  onSort: (col: SortColumn) => void;
+}
+
+function LogSortHeader({ col, children, class: className, sortConfig, onSort }: LogSortHeaderProps) {
+  const isActive = sortConfig.column === col;
+  return (
+    <SortHeader
+      active={isActive}
+      direction={isActive ? (sortConfig.asc ? "asc" : "desc") : "asc"}
+      onClick={() => onSort(col)}
+      class={className}
+      data-testid={`sort-${col}`}
+    >
+      {children}
+    </SortHeader>
+  );
+}
+
+// ---- Log fetch params ----
+
+export interface LogFetchParams {
+  app_key?: string;
+  limit?: number;
+  since?: number | null;
+}
+
 // ---- Log table ----
 
 interface Props {
@@ -163,42 +207,96 @@ interface Props {
   appKeys?: string[];
   /** Hide the internal "logs" heading when the parent page renders its own */
   hideTitle?: boolean;
+  /**
+   * Custom fetcher for historical mode. Called instead of getRecentLogs.
+   * Required when mode="historical".
+   */
+  fetcher?: (params?: LogFetchParams) => Promise<LogEntry[]>;
+  /** "live" (default): REST fetch + WS merge + URL params. "historical": custom fetcher only, no WS. */
+  mode?: "live" | "historical";
+  /** When true, use component-local signals for filter/sort state instead of URL query params. */
+  useLocalState?: boolean;
+  /** When true, hide the execution_id column (use when the view is already filtered to one execution). */
+  hideExecutionId?: boolean;
 }
 
-export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: Props) {
+export function LogTable({
+  showAppColumn = true,
+  appKey,
+  appKeys,
+  hideTitle,
+  fetcher,
+  mode = "live",
+  useLocalState = false,
+  hideExecutionId = false,
+}: Props) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   // Source column is CSS-hidden at max-width: 1024px (see log-table.module.css .tableLog .ht-col-source)
   // Ideally the Source <th>/<td> would be conditionally rendered like the App column,
   // but for now we just adjust the colSpan to match the CSS-only hide.
   const isTablet = useMediaQuery(BREAKPOINT_TABLET);
   const showSourceColumn = !isTablet;
+  const showExecutionIdColumn = !hideExecutionId;
   const { logs, updateLogSubscription, reconnectVersion } = useAppState();
-  useSubscribe(logs.version);
+
+  // In live mode, subscribe to the WS log version signal for reactivity.
+  // In historical mode, skip the subscription — no WS merge.
+  useSubscribe(mode === "live" ? logs.version : null);
+
   const qp = useQueryParams();
   // Keep a stable ref to the latest qp so event handlers always use the most
   // recent URL params without needing to close over the render-cycle value.
   const qpRef = useRef(qp);
   qpRef.current = qp;
 
-  // Filter/sort state read from query params; defaults omitted from URL.
-  // level="INFO" is the omitted default; level="all" in URL means show everything (minLevel="").
-  const levelParam = qp.get("level");
-  const minLevel = levelParam === "all" ? "" : (levelParam ?? "INFO");
-  const appFilter = qp.get("app") ?? "";
-  const tierFilterRaw = qp.get("tier");
-  // App-scoped views default to "all" (show both app + framework logs for that app).
-  // Global views default to "app" (hide noisy framework logs unless explicitly requested).
-  const tierFilter: "all" | "app" | "framework" =
-    tierFilterRaw === "all" || tierFilterRaw === "framework"
-      ? tierFilterRaw
-      : (appKey ? "all" : "app");
-  const search = qp.get("search") ?? "";
-  const rawSort = qp.get("sort") ?? "timestamp";
-  const sortColumn: SortColumn = VALID_SORT_COLUMNS.has(rawSort) ? (rawSort as SortColumn) : "timestamp";
-  const sortDir = qp.get("dir");
-  // Default dir: "desc" for timestamp (asc: false), "desc" for all others (asc: false as well
-  // when clicking a new non-timestamp column). "asc" is only set when explicitly in URL.
-  const sortAsc = sortDir === "asc";
+  // Local signal state for historical mode (useLocalState=true).
+  const localLevel = useSignal("INFO");
+  const localAppFilter = useSignal("");
+  const localTierFilter = useSignal<"all" | "app" | "framework">(appKey ? "all" : "app");
+  const localSearch = useSignal("");
+  const localSortColumn = useSignal<SortColumn>("timestamp");
+  const localSortAsc = useSignal(false);
+
+  // Debounce timer ref for search input
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Read filter/sort state from URL params (live mode) or local signals (historical+useLocalState).
+  let minLevel: string;
+  let appFilter: string;
+  let tierFilter: "all" | "app" | "framework";
+  let search: string;
+  let sortColumn: SortColumn;
+  let sortAsc: boolean;
+
+  if (useLocalState) {
+    minLevel = localLevel.value;
+    appFilter = localAppFilter.value;
+    tierFilter = localTierFilter.value;
+    search = localSearch.value;
+    sortColumn = localSortColumn.value;
+    sortAsc = localSortAsc.value;
+  } else {
+    // Filter/sort state read from query params; defaults omitted from URL.
+    // level="INFO" is the omitted default; level="all" in URL means show everything (minLevel="").
+    const levelParam = qp.get("level");
+    minLevel = levelParam === "all" ? "" : (levelParam ?? "INFO");
+    appFilter = qp.get("app") ?? "";
+    const tierFilterRaw = qp.get("tier");
+    // App-scoped views default to "all" (show both app + framework logs for that app).
+    // Global views default to "app" (hide noisy framework logs unless explicitly requested).
+    tierFilter =
+      tierFilterRaw === "all" || tierFilterRaw === "framework"
+        ? tierFilterRaw
+        : (appKey ? "all" : "app");
+    search = qp.get("search") ?? "";
+    const rawSort = qp.get("sort") ?? "timestamp";
+    sortColumn = VALID_SORT_COLUMNS.has(rawSort) ? (rawSort as SortColumn) : "timestamp";
+    const sortDir = qp.get("dir");
+    // Default dir: "desc" for timestamp (asc: false), "desc" for all others (asc: false as well
+    // when clicking a new non-timestamp column). "asc" is only set when explicitly in URL.
+    sortAsc = sortDir === "asc";
+  }
+
   const sortConfig: SortConfig = { column: sortColumn, asc: sortAsc };
 
   // UI-only state (not URL state)
@@ -207,32 +305,45 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
 
   const watermarkRef = useRef(0);
 
-  // Sync WS subscription to current level — re-syncs on back/forward navigation
+  // In live mode: sync WS subscription to current level — re-syncs on back/forward navigation.
+  // In historical mode: skip — no WS subscription to manage.
   useEffect(() => {
+    if (mode !== "live") return;
     updateLogSubscription(minLevel || "DEBUG");
-  }, [minLevel, updateLogSubscription]);
+  }, [mode, minLevel, updateLogSubscription]);
 
-  // Fetch initial entries on mount and after reconnect
-  const rv = reconnectVersion.value;
+  // Fetch initial entries on mount and after reconnect (live mode) or once on mount (historical mode).
+  // rv drives reconnect-triggered refetch — only meaningful in live mode.
+  const rv = mode === "live" ? reconnectVersion.value : null;
   useEffect(() => {
     watermarkRef.current = 0;
-    getRecentLogs({ app_key: appKey, limit: 200 })
-      .then((entries) => {
-        initialEntries.value = entries;
-        watermarkRef.current = entries.reduce((max, e) => Math.max(max, e.seq), 0);
-      })
-      .catch(() => { /* API error — initial entries stay empty, WS will still stream */ });
-  }, [appKey, rv]);
+    if (mode === "historical" && fetcher) {
+      fetcher()
+        .then((entries) => {
+          initialEntries.value = entries;
+          watermarkRef.current = entries.reduce((max, e) => Math.max(max, e.seq), 0);
+        })
+        .catch(() => { /* fetcher error — stay empty */ });
+    } else {
+      getRecentLogs({ app_key: appKey, limit: 200 })
+        .then((entries) => {
+          initialEntries.value = entries;
+          watermarkRef.current = entries.reduce((max, e) => Math.max(max, e.seq), 0);
+        })
+        .catch(() => { /* API error — initial entries stay empty, WS will still stream */ });
+    }
+  }, [mode, appKey, rv]);
 
-  // Combine initial entries + ring buffer entries, deduplicating by seq watermark
-  const wsEntries = logs.toArray().filter((e) => {
+  // Combine initial entries + ring buffer entries, deduplicating by seq watermark.
+  // In historical mode, skip WS merge entirely.
+  const wsEntries = mode === "live" ? logs.toArray().filter((e) => {
     if (e.seq <= watermarkRef.current) return false;
     if (appKey && e.app_key !== appKey) return false;
     return true;
-  });
+  }) : [];
 
   // Live pause: when sorting by non-timestamp column, exclude WS entries
-  const livePaused = sortConfig.column !== "timestamp";
+  const livePaused = mode === "live" && sortConfig.column !== "timestamp";
   const allEntries = livePaused
     ? [...initialEntries.value]
     : [...initialEntries.value, ...wsEntries];
@@ -271,6 +382,20 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
   const sorted = sortEntries(filtered, sortConfig.column, sortConfig.asc);
 
   const handleSort = (column: SortColumn) => {
+    if (useLocalState) {
+      if (column === "timestamp") {
+        const newAsc = localSortColumn.value === "timestamp" ? !localSortAsc.value : false;
+        localSortColumn.value = "timestamp";
+        localSortAsc.value = newAsc;
+      } else if (localSortColumn.value === column) {
+        localSortAsc.value = !localSortAsc.value;
+      } else {
+        localSortColumn.value = column;
+        localSortAsc.value = false;
+      }
+      return;
+    }
+
     // Read current sort state via qpRef.current (always latest after re-renders)
     // so rapid successive clicks see the current URL state, not stale closure values.
     const current = qpRef.current;
@@ -362,35 +487,56 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
       recheckTruncation();
     });
     return () => cancelAnimationFrame(rafId);
-    // Key on count + first/last seq to detect row swaps at same count (filter/sort changes)
-  }, [sorted.length, sorted[0]?.seq, sorted[sorted.length - 1]?.seq, recheckTruncation]);
+    // Simplified deps: count change is the primary signal. Avoids stale first/last seq refs
+    // that could cause spurious re-runs when sorting/filtering changes the array contents.
+  }, [sorted.length, recheckTruncation]);
 
-  const LogSortHeader = ({ col, children, class: className }: { col: SortColumn; children: preact.ComponentChildren; class?: string }) => {
-    const isActive = sortConfig.column === col;
-    return (
-      <SortHeader
-        active={isActive}
-        direction={isActive ? (sortConfig.asc ? "asc" : "desc") : "asc"}
-        onClick={() => handleSort(col)}
-        class={className}
-        data-testid={`sort-${col}`}
-      >
-        {children}
-      </SortHeader>
-    );
+  const setLevel = (newLevel: string) => {
+    if (useLocalState) {
+      localLevel.value = newLevel;
+      return;
+    }
+    // Omit level param when it's the default (INFO).
+    // Store "" (all levels) as "all" in the URL since empty string is stripped.
+    if (newLevel === "INFO") {
+      qpRef.current.set({ level: null });
+    } else if (newLevel === "") {
+      qpRef.current.set({ level: "all" });
+    } else {
+      qpRef.current.set({ level: newLevel });
+    }
+    // In live mode, re-sync WS subscription to the new level
+    if (mode === "live") {
+      updateLogSubscription(newLevel || "DEBUG");
+    }
+  };
+
+  const setSearch = (value: string) => {
+    if (useLocalState) {
+      localSearch.value = value;
+      return;
+    }
+    qpRef.current.set({ search: value || null });
   };
 
   const levelLabel = minLevel ? `level: ${minLevel}+` : "level: all";
+
+  // Truncation indicator: when the render cap (500) is exceeded, show "showing 500 of N"
+  const renderCap = 500;
+  const isTruncated = sorted.length > renderCap;
+  const countLabel = isTruncated
+    ? `showing ${renderCap} of ${sorted.length}`
+    : pluralize(filtered.length, "entry", "entries");
 
   return (
     <div class={styles.container} ref={tableContainerRef}>
       <div class="ht-table-toolbar">
         <div class="ht-table-toolbar__title">
           {!hideTitle && <h2 class="ht-table-toolbar__heading">logs</h2>}
-          <span class="ht-table-toolbar__note" aria-live="polite">{pluralize(filtered.length, "entry", "entries")}</span>
+          <span class="ht-table-toolbar__note" aria-live="polite">{countLabel}</span>
         </div>
         <div class="ht-table-toolbar__controls">
-          {!appKey && (
+          {!appKey && !useLocalState && (
             <TierToolbar
               tierFilter={tierFilter}
               onTierChange={(t) => {
@@ -423,16 +569,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
               value={minLevel}
               onChange={(e) => {
                 const newLevel = (e.target as HTMLSelectElement).value;
-                // Omit level param when it's the default (INFO).
-                // Store "" (all levels) as "all" in the URL since empty string is stripped.
-                if (newLevel === "INFO") {
-                  qp.set({ level: null });
-                } else if (newLevel === "") {
-                  qp.set({ level: "all" });
-                } else {
-                  qp.set({ level: newLevel });
-                }
-                updateLogSubscription(newLevel || "DEBUG");
+                setLevel(newLevel);
               }}
             >
               <option value="">all</option>
@@ -451,7 +588,10 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
             value={search}
             onInput={(e) => {
               const value = (e.target as HTMLInputElement).value;
-              qp.set({ search: value || null });
+              if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+              searchDebounceRef.current = setTimeout(() => {
+                setSearch(value);
+              }, 150);
             }}
           />
         </div>
@@ -460,19 +600,32 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
         <table class={clsx("ht-table ht-table--compact", styles.tableLog)} data-testid="log-table">
           <thead>
             <tr>
-              <LogSortHeader col="level" class="ht-col-level">{isMobile ? "Lvl" : "Level"}</LogSortHeader>
-              <LogSortHeader col="timestamp" class="ht-col-time">Timestamp</LogSortHeader>
+              <LogSortHeader col="level" class="ht-col-level" sortConfig={sortConfig} onSort={handleSort}>
+                {isMobile ? "Lvl" : "Level"}
+              </LogSortHeader>
+              <LogSortHeader col="timestamp" class="ht-col-time" sortConfig={sortConfig} onSort={handleSort}>
+                Timestamp
+              </LogSortHeader>
               {showAppColumn && !isMobile && (
-                <LogSortHeader col="app" class="ht-col-app">App</LogSortHeader>
+                <LogSortHeader col="app" class="ht-col-app" sortConfig={sortConfig} onSort={handleSort}>
+                  App
+                </LogSortHeader>
               )}
-              <LogSortHeader col="source" class="ht-col-source">Source</LogSortHeader>
-              <LogSortHeader col="message">Message</LogSortHeader>
+              {showExecutionIdColumn && !isMobile && (
+                <th class="ht-col-execution">Execution</th>
+              )}
+              <LogSortHeader col="source" class="ht-col-source" sortConfig={sortConfig} onSort={handleSort}>
+                Source
+              </LogSortHeader>
+              <LogSortHeader col="message" sortConfig={sortConfig} onSort={handleSort}>
+                Message
+              </LogSortHeader>
             </tr>
           </thead>
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={isMobile ? 3 : 2 + (showAppColumn ? 1 : 0) + (showSourceColumn ? 1 : 0) + 1}>
+                <td colSpan={isMobile ? 3 : 2 + (showAppColumn ? 1 : 0) + (showExecutionIdColumn ? 1 : 0) + (showSourceColumn ? 1 : 0) + 1}>
                   <EmptyState
                     title="no log lines in window"
                     body="nothing has been logged recently. change the level filter or extend the time window to see older lines."
@@ -480,7 +633,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
                 </td>
               </tr>
             )}
-            {sorted.slice(0, 500).map((entry) => {
+            {sorted.slice(0, renderCap).map((entry) => {
               const rowKey = entry.seq ? String(entry.seq) : `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`;
               const isExpanded = expandedRows.value.has(rowKey);
               const canExpand = truncatedRows.value.has(rowKey) || isExpanded;
@@ -492,7 +645,8 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
               };
               const mobileColCount = 3;
               const sourceAdjust = showSourceColumn ? 0 : -1;
-              const desktopColCount = (showAppColumn ? 5 : 4) + sourceAdjust;
+              const executionIdAdjust = showExecutionIdColumn ? 1 : 0;
+              const desktopColCount = (showAppColumn ? 5 : 4) + sourceAdjust + executionIdAdjust;
               const colCount = isMobile ? mobileColCount : desktopColCount;
               return (
                 <LogTableRow
@@ -504,6 +658,7 @@ export function LogTable({ showAppColumn = true, appKey, appKeys, hideTitle }: P
                   isMobile={isMobile}
                   showAppColumn={showAppColumn}
                   showSourceColumn={showSourceColumn}
+                  showExecutionIdColumn={showExecutionIdColumn}
                   colCount={colCount}
                   onToggle={toggle}
                 />

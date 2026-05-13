@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Add LogTable modal interface and execution_id filtering"
-status: "planned"
+status: "done"
 depends_on: ["T05"]
 implements: ["FR#16", "AC#7"]
 ---

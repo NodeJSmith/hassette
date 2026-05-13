@@ -291,7 +291,8 @@ describe("LogTable", () => {
 
   // -- Search --
 
-  it("filters by search text in message", () => {
+  it("filters by search text in message", async () => {
+    vi.useFakeTimers();
     state.logs.push(createLogEntry({ message: "Starting scheduler" }));
     state.logs.push(createLogEntry({ message: "Bus connected" }));
 
@@ -302,12 +303,15 @@ describe("LogTable", () => {
 
     const searchInput = getByPlaceholderText("Search...");
     fireEvent.input(searchInput, { target: { value: "scheduler" } });
+    await act(() => { vi.advanceTimersByTime(200); }); // flush 150ms debounce + re-render
 
     expect(getByText("Starting scheduler")).toBeDefined();
     expect(queryByText("Bus connected")).toBeNull();
+    vi.useRealTimers();
   });
 
-  it("filters by search text in logger name", () => {
+  it("filters by search text in logger name", async () => {
+    vi.useFakeTimers();
     state.logs.push(createLogEntry({ logger_name: "hassette.bus", message: "msg1" }));
     state.logs.push(createLogEntry({ logger_name: "hassette.scheduler", message: "msg2" }));
 
@@ -317,12 +321,15 @@ describe("LogTable", () => {
     );
 
     fireEvent.input(getByPlaceholderText("Search..."), { target: { value: "bus" } });
+    await act(() => { vi.advanceTimersByTime(200); });
 
     expect(getByText("msg1")).toBeDefined();
     expect(queryByText("msg2")).toBeNull();
+    vi.useRealTimers();
   });
 
-  it("search is case-insensitive", () => {
+  it("search is case-insensitive", async () => {
+    vi.useFakeTimers();
     state.logs.push(createLogEntry({ message: "WebSocket Connected" }));
 
     const { getByText, getByPlaceholderText } = render(
@@ -331,8 +338,10 @@ describe("LogTable", () => {
     );
 
     fireEvent.input(getByPlaceholderText("Search..."), { target: { value: "websocket" } });
+    await act(() => { vi.advanceTimersByTime(200); });
 
     expect(getByText("WebSocket Connected")).toBeDefined();
+    vi.useRealTimers();
   });
 
   // -- Sort toggle --
@@ -1322,7 +1331,8 @@ describe("Query param driven state", () => {
     expect(url).not.toContain("level");
   });
 
-  it("writes search to URL when search input changes", () => {
+  it("writes search to URL when search input changes", async () => {
+    vi.useFakeTimers();
     _setMockSearch("");
     const { getByPlaceholderText } = render(
       <LogTable />,
@@ -1330,13 +1340,16 @@ describe("Query param driven state", () => {
     );
 
     fireEvent.input(getByPlaceholderText("Search..."), { target: { value: "timeout" } });
+    await act(() => { vi.advanceTimersByTime(200); }); // flush 150ms debounce
 
     expect(mockNavigate).toHaveBeenCalledTimes(1);
     const [url] = mockNavigate.mock.calls[0];
     expect(url).toContain("search=timeout");
+    vi.useRealTimers();
   });
 
-  it("omits search from URL when search is cleared (default empty)", () => {
+  it("omits search from URL when search is cleared (default empty)", async () => {
+    vi.useFakeTimers();
     _setMockSearch("search=timeout");
     const { getByPlaceholderText } = render(
       <LogTable />,
@@ -1344,10 +1357,12 @@ describe("Query param driven state", () => {
     );
 
     fireEvent.input(getByPlaceholderText("Search..."), { target: { value: "" } });
+    await act(() => { vi.advanceTimersByTime(200); });
 
     expect(mockNavigate).toHaveBeenCalledTimes(1);
     const [url] = mockNavigate.mock.calls[0];
     expect(url).not.toContain("search");
+    vi.useRealTimers();
   });
 
   it("writes sort and dir to URL when non-timestamp sort is clicked", () => {
@@ -1381,5 +1396,180 @@ describe("Query param driven state", () => {
     const [url] = mockNavigate.mock.calls[0];
     expect(url).not.toContain("sort=");
     expect(url).not.toContain("dir=");
+  });
+});
+
+// -- Historical mode --
+
+describe("Historical mode", () => {
+  let state: AppState;
+
+  beforeEach(() => {
+    state = createAppState();
+    vi.clearAllMocks();
+    restoreNavigateMock();
+    entrySeq = 0;
+  });
+
+  it("calls custom fetcher instead of getRecentLogs in historical mode", async () => {
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+    mockGetRecentLogs.mockResolvedValue([]);
+
+    const customFetcher = vi.fn().mockResolvedValue([
+      createLogEntry({ message: "fetched-by-custom" }),
+    ]);
+
+    const { findByText } = render(
+      <LogTable mode="historical" fetcher={customFetcher} />,
+      { wrapper: createWrapper(state) },
+    );
+
+    await findByText("fetched-by-custom");
+
+    expect(customFetcher).toHaveBeenCalledOnce();
+    expect(mockGetRecentLogs).not.toHaveBeenCalled();
+  });
+
+  it("does not merge WS entries in historical mode", async () => {
+    const customFetcher = vi.fn().mockResolvedValue([
+      createLogEntry({ seq: 1, message: "historical-entry" }),
+    ]);
+
+    // Push a WS entry above the watermark
+    state.logs.push(createLogEntry({ seq: 99, message: "ws-entry" }));
+
+    const { findByText, queryByText } = render(
+      <LogTable mode="historical" fetcher={customFetcher} />,
+      { wrapper: createWrapper(state) },
+    );
+
+    await findByText("historical-entry");
+
+    // WS entries must NOT appear in historical mode
+    expect(queryByText("ws-entry")).toBeNull();
+  });
+
+  it("does not update URL params in historical mode with useLocalState", () => {
+    const customFetcher = vi.fn().mockResolvedValue([]);
+
+    render(
+      <LogTable mode="historical" fetcher={customFetcher} useLocalState />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // Changing the level dropdown in local state mode should not call navigate
+    // (we just verify render doesn't crash and navigate is not called)
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("uses local signal state for filters when useLocalState is true", async () => {
+    const entries = [
+      createLogEntry({ level: "DEBUG", message: "debug-local" }),
+      createLogEntry({ level: "ERROR", message: "error-local" }),
+    ];
+    const customFetcher = vi.fn().mockResolvedValue(entries);
+
+    const { findByText, queryByText, getByTestId } = render(
+      <LogTable mode="historical" fetcher={customFetcher} useLocalState />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // Wait for data to load
+    await findByText("error-local");
+
+    // Default is INFO filter — debug hidden
+    expect(queryByText("debug-local")).toBeNull();
+
+    // Change level to show all — should work via local state without URL navigation
+    fireEvent.change(getByTestId("filter-level"), { target: { value: "" } });
+    expect(queryByText("debug-local")).not.toBeNull();
+
+    // URL should not have been touched
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+});
+
+// -- Truncation indicator --
+
+describe("Truncation indicator", () => {
+  let state: AppState;
+
+  beforeEach(() => {
+    state = createAppState();
+    vi.clearAllMocks();
+    restoreNavigateMock();
+    entrySeq = 0;
+  });
+
+  it("shows entry count when entries are under the render cap", async () => {
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+    const fewEntries = Array.from({ length: 5 }, (_, i) =>
+      createLogEntry({ message: `entry-${i}` }),
+    );
+    mockGetRecentLogs.mockResolvedValueOnce(fewEntries);
+
+    const { findByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // Normal count display — no "showing X of Y"
+    await findByText("5 entries");
+  });
+
+  it("shows truncation indicator when sorted entries exceed render cap of 500", async () => {
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+
+    // 501 entries to exceed the cap
+    const manyEntries = Array.from({ length: 501 }, (_, i) =>
+      createLogEntry({ seq: i + 1, timestamp: i + 1, message: `entry-${i}` }),
+    );
+    mockGetRecentLogs.mockResolvedValueOnce(manyEntries);
+
+    const { findByText } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    // Wait for data to load — look for truncation indicator
+    await findByText(/showing 500 of 501/);
+  });
+});
+
+// -- Execution ID column visibility --
+
+describe("Execution ID column visibility", () => {
+  let state: AppState;
+
+  beforeEach(() => {
+    state = createAppState();
+    vi.clearAllMocks();
+    restoreNavigateMock();
+    entrySeq = 0;
+  });
+
+  it("shows execution_id column header in live mode by default", () => {
+    const { container } = render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const headers = container.querySelectorAll("th");
+    const headerTexts = Array.from(headers).map((h) => h.textContent ?? "");
+    expect(headerTexts.some((t) => t.includes("Execution"))).toBe(true);
+  });
+
+  it("hides execution_id column when hideExecutionId prop is true", () => {
+    const { container } = render(
+      <LogTable hideExecutionId />,
+      { wrapper: createWrapper(state) },
+    );
+
+    const headers = container.querySelectorAll("th");
+    const headerTexts = Array.from(headers).map((h) => h.textContent ?? "");
+    expect(headerTexts.some((t) => t.includes("Execution"))).toBe(false);
   });
 });
