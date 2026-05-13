@@ -1,7 +1,7 @@
 # Design: Logging Overhaul
 
 **Date:** 2026-05-12
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-05-02-logging/research.md
 
