@@ -1,7 +1,7 @@
 /** Typed API endpoint functions for all Hassette REST endpoints. */
 
 import type { components } from "./generated-types";
-import { apiFetch, apiPost } from "./client";
+import { apiFetch, apiPost, apiPut } from "./client";
 
 // ---- Generated type aliases ----
 
@@ -103,7 +103,7 @@ export const getLogsByExecution = (executionId: string, limit?: number) =>
   apiFetch<LogsByExecutionResponse>(buildUrl(`/logs/by-execution/${encodeURIComponent(executionId)}`, { limit }));
 
 export const setLogLevel = (logger: string, level: string) =>
-  apiFetch<LogLevelResponse>("/logs/level", { method: "PUT", body: JSON.stringify({ logger, level }), headers: { "Content-Type": "application/json" } });
+  apiPut<LogLevelResponse>("/logs/level", { logger, level });
 
 // ---- Bus ----
 

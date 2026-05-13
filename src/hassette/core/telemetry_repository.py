@@ -267,9 +267,6 @@ def _build_retire_query(
     return sql, params
 
 
-_TIER_APP: str = "app"
-
-
 class TelemetryRepository:
     """Encapsulates all write-side SQL for handler and job telemetry.
 
@@ -534,7 +531,7 @@ class TelemetryRepository:
 
             # --- once=True listeners: delete from previous sessions ---
             if session_id is not None:
-                params_once: dict = {"app_key": app_key, "source_tier": _TIER_APP, "session_id": session_id}
+                params_once: dict = {"app_key": app_key, "source_tier": "app", "session_id": session_id}
                 if live_listener_ids:
                     placeholders = ", ".join(f":id_{i}" for i in range(len(live_listener_ids)))
                     params_once.update({f"id_{i}": v for i, v in enumerate(live_listener_ids)})
@@ -809,21 +806,13 @@ async def get_log_records_by_execution(
         A ``(records, truncated)`` tuple where ``truncated=True`` when the
         total count exceeds ``limit`` and results were capped.
     """
-    # First count total matching records to determine truncation
-    count_cursor = await db.execute(
-        "SELECT COUNT(*) FROM log_records WHERE execution_id = :execution_id",
-        {"execution_id": execution_id},
-    )
-    count_row = await count_cursor.fetchone()
-    total = count_row[0] if count_row else 0
-
     cursor = await db.execute(
         "SELECT * FROM log_records WHERE execution_id = :execution_id ORDER BY seq ASC LIMIT :limit",
-        {"execution_id": execution_id, "limit": limit},
+        {"execution_id": execution_id, "limit": limit + 1},
     )
-    rows = await cursor.fetchall()
-    records = [dict(row) for row in rows]
-    truncated = total > limit
+    rows = list(await cursor.fetchall())
+    truncated = len(rows) > limit
+    records = [dict(row) for row in rows[:limit]]
     return records, truncated
 
 

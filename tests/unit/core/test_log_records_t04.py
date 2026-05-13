@@ -12,17 +12,26 @@ Covers:
 """
 
 import asyncio
+import logging
 import sqlite3
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import aiosqlite
 import pydantic
 import pytest
+from alembic import command as alembic_command
+from alembic.config import Config as AlembicConfig
+from alembic.runtime.migration import MigrationContext
+from sqlalchemy import create_engine
 
 from hassette.config.config import HassetteConfig
+from hassette.core.database_service import DatabaseService
+from hassette.core.telemetry_models import LogRecord
+from hassette.core.telemetry_repository import get_log_records, get_log_records_by_execution, insert_log_records
+from hassette.logging_ import LogPersistenceHandler, get_log_persistence_handler
 
 # ---------------------------------------------------------------------------
 # Helpers to run Alembic migrations
@@ -32,17 +41,14 @@ _WORKTREE = Path(__file__).parent.parent.parent.parent
 
 
 def _run_migrations_to_head(db_path: str) -> None:
-    from alembic import command
-    from alembic.config import Config
-
-    config = Config()
+    config = AlembicConfig()
     config.set_main_option("script_location", str(_WORKTREE / "src" / "hassette" / "migrations"))
     config.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
-    command.upgrade(config, "head")
+    alembic_command.upgrade(config, "head")
 
 
 # ---------------------------------------------------------------------------
-# Minimal DDL for in-memory DB (mirrors full schema through migration 009)
+# Minimal DDL for in-memory DB (log_records table + stubs for FK targets)
 # ---------------------------------------------------------------------------
 
 _DDL = """
@@ -120,33 +126,30 @@ async def db() -> AsyncIterator[aiosqlite.Connection]:
 # ---------------------------------------------------------------------------
 
 
-class TestMigration009:
-    def test_migration_creates_log_records_table(self, tmp_path: Path) -> None:
-        """Migration 009 creates the log_records table."""
-        db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
+def _open_migrated_db(db_path: str) -> sqlite3.Connection:
+    _run_migrations_to_head(db_path)
+    return sqlite3.connect(db_path)
 
-        conn = sqlite3.connect(db_path)
+
+class TestMigration009:
+    @pytest.fixture
+    def migrated_db(self, tmp_path: Path) -> Iterator[sqlite3.Connection]:
+        conn = _open_migrated_db(str(tmp_path / "test.db"))
         try:
-            cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-            tables = {row[0] for row in cursor.fetchall() if not row[0].startswith("alembic")}
+            yield conn
         finally:
             conn.close()
 
+    def test_migration_creates_log_records_table(self, migrated_db: sqlite3.Connection) -> None:
+        """Migration 009 creates the log_records table."""
+        cursor = migrated_db.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+        tables = {row[0] for row in cursor.fetchall() if not row[0].startswith("alembic")}
         assert "log_records" in tables
 
-    def test_migration_creates_log_records_columns(self, tmp_path: Path) -> None:
+    def test_migration_creates_log_records_columns(self, migrated_db: sqlite3.Connection) -> None:
         """log_records has all required columns."""
-        db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
-
-        conn = sqlite3.connect(db_path)
-        try:
-            cursor = conn.execute("PRAGMA table_info(log_records)")
-            cols = {row[1] for row in cursor.fetchall()}
-        finally:
-            conn.close()
-
+        cursor = migrated_db.execute("PRAGMA table_info(log_records)")
+        cols = {row[1] for row in cursor.fetchall()}
         expected = {
             "id",
             "seq",
@@ -165,53 +168,26 @@ class TestMigration009:
         }
         assert expected == cols
 
-    def test_migration_creates_time_index(self, tmp_path: Path) -> None:
+    def test_migration_creates_time_index(self, migrated_db: sqlite3.Connection) -> None:
         """Migration 009 creates idx_lr_time on log_records(timestamp)."""
-        db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
-
-        conn = sqlite3.connect(db_path)
-        try:
-            cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='log_records'")
-            indexes = {row[0] for row in cursor.fetchall()}
-        finally:
-            conn.close()
-
+        cursor = migrated_db.execute("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='log_records'")
+        indexes = {row[0] for row in cursor.fetchall()}
         assert "idx_lr_time" in indexes
 
-    def test_migration_creates_exec_index(self, tmp_path: Path) -> None:
+    def test_migration_creates_exec_index(self, migrated_db: sqlite3.Connection) -> None:
         """Migration 009 creates idx_lr_exec on log_records(execution_id)."""
-        db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
-
-        conn = sqlite3.connect(db_path)
-        try:
-            cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='log_records'")
-            indexes = {row[0] for row in cursor.fetchall()}
-        finally:
-            conn.close()
-
+        cursor = migrated_db.execute("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='log_records'")
+        indexes = {row[0] for row in cursor.fetchall()}
         assert "idx_lr_exec" in indexes
 
-    def test_migration_creates_app_time_index(self, tmp_path: Path) -> None:
+    def test_migration_creates_app_time_index(self, migrated_db: sqlite3.Connection) -> None:
         """Migration 009 creates idx_lr_app_time on log_records(app_key, timestamp)."""
-        db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
-
-        conn = sqlite3.connect(db_path)
-        try:
-            cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='log_records'")
-            indexes = {row[0] for row in cursor.fetchall()}
-        finally:
-            conn.close()
-
+        cursor = migrated_db.execute("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='log_records'")
+        indexes = {row[0] for row in cursor.fetchall()}
         assert "idx_lr_app_time" in indexes
 
     def test_migration_version_is_009(self, tmp_path: Path) -> None:
         """After full migration, the Alembic version is 009."""
-        from alembic.runtime.migration import MigrationContext
-        from sqlalchemy import create_engine
-
         db_path = str(tmp_path / "test.db")
         _run_migrations_to_head(db_path)
 
@@ -231,7 +207,6 @@ class TestRestartPersistence:
 
     async def test_records_survive_connection_close_and_reopen(self, tmp_path: Path) -> None:
         """Write records, close the connection, reopen, and confirm they're queryable."""
-        from hassette.core.telemetry_repository import get_log_records, insert_log_records
 
         db_path = str(tmp_path / "persistence_test.db")
         _run_migrations_to_head(db_path)
@@ -277,7 +252,6 @@ class TestRestartPersistence:
 class TestInsertLogRecords:
     async def test_insert_writes_records(self, db: aiosqlite.Connection) -> None:
         """insert_log_records() inserts records that are queryable."""
-        from hassette.core.telemetry_repository import insert_log_records
 
         now = time.time()
         records = [
@@ -320,7 +294,6 @@ class TestInsertLogRecords:
 
     async def test_insert_empty_list_is_noop(self, db: aiosqlite.Connection) -> None:
         """insert_log_records() with empty list does not raise."""
-        from hassette.core.telemetry_repository import insert_log_records
 
         await insert_log_records(db, [])
 
@@ -330,7 +303,6 @@ class TestInsertLogRecords:
 
     async def test_insert_stores_all_fields(self, db: aiosqlite.Connection) -> None:
         """insert_log_records() stores all specified fields correctly."""
-        from hassette.core.telemetry_repository import insert_log_records
 
         now = time.time()
         exc_text = "Traceback: something went wrong"
@@ -371,7 +343,6 @@ class TestInsertLogRecords:
 
     async def test_insert_framework_record_null_app_key(self, db: aiosqlite.Connection) -> None:
         """Framework records with no app_key (None) are inserted correctly."""
-        from hassette.core.telemetry_repository import insert_log_records
 
         now = time.time()
         records = [
@@ -407,7 +378,6 @@ class TestInsertLogRecords:
 
 async def _seed_log_records(db: aiosqlite.Connection) -> None:
     """Insert a set of log records for filter tests."""
-    from hassette.core.telemetry_repository import insert_log_records
 
     now = time.time()
     records = [
@@ -478,7 +448,6 @@ async def _seed_log_records(db: aiosqlite.Connection) -> None:
 class TestGetLogRecords:
     async def test_returns_all_records_no_filters(self, db: aiosqlite.Connection) -> None:
         """get_log_records() with no filters returns all records."""
-        from hassette.core.telemetry_repository import get_log_records
 
         await _seed_log_records(db)
         results = await get_log_records(db, limit=100)
@@ -486,7 +455,6 @@ class TestGetLogRecords:
 
     async def test_ordered_by_timestamp_desc(self, db: aiosqlite.Connection) -> None:
         """get_log_records() returns results ordered by timestamp DESC."""
-        from hassette.core.telemetry_repository import get_log_records
 
         await _seed_log_records(db)
         results = await get_log_records(db, limit=100)
@@ -495,7 +463,6 @@ class TestGetLogRecords:
 
     async def test_filter_by_app_key(self, db: aiosqlite.Connection) -> None:
         """get_log_records() filters by app_key."""
-        from hassette.core.telemetry_repository import get_log_records
 
         await _seed_log_records(db)
         results = await get_log_records(db, limit=100, app_key="app_a")
@@ -504,7 +471,6 @@ class TestGetLogRecords:
 
     async def test_filter_by_level(self, db: aiosqlite.Connection) -> None:
         """get_log_records() filters by level."""
-        from hassette.core.telemetry_repository import get_log_records
 
         await _seed_log_records(db)
         results = await get_log_records(db, limit=100, level="ERROR")
@@ -513,7 +479,6 @@ class TestGetLogRecords:
 
     async def test_filter_by_execution_id(self, db: aiosqlite.Connection) -> None:
         """get_log_records() filters by execution_id."""
-        from hassette.core.telemetry_repository import get_log_records
 
         await _seed_log_records(db)
         results = await get_log_records(db, limit=100, execution_id="exec-1")
@@ -522,7 +487,6 @@ class TestGetLogRecords:
 
     async def test_filter_by_since(self, db: aiosqlite.Connection) -> None:
         """get_log_records() filters by since (timestamp >= since)."""
-        from hassette.core.telemetry_repository import get_log_records
 
         await _seed_log_records(db)
         now = time.time()
@@ -532,7 +496,6 @@ class TestGetLogRecords:
 
     async def test_filter_by_source_tier(self, db: aiosqlite.Connection) -> None:
         """get_log_records() filters by source_tier."""
-        from hassette.core.telemetry_repository import get_log_records
 
         await _seed_log_records(db)
         results = await get_log_records(db, limit=100, source_tier="framework")
@@ -541,7 +504,6 @@ class TestGetLogRecords:
 
     async def test_limit_applied(self, db: aiosqlite.Connection) -> None:
         """get_log_records() respects the limit parameter."""
-        from hassette.core.telemetry_repository import get_log_records
 
         await _seed_log_records(db)
         results = await get_log_records(db, limit=2)
@@ -549,7 +511,6 @@ class TestGetLogRecords:
 
     async def test_empty_result(self, db: aiosqlite.Connection) -> None:
         """get_log_records() returns empty list when no records match."""
-        from hassette.core.telemetry_repository import get_log_records
 
         results = await get_log_records(db, limit=100, app_key="nonexistent")
         assert results == []
@@ -562,8 +523,6 @@ class TestGetLogRecords:
 
 class TestGetLogRecordsByExecution:
     async def _seed_for_execution(self, db: aiosqlite.Connection) -> None:
-        from hassette.core.telemetry_repository import insert_log_records
-
         now = time.time()
         records = [
             {
@@ -605,7 +564,6 @@ class TestGetLogRecordsByExecution:
 
     async def test_returns_records_for_execution(self, db: aiosqlite.Connection) -> None:
         """get_log_records_by_execution() returns records only for the given execution."""
-        from hassette.core.telemetry_repository import get_log_records_by_execution
 
         await self._seed_for_execution(db)
         records, truncated = await get_log_records_by_execution(db, "exec-exec", limit=100)
@@ -614,7 +572,6 @@ class TestGetLogRecordsByExecution:
 
     async def test_ordered_by_seq_asc(self, db: aiosqlite.Connection) -> None:
         """get_log_records_by_execution() returns records ordered by seq ASC."""
-        from hassette.core.telemetry_repository import get_log_records_by_execution
 
         await self._seed_for_execution(db)
         records, _ = await get_log_records_by_execution(db, "exec-exec", limit=100)
@@ -623,7 +580,6 @@ class TestGetLogRecordsByExecution:
 
     async def test_truncated_when_over_limit(self, db: aiosqlite.Connection) -> None:
         """get_log_records_by_execution() returns truncated=True when count > limit."""
-        from hassette.core.telemetry_repository import get_log_records_by_execution
 
         await self._seed_for_execution(db)
         records, truncated = await get_log_records_by_execution(db, "exec-exec", limit=3)
@@ -632,7 +588,6 @@ class TestGetLogRecordsByExecution:
 
     async def test_not_truncated_when_at_limit(self, db: aiosqlite.Connection) -> None:
         """get_log_records_by_execution() returns truncated=False when count == limit."""
-        from hassette.core.telemetry_repository import get_log_records_by_execution
 
         await self._seed_for_execution(db)
         records, truncated = await get_log_records_by_execution(db, "exec-exec", limit=5)
@@ -641,7 +596,6 @@ class TestGetLogRecordsByExecution:
 
     async def test_empty_for_unknown_execution(self, db: aiosqlite.Connection) -> None:
         """get_log_records_by_execution() returns empty list for unknown execution_id."""
-        from hassette.core.telemetry_repository import get_log_records_by_execution
 
         await self._seed_for_execution(db)
         records, truncated = await get_log_records_by_execution(db, "no-such-exec", limit=100)
@@ -650,7 +604,6 @@ class TestGetLogRecordsByExecution:
 
     async def test_does_not_include_other_executions(self, db: aiosqlite.Connection) -> None:
         """get_log_records_by_execution() excludes records from other executions."""
-        from hassette.core.telemetry_repository import get_log_records_by_execution
 
         await self._seed_for_execution(db)
         records, _ = await get_log_records_by_execution(db, "exec-exec", limit=100)
@@ -665,7 +618,6 @@ class TestGetLogRecordsByExecution:
 class TestLogRecordModel:
     def test_log_record_has_all_fields(self) -> None:
         """LogRecord model has all required fields."""
-        from hassette.core.telemetry_models import LogRecord
 
         now = time.time()
         record = LogRecord(
@@ -690,7 +642,6 @@ class TestLogRecordModel:
 
     def test_log_record_accepts_full_fields(self) -> None:
         """LogRecord model accepts all optional fields."""
-        from hassette.core.telemetry_models import LogRecord
 
         now = time.time()
         record = LogRecord(
@@ -799,8 +750,6 @@ class TestRetentionCleanup:
         self, db: aiosqlite.Connection, mock_hassette_for_db: MagicMock
     ) -> None:
         """_do_run_retention_cleanup() deletes log_records older than log_retention_days."""
-        from hassette.core.database_service import DatabaseService
-        from hassette.core.telemetry_repository import insert_log_records
 
         # Seed: one old record (5 days ago), one recent (now)
         now = time.time()
@@ -855,8 +804,6 @@ class TestRetentionCleanup:
         self, db: aiosqlite.Connection, mock_hassette_for_db: MagicMock
     ) -> None:
         """Retention cleanup keeps records within log_retention_days."""
-        from hassette.core.database_service import DatabaseService
-        from hassette.core.telemetry_repository import insert_log_records
 
         now = time.time()
         # Use half-day offsets to avoid exact boundary ambiguity with log_retention_days=3:
@@ -896,8 +843,6 @@ class TestRetentionCleanup:
         self, db: aiosqlite.Connection, mock_hassette_for_db: MagicMock
     ) -> None:
         """Retention for log_records uses log_retention_days, not db_retention_days."""
-        from hassette.core.database_service import DatabaseService
-        from hassette.core.telemetry_repository import insert_log_records
 
         # log_retention_days=3, db_retention_days=7
         # A record 5 days old is within db_retention_days but outside log_retention_days
@@ -941,7 +886,6 @@ class TestRetentionCleanup:
 class TestSizeFailsafePrePass:
     async def _seed_both_tables(self, db: aiosqlite.Connection, log_count: int = 10, exec_count: int = 5) -> None:
         """Seed log_records and handler_invocations."""
-        from hassette.core.telemetry_repository import insert_log_records
 
         now = time.time()
         logs = [
@@ -975,7 +919,6 @@ class TestSizeFailsafePrePass:
         self, db: aiosqlite.Connection, mock_hassette_for_db: MagicMock
     ) -> None:
         """Size failsafe pre-pass deletes from log_records before handler_invocations."""
-        from hassette.core.database_service import DatabaseService
 
         await self._seed_both_tables(db, log_count=10, exec_count=5)
 
@@ -1015,7 +958,6 @@ class TestSizeFailsafePrePass:
         The re-check after the pre-pass still returns over limit, so the failsafe
         proceeds to delete execution records.
         """
-        from hassette.core.database_service import DatabaseService
 
         # Seed a small number of logs (all get deleted in pre-pass but still over limit)
         await self._seed_both_tables(db, log_count=2, exec_count=5)
@@ -1058,7 +1000,6 @@ class TestSizeFailsafePrePass:
 class TestRuntimeQueryServiceWiring:
     async def test_on_initialize_calls_set_database_on_persistence_handler(self) -> None:
         """RuntimeQueryService.on_initialize() calls set_database() on LogPersistenceHandler."""
-        from hassette.logging_ import get_log_persistence_handler
 
         persistence_handler = get_log_persistence_handler()
         if persistence_handler is None:
@@ -1070,16 +1011,12 @@ class TestRuntimeQueryServiceWiring:
 
     async def test_persistence_handler_dropped_count_starts_at_zero(self) -> None:
         """LogPersistenceHandler.dropped_count starts at 0 after construction."""
-        from hassette.logging_ import LogPersistenceHandler
 
         handler = LogPersistenceHandler(persistence_level=20)
         assert handler.dropped_count == 0
 
     async def test_persistence_handler_drops_records_when_no_db(self) -> None:
         """Records are dropped (counted) before set_database is called."""
-        import logging
-
-        from hassette.logging_ import LogPersistenceHandler
 
         handler = LogPersistenceHandler(persistence_level=logging.INFO)
         record = logging.LogRecord(
@@ -1106,9 +1043,6 @@ class TestRuntimeQueryServiceWiring:
 
     async def test_persistence_handler_filters_below_persistence_level(self) -> None:
         """Records below persistence_level are not accumulated."""
-        import logging
-
-        from hassette.logging_ import LogPersistenceHandler
 
         handler = LogPersistenceHandler(persistence_level=logging.INFO)
         debug_record = logging.LogRecord(

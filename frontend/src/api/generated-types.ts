@@ -1244,6 +1244,11 @@ export interface components {
             version: string;
             /** Boot Issues */
             boot_issues?: components["schemas"]["BootIssueResponse"][];
+            /**
+             * Log Records Dropped
+             * @default 0
+             */
+            log_records_dropped: number;
         };
         /**
          * TelemetryStatusResponse

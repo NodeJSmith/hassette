@@ -48,10 +48,11 @@ export function HandlerInvocations({ invocations, listenerId }: Props) {
         <tbody>
           {visible.map((inv, i) => {
             const isOpen = openRow.value === i;
-            const isError = inv.status === "error" || inv.status === "timed_out";
+            const isError = inv.status === "error";
+            const isTimeout = inv.status === "timed_out";
             const noteText = inv.error_message
               || (inv.status === "success" ? `completed in ${formatDuration(inv.duration_ms)}` : "—");
-            const noteTone = isError ? "var(--err)" : inv.status === "timed_out" ? "var(--warn)" : "var(--ink-2)";
+            const noteTone = isError ? "var(--err)" : isTimeout ? "var(--warn)" : "var(--ink-2)";
             const rowKey = inv.execution_id ?? `inv-${i}`;
             return [
               <tr

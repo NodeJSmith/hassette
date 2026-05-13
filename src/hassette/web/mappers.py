@@ -125,6 +125,7 @@ def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
         services=services,
         version=status.version,
         boot_issues=boot_issues,
+        log_records_dropped=status.log_records_dropped,
     )
 
 

@@ -129,7 +129,7 @@ function LogTableRow({
           )}
         </td>
       )}
-      {showSourceColumn || !isMobile ? (
+      {showSourceColumn && !isMobile ? (
         <td class="ht-col-source" title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
           <span class={styles.sourceFn}>{entry.func_name}() · {entry.logger_name.split(".").pop()}:{entry.lineno}</span>
         </td>
@@ -230,6 +230,9 @@ export function LogTable({
   useLocalState = false,
   hideExecutionId = false,
 }: Props) {
+  if (mode === "historical" && !fetcher) {
+    throw new Error("LogTable: fetcher prop is required when mode='historical'");
+  }
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   // Source column is CSS-hidden at max-width: 1024px (see log-table.module.css .tableLog .ht-col-source)
   // Ideally the Source <th>/<td> would be conditionally rendered like the App column,
@@ -237,6 +240,7 @@ export function LogTable({
   const isTablet = useMediaQuery(BREAKPOINT_TABLET);
   const showSourceColumn = !isTablet;
   const showExecutionIdColumn = !hideExecutionId;
+  const colCount = isMobile ? 3 : 3 + (showAppColumn ? 1 : 0) + (showSourceColumn ? 1 : 0) + (showExecutionIdColumn ? 1 : 0);
   const { logs, updateLogSubscription, reconnectVersion } = useAppState();
 
   // In live mode, subscribe to the WS log version signal for reactivity.
@@ -361,8 +365,8 @@ export function LogTable({
   const tierFiltered = tierFilter === "all"
     ? levelFiltered
     : tierFilter === "app"
-      ? levelFiltered.filter((e) => !!e.app_key)
-      : levelFiltered.filter((e) => !e.app_key);
+      ? levelFiltered.filter((e) => e.source_tier === "app")
+      : levelFiltered.filter((e) => e.source_tier === "framework");
 
   // Apply app filter (only for global logs)
   const appFiltered = appFilter
@@ -625,7 +629,7 @@ export function LogTable({
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={isMobile ? 3 : 2 + (showAppColumn ? 1 : 0) + (showExecutionIdColumn ? 1 : 0) + (showSourceColumn ? 1 : 0) + 1}>
+                <td colSpan={colCount}>
                   <EmptyState
                     title="no log lines in window"
                     body="nothing has been logged recently. change the level filter or extend the time window to see older lines."
@@ -643,11 +647,6 @@ export function LogTable({
                 if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
                 expandedRows.value = next;
               };
-              const mobileColCount = 3;
-              const sourceAdjust = showSourceColumn ? 0 : -1;
-              const executionIdAdjust = showExecutionIdColumn ? 1 : 0;
-              const desktopColCount = (showAppColumn ? 5 : 4) + sourceAdjust + executionIdAdjust;
-              const colCount = isMobile ? mobileColCount : desktopColCount;
               return (
                 <LogTableRow
                   key={rowKey}

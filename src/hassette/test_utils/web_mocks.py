@@ -117,7 +117,13 @@ def create_hassette_stub(
     # --- Database service stubs (log endpoints use HassetteDep → database_service) ---
     hassette.database_service = hassette._database_service
     hassette._database_service.submit = AsyncMock(return_value=[])
+    # read_db: a MagicMock whose execute() returns an async cursor with empty results.
+    # Log routes call repo functions directly with read_db (not through submit).
+    _cursor = MagicMock()
+    _cursor.fetchall = AsyncMock(return_value=[])
+    _cursor.fetchone = AsyncMock(return_value=None)
     hassette._database_service.read_db = MagicMock()
+    hassette._database_service.read_db.execute = AsyncMock(return_value=_cursor)
 
     # --- Telemetry query service stubs ---
     _wire_telemetry_stubs(hassette)

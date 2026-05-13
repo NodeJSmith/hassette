@@ -3235,6 +3235,11 @@
             },
             "type": "array",
             "title": "Boot Issues"
+          },
+          "log_records_dropped": {
+            "type": "integer",
+            "title": "Log Records Dropped",
+            "default": 0
           }
         },
         "type": "object",

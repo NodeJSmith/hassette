@@ -11,6 +11,7 @@ from hassette.bus import Bus
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_registry import AppFullSnapshot, AppStatusSnapshot
 from hassette.core.bus_service import BusService
+from hassette.core.database_service import DatabaseService
 from hassette.core.domain_models import (
     AppStatusChangedData,
     BootIssue,
@@ -38,10 +39,11 @@ class RuntimeQueryService(Resource):
     """Aggregates and caches live system state for the web UI.
 
     Reads from in-memory sources: AppHandler, event buffer, log buffer, WS clients.
-    All reads are instant — no database I/O.
+    All reads are instant — no database I/O. DatabaseService is in depends_on
+    to guarantee it is ready before set_database() wires LogPersistenceHandler.
     """
 
-    depends_on: ClassVar[list[type[Resource]]] = [BusService, StateProxy, AppHandler]
+    depends_on: ClassVar[list[type[Resource]]] = [BusService, StateProxy, AppHandler, DatabaseService]
 
     bus: Bus
     _event_buffer: deque[dict]
@@ -404,6 +406,7 @@ class RuntimeQueryService(Resource):
             services_running=services_running,
             services=services,
             boot_issues=boot_issues,
+            log_records_dropped=self.hassette.get_log_records_dropped(),
         )
 
     def _collect_boot_issues(self) -> list[BootIssue]:

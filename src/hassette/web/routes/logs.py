@@ -19,6 +19,8 @@ router = APIRouter(tags=["logs"])
 LOGGER = logging.getLogger(__name__)
 
 _VALID_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
+_VALID_SOURCE_TIERS = frozenset({"app", "framework"})
+_SECONDS_PER_DAY = 86400
 
 
 @router.get("/logs/recent", response_model=list[LogEntryResponse])
@@ -32,17 +34,26 @@ async def get_logs(
     source_tier: Annotated[str | None, Query()] = None,
 ) -> list[dict]:
     """Return recent log records from the database with optional filtering."""
-    try:
-        records: list[dict] = await hassette.database_service.submit(
-            _repo.get_log_records(
-                hassette.database_service.read_db,
-                limit=limit,
-                since=since,
-                app_key=app_key,
-                level=level,
-                execution_id=execution_id,
-                source_tier=source_tier,
+    if level is not None:
+        level = level.upper()
+        if level not in _VALID_LEVELS:
+            raise HTTPException(
+                status_code=422, detail=f"Invalid level {level!r}. Must be one of: {', '.join(sorted(_VALID_LEVELS))}"
             )
+    if source_tier is not None and source_tier not in _VALID_SOURCE_TIERS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid source_tier {source_tier!r}. Must be one of: {', '.join(sorted(_VALID_SOURCE_TIERS))}",
+        )
+    try:
+        records: list[dict] = await _repo.get_log_records(
+            hassette.database_service.read_db,
+            limit=limit,
+            since=since,
+            app_key=app_key,
+            level=level,
+            execution_id=execution_id,
+            source_tier=source_tier,
         )
         return records
     except DB_ERRORS:
@@ -58,12 +69,10 @@ async def get_logs_by_execution(
 ) -> LogsByExecutionResponse:
     """Return all log records for a single execution, with retention-expired detection."""
     try:
-        records, truncated = await hassette.database_service.submit(
-            _repo.get_log_records_by_execution(
-                hassette.database_service.read_db,
-                execution_id,
-                limit=limit,
-            )
+        records, truncated = await _repo.get_log_records_by_execution(
+            hassette.database_service.read_db,
+            execution_id,
+            limit=limit,
         )
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch log records for execution %s", execution_id, exc_info=True)
@@ -84,9 +93,9 @@ async def _check_retention_expired(hassette: "Hassette", execution_id: str) -> b
     execution's timestamp is older than log_retention_days, its logs have been expired.
     """
     try:
-        cutoff = time.time() - hassette.config.log_retention_days * 86400
-        return await hassette.database_service.submit(
-            _repo.check_execution_predates_retention_cutoff(hassette.database_service.read_db, execution_id, cutoff)
+        cutoff = time.time() - hassette.config.log_retention_days * _SECONDS_PER_DAY
+        return await _repo.check_execution_predates_retention_cutoff(
+            hassette.database_service.read_db, execution_id, cutoff
         )
     except DB_ERRORS:
         return False

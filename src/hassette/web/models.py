@@ -39,6 +39,7 @@ class SystemStatusResponse(BaseModel):
     services: list[ServiceInfoResponse] = Field(default_factory=list)
     version: str = ""
     boot_issues: list[BootIssueResponse] = Field(default_factory=list)
+    log_records_dropped: int = 0
 
 
 class EntityStateResponse(BaseModel):

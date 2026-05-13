@@ -19,10 +19,6 @@ import structlog.stdlib
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.core import telemetry_repository as _telemetry_repository
 
-FORMAT_DATE = "%Y-%m-%d"
-FORMAT_TIME = "%H:%M:%S"
-FORMAT_DATETIME = f"{FORMAT_DATE} {FORMAT_TIME}"
-
 
 @dataclass
 class LogEntry:
@@ -98,12 +94,12 @@ class LogCaptureHandler(logging.Handler):
         The underlying deque can be mutated by emit() from worker threads,
         so iterating it directly risks RuntimeError. This retries on mutation.
         """
-        while True:
+        for _ in range(5):
             try:
                 return list(self._buffer)
             except RuntimeError:
-                # deque mutated during iteration; retry
                 continue
+        return []
 
     def set_broadcast(self, fn: Callable[[dict], Awaitable[None]], loop: asyncio.AbstractEventLoop) -> None:
         """Called by RuntimeQueryService after initialization to wire up WS broadcast."""
@@ -242,12 +238,13 @@ class LogPersistenceHandler(logging.Handler):
     def _flush(self) -> None:
         batch = self._batch
         self._batch = []
-        if self._db_service is None or self._loop is None:
+        db_service = self._db_service
+        loop = self._loop
+        if db_service is None or loop is None:
             self._dropped += len(batch)
             return
-        db_service = self._db_service
-        self._loop.call_soon_threadsafe(
-            lambda b=batch: db_service.enqueue(_telemetry_repository.insert_log_records(b)),  # pyright: ignore[reportAttributeAccessIssue]
+        loop.call_soon_threadsafe(
+            lambda b=batch: db_service.enqueue(_telemetry_repository.insert_log_records(db_service.db, b)),  # pyright: ignore[reportAttributeAccessIssue]
         )
 
     def _record_to_dict(self, record: logging.LogRecord) -> dict:
@@ -263,6 +260,9 @@ class LogPersistenceHandler(logging.Handler):
         }
 
     def close(self) -> None:
+        # Flushes remaining records via call_soon_threadsafe — the enqueued
+        # coroutine may not execute if the event loop is already stopping.
+        # shutdown_logging() should be called before the loop stops to drain.
         self.flush_if_pending()
         super().close()
 
