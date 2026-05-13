@@ -14,6 +14,8 @@ import structlog.dev
 import structlog.processors
 import structlog.stdlib
 
+from hassette.context import CURRENT_EXECUTION_ID
+
 FORMAT_DATE = "%Y-%m-%d"
 FORMAT_TIME = "%H:%M:%S"
 FORMAT_DATETIME = f"{FORMAT_DATE} {FORMAT_TIME}"
@@ -33,6 +35,9 @@ class LogEntry:
     exc_info: str | None = None
     app_key: str | None = None
     source_tier: str | None = None
+    execution_id: str | None = None
+    instance_name: str | None = None
+    instance_index: int | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -46,6 +51,9 @@ class LogEntry:
             "exc_info": self.exc_info,
             "app_key": self.app_key,
             "source_tier": self.source_tier,
+            "execution_id": self.execution_id,
+            "instance_name": self.instance_name,
+            "instance_index": self.instance_index,
         }
 
 
@@ -61,7 +69,6 @@ class LogCaptureHandler(logging.Handler):
         self._buffer = deque(maxlen=buffer_size)
         self._broadcast_fn = None
         self._loop = None
-        self._seq = itertools.count(1)
 
     @property
     def buffer(self) -> deque[LogEntry]:
@@ -88,8 +95,12 @@ class LogCaptureHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         source_tier: str | None = getattr(record, "source_tier", None)
         app_key: str | None = getattr(record, "app_key", None)
+        execution_id: str | None = getattr(record, "execution_id", None)
+        instance_name: str | None = getattr(record, "instance_name", None)
+        instance_index: int | None = getattr(record, "instance_index", None)
+        seq: int = getattr(record, "seq", 0)
         entry = LogEntry(
-            seq=next(self._seq),
+            seq=seq,
             timestamp=record.created,
             level=record.levelname,
             logger_name=record.name,
@@ -99,6 +110,9 @@ class LogCaptureHandler(logging.Handler):
             exc_info="".join(traceback.format_exception(*record.exc_info)) if record.exc_info else None,
             app_key=app_key,
             source_tier=source_tier,
+            execution_id=execution_id,
+            instance_name=instance_name,
+            instance_index=instance_index,
         )
         self._buffer.append(entry)
         if self._broadcast_fn and self._loop and self._loop.is_running():
@@ -117,11 +131,53 @@ def get_log_capture_handler() -> LogCaptureHandler | None:
     return _log_capture_handler
 
 
-_RECORD_FIELDS = ("source_tier", "app_key")
+class CorrelationFilter(logging.Filter):
+    """Stamps correlation IDs and seq on log records before they leave the calling context.
+
+    Attached to the ``hassette`` logger (upstream of any handlers, including QueueHandler
+    once T03 is implemented). Reads context vars in the calling async context so the values
+    are captured before any background-thread handoff.
+
+    Stamps:
+        - ``execution_id``: from ``CURRENT_EXECUTION_ID`` context var.
+        - ``app_key``, ``instance_name``, ``instance_index``: from structlog context vars
+          (bound by command_executor and app_lifecycle_service dispatch points).
+        - ``seq``: monotonic sequence number for ordering within a session.
+    """
+
+    _seq: itertools.count
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._seq = itertools.count(1)
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        ctx = structlog.contextvars.get_contextvars()
+        record.execution_id = CURRENT_EXECUTION_ID.get(None)  # pyright: ignore[reportAttributeAccessIssue]
+        record.app_key = ctx.get("app_key")  # pyright: ignore[reportAttributeAccessIssue]
+        record.instance_name = ctx.get("instance_name")  # pyright: ignore[reportAttributeAccessIssue]
+        record.instance_index = ctx.get("instance_index")  # pyright: ignore[reportAttributeAccessIssue]
+        record.seq = next(self._seq)  # pyright: ignore[reportAttributeAccessIssue]
+        return True
+
+
+def add_execution_id(_logger: object, _method_name: str, event_dict: dict) -> dict:
+    """Structlog processor: stamp execution_id from CURRENT_EXECUTION_ID context var.
+
+    Inserted in the shared processor chain after TimeStamper so structlog-native callers
+    carry the execution correlation identifier. Stdlib callers rely on CorrelationFilter
+    instead (the processor chain does not run for them until ProcessorFormatter picks them
+    up, which is after the calling context).
+    """
+    event_dict["execution_id"] = CURRENT_EXECUTION_ID.get(None)
+    return event_dict
+
+
+_RECORD_FIELDS = ("source_tier", "app_key", "execution_id", "instance_name", "instance_index")
 
 
 def _extract_record_fields(_logger: logging.Logger, _method_name: str, event_dict: dict) -> dict:
-    """Pull custom attributes stamped by _ResourceContextFilter from the LogRecord into the event dict.
+    """Pull custom attributes stamped by CorrelationFilter from the LogRecord into the event dict.
 
     Runs in ProcessorFormatter's processors list (before remove_processors_meta) where _record is available.
     """
@@ -171,6 +227,7 @@ def enable_logging(
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="iso"),
+        add_execution_id,
     ]
 
     # --- Configure structlog global settings ---
@@ -201,6 +258,12 @@ def enable_logging(
     logger.setLevel(log_level)
     logger.propagate = False
     logger.handlers.clear()
+    logger.filters.clear()
+
+    # CorrelationFilter: stamps execution_id, app_key, instance_name, instance_index, seq
+    # on every record before it is dispatched to any handler. Must be on the logger (not a
+    # handler) so it runs in the calling context, reading context vars before any queue handoff.
+    logger.addFilter(CorrelationFilter())
 
     # Console/JSON stream handler
     stream_handler = logging.StreamHandler(stream)

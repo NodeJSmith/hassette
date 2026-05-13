@@ -12,6 +12,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import ClassVar
 
+import structlog.contextvars
+
 from hassette.bus.error_context import BusErrorContext
 from hassette.bus.invocation_record import SYNTHETIC_ORIGIN, HandlerInvocationRecord
 from hassette.context import CURRENT_EXECUTION_ID
@@ -413,9 +415,25 @@ class CommandExecutor(Service):
         CURRENT_EXECUTION_ID is set for the duration of this method, including the
         task_bucket.spawn() call, so spawned error handler tasks inherit the
         ContextVar snapshot at spawn time.
+
+        structlog context vars (app_key, instance_name, instance_index) are bound for the
+        duration of this execution so all log records carry app identity. clear_contextvars()
+        in the finally block prevents leakage between concurrent handler invocations.
         """
         execution_id = str(uuid.uuid4())
         token = CURRENT_EXECUTION_ID.set(execution_id)
+        app_key = cmd.listener.app_key
+        instance_index = cmd.listener.instance_index
+        instance_name: str | None = None
+        if app_key:
+            app_inst = self.hassette.app_handler.get(app_key, instance_index)
+            if app_inst is not None:
+                instance_name = app_inst.app_config.instance_name
+        structlog.contextvars.bind_contextvars(
+            app_key=app_key or None,
+            instance_name=instance_name,
+            instance_index=instance_index or None,
+        )
         try:
 
             def _log_error(result: ExecutionResult) -> None:
@@ -454,6 +472,7 @@ class CommandExecutor(Service):
                     )
         finally:
             CURRENT_EXECUTION_ID.reset(token)
+            structlog.contextvars.clear_contextvars()
 
     async def _execute_job(self, cmd: ExecuteJob) -> None:
         """Execute a scheduled job and queue the result record.
@@ -466,9 +485,25 @@ class CommandExecutor(Service):
         CURRENT_EXECUTION_ID is set for the duration of this method, including the
         task_bucket.spawn() call, so spawned error handler tasks inherit the
         ContextVar snapshot at spawn time.
+
+        structlog context vars (app_key, instance_name, instance_index) are bound for the
+        duration of this execution so all log records carry app identity. clear_contextvars()
+        in the finally block prevents leakage between concurrent job executions.
         """
         execution_id = str(uuid.uuid4())
         token = CURRENT_EXECUTION_ID.set(execution_id)
+        app_key = cmd.job.app_key
+        instance_index = cmd.job.instance_index
+        instance_name: str | None = None
+        if app_key:
+            app_inst = self.hassette.app_handler.get(app_key, instance_index)
+            if app_inst is not None:
+                instance_name = app_inst.app_config.instance_name
+        structlog.contextvars.bind_contextvars(
+            app_key=app_key or None,
+            instance_name=instance_name,
+            instance_index=instance_index or None,
+        )
         try:
 
             def _log_error(result: ExecutionResult) -> None:
@@ -503,6 +538,7 @@ class CommandExecutor(Service):
                     )
         finally:
             CURRENT_EXECUTION_ID.reset(token)
+            structlog.contextvars.clear_contextvars()
 
     async def _invoke_error_handler(
         self,

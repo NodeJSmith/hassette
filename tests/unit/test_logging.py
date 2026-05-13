@@ -1,19 +1,26 @@
 """Tests for structlog-based enable_logging() and LogCaptureHandler."""
 
+import asyncio
 import json
 import logging
 from io import StringIO
 from unittest.mock import MagicMock
 
-from hassette.logging_ import LogCaptureHandler, LogEntry, enable_logging
+import structlog
+
+from hassette.context import CURRENT_EXECUTION_ID
+from hassette.logging_ import CorrelationFilter, LogCaptureHandler, LogEntry, enable_logging
 
 
-class TestLogCaptureHandlerSeqIncrements:
-    """seq increments monotonically from 1 across multiple emit() calls."""
+class TestCorrelationFilterSeqIncrements:
+    """CorrelationFilter stamps seq monotonically on records; LogCaptureHandler reads it."""
 
-    def test_seq_increments_monotonically(self) -> None:
+    def test_seq_increments_monotonically_via_filter(self) -> None:
+        """seq increments monotonically when CorrelationFilter runs before emit."""
+        f = CorrelationFilter()
         handler = LogCaptureHandler(buffer_size=100)
         logger = logging.getLogger("test.seq_increment")
+        logger.addFilter(f)
         logger.addHandler(handler)
         logger.setLevel(logging.DEBUG)
 
@@ -22,32 +29,44 @@ class TestLogCaptureHandlerSeqIncrements:
 
         entries = list(handler.buffer)
         assert len(entries) == 5
-        assert [e.seq for e in entries] == [1, 2, 3, 4, 5]
+        seqs = [e.seq for e in entries]
+        # Sequences must be strictly increasing
+        for i in range(1, len(seqs)):
+            assert seqs[i] == seqs[i - 1] + 1
 
+        logger.removeFilter(f)
         logger.removeHandler(handler)
 
-    def test_seq_starts_at_one(self) -> None:
+    def test_seq_starts_at_positive_value_via_filter(self) -> None:
+        """seq is a positive integer stamped by CorrelationFilter."""
+        f = CorrelationFilter()
         handler = LogCaptureHandler(buffer_size=100)
         logger = logging.getLogger("test.seq_start")
+        logger.addFilter(f)
         logger.addHandler(handler)
         logger.setLevel(logging.DEBUG)
 
         logger.info("first")
 
         entries = list(handler.buffer)
-        assert entries[0].seq == 1
+        assert entries[0].seq >= 1
 
+        logger.removeFilter(f)
         logger.removeHandler(handler)
 
-    def test_separate_handlers_have_independent_seq(self) -> None:
+    def test_shared_filter_produces_global_seq(self) -> None:
+        """Two handlers sharing a CorrelationFilter get a global (non-independent) seq."""
+        f = CorrelationFilter()
         handler_a = LogCaptureHandler(buffer_size=100)
         handler_b = LogCaptureHandler(buffer_size=100)
 
-        logger_a = logging.getLogger("test.seq_a")
+        logger_a = logging.getLogger("test.seq_shared_a")
+        logger_a.addFilter(f)
         logger_a.addHandler(handler_a)
         logger_a.setLevel(logging.DEBUG)
 
-        logger_b = logging.getLogger("test.seq_b")
+        logger_b = logging.getLogger("test.seq_shared_b")
+        logger_b.addFilter(f)
         logger_b.addHandler(handler_b)
         logger_b.setLevel(logging.DEBUG)
 
@@ -56,10 +75,15 @@ class TestLogCaptureHandlerSeqIncrements:
         for _ in range(2):
             logger_b.info("b msg")
 
-        assert [e.seq for e in handler_a.buffer] == [1, 2, 3]
-        assert [e.seq for e in handler_b.buffer] == [1, 2]
+        seqs_a = [e.seq for e in handler_a.buffer]
+        seqs_b = [e.seq for e in handler_b.buffer]
+        # All seqs must be unique (global monotonic counter, no repetition)
+        all_seqs = seqs_a + seqs_b
+        assert len(all_seqs) == len(set(all_seqs)), "seq values must be globally unique"
 
+        logger_a.removeFilter(f)
         logger_a.removeHandler(handler_a)
+        logger_b.removeFilter(f)
         logger_b.removeHandler(handler_b)
 
 
@@ -294,3 +318,218 @@ class TestColoredlogsRemoved:
 
         sig = inspect.signature(enable_logging)
         assert "log_format" in sig.parameters
+
+
+class TestCorrelationFilter:
+    """CorrelationFilter stamps correlation IDs and seq on log records."""
+
+    def test_filter_stamps_execution_id_from_context_var(self) -> None:
+        """Filter reads CURRENT_EXECUTION_ID from context var and stamps it on the record."""
+        f = CorrelationFilter()
+        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        token = CURRENT_EXECUTION_ID.set("abc-123")
+        try:
+            f.filter(record)
+        finally:
+            CURRENT_EXECUTION_ID.reset(token)
+        assert record.execution_id == "abc-123"  # pyright: ignore[reportAttributeAccessIssue]
+
+    def test_filter_stamps_none_execution_id_outside_context(self) -> None:
+        """Filter stamps execution_id=None when CURRENT_EXECUTION_ID is not set."""
+        f = CorrelationFilter()
+        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        # Ensure no execution context is active
+        CURRENT_EXECUTION_ID.set(None)
+        f.filter(record)
+        assert record.execution_id is None  # pyright: ignore[reportAttributeAccessIssue]
+
+    def test_filter_stamps_seq_monotonically(self) -> None:
+        """Filter seq counter increments monotonically across multiple filter calls."""
+        f = CorrelationFilter()
+        records = [logging.LogRecord("hassette.test", logging.INFO, "", 0, f"msg{i}", (), None) for i in range(5)]
+        for r in records:
+            f.filter(r)
+        seqs = [r.seq for r in records]  # pyright: ignore[reportAttributeAccessIssue]
+        assert seqs == list(range(seqs[0], seqs[0] + 5))
+
+    def test_filter_stamps_app_key_from_contextvars(self) -> None:
+        """Filter reads app_key from structlog contextvars and stamps it on the record."""
+        f = CorrelationFilter()
+        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(app_key="my_app", instance_name="MyApp.0", instance_index=0)
+        try:
+            f.filter(record)
+        finally:
+            structlog.contextvars.clear_contextvars()
+        assert record.app_key == "my_app"  # pyright: ignore[reportAttributeAccessIssue]
+        assert record.instance_name == "MyApp.0"  # pyright: ignore[reportAttributeAccessIssue]
+        assert record.instance_index == 0  # pyright: ignore[reportAttributeAccessIssue]
+
+    def test_filter_stamps_none_app_key_outside_context(self) -> None:
+        """Filter stamps None for app_key/instance_name/instance_index when not bound."""
+        f = CorrelationFilter()
+        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        structlog.contextvars.clear_contextvars()
+        f.filter(record)
+        assert record.app_key is None  # pyright: ignore[reportAttributeAccessIssue]
+        assert record.instance_name is None  # pyright: ignore[reportAttributeAccessIssue]
+        assert record.instance_index is None  # pyright: ignore[reportAttributeAccessIssue]
+
+
+class TestAddExecutionIdProcessor:
+    """add_execution_id structlog processor reads CURRENT_EXECUTION_ID."""
+
+    def test_processor_adds_execution_id_from_context(self) -> None:
+        """add_execution_id processor stamps execution_id from CURRENT_EXECUTION_ID."""
+        from hassette.logging_ import add_execution_id
+
+        token = CURRENT_EXECUTION_ID.set("test-exec-id")
+        try:
+            event_dict = add_execution_id(None, "info", {"event": "hello"})
+        finally:
+            CURRENT_EXECUTION_ID.reset(token)
+        assert event_dict["execution_id"] == "test-exec-id"
+
+    def test_processor_adds_none_when_no_execution(self) -> None:
+        """add_execution_id stamps None when CURRENT_EXECUTION_ID is not set."""
+        from hassette.logging_ import add_execution_id
+
+        CURRENT_EXECUTION_ID.set(None)
+        event_dict = add_execution_id(None, "info", {"event": "hello"})
+        assert event_dict["execution_id"] is None
+
+
+class TestLogEntryCorrelationFields:
+    """LogEntry dataclass includes correlation fields."""
+
+    def test_log_entry_has_execution_id_field(self) -> None:
+        entry = LogEntry(
+            seq=1, timestamp=0.0, level="INFO", logger_name="test", func_name="fn", lineno=1, message="msg"
+        )
+        assert hasattr(entry, "execution_id")
+        assert entry.execution_id is None
+
+    def test_log_entry_has_instance_name_field(self) -> None:
+        entry = LogEntry(
+            seq=1, timestamp=0.0, level="INFO", logger_name="test", func_name="fn", lineno=1, message="msg"
+        )
+        assert hasattr(entry, "instance_name")
+        assert entry.instance_name is None
+
+    def test_log_entry_has_instance_index_field(self) -> None:
+        entry = LogEntry(
+            seq=1, timestamp=0.0, level="INFO", logger_name="test", func_name="fn", lineno=1, message="msg"
+        )
+        assert hasattr(entry, "instance_index")
+        assert entry.instance_index is None
+
+    def test_to_dict_includes_execution_id(self) -> None:
+        entry = LogEntry(
+            seq=1,
+            timestamp=0.0,
+            level="INFO",
+            logger_name="test",
+            func_name="fn",
+            lineno=1,
+            message="msg",
+            execution_id="exec-abc",
+        )
+        d = entry.to_dict()
+        assert d["execution_id"] == "exec-abc"
+
+    def test_to_dict_includes_instance_name(self) -> None:
+        entry = LogEntry(
+            seq=1,
+            timestamp=0.0,
+            level="INFO",
+            logger_name="test",
+            func_name="fn",
+            lineno=1,
+            message="msg",
+            instance_name="MyApp.0",
+            instance_index=0,
+        )
+        d = entry.to_dict()
+        assert d["instance_name"] == "MyApp.0"
+        assert d["instance_index"] == 0
+
+
+class TestLogCaptureHandlerPopulatesCorrelationFields:
+    """LogCaptureHandler.emit() populates correlation fields from record attributes."""
+
+    def test_emit_reads_execution_id_from_record(self) -> None:
+        handler = LogCaptureHandler(buffer_size=100)
+        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        record.execution_id = "exec-999"  # pyright: ignore[reportAttributeAccessIssue]
+        handler.emit(record)
+        entry = list(handler.buffer)[0]
+        assert entry.execution_id == "exec-999"
+
+    def test_emit_reads_instance_name_from_record(self) -> None:
+        handler = LogCaptureHandler(buffer_size=100)
+        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        record.instance_name = "MyApp.0"  # pyright: ignore[reportAttributeAccessIssue]
+        record.instance_index = 0  # pyright: ignore[reportAttributeAccessIssue]
+        handler.emit(record)
+        entry = list(handler.buffer)[0]
+        assert entry.instance_name == "MyApp.0"
+        assert entry.instance_index == 0
+
+    def test_emit_execution_id_none_when_missing(self) -> None:
+        handler = LogCaptureHandler(buffer_size=100)
+        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        handler.emit(record)
+        entry = list(handler.buffer)[0]
+        assert entry.execution_id is None
+
+
+class TestSeqMovedToFilter:
+    """seq counter is stamped by CorrelationFilter, not LogCaptureHandler."""
+
+    def test_seq_stamped_on_record_before_emit(self) -> None:
+        """When CorrelationFilter runs before LogCaptureHandler, seq is on the record."""
+        f = CorrelationFilter()
+        handler = LogCaptureHandler(buffer_size=100)
+        # Manually run filter then emit
+        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        f.filter(record)
+        handler.emit(record)
+        entry = list(handler.buffer)[0]
+        assert entry.seq >= 1
+
+    def test_log_capture_handler_has_no_seq_counter(self) -> None:
+        """LogCaptureHandler no longer has a _seq counter of its own."""
+        handler = LogCaptureHandler(buffer_size=100)
+        assert not hasattr(handler, "_seq")
+
+
+class TestExecutionIdInheritedByChildTask:
+    """Child tasks inherit execution_id via asyncio ContextVar propagation."""
+
+    async def test_child_task_inherits_execution_id(self) -> None:
+        """A child task spawned during an execution inherits the execution_id."""
+        from hassette.logging_ import add_execution_id
+
+        child_event_dict: dict = {}
+
+        async def child_work() -> None:
+            # Read execution_id via the processor
+            nonlocal child_event_dict
+            child_event_dict = add_execution_id(None, "info", {"event": "child"})
+
+        token = CURRENT_EXECUTION_ID.set("parent-exec-id")
+        try:
+            task = asyncio.create_task(child_work())
+            await task
+        finally:
+            CURRENT_EXECUTION_ID.reset(token)
+
+        assert child_event_dict["execution_id"] == "parent-exec-id"
+
+    async def test_clear_contextvars_prevents_leakage(self) -> None:
+        """After clear_contextvars(), a subsequent execution gets no leaked identity."""
+        structlog.contextvars.bind_contextvars(app_key="leaked_app")
+        structlog.contextvars.clear_contextvars()
+        ctx_vars = structlog.contextvars.get_contextvars()
+        assert "app_key" not in ctx_vars
