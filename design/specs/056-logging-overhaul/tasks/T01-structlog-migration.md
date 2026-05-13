@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Replace coloredlogs with structlog processor chain"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#4", "FR#5", "FR#6", "FR#7", "FR#18", "AC#3", "AC#4", "AC#10", "AC#16"]
 ---

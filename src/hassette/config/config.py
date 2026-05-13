@@ -2,7 +2,7 @@ from contextlib import suppress
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import AliasChoices, BeforeValidator, Field, field_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
@@ -90,6 +90,10 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     # General configuration
     log_level: LOG_ANNOTATION = Field(default="INFO")
     """Logging level for Hassette."""
+
+    log_format: Literal["auto", "console", "json"] = Field(default="auto")
+    """Console output format. ``"auto"`` detects TTY vs pipe automatically. ``"console"`` forces
+    colored human-readable output. ``"json"`` forces one-JSON-object-per-line output."""
 
     config_dir: Path = Field(default_factory=default_config_dir)
     """Directory to load/save configuration."""

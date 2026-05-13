@@ -1,4 +1,5 @@
 import asyncio
+import logging as _logging
 import typing
 import uuid
 import warnings
@@ -115,6 +116,18 @@ class FinalMeta(type):
                 raise CannotOverrideFinalError(method_name, origin_name, subclass_name, suggested_alt, loc)
 
 
+class _ResourceContextFilter(_logging.Filter):
+    """Stamps source_tier on every LogRecord so downstream handlers and structlog processors can read it."""
+
+    def __init__(self, source_tier: str) -> None:
+        super().__init__()
+        self.source_tier = source_tier
+
+    def filter(self, record: _logging.LogRecord) -> bool:
+        record.source_tier = self.source_tier  # pyright: ignore[reportAttributeAccessIssue]
+        return True
+
+
 class Resource(LifecycleMixin, metaclass=FinalMeta):
     """Base class for resources in the Hassette framework."""
 
@@ -219,6 +232,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                 e,
             )
             self.logger.setLevel(INFO)
+
+        self.logger.addFilter(_ResourceContextFilter(self.source_tier))
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__} unique_name={self.unique_name}>"

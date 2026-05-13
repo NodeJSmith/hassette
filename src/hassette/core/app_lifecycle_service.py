@@ -15,7 +15,6 @@ from hassette.core.app_change_detector import AppChangeDetector, ChangeSet
 from hassette.core.app_factory import AppFactory
 from hassette.events.hassette import HassetteAppStateEvent, HassetteSimpleEvent
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
-from hassette.logging_ import get_log_capture_handler
 from hassette.resources.base import Resource
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import BlockReason
@@ -302,10 +301,7 @@ class AppLifecycleService(Resource):
 
         instances = self.registry.get_apps_by_key(app_key)
         if instances:
-            handler = get_log_capture_handler()
             for inst in instances.values():
-                if handler:
-                    handler.register_app_logger(inst.logger.name, app_key)
                 event = HassetteAppStateEvent.from_data(app=inst, status=ResourceStatus.NOT_STARTED)
                 await self.hassette.send_event(Topic.HASSETTE_EVENT_APP_STATE_CHANGED, event)
             await self.initialize_instances(app_key, instances, app_manifest)

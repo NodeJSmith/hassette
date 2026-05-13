@@ -130,7 +130,6 @@ def runtime_query_service(mock_hassette):
 def _log_handler():
     """Create a LogCaptureHandler with seed log entries for e2e tests."""
     handler = LogCaptureHandler(buffer_size=100)
-    handler.register_app_logger("hassette.apps.my_app", "my_app")
     entries = [
         ("hassette.core", logging.INFO, "Hassette started successfully"),
         ("hassette.apps.my_app", logging.INFO, "MyApp initialized"),
@@ -155,6 +154,12 @@ def _log_handler():
             args=(),
             exc_info=None,
         )
+        prefix = "hassette.apps."
+        if logger_name.startswith(prefix):
+            record.app_key = logger_name[len(prefix) :].split(".")[0]
+            record.source_tier = "app"
+        else:
+            record.source_tier = "framework"
         handler.emit(record)
     return handler
 

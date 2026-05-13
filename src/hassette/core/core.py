@@ -72,7 +72,11 @@ class Hassette(Resource):
     def __init__(self, config: HassetteConfig) -> None:
         self.config = config
 
-        enable_logging(self.config.log_level, log_buffer_size=self.config.web_api_log_buffer_size)
+        enable_logging(
+            self.config.log_level,
+            log_buffer_size=self.config.web_api_log_buffer_size,
+            log_format=self.config.log_format,
+        )
 
         super().__init__(self, task_bucket=TaskBucket(self, parent=self), parent=self)
 

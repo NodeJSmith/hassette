@@ -260,18 +260,17 @@ class TestLogsEndpoints:
     @pytest.fixture
     def log_handler(self) -> LogCaptureHandler:
         handler = LogCaptureHandler(buffer_size=100)
-        # Register app_key mappings before emitting so records get app_key set
-        handler.register_app_logger("hassette.apps.my_app", "my_app")
-        handler.register_app_logger("hassette.apps.other_app", "other_app")
-        entries = [
-            ("hassette.core", logging.INFO, "Core started"),
-            ("hassette.apps.my_app", logging.INFO, "MyApp initialized"),
-            ("hassette.apps.my_app", logging.WARNING, "Light unresponsive"),
-            ("hassette.core", logging.DEBUG, "Heartbeat sent"),
-            ("hassette.apps.my_app", logging.ERROR, "Service call failed"),
-            ("hassette.apps.other_app", logging.INFO, "OtherApp ready"),
+        # app_key is now stamped directly on records (structlog context var binding replaces
+        # the old register_app_logger() prefix-matching approach)
+        entries: list[tuple[str, int, str, str | None]] = [
+            ("hassette.core", logging.INFO, "Core started", None),
+            ("hassette.apps.my_app", logging.INFO, "MyApp initialized", "my_app"),
+            ("hassette.apps.my_app", logging.WARNING, "Light unresponsive", "my_app"),
+            ("hassette.core", logging.DEBUG, "Heartbeat sent", None),
+            ("hassette.apps.my_app", logging.ERROR, "Service call failed", "my_app"),
+            ("hassette.apps.other_app", logging.INFO, "OtherApp ready", "other_app"),
         ]
-        for logger_name, level, msg in entries:
+        for logger_name, level, msg, app_key in entries:
             record = logging.LogRecord(
                 name=logger_name,
                 level=level,
@@ -281,6 +280,8 @@ class TestLogsEndpoints:
                 args=(),
                 exc_info=None,
             )
+            if app_key is not None:
+                record.app_key = app_key  # pyright: ignore[reportAttributeAccessIssue]
             handler.emit(record)
         return handler
 

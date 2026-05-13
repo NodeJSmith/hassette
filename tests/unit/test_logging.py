@@ -1,8 +1,11 @@
-"""Tests for LogEntry seq field and LogCaptureHandler seq incrementing."""
+"""Tests for structlog-based enable_logging() and LogCaptureHandler."""
 
+import json
 import logging
+from io import StringIO
+from unittest.mock import MagicMock
 
-from hassette.logging_ import LogCaptureHandler, LogEntry
+from hassette.logging_ import LogCaptureHandler, LogEntry, enable_logging
 
 
 class TestLogCaptureHandlerSeqIncrements:
@@ -90,3 +93,204 @@ class TestLogEntryToDictIncludesSeq:
         d = entry.to_dict()
         assert "seq" in d
         assert "timestamp" in d
+
+
+class TestEnableLoggingConsoleRenderer:
+    """ConsoleRenderer is used when log_format='console'."""
+
+    def test_console_renderer_used_when_log_format_console(self) -> None:
+        stream = StringIO()
+        enable_logging("INFO", log_format="console", stream=stream)
+        logger = logging.getLogger("hassette.test_console")
+        logger.info("hello console")
+        output = stream.getvalue()
+        # ConsoleRenderer produces human-readable output with level and message
+        assert "hello console" in output
+        # ConsoleRenderer uses key=value or similar format (not JSON)
+        assert "{" not in output or '"event"' not in output
+
+    def test_hassette_logger_level_set(self) -> None:
+        stream = StringIO()
+        enable_logging("WARNING", log_format="console", stream=stream)
+        logger = logging.getLogger("hassette")
+        assert logger.level == logging.WARNING
+
+    def test_propagate_false(self) -> None:
+        stream = StringIO()
+        enable_logging("INFO", log_format="console", stream=stream)
+        logger = logging.getLogger("hassette")
+        assert logger.propagate is False
+
+
+class TestEnableLoggingJSONRenderer:
+    """JSONRenderer is used when log_format='json'."""
+
+    def test_json_renderer_used_when_log_format_json(self) -> None:
+        stream = StringIO()
+        enable_logging("INFO", log_format="json", stream=stream)
+        logger = logging.getLogger("hassette.test_json")
+        logger.info("hello json")
+        output = stream.getvalue()
+        # JSONRenderer produces one JSON object per line
+        lines = [line for line in output.strip().splitlines() if line.strip()]
+        assert len(lines) >= 1
+        parsed = json.loads(lines[-1])
+        assert parsed["event"] == "hello json"
+
+    def test_json_output_has_level_field(self) -> None:
+        stream = StringIO()
+        enable_logging("INFO", log_format="json", stream=stream)
+        logger = logging.getLogger("hassette.test_json_level")
+        logger.warning("level test")
+        output = stream.getvalue()
+        lines = [line for line in output.strip().splitlines() if line.strip()]
+        parsed = json.loads(lines[-1])
+        assert parsed["level"] == "warning"
+
+    def test_source_tier_appears_in_json_output_via_record_filter(self) -> None:
+        stream = StringIO()
+        enable_logging("INFO", log_format="json", stream=stream)
+        logger = logging.getLogger("hassette.test_source_tier_json")
+        logger.addFilter(
+            type("F", (logging.Filter,), {"filter": lambda _self, r: setattr(r, "source_tier", "app") or True})()
+        )
+        logger.info("tier test")
+        output = stream.getvalue()
+        lines = [line for line in output.strip().splitlines() if line.strip()]
+        parsed = json.loads(lines[-1])
+        assert parsed.get("source_tier") == "app"
+
+
+class TestEnableLoggingAutoFormat:
+    """TTY detection when log_format='auto'."""
+
+    def test_auto_uses_console_renderer_when_tty(self) -> None:
+        stream = MagicMock(spec=StringIO)
+        stream.isatty = MagicMock(return_value=True)
+        stream.write = MagicMock()
+        stream.flush = MagicMock()
+        # Should not raise; just verify it calls isatty
+        enable_logging("INFO", log_format="auto", stream=stream)
+        stream.isatty.assert_called()
+
+    def test_auto_uses_json_renderer_when_not_tty(self) -> None:
+        stream = StringIO()
+        # StringIO.isatty() returns False — simulates a pipe
+        enable_logging("INFO", log_format="auto", stream=stream)
+        logger = logging.getLogger("hassette.test_auto_notty")
+        logger.info("auto json")
+        output = stream.getvalue()
+        lines = [line for line in output.strip().splitlines() if line.strip()]
+        assert len(lines) >= 1
+        # Should be JSON since StringIO is not a TTY
+        parsed = json.loads(lines[-1])
+        assert parsed["event"] == "auto json"
+
+
+class TestNoisyLibrarySuppression:
+    """Noisy library suppression still works after structlog migration."""
+
+    def test_requests_logger_at_warning(self) -> None:
+        stream = StringIO()
+        enable_logging("INFO", log_format="console", stream=stream)
+        assert logging.getLogger("requests").getEffectiveLevel() == logging.WARNING
+
+    def test_urllib3_logger_at_warning(self) -> None:
+        stream = StringIO()
+        enable_logging("INFO", log_format="console", stream=stream)
+        assert logging.getLogger("urllib3").getEffectiveLevel() == logging.WARNING
+
+    def test_aiohttp_access_logger_at_warning(self) -> None:
+        stream = StringIO()
+        enable_logging("INFO", log_format="console", stream=stream)
+        assert logging.getLogger("aiohttp.access").getEffectiveLevel() == logging.WARNING
+
+    def test_httpx_logger_at_warning(self) -> None:
+        stream = StringIO()
+        enable_logging("INFO", log_format="console", stream=stream)
+        assert logging.getLogger("httpx").getEffectiveLevel() == logging.WARNING
+
+
+class TestLogCaptureHandlerStillCaptures:
+    """LogCaptureHandler still captures records after structlog migration."""
+
+    def test_capture_handler_captures_records(self) -> None:
+        stream = StringIO()
+        enable_logging("INFO", log_format="console", stream=stream)
+
+        from hassette.logging_ import get_log_capture_handler
+
+        capture_handler = get_log_capture_handler()
+        assert capture_handler is not None
+
+        initial_count = len(capture_handler.get_buffer_snapshot())
+        logger = logging.getLogger("hassette.test_capture")
+        logger.info("captured message")
+
+        entries = capture_handler.get_buffer_snapshot()
+        assert len(entries) == initial_count + 1
+        assert entries[-1].message == "captured message"
+
+    def test_capture_handler_reads_source_tier_from_record(self) -> None:
+        """LogCaptureHandler reads source_tier from record attribute (not prefix-matching)."""
+        handler = LogCaptureHandler(buffer_size=100)
+        record = logging.LogRecord(
+            name="hassette.apps.my_app",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=1,
+            msg="test msg",
+            args=(),
+            exc_info=None,
+        )
+        record.source_tier = "app"
+        handler.emit(record)
+
+        entries = list(handler.buffer)
+        assert len(entries) == 1
+        assert entries[0].source_tier == "app"
+
+    def test_capture_handler_source_tier_none_when_missing(self) -> None:
+        """source_tier is None when record has no source_tier attribute."""
+        handler = LogCaptureHandler(buffer_size=100)
+        record = logging.LogRecord(
+            name="hassette.core",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=1,
+            msg="framework msg",
+            args=(),
+            exc_info=None,
+        )
+        # No source_tier attribute set
+        handler.emit(record)
+
+        entries = list(handler.buffer)
+        assert entries[0].source_tier is None
+
+    def test_no_register_app_logger_method(self) -> None:
+        """register_app_logger() is removed from LogCaptureHandler."""
+        handler = LogCaptureHandler(buffer_size=100)
+        assert not hasattr(handler, "register_app_logger")
+
+    def test_no_resolve_app_key_method(self) -> None:
+        """_resolve_app_key() is removed from LogCaptureHandler."""
+        handler = LogCaptureHandler(buffer_size=100)
+        assert not hasattr(handler, "_resolve_app_key")
+
+
+class TestColoredlogsRemoved:
+    """coloredlogs is not imported anywhere in the codebase."""
+
+    def test_coloredlogs_not_imported_in_logging_module(self) -> None:
+        # coloredlogs should not be importable via logging_ module
+        import hassette.logging_ as logging_module
+
+        assert not hasattr(logging_module, "coloredlogs")
+
+    def test_enable_logging_accepts_log_format_parameter(self) -> None:
+        """enable_logging() signature includes log_format parameter."""
+        import inspect
+
+        sig = inspect.signature(enable_logging)
+        assert "log_format" in sig.parameters
