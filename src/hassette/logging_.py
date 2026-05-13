@@ -456,6 +456,7 @@ def enable_logging(
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("asyncio").setLevel(logging.ERROR)
 
     sys.excepthook = lambda *args: logging.getLogger().exception("Uncaught exception", exc_info=args)
     threading.excepthook = lambda args: logging.getLogger().exception(

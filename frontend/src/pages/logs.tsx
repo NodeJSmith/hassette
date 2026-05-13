@@ -16,6 +16,7 @@ export function LogsPage() {
   if (executionId) {
     const fetcher = () =>
       getLogsByExecution(executionId).then((r) => r.records);
+    const shortId = executionId.slice(0, 8);
 
     return (
       <div class={`ht-page ${styles.page}`} data-testid="logs-page">
@@ -23,9 +24,9 @@ export function LogsPage() {
           <h1 class="ht-display">logs</h1>
         </div>
         <div class={styles.executionBanner} data-testid="execution-filter-banner">
-          Viewing logs for execution{" "}
-          <span class="ht-text-mono">{executionId}</span>
-          {" — "}
+          <span>Filtered to execution</span>
+          <span class={styles.executionId} title={executionId}>{shortId}&hellip;</span>
+          <span>&mdash;</span>
           <a
             href="#"
             onClick={(e) => {
@@ -33,7 +34,7 @@ export function LogsPage() {
               qp.set({ execution_id: null });
             }}
           >
-            Clear filter
+            clear filter
           </a>
         </div>
         <Card variant="compact" class={styles.cardFull} data-testid="logs-card">
@@ -44,6 +45,7 @@ export function LogsPage() {
             mode="historical"
             fetcher={fetcher}
             hideExecutionId={true}
+            useLocalState={true}
           />
         </Card>
       </div>

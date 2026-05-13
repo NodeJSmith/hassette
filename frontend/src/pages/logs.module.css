@@ -14,10 +14,17 @@
 }
 
 .executionBanner {
-  padding: var(--space-2) var(--space-3);
-  background: var(--bg-info, var(--bg-sunken));
-  border-radius: var(--radius-md);
-  margin-bottom: var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-3);
+  font-size: var(--fs-small);
+  color: var(--ink-2);
+}
+
+.executionId {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-1);
 }

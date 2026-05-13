@@ -51,82 +51,12 @@ vi.mock("wouter", () => ({
     <a href={href as string} class={cls as string}>{children as never}</a>,
 }));
 
-// --- JSDOM polyfills for ResizeObserver, requestAnimationFrame, and document.fonts ---
-
-let rafCallbacks: Array<FrameRequestCallback> = [];
-let rafIdCounter = 0;
-
-// Capture the polyfill values installed by test-setup.ts at module load time.
-// test-setup.ts setupFiles run before test modules are evaluated, so these
-// will hold the polyfill functions (not jsdom's undefined values). Restoring
-// to these values in afterEach keeps Preact's cancelAnimationFrame cleanup
-// working for any pending setTimeout-based callbacks that fire after teardown.
-const setupRAF = globalThis.requestAnimationFrame;
-const setupCAF = globalThis.cancelAnimationFrame;
-
 beforeEach(() => {
-  rafCallbacks = [];
-  rafIdCounter = 0;
   _setMockSearch("");
   mockNavigate.mockReset();
   restoreNavigateMock();
-  globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
-    const id = ++rafIdCounter;
-    rafCallbacks.push(cb);
-    return id;
-  };
-  globalThis.cancelAnimationFrame = (_id: number) => {
-    // no-op for tests
-  };
 });
 
-afterEach(() => {
-  globalThis.requestAnimationFrame =
-    setupRAF ?? ((cb: FrameRequestCallback) => setTimeout(cb, 0) as unknown as number);
-  globalThis.cancelAnimationFrame =
-    setupCAF ?? ((id: number) => clearTimeout(id));
-});
-
-/** Flush all pending requestAnimationFrame callbacks within act(). */
-function flushRAF() {
-  return act(() => {
-    const cbs = [...rafCallbacks];
-    rafCallbacks = [];
-    for (const cb of cbs) cb(performance.now());
-  });
-}
-
-// ResizeObserver mock — stores observed elements but never fires the callback
-// (viewport resize is not testable in JSDOM; truncation detection is exercised
-// via the data-change trigger path B which uses requestAnimationFrame).
-class MockResizeObserver {
-  callback: ResizeObserverCallback;
-  observed = new Set<Element>();
-  constructor(callback: ResizeObserverCallback) {
-    this.callback = callback;
-  }
-  observe(el: Element) { this.observed.add(el); }
-  unobserve(el: Element) { this.observed.delete(el); }
-  disconnect() { this.observed.clear(); }
-}
-
-const origResizeObserver = globalThis.ResizeObserver;
-const origFonts = Object.getOwnPropertyDescriptor(document, "fonts");
-
-beforeEach(() => {
-  globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
-  Object.defineProperty(document, "fonts", {
-    value: { ready: Promise.resolve() },
-    configurable: true,
-  });
-});
-
-afterEach(() => {
-  globalThis.ResizeObserver = origResizeObserver;
-  if (origFonts) {
-    Object.defineProperty(document, "fonts", origFonts);
-  }
-});
 
 function createWrapper(state: AppState) {
   return function Wrapper({ children }: { children: ComponentChildren }) {
@@ -390,107 +320,51 @@ describe("LogTable", () => {
 
   // -- Row expand/collapse --
 
-  it("non-truncated message cell is not interactive", async () => {
-    // JSDOM has no layout engine, so scrollWidth === clientWidth === 0 → not truncated
+  it("every message cell is expandable", () => {
     state.logs.push(createLogEntry({ message: "Short message" }));
 
     const { container } = render(
       <LogTable />,
       { wrapper: createWrapper(state) },
     );
-    await flushRAF();
 
     const msgCell = container.querySelector("[data-testid='log-message-cell']") as HTMLElement;
-    expect(msgCell).toBeDefined();
-    // No role="button" or aria-expanded on non-expandable cells
-    expect(msgCell.getAttribute("role")).toBeNull();
-    expect(msgCell.getAttribute("aria-expanded")).toBeNull();
+    expect(msgCell.getAttribute("role")).toBe("button");
+    expect(msgCell.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("clicking non-truncated cell does not add is-expanded", async () => {
-    state.logs.push(createLogEntry({ message: "Short message" }));
+  it("message cell toggles expanded on click", () => {
+    state.logs.push(createLogEntry({ message: "Test message" }));
 
     const { container } = render(
       <LogTable />,
       { wrapper: createWrapper(state) },
     );
-    await flushRAF();
 
     const msgCell = container.querySelector("[data-testid='log-message-cell']") as HTMLElement;
+    expect(msgCell.getAttribute("aria-expanded")).toBe("false");
+
     fireEvent.click(msgCell);
-    expect(msgCell.getAttribute("aria-expanded")).toBeNull();
+    expect(msgCell.getAttribute("aria-expanded")).toBe("true");
+
+    fireEvent.click(msgCell);
+    expect(msgCell.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("truncated message cell becomes expandable and toggles on click", async () => {
-    state.logs.push(createLogEntry({ message: "A very long message that would be truncated" }));
-
-    // Mock scrollWidth > clientWidth to simulate truncation in JSDOM
-    const origScrollWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollWidth");
-    const origClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
-    Object.defineProperty(HTMLElement.prototype, "scrollWidth", { configurable: true, get() { return 500; } });
-    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get() { return 200; } });
-
-    try {
-      const { container } = render(
-        <LogTable />,
-        { wrapper: createWrapper(state) },
-      );
-      // Flush requestAnimationFrame to trigger recheckTruncation()
-      await flushRAF();
-
-      const msgCell = container.querySelector("[data-testid='log-message-cell']") as HTMLElement;
-      expect(msgCell.getAttribute("role")).toBe("button");
-      expect(msgCell.getAttribute("aria-expanded")).toBe("false");
-
-      fireEvent.click(msgCell);
-      expect(msgCell.getAttribute("aria-expanded")).toBe("true");
-
-      fireEvent.click(msgCell);
-      expect(msgCell.getAttribute("aria-expanded")).toBe("false");
-    } finally {
-      if (origScrollWidth) Object.defineProperty(HTMLElement.prototype, "scrollWidth", origScrollWidth);
-      if (origClientWidth) Object.defineProperty(HTMLElement.prototype, "clientWidth", origClientWidth);
-    }
-  });
-
-  it("truncated message cell expands via keyboard", async () => {
-    state.logs.push(createLogEntry({ message: "Truncated keyboard test" }));
-
-    const origScrollWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollWidth");
-    const origClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
-    Object.defineProperty(HTMLElement.prototype, "scrollWidth", { configurable: true, get() { return 500; } });
-    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get() { return 200; } });
-
-    try {
-      const { container } = render(
-        <LogTable />,
-        { wrapper: createWrapper(state) },
-      );
-      await flushRAF();
-
-      const msgCell = container.querySelector("[data-testid='log-message-cell']") as HTMLElement;
-      fireEvent.keyDown(msgCell, { key: "Enter" });
-      expect(msgCell.getAttribute("aria-expanded")).toBe("true");
-
-      fireEvent.keyDown(msgCell, { key: " " });
-      expect(msgCell.getAttribute("aria-expanded")).toBe("false");
-    } finally {
-      if (origScrollWidth) Object.defineProperty(HTMLElement.prototype, "scrollWidth", origScrollWidth);
-      if (origClientWidth) Object.defineProperty(HTMLElement.prototype, "clientWidth", origClientWidth);
-    }
-  });
-
-  it("renders data-row-key attribute on message text elements", () => {
-    state.logs.push(createLogEntry({ seq: 42, timestamp: 9999, message: "Test with key" }));
+  it("message cell expands via keyboard", () => {
+    state.logs.push(createLogEntry({ message: "Keyboard test" }));
 
     const { container } = render(
       <LogTable />,
       { wrapper: createWrapper(state) },
     );
 
-    const textEl = container.querySelector("[data-row-key]") as HTMLElement;
-    expect(textEl).not.toBeNull();
-    expect(textEl.getAttribute("data-row-key")).toBe("9999-42");
+    const msgCell = container.querySelector("[data-testid='log-message-cell']") as HTMLElement;
+    fireEvent.keyDown(msgCell, { key: "Enter" });
+    expect(msgCell.getAttribute("aria-expanded")).toBe("true");
+
+    fireEvent.keyDown(msgCell, { key: " " });
+    expect(msgCell.getAttribute("aria-expanded")).toBe("false");
   });
 
   // -- App column visibility --

@@ -25,7 +25,7 @@
 
 .tableLog td { padding: var(--sp-2) var(--sp-3); vertical-align: top; overflow: hidden; text-overflow: ellipsis; }
 .tableLog :global(.ht-col-level)   { white-space: nowrap; width: 80px; }
-.tableLog :global(.ht-col-time)    { white-space: nowrap; width: 170px; }
+.tableLog:global(.ht-table--compact) :global(.ht-col-time) { white-space: nowrap; width: 140px; }
 .tableLog :global(.ht-col-app)     { white-space: nowrap; width: 140px; }
 .tableLog :global(.ht-col-execution) { white-space: nowrap; width: 140px; }
 .tableLog :global(.ht-col-source)  { width: 200px; }
@@ -88,6 +88,7 @@
   overflow-wrap: anywhere;
   line-height: 1.5;
   max-height: 300px;
+  max-width: calc(100vw - var(--sp-6));
   overflow-y: auto;
 }
 
@@ -145,6 +146,11 @@
 }
 
 @media screen and (max-width: 768px) {
+  /* Override Card's mobile `display:block` and global `table-layout:auto` —
+     the log table must stay `display:table` + `table-layout:fixed` to clip
+     long messages. Card's horizontal scroll is handled by ht-table-card-scroll. */
+  .tableLog:global(.ht-table--compact) { display: table; table-layout: fixed; }
+
   /* Log table: hide App column — source shown inline (app.func) in message column */
   .tableLog :global(.ht-col-app) {
     display: none;
@@ -152,6 +158,5 @@
 
   .tableLog :global(.ht-col-level) { width: calc(var(--sp-7) + var(--sp-1)); }
   .tableLog :global(.ht-col-time)  { width: var(--sp-10); }
-  .tableLog { font-size: var(--fs-micro); }
   .tableLog :global(.ht-text-mono) { font-size: var(--fs-micro); }
 }

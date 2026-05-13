@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 import clsx from "clsx";
 import { useSignal } from "../../hooks/use-signal";
 import type { LogEntry } from "../../api/endpoints";
@@ -147,7 +147,7 @@ function LogTableRow({
             {showAppColumn && entry.app_key ? `${entry.app_key}.` : ""}{entry.func_name}()
           </div>
         )}
-        <div data-row-key={rowKey} class={styles.messageText}>
+        <div class={styles.messageText}>
           {entry.message}
         </div>
       </td>
@@ -433,70 +433,6 @@ export function LogTable({
     qpRef.current.set({ sort: null, dir: null });
   };
 
-  // Track which rows have truncated message text (scrollWidth > clientWidth).
-  //
-  // NOTE: Expanded rows have `text-overflow: ellipsis` removed by CSS (via the
-  // `.is-expanded` class), so `scrollWidth === clientWidth` for them — they will
-  // NOT appear in `truncatedRows`. The `|| isExpanded` guard in the render path
-  // (`canExpand = truncatedRows.value.has(rowKey) || isExpanded`) is load-bearing:
-  // it keeps expanded rows collapsible even when recheckTruncation() doesn't
-  // include them. Do NOT remove that guard.
-  const truncatedRows = useSignal(new Set<string>());
-  const tableContainerRef = useRef<HTMLDivElement>(null);
-  const resizeObserverRef = useRef<ResizeObserver | null>(null);
-
-  /** Scan all message text elements (by data-row-key) and update `truncatedRows` if the set changed. */
-  const recheckTruncation = useCallback(() => {
-    const container = tableContainerRef.current;
-    if (!container) return;
-    const elements = container.querySelectorAll<HTMLElement>("[data-row-key]");
-    const nextTruncated = new Set<string>();
-    elements.forEach((el) => {
-      const key = el.getAttribute("data-row-key");
-      if (key && el.scrollWidth > el.clientWidth) {
-        nextTruncated.add(key);
-      }
-    });
-    // Suppress signal update when the set is unchanged (avoids unnecessary re-renders).
-    const current = truncatedRows.value;
-    if (nextTruncated.size !== current.size || [...nextTruncated].some((k) => !current.has(k))) {
-      truncatedRows.value = nextTruncated;
-    }
-  }, [truncatedRows]);
-
-  // Trigger path A — Viewport resize: ResizeObserver on individual text elements.
-  // Observe the table container element (not individual text elements or the
-  // scroll container). The table container is in normal document flow and resizes
-  // with the viewport. One observer target is cheaper than 500 per-element targets,
-  // and table cells all share column widths so they resize together.
-  useEffect(() => {
-    const container = tableContainerRef.current;
-    if (!container) return;
-    const observer = new ResizeObserver(() => {
-      recheckTruncation();
-    });
-    resizeObserverRef.current = observer;
-    observer.observe(container);
-    // Font load detection — recheck after all fonts have loaded
-    void document.fonts.ready.then(() => recheckTruncation());
-    return () => {
-      observer.disconnect();
-      resizeObserverRef.current = null;
-    };
-  }, [recheckTruncation]);
-
-  // Trigger path B — Data changes: recheck after render when visible entry count changes.
-  // Uses requestAnimationFrame to ensure layout is complete before measuring.
-  // No need to re-observe elements since Trigger A observes the container, not
-  // individual elements.
-  useEffect(() => {
-    const rafId = requestAnimationFrame(() => {
-      recheckTruncation();
-    });
-    return () => cancelAnimationFrame(rafId);
-    // Simplified deps: count change is the primary signal. Avoids stale first/last seq refs
-    // that could cause spurious re-runs when sorting/filtering changes the array contents.
-  }, [sorted.length, recheckTruncation]);
 
   const setLevel = (newLevel: string) => {
     if (useLocalState) {
@@ -536,7 +472,7 @@ export function LogTable({
     : pluralize(filtered.length, "entry", "entries");
 
   return (
-    <div class={styles.container} ref={tableContainerRef}>
+    <div class={styles.container}>
       <div class="ht-table-toolbar">
         <div class="ht-table-toolbar__title">
           {!hideTitle && <h2 class="ht-table-toolbar__heading">logs</h2>}
@@ -643,7 +579,7 @@ export function LogTable({
             {sorted.slice(0, renderCap).map((entry) => {
               const rowKey = entry.seq ? `${entry.timestamp}-${entry.seq}` : `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`;
               const isExpanded = expandedRows.value.has(rowKey);
-              const canExpand = truncatedRows.value.has(rowKey) || isExpanded;
+              const canExpand = true;
               const toggle = () => {
                 if (!canExpand) return;
                 const next = new Set(expandedRows.value);

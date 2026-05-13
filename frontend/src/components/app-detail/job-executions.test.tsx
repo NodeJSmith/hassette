@@ -28,24 +28,12 @@ describe("JobExecutions", () => {
     expect(getByText("Error")).toBeDefined();
   });
 
-  it("renders success badge for successful execution", () => {
+  it("renders execution row with status shape", () => {
     const { container } = render(
       <JobExecutions executions={[createExecution({ status: "success" })]} jobId={1} />,
     );
-    const badge = container.querySelector("[data-testid='execution-status-badge']");
-    expect(badge).not.toBeNull();
-    expect(badge!.textContent).toBe("success");
-  });
-
-  it("renders danger badge for failed execution", () => {
-    const { container } = render(
-      <JobExecutions
-        executions={[createExecution({ status: "error", error_message: "Timeout" })]}
-        jobId={1}
-      />,
-    );
-    const badge = container.querySelector("[data-testid='execution-status-badge']");
-    expect(badge).not.toBeNull();
+    const row = container.querySelector("[data-testid='execution-row']");
+    expect(row).not.toBeNull();
   });
 
   it("renders error message in error column", () => {
@@ -58,24 +46,40 @@ describe("JobExecutions", () => {
     expect(getAllByText("Task failed").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("shows traceback toggle button when error_traceback is present", () => {
-    const { getByRole } = render(
+  it("clicking execution row expands detail panel", () => {
+    const { container } = render(
       <JobExecutions
-        executions={[
-          createExecution({
-            status: "error",
-            error_message: "Boom",
-            error_traceback: "Traceback (most recent call last):\n  File job.py",
-          }),
-        ]}
+        executions={[createExecution({ execution_id: "test-uuid-123" })]}
         jobId={1}
       />,
     );
-    expect(getByRole("button", { name: /traceback/i })).toBeDefined();
+
+    expect(container.querySelector("[data-testid='execution-detail']")).toBeNull();
+
+    const row = container.querySelector("[data-testid='execution-row']") as HTMLElement;
+    fireEvent.click(row);
+
+    expect(container.querySelector("[data-testid='execution-detail']")).not.toBeNull();
   });
 
-  it("clicking traceback button reveals execution-traceback pre element", () => {
-    const { getByRole, container } = render(
+  it("expanded detail shows execution id", () => {
+    const uuid = "abc12345-6789-abcd-ef01-234567890abc";
+    const { container } = render(
+      <JobExecutions
+        executions={[createExecution({ execution_id: uuid })]}
+        jobId={1}
+      />,
+    );
+
+    const row = container.querySelector("[data-testid='execution-row']") as HTMLElement;
+    fireEvent.click(row);
+
+    const detail = container.querySelector("[data-testid='execution-detail']");
+    expect(detail!.textContent).toContain(uuid);
+  });
+
+  it("expanded detail shows traceback for error execution", () => {
+    const { container } = render(
       <JobExecutions
         executions={[
           createExecution({
@@ -87,13 +91,26 @@ describe("JobExecutions", () => {
       />,
     );
 
-    expect(container.querySelector("[data-testid='execution-traceback']")).toBeNull();
+    const row = container.querySelector("[data-testid='execution-row']") as HTMLElement;
+    fireEvent.click(row);
 
-    fireEvent.click(getByRole("button", { name: /traceback/i }));
+    const tb = container.querySelector("[data-testid='execution-traceback']");
+    expect(tb).not.toBeNull();
+    expect(tb!.textContent).toContain("Traceback (most recent call last)");
+  });
 
-    const pre = container.querySelector("[data-testid='execution-traceback']");
-    expect(pre).not.toBeNull();
-    expect(pre!.textContent).toContain("Traceback (most recent call last)");
+  it("expanded detail shows logs section", () => {
+    const { container } = render(
+      <JobExecutions
+        executions={[createExecution({ execution_id: "test-uuid" })]}
+        jobId={1}
+      />,
+    );
+
+    const row = container.querySelector("[data-testid='execution-row']") as HTMLElement;
+    fireEvent.click(row);
+
+    expect(container.querySelector("[data-testid='execution-logs-section']")).not.toBeNull();
   });
 
   it("shows Show More button when executions exceed 5", () => {
@@ -116,28 +133,6 @@ describe("JobExecutions", () => {
     expect(queryByRole("button", { name: /show all/i })).toBeNull();
   });
 
-  it("renders dash in error column for successful execution", () => {
-    const { container } = render(
-      <JobExecutions
-        executions={[createExecution({ status: "success", error_message: null })]}
-        jobId={1}
-      />,
-    );
-    expect(container.textContent).toContain("—");
-  });
-
-  it("renders multiple tbody rows for multiple executions", () => {
-    const executions = [
-      createExecution({ execution_start_ts: 1700000001 }),
-      createExecution({ execution_start_ts: 1700000002 }),
-    ];
-    const { container } = render(
-      <JobExecutions executions={executions} jobId={1} />,
-    );
-    const rows = container.querySelectorAll("tbody tr");
-    expect(rows.length).toBe(2);
-  });
-
   it("renders Trace ID column header", () => {
     const { getByText } = render(
       <JobExecutions executions={[createExecution()]} jobId={1} />,
@@ -145,42 +140,30 @@ describe("JobExecutions", () => {
     expect(getByText("Trace ID")).toBeDefined();
   });
 
-  it("renders full execution_id on desktop", () => {
-    const uuid = "abc12345-6789-abcd-ef01-234567890abc";
+  it("clicking expanded row again collapses it", () => {
     const { container } = render(
-      <JobExecutions
-        executions={[createExecution({ execution_id: uuid })]}
-        jobId={1}
-      />,
+      <JobExecutions executions={[createExecution()]} jobId={1} />,
     );
-    expect(container.textContent).toContain(uuid);
+
+    const row = container.querySelector("[data-testid='execution-row']") as HTMLElement;
+    fireEvent.click(row);
+    expect(container.querySelector("[data-testid='execution-detail']")).not.toBeNull();
+
+    fireEvent.click(row);
+    expect(container.querySelector("[data-testid='execution-detail']")).toBeNull();
   });
 
-  it("renders dash for null execution_id", () => {
-    const { getAllByText } = render(
+  it("renders dash for null execution_id in detail", () => {
+    const { container } = render(
       <JobExecutions
         executions={[createExecution({ execution_id: null })]}
         jobId={1}
       />,
     );
-    expect(getAllByText("—").length).toBeGreaterThan(0);
-  });
 
-  it("traceback row spans all 5 columns", () => {
-    const { getByRole, container } = render(
-      <JobExecutions
-        executions={[
-          createExecution({
-            status: "error",
-            error_traceback: "Traceback (most recent call last):\n  File job.py, line 10",
-          }),
-        ]}
-        jobId={1}
-      />,
-    );
-    fireEvent.click(getByRole("button", { name: /traceback/i }));
-    const tbRow = container.querySelector("[data-testid='traceback-row'] td");
-    expect(tbRow).not.toBeNull();
-    expect(tbRow!.getAttribute("colspan")).toBe("5");
+    const row = container.querySelector("[data-testid='execution-row']") as HTMLElement;
+    fireEvent.click(row);
+
+    expect(container.querySelector("[data-testid='execution-logs-section']")!.textContent).toContain("No execution ID");
   });
 });
