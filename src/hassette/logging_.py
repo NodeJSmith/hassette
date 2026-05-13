@@ -222,6 +222,7 @@ class LogPersistenceHandler(logging.Handler):
         self._loop = None
         self._batch = []
         self._dropped = 0
+        self._dropped_lock = threading.Lock()
         self._persistence_level = persistence_level
 
     def set_database(self, db_service: object, loop: asyncio.AbstractEventLoop) -> None:
@@ -231,7 +232,8 @@ class LogPersistenceHandler(logging.Handler):
 
     @property
     def dropped_count(self) -> int:
-        return self._dropped
+        with self._dropped_lock:
+            return self._dropped
 
     def emit(self, record: logging.LogRecord) -> None:
         if record.levelno < self._persistence_level:
@@ -250,7 +252,8 @@ class LogPersistenceHandler(logging.Handler):
         db_service = self._db_service
         loop = self._loop
         if db_service is None or loop is None:
-            self._dropped += len(batch)
+            with self._dropped_lock:
+                self._dropped += len(batch)
             return
         handler = self
         batch_len = len(batch)
@@ -258,9 +261,11 @@ class LogPersistenceHandler(logging.Handler):
         def _do_enqueue(b=batch) -> None:
             try:
                 if not db_service.enqueue(_telemetry_repository.insert_log_records(db_service.db, b)):  # pyright: ignore[reportAttributeAccessIssue]
-                    handler._dropped += batch_len
+                    with handler._dropped_lock:
+                        handler._dropped += batch_len
             except RuntimeError:
-                handler._dropped += batch_len
+                with handler._dropped_lock:
+                    handler._dropped += batch_len
 
         loop.call_soon_threadsafe(_do_enqueue)
 
@@ -419,11 +424,6 @@ def enable_logging(
     logger.handlers.clear()
     logger.filters.clear()
 
-    # CorrelationFilter: stamps execution_id, app_key, instance_name, instance_index, seq
-    # on every record before it is dispatched to any handler. Must be on the logger (not a
-    # handler) so it runs in the calling context, reading context vars before any queue handoff.
-    logger.addFilter(CorrelationFilter())
-
     # --- Build handlers for the QueueListener (run in background thread) ---
     stream_handler = logging.StreamHandler(stream)
     stream_handler.setLevel(logging.NOTSET)
@@ -436,6 +436,13 @@ def enable_logging(
     # --- QueueHandler → QueueListener pipeline ---
     q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=log_queue_max)
     queue_handler = logging.handlers.QueueHandler(q)
+
+    # CorrelationFilter: stamps execution_id, app_key, instance_name, instance_index, seq
+    # on every record before queue handoff. Attached to the QueueHandler (not the logger)
+    # because parent logger filters do NOT run on records propagated from child loggers —
+    # handler.handle() applies the filter for all records reaching this handler.
+    queue_handler.addFilter(CorrelationFilter())
+
     logger.addHandler(queue_handler)
 
     _queue_listener = HassetteQueueListener(q, stream_handler, _log_capture_handler, _log_persistence_handler)

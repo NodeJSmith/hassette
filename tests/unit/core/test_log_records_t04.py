@@ -998,8 +998,8 @@ class TestSizeFailsafePrePass:
 
 
 class TestRuntimeQueryServiceWiring:
-    async def test_on_initialize_calls_set_database_on_persistence_handler(self) -> None:
-        """RuntimeQueryService.on_initialize() calls set_database() on LogPersistenceHandler."""
+    async def test_set_database_wires_db_service_on_persistence_handler(self) -> None:
+        """set_database() stores the db_service reference on LogPersistenceHandler."""
 
         persistence_handler = get_log_persistence_handler()
         if persistence_handler is None:

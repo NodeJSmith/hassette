@@ -263,6 +263,7 @@ export function LogTable({
 
   // Debounce timer ref for search input
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); }, []);
 
   // Read filter/sort state from URL params (live mode) or local signals (historical+useLocalState).
   let minLevel: string;
@@ -336,7 +337,7 @@ export function LogTable({
         })
         .catch(() => { /* API error — initial entries stay empty, WS will still stream */ });
     }
-  }, [mode, appKey, rv]);
+  }, [mode, appKey, rv, fetcher]);
 
   // Combine initial entries + ring buffer entries, deduplicating by timestamp watermark.
   // Timestamp-based (not seq-based) because seq resets to 1 on process restart while
