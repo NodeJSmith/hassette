@@ -22,7 +22,7 @@ from hassette.core.domain_models import (
 )
 from hassette.core.state_proxy import StateProxy
 from hassette.events import Event, RawStateChangeEvent
-from hassette.logging_ import LogEntry, get_log_capture_handler
+from hassette.logging_ import LogEntry, get_log_capture_handler, get_log_persistence_handler
 from hassette.resources.base import Resource
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
@@ -137,6 +137,15 @@ class RuntimeQueryService(Resource):
                 handler.set_broadcast(self.broadcast, loop)
             except RuntimeError:
                 self.logger.warning("No running event loop, log broadcast will not be available")
+
+        # Wire up log persistence handler for DB writes
+        persistence_handler = get_log_persistence_handler()
+        if persistence_handler is not None:
+            try:
+                loop = asyncio.get_running_loop()
+                persistence_handler.set_database(self.hassette.database_service, loop)
+            except RuntimeError:
+                self.logger.warning("No running event loop, log persistence will not be available")
 
         self.mark_ready(reason="RuntimeQueryService initialized")
 

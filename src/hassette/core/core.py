@@ -15,7 +15,7 @@ from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry, validate_registries
 from hassette.exceptions import AppPrecheckFailedError
-from hassette.logging_ import enable_logging, shutdown_logging
+from hassette.logging_ import enable_logging, get_log_persistence_handler, shutdown_logging
 from hassette.resources.base import Resource, Service
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
@@ -279,6 +279,20 @@ class Hassette(Resource):
     def get_error_handler_failures(self) -> int:
         """Return the count of user error handler invocations that raised or timed out."""
         return self.command_executor.get_error_handler_failures()
+
+    def get_log_records_dropped(self) -> int:
+        """Return the number of log records dropped by the persistence handler.
+
+        Records are dropped when the persistence handler has not yet been wired
+        to a database connection (early startup) or when the DB write queue is full.
+
+        Returns:
+            Cumulative count of dropped log records since process start.
+        """
+        handler = get_log_persistence_handler()
+        if handler is None:
+            return 0
+        return handler.dropped_count
 
     @property
     def database_service(self) -> DatabaseService:

@@ -20,6 +20,7 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     hassette.config.data_dir = tmp_path
     hassette.config.db_path = None
     hassette.config.db_retention_days = 7
+    hassette.config.log_retention_days = 3
     hassette.config.db_max_size_mb = 500
     hassette.config.db_migration_timeout_seconds = 120
     hassette.config.telemetry_write_queue_max = 500
@@ -60,7 +61,7 @@ async def initialized_service(service: DatabaseService) -> AsyncIterator[Databas
 
 
 async def test_fresh_db_creates_all_tables(initialized_service: DatabaseService) -> None:
-    """on_initialize creates all 5 tables and 14 indexes on a fresh database."""
+    """on_initialize creates all tables and indexes on a fresh database."""
     import sqlite3
 
     db_path = initialized_service._db_path
@@ -71,11 +72,19 @@ async def test_fresh_db_creates_all_tables(initialized_service: DatabaseService)
             "AND name NOT LIKE 'alembic%' AND name NOT LIKE 'sqlite_%'"
         )
         tables = sorted(row[0] for row in cursor.fetchall())
-        assert tables == ["handler_invocations", "job_executions", "listeners", "scheduled_jobs", "sessions"]
+        assert tables == [
+            "handler_invocations",
+            "job_executions",
+            "listeners",
+            "log_records",
+            "scheduled_jobs",
+            "sessions",
+        ]
 
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'")
         indexes = sorted(row[0] for row in cursor.fetchall())
-        assert len(indexes) == 14
+        # 14 original idx_ indexes + 3 new idx_lr_ indexes = 17
+        assert len(indexes) == 17
         assert "idx_hi_listener_time" in indexes
         assert "idx_hi_status_time" in indexes
         assert "idx_hi_time" in indexes
@@ -88,6 +97,9 @@ async def test_fresh_db_creates_all_tables(initialized_service: DatabaseService)
         assert "idx_listeners_natural" in indexes
         assert "idx_scheduled_jobs_app" in indexes
         assert "idx_scheduled_jobs_natural" in indexes
+        assert "idx_lr_time" in indexes
+        assert "idx_lr_exec" in indexes
+        assert "idx_lr_app_time" in indexes
 
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'uq_%'")
         unique_indexes = sorted(row[0] for row in cursor.fetchall())
@@ -477,6 +489,22 @@ EXPECTED_TABLES = {
         "source_tier",
         "execution_id",
     },
+    "log_records": {
+        "id",
+        "seq",
+        "timestamp",
+        "level",
+        "logger_name",
+        "func_name",
+        "lineno",
+        "message",
+        "exc_info",
+        "app_key",
+        "instance_name",
+        "instance_index",
+        "execution_id",
+        "source_tier",
+    },
 }
 
 
@@ -699,7 +727,15 @@ async def test_size_failsafe_deletes_oldest_records(initialized_service: Databas
 
 
 async def test_size_failsafe_loop_capped_at_10_iterations(initialized_service: DatabaseService) -> None:
-    """Size failsafe loop terminates after 10 iterations even if still over limit."""
+    """Size failsafe loop terminates after 10 iterations even if still over limit.
+
+    With the pre-pass structure:
+    - Initial check: 1 call
+    - Pre-pass: log_records is empty → deleted=0 on first iteration → break after 1 size call
+    - Re-check after pre-pass: 1 call
+    - Execution loop: 10 iterations x 1 size call each = 10 calls
+    Total: 1 + 1 + 1 + 10 = 13 calls
+    """
     session_id = initialized_service.hassette.session_id
     db = initialized_service.db
 
@@ -711,7 +747,7 @@ async def test_size_failsafe_loop_capped_at_10_iterations(initialized_service: D
     )
     await db.commit()
 
-    # Insert records so there's something to delete
+    # Insert records so there's something to delete in the execution loop
     now = time.time()
     for i in range(100):
         ts = now - (200 - i)
@@ -735,8 +771,9 @@ async def test_size_failsafe_loop_capped_at_10_iterations(initialized_service: D
         initialized_service.hassette.config.db_max_size_mb = 1
         await initialized_service._check_size_failsafe()
 
-    # _get_db_size_mb is called once before the loop, then once per iteration (10 iterations)
-    assert call_count == 11
+    # 1 (initial) + 1 (pre-pass size check, 0 log records → immediate break) +
+    # 1 (re-check after pre-pass) + 10 (execution loop iterations) = 13
+    assert call_count == 13
 
 
 async def test_startup_size_check_runs(service: DatabaseService) -> None:

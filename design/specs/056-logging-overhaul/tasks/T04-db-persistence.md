@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Add log_records table with retention and persistence"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#10", "FR#11", "FR#12", "FR#13", "AC#6", "AC#9", "AC#11", "AC#14"]
 ---

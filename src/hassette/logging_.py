@@ -17,11 +17,7 @@ import structlog.processors
 import structlog.stdlib
 
 from hassette.context import CURRENT_EXECUTION_ID
-
-try:
-    import hassette.core.telemetry_repository as _telemetry_repository
-except ImportError:
-    _telemetry_repository = None  # pyright: ignore[reportConstantRedefinition]  # wired in T04
+from hassette.core import telemetry_repository as _telemetry_repository
 
 FORMAT_DATE = "%Y-%m-%d"
 FORMAT_TIME = "%H:%M:%S"
@@ -246,12 +242,12 @@ class LogPersistenceHandler(logging.Handler):
     def _flush(self) -> None:
         batch = self._batch
         self._batch = []
-        if self._db_service is None or self._loop is None or _telemetry_repository is None:
+        if self._db_service is None or self._loop is None:
             self._dropped += len(batch)
             return
         db_service = self._db_service
         self._loop.call_soon_threadsafe(
-            lambda b=batch: db_service.enqueue(_telemetry_repository.insert_log_records(b)),  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+            lambda b=batch: db_service.enqueue(_telemetry_repository.insert_log_records(b)),  # pyright: ignore[reportAttributeAccessIssue]
         )
 
     def _record_to_dict(self, record: logging.LogRecord) -> dict:

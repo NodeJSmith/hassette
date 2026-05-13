@@ -5,14 +5,14 @@ import sqlite3
 import time
 import typing
 
+import aiosqlite
+
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.scheduler.classes import JobExecutionRecord
 from hassette.types.types import is_framework_key
 
 if typing.TYPE_CHECKING:
-    import aiosqlite
-
     from hassette.core.database_service import DatabaseService
 
 
@@ -692,3 +692,136 @@ class TelemetryRepository:
         except Exception:
             await db.rollback()
             raise
+
+
+# ---------------------------------------------------------------------------
+# Log record repository functions (module-level, called via DatabaseService.enqueue/submit)
+# ---------------------------------------------------------------------------
+
+_LOG_COLUMNS = (
+    "seq",
+    "timestamp",
+    "level",
+    "logger_name",
+    "func_name",
+    "lineno",
+    "message",
+    "exc_info",
+    "app_key",
+    "instance_name",
+    "instance_index",
+    "execution_id",
+    "source_tier",
+)
+_LOG_INSERT_SQL = (
+    f"INSERT INTO log_records ({', '.join(_LOG_COLUMNS)}) VALUES ({', '.join(':' + c for c in _LOG_COLUMNS)})"
+)
+
+
+async def insert_log_records(db: aiosqlite.Connection, records: list[dict]) -> None:
+    """Batch-insert log records into the log_records table.
+
+    Uses ``executemany`` for efficiency. Records are inserted in a single
+    transaction; any failure rolls back the entire batch.
+
+    Args:
+        db: An open aiosqlite connection.
+        records: List of dicts with keys matching log_records columns.
+    """
+    if not records:
+        return
+
+    try:
+        await db.execute("BEGIN")
+        await db.executemany(_LOG_INSERT_SQL, records)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+
+
+async def get_log_records(
+    db: aiosqlite.Connection,
+    *,
+    limit: int = 100,
+    since: float | None = None,
+    app_key: str | None = None,
+    level: str | None = None,
+    execution_id: str | None = None,
+    source_tier: str | None = None,
+) -> list[dict]:
+    """Fetch log records with optional filters, ordered by timestamp DESC.
+
+    Args:
+        db: An open aiosqlite connection.
+        limit: Maximum number of records to return.
+        since: If set, only return records with ``timestamp >= since``.
+        app_key: Filter to records from a specific app.
+        level: Filter to records of a specific level (exact match).
+        execution_id: Filter to records from a specific execution.
+        source_tier: Filter to records from a specific source tier (``'app'`` or ``'framework'``).
+
+    Returns:
+        List of dicts with all log_records columns, ordered by timestamp DESC.
+    """
+    clauses: list[str] = []
+    params: dict = {}
+
+    if since is not None:
+        clauses.append("timestamp >= :since")
+        params["since"] = since
+    if app_key is not None:
+        clauses.append("app_key = :app_key")
+        params["app_key"] = app_key
+    if level is not None:
+        clauses.append("level = :level")
+        params["level"] = level
+    if execution_id is not None:
+        clauses.append("execution_id = :execution_id")
+        params["execution_id"] = execution_id
+    if source_tier is not None:
+        clauses.append("source_tier = :source_tier")
+        params["source_tier"] = source_tier
+
+    where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+    params["limit"] = limit
+
+    sql = f"SELECT * FROM log_records{where} ORDER BY timestamp DESC LIMIT :limit"
+    cursor = await db.execute(sql, params)
+    rows = await cursor.fetchall()
+    return [dict(row) for row in rows]
+
+
+async def get_log_records_by_execution(
+    db: aiosqlite.Connection,
+    execution_id: str,
+    *,
+    limit: int = 500,
+) -> tuple[list[dict], bool]:
+    """Fetch all log records for a single execution, ordered by seq ASC.
+
+    Args:
+        db: An open aiosqlite connection.
+        execution_id: The execution correlation identifier to query.
+        limit: Maximum number of records to return.
+
+    Returns:
+        A ``(records, truncated)`` tuple where ``truncated=True`` when the
+        total count exceeds ``limit`` and results were capped.
+    """
+    # First count total matching records to determine truncation
+    count_cursor = await db.execute(
+        "SELECT COUNT(*) FROM log_records WHERE execution_id = :execution_id",
+        {"execution_id": execution_id},
+    )
+    count_row = await count_cursor.fetchone()
+    total = count_row[0] if count_row else 0
+
+    cursor = await db.execute(
+        "SELECT * FROM log_records WHERE execution_id = :execution_id ORDER BY seq ASC LIMIT :limit",
+        {"execution_id": execution_id, "limit": limit},
+    )
+    rows = await cursor.fetchall()
+    records = [dict(row) for row in rows]
+    truncated = total > limit
+    return records, truncated
