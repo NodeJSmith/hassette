@@ -232,6 +232,34 @@ def test_log_message_truncates_with_ellipsis(page: Page, base_url: str) -> None:
 # ──────────────────────────────────────────────────────────────────────
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Error toast (#556)
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_toast_appears_on_log_fetch_error(page: Page, base_url: str) -> None:
+    """A sonner error toast appears when the log API returns a server error."""
+    page.route("**/api/logs/recent*", lambda route: route.fulfill(status=500, body="Internal Server Error"))
+    page.goto(base_url + "/logs")
+    toast = page.locator("[data-sonner-toast][data-type='error']")
+    expect(toast).to_be_visible(timeout=5000)
+
+
+def test_toast_dismiss_via_close_button(page: Page, base_url: str) -> None:
+    """Error toast can be dismissed by clicking its close button."""
+    page.route("**/api/logs/recent*", lambda route: route.fulfill(status=500, body="Internal Server Error"))
+    page.goto(base_url + "/logs")
+    toast = page.locator("[data-sonner-toast][data-type='error']")
+    expect(toast).to_be_visible(timeout=5000)
+    page.locator("[data-sonner-toast] [data-close-button]").click()
+    expect(toast).not_to_be_visible(timeout=5000)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# App filter
+# ──────────────────────────────────────────────────────────────────────
+
+
 def test_log_table_app_column_hidden_at_mobile(page: Page, base_url: str) -> None:
     """Log table at mobile hides the App column and Source column."""
     page.set_viewport_size({"width": 375, "height": 812})

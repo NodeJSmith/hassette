@@ -36,6 +36,11 @@ vi.mock("./pages/app-detail", () => ({
   AppDetailPage: () => <div data-testid="app-detail-page">App Detail</div>,
 }));
 
+vi.mock("sonner", () => ({
+  Toaster: () => null,
+  toast: { error: vi.fn() },
+}));
+
 // Mock hooks that make network/WS connections
 vi.mock("./hooks/use-websocket", () => ({
   useWebSocket: vi.fn(),

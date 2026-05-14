@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
 import clsx from "clsx";
+import { toast } from "sonner";
 import { useSignal } from "../../hooks/use-signal";
 import type { LogEntry } from "../../api/endpoints";
 import { getRecentLogs } from "../../api/endpoints";
@@ -352,14 +353,18 @@ export function LogTable({
           initialEntries.value = entries;
           watermarkRef.current = entries.reduce((max, e) => Math.max(max, e.timestamp), 0);
         })
-        .catch(() => { /* fetcher error — stay empty */ });
+        .catch((err: unknown) => {
+          toast.error(err instanceof Error ? err.message : "Failed to load log history");
+        });
     } else {
       getRecentLogs({ app_key: appKey, limit: 200, execution_id: executionId })
         .then((entries) => {
           initialEntries.value = entries;
           watermarkRef.current = entries.reduce((max, e) => Math.max(max, e.timestamp), 0);
         })
-        .catch(() => { /* API error — initial entries stay empty, WS will still stream */ });
+        .catch((err: unknown) => {
+          toast.error(err instanceof Error ? err.message : "Failed to load recent logs");
+        });
     }
   }, [mode, appKey, rv, fetcher, executionId]);
 
