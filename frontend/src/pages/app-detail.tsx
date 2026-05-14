@@ -370,6 +370,7 @@ export function AppDetailPage({ params }: Props) {
             appKey={appKey}
             instanceQs={instanceQs}
             resolvedInstanceIndex={resolvedInstanceIndex}
+            appStatus={liveStatus}
           />
         </div>
       )}

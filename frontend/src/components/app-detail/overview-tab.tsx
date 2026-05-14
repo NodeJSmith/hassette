@@ -6,7 +6,7 @@ import { LogTable } from "../shared/log-table";
 import { StatusShape } from "../shared/status-shape";
 import { buildItems } from "./handler-list";
 import type { UnifiedItem } from "./unified-handler-row";
-import { handlerKindLabel, executionStatusKind } from "../../utils/status";
+import { handlerKindLabel, executionStatusKind, INACTIVE_STATUSES } from "../../utils/status";
 import { Chip } from "../shared/chip";
 import { pluralize, formatDurationOrDash, formatRelativeTime, lastDotSegment } from "../../utils/format";
 import { useSubscribe } from "../../hooks/use-subscribe";
@@ -25,6 +25,7 @@ interface Props {
   appKey: string;
   instanceQs: string;
   resolvedInstanceIndex: number;
+  appStatus?: string;
 }
 
 function handlerPath(appKey: string, item: UnifiedItem, instanceQs: string): string {
@@ -162,7 +163,7 @@ function HealthGridRow({ item, appKey, instanceQs }: HealthGridRowProps) {
 
   return (
     <tr
-      class={styles.healthRow}
+      class={clsx(styles.healthRow, isFailing(item) && styles.healthRowFailing)}
       data-testid={`overview-health-row-${item.kind}-${item.id}`}
       tabIndex={0}
       role="row"
@@ -223,11 +224,11 @@ function HandlerHealthGrid({ items, appKey, instanceQs }: HandlerHealthGridProps
       <table class={clsx("ht-table", styles.healthTable)}>
         <thead>
           <tr>
-            <th class={styles.colDot}></th>
-            <th>Kind</th>
-            <th>Handler</th>
-            <th style={{ textAlign: "right" }}>Runs</th>
-            <th></th>
+            <th class={styles.colDot} scope="col"></th>
+            <th scope="col">Kind</th>
+            <th scope="col">Handler</th>
+            <th scope="col" style={{ textAlign: "right" }}>Runs</th>
+            <th scope="col"></th>
           </tr>
         </thead>
         <tbody>
@@ -366,10 +367,10 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
         <table class={clsx("ht-table", styles.activityTable)}>
           <thead>
             <tr>
-              <th class={styles.colDot}></th>
-              <th>Handler</th>
-              <th style={{ textAlign: "right" }}>Duration</th>
-              <th style={{ textAlign: "right" }}>Time</th>
+              <th class={styles.colDot} scope="col"></th>
+              <th scope="col">Handler</th>
+              <th scope="col" style={{ textAlign: "right" }}>Duration</th>
+              <th scope="col" style={{ textAlign: "right" }}>Time</th>
             </tr>
           </thead>
           <tbody aria-live="polite" aria-atomic="false">
@@ -385,7 +386,8 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
 
 // ── Recent Logs Section ───────────────────────────────────────────────────────
 
-function RecentLogsSection({ appKey }: { appKey: string }) {
+function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: string }) {
+  const isInactive = appStatus !== undefined && INACTIVE_STATUSES.has(appStatus);
   return (
     <section class={styles.section} data-testid="overview-logs-section">
       <h3 class="ht-section-label">logs</h3>
@@ -395,6 +397,10 @@ function RecentLogsSection({ appKey }: { appKey: string }) {
           showAppColumn={false}
           hideTitle
           useLocalState
+          {...(isInactive ? {
+            emptyTitle: `this app is ${appStatus}`,
+            emptyBody: "no logs have been recorded for this app.",
+          } : {})}
         />
       </div>
     </section>
@@ -403,7 +409,7 @@ function RecentLogsSection({ appKey }: { appKey: string }) {
 
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 
-export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInstanceIndex }: Props) {
+export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInstanceIndex, appStatus }: Props) {
   const { connection } = useAppState();
   const wsConnected = connection.value === "connected";
   const allItems = useMemo(() => buildItems(listeners, jobs), [listeners, jobs]);
@@ -428,7 +434,7 @@ export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInsta
 
       <RecentActivitySection appKey={appKey} resolvedInstanceIndex={resolvedInstanceIndex} />
 
-      <RecentLogsSection appKey={appKey} />
+      <RecentLogsSection appKey={appKey} appStatus={appStatus} />
     </div>
   );
 }

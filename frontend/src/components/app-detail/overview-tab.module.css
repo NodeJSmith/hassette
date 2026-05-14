@@ -62,9 +62,10 @@
 .spotlightErrorMsg {
   font-size: var(--fs-small);
   color: var(--ink-2);
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
   max-width: 60ch;
   margin-top: var(--sp-1);
 }
@@ -113,11 +114,24 @@
   background: var(--bg-sunken);
 }
 
+.healthRowFailing {
+  background: var(--err-bg);
+}
+
+.healthTable .healthRowFailing:hover {
+  background: color-mix(in srgb, var(--err-bg) 70%, var(--bg-active));
+}
+
 .healthRowName {
   color: var(--ink-1);
 }
 
 .healthRowLink {
+  display: block;
+  max-width: 40ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--ink-1);
   text-decoration: none;
 }
