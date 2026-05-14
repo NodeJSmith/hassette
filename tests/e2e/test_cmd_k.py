@@ -126,7 +126,8 @@ def test_palette_keyboard_navigation(page: Page, base_url: str) -> None:
     page.goto(base_url + "/")
     _open_palette(page)
     palette = page.locator("[role='dialog'][aria-label='Command palette']")
-    # Press ArrowDown to move selection
+    # Wait for options to render before pressing ArrowDown
+    palette.locator("[role='option']").first.wait_for(timeout=5000)
     page.keyboard.press("ArrowDown")
     # First result should now be active (aria-selected=true)
     active = palette.locator("[role='option'][aria-selected='true']")

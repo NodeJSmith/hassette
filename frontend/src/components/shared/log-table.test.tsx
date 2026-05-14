@@ -1,7 +1,8 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, fireEvent, act } from "@testing-library/preact";
+import { render, fireEvent, act, waitFor } from "@testing-library/preact";
 import { h } from "preact";
 import type { ComponentChildren } from "preact";
+import { toast } from "sonner";
 import { LogTable, sortEntries } from "./log-table";
 import type { LogEntry } from "../../api/endpoints";
 import { AppStateContext } from "../../state/context";
@@ -19,6 +20,10 @@ vi.mock("../../hooks/use-media-query", () => ({
 // Mock the API endpoint for initial log fetch
 vi.mock("../../api/endpoints", () => ({
   getRecentLogs: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn() },
 }));
 
 // Reactive query param mock: mockSearchSignal drives useSearch() so that when
@@ -1475,5 +1480,74 @@ describe("Execution ID column visibility", () => {
     const headers = container.querySelectorAll("th");
     const headerTexts = Array.from(headers).map((h) => h.textContent ?? "");
     expect(headerTexts.some((t) => t.includes("Execution"))).toBe(false);
+  });
+});
+
+// -- Error handling (toast notifications, #556) --
+
+describe("Error handling (#556)", () => {
+  let state: AppState;
+
+  beforeEach(() => {
+    state = createAppState();
+    vi.clearAllMocks();
+    restoreNavigateMock();
+    entrySeq = 0;
+  });
+
+  it("shows toast when getRecentLogs rejects with an Error", async () => {
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+    mockGetRecentLogs.mockRejectedValueOnce(new Error("Network timeout"));
+
+    render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Network timeout");
+    });
+  });
+
+  it("shows fallback toast message when getRecentLogs rejects with a non-Error", async () => {
+    const { getRecentLogs } = await import("../../api/endpoints");
+    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+    mockGetRecentLogs.mockRejectedValueOnce("string error");
+
+    render(
+      <LogTable />,
+      { wrapper: createWrapper(state) },
+    );
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Failed to load recent logs");
+    });
+  });
+
+  it("shows toast when historical mode fetcher rejects", async () => {
+    const failingFetcher = vi.fn().mockRejectedValue(new Error("Fetcher failed"));
+
+    render(
+      <LogTable mode="historical" fetcher={failingFetcher} />,
+      { wrapper: createWrapper(state) },
+    );
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Fetcher failed");
+    });
+  });
+
+  it("shows fallback toast message when historical fetcher rejects with a non-Error", async () => {
+    const failingFetcher = vi.fn().mockRejectedValue(404);
+
+    render(
+      <LogTable mode="historical" fetcher={failingFetcher} />,
+      { wrapper: createWrapper(state) },
+    );
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Failed to load log history");
+    });
   });
 });

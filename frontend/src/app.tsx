@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Redirect, Route, Switch, useLocation } from "wouter";
+import { Toaster } from "sonner";
 import { AlertBanner, TelemetryDegradedBanner } from "./components/layout/alert-banner";
 import { CommandPalette } from "./components/layout/command-palette";
 import { ErrorBoundary } from "./components/layout/error-boundary";
@@ -70,6 +71,7 @@ export function App() {
       <ManifestProvider state={state} />
       <TelemetryHealthProvider state={state} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <Toaster position="bottom-right" theme={state.theme.value} closeButton richColors />
 
       {/* Skip link */}
       <a href="#main-content" class="ht-skip-link">Skip to main content</a>

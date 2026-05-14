@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
 import clsx from "clsx";
+import { toast } from "sonner";
 import { useSignal } from "../../hooks/use-signal";
 import type { LogEntry } from "../../api/endpoints";
 import { getRecentLogs } from "../../api/endpoints";
@@ -345,22 +346,32 @@ export function LogTable({
   // rv drives reconnect-triggered refetch — only meaningful in live mode.
   const rv = mode === "live" ? reconnectVersion.value : null;
   useEffect(() => {
+    let cancelled = false;
     watermarkRef.current = 0;
     if (mode === "historical" && fetcher) {
       fetcher()
         .then((entries) => {
+          if (cancelled) return;
           initialEntries.value = entries;
           watermarkRef.current = entries.reduce((max, e) => Math.max(max, e.timestamp), 0);
         })
-        .catch(() => { /* fetcher error — stay empty */ });
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          toast.error(err instanceof Error ? err.message : "Failed to load log history");
+        });
     } else {
       getRecentLogs({ app_key: appKey, limit: 200, execution_id: executionId })
         .then((entries) => {
+          if (cancelled) return;
           initialEntries.value = entries;
           watermarkRef.current = entries.reduce((max, e) => Math.max(max, e.timestamp), 0);
         })
-        .catch(() => { /* API error — initial entries stay empty, WS will still stream */ });
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          toast.error(err instanceof Error ? err.message : "Failed to load recent logs");
+        });
     }
+    return () => { cancelled = true; };
   }, [mode, appKey, rv, fetcher, executionId]);
 
   // Combine initial entries + ring buffer entries, deduplicating by timestamp watermark.
