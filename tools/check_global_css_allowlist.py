@@ -66,8 +66,6 @@ ALLOWLIST: list[str] = [
     "ht-drawer-backdrop",
     # Table column width helpers (set on <th>/<td> alongside ht-table)
     "ht-col-",
-    # Responsive mobile error cell (used by handler-invocations and job-executions)
-    "ht-exec-error-mobile",
 ]
 
 

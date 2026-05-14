@@ -6,10 +6,9 @@ import { StatsStrip, type StatsStripCell } from "../shared/stats-strip";
 interface HandlersHealthStripProps {
   listeners: ListenerData[];
   jobs: JobData[];
-  timeLabel?: string;
 }
 
-export function HandlersHealthStrip({ listeners, jobs, timeLabel }: HandlersHealthStripProps) {
+export function HandlersHealthStrip({ listeners, jobs }: HandlersHealthStripProps) {
   const isSmallMobile = useMediaQuery(BREAKPOINT_SMALL_MOBILE);
 
   const { totalInvocations, totalExecutions, totalFailed, totalTimedOut } =
@@ -23,7 +22,7 @@ export function HandlersHealthStrip({ listeners, jobs, timeLabel }: HandlersHeal
 
   const cells: StatsStripCell[] = [
     { label: "Handlers", value: listeners.length + jobs.length },
-    { label: isSmallMobile ? "Calls" : `Invocations${timeLabel ? ` · ${timeLabel}` : ""}`, value: totalAll },
+    { label: isSmallMobile ? "Calls" : "Invocations", value: totalAll },
     { label: "Success Rate", value: totalAll > 0 ? `${successRate}%` : "—", tone: totalErrors > 0 ? "warn" : undefined },
   ];
 

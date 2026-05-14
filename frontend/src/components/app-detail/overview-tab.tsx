@@ -1,16 +1,17 @@
 import { useMemo, useState } from "preact/hooks";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import clsx from "clsx";
 import { EmptyState } from "../shared/empty-state";
+import { LogTable } from "../shared/log-table";
 import { StatusShape } from "../shared/status-shape";
 import { buildItems } from "./handler-list";
 import type { UnifiedItem } from "./unified-handler-row";
-import { handlerKindLabel, levelToKind, executionStatusKind } from "../../utils/status";
+import { handlerKindLabel, executionStatusKind } from "../../utils/status";
 import { Chip } from "../shared/chip";
-import { pluralize, formatDurationOrDash, lastDotSegment } from "../../utils/format";
-import { useRelativeTime } from "../../hooks/use-relative-time";
-import type { ListenerData, JobData, ActivityFeedEntryData, LogEntry } from "../../api/endpoints";
-import { getAppActivity, getRecentLogs } from "../../api/endpoints";
+import { pluralize, formatDurationOrDash, formatRelativeTime, lastDotSegment } from "../../utils/format";
+import { useSubscribe } from "../../hooks/use-subscribe";
+import type { ListenerData, JobData, ActivityFeedEntryData } from "../../api/endpoints";
+import { getAppActivity } from "../../api/endpoints";
 import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useAppState } from "../../state/context";
 import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-filtered-signal-refetch";
@@ -153,36 +154,44 @@ interface HealthGridRowProps {
 }
 
 function HealthGridRow({ item, appKey, instanceQs }: HealthGridRowProps) {
+  const [, navigate] = useLocation();
   const href = handlerPath(appKey, item, instanceQs);
   const callLabel = item.kind === "listener" ? "call" : "run";
   const runCount = itemRunCount(item);
   const chipLabel = itemKindChip(item);
 
   return (
-    <Link
-      href={href}
+    <tr
       class={styles.healthRow}
       data-testid={`overview-health-row-${item.kind}-${item.id}`}
-      aria-label={`${item.name} — ${chipLabel}`}
+      tabIndex={0}
+      role="row"
+      onClick={() => navigate(href)}
+      onKeyDown={(e: KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          navigate(href);
+        }
+      }}
     >
-      <span aria-hidden="true">
+      <td>
         <StatusShape kind={item.statusKind} size={10} />
-      </span>
-      <div class={styles.healthRowMeta}>
+      </td>
+      <td>
         <Chip variant="muted" size="sm" aria-label={`kind: ${chipLabel}`}>
           {chipLabel}
         </Chip>
-        <span class={styles.healthRowName}>{item.name}</span>
-      </div>
-      <span class={styles.healthRowCount} title={`Total ${callLabel}s`}>
+      </td>
+      <td class={styles.healthRowName}>
+        <Link href={href} class={styles.healthRowLink}>{item.name}</Link>
+      </td>
+      <td class={styles.healthRowCount}>
         {pluralize(runCount, callLabel)}
-      </span>
-      {isFailing(item) && itemErrorType(item) && (
-        <span class={clsx(styles.healthRowError, "ht-text-danger ht-text-sm")}>
-          {itemErrorType(item)}
-        </span>
-      )}
-    </Link>
+      </td>
+      <td class={clsx(styles.healthRowError, "ht-text-danger ht-text-sm")}>
+        {isFailing(item) && itemErrorType(item) ? itemErrorType(item) : null}
+      </td>
+    </tr>
   );
 }
 
@@ -211,16 +220,27 @@ function HandlerHealthGrid({ items, appKey, instanceQs }: HandlerHealthGridProps
   return (
     <section class={styles.section} data-testid="overview-health-grid">
       <h3 class="ht-section-label">handler health</h3>
-      <div class={styles.healthGrid}>
-        {sorted.map((item) => (
-          <HealthGridRow
-            key={`${item.kind}-${item.id}`}
-            item={item}
-            appKey={appKey}
-            instanceQs={instanceQs}
-          />
-        ))}
-      </div>
+      <table class={clsx("ht-table", styles.healthTable)}>
+        <thead>
+          <tr>
+            <th class={styles.colDot}></th>
+            <th>Kind</th>
+            <th>Handler</th>
+            <th style={{ textAlign: "right" }}>Runs</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((item) => (
+            <HealthGridRow
+              key={`${item.kind}-${item.id}`}
+              item={item}
+              appKey={appKey}
+              instanceQs={instanceQs}
+            />
+          ))}
+        </tbody>
+      </table>
     </section>
   );
 }
@@ -228,25 +248,72 @@ function HandlerHealthGrid({ items, appKey, instanceQs }: HandlerHealthGridProps
 // ── Recent Activity Section ───────────────────────────────────────────────────
 
 const ACTIVITY_LIMIT = 20;
-const LOGS_LIMIT = 10;
 
-interface ActivityRowProps {
-  entry: ActivityFeedEntryData;
+interface ActivityGroup {
+  key: string;
+  handlerName: string;
+  status: string;
+  count: number;
+  avgDurationMs: number | null;
+  firstTs: number;
+  lastTs: number;
 }
 
-function ActivityRow({ entry }: ActivityRowProps) {
-  const kind = executionStatusKind(entry.status);
-  const timeLabel = useRelativeTime(entry.timestamp);
+function groupConsecutiveActivity(entries: ActivityFeedEntryData[]): ActivityGroup[] {
+  const groups: ActivityGroup[] = [];
+  for (const entry of entries) {
+    const prev = groups[groups.length - 1];
+    if (prev && prev.handlerName === entry.handler_name && prev.status === entry.status) {
+      prev.count += 1;
+      prev.lastTs = entry.timestamp;
+      if (entry.duration_ms !== null && entry.duration_ms !== undefined) {
+        if (prev.avgDurationMs !== null && prev.avgDurationMs !== undefined) {
+          const prevTotal = prev.avgDurationMs * (prev.count - 1);
+          prev.avgDurationMs = (prevTotal + entry.duration_ms) / prev.count;
+        } else {
+          prev.avgDurationMs = entry.duration_ms;
+        }
+      }
+    } else {
+      groups.push({
+        key: entry.row_id,
+        handlerName: entry.handler_name,
+        status: entry.status,
+        count: 1,
+        avgDurationMs: entry.duration_ms ?? null,
+        firstTs: entry.timestamp,
+        lastTs: entry.timestamp,
+      });
+    }
+  }
+  return groups;
+}
+
+function ActivityGroupRow({ group }: { group: ActivityGroup }) {
+  const kind = executionStatusKind(group.status);
   return (
     <tr data-testid="overview-activity-row">
-      <td aria-label={`status: ${entry.status}`}>
+      <td aria-label={`status: ${group.status}`}>
         <span class="ht-log-level-badge">
           <StatusShape kind={kind} size={8} />
         </span>
       </td>
-      <td class={styles.activityName} title={entry.handler_name}>{lastDotSegment(entry.handler_name)}</td>
-      <td class={styles.activityDuration}>{formatDurationOrDash(entry.duration_ms)}</td>
-      <td class={styles.activityTime}>{timeLabel}</td>
+      <td class={styles.activityName} title={group.handlerName}>
+        {lastDotSegment(group.handlerName)}
+        {group.count > 1 && (
+          <span class={styles.activityCount}> × {group.count}</span>
+        )}
+      </td>
+      <td class={styles.activityDuration}>
+        {group.count > 1 && group.avgDurationMs !== null
+          ? `avg ${formatDurationOrDash(group.avgDurationMs)}`
+          : formatDurationOrDash(group.avgDurationMs)}
+      </td>
+      <td class={styles.activityTime}>
+        {group.count > 1 && group.firstTs !== group.lastTs
+          ? `${formatRelativeTime(group.firstTs)}–${formatRelativeTime(group.lastTs)}`
+          : formatRelativeTime(group.firstTs)}
+      </td>
     </tr>
   );
 }
@@ -262,7 +329,8 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
     { deps: [appKey, resolvedInstanceIndex] },
   );
 
-  const { invocationCompleted, executionCompleted } = useAppState();
+  const { invocationCompleted, executionCompleted, tick } = useAppState();
+  useSubscribe(tick);
 
   useFilteredSignalRefetch(
     invocationCompleted,
@@ -281,6 +349,7 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
   );
 
   const entries = activity.value ?? [];
+  const groups = useMemo(() => groupConsecutiveActivity(entries), [entries]);
 
   return (
     <section class={styles.section} data-testid="overview-activity-section">
@@ -297,15 +366,15 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
         <table class={clsx("ht-table", styles.activityTable)}>
           <thead>
             <tr>
-              <th></th>
+              <th class={styles.colDot}></th>
               <th>Handler</th>
-              <th>Duration</th>
-              <th>Time</th>
+              <th style={{ textAlign: "right" }}>Duration</th>
+              <th style={{ textAlign: "right" }}>Time</th>
             </tr>
           </thead>
           <tbody aria-live="polite" aria-atomic="false">
-            {entries.map((entry) => (
-              <ActivityRow key={entry.row_id} entry={entry} />
+            {groups.map((group) => (
+              <ActivityGroupRow key={group.key} group={group} />
             ))}
           </tbody>
         </table>
@@ -316,84 +385,18 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
 
 // ── Recent Logs Section ───────────────────────────────────────────────────────
 
-interface LogRowProps {
-  entry: LogEntry;
-}
-
-function LogRow({ entry }: LogRowProps) {
-  const kind = levelToKind(entry.level);
-  const timeLabel = useRelativeTime(entry.timestamp);
-  return (
-    <tr data-level={entry.level} data-testid="overview-log-row">
-      <td aria-label={`level: ${entry.level}`}>
-        <span class="ht-log-level-badge">
-          <StatusShape kind={kind} size={8} />
-          <span class="ht-log-level-badge__text">{entry.level}</span>
-        </span>
-      </td>
-      <td class={styles.logTime}>{timeLabel}</td>
-      <td class={styles.logMessage} title={entry.message}>{entry.message}</td>
-    </tr>
-  );
-}
-
-interface RecentLogsSectionProps {
-  appKey: string;
-}
-
-function RecentLogsSection({ appKey }: RecentLogsSectionProps) {
-  const { data: logs, loading, error: logsError, refetch } = useScopedApi(
-    (since) => getRecentLogs({ app_key: appKey, limit: LOGS_LIMIT, since }),
-    { deps: [appKey] },
-  );
-
-  const { invocationCompleted, executionCompleted } = useAppState();
-
-  useFilteredSignalRefetch(
-    invocationCompleted,
-    (events) => events?.some((e) => e.app_key === appKey) ?? false,
-    () => void refetch(),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
-  );
-
-  useFilteredSignalRefetch(
-    executionCompleted,
-    (events) => events?.some((e) => e.app_key === appKey) ?? false,
-    () => void refetch(),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
-  );
-
-  const entries = logs.value ?? [];
-
+function RecentLogsSection({ appKey }: { appKey: string }) {
   return (
     <section class={styles.section} data-testid="overview-logs-section">
-      <h3 class="ht-section-label">recent logs</h3>
-      {logsError.value ? (
-        <p class={clsx(styles.emptyInline, "ht-text-danger")} data-testid="overview-logs-error">
-          could not load logs
-        </p>
-      ) : !loading.value && entries.length === 0 ? (
-        <p class={styles.emptyInline} data-testid="overview-logs-empty">
-          no recent logs
-        </p>
-      ) : (
-        <table class={clsx("ht-table", styles.logTable)}>
-          <thead>
-            <tr>
-              <th>Level</th>
-              <th>Time</th>
-              <th>Message</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((entry) => (
-              <LogRow key={entry.seq} entry={entry} />
-            ))}
-          </tbody>
-        </table>
-      )}
+      <h3 class="ht-section-label">logs</h3>
+      <div class={styles.logScroll}>
+        <LogTable
+          appKey={appKey}
+          showAppColumn={false}
+          hideTitle
+          useLocalState
+        />
+      </div>
     </section>
   );
 }

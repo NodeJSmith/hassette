@@ -47,11 +47,6 @@
   line-height: 1;
 }
 
-.ht-log-level-badge__text {
-  color: var(--ink-2);
-  font-size: var(--fs-mono-sm);
-}
-
 .ht-traceback {
   margin: var(--sp-2) 0 0;
   padding: var(--sp-2) var(--sp-3);

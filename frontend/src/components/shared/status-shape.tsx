@@ -24,6 +24,7 @@ export function StatusShape({ kind, size = 12 }: Props) {
         viewBox={`0 0 ${size} ${size}`}
         aria-hidden="true"
         focusable="false"
+        style={{ flexShrink: 0 }}
       >
         <circle cx={half} cy={half} r={half} fill="var(--ok)" />
       </svg>
@@ -40,6 +41,7 @@ export function StatusShape({ kind, size = 12 }: Props) {
         viewBox={`0 0 ${size} ${size}`}
         aria-hidden="true"
         focusable="false"
+        style={{ flexShrink: 0 }}
       >
         <polygon points={pts} fill="var(--warn)" />
       </svg>
@@ -55,6 +57,7 @@ export function StatusShape({ kind, size = 12 }: Props) {
         viewBox={`0 0 ${size} ${size}`}
         aria-hidden="true"
         focusable="false"
+        style={{ flexShrink: 0 }}
       >
         <rect x="1" y="1" width={size - 2} height={size - 2} rx={r} ry={r} fill="var(--err)" />
       </svg>
@@ -69,6 +72,7 @@ export function StatusShape({ kind, size = 12 }: Props) {
       viewBox={`0 0 ${size} ${size}`}
       aria-hidden="true"
       focusable="false"
+      style={{ flexShrink: 0 }}
     >
       <circle
         cx={half}

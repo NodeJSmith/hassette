@@ -1,21 +1,19 @@
-/* Job executions — component-scoped styles */
+/* DetailPanel — shared expandable detail panel for invocation/execution rows */
 
-.exColArrow { width: var(--sp-4); }
-
-/* — Execution row (expandable) — */
-
-.exRow { cursor: pointer; transition: background var(--t-fast) var(--ease); }
-.exRowOpen { background: var(--bg-sunken); }
-.exRow:hover { background: var(--bg-sunken); }
-
-/* — Expanded detail panel — */
-
-.exDetail {
+.panel {
   padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--line-1);
 }
 
-.exDetailLabel {
+.context {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: baseline;
+  margin-bottom: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.label {
   font-family: var(--font-mono);
   font-size: 10px;
   text-transform: uppercase;
@@ -25,41 +23,46 @@
   margin-bottom: var(--sp-1);
 }
 
-.exDetailGrid {
+.grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--sp-3);
 }
 
-.exDetailCodeBox {
+.codeBox {
   padding: var(--sp-2) 0;
 }
 
-.exDetailCodeBox pre {
+.codeBox pre {
   margin: 0;
-  font-size: 10px;
+  font-size: var(--fs-mono-sm);
   white-space: pre-wrap;
   word-break: break-all;
 }
 
-/* — Inline logs section — */
+.tracebackFrames {
+  color: var(--ink-2);
+}
 
-.exLogsSectionWrapper {
+.tracebackError {
+  color: var(--err);
+  font-weight: 500;
+}
+
+.logsWrapper {
   margin-top: var(--sp-3);
   border-top: 1px solid var(--line-1);
   padding-top: var(--sp-3);
 }
 
-.exLogsMessage {
+.logsMessage {
   font-size: var(--fs-small);
   color: var(--ink-3);
   margin: var(--sp-2) 0 0;
 }
 
-/* — Responsive — */
-
 @media screen and (max-width: 768px) {
-  .exDetailGrid {
+  .grid {
     grid-template-columns: 1fr;
   }
 }

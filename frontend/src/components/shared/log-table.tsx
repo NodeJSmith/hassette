@@ -78,7 +78,6 @@ interface LogTableRowProps {
   entry: LogEntry;
   rowKey: string;
   isExpanded: boolean;
-  canExpand: boolean;
   isMobile: boolean;
   showAppColumn: boolean;
   showSourceColumn: boolean;
@@ -91,7 +90,6 @@ function LogTableRow({
   entry,
   rowKey,
   isExpanded,
-  canExpand,
   isMobile,
   showAppColumn,
   showSourceColumn,
@@ -135,10 +133,12 @@ function LogTableRow({
         </td>
       ) : null}
       <td
-        class={clsx(styles.messageCell, canExpand && "is-expandable", isExpanded && "is-expanded")}
+        class={clsx(styles.messageCell, "is-expandable", isExpanded && "is-expanded")}
         data-testid="log-message-cell"
-        {...(canExpand ? { role: "button", tabIndex: 0, "aria-expanded": isExpanded,
-          "aria-label": isExpanded ? "Collapse log message" : "Expand log message" } : {})}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
+        aria-label={isExpanded ? "Collapse log message" : "Expand log message"}
         onClick={onToggle}
         onKeyDown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }}
       >
@@ -198,6 +198,16 @@ export interface LogFetchParams {
   since?: number | null;
 }
 
+function nextSortState(clicked: SortColumn, currentCol: SortColumn, currentAsc: boolean): { column: SortColumn; asc: boolean } {
+  if (clicked === "timestamp") {
+    return { column: "timestamp", asc: currentCol === "timestamp" ? !currentAsc : false };
+  }
+  if (currentCol === clicked) {
+    return { column: clicked, asc: !currentAsc };
+  }
+  return { column: clicked, asc: false };
+}
+
 // ---- Log table ----
 
 interface Props {
@@ -218,6 +228,14 @@ interface Props {
   useLocalState?: boolean;
   /** When true, hide the execution_id column (use when the view is already filtered to one execution). */
   hideExecutionId?: boolean;
+  /** Filter logs to a specific execution. Shows a dismissible pill in the toolbar. */
+  executionId?: string | null;
+  /** Called when the user dismisses the execution filter pill. */
+  onClearExecutionId?: () => void;
+  /** Custom empty state title (overrides default "no log lines in window"). */
+  emptyTitle?: string;
+  /** Custom empty state body (overrides default hint about filters/time window). */
+  emptyBody?: string;
 }
 
 export function LogTable({
@@ -227,12 +245,18 @@ export function LogTable({
   hideTitle,
   fetcher,
   mode = "live",
-  useLocalState = false,
-  hideExecutionId = false,
+  useLocalState: useLocalStateProp = false,
+  hideExecutionId: hideExecutionIdProp = false,
+  executionId,
+  onClearExecutionId,
+  emptyTitle,
+  emptyBody,
 }: Props) {
   if (mode === "historical" && !fetcher) {
     throw new Error("LogTable: fetcher prop is required when mode='historical'");
   }
+  const useLocalState = useLocalStateProp || !!executionId;
+  const hideExecutionId = hideExecutionIdProp || !!executionId;
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   // Source column is CSS-hidden at max-width: 1024px (see log-table.module.css .tableLog .ht-col-source)
   // Ideally the Source <th>/<td> would be conditionally rendered like the App column,
@@ -330,14 +354,14 @@ export function LogTable({
         })
         .catch(() => { /* fetcher error — stay empty */ });
     } else {
-      getRecentLogs({ app_key: appKey, limit: 200 })
+      getRecentLogs({ app_key: appKey, limit: 200, execution_id: executionId })
         .then((entries) => {
           initialEntries.value = entries;
           watermarkRef.current = entries.reduce((max, e) => Math.max(max, e.timestamp), 0);
         })
         .catch(() => { /* API error — initial entries stay empty, WS will still stream */ });
     }
-  }, [mode, appKey, rv, fetcher]);
+  }, [mode, appKey, rv, fetcher, executionId]);
 
   // Combine initial entries + ring buffer entries, deduplicating by timestamp watermark.
   // Timestamp-based (not seq-based) because seq resets to 1 on process restart while
@@ -346,6 +370,7 @@ export function LogTable({
   const wsEntries = mode === "live" ? logs.toArray().filter((e) => {
     if (e.timestamp <= watermarkRef.current) return false;
     if (appKey && e.app_key !== appKey) return false;
+    if (executionId && e.execution_id !== executionId) return false;
     return true;
   }) : [];
 
@@ -390,16 +415,9 @@ export function LogTable({
 
   const handleSort = (column: SortColumn) => {
     if (useLocalState) {
-      if (column === "timestamp") {
-        const newAsc = localSortColumn.value === "timestamp" ? !localSortAsc.value : false;
-        localSortColumn.value = "timestamp";
-        localSortAsc.value = newAsc;
-      } else if (localSortColumn.value === column) {
-        localSortAsc.value = !localSortAsc.value;
-      } else {
-        localSortColumn.value = column;
-        localSortAsc.value = false;
-      }
+      const next = nextSortState(column, localSortColumn.value, localSortAsc.value);
+      localSortColumn.value = next.column;
+      localSortAsc.value = next.asc;
       return;
     }
 
@@ -408,24 +426,14 @@ export function LogTable({
     const current = qpRef.current;
     const currentSortCol = (current.get("sort") ?? "timestamp") as SortColumn;
     const currentSortAsc = current.get("dir") === "asc";
+    const next = nextSortState(column, currentSortCol, currentSortAsc);
 
-    if (column === "timestamp") {
-      // Toggling timestamp: flip asc. Default for timestamp is desc (false).
-      const newAsc = currentSortCol === "timestamp" ? !currentSortAsc : false;
-      if (newAsc) {
-        current.set({ sort: null, dir: "asc" });
-      } else {
-        // Default: omit both sort and dir
-        current.set({ sort: null, dir: null });
-      }
-    } else if (currentSortCol === column) {
-      // Toggle direction on the same non-timestamp column
-      const newAsc = !currentSortAsc;
-      current.set({ sort: column, dir: newAsc ? "asc" : null });
-    } else {
-      // New non-timestamp column — default dir is desc
-      current.set({ sort: column, dir: null });
-    }
+    // Omit defaults from URL: timestamp+desc is the default state
+    const isDefault = next.column === "timestamp" && !next.asc;
+    current.set({
+      sort: isDefault ? null : next.column,
+      dir: next.asc ? "asc" : null,
+    });
   };
 
   const handleResume = () => {
@@ -479,6 +487,22 @@ export function LogTable({
           <span class="ht-table-toolbar__note" aria-live="polite">{countLabel}</span>
         </div>
         <div class="ht-table-toolbar__controls">
+          {executionId && (
+            <span class="ht-pill ht-pill--mute" data-testid="execution-filter-pill">
+              <span class="ht-text-mono">execution: {executionId.slice(0, 8)}&hellip;</span>
+              {onClearExecutionId && (
+                <button
+                  type="button"
+                  class={styles.pillDismiss}
+                  onClick={onClearExecutionId}
+                  aria-label="Clear execution filter"
+                  data-testid="clear-execution-filter"
+                >
+                  &times;
+                </button>
+              )}
+            </span>
+          )}
           {!appKey && !useLocalState && (
             <TierToolbar
               tierFilter={tierFilter}
@@ -570,8 +594,8 @@ export function LogTable({
               <tr>
                 <td colSpan={colCount}>
                   <EmptyState
-                    title="no log lines in window"
-                    body="nothing has been logged recently. change the level filter or extend the time window to see older lines."
+                    title={emptyTitle ?? "no log lines in window"}
+                    body={emptyBody ?? "nothing has been logged recently. change the level filter or extend the time window to see older lines."}
                   />
                 </td>
               </tr>
@@ -579,9 +603,7 @@ export function LogTable({
             {sorted.slice(0, renderCap).map((entry) => {
               const rowKey = entry.seq ? `${entry.timestamp}-${entry.seq}` : `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`;
               const isExpanded = expandedRows.value.has(rowKey);
-              const canExpand = true;
               const toggle = () => {
-                if (!canExpand) return;
                 const next = new Set(expandedRows.value);
                 if (next.has(rowKey)) next.delete(rowKey); else next.add(rowKey);
                 expandedRows.value = next;
@@ -592,7 +614,6 @@ export function LogTable({
                   entry={entry}
                   rowKey={rowKey}
                   isExpanded={isExpanded}
-                  canExpand={canExpand}
                   isMobile={isMobile}
                   showAppColumn={showAppColumn}
                   showSourceColumn={showSourceColumn}

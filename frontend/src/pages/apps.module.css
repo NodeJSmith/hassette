@@ -76,6 +76,10 @@
 /* Name cell */
 
 .nameCell {
+  min-width: 0;
+}
+
+.nameCellInner {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -153,10 +157,13 @@
 
 .runsCell {
   text-align: right;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0;
+  vertical-align: middle;
+}
+
+.runsCellInner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
 }
 
 /* Actions cell */
@@ -205,7 +212,7 @@
     display: none;
   }
 
-  .nameCell::after {
+  .nameCellInner::after {
     content: "›";
     margin-left: auto;
     color: var(--ink-4);

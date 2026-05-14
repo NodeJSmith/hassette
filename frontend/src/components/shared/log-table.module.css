@@ -139,6 +139,20 @@
   color: var(--ok);
 }
 
+/* Dismiss button inside ht-pill for execution filter */
+.pillDismiss {
+  all: unset;
+  cursor: pointer;
+  font-size: var(--fs-badge);
+  line-height: 1;
+  color: var(--ink-3);
+  padding: 0 var(--sp-0);
+}
+
+.pillDismiss:hover {
+  color: var(--ink-1);
+}
+
 @media screen and (max-width: 1024px) {
   .tableLog :global(.ht-col-source) {
     display: none;

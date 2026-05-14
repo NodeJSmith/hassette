@@ -12,19 +12,3 @@
 .page :global(.ht-table-card-scroll) {
   --table-scroll-height: calc(100vh - 270px);
 }
-
-.executionBanner {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  flex-wrap: wrap;
-  margin-bottom: var(--sp-3);
-  font-size: var(--fs-small);
-  color: var(--ink-2);
-}
-
-.executionId {
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
-  color: var(--ink-1);
-}

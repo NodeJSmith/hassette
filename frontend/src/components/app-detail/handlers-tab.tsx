@@ -5,14 +5,13 @@ import clsx from "clsx";
 import type { ListenerData, JobData } from "../../api/endpoints";
 import { getHandlerInvocations, getJobExecutions } from "../../api/endpoints";
 import { HandlerList, type SelectedHandlerId, listenerStatusKind, jobStatusKind } from "./handler-list";
-import { HandlerInvocations } from "./handler-invocations";
-import { JobExecutions } from "./job-executions";
+import { ExecutionTable } from "../shared/execution-table";
 import { HandlersHealthStrip } from "./health-strip";
 import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useAppState } from "../../state/context";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-filtered-signal-refetch";
-import { formatTriggerDetail, formatDurationOrDash, formatOptionalDuration, lastDotSegment, parseSourceLocation, TIME_PRESET_LABELS } from "../../utils/format";
+import { formatTriggerDetail, formatDurationOrDash, formatOptionalDuration, lastDotSegment, parseSourceLocation } from "../../utils/format";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 
 import { handlerKindLabel } from "../../utils/status";
@@ -108,9 +107,9 @@ function DetailStatsRow({ cells, testId }: { cells: StatsCell[]; testId?: string
   );
 }
 
-function handlerStatsCells(listener: ListenerData, timeLabel: string, lastInvokedLabel: string): StatsCell[] {
+function handlerStatsCells(listener: ListenerData, lastInvokedLabel: string): StatsCell[] {
   const cells: StatsCell[] = [
-    { label: `Calls${timeLabel ? ` · ${timeLabel}` : ""}`, value: listener.total_invocations },
+    { label: "Calls", value: listener.total_invocations },
     { label: "Successful", value: listener.successful },
     { label: "Last", value: listener.last_invoked_at ? lastInvokedLabel || "—" : "—" },
     { label: "Failed", value: listener.failed > 0 ? listener.failed : "—", tone: listener.failed > 0 ? "err" : undefined },
@@ -125,9 +124,9 @@ function handlerStatsCells(listener: ListenerData, timeLabel: string, lastInvoke
   return cells;
 }
 
-function jobStatsCells(job: JobData, timeLabel: string, lastExecutedLabel: string): StatsCell[] {
+function jobStatsCells(job: JobData, lastExecutedLabel: string): StatsCell[] {
   return [
-    { label: `Runs${timeLabel ? ` · ${timeLabel}` : ""}`, value: job.total_executions },
+    { label: "Runs", value: job.total_executions },
     { label: "Successful", value: job.successful },
     { label: "Last", value: job.last_executed_at ? lastExecutedLabel || "—" : "—" },
     { label: "Failed", value: job.failed > 0 ? job.failed : "—", tone: job.failed > 0 ? "err" : undefined },
@@ -151,8 +150,7 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
     { deps: [listener.listener_id] },
   );
 
-  const { invocationCompleted, effectiveTimePreset } = useAppState();
-  const timeLabel = TIME_PRESET_LABELS[effectiveTimePreset.value] ?? "";
+  const { invocationCompleted } = useAppState();
   const lastInvokedLabel = useRelativeTime(listener.last_invoked_at ?? null);
 
   // Targeted real-time refetch when a matching invocation_completed event arrives
@@ -222,7 +220,7 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
       )}
 
       {/* Stats row */}
-      <DetailStatsRow cells={handlerStatsCells(listener, timeLabel, lastInvokedLabel)} testId="handler-stats-row" />
+      <DetailStatsRow cells={handlerStatsCells(listener, lastInvokedLabel)} testId="handler-stats-row" />
 
       {/* View in code link */}
       {onSwitchToCode && listener.source_location && (
@@ -243,9 +241,10 @@ function ListenerDetail({ listener, onSwitchToCode }: ListenerDetailProps) {
       {loading.value && !invocations.value ? (
         <Spinner />
       ) : (
-        <HandlerInvocations
-          invocations={invocations.value ?? []}
-          listenerId={listener.listener_id}
+        <ExecutionTable
+          records={invocations.value ?? []}
+          kind="handler"
+          tableId={`invocation-table-${listener.listener_id}`}
         />
       )}
     </div>
@@ -264,8 +263,7 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
     { deps: [job.job_id] },
   );
 
-  const { executionCompleted, effectiveTimePreset: jobEffectivePreset } = useAppState();
-  const jobTimeLabel = TIME_PRESET_LABELS[jobEffectivePreset.value] ?? "";
+  const { executionCompleted } = useAppState();
   const lastExecutedLabel = useRelativeTime(job.last_executed_at);
   const nextRunLabel = useRelativeTime(job.next_run ?? null);
   const fireAtLabel = useRelativeTime(job.fire_at ?? null);
@@ -358,7 +356,7 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
       )}
 
       {/* Stats row */}
-      <DetailStatsRow cells={jobStatsCells(job, jobTimeLabel, lastExecutedLabel)} testId="job-stats-row" />
+      <DetailStatsRow cells={jobStatsCells(job, lastExecutedLabel)} testId="job-stats-row" />
 
       {/* View in code link */}
       {onSwitchToCode && job.source_location && (
@@ -379,9 +377,10 @@ function JobDetail({ job, onSwitchToCode }: JobDetailProps) {
       {loading.value && !executions.value ? (
         <Spinner />
       ) : (
-        <JobExecutions
-          executions={executions.value ?? []}
-          jobId={job.job_id}
+        <ExecutionTable
+          records={executions.value ?? []}
+          kind="job"
+          tableId={`execution-table-${job.job_id}`}
         />
       )}
     </div>
@@ -403,7 +402,6 @@ function parseHandlerParam(param: string): { kind: "listener" | "job"; id: numbe
 }
 
 export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instanceQs, onSwitchToCode }: Props) {
-  const { effectiveTimePreset } = useAppState();
   const [, navigate] = useLocation();
   const correctUrl = useCorrectUrl();
 
@@ -476,7 +474,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
   return (
     <div ref={containerRef}>
       {/* Health strip — above master/detail layout */}
-      <HandlersHealthStrip listeners={listeners} jobs={jobs} timeLabel={TIME_PRESET_LABELS[effectiveTimePreset.value] ?? ""} />
+      <HandlersHealthStrip listeners={listeners} jobs={jobs} />
 
       {/* Mobile: back button in detail view — navigate to handler list (no handler ID) */}
       {showMobileDetail && (
