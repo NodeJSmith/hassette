@@ -147,7 +147,7 @@ function LogTableRow({
             {showAppColumn && entry.app_key ? `${entry.app_key}.` : ""}{entry.func_name}()
           </div>
         )}
-        <div class={styles.messageText}>
+        <div data-row-key={rowKey} class={styles.messageText}>
           {entry.message}
         </div>
       </td>
