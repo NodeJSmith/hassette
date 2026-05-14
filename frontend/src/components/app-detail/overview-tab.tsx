@@ -184,7 +184,7 @@ function HealthGridRow({ item, appKey, instanceQs }: HealthGridRowProps) {
         </Chip>
       </td>
       <td class={styles.healthRowName}>
-        <Link href={href} class={styles.healthRowLink}>{item.name}</Link>
+        <Link href={href} class={styles.healthRowLink} onClick={(e: MouseEvent) => e.stopPropagation()}>{item.name}</Link>
       </td>
       <td class={styles.healthRowCount}>
         {pluralize(runCount, callLabel)}
