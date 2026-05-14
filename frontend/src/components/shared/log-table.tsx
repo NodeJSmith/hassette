@@ -599,7 +599,7 @@ export function LogTable({
                 </LogSortHeader>
               )}
               {showInstanceColumn && !isMobile && (
-                <th class="ht-col-instance">Instance</th>
+                <th class="ht-col-instance" scope="col">Instance</th>
               )}
               {showExecutionIdColumn && !isMobile && (
                 <th class="ht-col-execution">Execution</th>

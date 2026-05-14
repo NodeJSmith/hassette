@@ -213,7 +213,10 @@ export function AppDetailPage({ params }: Props) {
   const currentInstance = !showParentOverview
     ? manifest?.instances?.find((i) => i.index === resolvedInstanceIndex)
     : undefined;
-  const liveStatus = appStatus.value[appKey]?.status ?? currentInstance?.status ?? manifest?.status ?? "unknown";
+  const wsStatus = appStatus.value[appKey]?.status;
+  const liveStatus = showParentOverview
+    ? manifest?.status ?? "unknown"
+    : wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown";
 
   const hasData = !manifestsLoading.value
     && listeners.data.value !== null && jobs.data.value !== null;
