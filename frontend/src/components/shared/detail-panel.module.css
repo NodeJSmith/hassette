@@ -5,49 +5,66 @@
   border-bottom: 1px solid var(--line-1);
 }
 
-.context {
-  display: flex;
-  gap: var(--sp-2);
-  align-items: baseline;
-  margin-bottom: var(--sp-2);
-  flex-wrap: wrap;
-}
-
 .label {
   font-family: var(--font-mono);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--ink-4);
+  margin-right: var(--sp-2);
+}
+
+.metaRow {
+  display: flex;
+  gap: var(--sp-6);
+  flex-wrap: wrap;
+}
+
+.metaItem {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+/* — Traceback section — */
+
+.tracebackSection {
+  margin-top: var(--sp-3);
+  border-top: 1px solid var(--line-1);
+  padding-top: var(--sp-3);
+}
+
+.tracebackSection > .label {
   display: block;
-  margin-bottom: var(--sp-1);
+  margin-bottom: var(--sp-2);
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--sp-3);
+.errorLine {
+  background: var(--err-bg);
+  border-radius: var(--r-sm);
+  padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-3);
 }
 
-.codeBox {
-  padding: var(--sp-2) 0;
-}
-
-.codeBox pre {
+.errorLine pre {
   margin: 0;
   font-size: var(--fs-mono-sm);
+  font-weight: 500;
+  color: var(--err);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tracebackFrames {
+  margin: 0;
+  font-size: var(--fs-mono-sm);
+  color: var(--ink-2);
   white-space: pre-wrap;
   word-break: break-all;
 }
 
-.tracebackFrames {
-  color: var(--ink-2);
-}
-
-.tracebackError {
-  color: var(--err);
-  font-weight: 500;
-}
+/* — Logs and misc — */
 
 .logsWrapper {
   margin-top: var(--sp-3);
@@ -62,7 +79,8 @@
 }
 
 @media screen and (max-width: 768px) {
-  .grid {
-    grid-template-columns: 1fr;
+  .metaRow {
+    flex-direction: column;
+    gap: var(--sp-1);
   }
 }

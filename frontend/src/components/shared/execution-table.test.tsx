@@ -134,7 +134,7 @@ describe("ExecutionTable", () => {
       <ExecutionTable
         records={[createExecution({
           status: "error",
-          error_traceback: "Traceback (most recent call last):\n  File job.py, line 10",
+          error_traceback: "Traceback (most recent call last):\n  File job.py, line 10\n    some_func()\nValueError: bad value",
         })]}
         kind="job"
         tableId="t"
@@ -144,7 +144,7 @@ describe("ExecutionTable", () => {
     fireEvent.click(container.querySelector("[data-testid='execution-row']")!);
     const tb = container.querySelector("[data-testid='execution-traceback']");
     expect(tb).not.toBeNull();
-    expect(tb!.textContent).toContain("Traceback (most recent call last)");
+    expect(tb!.textContent).toContain("File job.py, line 10");
   });
 
   it("expanded detail shows logs section", () => {

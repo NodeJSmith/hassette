@@ -102,7 +102,6 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
                 <tr key={`${rowKey}-detail`}>
                   <td colSpan={COL_COUNT} style={{ padding: 0 }}>
                     <DetailPanel
-                      kind={kind}
                       status={rec.status}
                       durationMs={rec.duration_ms}
                       executionId={rec.execution_id}
