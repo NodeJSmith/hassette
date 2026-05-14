@@ -81,6 +81,7 @@ interface LogTableRowProps {
   isExpanded: boolean;
   isMobile: boolean;
   showAppColumn: boolean;
+  showInstanceColumn: boolean;
   showSourceColumn: boolean;
   showExecutionIdColumn: boolean;
   colCount: number;
@@ -93,6 +94,7 @@ function LogTableRow({
   isExpanded,
   isMobile,
   showAppColumn,
+  showInstanceColumn,
   showSourceColumn,
   showExecutionIdColumn,
   colCount,
@@ -117,6 +119,11 @@ function LogTableRow({
           ) : (
             <span class="ht-text-muted">—</span>
           )}
+        </td>
+      )}
+      {showInstanceColumn && !isMobile && (
+        <td class="ht-col-instance ht-text-mono" title={entry.instance_name ?? undefined}>
+          {entry.instance_name ?? <span class="ht-text-muted">—</span>}
         </td>
       )}
       {showExecutionIdColumn && !isMobile && (
@@ -213,6 +220,7 @@ function nextSortState(clicked: SortColumn, currentCol: SortColumn, currentAsc: 
 
 interface Props {
   showAppColumn?: boolean;
+  showInstanceColumn?: boolean;
   appKey?: string;
   /** List of app keys for the app filter dropdown (global logs page) */
   appKeys?: string[];
@@ -241,6 +249,7 @@ interface Props {
 
 export function LogTable({
   showAppColumn = true,
+  showInstanceColumn = false,
   appKey,
   appKeys,
   hideTitle,
@@ -265,7 +274,7 @@ export function LogTable({
   const isTablet = useMediaQuery(BREAKPOINT_TABLET);
   const showSourceColumn = !isTablet;
   const showExecutionIdColumn = !hideExecutionId;
-  const colCount = isMobile ? 3 : 3 + (showAppColumn ? 1 : 0) + (showSourceColumn ? 1 : 0) + (showExecutionIdColumn ? 1 : 0);
+  const colCount = isMobile ? 3 : 3 + (showAppColumn ? 1 : 0) + (showInstanceColumn ? 1 : 0) + (showSourceColumn ? 1 : 0) + (showExecutionIdColumn ? 1 : 0);
   const { logs, updateLogSubscription, reconnectVersion } = useAppState();
 
   // In live mode, subscribe to the WS log version signal for reactivity.
@@ -589,6 +598,9 @@ export function LogTable({
                   App
                 </LogSortHeader>
               )}
+              {showInstanceColumn && !isMobile && (
+                <th class="ht-col-instance">Instance</th>
+              )}
               {showExecutionIdColumn && !isMobile && (
                 <th class="ht-col-execution">Execution</th>
               )}
@@ -627,6 +639,7 @@ export function LogTable({
                   isExpanded={isExpanded}
                   isMobile={isMobile}
                   showAppColumn={showAppColumn}
+                  showInstanceColumn={showInstanceColumn}
                   showSourceColumn={showSourceColumn}
                   showExecutionIdColumn={showExecutionIdColumn}
                   colCount={colCount}

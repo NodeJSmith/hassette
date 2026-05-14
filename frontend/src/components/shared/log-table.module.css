@@ -27,6 +27,7 @@
 .tableLog :global(.ht-col-level)   { white-space: nowrap; width: 80px; }
 .tableLog:global(.ht-table--compact) :global(.ht-col-time) { white-space: nowrap; width: 140px; }
 .tableLog :global(.ht-col-app)     { white-space: nowrap; width: 140px; }
+.tableLog :global(.ht-col-instance)  { white-space: nowrap; width: 120px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
 .tableLog :global(.ht-col-execution) { white-space: nowrap; width: 140px; }
 .tableLog :global(.ht-col-source)  { width: 200px; }
 /* Message column: no width set — takes all remaining space */
@@ -171,8 +172,9 @@
      long messages. Card's horizontal scroll is handled by ht-table-card-scroll. */
   .tableLog:global(.ht-table--compact) { display: table; table-layout: fixed; }
 
-  /* Log table: hide App column — source shown inline (app.func) in message column */
-  .tableLog :global(.ht-col-app) {
+  /* Log table: hide App and Instance columns — source shown inline (app.func) in message column */
+  .tableLog :global(.ht-col-app),
+  .tableLog :global(.ht-col-instance) {
     display: none;
   }
 

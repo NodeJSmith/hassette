@@ -112,7 +112,7 @@ function MultiInstanceOverview({
     <div class={styles.multiOverview} data-testid="multi-instance-overview">
       <div class="ht-level ht-mb-4">
         <div class="ht-level-start">
-          <h1 class={styles.heading4}>{displayName}</h1>
+          <h2 class={styles.heading4}>{displayName}</h2>
           <Badge variant="neutral" data-testid="instance-count-badge">
             ×{instanceCount} instances
           </Badge>
@@ -210,7 +210,9 @@ export function AppDetailPage({ params }: Props) {
   // If multi-instance and no instance index in URL → show parent overview
   const showParentOverview = isMultiInstance && instanceIndex === undefined;
 
-  const currentInstance = manifest?.instances?.find((i) => i.index === resolvedInstanceIndex);
+  const currentInstance = !showParentOverview
+    ? manifest?.instances?.find((i) => i.index === resolvedInstanceIndex)
+    : undefined;
   const liveStatus = appStatus.value[appKey]?.status ?? currentInstance?.status ?? manifest?.status ?? "unknown";
 
   const hasData = !manifestsLoading.value
@@ -227,6 +229,13 @@ export function AppDetailPage({ params }: Props) {
     }
   }, [initialLoading, manifest, instanceIndex, appKey, activeTab, correctUrl]);
 
+  // Redirect stale /handlers bookmark on parent page (handlers are per-instance only)
+  useEffect(() => {
+    if (showParentOverview && activeTab === "handlers") {
+      correctUrl(`/apps/${appKey}/overview`);
+    }
+  }, [showParentOverview, activeTab, appKey, correctUrl]);
+
   if (initialLoading) return <Spinner />;
 
   // Build instance query string for tab links — preserve ?instance=N, omit if not set
@@ -236,34 +245,11 @@ export function AppDetailPage({ params }: Props) {
 
   const handlerCount = (listeners.data.value?.length ?? 0) + (jobs.data.value?.length ?? 0);
 
-  // Multi-instance parent overview
-  if (showParentOverview && manifest) {
-    return (
-      <div>
-        {/* Breadcrumb */}
-        <nav class={clsx(styles.breadcrumb, "ht-mb-3")} aria-label="Breadcrumb">
-          <a href="/apps">apps</a>
-          <span class={styles.breadcrumbSeparator} aria-hidden="true">/</span>
-          <span class={styles.breadcrumbCurrent} aria-current="page">
-            {manifest.display_name ?? appKey}
-          </span>
-        </nav>
-        <MultiInstanceOverview
-          appKey={appKey}
-          displayName={manifest.display_name ?? appKey}
-          instances={manifest.instances ?? []}
-          instanceCount={manifest.instance_count}
-          onNavigate={(idx) => { navigate(`/apps/${appKey}?instance=${idx}`); }}
-        />
-      </div>
-    );
-  }
-
   return (
     <div class="ht-page">
       {/* Breadcrumb */}
       <nav class={clsx(styles.breadcrumb, "ht-mb-3")} aria-label="Breadcrumb">
-        {isMultiInstance ? (
+        {isMultiInstance && !showParentOverview ? (
           <>
             <a href="/apps">apps</a>
             <span class={styles.breadcrumbSeparator} aria-hidden="true">/</span>
@@ -294,7 +280,7 @@ export function AppDetailPage({ params }: Props) {
       </nav>
 
       {/* Instance switcher (multi-instance detail view only) */}
-      {isMultiInstance && manifest?.instances && manifest.instances.length > 0 && (
+      {isMultiInstance && !showParentOverview && manifest?.instances && manifest.instances.length > 0 && (
         <div class="ht-mb-3">
           <InstanceSwitcher
             instances={manifest.instances}
@@ -330,7 +316,7 @@ export function AppDetailPage({ params }: Props) {
         {manifest?.class_name && manifest.class_name !== appKey && (
           <> &middot; {manifest.class_name}</>
         )}
-        {manifest && manifest.instance_count > 1 && <> &middot; instance {resolvedInstanceIndex}</>}
+        {manifest && manifest.instance_count > 1 && !showParentOverview && <> &middot; instance {resolvedInstanceIndex}</>}
         {manifest?.auto_loaded && (
           <> &middot; <Chip variant="muted" data-testid="auto-loaded-badge">auto</Chip></>
         )}
@@ -355,7 +341,7 @@ export function AppDetailPage({ params }: Props) {
       {/* Tab strip */}
       <div class={clsx(styles.tabStrip, "ht-mb-4")} role="tablist" aria-label="App sections">
         <Tab id="overview" label="overview" {...tabProps} />
-        <Tab id="handlers" label="handlers" badge={handlerCount} {...tabProps} />
+        {!showParentOverview && <Tab id="handlers" label="handlers" badge={handlerCount} {...tabProps} />}
         <Tab id="code" label="code" {...tabProps} />
         <Tab id="logs" label="logs" {...tabProps} />
         <Tab id="config" label="config" {...tabProps} />
@@ -364,14 +350,24 @@ export function AppDetailPage({ params }: Props) {
       {/* Tab content */}
       {activeTab === "overview" && (
         <div role="tabpanel" id="tabpanel-overview" aria-labelledby="tab-overview">
-          <OverviewTab
-            listeners={displayListeners}
-            jobs={displayJobs}
-            appKey={appKey}
-            instanceQs={instanceQs}
-            resolvedInstanceIndex={resolvedInstanceIndex}
-            appStatus={liveStatus}
-          />
+          {showParentOverview && manifest ? (
+            <MultiInstanceOverview
+              appKey={appKey}
+              displayName={manifest.display_name ?? appKey}
+              instances={manifest.instances ?? []}
+              instanceCount={manifest.instance_count}
+              onNavigate={(idx) => { navigate(`/apps/${appKey}/overview?instance=${idx}`); }}
+            />
+          ) : (
+            <OverviewTab
+              listeners={displayListeners}
+              jobs={displayJobs}
+              appKey={appKey}
+              instanceQs={instanceQs}
+              resolvedInstanceIndex={resolvedInstanceIndex}
+              appStatus={liveStatus}
+            />
+          )}
         </div>
       )}
       {activeTab === "handlers" && (
@@ -403,7 +399,7 @@ export function AppDetailPage({ params }: Props) {
       {activeTab === "logs" && (
         <div role="tabpanel" id="tabpanel-logs" aria-labelledby="tab-logs">
           <Card data-testid="logs-section">
-            <LogTable showAppColumn={false} appKey={appKey} />
+            <LogTable showAppColumn={false} showInstanceColumn={showParentOverview} appKey={appKey} />
           </Card>
         </div>
       )}

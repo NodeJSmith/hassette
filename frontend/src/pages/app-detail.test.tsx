@@ -475,8 +475,8 @@ describe("AppDetailPage", () => {
     // Click an instance card
     const card0 = getByTestId("instance-card-0");
     fireEvent.click(card0);
-    // Should navigate to /apps/test_app?instance=0
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app?instance=0");
+    // Should navigate to /apps/test_app/overview?instance=0
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/overview?instance=0");
   });
 
   it("reads instance from ?instance= query param for multi-instance detail view", () => {
@@ -568,5 +568,92 @@ describe("AppDetailPage", () => {
       { wrapper: createWrapper(state) },
     );
     expect(capturedSelectedHandler).toBeNull();
+  });
+
+  // ── Multi-instance parent page tab tests ──
+
+  function setupMultiInstanceParent() {
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
+      ],
+    });
+    setupManifestAndApi(manifest);
+  }
+
+  it("parent page renders tab strip with 4 tabs (no handlers)", () => {
+    setupMultiInstanceParent();
+    const { getAllByRole } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    const tabs = getAllByRole("tab");
+    const labels = tabs.map((t) => t.textContent?.trim());
+    expect(labels).toEqual(["overview", "code", "logs", "config"]);
+  });
+
+  it("parent page hides handlers tab", () => {
+    setupMultiInstanceParent();
+    const { queryByRole } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(queryByRole("tab", { name: /handlers/i })).toBeNull();
+  });
+
+  it("parent page renders code tab content", () => {
+    setupMultiInstanceParent();
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app", tab: "code" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(getByTestId("code-tab")).toBeDefined();
+  });
+
+  it("parent page renders logs tab content", () => {
+    setupMultiInstanceParent();
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app", tab: "logs" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(getByTestId("log-table")).toBeDefined();
+  });
+
+  it("parent page renders config tab content", () => {
+    setupMultiInstanceParent();
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app", tab: "config" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(getByTestId("config-tab")).toBeDefined();
+  });
+
+  it("parent page does not render instance switcher", () => {
+    setupMultiInstanceParent();
+    const { queryByTestId } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(queryByTestId("instance-switcher")).toBeNull();
+  });
+
+  it("parent page redirects /handlers to /overview via correctUrl", () => {
+    setupMultiInstanceParent();
+    render(
+      <AppDetailPage params={{ key: "test_app", tab: "handlers" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/overview");
+  });
+
+  it("parent page hides 'instance N' from subtitle meta", () => {
+    setupMultiInstanceParent();
+    const { getByTestId } = render(
+      <AppDetailPage params={{ key: "test_app" }} />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(getByTestId("app-subtitle-meta").textContent).not.toContain("instance");
   });
 });
