@@ -287,3 +287,36 @@ def test_multi_instance_detail_shows_switcher(page: Page, base_url: str) -> None
     page.wait_for_load_state("networkidle")
     switcher = page.locator("[data-testid='instance-switcher']")
     expect(switcher).to_be_visible()
+
+
+def test_multi_instance_parent_has_tab_strip(page: Page, base_url: str) -> None:
+    """Multi-instance parent page renders tab strip with overview, code, logs, config."""
+    page.goto(base_url + "/apps/multi_app")
+    page.wait_for_load_state("networkidle")
+    tablist = page.get_by_role("tablist", name="App sections")
+    expect(tablist).to_be_visible()
+    expect(page.get_by_role("tab", name="overview")).to_be_visible()
+    expect(page.get_by_role("tab", name="code")).to_be_visible()
+    expect(page.get_by_role("tab", name="logs")).to_be_visible()
+    expect(page.get_by_role("tab", name="config")).to_be_visible()
+
+
+def test_multi_instance_parent_hides_handlers_tab(page: Page, base_url: str) -> None:
+    """Multi-instance parent page does not show the handlers tab."""
+    page.goto(base_url + "/apps/multi_app")
+    page.wait_for_load_state("networkidle")
+    expect(page.get_by_role("tab", name="handlers")).to_have_count(0)
+
+
+def test_multi_instance_parent_code_tab(page: Page, base_url: str) -> None:
+    """Multi-instance parent /apps/multi_app/code renders the code tab."""
+    page.goto(base_url + "/apps/multi_app/code")
+    page.wait_for_load_state("networkidle")
+    expect(page.locator("[data-testid='code-tab-content']")).to_be_visible()
+
+
+def test_multi_instance_parent_logs_tab(page: Page, base_url: str) -> None:
+    """Multi-instance parent /apps/multi_app/logs renders the logs section."""
+    page.goto(base_url + "/apps/multi_app/logs")
+    page.wait_for_load_state("networkidle")
+    expect(page.locator("[data-testid='logs-section']")).to_be_visible()
