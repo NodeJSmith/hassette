@@ -20,6 +20,7 @@ export function LogsPage() {
       <Card variant="compact" class={styles.cardFull} data-testid="logs-card">
         <LogTable
           showAppColumn={true}
+          showInstanceColumn
           appKeys={appKeys}
           hideTitle
           executionId={executionId}
