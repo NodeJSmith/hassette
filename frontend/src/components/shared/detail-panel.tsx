@@ -85,7 +85,7 @@ export function DetailPanel({
                   <pre class="ht-text-mono">{split.errorLine}</pre>
                 </div>
                 <pre class={styles.tracebackFrames} data-testid={`${testId.replace("-detail", "")}-traceback`}>
-                  {split.frames}
+                  {errorTraceback}
                 </pre>
               </>
             ) : (
