@@ -2,6 +2,8 @@ import clsx from "clsx";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedApi } from "../hooks/use-scoped-api";
+import { useAppState } from "../state/context";
+import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-filtered-signal-refetch";
 import { getAllListeners, getAllJobs } from "../api/endpoints";
 import type { ListenerData, JobData } from "../api/endpoints";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
@@ -259,6 +261,24 @@ export function HandlersPage() {
 
   const listenersApi = useScopedApi((since) => getAllListeners(since));
   const jobsApi = useScopedApi((since) => getAllJobs(since));
+
+  const { invocationCompleted, executionCompleted } = useAppState();
+
+  useFilteredSignalRefetch(
+    invocationCompleted,
+    () => true,
+    () => void listenersApi.refetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
+  );
+
+  useFilteredSignalRefetch(
+    executionCompleted,
+    () => true,
+    () => void jobsApi.refetch(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
+  );
 
   const allListeners = listenersApi.data.value ?? [];
   const allJobs = jobsApi.data.value ?? [];

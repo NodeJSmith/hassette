@@ -132,19 +132,21 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
       >
         {/* Name */}
         <td class={styles.nameCell}>
-          <span class={styles.expandGutter}>
-            {isMulti && (
-              <button type="button" class={styles.expand} onClick={onToggle} aria-expanded={isExpanded} aria-label={`${isExpanded ? "Collapse" : "Expand"} ${app.app_key}`} data-testid="app-row-expand">
-                <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-                  <polyline points={isExpanded ? "2,4 6,8 10,4" : "4,2 8,6 4,10"} fill="none" stroke="currentColor" stroke-width="1.5" />
-                </svg>
-              </button>
-            )}
-          </span>
-          <StatusShape kind={kind} size={7} />
-          <AppLink appKey={app.app_key} />
-          <span class={styles.className}>{app.class_name}</span>
-          {app.auto_loaded && <Chip variant="muted">auto</Chip>}
+          <div class={styles.nameCellInner}>
+            <span class={styles.expandGutter}>
+              {isMulti && (
+                <button type="button" class={styles.expand} onClick={onToggle} aria-expanded={isExpanded} aria-label={`${isExpanded ? "Collapse" : "Expand"} ${app.app_key}`} data-testid="app-row-expand">
+                  <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
+                    <polyline points={isExpanded ? "2,4 6,8 10,4" : "4,2 8,6 4,10"} fill="none" stroke="currentColor" stroke-width="1.5" />
+                  </svg>
+                </button>
+              )}
+            </span>
+            <StatusShape kind={kind} size={7} />
+            <AppLink appKey={app.app_key} />
+            <span class={styles.className}>{app.class_name}</span>
+            {app.auto_loaded && <Chip variant="muted">auto</Chip>}
+          </div>
         </td>
         {/* Status */}
         <td>
@@ -172,8 +174,10 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
         </td>
         {/* Runs + sparkline */}
         <td class={styles.runsCell}>
-          <span class="ht-text-mono">{totalRuns}</span>
-          <MiniSparkline buckets={app.activity_buckets} />
+          <div class={styles.runsCellInner}>
+            <MiniSparkline buckets={app.activity_buckets} height={16} />
+            <span class="ht-text-mono">{totalRuns}</span>
+          </div>
         </td>
         {/* Last fired */}
         <td class="ht-text-mono ht-text-muted ht-text-sm">
@@ -192,9 +196,11 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
         return (
           <tr key={`${app.app_key}-${inst.index}`} class={clsx(styles.row, styles.rowInstance)} data-testid={`instance-row-${app.app_key}-${inst.index}`}>
             <td class={styles.nameCell}>
-              <span class={styles.instanceCorner}>└</span>
-              <StatusShape kind={instKind} size={6} />
-              <AppLink appKey={app.app_key} instanceIndex={inst.index}>{inst.instance_name}</AppLink>
+              <div class={styles.nameCellInner}>
+                <span class={styles.instanceCorner}>└</span>
+                <StatusShape kind={instKind} size={6} />
+                <AppLink appKey={app.app_key} instanceIndex={inst.index}>{inst.instance_name}</AppLink>
+              </div>
             </td>
             <td><Badge variant={statusToVariant(instStatus)} size="sm">{instStatus}</Badge></td>
             <td class={styles.errorCell}>

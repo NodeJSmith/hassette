@@ -142,6 +142,27 @@ class TestListenerJobMetaRegistration:
         runtime.register_job_meta(job_db_id=99, app_key="climate", instance_index=0)
         assert runtime._job_meta[99] == ("climate", 0)
 
+    def test_prune_meta_scopes_to_app_listeners(self, runtime: RuntimeQueryService) -> None:
+        runtime.register_listener_meta(1, "app_a", 0)
+        runtime.register_listener_meta(2, "app_b", 0)
+        runtime.prune_meta("app_a", set(), set())
+        assert 1 not in runtime._listener_meta
+        assert 2 in runtime._listener_meta
+
+    def test_prune_meta_scopes_to_app_jobs(self, runtime: RuntimeQueryService) -> None:
+        runtime.register_job_meta(10, "app_a", 0)
+        runtime.register_job_meta(20, "app_b", 0)
+        runtime.prune_meta("app_a", set(), set())
+        assert 10 not in runtime._job_meta
+        assert 20 in runtime._job_meta
+
+    def test_prune_meta_keeps_live_ids_for_reconciling_app(self, runtime: RuntimeQueryService) -> None:
+        runtime.register_listener_meta(1, "app_a", 0)
+        runtime.register_listener_meta(2, "app_a", 0)
+        runtime.prune_meta("app_a", {1}, set())
+        assert 1 in runtime._listener_meta
+        assert 2 not in runtime._listener_meta
+
     def test_unknown_listener_id_returns_empty_fallback_on_flush(self, runtime: RuntimeQueryService) -> None:
         """Completion events for unknown listener IDs get empty app_key / zero index."""
         # Simulate an invocation event arriving without prior meta registration

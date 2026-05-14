@@ -1,0 +1,18 @@
+.section {
+  /* intentionally no extra padding — parent detail panel handles it */
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ink-4);
+  display: block;
+  margin-bottom: var(--sp-1);
+}
+
+.viewAll {
+  font-size: var(--fs-small);
+  margin: var(--sp-2) 0 0;
+}

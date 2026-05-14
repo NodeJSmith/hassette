@@ -6,14 +6,11 @@ import { HandlersTab } from "./handlers-tab";
 import { createListener, createJob } from "../../test/factories";
 
 // Mock child components that make API calls
-vi.mock("./handler-invocations", () => ({
-  HandlerInvocations: ({ listenerId }: { invocations: unknown[]; listenerId: number }) => (
-    <div data-testid={`invocations-${listenerId}`}>Invocations panel</div>
-  ),
-}));
-vi.mock("./job-executions", () => ({
-  JobExecutions: ({ jobId }: { executions: unknown[]; jobId: number }) => (
-    <div data-testid={`executions-${jobId}`}>Executions panel</div>
+vi.mock("../shared/execution-table", () => ({
+  ExecutionTable: ({ tableId, kind, records }: { tableId: string; kind: string; records: unknown[] }) => (
+    <div data-testid={tableId} data-kind={kind} data-count={records.length}>
+      {kind === "handler" ? "Invocations panel" : "Executions panel"}
+    </div>
   ),
 }));
 

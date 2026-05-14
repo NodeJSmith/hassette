@@ -20,6 +20,8 @@ vi.mock("wouter", () => ({
   Link: ({ href, children, ...rest }: { href: string; children: preact.ComponentChildren; [k: string]: unknown }) => (
     <a href={href} {...rest}>{children}</a>
   ),
+  useSearch: () => "",
+  useLocation: () => ["/", () => {}],
 }));
 
 function renderOverviewTab({
@@ -382,6 +384,30 @@ describe("OverviewTab — Recent Activity", () => {
       expect(section.textContent).toContain("155");
     });
   });
+
+  it("groups consecutive same-handler same-status entries", async () => {
+    const entries: ActivityFeedEntry[] = [
+      { row_id: "r1", status: "success", timestamp: 1700000300, app_key: "test_app", handler_name: "check", duration_ms: 10, error_type: null, kind: "job" },
+      { row_id: "r2", status: "success", timestamp: 1700000200, app_key: "test_app", handler_name: "check", duration_ms: 20, error_type: null, kind: "job" },
+      { row_id: "r3", status: "success", timestamp: 1700000100, app_key: "test_app", handler_name: "check", duration_ms: 30, error_type: null, kind: "job" },
+      { row_id: "r4", status: "error",   timestamp: 1700000050, app_key: "test_app", handler_name: "on_event", duration_ms: 5, error_type: "ValueError", kind: "handler" },
+      { row_id: "r5", status: "success", timestamp: 1700000000, app_key: "test_app", handler_name: "check", duration_ms: 15, error_type: null, kind: "job" },
+    ];
+    server.use(
+      http.get("/api/telemetry/app/:app_key/activity", () =>
+        HttpResponse.json<ActivityFeedEntry[]>(entries),
+      ),
+    );
+
+    const { getByTestId, getAllByTestId } = renderOverviewTab({ appKey: "test_app" });
+    await waitFor(() => {
+      const rows = getAllByTestId("overview-activity-row");
+      expect(rows.length).toBe(3);
+    });
+    const section = getByTestId("overview-activity-section");
+    expect(section.textContent).toContain("× 3");
+    expect(section.textContent).toContain("on_event");
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -415,7 +441,8 @@ describe("OverviewTab — Recent Logs", () => {
 
     const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
     await waitFor(() => {
-      expect(getByTestId("overview-logs-empty")).toBeDefined();
+      const section = getByTestId("overview-logs-section");
+      expect(section.textContent).toContain("no log lines in window");
     });
   });
 });

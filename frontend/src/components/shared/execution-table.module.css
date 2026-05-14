@@ -1,0 +1,31 @@
+/* ExecutionTable — shared expandable execution/invocation table */
+
+.colArrow { width: var(--sp-4); }
+
+.row { cursor: pointer; transition: background var(--t-fast) var(--ease); }
+.rowOpen { background: var(--bg-sunken); }
+.row:hover { background: var(--bg-sunken); }
+
+.statusCell {}
+
+.statusCellInner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.errorType {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--err);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timeoutType {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--warn);
+  white-space: nowrap;
+}

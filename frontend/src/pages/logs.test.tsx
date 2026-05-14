@@ -1,13 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { signal } from "@preact/signals";
-import { fireEvent } from "@testing-library/preact";
 import { LogsPage } from "./logs";
 import { renderWithAppState } from "../test/render-helpers";
 import { createManifest } from "../test/factories";
 
-// Reactive search signal to allow URL param simulation in logs page tests
-import { signal as _signal } from "@preact/signals";
-const mockSearchSignal = _signal("");
+const mockSearchSignal = signal("");
 const mockNavigate = vi.fn((url: string) => {
   const qIdx = url.indexOf("?");
   mockSearchSignal.value = qIdx >= 0 ? url.slice(qIdx + 1) : "";
@@ -20,33 +17,32 @@ vi.mock("wouter", () => ({
     <a href={href as string} class={cls as string}>{children as never}</a>,
 }));
 
-// Stub LogTable — it has its own extensive tests
+let capturedOnClearExecutionId: (() => void) | undefined;
 vi.mock("../components/shared/log-table", () => ({
   LogTable: ({
     showAppColumn,
     appKeys,
     hideTitle,
-    mode,
-    fetcher,
-    hideExecutionId,
+    executionId,
+    onClearExecutionId,
   }: {
     showAppColumn: boolean;
     appKeys: string[];
     hideTitle?: boolean;
-    mode?: string;
-    fetcher?: () => Promise<unknown[]>;
-    hideExecutionId?: boolean;
-  }) => (
-    <div
-      data-testid="log-table"
-      data-show-app-column={String(showAppColumn)}
-      data-app-keys={(appKeys ?? []).join(",")}
-      data-hide-title={String(!!hideTitle)}
-      data-mode={mode ?? "live"}
-      data-has-fetcher={String(!!fetcher)}
-      data-hide-execution-id={String(!!hideExecutionId)}
-    />
-  ),
+    executionId?: string | null;
+    onClearExecutionId?: () => void;
+  }) => {
+    capturedOnClearExecutionId = onClearExecutionId;
+    return (
+      <div
+        data-testid="log-table"
+        data-show-app-column={String(showAppColumn)}
+        data-app-keys={(appKeys ?? []).join(",")}
+        data-hide-title={String(!!hideTitle)}
+        data-execution-id={executionId ?? ""}
+      />
+    );
+  },
 }));
 
 function withManifests(manifests: ReturnType<typeof createManifest>[]) {
@@ -60,6 +56,7 @@ beforeEach(() => {
     const qIdx = url.indexOf("?");
     mockSearchSignal.value = qIdx >= 0 ? url.slice(qIdx + 1) : "";
   });
+  capturedOnClearExecutionId = undefined;
 });
 
 describe("LogsPage", () => {
@@ -85,18 +82,12 @@ describe("LogsPage", () => {
       createManifest({ app_key: "alpha_app" }),
     ];
     const { getByTestId } = renderWithAppState(<LogsPage />, withManifests(manifests));
-    // App keys should be sorted alphabetically
     expect(getByTestId("log-table").getAttribute("data-app-keys")).toBe("alpha_app,zebra_app");
   });
 
   it("passes empty app keys when manifests have no data", () => {
     const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
     expect(getByTestId("log-table").getAttribute("data-app-keys")).toBe("");
-  });
-
-  it("renders LogTable inside a card", () => {
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("logs-card")).toBeDefined();
   });
 
   it("renders page-level h1 heading", () => {
@@ -109,68 +100,33 @@ describe("LogsPage", () => {
     expect(getByTestId("log-table").getAttribute("data-hide-title")).toBe("true");
   });
 
-  it("renders LogTable in live mode when no execution_id param present", () => {
+  it("passes no executionId when URL param is absent", () => {
     mockSearchSignal.value = "";
     const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("log-table").getAttribute("data-mode")).toBe("live");
+    expect(getByTestId("log-table").getAttribute("data-execution-id")).toBe("");
   });
 
-  it("renders LogTable in historical mode when execution_id URL param is present", () => {
+  it("passes executionId when URL param is present", () => {
     mockSearchSignal.value = "execution_id=abc-123";
     const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("log-table").getAttribute("data-mode")).toBe("historical");
+    expect(getByTestId("log-table").getAttribute("data-execution-id")).toBe("abc-123");
   });
 
-  it("passes a custom fetcher to LogTable when execution_id is present", () => {
+  it("passes onClearExecutionId that removes the URL param", () => {
     mockSearchSignal.value = "execution_id=abc-123";
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("log-table").getAttribute("data-has-fetcher")).toBe("true");
-  });
+    renderWithAppState(<LogsPage />, withManifests([]));
 
-  it("shows execution filter banner when execution_id param is present", () => {
-    mockSearchSignal.value = "execution_id=abc-123";
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("execution-filter-banner")).toBeDefined();
-  });
-
-  it("banner contains the execution id", () => {
-    mockSearchSignal.value = "execution_id=abc-123";
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("execution-filter-banner").textContent).toContain("abc-123");
-  });
-
-  it("banner has a clear filter link", () => {
-    mockSearchSignal.value = "execution_id=abc-123";
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    const banner = getByTestId("execution-filter-banner");
-    expect(banner.querySelector("a, button")).not.toBeNull();
-  });
-
-  it("clicking clear filter removes execution_id from URL", () => {
-    mockSearchSignal.value = "execution_id=abc-123";
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    const clearLink = getByTestId("execution-filter-banner").querySelector("a, button") as HTMLElement;
-    fireEvent.click(clearLink);
+    expect(capturedOnClearExecutionId).toBeDefined();
+    capturedOnClearExecutionId!();
     expect(mockNavigate).toHaveBeenCalled();
     const [url] = mockNavigate.mock.calls[0];
     expect(url).not.toContain("execution_id");
   });
 
-  it("hides execution_id column when filtering by execution_id", () => {
+  it("renders single layout regardless of execution_id presence", () => {
     mockSearchSignal.value = "execution_id=abc-123";
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("log-table").getAttribute("data-hide-execution-id")).toBe("true");
-  });
-
-  it("shows execution_id column in live mode (no filter)", () => {
-    mockSearchSignal.value = "";
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("log-table").getAttribute("data-hide-execution-id")).toBe("false");
-  });
-
-  it("does not show banner in live mode", () => {
-    mockSearchSignal.value = "";
     const { queryByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
     expect(queryByTestId("execution-filter-banner")).toBeNull();
+    expect(queryByTestId("logs-card")).not.toBeNull();
   });
 });
