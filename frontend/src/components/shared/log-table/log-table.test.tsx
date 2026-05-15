@@ -6,12 +6,15 @@ import { signal } from "@preact/signals";
 import { toast } from "sonner";
 import { LogTable } from "./log-table";
 import { sortEntries } from "./use-log-filters";
+import { resolveSortColumn, levelClass } from "./constants";
+import { rowKey } from "./types";
 import { getRecentLogs } from "../../../api/endpoints";
 import type { LogEntry } from "../../../api/endpoints";
 import { AppStateContext } from "../../../state/context";
 import { createAppState, type AppState } from "../../../state/create-app-state";
 import type { WsLogPayload } from "../../../api/ws-types";
 
+// keep in sync with use-column-visibility.test.ts and hooks/use-media-query.ts
 const mockUseMediaQuery = vi.fn((_maxWidth: number) => false);
 vi.mock("../../../hooks/use-media-query", () => ({
   useMediaQuery: (maxWidth: number) => mockUseMediaQuery(maxWidth),
@@ -421,5 +424,396 @@ describe("Truncation", () => {
 
     const { findByText } = render(<LogTable />, { wrapper: createWrapper(state) });
     await findByText(/showing 500 of 501/);
+  });
+});
+
+describe("resolveSortColumn", () => {
+  it("returns the column as-is for valid sort columns", () => {
+    expect(resolveSortColumn("timestamp")).toBe("timestamp");
+    expect(resolveSortColumn("level")).toBe("level");
+    expect(resolveSortColumn("app")).toBe("app");
+    expect(resolveSortColumn("function")).toBe("function");
+    expect(resolveSortColumn("message")).toBe("message");
+  });
+
+  it("maps deprecated 'source' alias to 'function'", () => {
+    expect(resolveSortColumn("source")).toBe("function");
+  });
+
+  it("falls back to 'timestamp' for invalid input", () => {
+    expect(resolveSortColumn("bogus")).toBe("timestamp");
+    expect(resolveSortColumn("")).toBe("timestamp");
+  });
+});
+
+describe("rowKey", () => {
+  it("uses timestamp-seq when seq is present", () => {
+    const entry = { seq: 42, timestamp: 1000, logger_name: "test", lineno: 10 } as LogEntry;
+    expect(rowKey(entry)).toBe("1000-42");
+  });
+
+  it("falls back to timestamp-logger-lineno when seq is 0", () => {
+    const entry = { seq: 0, timestamp: 1000, logger_name: "hassette.apps.my_app", lineno: 55 } as LogEntry;
+    expect(rowKey(entry)).toBe("1000-hassette.apps.my_app-55");
+  });
+});
+
+describe("levelClass", () => {
+  it("returns the matching class for a known level", () => {
+    const mockStyles: Record<string, string> = { "levelINFO": "abc123", "levelERROR": "def456" };
+    expect(levelClass(mockStyles, "level", "INFO")).toBe("abc123");
+    expect(levelClass(mockStyles, "level", "ERROR")).toBe("def456");
+  });
+
+  it("returns undefined for unknown level", () => {
+    const mockStyles: Record<string, string> = { "levelINFO": "abc123" };
+    expect(levelClass(mockStyles, "level", "TRACE")).toBeUndefined();
+  });
+});
+
+describe("Tier filtering", () => {
+  it("filters to app-tier entries by default", () => {
+    state.logs.push(createLogEntry({ source_tier: "app", message: "app msg" }));
+    state.logs.push(createLogEntry({ source_tier: "framework", message: "framework msg" }));
+
+    const { getByText, queryByText } = render(<LogTable />, { wrapper: createWrapper(state) });
+    expect(getByText("app msg")).toBeDefined();
+    expect(queryByText("framework msg")).toBeNull();
+  });
+
+  it("shows all tiers when tier filter is set to 'all'", () => {
+    state.logs.push(createLogEntry({ source_tier: "app", message: "app msg" }));
+    state.logs.push(createLogEntry({ source_tier: "framework", message: "framework msg" }));
+
+    const { getByText, getByTestId } = render(<LogTable />, { wrapper: createWrapper(state) });
+
+    fireEvent.click(getByTestId("filter-app-btn"));
+    const dialog = document.querySelector("[role='dialog']")!;
+    const allBtn = Array.from(dialog.querySelectorAll("button")).find((b) => b.textContent === "All")!;
+    fireEvent.click(allBtn);
+
+    expect(getByText("app msg")).toBeDefined();
+    expect(getByText("framework msg")).toBeDefined();
+  });
+});
+
+describe("App filtering", () => {
+  it("filters entries by specific app key", () => {
+    state.logs.push(createLogEntry({ app_key: "alpha", source_tier: "app", message: "alpha msg" }));
+    state.logs.push(createLogEntry({ app_key: "beta", source_tier: "app", message: "beta msg" }));
+
+    const { getByText, queryByText, getByTestId } = render(
+      <LogTable appKeys={["alpha", "beta"]} />, { wrapper: createWrapper(state) },
+    );
+
+    fireEvent.click(getByTestId("filter-app-btn"));
+    const dialog = document.querySelector("[role='dialog']")!;
+    const select = dialog.querySelector("select")!;
+    fireEvent.change(select, { target: { value: "alpha" } });
+
+    expect(getByText("alpha msg")).toBeDefined();
+    expect(queryByText("beta msg")).toBeNull();
+  });
+});
+
+describe("Function name filtering", () => {
+  it("filters entries by function name", () => {
+    state.logs.push(createLogEntry({ func_name: "on_initialize", message: "init msg" }));
+    state.logs.push(createLogEntry({ func_name: "on_shutdown", message: "shutdown msg" }));
+
+    const { getByText, queryByText, getByTestId } = render(
+      <LogTable />, { wrapper: createWrapper(state) },
+    );
+
+    fireEvent.click(getByTestId("filter-function-btn"));
+    const dialog = document.querySelector("[role='dialog']")!;
+    const input = dialog.querySelector("input[type='text']")!;
+    fireEvent.input(input, { target: { value: "initialize" } });
+
+    expect(getByText("init msg")).toBeDefined();
+    expect(queryByText("shutdown msg")).toBeNull();
+  });
+});
+
+describe("Search filtering", () => {
+  it("updates search input value on typing", () => {
+    state.logs.push(createLogEntry({ message: "findable text" }));
+
+    const { container } = render(<LogTable />, { wrapper: createWrapper(state) });
+    const searchInput = container.querySelector("input[aria-label='Search logs']") as HTMLInputElement;
+    fireEvent.input(searchInput, { target: { value: "findable" } });
+
+    expect(searchInput.value).toBe("findable");
+  });
+});
+
+describe("Detail drawer metadata", () => {
+  it("displays exception section when exc_info is present", () => {
+    state.logs.push(createLogEntry({
+      message: "Error occurred",
+      exc_info: "Traceback (most recent call last):\n  File ...\nValueError: bad",
+    }));
+
+    const { container, queryByRole } = render(<LogTable />, { wrapper: createWrapper(state) });
+    fireEvent.click(container.querySelector("tbody tr") as HTMLElement);
+
+    const drawer = queryByRole("complementary")!;
+    expect(drawer.textContent).toContain("exception");
+    expect(drawer.textContent).toContain("Traceback");
+  });
+
+  it("does not show exception section when exc_info is null", () => {
+    state.logs.push(createLogEntry({ message: "Normal log", exc_info: null }));
+
+    const { container, queryByRole } = render(<LogTable />, { wrapper: createWrapper(state) });
+    fireEvent.click(container.querySelector("tbody tr") as HTMLElement);
+
+    const drawer = queryByRole("complementary")!;
+    expect(drawer.textContent).not.toContain("exception");
+  });
+
+  it("displays app link in drawer metadata", () => {
+    state.logs.push(createLogEntry({ app_key: "my_cool_app", message: "app log" }));
+
+    const { container, queryByRole } = render(<LogTable />, { wrapper: createWrapper(state) });
+    fireEvent.click(container.querySelector("tbody tr") as HTMLElement);
+
+    const drawer = queryByRole("complementary")!;
+    const link = drawer.querySelector("a[href='/apps/my_cool_app']");
+    expect(link).not.toBeNull();
+    expect(link!.textContent).toContain("my_cool_app");
+  });
+
+  it("displays instance name when present", () => {
+    state.logs.push(createLogEntry({ instance_name: "worker-3", message: "instance log" }));
+
+    const { container, queryByRole } = render(<LogTable />, { wrapper: createWrapper(state) });
+    fireEvent.click(container.querySelector("tbody tr") as HTMLElement);
+
+    const drawer = queryByRole("complementary")!;
+    expect(drawer.textContent).toContain("Instance");
+    expect(drawer.textContent).toContain("worker-3");
+  });
+
+  it("displays execution ID with copy button when present", () => {
+    state.logs.push(createLogEntry({ execution_id: "exec-abc-123", message: "exec log" }));
+
+    const { container, queryByRole } = render(<LogTable />, { wrapper: createWrapper(state) });
+    fireEvent.click(container.querySelector("tbody tr") as HTMLElement);
+
+    const drawer = queryByRole("complementary")!;
+    expect(drawer.textContent).toContain("Execution");
+    expect(drawer.textContent).toContain("exec-abc-123");
+    const copyBtn = drawer.querySelector("button[aria-label='Copy execution ID']");
+    expect(copyBtn).not.toBeNull();
+  });
+
+  it("displays function, module, line, and logger in metadata grid", () => {
+    state.logs.push(createLogEntry({
+      func_name: "on_ready",
+      logger_name: "hassette.apps.thermostat",
+      lineno: 77,
+      message: "meta test",
+    }));
+
+    const { container, queryByRole } = render(<LogTable />, { wrapper: createWrapper(state) });
+    fireEvent.click(container.querySelector("tbody tr") as HTMLElement);
+
+    const drawer = queryByRole("complementary")!;
+    expect(drawer.textContent).toContain("on_ready()");
+    expect(drawer.textContent).toContain("thermostat");
+    expect(drawer.textContent).toContain("77");
+    expect(drawer.textContent).toContain("hassette.apps.thermostat");
+  });
+});
+
+describe("Detail drawer keyboard navigation", () => {
+  it("navigates to next entry with ArrowDown", () => {
+    state.logs.push(createLogEntry({ timestamp: 1000, message: "first-nav" }));
+    state.logs.push(createLogEntry({ timestamp: 2000, message: "second-nav" }));
+
+    const { container, queryByRole } = render(<LogTable />, { wrapper: createWrapper(state) });
+    const rows = container.querySelectorAll("tbody tr");
+    fireEvent.click(rows[0]); // newest first = second-nav
+
+    const drawer = queryByRole("complementary")!;
+    expect(drawer.textContent).toContain("second-nav");
+
+    fireEvent.keyDown(document, { key: "ArrowDown" });
+    expect(drawer.textContent).toContain("first-nav");
+  });
+
+  it("navigates to previous entry with ArrowUp", () => {
+    state.logs.push(createLogEntry({ timestamp: 1000, message: "first-nav" }));
+    state.logs.push(createLogEntry({ timestamp: 2000, message: "second-nav" }));
+
+    const { container, queryByRole } = render(<LogTable />, { wrapper: createWrapper(state) });
+    const rows = container.querySelectorAll("tbody tr");
+    fireEvent.click(rows[1]); // first-nav (older)
+
+    const drawer = queryByRole("complementary")!;
+    expect(drawer.textContent).toContain("first-nav");
+
+    fireEvent.keyDown(document, { key: "ArrowUp" });
+    expect(drawer.textContent).toContain("second-nav");
+  });
+});
+
+describe("Row keyboard interaction", () => {
+  it("opens drawer when Enter is pressed on a row", () => {
+    state.logs.push(createLogEntry({ message: "keyboard test" }));
+
+    const { container, queryByRole } = render(<LogTable />, { wrapper: createWrapper(state) });
+    const row = container.querySelector("tbody tr") as HTMLElement;
+    fireEvent.keyDown(row, { key: "Enter" });
+
+    expect(queryByRole("complementary")).not.toBeNull();
+  });
+
+  it("opens drawer when Space is pressed on a row", () => {
+    state.logs.push(createLogEntry({ message: "space test" }));
+
+    const { container, queryByRole } = render(<LogTable />, { wrapper: createWrapper(state) });
+    const row = container.querySelector("tbody tr") as HTMLElement;
+    fireEvent.keyDown(row, { key: " " });
+
+    expect(queryByRole("complementary")).not.toBeNull();
+  });
+
+  it("rows have role=button and tabIndex for a11y", () => {
+    state.logs.push(createLogEntry({ message: "a11y test" }));
+
+    const { container } = render(<LogTable />, { wrapper: createWrapper(state) });
+    const row = container.querySelector("tbody tr") as HTMLElement;
+    expect(row.getAttribute("role")).toBe("button");
+    expect(row.getAttribute("tabindex")).toBe("0");
+  });
+});
+
+describe("Row data rendering", () => {
+  it("truncates execution ID to 8 chars with ellipsis", () => {
+    state.logs.push(createLogEntry({
+      execution_id: "abcdef01-2345-6789-abcd-ef0123456789",
+      source_tier: "app",
+      message: "exec row",
+    }));
+
+    const { container } = render(<LogTable />, { wrapper: createWrapper(state) });
+    const cells = container.querySelectorAll("tbody td");
+    const execCell = Array.from(cells).find((td) => td.textContent?.includes("abcdef01"));
+    expect(execCell).toBeDefined();
+    expect(execCell!.textContent).toContain("…");
+  });
+
+  it("shows mdash for null app_key in row", () => {
+    state.logs.push(createLogEntry({ app_key: null, source_tier: "app", message: "no app" }));
+
+    const { container } = render(<LogTable />, { wrapper: createWrapper(state) });
+    const cells = container.querySelectorAll("tbody td");
+    const dashCell = Array.from(cells).find((td) => td.textContent === "—");
+    expect(dashCell).toBeDefined();
+  });
+
+  it("appends () to function name in row", () => {
+    state.logs.push(createLogEntry({ func_name: "handle_event", message: "fn test" }));
+
+    const { container } = render(<LogTable />, { wrapper: createWrapper(state) });
+    const cells = container.querySelectorAll("tbody td");
+    const fnCell = Array.from(cells).find((td) => td.textContent?.includes("handle_event()"));
+    expect(fnCell).toBeDefined();
+  });
+
+  it("shows module short name and line number", () => {
+    state.logs.push(createLogEntry({ logger_name: "hassette.apps.lights", lineno: 42, message: "module test" }));
+
+    const { container } = render(<LogTable />, { wrapper: createWrapper(state) });
+    const cells = container.querySelectorAll("tbody td");
+    const moduleCell = Array.from(cells).find((td) => td.textContent?.includes("lights:42"));
+    expect(moduleCell).toBeDefined();
+  });
+});
+
+describe("Column picker interaction", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("opens column picker popover on click", () => {
+    const { getByTestId } = render(<LogTable />, { wrapper: createWrapper(state) });
+    fireEvent.click(getByTestId("column-picker"));
+    expect(document.querySelector("[role='dialog']")).not.toBeNull();
+  });
+
+  it("lists all columns with checkboxes", () => {
+    const { getByTestId } = render(<LogTable />, { wrapper: createWrapper(state) });
+    fireEvent.click(getByTestId("column-picker"));
+
+    const dialog = document.querySelector("[role='dialog']")!;
+    const checkboxes = dialog.querySelectorAll("input[type='checkbox']");
+    expect(checkboxes.length).toBe(8);
+  });
+
+  it("disables required columns (level, message)", () => {
+    const { getByTestId } = render(<LogTable />, { wrapper: createWrapper(state) });
+    fireEvent.click(getByTestId("column-picker"));
+
+    const dialog = document.querySelector("[role='dialog']")!;
+    const labels = dialog.querySelectorAll("label");
+    const levelCheckbox = Array.from(labels)
+      .find((l) => l.textContent?.includes("Level"))
+      ?.querySelector("input") as HTMLInputElement;
+    const messageCheckbox = Array.from(labels)
+      .find((l) => l.textContent?.includes("Message"))
+      ?.querySelector("input") as HTMLInputElement;
+
+    expect(levelCheckbox.disabled).toBe(true);
+    expect(messageCheckbox.disabled).toBe(true);
+  });
+
+  it("has a reset button", () => {
+    const { getByTestId } = render(<LogTable />, { wrapper: createWrapper(state) });
+    fireEvent.click(getByTestId("column-picker"));
+
+    const dialog = document.querySelector("[role='dialog']")!;
+    const resetBtn = Array.from(dialog.querySelectorAll("button"))
+      .find((b) => b.textContent === "Reset to defaults");
+    expect(resetBtn).toBeDefined();
+  });
+});
+
+describe("hasActiveFilter indicator", () => {
+  it("does not show reset filters when no filters are active", () => {
+    state.logs.push(createLogEntry());
+
+    mockUseMediaQuery.mockReturnValue(true);
+    const { getByTestId, queryByText } = render(<LogTable />, { wrapper: createWrapper(state) });
+    fireEvent.click(getByTestId("mobile-filters-btn"));
+
+    expect(queryByText("Reset to defaults")).toBeNull();
+  });
+});
+
+describe("Selected row highlight", () => {
+  it("marks selected row with aria-current", () => {
+    state.logs.push(createLogEntry({ message: "selectable" }));
+
+    const { container } = render(<LogTable />, { wrapper: createWrapper(state) });
+    const row = container.querySelector("tbody tr") as HTMLElement;
+    fireEvent.click(row);
+
+    expect(row.getAttribute("aria-current")).toBe("true");
+  });
+
+  it("deselects row on second click", () => {
+    state.logs.push(createLogEntry({ message: "toggle select" }));
+
+    const { container, queryByRole } = render(<LogTable />, { wrapper: createWrapper(state) });
+    const row = container.querySelector("tbody tr") as HTMLElement;
+    fireEvent.click(row);
+    expect(queryByRole("complementary")).not.toBeNull();
+
+    fireEvent.click(row);
+    expect(queryByRole("complementary")).toBeNull();
+    expect(row.getAttribute("aria-current")).toBeNull();
   });
 });
