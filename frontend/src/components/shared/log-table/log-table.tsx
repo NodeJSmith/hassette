@@ -7,7 +7,7 @@ import { useMediaQuery, BREAKPOINT_MOBILE } from "../../../hooks/use-media-query
 import type { LogEntry } from "../../../api/endpoints";
 import type { RowKey, ViewContext } from "./types";
 import { rowKey } from "./types";
-import { RENDER_CAP, COLUMN_MAP } from "./constants";
+import { RENDER_CAP, COLUMN_MAP, DEFAULT_LEVEL } from "./constants";
 import { useLogData } from "./use-log-data";
 import { useLogFilters } from "./use-log-filters";
 import { useColumnVisibility } from "./use-column-visibility";
@@ -53,7 +53,7 @@ export function LogTable({
 
   const {
     filtered, filterState, livePaused, defaultTier,
-    setLevel, setTier, setApp, setSearch, setFn, setSort, resetSort, resetFilters,
+    setLevel, setTier, setApp, setSearch, setFunc, setSort, resetSort, resetFilters,
   } = useLogFilters({
     allEntries,
     restEntries,
@@ -92,6 +92,8 @@ export function LogTable({
   }, [setSearch]);
 
   const drawerOpen = selectedKey.value !== null;
+  const hasActiveFilter = state.level !== DEFAULT_LEVEL
+    || state.tier !== defaultTier || state.app !== "" || state.func !== "" || state.search !== "";
 
   return (
     <div class={clsx(styles.wrapper, drawerOpen && styles.drawerOpen)}>
@@ -116,8 +118,8 @@ export function LogTable({
               appFilter={state.app}
               onAppChange={setApp}
               appKeys={appKeys}
-              fnFilter={state.fn}
-              onFnChange={setFn}
+              fnFilter={state.func}
+              onFnChange={setFunc}
               defaultTier={defaultTier}
             />
             <tbody>
@@ -163,9 +165,9 @@ export function LogTable({
           appFilter={state.app}
           onAppChange={setApp}
           appKeys={appKeys}
-          fnFilter={state.fn}
-          onFnChange={setFn}
-          hasActiveFilter={state.level !== "INFO" || state.tier !== defaultTier || state.app !== "" || state.fn !== "" || state.search !== ""}
+          fnFilter={state.func}
+          onFnChange={setFunc}
+          hasActiveFilter={hasActiveFilter}
           onResetFilters={resetFilters}
         />
       </div>

@@ -55,10 +55,8 @@ const ALL_COLUMN_IDS: ColumnId[] = COLUMNS.map((c) => c.id);
 
 interface UseColumnVisibilityResult {
   visibleColumns: ColumnId[];
-  isVisible: (id: ColumnId) => boolean;
   toggle: (id: ColumnId) => void;
   reset: () => void;
-  allColumns: ColumnId[];
 }
 
 export function useColumnVisibility(context: ViewContext): UseColumnVisibilityResult {
@@ -71,11 +69,6 @@ export function useColumnVisibility(context: ViewContext): UseColumnVisibilityRe
   const viewportHidden: ReadonlySet<ColumnId> = isMobile ? MOBILE_HIDDEN : isTablet ? TABLET_HIDDEN : new Set();
 
   const visibleColumns = userColumns.value.filter((id) => !viewportHidden.has(id));
-
-  const isVisible = useCallback(
-    (id: ColumnId) => userColumns.value.includes(id) && !viewportHidden.has(id),
-    [userColumns.value, viewportHidden],
-  );
 
   const toggle = useCallback(
     (id: ColumnId) => {
@@ -95,5 +88,5 @@ export function useColumnVisibility(context: ViewContext): UseColumnVisibilityRe
     localStorage.removeItem(storageKey(context));
   }, [context]);
 
-  return { visibleColumns, isVisible, toggle, reset, allColumns: ALL_COLUMN_IDS };
+  return { visibleColumns, toggle, reset };
 }

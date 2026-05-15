@@ -26,7 +26,7 @@ export interface FilterState {
   tier: TierFilter;
   app: string;
   search: string;
-  fn: string;
+  func: string;
   sort: SortConfig;
 }
 

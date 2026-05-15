@@ -1,7 +1,7 @@
 import { useRef } from "preact/hooks";
 import { useSignal } from "../../../hooks/use-signal";
 import { useSubscribe } from "../../../hooks/use-subscribe";
-import { COLUMNS } from "./constants";
+import { COLUMNS, REQUIRED_COLUMNS } from "./constants";
 import type { ColumnId } from "./types";
 import { ColumnFilterPopover } from "./column-filter";
 import styles from "./column-picker.module.css";
@@ -43,7 +43,7 @@ export function ColumnPicker({ visibleColumns, onToggle, onReset }: Props) {
                 type="checkbox"
                 checked={visibleColumns.includes(col.id)}
                 onChange={() => onToggle(col.id)}
-                disabled={col.id === "level" || col.id === "message"}
+                disabled={REQUIRED_COLUMNS.has(col.id)}
               />
             </label>
           ))}

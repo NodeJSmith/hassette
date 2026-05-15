@@ -99,8 +99,8 @@
 
 .filterDot {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: 0;
+  right: 0;
   width: 5px;
   height: 5px;
   border-radius: var(--r-pill);

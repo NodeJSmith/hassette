@@ -5,7 +5,7 @@ import { useSignal } from "../../../hooks/use-signal";
 import { useSubscribe } from "../../../hooks/use-subscribe";
 import { pluralize } from "../../../utils/format";
 import type { ColumnId, LevelFilter, TierFilter } from "./types";
-import { RENDER_CAP, LEVEL_OPTIONS } from "./constants";
+import { RENDER_CAP, LEVEL_OPTIONS, TIER_OPTIONS } from "./constants";
 import { ColumnPicker } from "./column-picker";
 import { ColumnFilterPopover } from "./column-filter";
 import filterStyles from "./column-filter.module.css";
@@ -89,7 +89,7 @@ export function LogTableFooter({
               aria-label="Open filters"
               data-testid="mobile-filters-btn"
             >
-              <svg width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <path d="M1 2h10L7.5 6.5V10L4.5 9V6.5L1 2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" />
               </svg>
               {hasActiveFilter && <span class={styles.filterDot} />}
@@ -111,14 +111,14 @@ export function LogTableFooter({
                 <div class={styles.mobileFilterGroup}>
                   <label>Source</label>
                   <div class={filterStyles.tierGroup}>
-                    {(["all", "app", "framework"] as TierFilter[]).map((t) => (
+                    {TIER_OPTIONS.map((opt) => (
                       <button
-                        key={t}
+                        key={opt.value}
                         type="button"
-                        class={clsx(filterStyles.tierBtn, tier === t && filterStyles.active)}
-                        onClick={() => onTierChange(t)}
+                        class={clsx(filterStyles.tierBtn, tier === opt.value && filterStyles.active)}
+                        onClick={() => onTierChange(opt.value)}
                       >
-                        {t === "all" ? "All" : t === "app" ? "Apps" : "Framework"}
+                        {opt.label}
                       </button>
                     ))}
                   </div>

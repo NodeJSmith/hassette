@@ -64,9 +64,7 @@ export function useLogData({ appKey, executionId, minLevel }: UseLogDataParams):
 
   const allEntries = computed<LogEntry[]>(() => {
     const initial = initialEntries.value;
-    const _version = logs.version.value;
-    void _version;
-
+    void logs.version.value;
     const wsEntries = logs.toArray().filter((e) => {
       if (e.timestamp <= watermarkRef.current) return false;
       if (appKey && e.app_key !== appKey) return false;

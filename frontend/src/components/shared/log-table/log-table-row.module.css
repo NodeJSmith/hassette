@@ -69,7 +69,7 @@
   font-family: var(--font-mono);
   font-size: var(--fs-mono-md);
   line-height: 1.5;
-  max-height: calc(1.5em * 1);
+  max-height: 1.5em;
   overflow: clip;
   text-overflow: ellipsis;
   white-space: nowrap;

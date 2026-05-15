@@ -5,7 +5,7 @@ import { useRelativeTime } from "../../../hooks/use-relative-time";
 import { formatTimestamp } from "../../../utils/format";
 import { AppLink } from "../app-link";
 import type { ColumnId, RowKey } from "./types";
-import { LEVEL_ABBREV } from "./constants";
+import { LEVEL_ABBREV, levelClass } from "./constants";
 import styles from "./log-table-row.module.css";
 
 interface Props {
@@ -20,7 +20,7 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const relativeTime = useRelativeTime(entry.timestamp);
 
-  const show = (id: ColumnId) => visibleColumns.includes(id);
+  const isColumnVisible = (id: ColumnId) => visibleColumns.includes(id);
 
   return (
     <tr
@@ -33,19 +33,19 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
       role="button"
       aria-current={isSelected ? "true" : undefined}
     >
-      {show("level") && (
+      {isColumnVisible("level") && (
         <td class={styles.levelCell}>
-          <span class={clsx(styles.levelText, (styles as Record<string, string>)[`level${entry.level}`])}>
+          <span class={clsx(styles.levelText, levelClass(styles, "level", entry.level))}>
             {isMobile ? (LEVEL_ABBREV[entry.level] ?? entry.level) : entry.level}
           </span>
         </td>
       )}
-      {show("timestamp") && (
+      {isColumnVisible("timestamp") && (
         <td class={styles.mono}>
           {isMobile ? relativeTime : formatTimestamp(entry.timestamp)}
         </td>
       )}
-      {show("app") && (
+      {isColumnVisible("app") && (
         <td>
           {entry.app_key ? (
             <AppLink appKey={entry.app_key} />
@@ -54,12 +54,12 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
           )}
         </td>
       )}
-      {show("instance") && (
+      {isColumnVisible("instance") && (
         <td class={styles.mono} title={entry.instance_name ?? undefined}>
           {entry.instance_name ?? <span class={styles.muted}>&mdash;</span>}
         </td>
       )}
-      {show("execution") && (
+      {isColumnVisible("execution") && (
         <td class={styles.mono}>
           {entry.execution_id ? (
             <span class={styles.muted} title={entry.execution_id}>{entry.execution_id.slice(0, 8)}&hellip;</span>
@@ -68,21 +68,21 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
           )}
         </td>
       )}
-      {show("function") && (
+      {isColumnVisible("function") && (
         <td class={styles.mono}>
           <span class={styles.truncate}>{entry.func_name}()</span>
         </td>
       )}
-      {show("module") && (
+      {isColumnVisible("module") && (
         <td class={styles.mono}>
           <span class={styles.truncate} title={`${entry.logger_name}:${entry.func_name}:${entry.lineno}`}>
             {entry.logger_name.split(".").pop()}:{entry.lineno}
           </span>
         </td>
       )}
-      {show("message") && (
+      {isColumnVisible("message") && (
         <td class={styles.messageCell}>
-          {isMobile && !show("app") && entry.func_name && (
+          {isMobile && !isColumnVisible("app") && entry.func_name && (
             <div class={styles.sourceInline}>
               {entry.app_key ? `${entry.app_key}.` : ""}{entry.func_name}()
             </div>

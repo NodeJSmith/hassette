@@ -4,7 +4,7 @@ import { useMediaQuery, BREAKPOINT_MOBILE } from "../../../hooks/use-media-query
 import { useSignal } from "../../../hooks/use-signal";
 import { useSubscribe } from "../../../hooks/use-subscribe";
 import type { ColumnId, SortColumn, SortConfig, LevelFilter, TierFilter } from "./types";
-import { COLUMN_MAP, LEVEL_OPTIONS } from "./constants";
+import { COLUMN_MAP, LEVEL_OPTIONS, DEFAULT_LEVEL, TIER_OPTIONS } from "./constants";
 import { ColumnFilterPopover } from "./column-filter";
 import filterStyles from "./column-filter.module.css";
 import styles from "./log-table-header.module.css";
@@ -42,6 +42,7 @@ function HeaderCell({ columnId, sortConfig, onSort, hasActiveFilter, filterConte
 
   const isActive = col.sortKey ? sortConfig.column === col.sortKey : false;
   const direction = isActive ? (sortConfig.asc ? "asc" : "desc") : undefined;
+  const displayLabel = isMobile && col.shortLabel ? col.shortLabel : col.label;
 
   return (
     <th
@@ -59,11 +60,11 @@ function HeaderCell({ columnId, sortConfig, onSort, hasActiveFilter, filterConte
             aria-label={`Sort by ${col.ariaLabel}`}
             data-testid={`sort-${col.sortKey}`}
           >
-            {isMobile && col.shortLabel ? col.shortLabel : col.label}
+            {displayLabel}
             {isActive && <span class={styles.sortArrow}>{direction === "asc" ? " ↑" : " ↓"}</span>}
           </button>
         ) : (
-          <span>{isMobile && col.shortLabel ? col.shortLabel : col.label}</span>
+          <span>{displayLabel}</span>
         )}
         {col.filterable && filterContent && (
           <>
@@ -102,7 +103,7 @@ export function LogTableHeader({
     switch (id) {
       case "level":
         return {
-          active: level !== "INFO",
+          active: level !== DEFAULT_LEVEL,
           content: (
             <div>
               <div class={filterStyles.heading}>Minimum level</div>
@@ -124,14 +125,14 @@ export function LogTableHeader({
           content: (
             <div>
               <div class={filterStyles.tierGroup}>
-                {(["all", "app", "framework"] as TierFilter[]).map((t) => (
+                {TIER_OPTIONS.map((opt) => (
                   <button
-                    key={t}
+                    key={opt.value}
                     type="button"
-                    class={clsx(filterStyles.tierBtn, tier === t && filterStyles.active)}
-                    onClick={() => onTierChange(t)}
+                    class={clsx(filterStyles.tierBtn, tier === opt.value && filterStyles.active)}
+                    onClick={() => onTierChange(opt.value)}
                   >
-                    {t === "all" ? "All" : t === "app" ? "Apps" : "Framework"}
+                    {opt.label}
                   </button>
                 ))}
               </div>

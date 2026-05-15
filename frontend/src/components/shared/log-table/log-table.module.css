@@ -46,6 +46,6 @@
 
 /* Mobile adjustments */
 @media screen and (max-width: 768px) {
-  .table { display: table; table-layout: fixed; }
+  .table { table-layout: fixed; }
   .table td { font-size: var(--fs-micro); }
 }

@@ -4,7 +4,7 @@ import type { LogEntry } from "../../../api/endpoints";
 import { useQueryParams } from "../../../hooks/use-query-params";
 import { useSignal } from "../../../hooks/use-signal";
 import type { FilterState, LevelFilter, TierFilter, SortConfig, SortColumn } from "./types";
-import { LEVELS, LEVEL_INDEX, resolveSortColumn, SEARCH_DEBOUNCE_MS } from "./constants";
+import { LEVELS, LEVEL_INDEX, resolveSortColumn, SEARCH_DEBOUNCE_MS, DEFAULT_LEVEL } from "./constants";
 
 interface UseLogFiltersParams {
   allEntries: ReadonlySignal<LogEntry[]>;
@@ -22,7 +22,7 @@ interface UseLogFiltersResult {
   setTier: (tier: TierFilter) => void;
   setApp: (app: string) => void;
   setSearch: (search: string) => void;
-  setFn: (fn: string) => void;
+  setFunc: (func: string) => void;
   setSort: (column: SortColumn) => void;
   resetSort: () => void;
   resetFilters: () => void;
@@ -69,11 +69,11 @@ export function useLogFilters({ allEntries, restEntries, useLocalState = false, 
 
   const defaultTier: TierFilter = appKey ? "all" : "app";
 
-  const localLevel = useSignal<LevelFilter>("INFO");
+  const localLevel = useSignal<LevelFilter>(DEFAULT_LEVEL);
   const localTier = useSignal<TierFilter>(defaultTier);
   const localApp = useSignal("");
   const localSearch = useSignal("");
-  const localFn = useSignal("");
+  const localFunc = useSignal("");
   const localSortColumn = useSignal<SortColumn>("timestamp");
   const localSortAsc = useSignal(false);
 
@@ -87,24 +87,24 @@ export function useLogFilters({ allEntries, restEntries, useLocalState = false, 
         tier: localTier.value,
         app: localApp.value,
         search: localSearch.value,
-        fn: localFn.value,
+        func: localFunc.value,
         sort: { column: localSortColumn.value, asc: localSortAsc.value },
       };
     }
 
     const current = qpRef.current;
     const levelParam = current.get("level");
-    const level: LevelFilter = levelParam === "all" ? "" : ((levelParam as LevelFilter) ?? "INFO");
+    const level: LevelFilter = levelParam === "all" ? "" : ((levelParam as LevelFilter) ?? DEFAULT_LEVEL);
     const tierRaw = current.get("tier");
     const tier: TierFilter = tierRaw === "all" || tierRaw === "framework" || tierRaw === "app" ? tierRaw : defaultTier;
     const app = current.get("app") ?? "";
     const search = current.get("search") ?? "";
-    const fn = current.get("fn") ?? "";
+    const func = current.get("fn") ?? "";
     const rawSort = current.get("sort") ?? "timestamp";
     const column = resolveSortColumn(rawSort);
     const sortAsc = current.get("dir") === "asc";
 
-    return { level, tier, app, search, fn, sort: { column, asc: sortAsc } };
+    return { level, tier, app, search, func, sort: { column, asc: sortAsc } };
   });
 
   const livePaused = computed(() => filterState.value.sort.column !== "timestamp");
@@ -112,7 +112,7 @@ export function useLogFilters({ allEntries, restEntries, useLocalState = false, 
   const filtered = computed<LogEntry[]>(() => {
     const paused = livePaused.value;
     const source = paused ? restEntries.value : allEntries.value;
-    const { level, tier, app, search, fn, sort } = filterState.value;
+    const { level, tier, app, search, func, sort } = filterState.value;
 
     let result = source;
 
@@ -139,8 +139,8 @@ export function useLogFilters({ allEntries, restEntries, useLocalState = false, 
       );
     }
 
-    if (fn) {
-      const lower = fn.toLowerCase();
+    if (func) {
+      const lower = func.toLowerCase();
       result = result.filter((e) => e.func_name.toLowerCase().includes(lower));
     }
 
@@ -149,7 +149,7 @@ export function useLogFilters({ allEntries, restEntries, useLocalState = false, 
 
   function setLevel(level: LevelFilter) {
     if (useLocalState) { localLevel.value = level; return; }
-    if (level === "INFO") { qpRef.current.set({ level: null }); }
+    if (level === DEFAULT_LEVEL) { qpRef.current.set({ level: null }); }
     else if (level === "") { qpRef.current.set({ level: "all" }); }
     else { qpRef.current.set({ level }); }
   }
@@ -173,9 +173,9 @@ export function useLogFilters({ allEntries, restEntries, useLocalState = false, 
     }, SEARCH_DEBOUNCE_MS);
   }
 
-  function setFn(fn: string) {
-    if (useLocalState) { localFn.value = fn; return; }
-    qpRef.current.set({ fn: fn || null });
+  function setFunc(func: string) {
+    if (useLocalState) { localFunc.value = func; return; }
+    qpRef.current.set({ fn: func || null });
   }
 
   function setSort(column: SortColumn) {
@@ -203,13 +203,13 @@ export function useLogFilters({ allEntries, restEntries, useLocalState = false, 
   }
 
   function resetFilters() {
-    setLevel("INFO");
+    setLevel(DEFAULT_LEVEL);
     setTier(defaultTier);
     setApp("");
-    setFn("");
+    setFunc("");
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     if (useLocalState) { localSearch.value = ""; } else { qpRef.current.set({ search: null }); }
   }
 
-  return { filtered, filterState, livePaused, defaultTier, setLevel, setTier, setApp, setSearch, setFn, setSort, resetSort, resetFilters };
+  return { filtered, filterState, livePaused, defaultTier, setLevel, setTier, setApp, setSearch, setFunc, setSort, resetSort, resetFilters };
 }

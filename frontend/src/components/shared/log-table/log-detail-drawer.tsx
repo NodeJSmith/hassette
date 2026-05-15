@@ -8,6 +8,7 @@ import { useSignal } from "../../../hooks/use-signal";
 import { useSubscribe } from "../../../hooks/use-subscribe";
 import type { RowKey } from "./types";
 import { rowKey } from "./types";
+import { COPY_CONFIRM_MS, levelClass } from "./constants";
 import styles from "./log-detail-drawer.module.css";
 
 interface Props {
@@ -26,7 +27,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
     try {
       await navigator.clipboard.writeText(text);
       copied.value = true;
-      setTimeout(() => { copied.value = false; }, 1500);
+      setTimeout(() => { copied.value = false; }, COPY_CONFIRM_MS);
     } catch { /* clipboard unavailable */ }
   }, [text]);
 
@@ -49,7 +50,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
 
   const entry = selectedKey ? entries.find((e) => rowKey(e) === selectedKey) ?? null : null;
   const currentIndex = entry ? entries.findIndex((e) => rowKey(e) === selectedKey) : -1;
-  const filteredOut = selectedKey !== null && entry === null;
+  const isFilteredOut = selectedKey !== null && entry === null;
 
   const navigatePrev = useCallback(() => {
     if (currentIndex <= 0) return;
@@ -94,13 +95,13 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
         {/* Header bar */}
         <div class={styles.headerBar}>
           <div class={styles.navButtons}>
-            <button type="button" class={styles.navBtn} onClick={navigatePrev} disabled={currentIndex <= 0} aria-label="Previous entry">←</button>
-            <button type="button" class={styles.navBtn} onClick={navigateNext} disabled={currentIndex >= entries.length - 1} aria-label="Next entry">→</button>
+            <button type="button" class={styles.iconBtn} onClick={navigatePrev} disabled={currentIndex <= 0} aria-label="Previous entry">←</button>
+            <button type="button" class={styles.iconBtn} onClick={navigateNext} disabled={currentIndex >= entries.length - 1} aria-label="Next entry">→</button>
           </div>
-          <button type="button" class={styles.closeBtn} onClick={onClose} aria-label="Close detail panel">✕</button>
+          <button type="button" class={styles.iconBtn} onClick={onClose} aria-label="Close detail panel">✕</button>
         </div>
 
-        {filteredOut ? (
+        {isFilteredOut ? (
           <div class={styles.filteredOut}>
             <p>This entry is no longer visible with the current filters.</p>
             <button type="button" class={styles.clearFilterBtn} onClick={onClose}>Close</button>
@@ -108,8 +109,8 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
         ) : entry ? (
           <div class={styles.content}>
             {/* Severity + timestamp */}
-            <div class={clsx(styles.severityRow, (styles as Record<string, string>)[`severity${entry.level}`])}>
-              <span class={styles.severityLabel}>{entry.level}</span>
+            <div class={clsx(styles.severityRow, levelClass(styles, "level", entry.level))}>
+              <span class={styles.levelLabel}>{entry.level}</span>
               <span class={styles.timestamp}>{formatTimestamp(entry.timestamp)}</span>
             </div>
 
