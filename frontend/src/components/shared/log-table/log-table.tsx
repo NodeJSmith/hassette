@@ -1,4 +1,4 @@
-import { useCallback } from "preact/hooks";
+import { useCallback, useRef } from "preact/hooks";
 import { useSignalEffect } from "@preact/signals";
 import clsx from "clsx";
 import { useSignal } from "../../../hooks/use-signal";
@@ -61,9 +61,13 @@ export function LogTable({
     appKey,
   });
 
+  const searchFromInput = useRef(false);
   useSignalEffect(() => {
     const search = filterState.value.search;
-    if (searchInput.value !== search) searchInput.value = search;
+    if (!searchFromInput.current && searchInput.value !== search) {
+      searchInput.value = search;
+    }
+    searchFromInput.current = false;
   });
 
   const state = filterState.value;
@@ -87,6 +91,7 @@ export function LogTable({
   }, []);
 
   const handleSearchChange = useCallback((value: string) => {
+    searchFromInput.current = true;
     searchInput.value = value;
     setSearch(value);
   }, [setSearch]);
