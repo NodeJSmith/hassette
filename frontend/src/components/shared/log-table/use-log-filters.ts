@@ -17,6 +17,7 @@ interface UseLogFiltersResult {
   filtered: ReadonlySignal<LogEntry[]>;
   filterState: ReadonlySignal<FilterState>;
   livePaused: ReadonlySignal<boolean>;
+  defaultTier: TierFilter;
   setLevel: (level: LevelFilter) => void;
   setTier: (tier: TierFilter) => void;
   setApp: (app: string) => void;
@@ -66,8 +67,10 @@ export function useLogFilters({ allEntries, restEntries, useLocalState = false, 
   const qpRef = useRef(qp);
   qpRef.current = qp;
 
+  const defaultTier: TierFilter = appKey ? "all" : "app";
+
   const localLevel = useSignal<LevelFilter>("INFO");
-  const localTier = useSignal<TierFilter>(appKey ? "all" : "app");
+  const localTier = useSignal<TierFilter>(defaultTier);
   const localApp = useSignal("");
   const localSearch = useSignal("");
   const localFn = useSignal("");
@@ -93,7 +96,7 @@ export function useLogFilters({ allEntries, restEntries, useLocalState = false, 
     const levelParam = current.get("level");
     const level: LevelFilter = levelParam === "all" ? "" : ((levelParam as LevelFilter) ?? "INFO");
     const tierRaw = current.get("tier");
-    const tier: TierFilter = tierRaw === "all" || tierRaw === "framework" ? tierRaw : (appKey ? "all" : "app");
+    const tier: TierFilter = tierRaw === "all" || tierRaw === "framework" || tierRaw === "app" ? tierRaw : defaultTier;
     const app = current.get("app") ?? "";
     const search = current.get("search") ?? "";
     const fn = current.get("fn") ?? "";
@@ -154,7 +157,6 @@ export function useLogFilters({ allEntries, restEntries, useLocalState = false, 
   function setTier(tier: TierFilter) {
     if (tier !== "app") setApp("");
     if (useLocalState) { localTier.value = tier; return; }
-    const defaultTier = appKey ? "all" : "app";
     qpRef.current.set({ tier: tier === defaultTier ? null : tier });
   }
 
@@ -202,11 +204,12 @@ export function useLogFilters({ allEntries, restEntries, useLocalState = false, 
 
   function resetFilters() {
     setLevel("INFO");
-    setTier(appKey ? "all" : "app");
+    setTier(defaultTier);
     setApp("");
     setFn("");
-    setSearch("");
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (useLocalState) { localSearch.value = ""; } else { qpRef.current.set({ search: null }); }
   }
 
-  return { filtered, filterState, livePaused, setLevel, setTier, setApp, setSearch, setFn, setSort, resetSort, resetFilters };
+  return { filtered, filterState, livePaused, defaultTier, setLevel, setTier, setApp, setSearch, setFn, setSort, resetSort, resetFilters };
 }

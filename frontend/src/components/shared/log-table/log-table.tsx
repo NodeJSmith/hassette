@@ -1,4 +1,5 @@
 import { useCallback } from "preact/hooks";
+import { useSignalEffect } from "@preact/signals";
 import clsx from "clsx";
 import { useSignal } from "../../../hooks/use-signal";
 import { useSubscribe } from "../../../hooks/use-subscribe";
@@ -51,13 +52,18 @@ export function LogTable({
   });
 
   const {
-    filtered, filterState, livePaused,
+    filtered, filterState, livePaused, defaultTier,
     setLevel, setTier, setApp, setSearch, setFn, setSort, resetSort, resetFilters,
   } = useLogFilters({
     allEntries,
     restEntries,
     useLocalState: useLocalState || !!executionId,
     appKey,
+  });
+
+  useSignalEffect(() => {
+    const search = filterState.value.search;
+    if (searchInput.value !== search) searchInput.value = search;
   });
 
   const state = filterState.value;
@@ -112,6 +118,7 @@ export function LogTable({
               appKeys={appKeys}
               fnFilter={state.fn}
               onFnChange={setFn}
+              defaultTier={defaultTier}
             />
             <tbody>
               {!isLoading && entries.length === 0 && (
@@ -158,7 +165,7 @@ export function LogTable({
           appKeys={appKeys}
           fnFilter={state.fn}
           onFnChange={setFn}
-          hasActiveFilter={state.level !== "INFO" || state.tier !== "app" || state.app !== "" || state.fn !== ""}
+          hasActiveFilter={state.level !== "INFO" || state.tier !== defaultTier || state.app !== "" || state.fn !== "" || state.search !== ""}
           onResetFilters={resetFilters}
         />
       </div>

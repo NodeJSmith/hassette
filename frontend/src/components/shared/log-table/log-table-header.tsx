@@ -22,6 +22,7 @@ interface Props {
   appKeys?: string[];
   fnFilter: string;
   onFnChange: (fn: string) => void;
+  defaultTier: TierFilter;
 }
 
 interface HeaderCellProps {
@@ -95,6 +96,7 @@ export function LogTableHeader({
   tier, onTierChange,
   appFilter, onAppChange, appKeys,
   fnFilter, onFnChange,
+  defaultTier,
 }: Props) {
   function filterFor(id: ColumnId): { active: boolean; content: preact.ComponentChildren | null } {
     switch (id) {
@@ -118,7 +120,7 @@ export function LogTableHeader({
         };
       case "app":
         return {
-          active: tier !== "app" || appFilter !== "",
+          active: tier !== defaultTier || appFilter !== "",
           content: (
             <div>
               <div class={filterStyles.tierGroup}>
