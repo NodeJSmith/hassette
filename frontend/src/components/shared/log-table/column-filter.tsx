@@ -22,6 +22,7 @@ export function ColumnFilterPopover({ open, onClose, triggerRef, children }: Pro
 
     const cleanup = autoUpdate(trigger, popover, () => {
       void computePosition(trigger, popover, {
+        strategy: "fixed",
         placement: "bottom-start",
         middleware: [offset(4), flip(), shift({ padding: 8 })],
       }).then(({ x, y }) => {

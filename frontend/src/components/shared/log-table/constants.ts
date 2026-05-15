@@ -6,6 +6,7 @@ export const DEFAULT_LEVEL: LevelFilter = "INFO";
 
 export const COPY_CONFIRM_MS = 1500;
 
+// Enforced in: use-column-visibility.ts readStored() (persistence) and column-picker.tsx (UI disabled state)
 export const REQUIRED_COLUMNS: ReadonlySet<ColumnId> = new Set(["level", "message"]);
 
 export const TIER_OPTIONS: readonly { value: TierFilter; label: string }[] = [

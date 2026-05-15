@@ -3,7 +3,7 @@ import { useSignal } from "../../../hooks/use-signal";
 import { useMediaQuery, BREAKPOINT_MOBILE, BREAKPOINT_TABLET } from "../../../hooks/use-media-query";
 import { useSubscribe } from "../../../hooks/use-subscribe";
 import type { ColumnId, ViewContext } from "./types";
-import { DEFAULT_COLUMNS_GLOBAL, DEFAULT_COLUMNS_APP, DEFAULT_COLUMNS_EXECUTION, COLUMNS } from "./constants";
+import { DEFAULT_COLUMNS_GLOBAL, DEFAULT_COLUMNS_APP, DEFAULT_COLUMNS_EXECUTION, COLUMNS, REQUIRED_COLUMNS } from "./constants";
 
 const STORAGE_VERSION = 1;
 const STORAGE_KEY_PREFIX = "hassette-log-columns";
@@ -12,6 +12,11 @@ interface StoredColumnState {
   version: number;
   columns: ColumnId[];
 }
+
+const ALL_COLUMN_IDS: ColumnId[] = COLUMNS.map((c) => c.id);
+const MOBILE_HIDDEN: ReadonlySet<ColumnId> = new Set(["app", "instance", "execution", "function", "module"]);
+const TABLET_HIDDEN: ReadonlySet<ColumnId> = new Set(["module"]);
+const NO_HIDDEN: ReadonlySet<ColumnId> = new Set();
 
 function storageKey(context: ViewContext): string {
   return `${STORAGE_KEY_PREFIX}-${context}`;
@@ -34,7 +39,13 @@ function readStored(context: ViewContext): ColumnId[] | null {
       localStorage.removeItem(storageKey(context));
       return null;
     }
-    return parsed.columns;
+    const knownIds = new Set<string>(ALL_COLUMN_IDS);
+    const validated = parsed.columns.filter((id) => knownIds.has(id));
+    for (const req of REQUIRED_COLUMNS) {
+      if (!validated.includes(req)) validated.push(req);
+    }
+    if (validated.length === 0) return null;
+    return validated;
   } catch {
     return null;
   }
@@ -49,12 +60,10 @@ function writeStored(context: ViewContext, columns: ColumnId[]): void {
   }
 }
 
-const MOBILE_HIDDEN: ReadonlySet<ColumnId> = new Set(["app", "instance", "execution", "function", "module"]);
-const TABLET_HIDDEN: ReadonlySet<ColumnId> = new Set(["module"]);
-const ALL_COLUMN_IDS: ColumnId[] = COLUMNS.map((c) => c.id);
-
 interface UseColumnVisibilityResult {
   visibleColumns: ColumnId[];
+  selectedColumns: ColumnId[];
+  viewportHidden: ReadonlySet<ColumnId>;
   toggle: (id: ColumnId) => void;
   reset: () => void;
 }
@@ -66,7 +75,7 @@ export function useColumnVisibility(context: ViewContext): UseColumnVisibilityRe
   const userColumns = useSignal<ColumnId[]>(readStored(context) ?? defaultColumns(context));
   useSubscribe(userColumns);
 
-  const viewportHidden: ReadonlySet<ColumnId> = isMobile ? MOBILE_HIDDEN : isTablet ? TABLET_HIDDEN : new Set();
+  const viewportHidden: ReadonlySet<ColumnId> = isMobile ? MOBILE_HIDDEN : isTablet ? TABLET_HIDDEN : NO_HIDDEN;
 
   const visibleColumns = userColumns.value.filter((id) => !viewportHidden.has(id));
 
@@ -88,5 +97,5 @@ export function useColumnVisibility(context: ViewContext): UseColumnVisibilityRe
     localStorage.removeItem(storageKey(context));
   }, [context]);
 
-  return { visibleColumns, toggle, reset };
+  return { visibleColumns, selectedColumns: userColumns.value, viewportHidden, toggle, reset };
 }

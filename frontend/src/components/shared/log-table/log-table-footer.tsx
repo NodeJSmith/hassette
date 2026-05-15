@@ -17,7 +17,8 @@ interface Props {
   onResume: () => void;
   search: string;
   onSearchChange: (value: string) => void;
-  visibleColumns: ColumnId[];
+  selectedColumns: ColumnId[];
+  viewportHidden: ReadonlySet<ColumnId>;
   onToggleColumn: (id: ColumnId) => void;
   onResetColumns: () => void;
   level: LevelFilter;
@@ -36,7 +37,7 @@ interface Props {
 export function LogTableFooter({
   totalCount, livePaused, onResume,
   search, onSearchChange,
-  visibleColumns, onToggleColumn, onResetColumns,
+  selectedColumns, viewportHidden, onToggleColumn, onResetColumns,
   level, onLevelChange,
   tier, onTierChange,
   appFilter, onAppChange, appKeys,
@@ -163,7 +164,8 @@ export function LogTableFooter({
         )}
         {!isMobile && (
           <ColumnPicker
-            visibleColumns={visibleColumns}
+            selectedColumns={selectedColumns}
+            viewportHidden={viewportHidden}
             onToggle={onToggleColumn}
             onReset={onResetColumns}
           />

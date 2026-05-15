@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useSignal } from "../../../hooks/use-signal";
 import { useSubscribe } from "../../../hooks/use-subscribe";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../../../hooks/use-media-query";
+import { useAppState } from "../../../state/context";
 import type { LogEntry } from "../../../api/endpoints";
 import type { RowKey, ViewContext } from "./types";
 import { rowKey } from "./types";
@@ -37,8 +38,9 @@ export function LogTable({
   emptyTitle,
   emptyBody,
 }: Props) {
-  const { visibleColumns, toggle, reset } = useColumnVisibility(context);
+  const { visibleColumns, selectedColumns, viewportHidden, toggle, reset } = useColumnVisibility(context);
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
+  const { updateLogSubscription } = useAppState();
 
   const selectedKey = useSignal<RowKey | null>(null);
   useSubscribe(selectedKey);
@@ -48,7 +50,6 @@ export function LogTable({
   const { allEntries, restEntries, loading } = useLogData({
     appKey,
     executionId,
-    minLevel: "INFO",
   });
 
   const {
@@ -59,6 +60,11 @@ export function LogTable({
     restEntries,
     useLocalState: useLocalState || !!executionId,
     appKey,
+  });
+
+  useSignalEffect(() => {
+    const level = filterState.value.level;
+    updateLogSubscription(level || "DEBUG");
   });
 
   const searchFromInput = useRef(false);
@@ -160,7 +166,8 @@ export function LogTable({
           onResume={resetSort}
           search={searchInput.value}
           onSearchChange={handleSearchChange}
-          visibleColumns={visibleColumns}
+          selectedColumns={selectedColumns}
+          viewportHidden={viewportHidden}
           onToggleColumn={toggle}
           onResetColumns={reset}
           level={state.level}

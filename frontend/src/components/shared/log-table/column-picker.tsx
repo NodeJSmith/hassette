@@ -7,12 +7,13 @@ import { ColumnFilterPopover } from "./column-filter";
 import styles from "./column-picker.module.css";
 
 interface Props {
-  visibleColumns: ColumnId[];
+  selectedColumns: ColumnId[];
+  viewportHidden: ReadonlySet<ColumnId>;
   onToggle: (id: ColumnId) => void;
   onReset: () => void;
 }
 
-export function ColumnPicker({ visibleColumns, onToggle, onReset }: Props) {
+export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onReset }: Props) {
   const open = useSignal(false);
   useSubscribe(open);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -36,17 +37,25 @@ export function ColumnPicker({ visibleColumns, onToggle, onReset }: Props) {
       </button>
       <ColumnFilterPopover open={open.value} onClose={() => { open.value = false; }} triggerRef={triggerRef}>
         <div class={styles.list}>
-          {COLUMNS.map((col) => (
-            <label key={col.id} class={styles.item}>
-              <span>{col.label}</span>
-              <input
-                type="checkbox"
-                checked={visibleColumns.includes(col.id)}
-                onChange={() => onToggle(col.id)}
-                disabled={REQUIRED_COLUMNS.has(col.id)}
-              />
-            </label>
-          ))}
+          {COLUMNS.map((col) => {
+            const isViewportHidden = viewportHidden.has(col.id);
+            const isDisabled = REQUIRED_COLUMNS.has(col.id) || isViewportHidden;
+            return (
+              <label
+                key={col.id}
+                class={styles.item}
+                title={isViewportHidden ? "Hidden at this screen size" : undefined}
+              >
+                <span>{col.label}</span>
+                <input
+                  type="checkbox"
+                  checked={selectedColumns.includes(col.id)}
+                  onChange={() => onToggle(col.id)}
+                  disabled={isDisabled}
+                />
+              </label>
+            );
+          })}
         </div>
         <button type="button" class={styles.resetBtn} onClick={onReset}>
           Reset to defaults

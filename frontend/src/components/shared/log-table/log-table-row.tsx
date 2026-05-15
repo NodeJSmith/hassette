@@ -48,7 +48,9 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
       {isColumnVisible("app") && (
         <td>
           {entry.app_key ? (
-            <AppLink appKey={entry.app_key} />
+            <span onClick={(e: MouseEvent) => e.stopPropagation()}>
+              <AppLink appKey={entry.app_key} />
+            </span>
           ) : (
             <span class={styles.muted}>&mdash;</span>
           )}

@@ -10,7 +10,6 @@ import { REST_FETCH_LIMIT } from "./constants";
 interface UseLogDataParams {
   appKey?: string;
   executionId?: string | null;
-  minLevel: string;
 }
 
 interface UseLogDataResult {
@@ -21,18 +20,14 @@ interface UseLogDataResult {
   loading: ReadonlySignal<boolean>;
 }
 
-export function useLogData({ appKey, executionId, minLevel }: UseLogDataParams): UseLogDataResult {
-  const { logs, updateLogSubscription, reconnectVersion } = useAppState();
+export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDataResult {
+  const { logs, reconnectVersion } = useAppState();
 
   useSubscribe(logs.version);
 
   const initialEntries = useSignal<LogEntry[]>([]);
   const loading = useSignal(true);
   const watermarkRef = useRef(0);
-
-  useEffect(() => {
-    updateLogSubscription(minLevel || "DEBUG");
-  }, [minLevel, updateLogSubscription]);
 
   const rv = reconnectVersion.value;
   useEffect(() => {
@@ -58,7 +53,7 @@ export function useLogData({ appKey, executionId, minLevel }: UseLogDataParams):
       });
 
     return () => { cancelled = true; };
-  }, [appKey, rv, executionId, minLevel]);
+  }, [appKey, rv, executionId]);
 
   const restEntries = computed<LogEntry[]>(() => [...initialEntries.value]);
 
