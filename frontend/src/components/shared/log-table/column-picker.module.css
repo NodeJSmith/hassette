@@ -1,0 +1,53 @@
+.trigger {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  padding: var(--sp-1);
+  border-radius: var(--r-sm);
+  color: var(--ink-3);
+  transition: color var(--t-fast);
+}
+
+.trigger:hover { color: var(--ink-1); }
+.trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-2);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  color: var(--ink-1);
+  cursor: pointer;
+  padding: var(--sp-0) 0;
+}
+
+.item input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+.item:has(input:disabled) {
+  color: var(--ink-3);
+}
+
+.resetBtn {
+  all: unset;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  padding: var(--sp-1) 0;
+  transition: color var(--t-fast);
+}
+
+.resetBtn:hover { color: var(--ink-1); }
+.resetBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

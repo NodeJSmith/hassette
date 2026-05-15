@@ -393,9 +393,8 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
       <h3 class="ht-section-label">logs</h3>
       <div class={styles.logScroll}>
         <LogTable
+          context="app"
           appKey={appKey}
-          showAppColumn={false}
-          hideTitle
           useLocalState
           {...(isInactive ? {
             emptyTitle: `this app is ${appStatus}`,

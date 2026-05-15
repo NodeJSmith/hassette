@@ -17,31 +17,21 @@ vi.mock("wouter", () => ({
     <a href={href as string} class={cls as string}>{children as never}</a>,
 }));
 
-let capturedOnClearExecutionId: (() => void) | undefined;
 vi.mock("../components/shared/log-table", () => ({
   LogTable: ({
-    showAppColumn,
-    showInstanceColumn,
+    context,
     appKeys,
-    hideTitle,
     executionId,
-    onClearExecutionId,
   }: {
-    showAppColumn: boolean;
-    showInstanceColumn?: boolean;
-    appKeys: string[];
-    hideTitle?: boolean;
+    context?: string;
+    appKeys?: string[];
     executionId?: string | null;
-    onClearExecutionId?: () => void;
   }) => {
-    capturedOnClearExecutionId = onClearExecutionId;
     return (
       <div
         data-testid="log-table"
-        data-show-app-column={String(showAppColumn)}
-        data-show-instance-column={String(!!showInstanceColumn)}
+        data-context={context ?? "global"}
         data-app-keys={(appKeys ?? []).join(",")}
-        data-hide-title={String(!!hideTitle)}
         data-execution-id={executionId ?? ""}
       />
     );
@@ -59,7 +49,6 @@ beforeEach(() => {
     const qIdx = url.indexOf("?");
     mockSearchSignal.value = qIdx >= 0 ? url.slice(qIdx + 1) : "";
   });
-  capturedOnClearExecutionId = undefined;
 });
 
 describe("LogsPage", () => {
@@ -74,14 +63,9 @@ describe("LogsPage", () => {
     expect(getByTestId("log-table")).toBeDefined();
   });
 
-  it("passes showAppColumn=true to LogTable", () => {
+  it("passes context=global to LogTable", () => {
     const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("log-table").getAttribute("data-show-app-column")).toBe("true");
-  });
-
-  it("passes showInstanceColumn=true to LogTable", () => {
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("log-table").getAttribute("data-show-instance-column")).toBe("true");
+    expect(getByTestId("log-table").getAttribute("data-context")).toBe("global");
   });
 
   it("passes sorted app keys from manifests to LogTable", () => {
@@ -103,11 +87,6 @@ describe("LogsPage", () => {
     expect(container.querySelector("h1.ht-display")?.textContent).toBe("logs");
   });
 
-  it("passes hideTitle to LogTable", () => {
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("log-table").getAttribute("data-hide-title")).toBe("true");
-  });
-
   it("passes no executionId when URL param is absent", () => {
     mockSearchSignal.value = "";
     const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
@@ -120,21 +99,9 @@ describe("LogsPage", () => {
     expect(getByTestId("log-table").getAttribute("data-execution-id")).toBe("abc-123");
   });
 
-  it("passes onClearExecutionId that removes the URL param", () => {
-    mockSearchSignal.value = "execution_id=abc-123";
-    renderWithAppState(<LogsPage />, withManifests([]));
-
-    expect(capturedOnClearExecutionId).toBeDefined();
-    capturedOnClearExecutionId!();
-    expect(mockNavigate).toHaveBeenCalled();
-    const [url] = mockNavigate.mock.calls[0];
-    expect(url).not.toContain("execution_id");
-  });
-
   it("renders single layout regardless of execution_id presence", () => {
     mockSearchSignal.value = "execution_id=abc-123";
     const { queryByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(queryByTestId("execution-filter-banner")).toBeNull();
     expect(queryByTestId("logs-card")).not.toBeNull();
   });
 });

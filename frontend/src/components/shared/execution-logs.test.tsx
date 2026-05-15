@@ -5,24 +5,18 @@ import { ExecutionLogs } from "./execution-logs";
 vi.mock("./log-table", () => ({
   LogTable: ({
     executionId,
-    mode,
+    context,
     useLocalState,
-    hideTitle,
-    showAppColumn,
   }: {
     executionId?: string;
-    mode?: string;
+    context?: string;
     useLocalState?: boolean;
-    hideTitle?: boolean;
-    showAppColumn?: boolean;
   }) => (
     <div
       data-testid="log-table-stub"
       data-execution-id={executionId ?? ""}
-      data-mode={mode ?? "live"}
+      data-context={context ?? "global"}
       data-use-local-state={String(!!useLocalState)}
-      data-hide-title={String(!!hideTitle)}
-      data-show-app-column={String(!!showAppColumn)}
     />
   ),
 }));
@@ -37,10 +31,8 @@ describe("ExecutionLogs", () => {
   it("passes correct props to LogTable", () => {
     const { getByTestId } = render(<ExecutionLogs executionId="test-id" />);
     const stub = getByTestId("log-table-stub");
-    expect(stub.getAttribute("data-mode")).toBe("live");
+    expect(stub.getAttribute("data-context")).toBe("execution");
     expect(stub.getAttribute("data-use-local-state")).toBe("true");
-    expect(stub.getAttribute("data-hide-title")).toBe("true");
-    expect(stub.getAttribute("data-show-app-column")).toBe("false");
   });
 
   it("renders view-all-logs link with correct href", () => {

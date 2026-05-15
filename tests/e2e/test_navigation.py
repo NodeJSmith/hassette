@@ -26,7 +26,7 @@ def test_root_redirects_to_apps(page: Page, base_url: str) -> None:
 
 def test_logs_page_loads(page: Page, base_url: str) -> None:
     page.goto(base_url + "/logs")
-    expect(page.locator("[data-testid='filter-level']")).to_be_visible()
+    expect(page.locator("[data-testid='log-table']")).to_be_visible()
 
 
 def test_config_page_loads(page: Page, base_url: str) -> None:
@@ -280,7 +280,7 @@ def test_spa_navigates_without_full_reload(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps")
     page.evaluate("window.__test_marker = true")
     page.locator("[data-testid='nav-logs']").click()
-    expect(page.locator("[data-testid='filter-level']")).to_be_visible()
+    expect(page.locator("[data-testid='log-table']")).to_be_visible()
     assert page.evaluate("window.__test_marker") is True
     page.locator("[data-testid='nav-apps']").click()
     expect(page.locator("body")).to_contain_text("apps")

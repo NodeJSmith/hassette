@@ -1,0 +1,64 @@
+.popover {
+  position: fixed;
+  z-index: var(--z-drawer);
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
+  padding: var(--sp-2);
+  min-width: 200px;
+  max-width: 280px;
+  max-height: 60vh;
+  overflow: hidden auto;
+}
+
+.popover select,
+.popover input:not([type="checkbox"]) {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--font-body);
+  font-size: var(--fs-small);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  background: var(--input-bg);
+  color: var(--ink-1);
+  outline: none;
+}
+
+.popover select:focus,
+.popover input:not([type="checkbox"]):focus {
+  border-color: var(--accent);
+}
+
+.heading {
+  display: block;
+  font-family: var(--font-body);
+  font-size: var(--fs-micro);
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: var(--sp-1);
+}
+
+/* App filter: tier section + app list */
+.tierGroup {
+  display: flex;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-2);
+}
+
+.tierBtn {
+  all: unset;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--fs-micro);
+  padding: var(--sp-0) var(--sp-2);
+  border-radius: var(--r-sm);
+  color: var(--ink-3);
+  transition: all var(--t-fast);
+}
+
+.tierBtn:hover { color: var(--ink-1); background: var(--bg-sunken); }
+.tierBtn.active { color: var(--ink-1); background: var(--bg-active); font-weight: 500; }
+.tierBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

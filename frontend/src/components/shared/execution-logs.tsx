@@ -12,11 +12,9 @@ export function ExecutionLogs({ executionId }: Props) {
     <div class={styles.section} data-testid="execution-logs-section">
       <span class={styles.label}>logs</span>
       <LogTable
-        mode="live"
+        context="execution"
         executionId={executionId}
-        useLocalState={true}
-        hideTitle={true}
-        showAppColumn={false}
+        useLocalState
         emptyTitle="no logs for this execution"
         emptyBody="this execution did not produce any log output, or logs have been removed by the retention policy."
       />
