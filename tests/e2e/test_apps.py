@@ -89,7 +89,9 @@ def test_app_detail_shows_display_name(page: Page, base_url: str) -> None:
 def test_app_detail_log_entries_show_app_logs(page: Page, base_url: str) -> None:
     """App detail Logs tab shows app-specific log entries."""
     page.goto(base_url + "/apps/my_app/logs")
-    page.wait_for_timeout(500)
+    # Wait for the log table to appear and entries to load
+    page.locator("[data-testid='log-table']").wait_for(timeout=5000)
+    page.locator("text=/\\d+ entr|showing \\d+/").wait_for(timeout=5000)
     expect(page.locator("body")).to_contain_text("MyApp initialized")
     expect(page.locator("body")).to_contain_text("Light kitchen unresponsive")
     expect(page.locator("body")).to_contain_text("Failed to call service")

@@ -35,7 +35,7 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
     >
       {show("level") && (
         <td class={styles.levelCell}>
-          <span class={clsx(styles.levelText, styles[`level${entry.level}`])}>
+          <span class={clsx(styles.levelText, (styles as Record<string, string>)[`level${entry.level}`])}>
             {isMobile ? (LEVEL_ABBREV[entry.level] ?? entry.level) : entry.level}
           </span>
         </td>

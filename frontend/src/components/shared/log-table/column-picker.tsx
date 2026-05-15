@@ -1,5 +1,4 @@
 import { useRef } from "preact/hooks";
-import clsx from "clsx";
 import { useSignal } from "../../../hooks/use-signal";
 import { useSubscribe } from "../../../hooks/use-subscribe";
 import { COLUMNS } from "./constants";

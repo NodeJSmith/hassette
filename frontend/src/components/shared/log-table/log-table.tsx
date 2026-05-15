@@ -4,7 +4,7 @@ import { useSignal } from "../../../hooks/use-signal";
 import { useSubscribe } from "../../../hooks/use-subscribe";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../../../hooks/use-media-query";
 import type { LogEntry } from "../../../api/endpoints";
-import type { ColumnId, RowKey, ViewContext } from "./types";
+import type { RowKey, ViewContext } from "./types";
 import { rowKey } from "./types";
 import { RENDER_CAP, COLUMN_MAP } from "./constants";
 import { useLogData } from "./use-log-data";
@@ -36,7 +36,7 @@ export function LogTable({
   emptyTitle,
   emptyBody,
 }: Props) {
-  const { visibleColumns, isVisible, toggle, reset, allColumns } = useColumnVisibility(context);
+  const { visibleColumns, toggle, reset } = useColumnVisibility(context);
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
 
   const selectedKey = useSignal<RowKey | null>(null);

@@ -108,7 +108,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
         ) : entry ? (
           <div class={styles.content}>
             {/* Severity + timestamp */}
-            <div class={clsx(styles.severityRow, styles[`severity${entry.level}`])}>
+            <div class={clsx(styles.severityRow, (styles as Record<string, string>)[`severity${entry.level}`])}>
               <span class={styles.severityLabel}>{entry.level}</span>
               <span class={styles.timestamp}>{formatTimestamp(entry.timestamp)}</span>
             </div>

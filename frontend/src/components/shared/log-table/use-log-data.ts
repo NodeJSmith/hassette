@@ -44,7 +44,6 @@ export function useLogData({ appKey, executionId, minLevel }: UseLogDataParams):
       app_key: appKey,
       limit: REST_FETCH_LIMIT,
       execution_id: executionId,
-      level: minLevel || "DEBUG",
     })
       .then((entries) => {
         if (cancelled) return;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, fireEvent, act, waitFor } from "@testing-library/preact";
+import { render, fireEvent, waitFor } from "@testing-library/preact";
 import { h } from "preact";
 import type { ComponentChildren } from "preact";
 import { toast } from "sonner";

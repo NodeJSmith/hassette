@@ -24,6 +24,7 @@ interface UseLogFiltersResult {
   setFn: (fn: string) => void;
   setSort: (column: SortColumn) => void;
   resetSort: () => void;
+  resetFilters: () => void;
 }
 
 function nextSortState(clicked: SortColumn, currentCol: SortColumn, currentAsc: boolean): SortConfig {
