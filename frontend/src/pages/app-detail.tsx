@@ -402,7 +402,7 @@ export function AppDetailPage({ params }: Props) {
       {activeTab === "logs" && (
         <div role="tabpanel" id="tabpanel-logs" aria-labelledby="tab-logs">
           <Card data-testid="logs-section">
-            <LogTable showAppColumn={false} showInstanceColumn={showParentOverview} appKey={appKey} />
+            <LogTable context="app" appKey={appKey} />
           </Card>
         </div>
       )}

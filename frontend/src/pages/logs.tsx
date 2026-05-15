@@ -19,12 +19,9 @@ export function LogsPage() {
       </div>
       <Card variant="compact" class={styles.cardFull} data-testid="logs-card">
         <LogTable
-          showAppColumn={true}
-          showInstanceColumn
+          context="global"
           appKeys={appKeys}
-          hideTitle
           executionId={executionId}
-          onClearExecutionId={() => qp.set({ execution_id: null })}
         />
       </Card>
     </div>

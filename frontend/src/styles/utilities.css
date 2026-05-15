@@ -117,17 +117,6 @@
   border: 1px solid var(--line-1);
 }
 
-.ht-pill--warn {
-  color: var(--warn);
-  background: var(--warn-bg);
-  border: 1px solid color-mix(in srgb, var(--warn) 25%, transparent);
-  cursor: pointer;
-}
-
-.ht-pill--warn:hover {
-  border-color: color-mix(in srgb, var(--warn) 50%, transparent);
-}
-
 .ht-pill--interactive {
   cursor: pointer;
   position: relative;

@@ -118,7 +118,7 @@ def test_palette_navigates_to_logs_on_select(page: Page, base_url: str) -> None:
     expect(logs_result).to_be_visible()
     logs_result.click()
     expect(page).to_have_url(re.compile(r"/logs"))
-    expect(page.locator("[data-testid='filter-level']")).to_be_visible()
+    expect(page.locator("[data-testid='log-table']")).to_be_visible()
 
 
 def test_palette_keyboard_navigation(page: Page, base_url: str) -> None:
