@@ -2,9 +2,11 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/preact";
 import { h } from "preact";
 import type { ComponentChildren } from "preact";
+import { signal } from "@preact/signals";
 import { toast } from "sonner";
 import { LogTable } from "./log-table";
 import { sortEntries } from "./use-log-filters";
+import { getRecentLogs } from "../../../api/endpoints";
 import type { LogEntry } from "../../../api/endpoints";
 import { AppStateContext } from "../../../state/context";
 import { createAppState, type AppState } from "../../../state/create-app-state";
@@ -25,19 +27,13 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }));
 
-import { signal as _signal } from "@preact/signals";
-const mockSearchSignal = _signal("");
-const _setMockSearch = (v: string) => { mockSearchSignal.value = v; };
+const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
+
+const mockSearchSignal = signal("");
 const mockNavigate = vi.fn((url: string) => {
   const qIdx = url.indexOf("?");
-  _setMockSearch(qIdx >= 0 ? url.slice(qIdx + 1) : "");
+  mockSearchSignal.value = qIdx >= 0 ? url.slice(qIdx + 1) : "";
 });
-function restoreNavigateMock() {
-  mockNavigate.mockImplementation((url: string) => {
-    const qIdx = url.indexOf("?");
-    _setMockSearch(qIdx >= 0 ? url.slice(qIdx + 1) : "");
-  });
-}
 
 vi.mock("wouter", () => ({
   useSearch: () => mockSearchSignal.value,
@@ -46,20 +42,27 @@ vi.mock("wouter", () => ({
     <a href={href as string} class={cls as string}>{children as never}</a>,
 }));
 
-beforeEach(() => {
-  _setMockSearch("");
-  mockNavigate.mockReset();
-  restoreNavigateMock();
-  mockUseMediaQuery.mockReturnValue(false);
-});
-
 function createWrapper(state: AppState) {
   return function Wrapper({ children }: { children: ComponentChildren }) {
     return h(AppStateContext.Provider, { value: state }, children);
   };
 }
 
+let state: AppState;
 let entrySeq = 0;
+
+beforeEach(() => {
+  state = createAppState();
+  entrySeq = 0;
+  mockSearchSignal.value = "";
+  mockUseMediaQuery.mockReturnValue(false);
+  vi.clearAllMocks();
+  mockNavigate.mockImplementation((url: string) => {
+    const qIdx = url.indexOf("?");
+    mockSearchSignal.value = qIdx >= 0 ? url.slice(qIdx + 1) : "";
+  });
+});
+
 function createLogEntry(overrides: Partial<WsLogPayload> = {}): WsLogPayload {
   ++entrySeq;
   return {
@@ -81,15 +84,6 @@ function createLogEntry(overrides: Partial<WsLogPayload> = {}): WsLogPayload {
 }
 
 describe("LogTable", () => {
-  let state: AppState;
-
-  beforeEach(() => {
-    state = createAppState();
-    vi.clearAllMocks();
-    restoreNavigateMock();
-    entrySeq = 0;
-  });
-
   it("shows empty message when no logs exist", async () => {
     const { findByText } = render(<LogTable />, { wrapper: createWrapper(state) });
     expect(await findByText("no log lines in window")).toBeDefined();
@@ -116,15 +110,6 @@ describe("LogTable", () => {
 });
 
 describe("Level filtering", () => {
-  let state: AppState;
-
-  beforeEach(() => {
-    state = createAppState();
-    vi.clearAllMocks();
-    restoreNavigateMock();
-    entrySeq = 0;
-  });
-
   it("filters entries by minimum level via header filter", () => {
     state.logs.push(createLogEntry({ level: "DEBUG", message: "debug msg" }));
     state.logs.push(createLogEntry({ level: "INFO", message: "info msg" }));
@@ -146,15 +131,6 @@ describe("Level filtering", () => {
 });
 
 describe("Sorting", () => {
-  let state: AppState;
-
-  beforeEach(() => {
-    state = createAppState();
-    vi.clearAllMocks();
-    restoreNavigateMock();
-    entrySeq = 0;
-  });
-
   it("sorts by timestamp descending by default", () => {
     state.logs.push(createLogEntry({ timestamp: 2000, message: "mid" }));
     state.logs.push(createLogEntry({ timestamp: 1000, message: "oldest" }));
@@ -188,15 +164,6 @@ describe("Sorting", () => {
 });
 
 describe("Row click opens detail drawer", () => {
-  let state: AppState;
-
-  beforeEach(() => {
-    state = createAppState();
-    vi.clearAllMocks();
-    restoreNavigateMock();
-    entrySeq = 0;
-  });
-
   it("opens drawer on row click and shows entry details", () => {
     state.logs.push(createLogEntry({
       message: "Test detail message",
@@ -244,15 +211,6 @@ describe("Row click opens detail drawer", () => {
 });
 
 describe("Detail drawer navigation", () => {
-  let state: AppState;
-
-  beforeEach(() => {
-    state = createAppState();
-    vi.clearAllMocks();
-    restoreNavigateMock();
-    entrySeq = 0;
-  });
-
   it("navigates between entries with arrow buttons", () => {
     state.logs.push(createLogEntry({ timestamp: 1000, message: "first-entry" }));
     state.logs.push(createLogEntry({ timestamp: 2000, message: "second-entry" }));
@@ -340,18 +298,7 @@ describe("sortEntries", () => {
 });
 
 describe("REST + WS merge", () => {
-  let state: AppState;
-
-  beforeEach(() => {
-    state = createAppState();
-    vi.clearAllMocks();
-    restoreNavigateMock();
-    entrySeq = 0;
-  });
-
   it("filters WS entries at or below the REST timestamp watermark", async () => {
-    const { getRecentLogs } = await import("../../../api/endpoints");
-    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
     mockGetRecentLogs.mockResolvedValueOnce([
       createLogEntry({ seq: 1, timestamp: 1000, message: "rest-1" }),
       createLogEntry({ seq: 5, timestamp: 5000, message: "rest-5" }),
@@ -368,8 +315,6 @@ describe("REST + WS merge", () => {
   });
 
   it("merges REST and WS entries in sorted order", async () => {
-    const { getRecentLogs } = await import("../../../api/endpoints");
-    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
     mockGetRecentLogs.mockResolvedValueOnce([
       createLogEntry({ timestamp: 1000, message: "rest-old" }),
       createLogEntry({ timestamp: 2000, message: "rest-new" }),
@@ -388,18 +333,7 @@ describe("REST + WS merge", () => {
 });
 
 describe("Error handling", () => {
-  let state: AppState;
-
-  beforeEach(() => {
-    state = createAppState();
-    vi.clearAllMocks();
-    restoreNavigateMock();
-    entrySeq = 0;
-  });
-
   it("shows toast when getRecentLogs rejects", async () => {
-    const { getRecentLogs } = await import("../../../api/endpoints");
-    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
     mockGetRecentLogs.mockRejectedValueOnce(new Error("Network timeout"));
 
     render(<LogTable />, { wrapper: createWrapper(state) });
@@ -411,15 +345,6 @@ describe("Error handling", () => {
 });
 
 describe("Live pause", () => {
-  let state: AppState;
-
-  beforeEach(() => {
-    state = createAppState();
-    vi.clearAllMocks();
-    restoreNavigateMock();
-    entrySeq = 0;
-  });
-
   it("shows paused indicator when sorting by non-timestamp column", () => {
     state.logs.push(createLogEntry());
 
@@ -448,13 +373,7 @@ describe("Live pause", () => {
 });
 
 describe("Mobile responsive", () => {
-  let state: AppState;
-
   beforeEach(() => {
-    state = createAppState();
-    vi.clearAllMocks();
-    restoreNavigateMock();
-    entrySeq = 0;
     mockUseMediaQuery.mockReturnValue(true);
   });
 
@@ -483,13 +402,7 @@ describe("Mobile responsive", () => {
 });
 
 describe("Column picker", () => {
-  let state: AppState;
-
   beforeEach(() => {
-    state = createAppState();
-    vi.clearAllMocks();
-    restoreNavigateMock();
-    entrySeq = 0;
     localStorage.clear();
   });
 
@@ -500,18 +413,7 @@ describe("Column picker", () => {
 });
 
 describe("Truncation", () => {
-  let state: AppState;
-
-  beforeEach(() => {
-    state = createAppState();
-    vi.clearAllMocks();
-    restoreNavigateMock();
-    entrySeq = 0;
-  });
-
   it("shows truncation indicator when entries exceed render cap", async () => {
-    const { getRecentLogs } = await import("../../../api/endpoints");
-    const mockGetRecentLogs = getRecentLogs as unknown as ReturnType<typeof vi.fn>;
     const manyEntries = Array.from({ length: 501 }, (_, i) =>
       createLogEntry({ seq: i + 1, timestamp: i + 1, message: `entry-${i}` }),
     );

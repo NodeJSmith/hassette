@@ -16,7 +16,7 @@
   overflow: hidden;
 }
 
-/* Desktop: right side panel */
+/* Desktop: right side panel — width must match --drawer-width in log-table.module.css */
 .sidePanel {
   right: 0;
   top: 0;

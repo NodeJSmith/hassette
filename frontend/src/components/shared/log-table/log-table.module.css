@@ -1,5 +1,6 @@
 /* CSS Grid layout: table area + drawer as siblings */
 .wrapper {
+  --drawer-width: 400px;
   display: grid;
   grid-template-columns: 1fr;
   height: 100%;
@@ -7,10 +8,11 @@
 }
 
 .wrapper.drawerOpen {
-  grid-template-columns: 1fr 400px;
+  grid-template-columns: 1fr var(--drawer-width);
 }
 
-/* On tablet and mobile, drawer is overlay — no grid reflow */
+/* On tablet and mobile, drawer is overlay — no grid reflow
+   1024px = BREAKPOINT_TABLET from use-media-query.ts */
 @media screen and (max-width: 1024px) {
   .wrapper.drawerOpen {
     grid-template-columns: 1fr;
@@ -44,7 +46,7 @@
   border-bottom: 1px solid var(--line-2);
 }
 
-/* Mobile adjustments */
+/* Mobile adjustments — 768px = BREAKPOINT_MOBILE from use-media-query.ts */
 @media screen and (max-width: 768px) {
   .table { table-layout: fixed; }
   .table td { font-size: var(--fs-micro); }

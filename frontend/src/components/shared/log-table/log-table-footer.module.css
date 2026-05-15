@@ -160,6 +160,7 @@
 .resetFiltersBtn:hover { color: var(--ink-1); }
 .resetFiltersBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* 768px = BREAKPOINT_MOBILE from use-media-query.ts */
 @media screen and (max-width: 768px) {
   .footer {
     flex-wrap: wrap;
