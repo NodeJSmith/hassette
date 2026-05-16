@@ -166,7 +166,7 @@ export function HandlersPage() {
           </div>
         ) : (
           <div data-testid="handlers-table-container">
-            <table class={`ht-table ${styles.handlersTable}`}>
+            <table class={`ht-table ht-table--fixed ${styles.handlersTable}`}>
               <colgroup>
                 <col style="width: 7%" />
                 <col style="width: 13%" />

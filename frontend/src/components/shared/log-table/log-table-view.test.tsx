@@ -74,11 +74,12 @@ function renderView(overrides: Partial<Parameters<typeof LogTableView>[0]> = {})
 
 describe("LogTableView", () => {
   describe("table root element", () => {
-    it("renders a <table> with class ht-table and data-testid log-table", () => {
+    it("renders a <table> with class ht-table ht-table--fixed and data-testid log-table", () => {
       const { getByTestId } = renderView();
       const table = getByTestId("log-table");
       expect(table.tagName.toLowerCase()).toBe("table");
       expect(table.className).toContain("ht-table");
+      expect(table.className).toContain("ht-table--fixed");
     });
   });
 

@@ -244,7 +244,7 @@ export function AppsPage() {
             )}
           </EmptyState>
         ) : (
-          <table class={`ht-table ${styles.appsTable}`} data-testid="apps-table">
+          <table class={`ht-table ht-table--fixed ${styles.appsTable}`} data-testid="apps-table">
             <colgroup>
               <col style="width: 35%" />
               <col style="width: 12%" />

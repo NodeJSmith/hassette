@@ -15,7 +15,7 @@ export function LogTableView({
   isMobile,
 }: LogTableViewProps) {
   return (
-    <table class="ht-table" data-testid="log-table">
+    <table class="ht-table ht-table--fixed" data-testid="log-table">
       <colgroup>
         {visibleColumns.map((id) => {
           const col = COLUMN_MAP[id];
