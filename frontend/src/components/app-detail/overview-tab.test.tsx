@@ -210,7 +210,7 @@ describe("OverviewTab — Handler Health Grid", () => {
     expect(getByTestId("overview-health-grid")).toBeDefined();
   });
 
-  it("renders a row for each listener", () => {
+  it("renders a card for each listener", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [
         createListener({ listener_id: 1 }),
@@ -218,11 +218,11 @@ describe("OverviewTab — Handler Health Grid", () => {
       ],
       jobs: [],
     });
-    expect(getByTestId("overview-health-row-listener-1")).toBeDefined();
-    expect(getByTestId("overview-health-row-listener-2")).toBeDefined();
+    expect(getByTestId("overview-health-card-listener-1")).toBeDefined();
+    expect(getByTestId("overview-health-card-listener-2")).toBeDefined();
   });
 
-  it("renders a row for each job", () => {
+  it("renders a card for each job", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [],
       jobs: [
@@ -230,22 +230,45 @@ describe("OverviewTab — Handler Health Grid", () => {
         createJob({ job_id: 11 }),
       ],
     });
-    expect(getByTestId("overview-health-row-job-10")).toBeDefined();
-    expect(getByTestId("overview-health-row-job-11")).toBeDefined();
+    expect(getByTestId("overview-health-card-job-10")).toBeDefined();
+    expect(getByTestId("overview-health-card-job-11")).toBeDefined();
   });
 
-  it("renders rows for both listeners and jobs", () => {
+  it("renders cards for both listeners and jobs", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 1 })],
       jobs: [createJob({ job_id: 5 })],
     });
-    expect(getByTestId("overview-health-row-listener-1")).toBeDefined();
-    expect(getByTestId("overview-health-row-job-5")).toBeDefined();
+    expect(getByTestId("overview-health-card-listener-1")).toBeDefined();
+    expect(getByTestId("overview-health-card-job-5")).toBeDefined();
+  });
+
+  it("renders the correct total number of cards", () => {
+    const { container } = renderOverviewTab({
+      listeners: [
+        createListener({ listener_id: 1 }),
+        createListener({ listener_id: 2 }),
+      ],
+      jobs: [
+        createJob({ job_id: 10 }),
+      ],
+    });
+    const cards = container.querySelectorAll("[data-testid^='overview-health-card-']");
+    expect(cards.length).toBe(3);
   });
 
   it("shows empty state when no listeners or jobs", () => {
     const { getByTestId } = renderOverviewTab({ listeners: [], jobs: [] });
     expect(getByTestId("overview-health-empty")).toBeDefined();
+  });
+
+  it("does not render a table element in the health grid section", () => {
+    const { getByTestId } = renderOverviewTab({
+      listeners: [createListener({ listener_id: 1 })],
+      jobs: [],
+    });
+    const section = getByTestId("overview-health-grid");
+    expect(section.querySelector("table")).toBeNull();
   });
 
   it("orders failing items first in the health grid", () => {
@@ -254,10 +277,10 @@ describe("OverviewTab — Handler Health Grid", () => {
       createListener({ listener_id: 2, failed: 3, timed_out: 0 }),
     ];
     const { container } = renderOverviewTab({ listeners, jobs: [] });
-    const rows = container.querySelectorAll("[data-testid^='overview-health-row-']");
+    const cards = container.querySelectorAll("[data-testid^='overview-health-card-']");
     // The failing listener (id=2) should appear first
-    expect(rows[0].getAttribute("data-testid")).toBe("overview-health-row-listener-2");
-    expect(rows[1].getAttribute("data-testid")).toBe("overview-health-row-listener-1");
+    expect(cards[0].getAttribute("data-testid")).toBe("overview-health-card-listener-2");
+    expect(cards[1].getAttribute("data-testid")).toBe("overview-health-card-listener-1");
   });
 
   it("orders timed-out items before healthy items", () => {
@@ -266,47 +289,60 @@ describe("OverviewTab — Handler Health Grid", () => {
       createListener({ listener_id: 2, failed: 0, timed_out: 1 }),
     ];
     const { container } = renderOverviewTab({ listeners, jobs: [] });
-    const rows = container.querySelectorAll("[data-testid^='overview-health-row-']");
-    expect(rows[0].getAttribute("data-testid")).toBe("overview-health-row-listener-2");
-    expect(rows[1].getAttribute("data-testid")).toBe("overview-health-row-listener-1");
+    const cards = container.querySelectorAll("[data-testid^='overview-health-card-']");
+    expect(cards[0].getAttribute("data-testid")).toBe("overview-health-card-listener-2");
+    expect(cards[1].getAttribute("data-testid")).toBe("overview-health-card-listener-1");
   });
 
-  it("each health grid row links to handlers tab with correct listener ID", () => {
+  it("within failing group, orders by descending run count", () => {
+    const listeners = [
+      createListener({ listener_id: 1, failed: 1, total_invocations: 5 }),
+      createListener({ listener_id: 2, failed: 1, total_invocations: 20 }),
+      createListener({ listener_id: 3, failed: 1, total_invocations: 10 }),
+    ];
+    const { container } = renderOverviewTab({ listeners, jobs: [] });
+    const cards = container.querySelectorAll("[data-testid^='overview-health-card-']");
+    expect(cards[0].getAttribute("data-testid")).toBe("overview-health-card-listener-2");
+    expect(cards[1].getAttribute("data-testid")).toBe("overview-health-card-listener-3");
+    expect(cards[2].getAttribute("data-testid")).toBe("overview-health-card-listener-1");
+  });
+
+  it("each health grid card links to handlers tab with correct listener ID", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 4 })],
       jobs: [],
       appKey: "my_app",
       instanceQs: "",
     });
-    const row = getByTestId("overview-health-row-listener-4");
-    const anchor = row.tagName === "A" ? row : row.querySelector("a");
-    const href = anchor?.getAttribute("href") ?? row.getAttribute("href");
+    const card = getByTestId("overview-health-card-listener-4");
+    const anchor = card.tagName === "A" ? card : card.querySelector("a");
+    const href = anchor?.getAttribute("href") ?? card.getAttribute("href");
     expect(href).toBe("/apps/my_app/handlers/h-4");
   });
 
-  it("each health grid row links to handlers tab with correct job ID", () => {
+  it("each health grid card links to handlers tab with correct job ID", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [],
       jobs: [createJob({ job_id: 15 })],
       appKey: "my_app",
       instanceQs: "",
     });
-    const row = getByTestId("overview-health-row-job-15");
-    const anchor = row.tagName === "A" ? row : row.querySelector("a");
-    const href = anchor?.getAttribute("href") ?? row.getAttribute("href");
+    const card = getByTestId("overview-health-card-job-15");
+    const anchor = card.tagName === "A" ? card : card.querySelector("a");
+    const href = anchor?.getAttribute("href") ?? card.getAttribute("href");
     expect(href).toBe("/apps/my_app/handlers/j-15");
   });
 
-  it("health grid row link includes instanceQs", () => {
+  it("health grid card link includes instanceQs", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 6 })],
       jobs: [],
       appKey: "test_app",
       instanceQs: "?instance=2",
     });
-    const row = getByTestId("overview-health-row-listener-6");
-    const anchor = row.tagName === "A" ? row : row.querySelector("a");
-    const href = anchor?.getAttribute("href") ?? row.getAttribute("href");
+    const card = getByTestId("overview-health-card-listener-6");
+    const anchor = card.tagName === "A" ? card : card.querySelector("a");
+    const href = anchor?.getAttribute("href") ?? card.getAttribute("href");
     expect(href).toBe("/apps/test_app/handlers/h-6?instance=2");
   });
 });

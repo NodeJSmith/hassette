@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Integrate card grid into overview tab"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#6", "FR#7", "FR#8", "FR#9", "AC#1", "AC#5", "AC#6", "AC#7", "AC#10"]
 ---

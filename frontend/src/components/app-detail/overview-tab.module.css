@@ -97,65 +97,20 @@
   color: var(--ink-1);
 }
 
-/* — Handler health table — */
+/* — Handler health card grid — */
 
-.healthTable td {
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
-  color: var(--ink-2);
+.healthGridScroll {
+  max-height: calc(3 * 140px + 2 * var(--sp-3));
+  overflow-y: auto;
 }
 
-.healthRow {
-  cursor: pointer;
-  transition: background var(--t-fast);
+.healthGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--sp-3);
 }
 
-.healthRow:hover {
-  background: var(--bg-sunken);
-}
-
-.healthRowFailing {
-  background: var(--err-bg);
-}
-
-.healthTable .healthRowFailing:hover {
-  background: color-mix(in srgb, var(--err-bg) 70%, var(--bg-active));
-}
-
-.healthRowName {
-  color: var(--ink-1);
-}
-
-.healthRowLink {
-  display: block;
-  max-width: 40ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--ink-1);
-  text-decoration: none;
-}
-
-.healthRowLink:hover {
-  text-decoration: underline;
-  text-decoration-color: var(--accent);
-}
-
-.healthRowCount {
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
-  color: var(--ink-3);
-  text-align: right;
-  white-space: nowrap;
-}
-
-.healthRowError {
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
-  white-space: nowrap;
-}
-
-/* — Shared column sizing — */
+/* — Shared column sizing (activity table) — */
 
 .colDot {
   width: var(--sp-7);
@@ -177,8 +132,7 @@
   padding: 0;
 }
 
-.activityTable td,
-.logTable td {
+.activityTable td {
   font-family: var(--font-mono);
   font-size: var(--fs-mono-sm);
   color: var(--ink-2);
