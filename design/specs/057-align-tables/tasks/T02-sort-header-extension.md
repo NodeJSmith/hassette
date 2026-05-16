@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Extend SortHeader with filter support"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#4", "FR#11", "AC#4", "AC#8", "AC#10"]
 ---

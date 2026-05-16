@@ -1,4 +1,10 @@
+import { useRef } from "preact/hooks";
 import clsx from "clsx";
+import type { ComponentChildren } from "preact";
+import { useSignal } from "../../hooks/use-signal";
+import { useSubscribe } from "../../hooks/use-subscribe";
+import { FilterIcon } from "./filter-icon";
+import { ColumnFilterPopover } from "./column-filter-popover/index";
 import styles from "./sort-header.module.css";
 
 export interface SortState<K extends string = string> {
@@ -7,9 +13,10 @@ export interface SortState<K extends string = string> {
 }
 
 interface BaseProps {
+  ariaLabel?: string;
   class?: string;
   "data-testid"?: string;
-  children: preact.ComponentChildren;
+  children: ComponentChildren;
 }
 
 interface ManualProps extends BaseProps {
@@ -30,40 +37,120 @@ interface ManagedProps<K extends string> extends BaseProps {
   onClick?: never;
 }
 
-type Props<K extends string = string> = ManualProps | ManagedProps<K>;
+// Neither-sort variant: no sort props at all
+interface NoSortProps extends BaseProps {
+  sortKey?: never;
+  sort?: never;
+  onSort?: never;
+  active?: never;
+  direction?: never;
+  onClick?: never;
+}
+
+type SortProps<K extends string = string> = ManualProps | ManagedProps<K> | NoSortProps;
+
+// Filter axis — orthogonal, optional, independent of sort
+interface WithFilter {
+  filterContent: ComponentChildren;
+  hasActiveFilter: boolean;
+}
+
+interface WithoutFilter {
+  filterContent?: never;
+  hasActiveFilter?: never;
+}
+
+type FilterProps = WithFilter | WithoutFilter;
+
+type Props<K extends string = string> = SortProps<K> & FilterProps;
 
 export function SortHeader<K extends string = string>(props: Props<K>) {
-  const { class: className, "data-testid": testId, children } = props;
+  const { ariaLabel, class: className, "data-testid": testId, children } = props;
 
-  let active: boolean;
-  let direction: "asc" | "desc";
-  let onClick: () => void;
+  // Filter state — local per-instance
+  const filterOpen = useSignal(false);
+  useSubscribe(filterOpen);
+  const filterTriggerRef = useRef<HTMLButtonElement>(null);
 
-  if ("sortKey" in props && props.sortKey !== undefined) {
+  // Determine sort axis
+  const hasSortKey = "sortKey" in props && props.sortKey !== undefined;
+  const hasManualSort = !hasSortKey && "onClick" in props && (props as ManualProps).onClick !== undefined;
+
+  let active = false;
+  let direction: "asc" | "desc" = "asc";
+  let sortClickHandler: (() => void) | undefined;
+
+  if (hasSortKey) {
     const managed = props as ManagedProps<K>;
     active = managed.sort.key === managed.sortKey;
     direction = active ? managed.sort.dir : "asc";
     const key = managed.sortKey;
     const onSort = managed.onSort;
-    onClick = () => onSort({ key, dir: active && managed.sort.dir === "asc" ? "desc" : "asc" });
-  } else {
-    active = (props as ManualProps).active;
-    direction = (props as ManualProps).direction;
-    onClick = (props as ManualProps).onClick;
+    sortClickHandler = () => onSort({ key, dir: active && managed.sort.dir === "asc" ? "desc" : "asc" });
+  } else if (hasManualSort) {
+    const manual = props as ManualProps;
+    active = manual.active;
+    direction = manual.direction;
+    sortClickHandler = manual.onClick;
   }
+
+  const hasSortProps = hasSortKey || hasManualSort;
+  const hasFilter = props.filterContent !== undefined && props.filterContent !== null;
 
   const arrow = active ? (direction === "asc" ? " ↑" : " ↓") : "";
   const ariaSortValue = active ? (direction === "asc" ? "ascending" : "descending") : undefined;
+
+  // Sort button or plain label
+  const sortElement = hasSortProps ? (
+    <button
+      type="button"
+      class={clsx(styles.sortHeader, active && styles.active)}
+      data-testid="sort-header-btn"
+      aria-label={ariaLabel ? `Sort by ${ariaLabel}` : undefined}
+      onClick={sortClickHandler}
+    >
+      {children}<span aria-hidden="true">{arrow}</span>
+    </button>
+  ) : hasFilter ? (
+    // filter-only: plain label span (no sort button)
+    <span>{children}</span>
+  ) : null;
+
+  // Plain label (neither sort nor filter)
+  if (!hasSortProps && !hasFilter) {
+    return (
+      <th scope="col" class={className} aria-label={ariaLabel} data-testid={testId}>
+        <span>{children}</span>
+      </th>
+    );
+  }
+
   return (
-    <th scope="col" class={className} aria-sort={ariaSortValue} data-testid={testId}>
-      <button
-        type="button"
-        class={clsx(styles.sortHeader, active && styles.active)}
-        data-testid="sort-header-btn"
-        onClick={onClick}
-      >
-        {children}<span aria-hidden="true">{arrow}</span>
-      </button>
+    <th scope="col" class={className} aria-sort={hasSortProps ? ariaSortValue : undefined} aria-label={ariaLabel} data-testid={testId}>
+      {hasFilter ? (
+        <div class={styles.headerInner}>
+          {sortElement}
+          <button
+            ref={filterTriggerRef}
+            type="button"
+            class={clsx(styles.filterBtn, props.hasActiveFilter && styles.filterActive)}
+            data-testid="filter-btn"
+            aria-label={ariaLabel ? `Filter ${ariaLabel}` : undefined}
+            onClick={() => { filterOpen.value = !filterOpen.value; }}
+          >
+            <FilterIcon active={props.hasActiveFilter} />
+          </button>
+          <ColumnFilterPopover
+            open={filterOpen.value}
+            onClose={() => { filterOpen.value = false; }}
+            triggerRef={filterTriggerRef}
+          >
+            {props.filterContent}
+          </ColumnFilterPopover>
+        </div>
+      ) : (
+        sortElement
+      )}
     </th>
   );
 }
