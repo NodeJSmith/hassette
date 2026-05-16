@@ -19,7 +19,7 @@ export function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
   onToggle: () => void;
 }) {
   const [errorExpanded, setErrorExpanded] = useState(false);
-  if (!app.error_message && errorExpanded) setErrorExpanded(false);
+  const showErrorExpanded = errorExpanded && !!app.error_message;
   const lastErrorLabel = useRelativeTime(app.last_error_ts ?? null);
   const lastActivityLabel = useRelativeTime(app.last_activity_ts ?? null);
   const status = liveStatus ?? app.status;
@@ -59,10 +59,10 @@ export function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
         </td>
         {/* Error */}
         <td
-          class={clsx(styles.errorCell, errorExpanded && styles.errorCellExpanded)}
+          class={clsx(styles.errorCell, showErrorExpanded && styles.errorCellExpanded)}
           {...(app.error_message ? {
             role: "button", tabIndex: 0,
-            "aria-label": `${errorExpanded ? "Collapse" : "Expand"} error: ${app.error_message}`,
+            "aria-label": `${showErrorExpanded ? "Collapse" : "Expand"} error: ${app.error_message}`,
             onClick: (e: Event) => { e.stopPropagation(); setErrorExpanded(!errorExpanded); },
             onKeyDown: (e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setErrorExpanded(!errorExpanded); } },
           } : {})}
