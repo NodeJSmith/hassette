@@ -14,6 +14,7 @@ import {
   handlerPath,
   isFailing,
   itemRunCount,
+  itemLastActiveAt,
   itemErrorType,
   itemErrorMessage,
   itemKindChip,
@@ -26,11 +27,6 @@ interface HandlerHealthCardProps {
   instanceQs: string;
 }
 
-function itemLastActiveAt(item: UnifiedItem): number | null {
-  return item.kind === "listener"
-    ? (item.data.last_invoked_at ?? null)
-    : (item.data.last_executed_at ?? null);
-}
 
 const STATUS_DOT_SIZE = 10;
 
@@ -63,7 +59,6 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
       onClick={() => navigate(href)}
       onKeyDown={handleKeyDown}
     >
-      {/* Header: status shape + handler name */}
       <div class={styles.header}>
         <span aria-hidden="true">
           <StatusShape kind={item.statusKind} size={STATUS_DOT_SIZE} />
@@ -71,7 +66,6 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
         <span class={styles.name} title={item.name}>{item.name}</span>
       </div>
 
-      {/* Subtitle: kind chip + error type (if failing) */}
       <div class={styles.subtitle}>
         <Chip variant="muted" size="sm" aria-label={`kind: ${chipLabel}`}>
           {chipLabel}
@@ -81,14 +75,12 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
         )}
       </div>
 
-      {/* Error message (if failing and present) */}
       {errorMessage && (
         <Tooltip label={errorMessage}>
           <span class={styles.errorMessage}>{errorMessage}</span>
         </Tooltip>
       )}
 
-      {/* Stats */}
       <div class={styles.stats}>
         <div class={styles.statRow}>
           <Tooltip label={`total ${callLabel}s`}>
