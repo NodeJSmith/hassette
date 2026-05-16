@@ -154,39 +154,6 @@ describe("TableCard", () => {
     });
   });
 
-  describe("deprecated props backward compatibility", () => {
-    it("still renders content when deprecated count prop is passed", () => {
-      render(
-        <TableCard count={<span data-testid="count-el">5 apps</span>}>
-          <table><tbody><tr><td data-testid="cell">x</td></tr></tbody></table>
-        </TableCard>
-      );
-      // Deprecated path: count renders somewhere in the DOM
-      expect(screen.getByTestId("count-el")).not.toBeNull();
-      expect(screen.getByTestId("cell")).not.toBeNull();
-    });
-
-    it("still renders content when deprecated title prop is passed", () => {
-      render(
-        <TableCard title={<span data-testid="title-el">My Table</span>}>
-          <table><tbody><tr><td data-testid="cell">x</td></tr></tbody></table>
-        </TableCard>
-      );
-      expect(screen.getByTestId("title-el")).not.toBeNull();
-      expect(screen.getByTestId("cell")).not.toBeNull();
-    });
-
-    it("still renders content when deprecated controls prop is passed", () => {
-      render(
-        <TableCard controls={<button data-testid="ctrl-btn">filter</button>}>
-          <table><tbody><tr><td data-testid="cell">x</td></tr></tbody></table>
-        </TableCard>
-      );
-      expect(screen.getByTestId("ctrl-btn")).not.toBeNull();
-      expect(screen.getByTestId("cell")).not.toBeNull();
-    });
-  });
-
   describe("FR#1 — search input above table content", () => {
     it("search prop renders a search area positioned above the table content", () => {
       const { container } = render(

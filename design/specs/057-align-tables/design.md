@@ -1,7 +1,7 @@
 # Design: Align Table Pattern
 
 **Date:** 2026-05-15
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** /tmp/claude-mine-define-research-xTbfED/brief.md
 
