@@ -17,6 +17,7 @@
 import { useRef } from "preact/hooks";
 import { useApi, type UseApiOptions, type UseApiResult } from "./use-api";
 import { useAppState } from "../state/context";
+import { MS_PER_SECOND } from "../utils/format";
 import type { TimePreset } from "../state/create-app-state";
 
 export interface UseScopedApiOptions extends UseApiOptions {
@@ -41,10 +42,10 @@ export const PRESET_WINDOW_SECONDS: Record<Exclude<TimePreset, "since-restart">,
 function resolveSince(preset: TimePreset, uptimeSeconds: number | null): number | undefined {
   if (preset === "since-restart") {
     if (uptimeSeconds === null) return undefined;
-    return Date.now() / 1000 - uptimeSeconds;
+    return Date.now() / MS_PER_SECOND - uptimeSeconds;
   }
 
-  return Date.now() / 1000 - PRESET_WINDOW_SECONDS[preset];
+  return Date.now() / MS_PER_SECOND - PRESET_WINDOW_SECONDS[preset];
 }
 
 /**

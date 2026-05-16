@@ -1,16 +1,21 @@
 import clsx from "clsx";
 import { Chip } from "../components/shared/chip";
 import { AppLink } from "../components/shared/app-link";
-import { formatDurationOrDash } from "../utils/format";
+import { formatDurationOrDash, formatRate, MS_PER_SECOND } from "../utils/format";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import type { UnifiedRow } from "./handlers-types";
-import { formatRate } from "./handlers-types";
 import styles from "./handlers.module.css";
+
+// Coarse kind labels for the table view — overview-tab-helpers uses handlerKindLabel() for richer per-listener kinds
+const KIND_LABELS: Record<"listener" | "job", string> = {
+  listener: "event",
+  job: "job",
+};
 
 function KindBadge({ kind }: { kind: "listener" | "job" }) {
   return (
     <Chip variant="muted" size="sm">
-      {kind === "listener" ? "event" : "job"}
+      {KIND_LABELS[kind]}
     </Chip>
   );
 }
@@ -42,7 +47,7 @@ function useHandlerRowData(row: UnifiedRow) {
   const nextRunRelative = useRelativeTime(row.next_run_ts);
   const errorRate = formatRate(row.failed, row.runs);
   const avgDur = formatDurationOrDash(row.avg_duration_ms);
-  const now = Date.now() / 1000;
+  const now = Date.now() / MS_PER_SECOND;
   const isOverdue = row.next_run_ts !== null && row.next_run_ts < now;
   const nextRunDisplay = row.next_run_ts !== null
     ? (isOverdue ? "overdue" : nextRunRelative)
@@ -71,17 +76,17 @@ export function HandlerTableRow({ row }: HandlerRowProps) {
       </td>
       <td class="ht-text-mono ht-text-sm">{row.trigger ?? "—"}</td>
       <td class="ht-text-mono ht-text-sm">{row.runs}</td>
-      <td class={`ht-text-mono ht-text-sm${row.failed > 0 ? " ht-text-danger" : ""}`}>
+      <td class={clsx("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>
         {row.failed > 0 ? row.failed : "—"}
       </td>
-      <td class={`ht-text-mono ht-text-sm${row.timed_out > 0 ? " ht-text-warning" : ""}`}>
+      <td class={clsx("ht-text-mono ht-text-sm", row.timed_out > 0 && "ht-text-warning")}>
         {row.timed_out > 0 ? row.timed_out : "—"}
       </td>
-      <td class={`ht-text-mono ht-text-sm${row.failed > 0 ? " ht-text-danger" : ""}`}>
+      <td class={clsx("ht-text-mono ht-text-sm", row.failed > 0 && "ht-text-danger")}>
         {errorRate}
       </td>
       <td class="ht-text-mono ht-text-sm">{avgDur}</td>
-      <td class={`ht-text-mono ht-text-sm${isOverdue ? " ht-text-warning" : ""}`}>
+      <td class={clsx("ht-text-mono ht-text-sm", isOverdue && "ht-text-warning")}>
         {nextRunDisplay ?? "—"}
       </td>
     </tr>

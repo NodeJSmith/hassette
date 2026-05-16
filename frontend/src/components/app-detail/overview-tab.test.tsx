@@ -6,22 +6,26 @@ import { OverviewTab } from "./overview-tab";
 import { createListener, createJob, createLogEntry } from "../../test/factories";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
+import { WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-filtered-signal-refetch";
 import type { components } from "../../api/generated-types";
 
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
+type InvocationEvent = { listener_id: number; app_key: string; instance_index: number; status: string; duration_ms: number; error_type: string | null };
+type ExecutionEvent = { job_id: number; app_key: string; instance_index: number; status: string; duration_ms: number; error_type: string | null };
 
 // Overview tab tests are split into two groups:
 //  1. Props-only tests (error spotlight, health grid) — no context needed
 //  2. API-driven tests (activity, logs, real-time) — require AppStateContext + MSW
 // MSW server lifecycle is managed globally in src/test-setup.ts.
 
-// Suppress wouter's missing Router context warning for link rendering
+const mockNavigate = vi.fn();
+
 vi.mock("wouter", () => ({
   Link: ({ href, children, ...rest }: { href: string; children: preact.ComponentChildren; [k: string]: unknown }) => (
     <a href={href} {...rest}>{children}</a>
   ),
   useSearch: () => "",
-  useLocation: () => ["/", () => {}],
+  useLocation: () => ["/", mockNavigate],
 }));
 
 function renderOverviewTab({
@@ -210,7 +214,7 @@ describe("OverviewTab — Handler Health Grid", () => {
     expect(getByTestId("overview-health-grid")).toBeDefined();
   });
 
-  it("renders a row for each listener", () => {
+  it("renders a card for each listener", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [
         createListener({ listener_id: 1 }),
@@ -218,11 +222,11 @@ describe("OverviewTab — Handler Health Grid", () => {
       ],
       jobs: [],
     });
-    expect(getByTestId("overview-health-row-listener-1")).toBeDefined();
-    expect(getByTestId("overview-health-row-listener-2")).toBeDefined();
+    expect(getByTestId("overview-health-card-listener-1")).toBeDefined();
+    expect(getByTestId("overview-health-card-listener-2")).toBeDefined();
   });
 
-  it("renders a row for each job", () => {
+  it("renders a card for each job", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [],
       jobs: [
@@ -230,22 +234,45 @@ describe("OverviewTab — Handler Health Grid", () => {
         createJob({ job_id: 11 }),
       ],
     });
-    expect(getByTestId("overview-health-row-job-10")).toBeDefined();
-    expect(getByTestId("overview-health-row-job-11")).toBeDefined();
+    expect(getByTestId("overview-health-card-job-10")).toBeDefined();
+    expect(getByTestId("overview-health-card-job-11")).toBeDefined();
   });
 
-  it("renders rows for both listeners and jobs", () => {
+  it("renders cards for both listeners and jobs", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 1 })],
       jobs: [createJob({ job_id: 5 })],
     });
-    expect(getByTestId("overview-health-row-listener-1")).toBeDefined();
-    expect(getByTestId("overview-health-row-job-5")).toBeDefined();
+    expect(getByTestId("overview-health-card-listener-1")).toBeDefined();
+    expect(getByTestId("overview-health-card-job-5")).toBeDefined();
+  });
+
+  it("renders the correct total number of cards", () => {
+    const { container } = renderOverviewTab({
+      listeners: [
+        createListener({ listener_id: 1 }),
+        createListener({ listener_id: 2 }),
+      ],
+      jobs: [
+        createJob({ job_id: 10 }),
+      ],
+    });
+    const cards = container.querySelectorAll("[data-testid^='overview-health-card-']");
+    expect(cards.length).toBe(3);
   });
 
   it("shows empty state when no listeners or jobs", () => {
     const { getByTestId } = renderOverviewTab({ listeners: [], jobs: [] });
     expect(getByTestId("overview-health-empty")).toBeDefined();
+  });
+
+  it("does not render a table element in the health grid section", () => {
+    const { getByTestId } = renderOverviewTab({
+      listeners: [createListener({ listener_id: 1 })],
+      jobs: [],
+    });
+    const section = getByTestId("overview-health-grid");
+    expect(section.querySelector("table")).toBeNull();
   });
 
   it("orders failing items first in the health grid", () => {
@@ -254,10 +281,10 @@ describe("OverviewTab — Handler Health Grid", () => {
       createListener({ listener_id: 2, failed: 3, timed_out: 0 }),
     ];
     const { container } = renderOverviewTab({ listeners, jobs: [] });
-    const rows = container.querySelectorAll("[data-testid^='overview-health-row-']");
+    const cards = container.querySelectorAll("[data-testid^='overview-health-card-']");
     // The failing listener (id=2) should appear first
-    expect(rows[0].getAttribute("data-testid")).toBe("overview-health-row-listener-2");
-    expect(rows[1].getAttribute("data-testid")).toBe("overview-health-row-listener-1");
+    expect(cards[0].getAttribute("data-testid")).toBe("overview-health-card-listener-2");
+    expect(cards[1].getAttribute("data-testid")).toBe("overview-health-card-listener-1");
   });
 
   it("orders timed-out items before healthy items", () => {
@@ -266,48 +293,58 @@ describe("OverviewTab — Handler Health Grid", () => {
       createListener({ listener_id: 2, failed: 0, timed_out: 1 }),
     ];
     const { container } = renderOverviewTab({ listeners, jobs: [] });
-    const rows = container.querySelectorAll("[data-testid^='overview-health-row-']");
-    expect(rows[0].getAttribute("data-testid")).toBe("overview-health-row-listener-2");
-    expect(rows[1].getAttribute("data-testid")).toBe("overview-health-row-listener-1");
+    const cards = container.querySelectorAll("[data-testid^='overview-health-card-']");
+    expect(cards[0].getAttribute("data-testid")).toBe("overview-health-card-listener-2");
+    expect(cards[1].getAttribute("data-testid")).toBe("overview-health-card-listener-1");
   });
 
-  it("each health grid row links to handlers tab with correct listener ID", () => {
+  it("within failing group, orders by descending run count", () => {
+    const listeners = [
+      createListener({ listener_id: 1, failed: 1, total_invocations: 5 }),
+      createListener({ listener_id: 2, failed: 1, total_invocations: 20 }),
+      createListener({ listener_id: 3, failed: 1, total_invocations: 10 }),
+    ];
+    const { container } = renderOverviewTab({ listeners, jobs: [] });
+    const cards = container.querySelectorAll("[data-testid^='overview-health-card-']");
+    expect(cards[0].getAttribute("data-testid")).toBe("overview-health-card-listener-2");
+    expect(cards[1].getAttribute("data-testid")).toBe("overview-health-card-listener-3");
+    expect(cards[2].getAttribute("data-testid")).toBe("overview-health-card-listener-1");
+  });
+
+  it("clicking a listener card navigates to the correct handler detail page", () => {
+    mockNavigate.mockClear();
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 4 })],
       jobs: [],
       appKey: "my_app",
       instanceQs: "",
     });
-    const row = getByTestId("overview-health-row-listener-4");
-    const anchor = row.tagName === "A" ? row : row.querySelector("a");
-    const href = anchor?.getAttribute("href") ?? row.getAttribute("href");
-    expect(href).toBe("/apps/my_app/handlers/h-4");
+    fireEvent.click(getByTestId("overview-health-card-listener-4"));
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/h-4");
   });
 
-  it("each health grid row links to handlers tab with correct job ID", () => {
+  it("clicking a job card navigates to the correct handler detail page", () => {
+    mockNavigate.mockClear();
     const { getByTestId } = renderOverviewTab({
       listeners: [],
       jobs: [createJob({ job_id: 15 })],
       appKey: "my_app",
       instanceQs: "",
     });
-    const row = getByTestId("overview-health-row-job-15");
-    const anchor = row.tagName === "A" ? row : row.querySelector("a");
-    const href = anchor?.getAttribute("href") ?? row.getAttribute("href");
-    expect(href).toBe("/apps/my_app/handlers/j-15");
+    fireEvent.click(getByTestId("overview-health-card-job-15"));
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/j-15");
   });
 
-  it("health grid row link includes instanceQs", () => {
+  it("card navigation includes instanceQs", () => {
+    mockNavigate.mockClear();
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 6 })],
       jobs: [],
       appKey: "test_app",
       instanceQs: "?instance=2",
     });
-    const row = getByTestId("overview-health-row-listener-6");
-    const anchor = row.tagName === "A" ? row : row.querySelector("a");
-    const href = anchor?.getAttribute("href") ?? row.getAttribute("href");
-    expect(href).toBe("/apps/test_app/handlers/h-6?instance=2");
+    fireEvent.click(getByTestId("overview-health-card-listener-6"));
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/h-6?instance=2");
   });
 });
 
@@ -390,7 +427,7 @@ describe("OverviewTab — Recent Activity", () => {
       { row_id: "r1", status: "success", timestamp: 1700000300, app_key: "test_app", handler_name: "check", duration_ms: 10, error_type: null, kind: "job" },
       { row_id: "r2", status: "success", timestamp: 1700000200, app_key: "test_app", handler_name: "check", duration_ms: 20, error_type: null, kind: "job" },
       { row_id: "r3", status: "success", timestamp: 1700000100, app_key: "test_app", handler_name: "check", duration_ms: 30, error_type: null, kind: "job" },
-      { row_id: "r4", status: "error",   timestamp: 1700000050, app_key: "test_app", handler_name: "on_event", duration_ms: 5, error_type: "ValueError", kind: "handler" },
+      { row_id: "r4", status: "error", timestamp: 1700000050, app_key: "test_app", handler_name: "on_event", duration_ms: 5, error_type: "ValueError", kind: "handler" },
       { row_id: "r5", status: "success", timestamp: 1700000000, app_key: "test_app", handler_name: "check", duration_ms: 15, error_type: null, kind: "job" },
     ];
     server.use(
@@ -452,7 +489,7 @@ describe("OverviewTab — Recent Logs", () => {
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe("OverviewTab — Real-time refetch", () => {
-  it("refetches activity when invocationCompleted signal changes with matching app_key", async () => {
+  function setupActivityCounter() {
     let fetchCount = 0;
     server.use(
       http.get("/api/telemetry/app/:app_key/activity", () => {
@@ -460,9 +497,10 @@ describe("OverviewTab — Real-time refetch", () => {
         return HttpResponse.json<ActivityFeedEntry[]>([]);
       }),
     );
+    return { getFetchCount: () => fetchCount };
+  }
 
-    const invocationCompleted = signal<Array<{ listener_id: number; app_key: string; instance_index: number; status: string; duration_ms: number; error_type: string | null }> | null>(null);
-
+  function renderWithSignalOverrides(overrides: Record<string, unknown>) {
     renderWithAppState(
       <OverviewTab
         listeners={[]}
@@ -473,87 +511,48 @@ describe("OverviewTab — Real-time refetch", () => {
       />,
       { stateOverrides: {
         uptimeSeconds: signal<number | null>(120),
-        invocationCompleted,
+        ...overrides,
       }},
     );
+  }
 
-    // Wait for initial fetch
-    await waitFor(() => expect(fetchCount).toBeGreaterThan(0));
-    const countAfterMount = fetchCount;
+  it("refetches activity when invocationCompleted signal changes with matching app_key", async () => {
+    const { getFetchCount } = setupActivityCounter();
+    const invocationCompleted = signal<InvocationEvent[] | null>(null);
+    renderWithSignalOverrides({ invocationCompleted });
 
-    // Simulate a matching WebSocket event
+    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
+    const countAfterMount = getFetchCount();
+
     invocationCompleted.value = [{ listener_id: 1, app_key: "test_app", instance_index: 0, status: "success", duration_ms: 10, error_type: null }];
 
-    // The debounced effect fires after 500ms — use waitFor with longer timeout
-    await waitFor(() => expect(fetchCount).toBeGreaterThan(countAfterMount), { timeout: 1500 });
+    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(countAfterMount), { timeout: WS_DEBOUNCE_MAX_WAIT_MS });
   });
 
   it("does not refetch when invocationCompleted events are for a different app_key", async () => {
-    let fetchCount = 0;
-    server.use(
-      http.get("/api/telemetry/app/:app_key/activity", () => {
-        fetchCount++;
-        return HttpResponse.json<ActivityFeedEntry[]>([]);
-      }),
-    );
+    const { getFetchCount } = setupActivityCounter();
+    const invocationCompleted = signal<InvocationEvent[] | null>(null);
+    renderWithSignalOverrides({ invocationCompleted });
 
-    const invocationCompleted = signal<Array<{ listener_id: number; app_key: string; instance_index: number; status: string; duration_ms: number; error_type: string | null }> | null>(null);
+    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
+    const countAfterMount = getFetchCount();
 
-    renderWithAppState(
-      <OverviewTab
-        listeners={[]}
-        jobs={[]}
-        appKey="test_app"
-        instanceQs=""
-        resolvedInstanceIndex={0}
-      />,
-      { stateOverrides: {
-        uptimeSeconds: signal<number | null>(120),
-        invocationCompleted,
-      }},
-    );
-
-    await waitFor(() => expect(fetchCount).toBeGreaterThan(0));
-    const countAfterMount = fetchCount;
-
-    // Event for a different app — should not trigger refetch
     invocationCompleted.value = [{ listener_id: 99, app_key: "other_app", instance_index: 0, status: "success", duration_ms: 5, error_type: null }];
 
-    // Wait a moment and confirm count did not increase
     await new Promise((r) => setTimeout(r, 700));
-    expect(fetchCount).toBe(countAfterMount);
+    expect(getFetchCount()).toBe(countAfterMount);
   });
 
   it("refetches activity when executionCompleted signal changes with matching app_key", async () => {
-    let fetchCount = 0;
-    server.use(
-      http.get("/api/telemetry/app/:app_key/activity", () => {
-        fetchCount++;
-        return HttpResponse.json<ActivityFeedEntry[]>([]);
-      }),
-    );
+    const { getFetchCount } = setupActivityCounter();
+    const executionCompleted = signal<ExecutionEvent[] | null>(null);
+    renderWithSignalOverrides({ executionCompleted });
 
-    const executionCompleted = signal<Array<{ job_id: number; app_key: string; instance_index: number; status: string; duration_ms: number; error_type: string | null }> | null>(null);
-
-    renderWithAppState(
-      <OverviewTab
-        listeners={[]}
-        jobs={[]}
-        appKey="test_app"
-        instanceQs=""
-        resolvedInstanceIndex={0}
-      />,
-      { stateOverrides: {
-        uptimeSeconds: signal<number | null>(120),
-        executionCompleted,
-      }},
-    );
-
-    await waitFor(() => expect(fetchCount).toBeGreaterThan(0));
-    const countAfterMount = fetchCount;
+    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
+    const countAfterMount = getFetchCount();
 
     executionCompleted.value = [{ job_id: 5, app_key: "test_app", instance_index: 0, status: "success", duration_ms: 20, error_type: null }];
 
-    await waitFor(() => expect(fetchCount).toBeGreaterThan(countAfterMount), { timeout: 1500 });
+    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(countAfterMount), { timeout: WS_DEBOUNCE_MAX_WAIT_MS });
   });
 });

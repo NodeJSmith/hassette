@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { HandlerTableRow, HandlerMobileRow } from "./handlers-rows";
 import type { UnifiedRow } from "./handlers-types";
-import { formatRate } from "./handlers-types";
+import { formatRate } from "../utils/format";
 import { renderWithAppState } from "../test/render-helpers";
 
 vi.mock("wouter", () => ({

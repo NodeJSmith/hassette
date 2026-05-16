@@ -4,6 +4,7 @@ import {
   formatDuration,
   formatDurationOrDash,
   formatOptionalDuration,
+  formatRate,
   formatRelativeTime,
   formatTimestamp,
   formatTriggerDetail,
@@ -179,8 +180,9 @@ describe("formatTriggerDetail", () => {
 // formatRelativeTime
 // ---------------------------------------------------------------------------
 
+const BASE_TIME_S = 1_700_000_000; // arbitrary fixed epoch in seconds
+
 describe("formatRelativeTime", () => {
-  const BASE_TIME_S = 1_700_000_000; // arbitrary fixed epoch in seconds
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -256,8 +258,6 @@ describe("formatRelativeTime", () => {
 // formatAge
 // ---------------------------------------------------------------------------
 describe("formatAge", () => {
-  const BASE_TIME_S = 1_700_000_000;
-
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(BASE_TIME_S * 1000);
@@ -301,5 +301,35 @@ describe("formatAge", () => {
 
   it("returns days for large values", () => {
     expect(formatAge(BASE_TIME_S - 432000)).toBe("5d");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatRate
+// ---------------------------------------------------------------------------
+
+describe("formatRate", () => {
+  it("test_formatRate_zero_of_total: 0 failures out of 100 runs returns '0.0%'", () => {
+    expect(formatRate(0, 100)).toBe("0.0%");
+  });
+
+  it("test_formatRate_some_failures: 3 failures out of 100 runs returns '3.0%'", () => {
+    expect(formatRate(3, 100)).toBe("3.0%");
+  });
+
+  it("test_formatRate_fractional: 1 failure out of 3 runs returns '33.3%'", () => {
+    expect(formatRate(1, 3)).toBe("33.3%");
+  });
+
+  it("test_formatRate_zero_total: 0 total runs returns em-dash", () => {
+    expect(formatRate(0, 0)).toBe("—");
+  });
+
+  it("test_formatRate_degenerate_failures_no_total: failures with 0 total returns em-dash", () => {
+    expect(formatRate(5, 0)).toBe("—");
+  });
+
+  it("test_formatRate_all_failed: 100 failures out of 100 runs returns '100.0%'", () => {
+    expect(formatRate(100, 100)).toBe("100.0%");
   });
 });

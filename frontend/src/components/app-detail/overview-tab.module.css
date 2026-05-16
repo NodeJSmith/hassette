@@ -12,6 +12,7 @@
   opacity: 0.6;
 }
 
+/* Exported for CSS module class reference — no styles needed beyond inherited layout */
 .section {}
 
 /* — Error spotlight section — */
@@ -97,65 +98,25 @@
   color: var(--ink-1);
 }
 
-/* — Handler health table — */
+/* — Handler health card grid — */
 
-.healthTable td {
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
-  color: var(--ink-2);
+.healthGridScroll {
+  --health-card-height: 140px;
+  --health-card-min-width: 280px;
+  --health-grid-rows: 3;
+
+  max-height: calc(var(--health-grid-rows) * var(--health-card-height) + 2 * var(--sp-3));
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
-.healthRow {
-  cursor: pointer;
-  transition: background var(--t-fast);
+.healthGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--health-card-min-width), 100%), 1fr));
+  gap: var(--sp-3);
 }
 
-.healthRow:hover {
-  background: var(--bg-sunken);
-}
-
-.healthRowFailing {
-  background: var(--err-bg);
-}
-
-.healthTable .healthRowFailing:hover {
-  background: color-mix(in srgb, var(--err-bg) 70%, var(--bg-active));
-}
-
-.healthRowName {
-  color: var(--ink-1);
-}
-
-.healthRowLink {
-  display: block;
-  max-width: 40ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--ink-1);
-  text-decoration: none;
-}
-
-.healthRowLink:hover {
-  text-decoration: underline;
-  text-decoration-color: var(--accent);
-}
-
-.healthRowCount {
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
-  color: var(--ink-3);
-  text-align: right;
-  white-space: nowrap;
-}
-
-.healthRowError {
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
-  white-space: nowrap;
-}
-
-/* — Shared column sizing — */
+/* — Shared column sizing (activity table) — */
 
 .colDot {
   width: var(--sp-7);
@@ -164,7 +125,9 @@
 /* — Log table scroll constraint (overview only) — */
 
 .logScroll {
-  max-height: 400px;
+  --log-scroll-max-height: 400px;
+
+  max-height: var(--log-scroll-max-height);
   overflow-y: auto;
 }
 
@@ -177,8 +140,7 @@
   padding: 0;
 }
 
-.activityTable td,
-.logTable td {
+.activityTable td {
   font-family: var(--font-mono);
   font-size: var(--fs-mono-sm);
   color: var(--ink-2);

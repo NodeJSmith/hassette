@@ -101,6 +101,7 @@
 
   /* Z-index scale */
   --z-table-head: 1;
+  --z-tooltip:    15;
   --z-status-bar: 20;
   --z-sidebar:    30;
   --z-hamburger:  50;

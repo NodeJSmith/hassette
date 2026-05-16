@@ -103,7 +103,7 @@ Two signature elements work in tandem:
 - **No icons without text labels** in main nav or content — sidebar nav is text-only; exceptions: dense action clusters (reload/stop) and the status bar (pulse dot, theme toggle)
 - **Density is a feature** — row padding is compact (10-12px vertical), meta text gaps tight, whitespace for section separation not breathing room
 - **No status colors on non-status elements** — `--ok`/`--warn`/`--err` reserved for state communication only
-- **Borders for depth, shadows for floating** — cards use `--line-1` borders; shadows only on genuinely floating surfaces (modal, command palette, dropdown)
+- **Borders for depth, shadows for interaction** — cards use `--line-1` borders as the primary depth mechanism; subtle shadows (`--shadow-1`) on interactive cards to signal clickability, deeper shadows on floating surfaces (modal, command palette, dropdown)
 - **Greeting, not dashboard title** — the overview page opens with a time-of-day greeting and system state sentence, not "Dashboard" or "Overview"
 - **No left-border accents** — AI slop pattern; use indentation, spacing, or weight instead
 - **No emoji** — not in tone, not in code samples, not in microcopy
@@ -201,7 +201,7 @@ The design system uses unprefixed Ink tokens (no `--ht-*` prefix). Light mode is
 - **`--shadow-2`**: `0 2px 8px ... + 0 1px 2px ...` — card prominence
 - **`--shadow-3`**: `0 8px 24px ... + 0 2px 6px ...` — dropdowns, modals, command palette
 - **Dark mode**: Same shadow variables use higher opacity (0.3 / 0.4 / 0.5) against near-black backgrounds.
-- **Usage rule**: Borders are the primary depth mechanism. Shadows reserved for genuinely floating surfaces only.
+- **Usage rule**: Borders are the primary depth mechanism. `--shadow-1` permitted on interactive cards at rest to signal clickability; `--shadow-2` on hover/active states for interaction feedback. `--shadow-3` reserved for floating surfaces.
 
 ### Border Radius
 
@@ -342,7 +342,7 @@ Data sources: `GET /api/health` (services + boot issues), `useAppState()` signal
 - **No `--ht-*` prefixed tokens** — the old Graphite+Emerald system is replaced; all tokens are unprefixed Ink tokens
 - **No raw hex values in component CSS** — always reference tokens
 - **No sidebar icons** — text-only nav is intentional, not a gap
-- **No shadows for card depth** — borders are the primary mechanism; shadows for floating surfaces only
+- **No shadows on static content** — `--shadow-1` at rest and `--shadow-2` on hover for interactive cards; `--shadow-3` reserved for floating surfaces only
 - **No blue/indigo/violet accent** — light mode accent is `ink-1`; dark mode uses restrained periwinkle
 - **No card nesting** — handler rows are list items in bordered containers, not cards inside cards
 - **No bounce/elastic easing** — all transitions use `--ease`
