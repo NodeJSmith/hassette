@@ -3,7 +3,7 @@ import { useSignal } from "../../../hooks/use-signal";
 import { useSubscribe } from "../../../hooks/use-subscribe";
 import { COLUMNS, REQUIRED_COLUMNS } from "./constants";
 import type { ColumnId } from "./types";
-import { ColumnFilterPopover } from "./column-filter";
+import { ColumnFilterPopover } from "../column-filter-popover/index";
 import styles from "./column-picker.module.css";
 
 interface Props {

@@ -5,6 +5,7 @@
   width: 100%;
   border-collapse: collapse;
   background: var(--bg-surface);
+  table-layout: fixed;
 }
 
 .ht-table thead tr {
@@ -27,8 +28,10 @@
 .ht-table td {
   padding: var(--sp-2) var(--sp-3);
   border-bottom: 1px solid var(--line-2);
-  vertical-align: middle;
+  vertical-align: top;
   font-size: var(--fs-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ht-table tbody tr:last-child td {
@@ -37,10 +40,6 @@
 
 .ht-table tbody tr:hover {
   background: var(--bg-sunken);
-}
-
-.ht-table--compact {
-  table-layout: fixed;
 }
 
 .ht-table--compact th,
@@ -63,61 +62,8 @@
   .ht-table--compact td { padding: var(--sp-1); font-size: var(--fs-micro); }
 }
 
-/* — Table toolbar (shared by handlers, logs) ———————————— */
-.ht-table-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-3);
-  flex-wrap: wrap;
-}
-
-.ht-table-toolbar__title {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-3);
-}
-
-.ht-table-toolbar__heading {
-  font-family: var(--font-display);
-  font-size: var(--fs-h3);
-  font-weight: 400;
-  margin: 0;
-}
-
-.ht-table-toolbar__note {
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-}
-
-.ht-table-toolbar__controls {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  flex-wrap: wrap;
-}
-
 /* Table card + scroll */
 .ht-table-card-scroll {
   overflow: auto;
   max-height: var(--table-scroll-height, calc(100vh - 310px));
-}
-
-/* shared — permanent */
-@media screen and (max-width: 768px) {
-  .ht-table-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .ht-table-toolbar__controls {
-    flex-wrap: wrap;
-    gap: var(--sp-2);
-  }
-
-  .ht-table-toolbar__controls .ht-search {
-    width: 100%;
-    min-width: unset;
-  }
 }

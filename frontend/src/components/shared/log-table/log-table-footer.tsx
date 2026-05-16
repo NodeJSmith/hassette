@@ -7,8 +7,9 @@ import { pluralize } from "../../../utils/format";
 import type { ColumnId, LevelFilter, TierFilter } from "./types";
 import { RENDER_CAP, LEVEL_OPTIONS, TIER_OPTIONS } from "./constants";
 import { ColumnPicker } from "./column-picker";
-import { ColumnFilterPopover } from "./column-filter";
-import filterStyles from "./column-filter.module.css";
+import { ColumnFilterPopover } from "../column-filter-popover/index";
+import { FilterIcon } from "../filter-icon";
+import filterStyles from "../column-filter-popover/index.module.css";
 import styles from "./log-table-footer.module.css";
 
 interface Props {
@@ -90,10 +91,7 @@ export function LogTableFooter({
               aria-label="Open filters"
               data-testid="mobile-filters-btn"
             >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <path d="M1 2h10L7.5 6.5V10L4.5 9V6.5L1 2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" />
-              </svg>
-              {hasActiveFilter && <span class={styles.filterDot} />}
+              <FilterIcon active={hasActiveFilter} />
             </button>
             <ColumnFilterPopover open={filterOpen.value} onClose={() => { filterOpen.value = false; }} triggerRef={filterTriggerRef}>
               <div class={styles.mobileFilters}>

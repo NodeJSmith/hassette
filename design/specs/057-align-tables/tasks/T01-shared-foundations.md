@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Extract shared table foundations"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#5", "FR#6", "FR#7", "AC#7"]
 ---

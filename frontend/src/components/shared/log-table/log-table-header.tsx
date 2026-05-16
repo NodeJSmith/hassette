@@ -5,8 +5,9 @@ import { useSignal } from "../../../hooks/use-signal";
 import { useSubscribe } from "../../../hooks/use-subscribe";
 import type { ColumnId, SortColumn, SortConfig, LevelFilter, TierFilter } from "./types";
 import { COLUMN_MAP, LEVEL_OPTIONS, DEFAULT_LEVEL, TIER_OPTIONS } from "./constants";
-import { ColumnFilterPopover } from "./column-filter";
-import filterStyles from "./column-filter.module.css";
+import { ColumnFilterPopover } from "../column-filter-popover/index";
+import { FilterIcon } from "../filter-icon";
+import filterStyles from "../column-filter-popover/index.module.css";
 import styles from "./log-table-header.module.css";
 
 interface Props {
@@ -76,10 +77,7 @@ function HeaderCell({ columnId, sortConfig, onSort, hasActiveFilter, filterConte
               aria-label={`Filter ${col.ariaLabel}`}
               data-testid={`filter-${columnId}-btn`}
             >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <path d="M1 2h10L7.5 6.5V10L4.5 9V6.5L1 2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" />
-              </svg>
-              {hasActiveFilter && <span class={styles.filterDot} />}
+              <FilterIcon active={hasActiveFilter} />
             </button>
             <ColumnFilterPopover open={filterOpen.value} onClose={() => { filterOpen.value = false; }} triggerRef={triggerRef}>
               {filterContent}
