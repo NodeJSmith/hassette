@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, fireEvent } from "@testing-library/preact";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { render, fireEvent, act } from "@testing-library/preact";
 import type { LogEntry } from "../../../api/endpoints";
 import { LogDetailDrawer } from "./log-detail-drawer";
 import { rowKey } from "./types";
@@ -147,6 +147,168 @@ describe("LogDetailDrawer", () => {
 
       fireEvent.click(getByLabelText("Next entry"));
       expect(onNavigate).toHaveBeenCalledWith(rowKey(entries[1]));
+    });
+
+    it("navigatePrev does nothing when at the first entry (index 0)", () => {
+      const entries = [
+        makeEntry({ seq: 1, message: "first" }),
+        makeEntry({ seq: 2, message: "second" }),
+      ];
+      const onNavigate = vi.fn();
+      const { getByLabelText } = renderDrawer({
+        entries,
+        selectedKey: rowKey(entries[0]),
+        onNavigate,
+      });
+
+      fireEvent.click(getByLabelText("Previous entry"));
+      expect(onNavigate).not.toHaveBeenCalled();
+    });
+
+    it("navigateNext does nothing when at the last entry", () => {
+      const entries = [
+        makeEntry({ seq: 1, message: "first" }),
+        makeEntry({ seq: 2, message: "second" }),
+      ];
+      const onNavigate = vi.fn();
+      const { getByLabelText } = renderDrawer({
+        entries,
+        selectedKey: rowKey(entries[1]),
+        onNavigate,
+      });
+
+      fireEvent.click(getByLabelText("Next entry"));
+      expect(onNavigate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("keyboard navigation", () => {
+    it("ArrowLeft navigates to the previous entry", () => {
+      const entries = [
+        makeEntry({ seq: 1, message: "first" }),
+        makeEntry({ seq: 2, message: "second" }),
+      ];
+      const onNavigate = vi.fn();
+      renderDrawer({
+        entries,
+        selectedKey: rowKey(entries[1]),
+        onNavigate,
+      });
+
+      fireEvent.keyDown(document, { key: "ArrowLeft" });
+      expect(onNavigate).toHaveBeenCalledWith(rowKey(entries[0]));
+    });
+
+    it("ArrowUp navigates to the previous entry", () => {
+      const entries = [
+        makeEntry({ seq: 1, message: "first" }),
+        makeEntry({ seq: 2, message: "second" }),
+      ];
+      const onNavigate = vi.fn();
+      renderDrawer({
+        entries,
+        selectedKey: rowKey(entries[1]),
+        onNavigate,
+      });
+
+      fireEvent.keyDown(document, { key: "ArrowUp" });
+      expect(onNavigate).toHaveBeenCalledWith(rowKey(entries[0]));
+    });
+
+    it("ArrowRight navigates to the next entry", () => {
+      const entries = [
+        makeEntry({ seq: 1, message: "first" }),
+        makeEntry({ seq: 2, message: "second" }),
+      ];
+      const onNavigate = vi.fn();
+      renderDrawer({
+        entries,
+        selectedKey: rowKey(entries[0]),
+        onNavigate,
+      });
+
+      fireEvent.keyDown(document, { key: "ArrowRight" });
+      expect(onNavigate).toHaveBeenCalledWith(rowKey(entries[1]));
+    });
+
+    it("ArrowDown navigates to the next entry", () => {
+      const entries = [
+        makeEntry({ seq: 1, message: "first" }),
+        makeEntry({ seq: 2, message: "second" }),
+      ];
+      const onNavigate = vi.fn();
+      renderDrawer({
+        entries,
+        selectedKey: rowKey(entries[0]),
+        onNavigate,
+      });
+
+      fireEvent.keyDown(document, { key: "ArrowDown" });
+      expect(onNavigate).toHaveBeenCalledWith(rowKey(entries[1]));
+    });
+
+    it("Escape closes the drawer via keyboard", () => {
+      const onClose = vi.fn();
+      renderDrawer({ onClose });
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("filtered-out state", () => {
+    it("shows 'no longer visible' message when selectedKey does not match any entry", () => {
+      const entries = [makeEntry({ seq: 1 })];
+      const { queryByRole } = renderDrawer({
+        entries,
+        selectedKey: "9999-9999",
+      });
+      const drawer = queryByRole("complementary")!;
+      expect(drawer).not.toBeNull();
+      expect(drawer.textContent).toContain("no longer visible");
+    });
+  });
+
+  describe("CopyButton", () => {
+    beforeEach(() => {
+      Object.assign(navigator, {
+        clipboard: { writeText: vi.fn().mockResolvedValue(undefined) },
+      });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("copies text to clipboard when clicked", async () => {
+      const entry = makeEntry({ message: "copy this text" });
+      const { getByLabelText } = renderDrawer({ entries: [entry] });
+
+      fireEvent.click(getByLabelText("Copy message"));
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith("copy this text");
+    });
+
+    it("shows '✓' immediately after copy and reverts after COPY_CONFIRM_MS", async () => {
+      vi.useFakeTimers();
+      const entry = makeEntry({ message: "copy me" });
+      const { getByLabelText } = renderDrawer({ entries: [entry] });
+
+      const copyBtn = getByLabelText("Copy message");
+      expect(copyBtn.textContent).toBe("⧉");
+
+      // Click and flush the microtask queue so the resolved Promise runs
+      fireEvent.click(copyBtn);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(copyBtn.textContent).toBe("✓");
+
+      // Advance past COPY_CONFIRM_MS (1500 ms)
+      await act(async () => {
+        vi.advanceTimersByTime(1500);
+      });
+
+      expect(copyBtn.textContent).toBe("⧉");
     });
   });
 });
