@@ -8,6 +8,14 @@ from playwright.sync_api import Page, expect
 pytestmark = pytest.mark.e2e
 
 
+def _open_status_filter(page: Page) -> None:
+    """Open the status column filter popover (no-op if already open)."""
+    if page.locator("[data-testid='filter-all']").is_visible():
+        return
+    page.locator("[data-testid='filter-btn']").click()
+    page.locator("[data-testid='filter-all']").wait_for(state="visible")
+
+
 def test_apps_list_renders_all_apps(page: Page, base_url: str) -> None:
     """All configured apps should be visible on the apps list page."""
     page.goto(base_url + "/apps")
@@ -19,8 +27,9 @@ def test_apps_list_renders_all_apps(page: Page, base_url: str) -> None:
 
 
 def test_apps_list_status_filter_pills(page: Page, base_url: str) -> None:
-    """Clicking the running filter pill should filter to only running apps."""
+    """Clicking the running filter should filter to only running apps."""
     page.goto(base_url + "/apps")
+    _open_status_filter(page)
     page.locator("[data-testid='filter-running']").click()
     page.wait_for_timeout(300)
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
@@ -28,12 +37,15 @@ def test_apps_list_status_filter_pills(page: Page, base_url: str) -> None:
 
 
 def test_tab_filter_is_client_side(page: Page, base_url: str) -> None:
-    """Filter pills work client-side (no full page reload)."""
+    """Status filter works client-side (no full page reload)."""
     page.goto(base_url + "/apps")
+    _open_status_filter(page)
     page.locator("[data-testid='filter-running']").click()
     page.wait_for_timeout(300)
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
     expect(page.locator("[data-testid='app-row-disabled_app']")).to_have_count(0)
+    # Re-open popover to select "all"
+    _open_status_filter(page)
     page.locator("[data-testid='filter-all']").click()
     page.wait_for_timeout(300)
     expect(page.locator("[data-testid='app-row-my_app']")).to_be_visible()
@@ -63,15 +75,18 @@ def test_multi_instance_expand_persists_across_navigation(page: Page, base_url: 
 
 
 def test_status_filter_uses_aria_pressed(page: Page, base_url: str) -> None:
-    """Status filter pills use aria-pressed."""
+    """Status filter buttons use aria-pressed for accessibility."""
     page.goto(base_url + "/apps")
-    filter_group = page.locator("[data-testid='apps-filter-pills']")
-    expect(filter_group).to_be_visible()
+    _open_status_filter(page)
     all_pill = page.locator("[data-testid='filter-all']")
     expect(all_pill).to_have_attribute("aria-pressed", "true")
     running_pill = page.locator("[data-testid='filter-running']")
     expect(running_pill).to_have_attribute("aria-pressed", "false")
     running_pill.click()
     page.wait_for_timeout(300)
+    # Re-open popover to check updated state
+    _open_status_filter(page)
+    running_pill = page.locator("[data-testid='filter-running']")
     expect(running_pill).to_have_attribute("aria-pressed", "true")
+    all_pill = page.locator("[data-testid='filter-all']")
     expect(all_pill).to_have_attribute("aria-pressed", "false")

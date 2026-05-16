@@ -148,7 +148,9 @@ def test_apps_filter_persists_on_refresh(page: Page, base_url: str) -> None:
     """Setting status filter on /apps and refreshing restores the filter (AC#1)."""
     page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
-    # Click "Running" filter pill
+    # Open status filter popover, then click "Running"
+    page.locator("[data-testid='filter-btn']").click()
+    page.locator("[data-testid='filter-running']").wait_for(state="visible")
     page.locator("[data-testid='filter-running']").click()
     page.wait_for_timeout(300)
     # URL should contain filter=running
@@ -278,7 +280,9 @@ def test_apps_page_reset_to_all_removes_filter_param(page: Page, base_url: str) 
     """Resetting filter to 'all' removes the filter query param (AC#9)."""
     page.goto(base_url + "/apps?filter=running")
     page.wait_for_load_state("networkidle")
-    # Click "All" pill to reset to default
+    # Open status filter popover, then click "All" to reset
+    page.locator("[data-testid='filter-btn']").click()
+    page.locator("[data-testid='filter-all']").wait_for(state="visible")
     page.locator("[data-testid='filter-all']").click()
     page.wait_for_timeout(300)
     # URL should not contain filter= anymore
