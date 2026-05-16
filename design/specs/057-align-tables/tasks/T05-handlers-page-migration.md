@@ -44,4 +44,4 @@ Migrate the handlers page to the unified table pattern: build a `columnFilters` 
 - [ ] FR#10: The TYPE column header has a funnel icon opening a popover with tier filter options; the APP column header has a funnel icon opening a popover with app filter dropdown
 - [ ] AC#2: The handlers table footer shows "N handlers · M jobs" count
 - [ ] AC#3: The handlers table `<thead>` row background is `var(--bg-sunken)` matching the other two tables
-- [ ] AC#6: Active tier or app filters show a dot indicator on their respective funnel icons
+- [ ] AC#6: The handlers page TYPE column has a tier filter popover and the APP column has an app filter popover; selecting a tier or app filters the table

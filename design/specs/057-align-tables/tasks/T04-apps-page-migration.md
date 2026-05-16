@@ -39,5 +39,5 @@ Migrate the apps page to the unified table pattern: build a `columnFilters` map 
 - [ ] FR#9: The STATUS column header has a clickable funnel icon that opens a popover with status filter options including counts; selecting a status filters the table
 - [ ] AC#2: The apps page footer shows the filtered app count (e.g., "3 apps")
 - [ ] AC#3: The apps table `<thead>` row background is `var(--bg-sunken)` matching the other two tables
-- [ ] AC#5: The status filter popover closes on Escape and click-outside
+- [ ] AC#5: Clicking the STATUS column funnel opens a popover; selecting "failed" filters to only failed apps; selecting "all" shows all apps
 - [ ] AC#11: When the status filter produces zero results, the empty state names the filter value and provides a reset button
