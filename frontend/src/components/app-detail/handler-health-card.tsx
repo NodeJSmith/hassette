@@ -94,8 +94,8 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
             <span>{pluralize(runCount, callLabel)}</span>
           </Tooltip>
           {avgDuration !== null && avgDuration > 0 && (
-            <Tooltip label="avg duration">
-              <span class={styles.statRowEnd}>{formatDuration(avgDuration)}</span>
+            <Tooltip label="avg duration" class={styles.statRowEnd}>
+              <span>{formatDuration(avgDuration)}</span>
             </Tooltip>
           )}
         </div>
@@ -107,8 +107,8 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
               </Tooltip>
             )}
             {lastActiveAt !== null && (
-              <Tooltip label="last active">
-                <span class={styles.statRowEnd}>{formatRelativeTime(lastActiveAt)}</span>
+              <Tooltip label="last active" class={styles.statRowEnd}>
+                <span>{formatRelativeTime(lastActiveAt)}</span>
               </Tooltip>
             )}
           </div>
