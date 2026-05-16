@@ -35,6 +35,7 @@ Create the new `HandlerHealthCard` component at `frontend/src/components/app-det
    - `tabIndex={0}` for keyboard focus.
    - `onKeyDown` handler for Enter and Space keys.
    - Handler name `Link` uses `onClick={(e) => e.stopPropagation()}` to prevent double navigation.
+   - `role="article"` on the card div (not `"link"` — the card contains a nested `<a>`, so `role="link"` would be an a11y defect).
    - `data-testid={`overview-health-card-${item.kind}-${item.id}`}` for testing.
 
 4. **Helper functions:** The card component needs access to helper functions currently local to `overview-tab.tsx`: `isFailing`, `itemRunCount`, `itemErrorType`, `itemErrorMessage`, `itemKindChip`, and `handlerPath`. These must not be duplicated. Either:

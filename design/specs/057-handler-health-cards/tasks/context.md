@@ -72,7 +72,7 @@ function HealthGridRow({ item, appKey, instanceQs }: HealthGridRowProps) {
 }
 ```
 
-Key pattern: whole-element `onClick` + `tabIndex={0}` + keyboard handler. Nested `Link` uses `e.stopPropagation()` to prevent double navigation. Use ARIA `role` appropriate to the element (will be `"link"` for cards, not `"row"`).
+Key pattern: whole-element `onClick` + `tabIndex={0}` + keyboard handler. Nested `Link` uses `e.stopPropagation()` to prevent double navigation. Use `role="article"` on card divs (not `"link"` — the card wraps a nested `<a>`, so `role="link"` would be an a11y defect).
 
 ### Card surface styling with token-only values
 

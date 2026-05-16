@@ -65,6 +65,7 @@ Update tests that reference the old table structure:
    - Grid renders correct number of cards matching total handler count
    - Failing handlers appear before healthy handlers in DOM order (sort verification)
    - Empty state renders when no handlers exist (existing test, verify it still passes)
+   - Within each group (failing, healthy), cards are ordered by descending run count
    - Grid container has the scroll wrapper class applied
 
 4. **Do NOT duplicate** individual card rendering tests — those are in `handler-health-card.test.tsx` from T02.
