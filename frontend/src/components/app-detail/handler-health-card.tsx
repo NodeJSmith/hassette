@@ -1,11 +1,11 @@
-import { useLocation, Link } from "wouter";
+import { useLocation } from "wouter";
 import clsx from "clsx";
 import type { UnifiedItem } from "./unified-handler-row";
 import { StatusShape } from "../shared/status-shape";
 import { Chip } from "../shared/chip";
 import {
   pluralize,
-  formatDurationOrDash,
+  formatDuration,
   formatRelativeTime,
   formatRate,
 } from "../../utils/format";
@@ -59,19 +59,14 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
         }
       }}
     >
-      {/* Header: status shape + handler name link */}
+      {/* Header: status shape + handler name */}
       <div class={styles.header}>
         <span aria-hidden="true">
           <StatusShape kind={item.statusKind} size={10} />
         </span>
-        <Link
-          href={href}
-          class={styles.name}
-          title={item.name}
-          onClick={(e: MouseEvent) => e.stopPropagation()}
-        >
+        <span class={styles.name} title={item.name}>
           {item.name}
-        </Link>
+        </span>
       </div>
 
       {/* Subtitle: kind chip + error type (if failing) */}
@@ -95,16 +90,20 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
       <div class={styles.stats}>
         <div class={styles.statRow}>
           <span>{pluralize(runCount, callLabel)}</span>
-          <span class={styles.statRowEnd}>{formatDurationOrDash(avgDuration)}</span>
-        </div>
-        <div class={styles.statRow}>
-          {failed > 0 && (
-            <span>{formatRate(failed, total)}</span>
+          {avgDuration !== null && avgDuration > 0 && (
+            <span class={styles.statRowEnd}>{formatDuration(avgDuration)}</span>
           )}
-          <span class={styles.statRowEnd}>
-            {lastActiveAt !== null ? formatRelativeTime(lastActiveAt) : "—"}
-          </span>
         </div>
+        {(failed > 0 || lastActiveAt !== null) && (
+          <div class={styles.statRow}>
+            {failed > 0 && (
+              <span>{formatRate(failed, total)}</span>
+            )}
+            {lastActiveAt !== null && (
+              <span class={styles.statRowEnd}>{formatRelativeTime(lastActiveAt)}</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

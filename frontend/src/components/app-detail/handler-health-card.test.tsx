@@ -8,9 +8,6 @@ import { buildItems } from "./handler-list";
 const mockNavigate = vi.fn();
 
 vi.mock("wouter", () => ({
-  Link: ({ href, children, ...rest }: { href: string; children: preact.ComponentChildren; [k: string]: unknown }) => (
-    <a href={href} {...rest}>{children}</a>
-  ),
   useLocation: () => ["/", mockNavigate],
 }));
 
@@ -49,15 +46,8 @@ describe("HandlerHealthCard — healthy listener", () => {
     });
     const { container, getByText } = renderCard(item);
 
-    // Name should appear as a link
-    const link = container.querySelector("a");
-    expect(link).not.toBeNull();
-    expect(link!.textContent).toContain("on_motion");
-
-    // Kind chip
+    expect(container.textContent).toContain("on_motion");
     expect(getByText("state change")).toBeDefined();
-
-    // Run count via pluralize
     expect(container.textContent).toContain("5 calls");
   });
 });
@@ -78,14 +68,8 @@ describe("HandlerHealthCard — healthy job", () => {
     });
     const { container, getByText } = renderCard(item);
 
-    const link = container.querySelector("a");
-    expect(link).not.toBeNull();
-    expect(link!.textContent).toContain("my_task");
-
-    // Kind chip for job
+    expect(container.textContent).toContain("my_task");
     expect(getByText("interval")).toBeDefined();
-
-    // Run count via pluralize — jobs use "run"
     expect(container.textContent).toContain("3 runs");
   });
 });
@@ -192,15 +176,15 @@ describe("HandlerHealthCard — error rate omitted when failed is 0", () => {
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe("HandlerHealthCard — avg duration", () => {
-  it("shows em dash for avg duration when avg_duration_ms is 0", () => {
+  it("omits duration when avg_duration_ms is 0", () => {
     const item = makeListenerItem({
       listener_id: 1,
       avg_duration_ms: 0,
-      last_invoked_at: 1000,
     });
     const { container } = renderCard(item);
 
-    expect(container.textContent).toContain("—");
+    expect(container.textContent).not.toContain("ms");
+    expect(container.textContent).not.toContain("—");
   });
 
   it("shows formatted duration when avg_duration_ms is positive", () => {
@@ -218,17 +202,18 @@ describe("HandlerHealthCard — avg duration", () => {
 // Test 8: Shows "—" for last active when timestamp is null
 // ──────────────────────────────────────────────────────────────────────────────
 
-describe("HandlerHealthCard — last active dash when null", () => {
-  it("shows em dash for last active when timestamp is null", () => {
+describe("HandlerHealthCard — last active when null", () => {
+  it("omits last active when timestamp is null", () => {
     const item = makeListenerItem({
       listener_id: 1,
-      avg_duration_ms: 150,
       last_invoked_at: null,
+      failed: 0,
+      timed_out: 0,
     });
     const { container } = renderCard(item);
 
-    expect(container.textContent).toContain("150.0ms");
-    expect(container.textContent).toContain("—");
+    expect(container.textContent).not.toContain("ago");
+    expect(container.textContent).not.toContain("—");
   });
 });
 
@@ -289,42 +274,16 @@ describe("HandlerHealthCard — Enter key navigation", () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test 11: Name link click navigates without double navigation (stopPropagation)
+// Test 11: Handler name is rendered as a span (not a link)
 // ──────────────────────────────────────────────────────────────────────────────
 
-describe("HandlerHealthCard — name link stopPropagation", () => {
-  it("name link click does not trigger card onClick (stopPropagation)", () => {
-    mockNavigate.mockClear();
+describe("HandlerHealthCard — name is not a link", () => {
+  it("renders handler name as a span, not an anchor", () => {
     const item = makeListenerItem({ listener_id: 6 });
-    const { container } = renderCard(item, { appKey: "my_app" });
-
-    const link = container.querySelector("a");
-    expect(link).not.toBeNull();
-
-    fireEvent.click(link!);
-
-    // Card's navigate should NOT have been called (stopPropagation prevents it)
-    expect(mockNavigate).not.toHaveBeenCalled();
-  });
-});
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Test 12: Long handler name gets the name CSS class (truncation)
-// ──────────────────────────────────────────────────────────────────────────────
-
-describe("HandlerHealthCard — long name CSS class", () => {
-  it("applies name class to the handler name link", () => {
-    const item = makeListenerItem({
-      listener_id: 1,
-      handler_method: "a_very_long_handler_method_name_that_should_truncate",
-    });
     const { container } = renderCard(item);
 
-    // The link should have the .name CSS module class applied
-    const link = container.querySelector("a");
-    expect(link).not.toBeNull();
-    // The link should have a class attribute (CSS module class for truncation)
-    expect(link!.className).toBeTruthy();
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.textContent).toContain("on_state_change");
   });
 });
 

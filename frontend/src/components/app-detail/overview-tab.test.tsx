@@ -15,13 +15,14 @@ type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
 //  2. API-driven tests (activity, logs, real-time) — require AppStateContext + MSW
 // MSW server lifecycle is managed globally in src/test-setup.ts.
 
-// Suppress wouter's missing Router context warning for link rendering
+const mockNavigate = vi.fn();
+
 vi.mock("wouter", () => ({
   Link: ({ href, children, ...rest }: { href: string; children: preact.ComponentChildren; [k: string]: unknown }) => (
     <a href={href} {...rest}>{children}</a>
   ),
   useSearch: () => "",
-  useLocation: () => ["/", () => {}],
+  useLocation: () => ["/", mockNavigate],
 }));
 
 function renderOverviewTab({
@@ -307,43 +308,40 @@ describe("OverviewTab — Handler Health Grid", () => {
     expect(cards[2].getAttribute("data-testid")).toBe("overview-health-card-listener-1");
   });
 
-  it("each health grid card links to handlers tab with correct listener ID", () => {
+  it("clicking a listener card navigates to the correct handler detail page", () => {
+    mockNavigate.mockClear();
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 4 })],
       jobs: [],
       appKey: "my_app",
       instanceQs: "",
     });
-    const card = getByTestId("overview-health-card-listener-4");
-    const anchor = card.tagName === "A" ? card : card.querySelector("a");
-    const href = anchor?.getAttribute("href") ?? card.getAttribute("href");
-    expect(href).toBe("/apps/my_app/handlers/h-4");
+    fireEvent.click(getByTestId("overview-health-card-listener-4"));
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/h-4");
   });
 
-  it("each health grid card links to handlers tab with correct job ID", () => {
+  it("clicking a job card navigates to the correct handler detail page", () => {
+    mockNavigate.mockClear();
     const { getByTestId } = renderOverviewTab({
       listeners: [],
       jobs: [createJob({ job_id: 15 })],
       appKey: "my_app",
       instanceQs: "",
     });
-    const card = getByTestId("overview-health-card-job-15");
-    const anchor = card.tagName === "A" ? card : card.querySelector("a");
-    const href = anchor?.getAttribute("href") ?? card.getAttribute("href");
-    expect(href).toBe("/apps/my_app/handlers/j-15");
+    fireEvent.click(getByTestId("overview-health-card-job-15"));
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/j-15");
   });
 
-  it("health grid card link includes instanceQs", () => {
+  it("card navigation includes instanceQs", () => {
+    mockNavigate.mockClear();
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 6 })],
       jobs: [],
       appKey: "test_app",
       instanceQs: "?instance=2",
     });
-    const card = getByTestId("overview-health-card-listener-6");
-    const anchor = card.tagName === "A" ? card : card.querySelector("a");
-    const href = anchor?.getAttribute("href") ?? card.getAttribute("href");
-    expect(href).toBe("/apps/test_app/handlers/h-6?instance=2");
+    fireEvent.click(getByTestId("overview-health-card-listener-6"));
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/h-6?instance=2");
   });
 });
 

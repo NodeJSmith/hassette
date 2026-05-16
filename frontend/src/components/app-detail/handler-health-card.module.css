@@ -45,14 +45,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-decoration: none;
   min-width: 0;
   flex: 1;
-}
-
-.name:hover {
-  text-decoration: underline;
-  text-decoration-color: var(--accent);
 }
 
 /* Subtitle row: chip + error type */
