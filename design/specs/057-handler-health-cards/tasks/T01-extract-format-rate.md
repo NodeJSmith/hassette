@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Extract formatRate to shared format utilities"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["AC#11"]
 ---

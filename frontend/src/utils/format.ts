@@ -108,6 +108,11 @@ export function lastDotSegment(s: string): string {
   return idx === -1 ? s : s.slice(idx + 1);
 }
 
+/** Format a failure rate as a percentage string (e.g., "3.0%"), or "—" if total is 0. */
+export function formatRate(failed: number, total: number): string {
+  return total > 0 ? ((failed / total) * 100).toFixed(1) + "%" : "—";
+}
+
 export function formatUptime(seconds: number): string {
   if (seconds < 60) return `${Math.floor(seconds)}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
