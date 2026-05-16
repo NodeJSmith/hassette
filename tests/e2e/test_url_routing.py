@@ -109,7 +109,7 @@ def test_logs_tab_with_level_filter_deep_link(page: Page, base_url: str) -> None
     logs_section = page.locator("[data-testid='logs-section']")
     expect(logs_section).to_be_visible(timeout=5000)
     # Open the level filter popover, then check filter shows ERROR
-    page.locator("[data-testid='filter-level-btn']").click()
+    page.locator("[data-testid='sort-level'] [data-testid='filter-btn']").click()
     level_filter = page.locator("[data-testid='filter-level']")
     expect(level_filter).to_be_visible()
     selected_value = level_filter.evaluate("el => el.value")
@@ -121,7 +121,7 @@ def test_logs_tab_filter_persists_on_refresh(page: Page, base_url: str) -> None:
     page.goto(base_url + "/apps/my_app/logs")
     page.wait_for_load_state("networkidle")
     # Open the level filter popover and set to ERROR
-    page.locator("[data-testid='filter-level-btn']").click()
+    page.locator("[data-testid='sort-level'] [data-testid='filter-btn']").click()
     level_filter = page.locator("[data-testid='filter-level']")
     expect(level_filter).to_be_visible()
     level_filter.select_option("ERROR")
@@ -132,7 +132,7 @@ def test_logs_tab_filter_persists_on_refresh(page: Page, base_url: str) -> None:
     page.reload()
     page.wait_for_load_state("networkidle")
     # Re-open the filter popover and verify ERROR persisted
-    page.locator("[data-testid='filter-level-btn']").click()
+    page.locator("[data-testid='sort-level'] [data-testid='filter-btn']").click()
     level_filter = page.locator("[data-testid='filter-level']")
     expect(level_filter).to_be_visible()
     selected_value = level_filter.evaluate("el => el.value")
