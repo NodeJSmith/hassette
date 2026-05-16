@@ -7,9 +7,9 @@ import { Tooltip } from "../shared/tooltip";
 import {
   pluralize,
   formatDuration,
-  formatRelativeTime,
   formatRate,
 } from "../../utils/format";
+import { useRelativeTime } from "../../hooks/use-relative-time";
 import {
   handlerPath,
   isFailing,
@@ -41,6 +41,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
   const callLabel = item.kind === "listener" ? "call" : "run";
   const avgDuration = item.data.avg_duration_ms ?? null;
   const lastActiveAt = itemLastActiveAt(item);
+  const lastActiveDisplay = useRelativeTime(lastActiveAt);
   const failed = item.data.failed;
 
   function handleKeyDown(e: KeyboardEvent) {
@@ -54,7 +55,8 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
     <div
       class={clsx(styles.card, failing && styles.cardFailing)}
       data-testid={`overview-health-card-${item.kind}-${item.id}`}
-      role="article"
+      role="button"
+      aria-label={`${item.name} handler details`}
       tabIndex={0}
       onClick={() => navigate(href)}
       onKeyDown={handleKeyDown}
@@ -101,7 +103,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
             )}
             {lastActiveAt !== null && (
               <Tooltip label="last active" class={styles.statRowEnd}>
-                <span>{formatRelativeTime(lastActiveAt)}</span>
+                <span>{lastActiveDisplay}</span>
               </Tooltip>
             )}
           </div>

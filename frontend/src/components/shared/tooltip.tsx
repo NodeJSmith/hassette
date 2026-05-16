@@ -16,6 +16,7 @@ export function Tooltip({ label, class: className, focusable, children }: Toolti
       data-tooltip={label}
       {...(focusable ? { tabIndex: 0 } : {})}
     >
+      <span class={styles.srOnly}>{label}: </span>
       {children}
     </span>
   );

@@ -103,9 +103,9 @@
 .healthGridScroll {
   --health-card-height: 140px;
   --health-card-min-width: 280px;
-  --health-grid-cols: 3;
+  --health-grid-rows: 3;
 
-  max-height: calc(var(--health-grid-cols) * var(--health-card-height) + 2 * var(--sp-3));
+  max-height: calc(var(--health-grid-rows) * var(--health-card-height) + 2 * var(--sp-3));
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -113,7 +113,6 @@
 .healthGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(var(--health-card-min-width), 100%), 1fr));
-  max-width: calc(var(--health-grid-cols) * var(--health-card-min-width) + 2 * var(--sp-3));
   gap: var(--sp-3);
 }
 

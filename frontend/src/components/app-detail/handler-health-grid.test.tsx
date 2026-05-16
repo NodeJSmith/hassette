@@ -3,6 +3,7 @@ import { render } from "@testing-library/preact";
 import { HandlerHealthGrid } from "./handler-health-grid";
 import { createListener, createJob } from "../../test/factories";
 import { buildItems } from "./handler-list";
+import { renderWithAppState } from "../../test/render-helpers";
 
 vi.mock("wouter", () => ({
   Link: ({ href, children, ...rest }: { href: string; children: preact.ComponentChildren; [k: string]: unknown }) => (
@@ -51,7 +52,7 @@ describe("HandlerHealthGrid — with items", () => {
       makeListenerItem({ listener_id: 1 }),
       makeJobItem({ job_id: 2 }),
     ];
-    const { getByTestId } = render(
+    const { getByTestId } = renderWithAppState(
       <HandlerHealthGrid items={items} appKey="test_app" instanceQs="" />,
     );
     expect(getByTestId("overview-health-card-listener-1")).toBeDefined();
@@ -60,7 +61,7 @@ describe("HandlerHealthGrid — with items", () => {
 
   it("does not render EmptyState when items are present", () => {
     const items = [makeListenerItem({ listener_id: 1 })];
-    const { queryByTestId } = render(
+    const { queryByTestId } = renderWithAppState(
       <HandlerHealthGrid items={items} appKey="test_app" instanceQs="" />,
     );
     expect(queryByTestId("overview-health-empty")).toBeNull();
@@ -68,7 +69,7 @@ describe("HandlerHealthGrid — with items", () => {
 
   it("renders the section heading", () => {
     const items = [makeListenerItem({ listener_id: 1 })];
-    const { container } = render(
+    const { container } = renderWithAppState(
       <HandlerHealthGrid items={items} appKey="test_app" instanceQs="" />,
     );
     const heading = container.querySelector("h3");
@@ -82,7 +83,7 @@ describe("HandlerHealthGrid — sorting (failing first)", () => {
       makeListenerItem({ listener_id: 1, failed: 0, timed_out: 0, handler_summary: "on_healthy()" }),
       makeListenerItem({ listener_id: 2, failed: 2, total_invocations: 5, handler_summary: "on_broken()" }),
     ];
-    const { container } = render(
+    const { container } = renderWithAppState(
       <HandlerHealthGrid items={items} appKey="test_app" instanceQs="" />,
     );
     const cards = container.querySelectorAll("[data-testid^='overview-health-card-']");
@@ -98,7 +99,7 @@ describe("HandlerHealthGrid — passes props to cards", () => {
       makeJobItem({ job_id: 7 }),
       makeListenerItem({ listener_id: 5 }),
     ];
-    const { container } = render(
+    const { container } = renderWithAppState(
       <HandlerHealthGrid items={items} appKey="test_app" instanceQs="?instance=1" />,
     );
     const cards = container.querySelectorAll("[data-testid^='overview-health-card-']");

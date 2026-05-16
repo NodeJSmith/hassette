@@ -54,7 +54,7 @@ Cards are a better container for this data because each handler is a self-contai
 - **FR#2** Each card displays: status indicator, handler name, handler kind label, run count, average duration, error rate (when non-zero), and time since last execution
 - **FR#3** Failing handler cards are visually distinguished with a colored top border and display the error type inline and error message truncated to one line
 - **FR#4** The entire card is clickable and navigates to the handler detail page
-- **FR#5** The handler name within each card is a standalone link that also navigates to the handler detail page
+- **FR#5** The entire card is the navigation target (no standalone name link); the card uses `role="button"` with an accessible label for screen readers
 - **FR#6** The card grid is responsive, displaying 2-3 cards per row at desktop widths and collapsing to a single column on mobile
 - **FR#7** When the grid exceeds 3 rows of cards, the section scrolls vertically with the remaining cards accessible via scroll
 - **FR#8** When no handlers exist, an empty state message is displayed

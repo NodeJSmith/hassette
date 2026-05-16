@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render } from "@testing-library/preact";
+import { fireEvent } from "@testing-library/preact";
 import { HandlerHealthCard } from "./handler-health-card";
 import { createListener, createJob } from "../../test/factories";
 import { buildItems } from "./handler-list";
+import { renderWithAppState } from "../../test/render-helpers";
 
 // Mock wouter for navigation assertions
 const mockNavigate = vi.fn();
@@ -25,7 +26,7 @@ function renderCard(
   item: ReturnType<typeof buildItems>[number],
   { appKey = "test_app", instanceQs = "" } = {},
 ) {
-  return render(
+  return renderWithAppState(
     <HandlerHealthCard item={item} appKey={appKey} instanceQs={instanceQs} />,
   );
 }
@@ -288,7 +289,20 @@ describe("HandlerHealthCard — name is not a link", () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test 12: data-testid includes kind and id
+// Test 12: Card has role=button and aria-label for screen readers
+// ──────────────────────────────────────────────────────────────────────────────
+
+describe("HandlerHealthCard — accessibility", () => {
+  it("has role=button and aria-label for screen readers", () => {
+    const item = makeListenerItem({ listener_id: 1, handler_method: "on_motion" });
+    const { getByRole } = renderCard(item);
+    const card = getByRole("button", { name: "on_motion handler details" });
+    expect(card).toBeDefined();
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Test 13: data-testid includes kind and id
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe("HandlerHealthCard — data-testid", () => {

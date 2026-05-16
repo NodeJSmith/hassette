@@ -3,14 +3,14 @@ import { render } from "@testing-library/preact";
 import { Tooltip } from "./tooltip";
 
 describe("Tooltip", () => {
-  it("renders children and sets data-tooltip attribute", () => {
+  it("renders children with data-tooltip and visually-hidden label", () => {
     const { container } = render(
       <Tooltip label="avg duration"><span>23ms</span></Tooltip>,
     );
     const trigger = container.querySelector("[data-tooltip]");
     expect(trigger).not.toBeNull();
     expect(trigger!.getAttribute("data-tooltip")).toBe("avg duration");
-    expect(trigger!.textContent).toBe("23ms");
+    expect(trigger!.textContent).toBe("avg duration: 23ms");
   });
 
   it("passes through the class prop to the trigger element", () => {
