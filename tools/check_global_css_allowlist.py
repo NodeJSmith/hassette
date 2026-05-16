@@ -33,7 +33,6 @@ ALLOWLIST: list[str] = [
     "ht-level",
     # Surface components
     "ht-table",
-    "ht-pill",
     "ht-search",
     "ht-alert",
     # Navigation & wayfinding
@@ -47,7 +46,6 @@ ALLOWLIST: list[str] = [
     "ht-detail-label",
     "ht-section-label",
     # Table infrastructure
-    "ht-table-toolbar",
     "ht-table-card-scroll",
     # Utilities (text)
     "ht-text-",

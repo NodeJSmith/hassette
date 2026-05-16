@@ -1,4 +1,4 @@
-/* Utilities — text helpers, spacing, log badges, alerts, pills, animations, search, skip link */
+/* Utilities — text helpers, spacing, log badges, alerts, search, skip link */
 
 /* — Utilities —————————————————————————————————————————— */
 /* Text color */
@@ -95,44 +95,6 @@
 /* — Mono Text —————————————————————————————————————————— */
 .ht-text-mono {
   font-family: var(--font-mono);
-}
-
-/* — Pill filter controls ——————————————————————————————— */
-.ht-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  padding: var(--sp-0) var(--sp-2);
-  font-family: var(--font-body);
-  font-size: var(--fs-badge);
-  font-weight: 500;
-  line-height: 1.5;
-  border-radius: var(--r-pill);
-  white-space: nowrap;
-}
-
-.ht-pill--mute {
-  color: var(--ink-2);
-  background: var(--bg-sunken);
-  border: 1px solid var(--line-1);
-}
-
-.ht-pill--interactive {
-  cursor: pointer;
-  position: relative;
-}
-
-.ht-pill--interactive:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
-
-.ht-pill__select {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-  font-size: inherit;
 }
 
 /* — Skip Navigation Link ——————————————————————————————— */

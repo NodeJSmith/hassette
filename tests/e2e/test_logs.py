@@ -18,7 +18,7 @@ def test_level_filter_options_present(page: Page, base_url: str) -> None:
     """Level filter select has all log level options."""
     page.goto(base_url + "/logs")
     # The level filter is inside a popover — open it first
-    page.locator("[data-testid='filter-level-btn']").click()
+    page.locator("[data-testid='sort-level'] [data-testid='filter-btn']").click()
     level_select = page.locator("[data-testid='filter-level']")
     expect(level_select).to_be_visible()
     for level in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
@@ -75,7 +75,7 @@ def test_level_filter_to_error_hides_info(page: Page, base_url: str) -> None:
     page.goto(base_url + "/logs")
     _wait_for_log_entries(page)
     # Level filter is behind a popover — open it first
-    page.locator("[data-testid='filter-level-btn']").click()
+    page.locator("[data-testid='sort-level'] [data-testid='filter-btn']").click()
     page.locator("[data-testid='filter-level']").select_option("ERROR")
     # Close popover by clicking elsewhere
     page.keyboard.press("Escape")
@@ -123,7 +123,7 @@ def test_log_expand_button_toggles_message(page: Page, base_url: str) -> None:
 def test_log_filter_controls_have_aria_labels(page: Page, base_url: str) -> None:
     """Log filter controls have accessible labels."""
     page.goto(base_url + "/logs")
-    expect(page.locator("[data-testid='filter-level-btn']")).to_be_visible()
+    expect(page.locator("[data-testid='sort-level'] [data-testid='filter-btn']")).to_be_visible()
     expect(page.locator("input[aria-label='Search logs']")).to_be_visible()
 
 

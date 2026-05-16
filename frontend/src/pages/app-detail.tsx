@@ -5,131 +5,28 @@ import { useDocumentTitle } from "../hooks/use-document-title";
 import { useCorrectUrl } from "../hooks/use-correct-url";
 import { useQueryParams } from "../hooks/use-query-params";
 import { getAppJobs, getAppListeners } from "../api/endpoints";
-import type { AppInstance } from "../api/endpoints";
 import { ActionButtons } from "../components/shared/action-buttons";
 import { CodeTab } from "../components/app-detail/code-tab";
 import { ConfigTab } from "../components/app-detail/config-tab";
 import { HandlersTab } from "../components/app-detail/handlers-tab";
 import { OverviewTab } from "../components/app-detail/overview-tab";
 import { ErrorBanner } from "../components/shared/error-banner";
-import { LogTable } from "../components/shared/log-table";
 import { Spinner } from "../components/shared/spinner";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { useAppState } from "../state/context";
 import { statusToKind, statusToVariant } from "../utils/status";
 import { StatusShape } from "../components/shared/status-shape";
 import { Badge } from "../components/shared/badge";
-import { Card } from "../components/shared/card";
 import { Chip } from "../components/shared/chip";
 import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-filtered-signal-refetch";
+import { InstanceSwitcher, MultiInstanceOverview } from "../components/app-detail/multi-instance";
+import { AppLogsPanel } from "../components/app-detail/app-logs-panel";
 import styles from "./app-detail.module.css";
 
 export type TabId = "overview" | "handlers" | "code" | "logs" | "config";
 
 interface Props {
   params: { key: string; tab?: TabId; handler?: string };
-}
-
-
-/** Instance switcher: horizontal tab strip showing siblings with status dots. */
-function InstanceSwitcher({
-  instances,
-  currentIndex,
-  onNavigate,
-}: {
-  instances: AppInstance[];
-  currentIndex: number;
-  onNavigate: (index: number) => void;
-}) {
-  return (
-    <div class={styles.instanceSwitcher} data-testid="instance-switcher" role="tablist" aria-label="Instance">
-      {instances.map((inst) => {
-        const isActive = inst.index === currentIndex;
-        return (
-          <button
-            key={inst.index}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            class={clsx(styles.instanceSwitcherBtn, isActive && styles.instanceSwitcherBtnActive)}
-            data-testid={`switcher-instance-${inst.index}`}
-            onClick={() => { if (!isActive) onNavigate(inst.index); }}
-          >
-            <StatusShape kind={statusToKind(inst.status)} size={8} />
-            <span class={styles.instanceSwitcherLabel}>{inst.instance_name}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Single instance card for the multi-instance parent overview grid. */
-function InstanceCard({
-  instance,
-  onNavigate,
-}: {
-  instance: AppInstance;
-  onNavigate: (index: number) => void;
-}) {
-  return (
-    <button
-      type="button"
-      class={styles.instanceCard}
-      data-testid={`instance-card-${instance.index}`}
-      onClick={() => { onNavigate(instance.index); }}
-      aria-label={`View ${instance.instance_name}`}
-    >
-      <div class={styles.instanceCardHeader}>
-        <StatusShape kind={statusToKind(instance.status)} size={10} />
-        <span class={styles.instanceCardName}>{instance.instance_name}</span>
-        <Badge variant={statusToVariant(instance.status)} size="sm" class={styles.instanceCardStatusBadge}>
-          {instance.status}
-        </Badge>
-      </div>
-      {instance.error_message && (
-        <p class={styles.instanceCardErrorPreview}>{instance.error_message}</p>
-      )}
-    </button>
-  );
-}
-
-/** Multi-instance parent overview: shows instance grid. */
-function MultiInstanceOverview({
-  appKey,
-  displayName,
-  instances,
-  instanceCount,
-  onNavigate,
-}: {
-  appKey: string;
-  displayName: string;
-  instances: AppInstance[];
-  instanceCount: number;
-  onNavigate: (index: number) => void;
-}) {
-  return (
-    <div class={styles.multiOverview} data-testid="multi-instance-overview">
-      <div class="ht-level ht-mb-4">
-        <div class="ht-level-start">
-          <h2 class={styles.heading4}>{displayName}</h2>
-          <Badge variant="neutral" data-testid="instance-count-badge">
-            ×{instanceCount} instances
-          </Badge>
-        </div>
-      </div>
-      <code class="ht-text-mono ht-text-sm ht-mb-4 ht-block">{appKey}</code>
-      <div class={styles.instanceGrid} data-testid="instance-grid">
-        {instances.map((inst) => (
-          <InstanceCard
-            key={inst.index}
-            instance={inst}
-            onNavigate={onNavigate}
-          />
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function Tab({ id, label, badge, appKey, instanceQs, activeTab }: {
@@ -160,12 +57,10 @@ export function AppDetailPage({ params }: Props) {
   const queryParams = useQueryParams();
   const correctUrl = useCorrectUrl();
 
-  // Read instance from ?instance=N query param
   const instanceParam = queryParams.get("instance");
   const parsedInstance = instanceParam !== null ? parseInt(instanceParam, 10) : undefined;
   const instanceIndex = parsedInstance !== undefined && Number.isFinite(parsedInstance) ? parsedInstance : undefined;
 
-  // For instance detail view: fetch listeners, jobs
   const resolvedInstanceIndex = instanceIndex ?? 0;
   const listeners = useScopedApi(
     (since) => getAppListeners(appKey, resolvedInstanceIndex, since),
@@ -176,9 +71,6 @@ export function AppDetailPage({ params }: Props) {
     { deps: [appKey, resolvedInstanceIndex] },
   );
 
-  // Parent-level refetch: refresh handler/job counts and last-fired timestamps when
-  // a WS event arrives for the currently viewed app. Both invocation and execution
-  // events can change listener/job summary data (counts, last-fired, health metrics).
   useFilteredSignalRefetch(
     invocationCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
@@ -194,7 +86,6 @@ export function AppDetailPage({ params }: Props) {
     WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
-  // Preserve stale handler/job data during refetch to avoid losing selection
   const staleListeners = useRef<typeof listeners.data.value>(null);
   const staleJobs = useRef<typeof jobs.data.value>(null);
   if (listeners.data.value) staleListeners.current = listeners.data.value;
@@ -206,8 +97,6 @@ export function AppDetailPage({ params }: Props) {
   useDocumentTitle(manifest?.display_name ?? "App");
 
   const isMultiInstance = (manifest?.instance_count ?? 0) > 1;
-
-  // If multi-instance and no instance index in URL → show parent overview
   const showParentOverview = isMultiInstance && instanceIndex === undefined;
 
   const currentInstance = !showParentOverview
@@ -223,8 +112,6 @@ export function AppDetailPage({ params }: Props) {
   const initialLoading = !hasData && (listeners.loading.value
     || jobs.loading.value || manifestsLoading.value);
 
-  // Correct out-of-range instance index
-  // Guarded: only fires when data is fully loaded and confirms instance is invalid
   useEffect(() => {
     if (initialLoading) return;
     if (manifest && instanceIndex !== undefined && instanceIndex >= manifest.instance_count) {
@@ -232,7 +119,6 @@ export function AppDetailPage({ params }: Props) {
     }
   }, [initialLoading, manifest, instanceIndex, appKey, activeTab, correctUrl]);
 
-  // Redirect stale /handlers bookmark on parent page (handlers are per-instance only)
   useEffect(() => {
     if (showParentOverview && activeTab === "handlers") {
       correctUrl(`/apps/${appKey}/overview`);
@@ -241,11 +127,8 @@ export function AppDetailPage({ params }: Props) {
 
   if (initialLoading) return <Spinner />;
 
-  // Build instance query string for tab links — preserve ?instance=N, omit if not set
   const instanceQs = instanceParam !== null && instanceParam !== "" ? `?instance=${instanceParam}` : "";
-
   const tabProps = { appKey, instanceQs, activeTab };
-
   const handlerCount = (listeners.data.value?.length ?? 0) + (jobs.data.value?.length ?? 0);
 
   return (
@@ -401,9 +284,7 @@ export function AppDetailPage({ params }: Props) {
       )}
       {activeTab === "logs" && (
         <div role="tabpanel" id="tabpanel-logs" aria-labelledby="tab-logs">
-          <Card data-testid="logs-section">
-            <LogTable context="app" appKey={appKey} />
-          </Card>
+          <AppLogsPanel appKey={appKey} />
         </div>
       )}
       {activeTab === "config" && (

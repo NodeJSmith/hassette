@@ -1,14 +1,26 @@
 /* Logs page — component-scoped styles */
 
-.page {
-  height: 100%;
+/* Paused indicator button — appears in TableFooter extras when sorting by non-timestamp column */
+.pausedBtn {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-family: var(--font-body);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--warn);
+  padding: var(--sp-0) var(--sp-2);
+  border-radius: var(--r-sm);
+  transition: background var(--t-fast);
 }
 
-.cardFull {
-  flex: 1;
+.pausedBtn:hover {
+  background: var(--warn-bg);
 }
 
-/* Make log scroll fill available vertical space on the Logs page */
-.page :global(.ht-table-card-scroll) {
-  --table-scroll-height: calc(100vh - 270px);
+.pausedBtn:focus-visible {
+  outline: 2px solid var(--warn);
+  outline-offset: 2px;
 }

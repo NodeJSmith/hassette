@@ -15,7 +15,6 @@ export const TIER_OPTIONS: readonly { value: TierFilter; label: string }[] = [
   { value: "framework", label: "Framework" },
 ] as const;
 
-
 export const LEVEL_INDEX: Record<string, number> = {
   DEBUG: 0,
   INFO: 1,

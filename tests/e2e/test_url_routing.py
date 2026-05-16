@@ -102,14 +102,12 @@ def test_handler_deep_link_url_persists_on_refresh(page: Page, base_url: str) ->
 
 
 def test_logs_tab_with_level_filter_deep_link(page: Page, base_url: str) -> None:
-    """Navigating to /apps/:key/logs?level=ERROR shows logs filtered to ERROR (AC#3, AC#1)."""
-    page.goto(base_url + "/apps/my_app/logs?level=ERROR")
+    """Navigating to /logs?level=ERROR shows logs filtered to ERROR (AC#3, AC#1)."""
+    page.goto(base_url + "/logs?level=ERROR")
     page.wait_for_load_state("networkidle")
-    # Logs tab should be active
-    logs_section = page.locator("[data-testid='logs-section']")
-    expect(logs_section).to_be_visible(timeout=5000)
+    page.locator("[data-testid='log-table']").wait_for(timeout=5000)
     # Open the level filter popover, then check filter shows ERROR
-    page.locator("[data-testid='filter-level-btn']").click()
+    page.locator("[data-testid='sort-level'] [data-testid='filter-btn']").click()
     level_filter = page.locator("[data-testid='filter-level']")
     expect(level_filter).to_be_visible()
     selected_value = level_filter.evaluate("el => el.value")
@@ -118,10 +116,10 @@ def test_logs_tab_with_level_filter_deep_link(page: Page, base_url: str) -> None
 
 def test_logs_tab_filter_persists_on_refresh(page: Page, base_url: str) -> None:
     """Setting log level filter and refreshing restores the filter (AC#1, AC#3)."""
-    page.goto(base_url + "/apps/my_app/logs")
+    page.goto(base_url + "/logs")
     page.wait_for_load_state("networkidle")
     # Open the level filter popover and set to ERROR
-    page.locator("[data-testid='filter-level-btn']").click()
+    page.locator("[data-testid='sort-level'] [data-testid='filter-btn']").click()
     level_filter = page.locator("[data-testid='filter-level']")
     expect(level_filter).to_be_visible()
     level_filter.select_option("ERROR")
@@ -132,7 +130,7 @@ def test_logs_tab_filter_persists_on_refresh(page: Page, base_url: str) -> None:
     page.reload()
     page.wait_for_load_state("networkidle")
     # Re-open the filter popover and verify ERROR persisted
-    page.locator("[data-testid='filter-level-btn']").click()
+    page.locator("[data-testid='sort-level'] [data-testid='filter-btn']").click()
     level_filter = page.locator("[data-testid='filter-level']")
     expect(level_filter).to_be_visible()
     selected_value = level_filter.evaluate("el => el.value")
@@ -148,7 +146,9 @@ def test_apps_filter_persists_on_refresh(page: Page, base_url: str) -> None:
     """Setting status filter on /apps and refreshing restores the filter (AC#1)."""
     page.goto(base_url + "/apps")
     page.wait_for_load_state("networkidle")
-    # Click "Running" filter pill
+    # Open status filter popover, then click "Running"
+    page.locator("[data-testid='filter-btn']").click()
+    page.locator("[data-testid='filter-running']").wait_for(state="visible")
     page.locator("[data-testid='filter-running']").click()
     page.wait_for_timeout(300)
     # URL should contain filter=running
@@ -278,7 +278,9 @@ def test_apps_page_reset_to_all_removes_filter_param(page: Page, base_url: str) 
     """Resetting filter to 'all' removes the filter query param (AC#9)."""
     page.goto(base_url + "/apps?filter=running")
     page.wait_for_load_state("networkidle")
-    # Click "All" pill to reset to default
+    # Open status filter popover, then click "All" to reset
+    page.locator("[data-testid='filter-btn']").click()
+    page.locator("[data-testid='filter-all']").wait_for(state="visible")
     page.locator("[data-testid='filter-all']").click()
     page.wait_for_timeout(300)
     # URL should not contain filter= anymore

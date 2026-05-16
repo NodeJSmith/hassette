@@ -97,18 +97,6 @@ describe("HandlersPage", () => {
     expect(getAllByTestId(/job-row-/).length).toBe(1);
   });
 
-  it("shows all tiers when ?tier=all is in URL", () => {
-    mockSearch = "tier=all";
-    setupApi({
-      listeners: [
-        createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" }),
-        createListener({ listener_id: 2, app_key: "fw_app", handler_method: "fw_handler", source_tier: "framework" }),
-      ],
-    });
-    const { getAllByTestId } = renderWithAppState(<HandlersPage />);
-    expect(getAllByTestId(/listener-row-/).length).toBe(2);
-  });
-
   it("filters by selected app when ?app=app_a is in URL", () => {
     mockSearch = "app=app_a";
     setupApi({
@@ -126,9 +114,13 @@ describe("HandlersPage", () => {
     expect(queryAllByTestId("listener-row-h-2")).toHaveLength(0);
   });
 
-  it("renders a search input", () => {
-    const { getByPlaceholderText } = renderWithAppState(<HandlersPage />);
-    expect(getByPlaceholderText("Search...")).toBeDefined();
+  it("renders a search input above the table", () => {
+    const { getByTestId } = renderWithAppState(<HandlersPage />);
+    const search = getByTestId("handlers-search");
+    expect(search).toBeDefined();
+    // Search should be inside the search slot (data-search-bar attribute)
+    const searchBar = search.closest("[data-search-bar]");
+    expect(searchBar).not.toBeNull();
   });
 
   it("search filters by handler name when ?search= is in URL", () => {
@@ -195,6 +187,32 @@ describe("HandlersPage", () => {
     expect(getAllByTestId(/job-row-/).length).toBe(1);
     expect(queryAllByTestId(/job-row-j-11/).length).toBe(0);
   });
+
+  it("renders a footer with handler and job counts", () => {
+    setupApi({
+      listeners: [
+        createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" }),
+        createListener({ listener_id: 2, app_key: "app_a", handler_method: "on_change", source_tier: "app" }),
+      ],
+      jobs: [
+        createJob({ job_id: 10, app_key: "app_a", job_name: "my_job", source_tier: "app" }),
+      ],
+    });
+    const { getByText } = renderWithAppState(<HandlersPage />);
+    expect(getByText(/2 handlers/i)).toBeDefined();
+    expect(getByText(/1 job/i)).toBeDefined();
+  });
+
+  it("renders an app column filter button (funnel icon) on the app column header", () => {
+    setupApi({
+      listeners: [
+        createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" }),
+      ],
+    });
+    const { getAllByTestId } = renderWithAppState(<HandlersPage />);
+    const filterBtns = getAllByTestId("filter-btn");
+    expect(filterBtns.length).toBe(1);
+  });
 });
 
 describe("HandlersPage — query param state (FR#5, AC#6)", () => {
@@ -212,21 +230,6 @@ describe("HandlersPage — query param state (FR#5, AC#6)", () => {
     });
   });
 
-  it("reads tier filter from URL query param — ?tier=all shows all tiers", () => {
-    mockSearch = "tier=all";
-    const { getAllByTestId } = renderWithAppState(<HandlersPage />);
-    // tier=all should show the framework handler too
-    expect(getAllByTestId(/listener-row-/).length).toBe(2);
-  });
-
-  it("reads tier filter from URL query param — ?tier=framework shows only framework items", () => {
-    mockSearch = "tier=framework";
-    const { getAllByTestId, queryAllByTestId } = renderWithAppState(<HandlersPage />);
-    expect(getAllByTestId(/listener-row-/).length).toBe(1);
-    // the app-tier job should not be visible
-    expect(queryAllByTestId(/job-row-/).length).toBe(0);
-  });
-
   it("reads search from URL query param — ?search=event filters results", () => {
     // "on_event" is the app-tier handler; default tier=app, so search "event" should return it
     mockSearch = "search=event";
@@ -240,16 +243,6 @@ describe("HandlersPage — query param state (FR#5, AC#6)", () => {
     expect(getAllByTestId(/listener-row-/).length).toBe(1);
     // app_b job should be excluded
     expect(queryAllByTestId(/job-row-/).length).toBe(0);
-  });
-
-  it("changing tier calls qp.set with replace (no new history entry — AC#6)", () => {
-    const { getByRole } = renderWithAppState(<HandlersPage />);
-    fireEvent.click(getByRole("button", { name: /^all$/i }));
-    // mockNavigate is called with replace: true (useQueryParams.set default)
-    expect(mockNavigate).toHaveBeenCalledWith(
-      expect.stringContaining("tier=all"),
-      { replace: true },
-    );
   });
 
   it("changing sort calls qp.set with replace (no new history entry — AC#6)", () => {

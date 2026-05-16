@@ -45,7 +45,22 @@ vi.mock("../components/app-detail/overview-tab", () => ({
   OverviewTab: () => <div data-testid="overview-tab" />,
 }));
 vi.mock("../components/shared/log-table", () => ({
-  LogTable: () => <div data-testid="log-table" />,
+  useLogTable: () => ({
+    tableProps: { visibleColumns: [], sortConfig: { column: "timestamp", asc: false }, onSort: () => {}, columnFilters: {}, entries: [], selectedKey: null, onRowClick: () => {}, isMobile: false },
+    drawerProps: { selectedKey: null, entries: [], onClose: () => {}, onNavigate: () => {} },
+    columnFilters: {},
+    countLabel: "0 entries",
+    hasActiveFilter: false,
+    resetFilters: () => {},
+    livePaused: false,
+    resetSort: () => {},
+    columnPickerProps: { selectedColumns: [], viewportHidden: new Set(), onToggle: () => {}, onReset: () => {} },
+    isMobile: false,
+    isEmpty: true,
+    isLoading: false,
+  }),
+  LogTableView: () => <div data-testid="log-table" />,
+  LogTableWithDrawer: ({ children }: { children: preact.ComponentChildren }) => <div data-testid="log-table-drawer">{children}</div>,
 }));
 vi.mock("../components/shared/spinner", () => ({
   Spinner: () => <div data-testid="spinner" />,
@@ -370,14 +385,14 @@ describe("AppDetailPage", () => {
     expect(getByTestId("config-tab")).toBeDefined();
   });
 
-  it("renders LogTable when params.tab is 'logs'", () => {
+  it("renders log table content when params.tab is 'logs'", () => {
     const manifest = createManifest();
     setupManifestAndApi(manifest);
     const { getByTestId } = render(
       <AppDetailPage params={{ key: "test_app", tab: "logs" }} />,
       { wrapper: createWrapper(state) },
     );
-    expect(getByTestId("log-table")).toBeDefined();
+    expect(getByTestId("log-table-drawer")).toBeDefined();
   });
 
   it("code tab has aria-selected=true when params.tab is 'code'", () => {
@@ -618,7 +633,7 @@ describe("AppDetailPage", () => {
       <AppDetailPage params={{ key: "test_app", tab: "logs" }} />,
       { wrapper: createWrapper(state) },
     );
-    expect(getByTestId("log-table")).toBeDefined();
+    expect(getByTestId("log-table-drawer")).toBeDefined();
   });
 
   it("parent page renders config tab content", () => {

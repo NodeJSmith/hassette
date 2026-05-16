@@ -26,3 +26,41 @@
   color: var(--ink-1);
   font-weight: 600;
 }
+
+/* inline-flex wrapper used when filterContent is present */
+.headerInner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+/* Filter trigger button */
+.filterBtn {
+  all: unset;
+  cursor: pointer;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: var(--sp-0);
+  border-radius: var(--r-sm);
+  color: var(--ink-4);
+  transition: color var(--t-fast);
+}
+
+.filterBtn svg {
+  flex-shrink: 0;
+}
+
+.filterBtn:hover {
+  color: var(--ink-2);
+}
+
+.filterBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.filterActive {
+  color: var(--ink-2);
+}
