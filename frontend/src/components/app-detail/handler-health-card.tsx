@@ -65,9 +65,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
         <span aria-hidden="true">
           <StatusShape kind={item.statusKind} size={10} />
         </span>
-        <Tooltip label={item.name}>
-          <span class={styles.name}>{item.name}</span>
-        </Tooltip>
+        <span class={styles.name} title={item.name}>{item.name}</span>
       </div>
 
       {/* Subtitle: kind chip + error type (if failing) */}
