@@ -126,9 +126,13 @@ describe("HandlersPage", () => {
     expect(queryAllByTestId("listener-row-h-2")).toHaveLength(0);
   });
 
-  it("renders a search input", () => {
-    const { getByPlaceholderText } = renderWithAppState(<HandlersPage />);
-    expect(getByPlaceholderText("Search...")).toBeDefined();
+  it("renders a search input above the table", () => {
+    const { getByTestId } = renderWithAppState(<HandlersPage />);
+    const search = getByTestId("handlers-search");
+    expect(search).toBeDefined();
+    // Search should be inside the search slot (data-search-bar attribute)
+    const searchBar = search.closest("[data-search-bar]");
+    expect(searchBar).not.toBeNull();
   });
 
   it("search filters by handler name when ?search= is in URL", () => {
@@ -195,6 +199,33 @@ describe("HandlersPage", () => {
     expect(getAllByTestId(/job-row-/).length).toBe(1);
     expect(queryAllByTestId(/job-row-j-11/).length).toBe(0);
   });
+
+  it("renders a footer with handler and job counts", () => {
+    setupApi({
+      listeners: [
+        createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" }),
+        createListener({ listener_id: 2, app_key: "app_a", handler_method: "on_change", source_tier: "app" }),
+      ],
+      jobs: [
+        createJob({ job_id: 10, app_key: "app_a", job_name: "my_job", source_tier: "app" }),
+      ],
+    });
+    const { getByText } = renderWithAppState(<HandlersPage />);
+    expect(getByText(/2 handlers/i)).toBeDefined();
+    expect(getByText(/1 job/i)).toBeDefined();
+  });
+
+  it("renders a type column filter button (funnel icon) on the type column header", () => {
+    setupApi({
+      listeners: [
+        createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" }),
+      ],
+    });
+    const { getAllByTestId } = renderWithAppState(<HandlersPage />);
+    const filterBtns = getAllByTestId("filter-btn");
+    // At least two filter buttons: type and app columns
+    expect(filterBtns.length).toBeGreaterThanOrEqual(2);
+  });
 });
 
 describe("HandlersPage — query param state (FR#5, AC#6)", () => {
@@ -242,10 +273,13 @@ describe("HandlersPage — query param state (FR#5, AC#6)", () => {
     expect(queryAllByTestId(/job-row-/).length).toBe(0);
   });
 
-  it("changing tier calls qp.set with replace (no new history entry — AC#6)", () => {
-    const { getByRole } = renderWithAppState(<HandlersPage />);
+  it("changing tier via filter popover calls qp.set with replace (no new history entry — AC#6)", () => {
+    const { getAllByTestId, getByRole } = renderWithAppState(<HandlersPage />);
+    // Open the type column filter popover (first filter-btn is the type column)
+    const filterBtns = getAllByTestId("filter-btn");
+    fireEvent.click(filterBtns[0]);
+    // Now the tier toggle buttons are visible in the popover
     fireEvent.click(getByRole("button", { name: /^all$/i }));
-    // mockNavigate is called with replace: true (useQueryParams.set default)
     expect(mockNavigate).toHaveBeenCalledWith(
       expect.stringContaining("tier=all"),
       { replace: true },

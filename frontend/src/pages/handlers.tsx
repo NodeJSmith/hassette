@@ -8,12 +8,15 @@ import { getAllListeners, getAllJobs } from "../api/endpoints";
 import type { ListenerData, JobData } from "../api/endpoints";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
 import { AppLink } from "../components/shared/app-link";
+import { Button } from "../components/shared/button";
 import { Chip } from "../components/shared/chip";
 import { EmptyState } from "../components/shared/empty-state";
 import { SortHeader, type SortState } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { TableCard } from "../components/shared/table-card";
-import { TierToolbar } from "../components/shared/tier-toolbar";
+import { TableFooter } from "../components/shared/table-footer";
+import { type ColumnFilters } from "../components/shared/table-types";
+import popoverStyles from "../components/shared/column-filter-popover/index.module.css";
 import { formatDurationOrDash, pluralize, lastDotSegment } from "../utils/format";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import styles from "./handlers.module.css";
@@ -64,7 +67,7 @@ function jobToRow(j: JobData): UnifiedRow {
     failed: j.failed,
     timed_out: j.timed_out,
     avg_duration_ms: j.avg_duration_ms,
-    next_run_ts: j.next_run === null || j.next_run === undefined ? null : j.next_run,
+    next_run_ts: j.next_run ?? null,
     source_tier: j.source_tier,
   };
 }
@@ -83,7 +86,7 @@ function filterByTier<T extends { source_tier: string }>(items: T[], tier: TierF
   if (tier === "all") return items;
   return tier === "app"
     ? items.filter((i) => i.source_tier === "app")
-    : items.filter((i) => i.source_tier !== "app");
+    : items.filter((i) => i.source_tier === "framework");
 }
 
 // ---- Sort ----
@@ -326,65 +329,159 @@ export function HandlersPage() {
     });
   }
 
+  const clearFilters = () => qp.set({ tier: null, app: null, search: null });
+
+  // ---- Tier filter popover content ----
+  const tierFilterContent = (
+    <div class={popoverStyles.tierGroup}>
+      {(["all", "app", "framework"] as const).map((t) => (
+        <button
+          key={t}
+          type="button"
+          class={clsx(popoverStyles.tierBtn, tierFilter === t && popoverStyles.active)}
+          aria-pressed={tierFilter === t}
+          onClick={() => { qp.set({ tier: t === "app" ? null : t }); }}
+        >
+          {t === "all" ? "All" : t === "app" ? "Apps" : "Framework"}
+        </button>
+      ))}
+    </div>
+  );
+
+  // ---- App filter popover content ----
+  const appFilterContent = (
+    <select
+      aria-label="Filter by app"
+      value={selectedApp}
+      onChange={(e) => { qp.set({ app: (e.target as HTMLSelectElement).value || null }); }}
+      data-testid="handlers-app-filter"
+    >
+      <option value="">all apps</option>
+      {appKeys.map((key) => (
+        <option key={key} value={key}>{key}</option>
+      ))}
+    </select>
+  );
+
+  // Column filters map — single source for desktop popovers and mobile panel
+  const columnFilters: ColumnFilters = {
+    kind: {
+      active: tierFilter !== "app",
+      label: "Type",
+      content: tierFilterContent,
+    },
+    app: {
+      active: selectedApp !== "",
+      label: "App",
+      content: appFilterContent,
+    },
+  };
+
+  const handlerCount = sorted.filter((r) => r.kind === "listener").length;
+  const jobCount = sorted.filter((r) => r.kind === "job").length;
+
+  const searchInput = (
+    <input
+      class="ht-search"
+      type="text"
+      aria-label="Search"
+      placeholder="Search..."
+      value={search}
+      onInput={(e) => { qp.set({ search: (e.target as HTMLInputElement).value || null }); }}
+      data-testid="handlers-search"
+    />
+  );
+
+  const footer = (
+    <TableFooter
+      count={<>{pluralize(handlerCount, "handler")}{" · "}{pluralize(jobCount, "job")}</>}
+      columnFilters={columnFilters}
+      onResetFilters={clearFilters}
+    />
+  );
+
+  function buildEmptyTitle(): string {
+    if (tierFilter !== "app") return `no handlers found for tier: ${tierFilter}.`;
+    if (selectedApp) return `no handlers found for app: ${selectedApp}.`;
+    if (search) return `no handlers match "${search}".`;
+    return "no handlers found.";
+  }
+  const emptyStateTitle = buildEmptyTitle();
+
   return (
     <div class="ht-page" data-testid="handlers-page">
       <div class="ht-page-header">
         <h1 class="ht-display">handlers</h1>
       </div>
 
-      <TableCard
-        count={<>
-          {pluralize(sorted.filter((r) => r.kind === "listener").length, "handler")}
-          {" · "}
-          {pluralize(sorted.filter((r) => r.kind === "job").length, "job")}
-        </>}
-        controls={
-          <TierToolbar
-            tierFilter={tierFilter}
-            onTierChange={(v) => qp.set({ tier: v === "app" ? null : v })}
-            appKeys={appKeys}
-            selectedApp={selectedApp}
-            onAppChange={(v) => qp.set({ app: v || null })}
-            search={search}
-            onSearchChange={(v) => qp.set({ search: v || null })}
-            searchPlaceholder="Search..."
-            testIdPrefix="handlers"
-          />
-        }
-      >
-          {sorted.length === 0 ? (
-            <EmptyState title="no handlers found." data-testid="handlers-empty" />
-          ) : isMobile ? (
-            <div class={styles.mobileCards} data-testid="handlers-table-container">
-              {sorted.map((row) => (
-                <HandlerMobileRow key={row.id} row={row} />
-              ))}
-            </div>
-          ) : (
-            <div data-testid="handlers-table-container">
-              <table class={`ht-table ${styles.handlersTable}`}>
-                <thead>
-                  <tr>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="kind">type</SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="app">app</SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="name">name</SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="trigger">trigger</SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="runs">runs</SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="failed">failed</SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="timed_out">timed out</SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="error_rate">error rate</SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="avg_duration">avg</SortHeader>
-                    <SortHeader sort={sort} onSort={onSort} sortKey="next_run">next run</SortHeader>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sorted.map((row) => (
-                    <HandlerTableRow key={row.id} row={row} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+      <TableCard search={searchInput} footer={footer}>
+        {sorted.length === 0 ? (
+          <EmptyState title={emptyStateTitle} data-testid="handlers-empty">
+            {(tierFilter !== "app" || selectedApp || search) && (
+              <Button ghost size="sm" onClick={clearFilters}>clear filters</Button>
+            )}
+          </EmptyState>
+        ) : isMobile ? (
+          <div class={styles.mobileCards} data-testid="handlers-table-container">
+            {sorted.map((row) => (
+              <HandlerMobileRow key={row.id} row={row} />
+            ))}
+          </div>
+        ) : (
+          <div data-testid="handlers-table-container">
+            <table class={`ht-table ${styles.handlersTable}`}>
+              <colgroup>
+                <col style="width: 7%" />
+                <col style="width: 13%" />
+                <col style="width: 20%" />
+                <col style="width: 13%" />
+                <col style="width: 7%" />
+                <col style="width: 7%" />
+                <col style="width: 9%" />
+                <col style="width: 9%" />
+                <col style="width: 8%" />
+                <col style="width: 7%" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <SortHeader
+                    sort={sort}
+                    onSort={onSort}
+                    sortKey="kind"
+                    ariaLabel="type"
+                    filterContent={columnFilters.kind.content}
+                    hasActiveFilter={columnFilters.kind.active}
+                  >
+                    type
+                  </SortHeader>
+                  <SortHeader
+                    sort={sort}
+                    onSort={onSort}
+                    sortKey="app"
+                    ariaLabel="app"
+                    filterContent={columnFilters.app.content}
+                    hasActiveFilter={columnFilters.app.active}
+                  >
+                    app
+                  </SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="name">name</SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="trigger">trigger</SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="runs">runs</SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="failed">failed</SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="timed_out">timed out</SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="error_rate">error rate</SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="avg_duration">avg</SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="next_run">next run</SortHeader>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((row) => (
+                  <HandlerTableRow key={row.id} row={row} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </TableCard>
     </div>
   );
