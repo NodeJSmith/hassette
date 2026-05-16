@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Evolve TableCard to unified table shell"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1", "FR#8", "AC#1", "AC#9"]
 ---
