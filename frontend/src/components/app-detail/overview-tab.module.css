@@ -101,6 +101,7 @@
 
 .healthGridScroll {
   max-height: calc(3 * 140px + 2 * var(--sp-3));
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
