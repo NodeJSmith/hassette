@@ -201,7 +201,7 @@ The design system uses unprefixed Ink tokens (no `--ht-*` prefix). Light mode is
 - **`--shadow-2`**: `0 2px 8px ... + 0 1px 2px ...` — card prominence
 - **`--shadow-3`**: `0 8px 24px ... + 0 2px 6px ...` — dropdowns, modals, command palette
 - **Dark mode**: Same shadow variables use higher opacity (0.3 / 0.4 / 0.5) against near-black backgrounds.
-- **Usage rule**: Borders are the primary depth mechanism. `--shadow-1` permitted on interactive cards to signal clickability. `--shadow-2`+ reserved for floating surfaces.
+- **Usage rule**: Borders are the primary depth mechanism. `--shadow-1` permitted on interactive cards at rest to signal clickability; `--shadow-2` on hover/active states for interaction feedback. `--shadow-3` reserved for floating surfaces.
 
 ### Border Radius
 
@@ -342,7 +342,7 @@ Data sources: `GET /api/health` (services + boot issues), `useAppState()` signal
 - **No `--ht-*` prefixed tokens** — the old Graphite+Emerald system is replaced; all tokens are unprefixed Ink tokens
 - **No raw hex values in component CSS** — always reference tokens
 - **No sidebar icons** — text-only nav is intentional, not a gap
-- **No shadows on static content** — subtle shadows (`--shadow-1`) are allowed on interactive cards; deeper shadows (`--shadow-2`+) reserved for floating surfaces only
+- **No shadows on static content** — `--shadow-1` at rest and `--shadow-2` on hover for interactive cards; `--shadow-3` reserved for floating surfaces only
 - **No blue/indigo/violet accent** — light mode accent is `ink-1`; dark mode uses restrained periwinkle
 - **No card nesting** — handler rows are list items in bordered containers, not cards inside cards
 - **No bounce/elastic easing** — all transitions use `--ease`
