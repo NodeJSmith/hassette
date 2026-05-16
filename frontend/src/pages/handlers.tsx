@@ -16,7 +16,6 @@ import { Spinner } from "../components/shared/spinner";
 import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
 import { type ColumnFilters } from "../components/shared/table-types";
-import popoverStyles from "../components/shared/column-filter-popover/index.module.css";
 import { formatDurationOrDash, pluralize, lastDotSegment } from "../utils/format";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import styles from "./handlers.module.css";
@@ -76,17 +75,6 @@ function jobToRow(j: JobData): UnifiedRow {
 
 function formatRate(failed: number, total: number): string {
   return total > 0 ? ((failed / total) * 100).toFixed(1) + "%" : "—";
-}
-
-// ---- Tier filter ----
-
-type TierFilter = "all" | "app" | "framework";
-
-function filterByTier<T extends { source_tier: string }>(items: T[], tier: TierFilter): T[] {
-  if (tier === "all") return items;
-  return tier === "app"
-    ? items.filter((i) => i.source_tier === "app")
-    : items.filter((i) => i.source_tier === "framework");
 }
 
 // ---- Sort ----
@@ -252,7 +240,6 @@ export function HandlersPage() {
   const qp = useQueryParams();
 
   // Derive state from URL query params; default values omitted from URL
-  const tierFilter = (qp.get("tier") ?? "app") as TierFilter;
   const selectedApp = qp.get("app") ?? "";
   const search = qp.get("search") ?? "";
   const sort: SortState<SortKey> = {
@@ -297,16 +284,16 @@ export function HandlersPage() {
     ...allJobs.map(jobToRow),
   ];
 
-  // Client-side tier filtering
-  const tierFiltered = filterByTier(allRows, tierFilter);
+  // Only show app-tier handlers (framework handlers are hidden)
+  const appRows = allRows.filter((r) => r.source_tier === "app");
 
   // Unique app keys for filter dropdown
-  const appKeys = [...new Set(tierFiltered.map((r) => r.app_key))].sort();
+  const appKeys = [...new Set(appRows.map((r) => r.app_key))].sort();
 
   // App filter
   const appFiltered = selectedApp
-    ? tierFiltered.filter((r) => r.app_key === selectedApp)
-    : tierFiltered;
+    ? appRows.filter((r) => r.app_key === selectedApp)
+    : appRows;
 
   // Search filter
   const searchLower = search.toLowerCase();
@@ -329,24 +316,7 @@ export function HandlersPage() {
     });
   }
 
-  const clearFilters = () => qp.set({ tier: null, app: null, search: null });
-
-  // ---- Tier filter popover content ----
-  const tierFilterContent = (
-    <div class={popoverStyles.tierGroup}>
-      {(["all", "app", "framework"] as const).map((t) => (
-        <button
-          key={t}
-          type="button"
-          class={clsx(popoverStyles.tierBtn, tierFilter === t && popoverStyles.active)}
-          aria-pressed={tierFilter === t}
-          onClick={() => { qp.set({ tier: t === "app" ? null : t }); }}
-        >
-          {t === "all" ? "All" : t === "app" ? "Apps" : "Framework"}
-        </button>
-      ))}
-    </div>
-  );
+  const clearFilters = () => qp.set({ app: null, search: null });
 
   // ---- App filter popover content ----
   const appFilterContent = (
@@ -365,11 +335,6 @@ export function HandlersPage() {
 
   // Column filters map — single source for desktop popovers and mobile panel
   const columnFilters: ColumnFilters = {
-    kind: {
-      active: tierFilter !== "app",
-      label: "Type",
-      content: tierFilterContent,
-    },
     app: {
       active: selectedApp !== "",
       label: "App",
@@ -401,7 +366,6 @@ export function HandlersPage() {
   );
 
   function buildEmptyTitle(): string {
-    if (tierFilter !== "app") return `no handlers found for tier: ${tierFilter}.`;
     if (selectedApp) return `no handlers found for app: ${selectedApp}.`;
     if (search) return `no handlers match "${search}".`;
     return "no handlers found.";
@@ -417,7 +381,7 @@ export function HandlersPage() {
       <TableCard search={searchInput} footer={footer}>
         {sorted.length === 0 ? (
           <EmptyState title={emptyStateTitle} data-testid="handlers-empty">
-            {(tierFilter !== "app" || selectedApp || search) && (
+            {(selectedApp || search) && (
               <Button ghost size="sm" onClick={clearFilters}>clear filters</Button>
             )}
           </EmptyState>
@@ -444,14 +408,7 @@ export function HandlersPage() {
               </colgroup>
               <thead>
                 <tr>
-                  <SortHeader
-                    sort={sort}
-                    onSort={onSort}
-                    sortKey="kind"
-                    ariaLabel="type"
-                    filterContent={columnFilters.kind.content}
-                    hasActiveFilter={columnFilters.kind.active}
-                  >
+                  <SortHeader sort={sort} onSort={onSort} sortKey="kind" ariaLabel="type">
                     type
                   </SortHeader>
                   <SortHeader

@@ -2,13 +2,16 @@ import { useMemo, useState } from "preact/hooks";
 import { Link, useLocation } from "wouter";
 import clsx from "clsx";
 import { EmptyState } from "../shared/empty-state";
-import { LogTable } from "../shared/log-table";
+import { useLogTable, LogTableView, LogTableWithDrawer } from "../shared/log-table";
+import { TableCard } from "../shared/table-card";
+import { TableFooter } from "../shared/table-footer";
 import { StatusShape } from "../shared/status-shape";
 import { buildItems } from "./handler-list";
 import type { UnifiedItem } from "./unified-handler-row";
 import { handlerKindLabel, executionStatusKind, INACTIVE_STATUSES } from "../../utils/status";
 import { Chip } from "../shared/chip";
 import { pluralize, formatDurationOrDash, formatRelativeTime, lastDotSegment } from "../../utils/format";
+import { useSignal } from "../../hooks/use-signal";
 import { useSubscribe } from "../../hooks/use-subscribe";
 import type { ListenerData, JobData, ActivityFeedEntryData } from "../../api/endpoints";
 import { getAppActivity } from "../../api/endpoints";
@@ -388,20 +391,47 @@ function RecentActivitySection({ appKey, resolvedInstanceIndex }: RecentActivity
 
 function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: string }) {
   const isInactive = appStatus !== undefined && INACTIVE_STATUSES.has(appStatus);
+  const search = useSignal("");
+  useSubscribe(search);
+  const log = useLogTable({ context: "app", appKey, useLocalState: true, search: search.value });
+
+  const emptyTitle = isInactive ? `this app is ${appStatus}` : "no log lines in window";
+  const emptyBody = isInactive
+    ? "no logs have been recorded for this app."
+    : "nothing has been logged recently. change the level filter or extend the time window to see older lines.";
+
+  const searchInput = (
+    <input
+      type="text"
+      class="ht-search"
+      placeholder="Search logs…"
+      aria-label="Search app logs"
+      value={search.value}
+      onInput={(e) => { search.value = (e.target as HTMLInputElement).value; }}
+      data-testid="overview-logs-search"
+    />
+  );
+
+  const footer = (
+    <TableFooter
+      count={log.countLabel}
+      columnFilters={log.columnFilters}
+      onResetFilters={log.hasActiveFilter ? log.resetFilters : undefined}
+    />
+  );
+
   return (
     <section class={styles.section} data-testid="overview-logs-section">
       <h3 class="ht-section-label">logs</h3>
-      <div class={styles.logScroll}>
-        <LogTable
-          context="app"
-          appKey={appKey}
-          useLocalState
-          {...(isInactive ? {
-            emptyTitle: `this app is ${appStatus}`,
-            emptyBody: "no logs have been recorded for this app.",
-          } : {})}
-        />
-      </div>
+      <TableCard search={searchInput} footer={footer} scrollHeight="400px">
+        <LogTableWithDrawer drawerProps={log.drawerProps}>
+          {log.isEmpty ? (
+            <EmptyState title={emptyTitle} body={emptyBody} />
+          ) : (
+            <LogTableView {...log.tableProps} />
+          )}
+        </LogTableWithDrawer>
+      </TableCard>
     </section>
   );
 }

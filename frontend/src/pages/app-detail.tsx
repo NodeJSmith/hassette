@@ -12,14 +12,18 @@ import { ConfigTab } from "../components/app-detail/config-tab";
 import { HandlersTab } from "../components/app-detail/handlers-tab";
 import { OverviewTab } from "../components/app-detail/overview-tab";
 import { ErrorBanner } from "../components/shared/error-banner";
-import { LogTable } from "../components/shared/log-table";
+import { useLogTable, LogTableView, LogTableWithDrawer } from "../components/shared/log-table";
+import { EmptyState } from "../components/shared/empty-state";
+import { TableCard } from "../components/shared/table-card";
+import { TableFooter } from "../components/shared/table-footer";
+import { useSignal } from "../hooks/use-signal";
+import { useSubscribe } from "../hooks/use-subscribe";
 import { Spinner } from "../components/shared/spinner";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { useAppState } from "../state/context";
 import { statusToKind, statusToVariant } from "../utils/status";
 import { StatusShape } from "../components/shared/status-shape";
 import { Badge } from "../components/shared/badge";
-import { Card } from "../components/shared/card";
 import { Chip } from "../components/shared/chip";
 import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-filtered-signal-refetch";
 import styles from "./app-detail.module.css";
@@ -149,6 +153,44 @@ function Tab({ id, label, badge, appKey, instanceQs, activeTab }: {
     >
       {label}{badge !== undefined && <span class={styles.tabBtnBadge}>{badge}</span>}
     </Link>
+  );
+}
+
+function AppLogsPanel({ appKey }: { appKey: string }) {
+  const search = useSignal("");
+  useSubscribe(search);
+  const log = useLogTable({ context: "app", appKey, useLocalState: true, search: search.value });
+
+  const searchInput = (
+    <input
+      type="text"
+      class="ht-search"
+      placeholder="Search logs…"
+      aria-label="Search app logs"
+      value={search.value}
+      onInput={(e) => { search.value = (e.target as HTMLInputElement).value; }}
+      data-testid="app-logs-search"
+    />
+  );
+
+  const footer = (
+    <TableFooter
+      count={log.countLabel}
+      columnFilters={log.columnFilters}
+      onResetFilters={log.hasActiveFilter ? log.resetFilters : undefined}
+    />
+  );
+
+  return (
+    <TableCard search={searchInput} footer={footer} scrollHeight="calc(100vh - 340px)" data-testid="logs-section">
+      <LogTableWithDrawer drawerProps={log.drawerProps}>
+        {log.isEmpty ? (
+          <EmptyState title="no log lines in window" body="nothing has been logged recently." />
+        ) : (
+          <LogTableView {...log.tableProps} />
+        )}
+      </LogTableWithDrawer>
+    </TableCard>
   );
 }
 
@@ -401,9 +443,7 @@ export function AppDetailPage({ params }: Props) {
       )}
       {activeTab === "logs" && (
         <div role="tabpanel" id="tabpanel-logs" aria-labelledby="tab-logs">
-          <Card data-testid="logs-section">
-            <LogTable context="app" appKey={appKey} />
-          </Card>
+          <AppLogsPanel appKey={appKey} />
         </div>
       )}
       {activeTab === "config" && (

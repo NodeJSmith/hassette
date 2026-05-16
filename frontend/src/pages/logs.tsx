@@ -1,7 +1,10 @@
 import { useSignal } from "../hooks/use-signal";
 import { useSubscribe } from "../hooks/use-subscribe";
-import { LogTable } from "../components/shared/log-table";
+import { useLogTable, LogTableView, LogTableWithDrawer } from "../components/shared/log-table";
+import { ColumnPicker } from "../components/shared/log-table/column-picker";
 import { TableCard } from "../components/shared/table-card";
+import { TableFooter } from "../components/shared/table-footer";
+import { EmptyState } from "../components/shared/empty-state";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useAppState } from "../state/context";
 import { useQueryParams } from "../hooks/use-query-params";
@@ -14,9 +17,15 @@ export function LogsPage() {
   const qp = useQueryParams();
   const executionId = qp.get("execution_id");
 
-  // Search state owned by LogsPage — passed to both TableCard (search slot) and LogTable
   const search = useSignal("");
   useSubscribe(search);
+
+  const log = useLogTable({
+    context: "global",
+    appKeys,
+    executionId,
+    search: search.value,
+  });
 
   const searchInput = (
     <input
@@ -30,18 +39,54 @@ export function LogsPage() {
     />
   );
 
+  const footerExtras = (
+    <>
+      {log.livePaused && (
+        <button
+          type="button"
+          class={styles.pausedBtn}
+          onClick={log.resetSort}
+          aria-label="Resume live log streaming"
+        >
+          paused — click to resume
+        </button>
+      )}
+      {!log.isMobile && (
+        <ColumnPicker
+          selectedColumns={log.columnPickerProps.selectedColumns}
+          viewportHidden={log.columnPickerProps.viewportHidden}
+          onToggle={log.columnPickerProps.onToggle}
+          onReset={log.columnPickerProps.onReset}
+        />
+      )}
+    </>
+  );
+
+  const footer = (
+    <TableFooter
+      count={log.countLabel}
+      columnFilters={log.columnFilters}
+      onResetFilters={log.hasActiveFilter ? log.resetFilters : undefined}
+      extras={footerExtras}
+    />
+  );
+
   return (
-    <div class={`ht-page ${styles.page}`} data-testid="logs-page">
+    <div class="ht-page" data-testid="logs-page">
       <div class="ht-page-header">
         <h1 class="ht-display">logs</h1>
       </div>
-      <TableCard search={searchInput} class={styles.cardFull} data-testid="logs-card">
-        <LogTable
-          context="global"
-          appKeys={appKeys}
-          executionId={executionId}
-          search={search.value}
-        />
+      <TableCard search={searchInput} footer={footer} data-testid="logs-card">
+        <LogTableWithDrawer drawerProps={log.drawerProps}>
+          {log.isEmpty ? (
+            <EmptyState
+              title="no log lines in window"
+              body="nothing has been logged recently. change the level filter or extend the time window to see older lines."
+            />
+          ) : (
+            <LogTableView {...log.tableProps} />
+          )}
+        </LogTableWithDrawer>
       </TableCard>
     </div>
   );

@@ -6,46 +6,73 @@ import { useSubscribe } from "../../../hooks/use-subscribe";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../../../hooks/use-media-query";
 import { useAppState } from "../../../state/context";
 import type { LogEntry } from "../../../api/endpoints";
-import type { RowKey, ViewContext } from "./types";
+import type { RowKey, ViewContext, ColumnId, SortColumn, SortConfig, LevelFilter } from "./types";
 import { rowKey } from "./types";
-import { RENDER_CAP, COLUMN_MAP, DEFAULT_LEVEL, LEVEL_OPTIONS, TIER_OPTIONS } from "./constants";
-import type { LevelFilter } from "./types";
+import { RENDER_CAP, DEFAULT_LEVEL, LEVEL_OPTIONS, TIER_OPTIONS } from "./constants";
 import { useLogData } from "./use-log-data";
 import { useLogFilters } from "./use-log-filters";
 import { useColumnVisibility } from "./use-column-visibility";
-import { LogTableHeader } from "./log-table-header";
-import { LogTableRow } from "./log-table-row";
-import { LogDetailDrawer } from "./log-detail-drawer";
-import { ColumnPicker } from "./column-picker";
-import { EmptyState } from "../empty-state";
-import { TableFooter } from "../table-footer";
 import type { ColumnFilters } from "../table-types";
 import { pluralize } from "../../../utils/format";
 import filterStyles from "../column-filter-popover/index.module.css";
-import styles from "./log-table.module.css";
 
-interface Props {
+export interface UseLogTableParams {
   context?: ViewContext;
   appKey?: string;
   appKeys?: string[];
   executionId?: string | null;
   useLocalState?: boolean;
-  emptyTitle?: string;
-  emptyBody?: string;
-  /** External search value — when provided, LogTable forwards it into the filter state immediately. */
   search?: string;
 }
 
-export function LogTable({
+export interface LogTableViewProps {
+  visibleColumns: ColumnId[];
+  sortConfig: SortConfig;
+  onSort: (col: SortColumn) => void;
+  columnFilters: ColumnFilters;
+  entries: LogEntry[];
+  selectedKey: RowKey | null;
+  onRowClick: (entry: LogEntry) => void;
+  isMobile: boolean;
+}
+
+export interface LogDrawerProps {
+  selectedKey: RowKey | null;
+  entries: LogEntry[];
+  onClose: () => void;
+  onNavigate: (key: RowKey) => void;
+}
+
+export interface ColumnPickerProps {
+  selectedColumns: ColumnId[];
+  viewportHidden: ReadonlySet<ColumnId>;
+  onToggle: (id: ColumnId) => void;
+  onReset: () => void;
+}
+
+export interface UseLogTableResult {
+  tableProps: LogTableViewProps;
+  drawerProps: LogDrawerProps;
+  columnFilters: ColumnFilters;
+  countLabel: string;
+  hasActiveFilter: boolean;
+  resetFilters: () => void;
+  livePaused: boolean;
+  resetSort: () => void;
+  columnPickerProps: ColumnPickerProps;
+  isMobile: boolean;
+  isEmpty: boolean;
+  isLoading: boolean;
+}
+
+export function useLogTable({
   context = "global",
   appKey,
   appKeys,
   executionId,
-  useLocalState = false,
-  emptyTitle,
-  emptyBody,
+  useLocalState: useLocal = false,
   search: externalSearch,
-}: Props) {
+}: UseLogTableParams): UseLogTableResult {
   const { visibleColumns, selectedColumns, viewportHidden, toggle, reset } = useColumnVisibility(context);
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const { updateLogSubscription } = useAppState();
@@ -64,7 +91,7 @@ export function LogTable({
   } = useLogFilters({
     allEntries,
     restEntries,
-    useLocalState: useLocalState || !!executionId,
+    useLocalState: useLocal || !!executionId,
     appKey,
   });
 
@@ -73,7 +100,6 @@ export function LogTable({
     updateLogSubscription(level || "DEBUG");
   });
 
-  // When an external search prop is provided, forward it into the filter state.
   const prevExternalSearch = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (externalSearch !== undefined && externalSearch !== prevExternalSearch.current) {
@@ -87,27 +113,22 @@ export function LogTable({
   const paused = livePaused.value;
   const isLoading = loading.value;
 
-  const colCount = visibleColumns.length;
-
   const handleRowClick = useCallback((entry: LogEntry) => {
     const key = rowKey(entry);
     selectedKey.value = selectedKey.value === key ? null : key;
-  }, []);
-
-  const handleDrawerNavigate = useCallback((key: RowKey) => {
-    selectedKey.value = key;
   }, []);
 
   const handleDrawerClose = useCallback(() => {
     selectedKey.value = null;
   }, []);
 
-  const drawerOpen = selectedKey.value !== null;
+  const handleDrawerNavigate = useCallback((key: RowKey) => {
+    selectedKey.value = key;
+  }, []);
 
   const hasActiveFilter = state.level !== DEFAULT_LEVEL
     || state.tier !== defaultTier || state.app !== "" || state.func !== "" || state.search !== "";
 
-  // Count label — mirrors the logic from the former LogTableFooter
   const isTruncated = entries.length > RENDER_CAP;
   const countLabel = isTruncated
     ? `showing ${RENDER_CAP} of ${entries.length}`
@@ -185,89 +206,39 @@ export function LogTable({
     },
   }), [state.level, state.tier, state.app, state.func, defaultTier, appKeys, setLevel, setTier, setApp, setFunc]);
 
-  // Extras for TableFooter: paused indicator + ColumnPicker (desktop only)
-  const footerExtras = (
-    <>
-      {paused && (
-        <button
-          type="button"
-          class={styles.pausedBtn}
-          onClick={resetSort}
-          aria-label="Resume live log streaming"
-        >
-          paused — click to resume
-        </button>
-      )}
-      {!isMobile && (
-        <ColumnPicker
-          selectedColumns={selectedColumns}
-          viewportHidden={viewportHidden}
-          onToggle={toggle}
-          onReset={reset}
-        />
-      )}
-    </>
-  );
+  const cappedEntries = entries.slice(0, RENDER_CAP);
 
-  return (
-    <div class={clsx(styles.wrapper, drawerOpen && styles.drawerOpen)}>
-      <div class={styles.tableArea}>
-        <div class={styles.scroll}>
-          <table class="ht-table" data-testid="log-table">
-            <colgroup>
-              {visibleColumns.map((id) => {
-                const col = COLUMN_MAP[id];
-                const w = isMobile ? col.mobileWidth : col.width;
-                return <col key={id} style={w ? { width: w } : undefined} />;
-              })}
-            </colgroup>
-            <LogTableHeader
-              visibleColumns={visibleColumns}
-              sortConfig={state.sort}
-              onSort={setSort}
-              columnFilters={columnFilters}
-            />
-            <tbody>
-              {!isLoading && entries.length === 0 && (
-                <tr>
-                  <td colSpan={colCount}>
-                    <EmptyState
-                      title={emptyTitle ?? "no log lines in window"}
-                      body={emptyBody ?? "nothing has been logged recently. change the level filter or extend the time window to see older lines."}
-                    />
-                  </td>
-                </tr>
-              )}
-              {entries.slice(0, RENDER_CAP).map((entry) => {
-                const key = rowKey(entry);
-                return (
-                  <LogTableRow
-                    key={key}
-                    entry={entry}
-                    rowKey={key}
-                    visibleColumns={visibleColumns}
-                    isSelected={selectedKey.value === key}
-                    onClick={() => handleRowClick(entry)}
-                  />
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <TableFooter
-          count={countLabel}
-          columnFilters={columnFilters}
-          onResetFilters={hasActiveFilter ? resetFilters : undefined}
-          extras={footerExtras}
-        />
-      </div>
-
-      <LogDetailDrawer
-        selectedKey={selectedKey.value}
-        entries={entries}
-        onClose={handleDrawerClose}
-        onNavigate={handleDrawerNavigate}
-      />
-    </div>
-  );
+  return {
+    tableProps: {
+      visibleColumns,
+      sortConfig: state.sort,
+      onSort: setSort,
+      columnFilters,
+      entries: cappedEntries,
+      selectedKey: selectedKey.value,
+      onRowClick: handleRowClick,
+      isMobile,
+    },
+    drawerProps: {
+      selectedKey: selectedKey.value,
+      entries: cappedEntries,
+      onClose: handleDrawerClose,
+      onNavigate: handleDrawerNavigate,
+    },
+    columnFilters,
+    countLabel,
+    hasActiveFilter,
+    resetFilters,
+    livePaused: paused,
+    resetSort,
+    columnPickerProps: {
+      selectedColumns,
+      viewportHidden,
+      onToggle: toggle,
+      onReset: reset,
+    },
+    isMobile,
+    isEmpty: !isLoading && entries.length === 0,
+    isLoading,
+  };
 }

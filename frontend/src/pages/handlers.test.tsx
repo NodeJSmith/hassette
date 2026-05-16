@@ -97,18 +97,6 @@ describe("HandlersPage", () => {
     expect(getAllByTestId(/job-row-/).length).toBe(1);
   });
 
-  it("shows all tiers when ?tier=all is in URL", () => {
-    mockSearch = "tier=all";
-    setupApi({
-      listeners: [
-        createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" }),
-        createListener({ listener_id: 2, app_key: "fw_app", handler_method: "fw_handler", source_tier: "framework" }),
-      ],
-    });
-    const { getAllByTestId } = renderWithAppState(<HandlersPage />);
-    expect(getAllByTestId(/listener-row-/).length).toBe(2);
-  });
-
   it("filters by selected app when ?app=app_a is in URL", () => {
     mockSearch = "app=app_a";
     setupApi({
@@ -215,7 +203,7 @@ describe("HandlersPage", () => {
     expect(getByText(/1 job/i)).toBeDefined();
   });
 
-  it("renders a type column filter button (funnel icon) on the type column header", () => {
+  it("renders an app column filter button (funnel icon) on the app column header", () => {
     setupApi({
       listeners: [
         createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" }),
@@ -223,8 +211,7 @@ describe("HandlersPage", () => {
     });
     const { getAllByTestId } = renderWithAppState(<HandlersPage />);
     const filterBtns = getAllByTestId("filter-btn");
-    // At least two filter buttons: type and app columns
-    expect(filterBtns.length).toBeGreaterThanOrEqual(2);
+    expect(filterBtns.length).toBe(1);
   });
 });
 
@@ -243,21 +230,6 @@ describe("HandlersPage — query param state (FR#5, AC#6)", () => {
     });
   });
 
-  it("reads tier filter from URL query param — ?tier=all shows all tiers", () => {
-    mockSearch = "tier=all";
-    const { getAllByTestId } = renderWithAppState(<HandlersPage />);
-    // tier=all should show the framework handler too
-    expect(getAllByTestId(/listener-row-/).length).toBe(2);
-  });
-
-  it("reads tier filter from URL query param — ?tier=framework shows only framework items", () => {
-    mockSearch = "tier=framework";
-    const { getAllByTestId, queryAllByTestId } = renderWithAppState(<HandlersPage />);
-    expect(getAllByTestId(/listener-row-/).length).toBe(1);
-    // the app-tier job should not be visible
-    expect(queryAllByTestId(/job-row-/).length).toBe(0);
-  });
-
   it("reads search from URL query param — ?search=event filters results", () => {
     // "on_event" is the app-tier handler; default tier=app, so search "event" should return it
     mockSearch = "search=event";
@@ -271,19 +243,6 @@ describe("HandlersPage — query param state (FR#5, AC#6)", () => {
     expect(getAllByTestId(/listener-row-/).length).toBe(1);
     // app_b job should be excluded
     expect(queryAllByTestId(/job-row-/).length).toBe(0);
-  });
-
-  it("changing tier via filter popover calls qp.set with replace (no new history entry — AC#6)", () => {
-    const { getAllByTestId, getByRole } = renderWithAppState(<HandlersPage />);
-    // Open the type column filter popover (first filter-btn is the type column)
-    const filterBtns = getAllByTestId("filter-btn");
-    fireEvent.click(filterBtns[0]);
-    // Now the tier toggle buttons are visible in the popover
-    fireEvent.click(getByRole("button", { name: /^all$/i }));
-    expect(mockNavigate).toHaveBeenCalledWith(
-      expect.stringContaining("tier=all"),
-      { replace: true },
-    );
   });
 
   it("changing sort calls qp.set with replace (no new history entry — AC#6)", () => {

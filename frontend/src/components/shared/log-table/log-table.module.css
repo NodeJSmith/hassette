@@ -3,7 +3,6 @@
   --drawer-width: 400px;
   display: grid;
   grid-template-columns: 1fr;
-  height: 100%;
   transition: grid-template-columns var(--t-med) var(--ease);
 }
 
@@ -20,43 +19,5 @@
 }
 
 .tableArea {
-  display: flex;
-  flex-direction: column;
   min-width: 0;
-  overflow: hidden;
-}
-
-.scroll {
-  flex: 1;
-  overflow: auto;
-}
-
-/* Paused indicator button — appears in TableFooter extras when sorting by non-timestamp column */
-.pausedBtn {
-  all: unset;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  font-family: var(--font-body);
-  font-size: var(--fs-micro);
-  font-weight: 500;
-  color: var(--warn);
-  padding: var(--sp-0) var(--sp-2);
-  border-radius: var(--r-sm);
-  transition: background var(--t-fast);
-}
-
-.pausedBtn:hover {
-  background: var(--warn-bg);
-}
-
-.pausedBtn:focus-visible {
-  outline: 2px solid var(--warn);
-  outline-offset: 2px;
-}
-
-/* Mobile adjustments — 768px = BREAKPOINT_MOBILE from use-media-query.ts */
-@media screen and (max-width: 768px) {
-  .scroll { font-size: var(--fs-micro); }
 }

@@ -18,27 +18,22 @@ vi.mock("wouter", () => ({
 }));
 
 vi.mock("../components/shared/log-table", () => ({
-  LogTable: ({
-    context,
-    appKeys,
-    executionId,
-    search,
-  }: {
-    context?: string;
-    appKeys?: string[];
-    executionId?: string | null;
-    search?: string;
-  }) => {
-    return (
-      <div
-        data-testid="log-table"
-        data-context={context ?? "global"}
-        data-app-keys={(appKeys ?? []).join(",")}
-        data-execution-id={executionId ?? ""}
-        data-search={search ?? ""}
-      />
-    );
-  },
+  useLogTable: () => ({
+    tableProps: { visibleColumns: [], sortConfig: { column: "timestamp", asc: false }, onSort: vi.fn(), columnFilters: {}, entries: [], selectedKey: null, onRowClick: vi.fn(), isMobile: false },
+    drawerProps: { selectedKey: null, entries: [], onClose: vi.fn(), onNavigate: vi.fn() },
+    columnFilters: {},
+    countLabel: "0 entries",
+    hasActiveFilter: false,
+    resetFilters: vi.fn(),
+    livePaused: false,
+    resetSort: vi.fn(),
+    columnPickerProps: { selectedColumns: [], viewportHidden: new Set(), onToggle: vi.fn(), onReset: vi.fn() },
+    isMobile: false,
+    isEmpty: true,
+    isLoading: false,
+  }),
+  LogTableView: () => <div data-testid="log-table-view" />,
+  LogTableWithDrawer: ({ children }: { children: preact.ComponentChildren }) => <div data-testid="log-table-with-drawer">{children}</div>,
 }));
 
 function withManifests(manifests: ReturnType<typeof createManifest>[]) {
@@ -61,66 +56,28 @@ describe("LogsPage", () => {
     expect(getByTestId("logs-card")).toBeDefined();
   });
 
-  it("renders LogTable component", () => {
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("log-table")).toBeDefined();
-  });
-
-  it("passes context=global to LogTable", () => {
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("log-table").getAttribute("data-context")).toBe("global");
-  });
-
-  it("passes sorted app keys from manifests to LogTable", () => {
-    const manifests = [
-      createManifest({ app_key: "zebra_app" }),
-      createManifest({ app_key: "alpha_app" }),
-    ];
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests(manifests));
-    expect(getByTestId("log-table").getAttribute("data-app-keys")).toBe("alpha_app,zebra_app");
-  });
-
-  it("passes empty app keys when manifests have no data", () => {
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("log-table").getAttribute("data-app-keys")).toBe("");
-  });
-
-  it("renders page-level h1 heading", () => {
+  it("renders page heading", () => {
     const { container } = renderWithAppState(<LogsPage />, withManifests([]));
     expect(container.querySelector("h1.ht-display")?.textContent).toBe("logs");
   });
 
-  it("passes no executionId when URL param is absent", () => {
-    mockSearchSignal.value = "";
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("log-table").getAttribute("data-execution-id")).toBe("");
-  });
-
-  it("passes executionId when URL param is present", () => {
-    mockSearchSignal.value = "execution_id=abc-123";
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("log-table").getAttribute("data-execution-id")).toBe("abc-123");
-  });
-
-  it("renders single layout regardless of execution_id presence", () => {
-    mockSearchSignal.value = "execution_id=abc-123";
-    const { queryByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(queryByTestId("logs-card")).not.toBeNull();
-  });
-
-  it("renders search input above the table in the card", () => {
+  it("renders search input in the card search slot", () => {
     const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
     const searchInput = getByTestId("logs-search");
-    const logTable = getByTestId("log-table");
-    // Search input should be in the document and appear before the log table
     expect(searchInput).toBeDefined();
-    expect(logTable).toBeDefined();
-    // Verify search input has correct aria-label
     expect(searchInput.getAttribute("aria-label")).toBe("Search logs");
+    const searchBar = searchInput.closest("[data-search-bar]");
+    expect(searchBar).not.toBeNull();
   });
 
-  it("passes initial empty search to LogTable", () => {
+  it("renders LogTableWithDrawer inside the card", () => {
     const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
-    expect(getByTestId("log-table").getAttribute("data-search")).toBe("");
+    expect(getByTestId("log-table-with-drawer")).toBeDefined();
+  });
+
+  it("renders footer slot in card", () => {
+    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
+    const card = getByTestId("logs-card");
+    expect(card.querySelector("[data-footer-slot]")).not.toBeNull();
   });
 });

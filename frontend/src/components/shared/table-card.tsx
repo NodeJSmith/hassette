@@ -30,6 +30,8 @@ export function TableCard({
         <div
           data-search-bar
           style={{
+            display: "flex",
+            justifyContent: "flex-end",
             padding: "var(--sp-2) var(--sp-3)",
             borderBottom: "1px solid var(--line-2)",
           }}

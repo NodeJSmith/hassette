@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "preact/hooks";
+import { useEffect, useCallback, useRef } from "preact/hooks";
 import clsx from "clsx";
 import { Link } from "wouter";
 import type { LogEntry } from "../../../api/endpoints";
@@ -47,6 +47,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: Props) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const isTablet = useMediaQuery(BREAKPOINT_TABLET);
+  const drawerRef = useRef<HTMLElement>(null);
 
   const entry = selectedKey ? entries.find((e) => rowKey(e) === selectedKey) ?? null : null;
   const currentIndex = entry ? entries.findIndex((e) => rowKey(e) === selectedKey) : -1;
@@ -78,6 +79,20 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [selectedKey, onClose, navigatePrev, navigateNext]);
 
+  useEffect(() => {
+    if (selectedKey === null) return;
+
+    function handleMouseDown(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (drawerRef.current?.contains(target)) return;
+      if (target.closest("tbody")) return;
+      onClose();
+    }
+
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [selectedKey, onClose]);
+
   if (selectedKey === null) return null;
 
   const useOverlay = isMobile || isTablet;
@@ -88,6 +103,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
         <div class={styles.backdrop} onClick={onClose} aria-hidden="true" />
       )}
       <aside
+        ref={drawerRef}
         class={clsx(styles.drawer, isMobile ? styles.bottomSheet : styles.sidePanel)}
         role="complementary"
         aria-label="Log entry detail"
