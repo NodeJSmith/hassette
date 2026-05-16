@@ -1,10 +1,9 @@
 import clsx from "clsx";
 import { Chip } from "../components/shared/chip";
 import { AppLink } from "../components/shared/app-link";
-import { formatDurationOrDash } from "../utils/format";
+import { formatDurationOrDash, formatRate } from "../utils/format";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import type { UnifiedRow } from "./handlers-types";
-import { formatRate } from "./handlers-types";
 import styles from "./handlers.module.css";
 
 function KindBadge({ kind }: { kind: "listener" | "job" }) {

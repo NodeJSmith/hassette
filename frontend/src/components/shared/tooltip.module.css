@@ -27,7 +27,8 @@
   z-index: var(--z-tooltip);
 }
 
-.trigger:hover::after {
+.trigger:hover::after,
+.trigger:focus-visible::after {
   opacity: 1;
 }
 

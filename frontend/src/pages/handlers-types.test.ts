@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { listenerToRow, jobToRow, formatRate, compareHandlerRows } from "./handlers-types";
+import { listenerToRow, jobToRow, compareHandlerRows } from "./handlers-types";
 import type { UnifiedRow, HandlerSortKey } from "./handlers-types";
 import type { SortState } from "../components/shared/sort-header";
 import { createListener, createJob } from "../test/factories";
@@ -153,38 +153,6 @@ describe("jobToRow", () => {
   it("sets next_run_ts to null when next_run is null", () => {
     const row = jobToRow(createJob({ next_run: null }));
     expect(row.next_run_ts).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// formatRate
-// ---------------------------------------------------------------------------
-
-describe("formatRate", () => {
-  it("returns em-dash when total is 0", () => {
-    expect(formatRate(0, 0)).toBe("—");
-  });
-
-  it("returns em-dash when total is 0 even with non-zero failed", () => {
-    // guard against caller passing mismatched counts
-    expect(formatRate(5, 0)).toBe("—");
-  });
-
-  it("formats 0 failures out of positive total as 0.0%", () => {
-    expect(formatRate(0, 100)).toBe("0.0%");
-  });
-
-  it("formats a partial failure rate correctly", () => {
-    expect(formatRate(1, 4)).toBe("25.0%");
-  });
-
-  it("formats 100% failure", () => {
-    expect(formatRate(10, 10)).toBe("100.0%");
-  });
-
-  it("rounds to one decimal place", () => {
-    // 1/3 = 33.333…% → "33.3%"
-    expect(formatRate(1, 3)).toBe("33.3%");
   });
 });
 

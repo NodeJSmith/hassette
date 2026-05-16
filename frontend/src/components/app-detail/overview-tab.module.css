@@ -108,6 +108,7 @@
 .healthGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  max-width: calc(3 * 280px + 2 * var(--sp-3));
   gap: var(--sp-3);
 }
 

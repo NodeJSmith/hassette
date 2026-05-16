@@ -24,7 +24,7 @@ export function sortedByFailingFirst(items: UnifiedItem[]): UnifiedItem[] {
 }
 
 export function itemErrorType(item: UnifiedItem): string | null {
-  return item.data.last_error_type ?? null;
+  return item.data.last_error_type ?? (item.data.timed_out > 0 ? "timed out" : null);
 }
 
 export function itemErrorMessage(item: UnifiedItem): string | null {

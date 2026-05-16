@@ -51,10 +51,6 @@ export function jobToRow(j: JobData): UnifiedRow {
   };
 }
 
-export function formatRate(failed: number, total: number): string {
-  return total > 0 ? ((failed / total) * 100).toFixed(1) + "%" : "—";
-}
-
 export type HandlerSortKey = "kind" | "app" | "name" | "trigger" | "runs" | "failed" | "timed_out" | "error_rate" | "avg_duration" | "next_run";
 
 export function compareHandlerRows(a: UnifiedRow, b: UnifiedRow, sort: SortState<HandlerSortKey>): number {

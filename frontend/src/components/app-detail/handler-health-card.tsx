@@ -17,7 +17,7 @@ import {
   itemErrorType,
   itemErrorMessage,
   itemKindChip,
-} from "./overview-tab";
+} from "./overview-tab-helpers";
 import styles from "./handler-health-card.module.css";
 
 interface HandlerHealthCardProps {
@@ -37,7 +37,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
   const href = handlerPath(appKey, item, instanceQs);
   const failing = isFailing(item);
   const chipLabel = itemKindChip(item);
-  const errorType = failing ? (itemErrorType(item) ?? (item.data.timed_out > 0 ? "timed out" : null)) : null;
+  const errorType = failing ? itemErrorType(item) : null;
   const errorMessage = failing ? itemErrorMessage(item) : null;
   const runCount = itemRunCount(item);
   const callLabel = item.kind === "listener" ? "call" : "run";
