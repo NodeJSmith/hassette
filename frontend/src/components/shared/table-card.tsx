@@ -9,6 +9,7 @@ interface TableCardProps {
   footer?: ComponentChildren;
   scrollHeight?: string;
   class?: string;
+  "data-testid"?: string;
   children: ComponentChildren;
   containerRef?: preact.Ref<HTMLDivElement>;
 
@@ -28,6 +29,7 @@ export function TableCard({
   footer,
   scrollHeight,
   class: className,
+  "data-testid": testId,
   children,
   containerRef,
   // deprecated
@@ -41,7 +43,7 @@ export function TableCard({
   const showDeprecatedToolbar = !search && (title || count || controls);
 
   return (
-    <Card variant="compact" class={className} containerRef={ref}>
+    <Card variant="compact" class={className} containerRef={ref} data-testid={testId}>
       {showDeprecatedToolbar && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--sp-3)", marginBottom: "var(--sp-3)", flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: "var(--sp-3)" }}>

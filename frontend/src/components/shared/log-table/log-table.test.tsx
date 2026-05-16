@@ -126,7 +126,9 @@ describe("Level filtering", () => {
     expect(getByText("info msg")).toBeDefined();
     expect(getByText("error msg")).toBeDefined();
 
-    fireEvent.click(getByTestId("filter-level-btn"));
+    // SortHeader renders the filter button with data-testid="filter-btn" inside the <th>
+    const levelTh = getByTestId("sort-level");
+    fireEvent.click(levelTh.querySelector('[data-testid="filter-btn"]')!);
     const dialog = document.querySelector("[role='dialog']")!;
     fireEvent.change(dialog.querySelector("select")!, { target: { value: "" } });
     expect(getByText("debug msg")).toBeDefined();
@@ -151,7 +153,8 @@ describe("Sorting", () => {
     state.logs.push(createLogEntry({ timestamp: 2000, message: "newer" }));
 
     const { container, getByTestId } = render(<LogTable />, { wrapper: createWrapper(state) });
-    const sortBtn = getByTestId("sort-timestamp") as HTMLElement;
+    // SortHeader puts data-testid on the <th>; the sort button is inside it
+    const sortBtn = getByTestId("sort-timestamp").querySelector('[data-testid="sort-header-btn"]') as HTMLElement;
     fireEvent.click(sortBtn);
 
     const rowsAfter = container.querySelectorAll("tbody tr");
@@ -161,7 +164,8 @@ describe("Sorting", () => {
   it("sets aria-sort on active column", () => {
     state.logs.push(createLogEntry());
     const { getByTestId } = render(<LogTable />, { wrapper: createWrapper(state) });
-    const th = getByTestId("sort-timestamp").closest("th")!;
+    // SortHeader puts aria-sort on the <th> element which has data-testid="sort-timestamp"
+    const th = getByTestId("sort-timestamp");
     expect(th.getAttribute("aria-sort")).toBe("descending");
   });
 });
@@ -352,7 +356,8 @@ describe("Live pause", () => {
     state.logs.push(createLogEntry());
 
     const { getByTestId, getByText } = render(<LogTable />, { wrapper: createWrapper(state) });
-    fireEvent.click(getByTestId("sort-level"));
+    // SortHeader puts data-testid on the <th>; sort button is inside it
+    fireEvent.click(getByTestId("sort-level").querySelector('[data-testid="sort-header-btn"]')!);
     expect(getByText(/paused/)).toBeDefined();
   });
 
@@ -364,7 +369,7 @@ describe("Live pause", () => {
       <LogTable />, { wrapper: createWrapper(state) },
     );
 
-    fireEvent.click(getByTestId("sort-level"));
+    fireEvent.click(getByTestId("sort-level").querySelector('[data-testid="sort-header-btn"]')!);
     expect(queryByText(/paused/)).not.toBeNull();
 
     fireEvent.click(getByText(/paused/));
@@ -487,7 +492,8 @@ describe("Tier filtering", () => {
 
     const { getByText, getByTestId } = render(<LogTable />, { wrapper: createWrapper(state) });
 
-    fireEvent.click(getByTestId("filter-app-btn"));
+    // SortHeader puts data-testid on the <th>; filter button is inside
+    fireEvent.click(getByTestId("sort-app").querySelector('[data-testid="filter-btn"]')!);
     const dialog = document.querySelector("[role='dialog']")!;
     const allBtn = Array.from(dialog.querySelectorAll("button")).find((b) => b.textContent === "All")!;
     fireEvent.click(allBtn);
@@ -506,7 +512,8 @@ describe("App filtering", () => {
       <LogTable appKeys={["alpha", "beta"]} />, { wrapper: createWrapper(state) },
     );
 
-    fireEvent.click(getByTestId("filter-app-btn"));
+    // SortHeader puts data-testid on the <th>; filter button is inside
+    fireEvent.click(getByTestId("sort-app").querySelector('[data-testid="filter-btn"]')!);
     const dialog = document.querySelector("[role='dialog']")!;
     const select = dialog.querySelector("select")!;
     fireEvent.change(select, { target: { value: "alpha" } });
@@ -525,7 +532,8 @@ describe("Function name filtering", () => {
       <LogTable />, { wrapper: createWrapper(state) },
     );
 
-    fireEvent.click(getByTestId("filter-function-btn"));
+    // SortHeader puts data-testid on the <th>; filter button is inside
+    fireEvent.click(getByTestId("sort-function").querySelector('[data-testid="filter-btn"]')!);
     const dialog = document.querySelector("[role='dialog']")!;
     const input = dialog.querySelector("input[type='text']")!;
     fireEvent.input(input, { target: { value: "initialize" } });
@@ -536,14 +544,13 @@ describe("Function name filtering", () => {
 });
 
 describe("Search filtering", () => {
-  it("updates search input value on typing", () => {
+  it("accepts external search prop without errors", () => {
     state.logs.push(createLogEntry({ message: "findable text" }));
-
-    const { container } = render(<LogTable />, { wrapper: createWrapper(state) });
-    const searchInput = container.querySelector("input[aria-label='Search logs']") as HTMLInputElement;
-    fireEvent.input(searchInput, { target: { value: "findable" } });
-
-    expect(searchInput.value).toBe("findable");
+    const { getByText } = render(
+      <LogTable search="" />,
+      { wrapper: createWrapper(state) },
+    );
+    expect(getByText("findable text")).toBeDefined();
   });
 });
 

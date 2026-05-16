@@ -29,25 +29,34 @@
 .scroll {
   flex: 1;
   overflow: auto;
-  max-height: var(--log-table-scroll-height, calc(100vh - 270px));
 }
 
-.table {
-  table-layout: fixed;
-  width: 100%;
-  border-collapse: collapse;
+/* Paused indicator button — appears in TableFooter extras when sorting by non-timestamp column */
+.pausedBtn {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-family: var(--font-body);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--warn);
+  padding: var(--sp-0) var(--sp-2);
+  border-radius: var(--r-sm);
+  transition: background var(--t-fast);
 }
 
-.table td {
-  padding: var(--sp-2) var(--sp-3);
-  vertical-align: top;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  border-bottom: 1px solid var(--line-2);
+.pausedBtn:hover {
+  background: var(--warn-bg);
+}
+
+.pausedBtn:focus-visible {
+  outline: 2px solid var(--warn);
+  outline-offset: 2px;
 }
 
 /* Mobile adjustments — 768px = BREAKPOINT_MOBILE from use-media-query.ts */
 @media screen and (max-width: 768px) {
-  .table { table-layout: fixed; }
-  .table td { font-size: var(--fs-micro); }
+  .scroll { font-size: var(--fs-micro); }
 }

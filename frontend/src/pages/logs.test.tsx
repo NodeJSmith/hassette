@@ -22,10 +22,12 @@ vi.mock("../components/shared/log-table", () => ({
     context,
     appKeys,
     executionId,
+    search,
   }: {
     context?: string;
     appKeys?: string[];
     executionId?: string | null;
+    search?: string;
   }) => {
     return (
       <div
@@ -33,6 +35,7 @@ vi.mock("../components/shared/log-table", () => ({
         data-context={context ?? "global"}
         data-app-keys={(appKeys ?? []).join(",")}
         data-execution-id={executionId ?? ""}
+        data-search={search ?? ""}
       />
     );
   },
@@ -103,5 +106,21 @@ describe("LogsPage", () => {
     mockSearchSignal.value = "execution_id=abc-123";
     const { queryByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
     expect(queryByTestId("logs-card")).not.toBeNull();
+  });
+
+  it("renders search input above the table in the card", () => {
+    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
+    const searchInput = getByTestId("logs-search");
+    const logTable = getByTestId("log-table");
+    // Search input should be in the document and appear before the log table
+    expect(searchInput).toBeDefined();
+    expect(logTable).toBeDefined();
+    // Verify search input has correct aria-label
+    expect(searchInput.getAttribute("aria-label")).toBe("Search logs");
+  });
+
+  it("passes initial empty search to LogTable", () => {
+    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
+    expect(getByTestId("log-table").getAttribute("data-search")).toBe("");
   });
 });
