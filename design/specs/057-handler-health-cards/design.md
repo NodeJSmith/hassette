@@ -1,7 +1,7 @@
 # Design: Handler Health Cards
 
 **Date:** 2026-05-15
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 
 ## Problem
