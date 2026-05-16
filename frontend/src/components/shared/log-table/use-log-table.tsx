@@ -134,77 +134,84 @@ export function useLogTable({
     ? `showing ${RENDER_CAP} of ${entries.length}`
     : pluralize(entries.length, "entry", "entries");
 
-  const columnFilters: ColumnFilters = useMemo(() => ({
-    level: {
-      active: state.level !== DEFAULT_LEVEL,
-      label: "Level",
-      content: (
-        <div>
-          <div class={filterStyles.heading}>Minimum level</div>
-          <select
-            value={state.level}
-            onChange={(e) => setLevel((e.target as HTMLSelectElement).value as LevelFilter)}
-            data-testid="filter-level"
-          >
-            {LEVEL_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
-      ),
-    },
-    app: {
-      active: state.tier !== defaultTier || state.app !== "",
-      label: "App",
-      content: (
-        <div>
-          <div class={filterStyles.tierGroup}>
-            {TIER_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                class={clsx(filterStyles.tierBtn, state.tier === opt.value && filterStyles.active)}
-                onClick={() => setTier(opt.value)}
-              >
-                {opt.label}
-              </button>
-            ))}
+  const columnFilters: ColumnFilters = useMemo(() => {
+    const filters: ColumnFilters = {
+      level: {
+        active: state.level !== DEFAULT_LEVEL,
+        label: "Level",
+        content: (
+          <div>
+            <div class={filterStyles.heading}>Minimum level</div>
+            <select
+              value={state.level}
+              onChange={(e) => setLevel((e.target as HTMLSelectElement).value as LevelFilter)}
+              data-testid="filter-level"
+            >
+              {LEVEL_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
           </div>
-          {state.tier !== "framework" && appKeys && appKeys.length > 0 && (
-            <>
-              <div class={filterStyles.heading}>App</div>
-              <select
-                value={state.app}
-                onChange={(e) => setApp((e.target as HTMLSelectElement).value)}
-                data-testid="filter-app"
-              >
-                <option value="">All apps</option>
-                {appKeys.map((key) => (
-                  <option key={key} value={key}>{key}</option>
-                ))}
-              </select>
-            </>
-          )}
-        </div>
-      ),
-    },
-    function: {
-      active: state.func !== "",
-      label: "Function",
-      content: (
-        <div>
-          <div class={filterStyles.heading}>Function name</div>
-          <input
-            type="text"
-            value={state.func}
-            placeholder="Filter..."
-            onInput={(e) => setFunc((e.target as HTMLInputElement).value)}
-            data-testid="filter-fn"
-          />
-        </div>
-      ),
-    },
-  }), [state.level, state.tier, state.app, state.func, defaultTier, appKeys, setLevel, setTier, setApp, setFunc]);
+        ),
+      },
+      function: {
+        active: state.func !== "",
+        label: "Function",
+        content: (
+          <div>
+            <div class={filterStyles.heading}>Function name</div>
+            <input
+              type="text"
+              value={state.func}
+              placeholder="Filter..."
+              onInput={(e) => setFunc((e.target as HTMLInputElement).value)}
+              data-testid="filter-fn"
+            />
+          </div>
+        ),
+      },
+    };
+
+    if (!appKey) {
+      filters.app = {
+        active: state.tier !== defaultTier || state.app !== "",
+        label: "App",
+        content: (
+          <div>
+            <div class={filterStyles.tierGroup}>
+              {TIER_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  class={clsx(filterStyles.tierBtn, state.tier === opt.value && filterStyles.active)}
+                  onClick={() => setTier(opt.value)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {state.tier !== "framework" && appKeys && appKeys.length > 0 && (
+              <>
+                <div class={filterStyles.heading}>App</div>
+                <select
+                  value={state.app}
+                  onChange={(e) => setApp((e.target as HTMLSelectElement).value)}
+                  data-testid="filter-app"
+                >
+                  <option value="">All apps</option>
+                  {appKeys.map((key) => (
+                    <option key={key} value={key}>{key}</option>
+                  ))}
+                </select>
+              </>
+            )}
+          </div>
+        ),
+      };
+    }
+
+    return filters;
+  }, [state.level, state.tier, state.app, state.func, defaultTier, appKey, appKeys, setLevel, setTier, setApp, setFunc]);
 
   const cappedEntries = entries.slice(0, RENDER_CAP);
 
