@@ -68,6 +68,7 @@
 
 /* Error message — single-line truncated */
 .errorMessage {
+  display: block;
   font-size: var(--fs-small);
   color: var(--ink-3);
   overflow: hidden;

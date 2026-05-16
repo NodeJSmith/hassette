@@ -44,7 +44,6 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
   const avgDuration = item.data.avg_duration_ms ?? null;
   const lastActiveAt = itemLastActiveAt(item);
   const failed = item.data.failed;
-  const total = runCount;
 
   return (
     <div
@@ -81,7 +80,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
       {/* Error message (if failing and present) */}
       {errorMessage && (
         <Tooltip label={errorMessage}>
-          <div class={styles.errorMessage}>{errorMessage}</div>
+          <span class={styles.errorMessage}>{errorMessage}</span>
         </Tooltip>
       )}
 
@@ -101,7 +100,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
           <div class={styles.statRow}>
             {failed > 0 && (
               <Tooltip label="error rate">
-                <span>{formatRate(failed, total)}</span>
+                <span>{formatRate(failed, runCount)}</span>
               </Tooltip>
             )}
             {lastActiveAt !== null && (

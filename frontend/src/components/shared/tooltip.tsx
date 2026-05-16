@@ -1,11 +1,11 @@
-import type { JSX } from "preact";
+import type { ComponentChildren } from "preact";
 import clsx from "clsx";
 import styles from "./tooltip.module.css";
 
 interface TooltipProps {
   label: string;
   class?: string;
-  children: JSX.Element | JSX.Element[];
+  children: ComponentChildren;
 }
 
 export function Tooltip({ label, class: className, children }: TooltipProps) {
