@@ -3,6 +3,7 @@ import clsx from "clsx";
 import type { UnifiedItem } from "./unified-handler-row";
 import { StatusShape } from "../shared/status-shape";
 import { Chip } from "../shared/chip";
+import { Tooltip } from "../shared/tooltip";
 import {
   pluralize,
   formatDuration,
@@ -64,9 +65,9 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
         <span aria-hidden="true">
           <StatusShape kind={item.statusKind} size={10} />
         </span>
-        <span class={styles.name} title={item.name}>
-          {item.name}
-        </span>
+        <Tooltip label={item.name}>
+          <span class={styles.name}>{item.name}</span>
+        </Tooltip>
       </div>
 
       {/* Subtitle: kind chip + error type (if failing) */}
@@ -81,26 +82,34 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
 
       {/* Error message (if failing and present) */}
       {errorMessage && (
-        <div class={styles.errorMessage} title={errorMessage}>
-          {errorMessage}
-        </div>
+        <Tooltip label={errorMessage}>
+          <div class={styles.errorMessage}>{errorMessage}</div>
+        </Tooltip>
       )}
 
       {/* Stats */}
       <div class={styles.stats}>
         <div class={styles.statRow}>
-          <span>{pluralize(runCount, callLabel)}</span>
+          <Tooltip label={`total ${callLabel}s`}>
+            <span>{pluralize(runCount, callLabel)}</span>
+          </Tooltip>
           {avgDuration !== null && avgDuration > 0 && (
-            <span class={styles.statRowEnd}>{formatDuration(avgDuration)}</span>
+            <Tooltip label="avg duration">
+              <span class={styles.statRowEnd}>{formatDuration(avgDuration)}</span>
+            </Tooltip>
           )}
         </div>
         {(failed > 0 || lastActiveAt !== null) && (
           <div class={styles.statRow}>
             {failed > 0 && (
-              <span>{formatRate(failed, total)}</span>
+              <Tooltip label="error rate">
+                <span>{formatRate(failed, total)}</span>
+              </Tooltip>
             )}
             {lastActiveAt !== null && (
-              <span class={styles.statRowEnd}>{formatRelativeTime(lastActiveAt)}</span>
+              <Tooltip label="last active">
+                <span class={styles.statRowEnd}>{formatRelativeTime(lastActiveAt)}</span>
+              </Tooltip>
             )}
           </div>
         )}

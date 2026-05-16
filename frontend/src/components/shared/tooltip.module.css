@@ -1,0 +1,38 @@
+/* Tooltip — CSS-only hover tooltip via ::after pseudo-element */
+
+.trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.trigger::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + var(--sp-1));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--sp-1) var(--sp-2);
+  background: var(--ink-1);
+  color: var(--bg-page);
+  font-family: var(--font-body);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-micro);
+  white-space: nowrap;
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-2);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease);
+  z-index: 10;
+}
+
+.trigger:hover::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger::after {
+    transition: none;
+  }
+}
