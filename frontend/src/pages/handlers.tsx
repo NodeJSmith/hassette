@@ -1,249 +1,31 @@
-import clsx from "clsx";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { useAppState } from "../state/context";
 import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-filtered-signal-refetch";
 import { getAllListeners, getAllJobs } from "../api/endpoints";
-import type { ListenerData, JobData } from "../api/endpoints";
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
-import { AppLink } from "../components/shared/app-link";
 import { Button } from "../components/shared/button";
-import { Chip } from "../components/shared/chip";
 import { EmptyState } from "../components/shared/empty-state";
 import { SortHeader, type SortState } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
 import { type ColumnFilters } from "../components/shared/table-types";
-import { formatDurationOrDash, pluralize, lastDotSegment } from "../utils/format";
-import { useRelativeTime } from "../hooks/use-relative-time";
+import { pluralize } from "../utils/format";
+import { type HandlerSortKey, listenerToRow, jobToRow, compareHandlerRows } from "./handlers-types";
+import { HandlerTableRow, HandlerMobileRow } from "./handlers-rows";
 import styles from "./handlers.module.css";
-
-// ---- Unified row model ----
-
-interface UnifiedRow {
-  kind: "listener" | "job";
-  id: string;
-  app_key: string;
-  name: string;
-  handler_method: string;
-  trigger: string | null;
-  runs: number;
-  failed: number;
-  timed_out: number;
-  avg_duration_ms: number;
-  next_run_ts: number | null;
-  source_tier: string;
-}
-
-function listenerToRow(l: ListenerData): UnifiedRow {
-  return {
-    kind: "listener",
-    id: `h-${l.listener_id}`,
-    app_key: l.app_key,
-    name: lastDotSegment(l.handler_method),
-    handler_method: l.handler_method,
-    trigger: l.listener_kind,
-    runs: l.total_invocations,
-    failed: l.failed,
-    timed_out: l.timed_out,
-    avg_duration_ms: l.avg_duration_ms,
-    next_run_ts: null,
-    source_tier: l.source_tier,
-  };
-}
-
-function jobToRow(j: JobData): UnifiedRow {
-  return {
-    kind: "job",
-    id: `j-${j.job_id}`,
-    app_key: j.app_key,
-    name: j.job_name,
-    handler_method: j.handler_method,
-    trigger: j.trigger_label || j.trigger_type || null,
-    runs: j.total_executions,
-    failed: j.failed,
-    timed_out: j.timed_out,
-    avg_duration_ms: j.avg_duration_ms,
-    next_run_ts: j.next_run ?? null,
-    source_tier: j.source_tier,
-  };
-}
-
-// ---- Formatting helpers ----
-
-function formatRate(failed: number, total: number): string {
-  return total > 0 ? ((failed / total) * 100).toFixed(1) + "%" : "—";
-}
-
-// ---- Sort ----
-
-type SortKey = "kind" | "app" | "name" | "trigger" | "runs" | "failed" | "timed_out" | "error_rate" | "avg_duration" | "next_run";
-
-function compareRows(a: UnifiedRow, b: UnifiedRow, sort: SortState<SortKey>): number {
-  const dir = sort.dir === "asc" ? 1 : -1;
-  switch (sort.key) {
-    case "kind":
-      return dir * a.kind.localeCompare(b.kind);
-    case "app":
-      return dir * a.app_key.localeCompare(b.app_key);
-    case "name":
-      return dir * a.name.localeCompare(b.name);
-    case "trigger":
-      return dir * (a.trigger ?? "").localeCompare(b.trigger ?? "");
-    case "runs":
-      return dir * (a.runs - b.runs);
-    case "failed":
-      return dir * (a.failed - b.failed);
-    case "timed_out":
-      return dir * (a.timed_out - b.timed_out);
-    case "error_rate": {
-      const rateA = a.runs > 0 ? a.failed / a.runs : 0;
-      const rateB = b.runs > 0 ? b.failed / b.runs : 0;
-      return dir * (rateA - rateB);
-    }
-    case "avg_duration":
-      return dir * (a.avg_duration_ms - b.avg_duration_ms);
-    case "next_run": {
-      const ts = (r: UnifiedRow) => r.next_run_ts ?? Infinity;
-      return dir * (ts(a) - ts(b));
-    }
-    default:
-      return 0;
-  }
-}
-
-// ---- Mobile card ----
-
-interface MobileCardProps {
-  href: string;
-  appKey: string;
-  name: string;
-  failing?: boolean;
-  "data-testid"?: string;
-  metrics: preact.ComponentChildren;
-  footer?: preact.ComponentChildren;
-}
-
-function MobileCard({ href, appKey, name, failing, metrics, footer, ...rest }: MobileCardProps) {
-  return (
-    <a href={href} class={clsx(styles.mobileCard, failing && styles.mobileCardFailing)} data-testid={rest["data-testid"]}>
-      <div class={styles.mobileCardHeader}>
-        <span class="ht-text-mono ht-text-sm">{appKey}</span>
-        <span class="ht-text-mono ht-text-sm ht-text-semibold">{name}</span>
-      </div>
-      <div class={styles.mobileCardMetrics}>{metrics}</div>
-      {footer && <div class={styles.mobileCardFooter}>{footer}</div>}
-    </a>
-  );
-}
-
-// ---- Kind indicator ----
-
-// "listener" displays as "event" in the UI — the user-facing term
-function KindBadge({ kind }: { kind: "listener" | "job" }) {
-  return (
-    <Chip variant="muted" size="sm">
-      {kind === "listener" ? "event" : "job"}
-    </Chip>
-  );
-}
-
-// ---- Row components (need hooks — cannot be inline map callbacks) ----
-
-interface HandlerRowProps {
-  row: UnifiedRow;
-}
-
-function HandlerTableRow({ row }: HandlerRowProps) {
-  const nextRunRelative = useRelativeTime(row.next_run_ts);
-  const errorRate = formatRate(row.failed, row.runs);
-  const avgDur = formatDurationOrDash(row.avg_duration_ms);
-
-  const now = Date.now() / 1000;
-  const isOverdue = row.next_run_ts !== null && row.next_run_ts < now;
-  const nextRunDisplay = row.next_run_ts !== null
-    ? (isOverdue ? "overdue" : nextRunRelative)
-    : "—";
-
-  return (
-    <tr
-      class={clsx(styles.row, row.failed > 0 && styles.rowFailing)}
-      data-testid={`${row.kind}-row-${row.id}`}
-    >
-      <td><KindBadge kind={row.kind} /></td>
-      <td class="ht-text-mono ht-text-sm">
-        <AppLink appKey={row.app_key} />
-      </td>
-      <td class="ht-text-mono ht-text-sm" title={row.handler_method}>
-        <AppLink appKey={row.app_key} handlerId={row.id}>{row.name}</AppLink>
-      </td>
-      <td class="ht-text-mono ht-text-sm">{row.trigger ?? "—"}</td>
-      <td class="ht-text-mono ht-text-sm">{row.runs}</td>
-      <td class={`ht-text-mono ht-text-sm${row.failed > 0 ? " ht-text-danger" : ""}`}>
-        {row.failed > 0 ? row.failed : "—"}
-      </td>
-      <td class={`ht-text-mono ht-text-sm${row.timed_out > 0 ? " ht-text-warning" : ""}`}>
-        {row.timed_out > 0 ? row.timed_out : "—"}
-      </td>
-      <td class={`ht-text-mono ht-text-sm${row.failed > 0 ? " ht-text-danger" : ""}`}>
-        {errorRate}
-      </td>
-      <td class="ht-text-mono ht-text-sm">{avgDur}</td>
-      <td class={`ht-text-mono ht-text-sm${isOverdue ? " ht-text-warning" : ""}`}>
-        {nextRunDisplay}
-      </td>
-    </tr>
-  );
-}
-
-function HandlerMobileRow({ row }: HandlerRowProps) {
-  const nextRunRelative = useRelativeTime(row.next_run_ts);
-  const errorRate = formatRate(row.failed, row.runs);
-  const avgDur = formatDurationOrDash(row.avg_duration_ms);
-
-  const now = Date.now() / 1000;
-  const isOverdue = row.next_run_ts !== null && row.next_run_ts < now;
-  const nextRunDisplay = row.next_run_ts !== null
-    ? (isOverdue ? "overdue" : nextRunRelative)
-    : null;
-
-  return (
-    <MobileCard
-      href={`/apps/${row.app_key}/handlers/${row.id}`}
-      appKey={row.app_key}
-      name={row.name}
-      failing={row.failed > 0}
-      data-testid={`${row.kind}-row-${row.id}`}
-      metrics={<>
-        <KindBadge kind={row.kind} />
-        {row.trigger && <span>{row.trigger}</span>}
-        <span>{row.runs} runs</span>
-        {row.failed > 0 && <span class="ht-text-danger">{row.failed} failed</span>}
-        {row.timed_out > 0 && <span class="ht-text-warning">{row.timed_out} timed out</span>}
-        {row.runs > 0 && <span>{errorRate} err</span>}
-        {row.avg_duration_ms > 0 && <span>avg {avgDur}</span>}
-      </>}
-      footer={row.kind === "job" && nextRunDisplay !== null ? (
-        <span class="ht-text-muted">next {nextRunDisplay}</span>
-      ) : undefined}
-    />
-  );
-}
-
-// ---- Page ----
 
 export function HandlersPage() {
   useDocumentTitle("Handlers");
 
   const qp = useQueryParams();
 
-  // Derive state from URL query params; default values omitted from URL
   const selectedApp = qp.get("app") ?? "";
   const search = qp.get("search") ?? "";
-  const sort: SortState<SortKey> = {
-    key: (qp.get("sort") ?? "app") as SortKey,
+  const sort: SortState<HandlerSortKey> = {
+    key: (qp.get("sort") ?? "app") as HandlerSortKey,
     dir: (qp.get("dir") ?? "asc") as "asc" | "desc",
   };
 
@@ -278,24 +60,18 @@ export function HandlersPage() {
 
   if (isLoading) return <Spinner />;
 
-  // Build unified rows
-  const allRows: UnifiedRow[] = [
+  const allRows = [
     ...allListeners.map(listenerToRow),
     ...allJobs.map(jobToRow),
   ];
 
-  // Only show app-tier handlers (framework handlers are hidden)
   const appRows = allRows.filter((r) => r.source_tier === "app");
-
-  // Unique app keys for filter dropdown
   const appKeys = [...new Set(appRows.map((r) => r.app_key))].sort();
 
-  // App filter
   const appFiltered = selectedApp
     ? appRows.filter((r) => r.app_key === selectedApp)
     : appRows;
 
-  // Search filter
   const searchLower = search.toLowerCase();
   const filtered = searchLower
     ? appFiltered.filter(
@@ -306,10 +82,9 @@ export function HandlersPage() {
       )
     : appFiltered;
 
-  // Sort
-  const sorted = [...filtered].sort((a, b) => compareRows(a, b, sort));
+  const sorted = [...filtered].sort((a, b) => compareHandlerRows(a, b, sort));
 
-  function onSort(s: SortState<SortKey>) {
+  function onSort(s: SortState<HandlerSortKey>) {
     qp.set({
       sort: s.key === "app" ? null : s.key,
       dir: s.dir === "asc" ? null : s.dir,
@@ -318,7 +93,6 @@ export function HandlersPage() {
 
   const clearFilters = () => qp.set({ app: null, search: null });
 
-  // ---- App filter popover content ----
   const appFilterContent = (
     <select
       aria-label="Filter by app"
@@ -333,7 +107,6 @@ export function HandlersPage() {
     </select>
   );
 
-  // Column filters map — single source for desktop popovers and mobile panel
   const columnFilters: ColumnFilters = {
     app: {
       active: selectedApp !== "",
