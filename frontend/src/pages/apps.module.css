@@ -4,48 +4,26 @@
   min-height: 0;
 }
 
-/* Filter pills */
+/* Status filter popover content */
 
-.filters {
+.statusFilter {
   display: flex;
-  gap: var(--sp-1);
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: var(--sp-0);
 }
 
-.filterPill {
+.statusFilterRow {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1h);
-  padding: var(--sp-1) var(--sp-2);
-  font-family: var(--font-body);
-  font-size: var(--fs-mono-sm);
-  font-weight: 500;
-  color: var(--ink-2);
-  background: transparent;
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-pill);
-  cursor: pointer;
-  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+  width: 100%;
 }
 
-.filterPill:hover {
-  background: var(--bg-sunken);
-}
-
-.filterPillActive {
-  color: var(--bg-surface);
-  background: var(--ink-1);
-  border-color: var(--ink-1);
-}
-
-.filterPillActive:hover {
-  background: var(--ink-1);
-}
-
-.filterPillCount {
+.statusFilterCount {
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
-  opacity: 0.85;
+  color: var(--ink-3);
+  margin-left: auto;
 }
 
 /* Table card */
@@ -143,7 +121,7 @@
   cursor: pointer;
 }
 
-.errorCell:global(.is-expanded) {
+.errorCellExpanded {
   white-space: normal;
   word-break: break-word;
   max-width: none;

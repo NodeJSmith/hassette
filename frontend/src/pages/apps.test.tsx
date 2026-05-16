@@ -62,11 +62,11 @@ describe("AppsPage", () => {
     expect(getByTestId("apps-stats-strip")).toBeDefined();
   });
 
-  it("renders filter pills", () => {
-    const { getByTestId } = renderWithAppState(<AppsPage />, {
+  it("does not render legacy filter pills", () => {
+    const { queryByTestId } = renderWithAppState(<AppsPage />, {
       stateOverrides: { manifests: signal([createManifest()]), manifestsLoading: signal(false) },
     });
-    expect(getByTestId("apps-filter-pills")).toBeDefined();
+    expect(queryByTestId("apps-filter-pills")).toBeNull();
   });
 
   it("renders app rows in the table", () => {
@@ -83,11 +83,15 @@ describe("AppsPage", () => {
     expect(getByTestId("app-row-app_b")).toBeDefined();
   });
 
-  it("renders search input", () => {
+  it("renders search input above the table", () => {
     const { getByTestId } = renderWithAppState(<AppsPage />, {
       stateOverrides: { manifests: signal([createManifest()]), manifestsLoading: signal(false) },
     });
-    expect(getByTestId("apps-search")).toBeDefined();
+    const search = getByTestId("apps-search");
+    expect(search).toBeDefined();
+    // Search should be inside the search slot (data-search-bar attribute)
+    const searchBar = search.closest("[data-search-bar]");
+    expect(searchBar).not.toBeNull();
   });
 
   it("shows empty state when no manifests", () => {
@@ -95,6 +99,63 @@ describe("AppsPage", () => {
       stateOverrides: { manifests: signal([]), manifestsLoading: signal(false) },
     });
     expect(getByText(/no apps match/i)).toBeDefined();
+  });
+
+  it("renders record count in the table footer", () => {
+    const { getByText } = renderWithAppState(<AppsPage />, {
+      stateOverrides: {
+        manifests: signal([
+          createManifest({ app_key: "app_a", status: "running" }),
+          createManifest({ app_key: "app_b", status: "running" }),
+        ]),
+        manifestsLoading: signal(false),
+      },
+    });
+    expect(getByText(/2 apps/i)).toBeDefined();
+  });
+
+  it("footer count updates when search filters results", () => {
+    mockSearch = "search=motion";
+    const { getByText } = renderWithAppState(<AppsPage />, {
+      stateOverrides: {
+        manifests: signal([
+          createManifest({ app_key: "motion_lights", status: "running" }),
+          createManifest({ app_key: "alarm_app", status: "running" }),
+        ]),
+        manifestsLoading: signal(false),
+      },
+    });
+    expect(getByText(/1 app/i)).toBeDefined();
+  });
+
+  describe("STATUS column filter", () => {
+    it("renders a filter button on the STATUS column header", () => {
+      const { getByRole } = renderWithAppState(<AppsPage />, {
+        stateOverrides: {
+          manifests: signal([createManifest({ app_key: "app_a", status: "running" })]),
+          manifestsLoading: signal(false),
+        },
+      });
+      // SortHeader renders filter button with data-testid="filter-btn" when filterContent is provided
+      const filterBtn = getByRole("button", { name: /filter status/i });
+      expect(filterBtn).toBeDefined();
+    });
+
+    it("clicking the STATUS filter button opens the filter popover", () => {
+      const { getByRole, getByText } = renderWithAppState(<AppsPage />, {
+        stateOverrides: {
+          manifests: signal([
+            createManifest({ app_key: "running_app", status: "running" }),
+            createManifest({ app_key: "failed_app", status: "failed" }),
+          ]),
+          manifestsLoading: signal(false),
+        },
+      });
+      const filterBtn = getByRole("button", { name: /filter status/i });
+      fireEvent.click(filterBtn);
+      // Popover should now be open and show filter options
+      expect(getByText(/all/i)).toBeDefined();
+    });
   });
 
   describe("query param: filter", () => {
@@ -134,7 +195,6 @@ describe("AppsPage", () => {
   describe("query param: sort/dir", () => {
     it("reads sort key from URL — defaults to status when absent", () => {
       mockSearch = "";
-      // Page should render without errors when no sort param is in URL
       const { getByTestId } = renderWithAppState(<AppsPage />, {
         stateOverrides: {
           manifests: signal([createManifest({ app_key: "app_a", status: "running" })]),
@@ -145,21 +205,46 @@ describe("AppsPage", () => {
     });
   });
 
-  describe("filter pill onChange — replaces history", () => {
-    it("clicking a filter pill calls navigate with replace: true", () => {
-      mockSearch = "";
-      const { getByTestId } = renderWithAppState(<AppsPage />, {
+  describe("empty state when filters produce zero results", () => {
+    it("names the active filter in the empty state message", () => {
+      mockSearch = "filter=failed";
+      const { getByText } = renderWithAppState(<AppsPage />, {
         stateOverrides: {
           manifests: signal([
             createManifest({ app_key: "running_app", status: "running" }),
-            createManifest({ app_key: "failed_app", status: "failed" }),
           ]),
           manifestsLoading: signal(false),
         },
       });
-      fireEvent.click(getByTestId("filter-failed"));
+      expect(getByText(/no apps match status: failed/i)).toBeDefined();
+    });
+
+    it("provides a clear filters button in the empty state", () => {
+      mockSearch = "filter=failed";
+      const { getByRole } = renderWithAppState(<AppsPage />, {
+        stateOverrides: {
+          manifests: signal([
+            createManifest({ app_key: "running_app", status: "running" }),
+          ]),
+          manifestsLoading: signal(false),
+        },
+      });
+      expect(getByRole("button", { name: /clear filters/i })).toBeDefined();
+    });
+
+    it("clicking clear filters calls navigate to reset filter and search", () => {
+      mockSearch = "filter=failed";
+      const { getByRole } = renderWithAppState(<AppsPage />, {
+        stateOverrides: {
+          manifests: signal([
+            createManifest({ app_key: "running_app", status: "running" }),
+          ]),
+          manifestsLoading: signal(false),
+        },
+      });
+      fireEvent.click(getByRole("button", { name: /clear filters/i }));
       expect(mockNavigate).toHaveBeenCalledWith(
-        expect.stringContaining("filter=failed"),
+        expect.not.stringContaining("filter="),
         expect.objectContaining({ replace: true }),
       );
     });

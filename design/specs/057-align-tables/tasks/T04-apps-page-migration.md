@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Migrate apps page to unified table pattern"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03"]
 implements: ["FR#2", "FR#3", "FR#9", "AC#2", "AC#3", "AC#5", "AC#11"]
 ---

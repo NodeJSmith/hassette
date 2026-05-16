@@ -1,5 +1,5 @@
 import { signal } from "@preact/signals";
-import { useRef, useState } from "preact/hooks";
+import { useRef } from "preact/hooks";
 import clsx from "clsx";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useQueryParams } from "../hooks/use-query-params";
@@ -11,6 +11,7 @@ import { statusToKind, statusToVariant, INACTIVE_STATUSES, type StatusKind } fro
 import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
 import { formatTimestamp, pluralize } from "../utils/format";
 import { useRelativeTime } from "../hooks/use-relative-time";
+import { useState } from "preact/hooks";
 import { type AppRow, type AppSortState, mergeManifestsAndGrid, compareAppRows } from "../utils/app-data";
 import { AppLink } from "../components/shared/app-link";
 import { EmptyState } from "../components/shared/empty-state";
@@ -24,6 +25,9 @@ import { SortHeader } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { StatsStrip, type StatsStripCell } from "../components/shared/stats-strip";
 import { TableCard } from "../components/shared/table-card";
+import { TableFooter } from "../components/shared/table-footer";
+import { type ColumnFilters } from "../components/shared/table-types";
+import popoverStyles from "../components/shared/column-filter-popover/index.module.css";
 import styles from "./apps.module.css";
 
 // ---- Filter types ----
@@ -71,16 +75,16 @@ function buildAppsCells(apps: AppRow[], windowSeconds: number | null, isMobile: 
   return cells;
 }
 
-// ---- Filter pills ----
+// ---- Status filter popover content ----
 
-function FilterPills({ counts, active, onChange }: {
+function StatusFilterContent({ counts, active, onChange }: {
   counts: Record<string, number>;
   active: FilterId;
   onChange: (f: FilterId) => void;
 }) {
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return (
-    <div class={styles.filters} role="group" aria-label="Filter by status" data-testid="apps-filter-pills">
+    <div class={styles.statusFilter}>
       {FILTER_OPTIONS.map((f) => {
         const count = f === "all" ? total : (counts[f] ?? 0);
         if (f !== "all" && count === 0) return null;
@@ -90,22 +94,22 @@ function FilterPills({ counts, active, onChange }: {
           <button
             key={f}
             type="button"
-            class={clsx(styles.filterPill, isActive && styles.filterPillActive)}
+            class={clsx(popoverStyles.tierBtn, isActive && popoverStyles.active)}
             aria-pressed={isActive}
             onClick={() => onChange(f)}
             data-testid={`filter-${f}`}
           >
-            {tone && <StatusShape kind={tone} size={7} />}
-            <span>{f}</span>
-            <span class={styles.filterPillCount}>{count}</span>
+            <span class={styles.statusFilterRow}>
+              {tone && <StatusShape kind={tone} size={8} />}
+              <span>{f}</span>
+              <span class={styles.statusFilterCount}>{count}</span>
+            </span>
           </button>
         );
       })}
     </div>
   );
 }
-
-
 
 // ---- Table row ----
 
@@ -116,6 +120,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
   onToggle: () => void;
 }) {
   const [errorExpanded, setErrorExpanded] = useState(false);
+  if (!app.error_message && errorExpanded) setErrorExpanded(false);
   const lastErrorLabel = useRelativeTime(app.last_error_ts ?? null);
   const lastActivityLabel = useRelativeTime(app.last_activity_ts ?? null);
   const status = liveStatus ?? app.status;
@@ -155,7 +160,7 @@ function AppTableRow({ app, liveStatus, isExpanded, onToggle }: {
         </td>
         {/* Error */}
         <td
-          class={clsx(styles.errorCell, errorExpanded && "is-expanded")}
+          class={clsx(styles.errorCell, errorExpanded && styles.errorCellExpanded)}
           {...(app.error_message ? {
             role: "button", tabIndex: 0,
             "aria-label": `${errorExpanded ? "Collapse" : "Expand"} error: ${app.error_message}`,
@@ -288,6 +293,23 @@ export function AppsPage() {
     statusCounts[s] = (statusCounts[s] ?? 0) + 1;
   }
 
+  const clearFilters = () => qp.set({ filter: null, search: null });
+
+  // Column filters map — single source for desktop popovers and mobile panel
+  const columnFilters: ColumnFilters = {
+    status: {
+      active: filter !== "all",
+      label: "Status",
+      content: (
+        <StatusFilterContent
+          counts={statusCounts}
+          active={filter}
+          onChange={(newFilter) => qp.set({ filter: newFilter === "all" ? null : newFilter })}
+        />
+      ),
+    },
+  };
+
   // Filter + search + sort
   const q = search.toLowerCase();
   const filtered = allApps
@@ -301,6 +323,33 @@ export function AppsPage() {
 
   if (manifestsLoading.value && manifests.length === 0) return <Spinner />;
 
+  const searchInput = (
+    <input
+      type="text"
+      class="ht-search"
+      placeholder="search apps…"
+      aria-label="Search apps"
+      value={search}
+      onInput={(e) => qp.set({ search: (e.target as HTMLInputElement).value || null })}
+      data-testid="apps-search"
+    />
+  );
+
+  const footer = (
+    <TableFooter
+      count={pluralize(filtered.length, "app")}
+      columnFilters={columnFilters}
+      onResetFilters={clearFilters}
+    />
+  );
+
+  // Build empty state message that names the active filter
+  const emptyStateTitle = filter !== "all"
+    ? `no apps match status: ${filter}.`
+    : q
+      ? `no apps match "${q}".`
+      : "no apps match this filter.";
+
   return (
     <div class={`ht-page ${styles.page}`} data-testid="apps-page">
       {/* Header */}
@@ -311,33 +360,36 @@ export function AppsPage() {
       {/* Stats strip */}
       <StatsStrip cells={buildAppsCells(allApps, windowSeconds, isMobile)} data-testid="apps-stats-strip" />
 
-      <TableCard
-        count={pluralize(filtered.length, "app")}
-        controls={<>
-          <FilterPills counts={statusCounts} active={filter} onChange={(newFilter) => qp.set({ filter: newFilter === "all" ? null : newFilter })} />
-          <input
-            type="text"
-            class="ht-search"
-            placeholder="search apps…"
-            aria-label="Search apps"
-            value={search}
-            onInput={(e) => qp.set({ search: (e.target as HTMLInputElement).value || null })}
-            data-testid="apps-search"
-          />
-        </>}
-      >
+      <TableCard search={searchInput} footer={footer}>
         {filtered.length === 0 ? (
-          <EmptyState title="no apps match this filter.">
+          <EmptyState title={emptyStateTitle}>
             {(filter !== "all" || q) && (
-              <Button ghost size="sm" onClick={() => qp.set({ filter: null, search: null })}>clear filters</Button>
+              <Button ghost size="sm" onClick={clearFilters}>clear filters</Button>
             )}
           </EmptyState>
         ) : (
           <table class={`ht-table ${styles.appsTable}`} data-testid="apps-table">
+            <colgroup>
+              <col style="width: 35%" />
+              <col style="width: 12%" />
+              <col style="width: 22%" />
+              <col style="width: 10%" />
+              <col style="width: 11%" />
+              <col style="width: 10%" />
+            </colgroup>
             <thead>
               <tr>
                 <SortHeader sort={sort} onSort={handleSort} sortKey="name">app</SortHeader>
-                <SortHeader sort={sort} onSort={handleSort} sortKey="status">status</SortHeader>
+                <SortHeader
+                  sort={sort}
+                  onSort={handleSort}
+                  sortKey="status"
+                  ariaLabel="status"
+                  filterContent={columnFilters.status.content}
+                  hasActiveFilter={columnFilters.status.active}
+                >
+                  status
+                </SortHeader>
                 <SortHeader sort={sort} onSort={handleSort} sortKey="error">last error</SortHeader>
                 <SortHeader sort={sort} onSort={handleSort} sortKey="runs">runs</SortHeader>
                 <SortHeader sort={sort} onSort={handleSort} sortKey="last">last fired</SortHeader>
