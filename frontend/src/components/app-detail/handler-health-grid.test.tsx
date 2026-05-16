@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/preact";
 import { HandlerHealthGrid } from "./handler-health-grid";
 import { createListener, createJob } from "../../test/factories";
-import type { UnifiedItem } from "./unified-handler-row";
+import { buildItems } from "./handler-list";
 
 vi.mock("wouter", () => ({
   Link: ({ href, children, ...rest }: { href: string; children: preact.ComponentChildren; [k: string]: unknown }) => (
@@ -12,30 +12,14 @@ vi.mock("wouter", () => ({
   useSearch: () => "",
 }));
 
-function makeListenerItem(overrides: Partial<ReturnType<typeof createListener>> = {}): UnifiedItem {
-  const listener = createListener(overrides);
-  const failing = (listener.failed ?? 0) > 0 || (listener.timed_out ?? 0) > 0;
-  return {
-    kind: "listener",
-    id: listener.listener_id,
-    name: listener.handler_summary ?? listener.handler_method,
-    humanDescription: listener.human_description ?? null,
-    statusKind: failing ? "err" : "ok",
-    data: listener,
-  };
+function makeListenerItem(overrides: Parameters<typeof createListener>[0] = {}) {
+  const listener = createListener({ listener_id: 1, total_invocations: 1, ...overrides });
+  return buildItems([listener], [])[0];
 }
 
-function makeJobItem(overrides: Partial<ReturnType<typeof createJob>> = {}): UnifiedItem {
-  const job = createJob(overrides);
-  const failing = (job.failed ?? 0) > 0 || (job.timed_out ?? 0) > 0;
-  return {
-    kind: "job",
-    id: job.job_id,
-    name: job.job_name,
-    humanDescription: job.trigger_label || null,
-    statusKind: failing ? "err" : "ok",
-    data: job,
-  };
+function makeJobItem(overrides: Parameters<typeof createJob>[0] = {}) {
+  const job = createJob({ job_id: 1, total_executions: 1, ...overrides });
+  return buildItems([], [job])[0];
 }
 
 describe("HandlerHealthGrid — empty state", () => {

@@ -1,12 +1,16 @@
+export const MS_PER_SECOND = 1000;
+const SECONDS_PER_MINUTE = 60;
+const SECONDS_PER_HOUR = 3600;
+const SECONDS_PER_DAY = 86400;
+
 /** Format a Unix timestamp as "MM/DD HH:MM:SS AM/PM" to match old UI. */
 export function formatTimestamp(ts: number): string {
-  const d = new Date(ts * 1000);
+  const d = new Date(ts * MS_PER_SECOND);
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
   return `${month}/${day} ${time}`;
 }
-
 
 /** Format a duration in milliseconds with one decimal (e.g., "158.0ms"). */
 export function formatDuration(ms: number): string {
@@ -39,14 +43,14 @@ export function formatTriggerDetail(detail: string): string {
   const match = detail.match(/^(\d+)s$/);
   if (!match) return detail;
   let secs = parseInt(match[1], 10);
-  if (secs < 60) return `${secs}s`;
+  if (secs < SECONDS_PER_MINUTE) return `${secs}s`;
   const parts: string[] = [];
-  const days = Math.floor(secs / 86400);
-  if (days > 0) { parts.push(`${days}d`); secs %= 86400; }
-  const hours = Math.floor(secs / 3600);
-  if (hours > 0) { parts.push(`${hours}h`); secs %= 3600; }
-  const mins = Math.floor(secs / 60);
-  if (mins > 0) { parts.push(`${mins}m`); secs %= 60; }
+  const days = Math.floor(secs / SECONDS_PER_DAY);
+  if (days > 0) { parts.push(`${days}d`); secs %= SECONDS_PER_DAY; }
+  const hours = Math.floor(secs / SECONDS_PER_HOUR);
+  if (hours > 0) { parts.push(`${hours}h`); secs %= SECONDS_PER_HOUR; }
+  const mins = Math.floor(secs / SECONDS_PER_MINUTE);
+  if (mins > 0) { parts.push(`${mins}m`); secs %= SECONDS_PER_MINUTE; }
   if (secs > 0) parts.push(`${secs}s`);
   return parts.join(" ");
 }
@@ -63,25 +67,25 @@ export function parseSourceLocation(sourceLocation: string): { filename: string;
   const colonIdx = sourceLocation.lastIndexOf(":");
   if (colonIdx <= 0) return { filename: sourceLocation, line: null };
   const filename = sourceLocation.slice(0, colonIdx);
-  const n = parseInt(sourceLocation.slice(colonIdx + 1), 10);
-  return { filename, line: Number.isFinite(n) ? n : null };
+  const lineNum = parseInt(sourceLocation.slice(colonIdx + 1), 10);
+  return { filename, line: Number.isFinite(lineNum) ? lineNum : null };
 }
 
 /** Format a Unix timestamp as a relative time string (e.g., "2m ago", "in 8m"). */
 export function formatRelativeTime(ts: number): string {
-  const now = Date.now() / 1000;
+  const now = Date.now() / MS_PER_SECOND;
   const diff = now - ts;
   if (diff < 0) {
     const abs = -diff;
-    if (abs < 60) return "in <1m";
-    if (abs < 3600) return `in ${Math.floor(abs / 60)}m`;
-    if (abs < 86400) return `in ${Math.floor(abs / 3600)}h`;
-    return `in ${Math.floor(abs / 86400)}d`;
+    if (abs < SECONDS_PER_MINUTE) return "in <1m";
+    if (abs < SECONDS_PER_HOUR) return `in ${Math.floor(abs / SECONDS_PER_MINUTE)}m`;
+    if (abs < SECONDS_PER_DAY) return `in ${Math.floor(abs / SECONDS_PER_HOUR)}h`;
+    return `in ${Math.floor(abs / SECONDS_PER_DAY)}d`;
   }
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+  if (diff < SECONDS_PER_MINUTE) return "just now";
+  if (diff < SECONDS_PER_HOUR) return `${Math.floor(diff / SECONDS_PER_MINUTE)}m ago`;
+  if (diff < SECONDS_PER_DAY) return `${Math.floor(diff / SECONDS_PER_HOUR)}h ago`;
+  return `${Math.floor(diff / SECONDS_PER_DAY)}d ago`;
 }
 
 /** Canonical display labels for time presets. */
@@ -94,12 +98,12 @@ export const TIME_PRESET_LABELS: Record<string, string> = {
 
 /** Format a Unix timestamp as a compact age string (e.g., "12s", "3m", "1h", "2d"). */
 export function formatAge(ts: number): string {
-  const now = Date.now() / 1000;
+  const now = Date.now() / MS_PER_SECOND;
   const diff = Math.max(0, now - ts);
-  if (diff < 60) return `${Math.floor(diff)}s`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  return `${Math.floor(diff / 86400)}d`;
+  if (diff < SECONDS_PER_MINUTE) return `${Math.floor(diff)}s`;
+  if (diff < SECONDS_PER_HOUR) return `${Math.floor(diff / SECONDS_PER_MINUTE)}m`;
+  if (diff < SECONDS_PER_DAY) return `${Math.floor(diff / SECONDS_PER_HOUR)}h`;
+  return `${Math.floor(diff / SECONDS_PER_DAY)}d`;
 }
 
 /** Extract the last segment after the final dot (e.g. "foo.bar.Baz" → "Baz"). */
@@ -114,8 +118,8 @@ export function formatRate(failed: number, total: number): string {
 }
 
 export function formatUptime(seconds: number): string {
-  if (seconds < 60) return `${Math.floor(seconds)}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
-  return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
+  if (seconds < SECONDS_PER_MINUTE) return `${Math.floor(seconds)}s`;
+  if (seconds < SECONDS_PER_HOUR) return `${Math.floor(seconds / SECONDS_PER_MINUTE)}m`;
+  if (seconds < SECONDS_PER_DAY) return `${Math.floor(seconds / SECONDS_PER_HOUR)}h ${Math.floor((seconds % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE)}m`;
+  return `${Math.floor(seconds / SECONDS_PER_DAY)}d ${Math.floor((seconds % SECONDS_PER_DAY) / SECONDS_PER_HOUR)}h`;
 }

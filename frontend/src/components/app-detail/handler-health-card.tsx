@@ -32,6 +32,8 @@ function itemLastActiveAt(item: UnifiedItem): number | null {
     : (item.data.last_executed_at ?? null);
 }
 
+const STATUS_DOT_SIZE = 10;
+
 export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCardProps) {
   const [, navigate] = useLocation();
   const href = handlerPath(appKey, item, instanceQs);
@@ -45,6 +47,13 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
   const lastActiveAt = itemLastActiveAt(item);
   const failed = item.data.failed;
 
+  function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      navigate(href);
+    }
+  }
+
   return (
     <div
       class={clsx(styles.card, failing && styles.cardFailing)}
@@ -52,17 +61,12 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
       role="article"
       tabIndex={0}
       onClick={() => navigate(href)}
-      onKeyDown={(e: KeyboardEvent) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          navigate(href);
-        }
-      }}
+      onKeyDown={handleKeyDown}
     >
       {/* Header: status shape + handler name */}
       <div class={styles.header}>
         <span aria-hidden="true">
-          <StatusShape kind={item.statusKind} size={10} />
+          <StatusShape kind={item.statusKind} size={STATUS_DOT_SIZE} />
         </span>
         <span class={styles.name} title={item.name}>{item.name}</span>
       </div>

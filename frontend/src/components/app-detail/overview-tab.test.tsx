@@ -6,9 +6,12 @@ import { OverviewTab } from "./overview-tab";
 import { createListener, createJob, createLogEntry } from "../../test/factories";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
+import { WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-filtered-signal-refetch";
 import type { components } from "../../api/generated-types";
 
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
+type InvocationEvent = { listener_id: number; app_key: string; instance_index: number; status: string; duration_ms: number; error_type: string | null };
+type ExecutionEvent = { job_id: number; app_key: string; instance_index: number; status: string; duration_ms: number; error_type: string | null };
 
 // Overview tab tests are split into two groups:
 //  1. Props-only tests (error spotlight, health grid) — no context needed
@@ -424,7 +427,7 @@ describe("OverviewTab — Recent Activity", () => {
       { row_id: "r1", status: "success", timestamp: 1700000300, app_key: "test_app", handler_name: "check", duration_ms: 10, error_type: null, kind: "job" },
       { row_id: "r2", status: "success", timestamp: 1700000200, app_key: "test_app", handler_name: "check", duration_ms: 20, error_type: null, kind: "job" },
       { row_id: "r3", status: "success", timestamp: 1700000100, app_key: "test_app", handler_name: "check", duration_ms: 30, error_type: null, kind: "job" },
-      { row_id: "r4", status: "error",   timestamp: 1700000050, app_key: "test_app", handler_name: "on_event", duration_ms: 5, error_type: "ValueError", kind: "handler" },
+      { row_id: "r4", status: "error", timestamp: 1700000050, app_key: "test_app", handler_name: "on_event", duration_ms: 5, error_type: "ValueError", kind: "handler" },
       { row_id: "r5", status: "success", timestamp: 1700000000, app_key: "test_app", handler_name: "check", duration_ms: 15, error_type: null, kind: "job" },
     ];
     server.use(
@@ -486,7 +489,7 @@ describe("OverviewTab — Recent Logs", () => {
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe("OverviewTab — Real-time refetch", () => {
-  it("refetches activity when invocationCompleted signal changes with matching app_key", async () => {
+  function setupActivityCounter() {
     let fetchCount = 0;
     server.use(
       http.get("/api/telemetry/app/:app_key/activity", () => {
@@ -494,9 +497,10 @@ describe("OverviewTab — Real-time refetch", () => {
         return HttpResponse.json<ActivityFeedEntry[]>([]);
       }),
     );
+    return { getFetchCount: () => fetchCount };
+  }
 
-    const invocationCompleted = signal<Array<{ listener_id: number; app_key: string; instance_index: number; status: string; duration_ms: number; error_type: string | null }> | null>(null);
-
+  function renderWithSignalOverrides(overrides: Record<string, unknown>) {
     renderWithAppState(
       <OverviewTab
         listeners={[]}
@@ -507,87 +511,48 @@ describe("OverviewTab — Real-time refetch", () => {
       />,
       { stateOverrides: {
         uptimeSeconds: signal<number | null>(120),
-        invocationCompleted,
+        ...overrides,
       }},
     );
+  }
 
-    // Wait for initial fetch
-    await waitFor(() => expect(fetchCount).toBeGreaterThan(0));
-    const countAfterMount = fetchCount;
+  it("refetches activity when invocationCompleted signal changes with matching app_key", async () => {
+    const { getFetchCount } = setupActivityCounter();
+    const invocationCompleted = signal<InvocationEvent[] | null>(null);
+    renderWithSignalOverrides({ invocationCompleted });
 
-    // Simulate a matching WebSocket event
+    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
+    const countAfterMount = getFetchCount();
+
     invocationCompleted.value = [{ listener_id: 1, app_key: "test_app", instance_index: 0, status: "success", duration_ms: 10, error_type: null }];
 
-    // The debounced effect fires after 500ms — use waitFor with longer timeout
-    await waitFor(() => expect(fetchCount).toBeGreaterThan(countAfterMount), { timeout: 1500 });
+    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(countAfterMount), { timeout: WS_DEBOUNCE_MAX_WAIT_MS });
   });
 
   it("does not refetch when invocationCompleted events are for a different app_key", async () => {
-    let fetchCount = 0;
-    server.use(
-      http.get("/api/telemetry/app/:app_key/activity", () => {
-        fetchCount++;
-        return HttpResponse.json<ActivityFeedEntry[]>([]);
-      }),
-    );
+    const { getFetchCount } = setupActivityCounter();
+    const invocationCompleted = signal<InvocationEvent[] | null>(null);
+    renderWithSignalOverrides({ invocationCompleted });
 
-    const invocationCompleted = signal<Array<{ listener_id: number; app_key: string; instance_index: number; status: string; duration_ms: number; error_type: string | null }> | null>(null);
+    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
+    const countAfterMount = getFetchCount();
 
-    renderWithAppState(
-      <OverviewTab
-        listeners={[]}
-        jobs={[]}
-        appKey="test_app"
-        instanceQs=""
-        resolvedInstanceIndex={0}
-      />,
-      { stateOverrides: {
-        uptimeSeconds: signal<number | null>(120),
-        invocationCompleted,
-      }},
-    );
-
-    await waitFor(() => expect(fetchCount).toBeGreaterThan(0));
-    const countAfterMount = fetchCount;
-
-    // Event for a different app — should not trigger refetch
     invocationCompleted.value = [{ listener_id: 99, app_key: "other_app", instance_index: 0, status: "success", duration_ms: 5, error_type: null }];
 
-    // Wait a moment and confirm count did not increase
     await new Promise((r) => setTimeout(r, 700));
-    expect(fetchCount).toBe(countAfterMount);
+    expect(getFetchCount()).toBe(countAfterMount);
   });
 
   it("refetches activity when executionCompleted signal changes with matching app_key", async () => {
-    let fetchCount = 0;
-    server.use(
-      http.get("/api/telemetry/app/:app_key/activity", () => {
-        fetchCount++;
-        return HttpResponse.json<ActivityFeedEntry[]>([]);
-      }),
-    );
+    const { getFetchCount } = setupActivityCounter();
+    const executionCompleted = signal<ExecutionEvent[] | null>(null);
+    renderWithSignalOverrides({ executionCompleted });
 
-    const executionCompleted = signal<Array<{ job_id: number; app_key: string; instance_index: number; status: string; duration_ms: number; error_type: string | null }> | null>(null);
-
-    renderWithAppState(
-      <OverviewTab
-        listeners={[]}
-        jobs={[]}
-        appKey="test_app"
-        instanceQs=""
-        resolvedInstanceIndex={0}
-      />,
-      { stateOverrides: {
-        uptimeSeconds: signal<number | null>(120),
-        executionCompleted,
-      }},
-    );
-
-    await waitFor(() => expect(fetchCount).toBeGreaterThan(0));
-    const countAfterMount = fetchCount;
+    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
+    const countAfterMount = getFetchCount();
 
     executionCompleted.value = [{ job_id: 5, app_key: "test_app", instance_index: 0, status: "success", duration_ms: 20, error_type: null }];
 
-    await waitFor(() => expect(fetchCount).toBeGreaterThan(countAfterMount), { timeout: 1500 });
+    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(countAfterMount), { timeout: WS_DEBOUNCE_MAX_WAIT_MS });
   });
 });

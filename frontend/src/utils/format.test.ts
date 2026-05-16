@@ -180,8 +180,9 @@ describe("formatTriggerDetail", () => {
 // formatRelativeTime
 // ---------------------------------------------------------------------------
 
+const BASE_TIME_S = 1_700_000_000; // arbitrary fixed epoch in seconds
+
 describe("formatRelativeTime", () => {
-  const BASE_TIME_S = 1_700_000_000; // arbitrary fixed epoch in seconds
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -257,8 +258,6 @@ describe("formatRelativeTime", () => {
 // formatAge
 // ---------------------------------------------------------------------------
 describe("formatAge", () => {
-  const BASE_TIME_S = 1_700_000_000;
-
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(BASE_TIME_S * 1000);

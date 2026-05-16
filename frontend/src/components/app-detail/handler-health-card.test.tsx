@@ -288,7 +288,7 @@ describe("HandlerHealthCard — name is not a link", () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test 13: data-testid includes kind and id
+// Test 12: data-testid includes kind and id
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe("HandlerHealthCard — data-testid", () => {

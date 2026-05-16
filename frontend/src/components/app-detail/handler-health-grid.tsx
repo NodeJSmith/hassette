@@ -3,6 +3,7 @@ import { EmptyState } from "../shared/empty-state";
 import type { UnifiedItem } from "./unified-handler-row";
 import { sortedByFailingFirst } from "./overview-tab-helpers";
 import { HandlerHealthCard } from "./handler-health-card";
+// Grid layout classes live in overview-tab's stylesheet — this component is only rendered within OverviewTab
 import styles from "./overview-tab.module.css";
 
 export function HandlerHealthGrid({ items, appKey, instanceQs }: {

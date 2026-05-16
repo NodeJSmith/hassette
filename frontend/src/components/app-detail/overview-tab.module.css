@@ -12,6 +12,7 @@
   opacity: 0.6;
 }
 
+/* Exported for CSS module class reference — no styles needed beyond inherited layout */
 .section {}
 
 /* — Error spotlight section — */
@@ -100,15 +101,19 @@
 /* — Handler health card grid — */
 
 .healthGridScroll {
-  max-height: calc(3 * 140px + 2 * var(--sp-3));
+  --health-card-height: 140px;
+  --health-card-min-width: 280px;
+  --health-grid-cols: 3;
+
+  max-height: calc(var(--health-grid-cols) * var(--health-card-height) + 2 * var(--sp-3));
   overflow-x: hidden;
   overflow-y: auto;
 }
 
 .healthGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
-  max-width: calc(3 * 280px + 2 * var(--sp-3));
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--health-card-min-width), 100%), 1fr));
+  max-width: calc(var(--health-grid-cols) * var(--health-card-min-width) + 2 * var(--sp-3));
   gap: var(--sp-3);
 }
 
@@ -121,7 +126,9 @@
 /* — Log table scroll constraint (overview only) — */
 
 .logScroll {
-  max-height: 400px;
+  --log-scroll-max-height: 400px;
+
+  max-height: var(--log-scroll-max-height);
   overflow-y: auto;
 }
 
