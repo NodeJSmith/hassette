@@ -102,12 +102,10 @@ def test_handler_deep_link_url_persists_on_refresh(page: Page, base_url: str) ->
 
 
 def test_logs_tab_with_level_filter_deep_link(page: Page, base_url: str) -> None:
-    """Navigating to /apps/:key/logs?level=ERROR shows logs filtered to ERROR (AC#3, AC#1)."""
-    page.goto(base_url + "/apps/my_app/logs?level=ERROR")
+    """Navigating to /logs?level=ERROR shows logs filtered to ERROR (AC#3, AC#1)."""
+    page.goto(base_url + "/logs?level=ERROR")
     page.wait_for_load_state("networkidle")
-    # Logs tab should be active
-    logs_section = page.locator("[data-testid='logs-section']")
-    expect(logs_section).to_be_visible(timeout=5000)
+    page.locator("[data-testid='log-table']").wait_for(timeout=5000)
     # Open the level filter popover, then check filter shows ERROR
     page.locator("[data-testid='sort-level'] [data-testid='filter-btn']").click()
     level_filter = page.locator("[data-testid='filter-level']")
@@ -118,7 +116,7 @@ def test_logs_tab_with_level_filter_deep_link(page: Page, base_url: str) -> None
 
 def test_logs_tab_filter_persists_on_refresh(page: Page, base_url: str) -> None:
     """Setting log level filter and refreshing restores the filter (AC#1, AC#3)."""
-    page.goto(base_url + "/apps/my_app/logs")
+    page.goto(base_url + "/logs")
     page.wait_for_load_state("networkidle")
     # Open the level filter popover and set to ERROR
     page.locator("[data-testid='sort-level'] [data-testid='filter-btn']").click()
