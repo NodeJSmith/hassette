@@ -1,0 +1,16 @@
+.wrapper {
+  margin-bottom: var(--sp-3);
+}
+
+.codeSnippet {
+  margin: var(--sp-1) 0 0;
+  padding: var(--sp-3);
+  background: var(--bg-sunken);
+  border: 1px dashed var(--line-1);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-small);
+  overflow-x: auto;
+  white-space: pre;
+}
