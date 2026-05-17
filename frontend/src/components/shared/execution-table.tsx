@@ -2,16 +2,17 @@ import clsx from "clsx";
 import { useSignal } from "../../hooks/use-signal";
 import { ShowMoreButton } from "./show-more-button";
 import { DetailPanel } from "./detail-panel";
-import { formatDuration, formatTimestamp } from "../../utils/format";
+import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
 import { executionStatusKind } from "../../utils/status";
 import { EmptyState } from "./empty-state";
 import { StatusShape } from "./status-shape";
 import styles from "./execution-table.module.css";
 
 const INITIAL_ROWS = 5;
-const COL_COUNT = 5; // Status, Timestamp, Duration, Execution ID, arrow
+const COL_COUNT = 5;
+const STATUS_DOT_SIZE = 10;
 
-interface ExecutionRecord {
+export interface ExecutionRecord {
   execution_start_ts: number;
   duration_ms: number;
   status: string;
@@ -55,12 +56,11 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
           </tr>
         </thead>
         <tbody>
-          {visible.map((rec, i) => {
+          {visible.map((record, i) => {
             const isOpen = openRow.value === i;
-            const rowKey = rec.execution_id ?? `${kind}-${i}`;
-            const isError = rec.status === "error";
-            const isTimeout = rec.status === "timed_out";
-            const shortId = rec.execution_id ? rec.execution_id.slice(0, 8) : "—";
+            const rowKey = record.execution_id ?? `${kind}-${i}`;
+            const isError = record.status === "error";
+            const isTimeout = record.status === "timed_out";
 
             return [
               <tr
@@ -80,18 +80,18 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
               >
                 <td class={styles.statusCell}>
                   <div class={styles.statusCellInner}>
-                    <StatusShape kind={executionStatusKind(rec.status)} size={10} />
-                    {isError && rec.error_type && (
-                      <span class={styles.errorType}>{rec.error_type}</span>
+                    <StatusShape kind={executionStatusKind(record.status)} size={STATUS_DOT_SIZE} />
+                    {isError && record.error_type && (
+                      <span class={styles.errorType}>{record.error_type}</span>
                     )}
                     {isTimeout && (
                       <span class={styles.timeoutType}>timed out</span>
                     )}
                   </div>
                 </td>
-                <td class="ht-text-mono ht-text-xs">{formatTimestamp(rec.execution_start_ts)}</td>
-                <td>{formatDuration(rec.duration_ms)}</td>
-                <td class="ht-col-trace ht-text-mono ht-text-xs">{shortId}</td>
+                <td class="ht-text-mono ht-text-xs">{formatTimestamp(record.execution_start_ts)}</td>
+                <td>{formatDuration(record.duration_ms)}</td>
+                <td class="ht-col-trace ht-text-mono ht-text-xs">{truncateId(record.execution_id)}</td>
                 <td class="ht-text-muted">
                   <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
                     <polyline points={isOpen ? "2,4 6,8 10,4" : "4,2 8,6 4,10"} fill="none" stroke="currentColor" stroke-width="1.5" />
@@ -100,17 +100,17 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
               </tr>,
               isOpen && (
                 <tr key={`${rowKey}-detail`}>
-                  <td colSpan={COL_COUNT} style={{ padding: 0 }}>
+                  <td colSpan={COL_COUNT} class={styles.detailCell}>
                     <DetailPanel
-                      status={rec.status}
-                      durationMs={rec.duration_ms}
-                      executionId={rec.execution_id}
-                      errorType={rec.error_type}
-                      errorMessage={rec.error_message}
-                      errorTraceback={rec.error_traceback}
-                      context={rec.trigger_context_id ? {
-                        triggerContextId: rec.trigger_context_id,
-                        triggerOrigin: rec.trigger_origin,
+                      status={record.status}
+                      durationMs={record.duration_ms}
+                      executionId={record.execution_id}
+                      errorType={record.error_type}
+                      errorMessage={record.error_message}
+                      errorTraceback={record.error_traceback}
+                      context={record.trigger_context_id ? {
+                        triggerContextId: record.trigger_context_id,
+                        triggerOrigin: record.trigger_origin,
                       } : undefined}
                       testId={kind === "handler" ? "invocation-detail" : "execution-detail"}
                     />

@@ -1,0 +1,59 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.content {
+  padding: var(--sp-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-2);
+}
+
+.handlerName {
+  font-family: var(--font-mono);
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.nameAutoHint {
+  display: inline-block;
+  margin-left: var(--sp-1);
+  font-family: var(--font-body);
+  font-size: var(--fs-micro);
+  font-weight: 400;
+  color: var(--ink-4);
+  cursor: help;
+  vertical-align: middle;
+}
+
+.subtitle {
+  font-size: var(--fs-small);
+  color: var(--ink-3);
+  margin-bottom: var(--sp-3);
+}
+
+.executionsPanel {
+  padding: var(--sp-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+}
+
+.panelHeading {
+  font-family: var(--font-body);
+  font-size: var(--fs-h3);
+  font-weight: 500;
+  color: var(--ink-1);
+  margin: 0 0 var(--sp-3);
+}
