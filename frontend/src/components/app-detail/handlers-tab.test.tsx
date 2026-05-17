@@ -415,4 +415,93 @@ describe("HandlersTab", () => {
     fireEvent.click(getByTestId("unified-row-listener-3"));
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/h-3?instance=1");
   });
+
+  it("job detail: renders schedule chips when jitter and group are set", async () => {
+    const job = createJob({
+      job_id: 40,
+      jitter: 5,
+      group: "my-group",
+      trigger_type: "Every",
+    });
+    const { getByTestId } = renderHandlersTab([], [job], "j-40");
+    await waitFor(() => getByTestId("job-detail-40"));
+    const chips = getByTestId("schedule-chips");
+    expect(chips.textContent).toContain("±5s jitter");
+    expect(chips.textContent).toContain("group: my-group");
+  });
+
+  it("job detail: shows auto-generated name hint when name_auto is true", async () => {
+    const job = createJob({ job_id: 41, name_auto: true });
+    const { getByTestId } = renderHandlersTab([], [job], "j-41");
+    await waitFor(() => getByTestId("job-detail-41"));
+    const hint = getByTestId("job-detail-41").querySelector("[aria-label='Auto-generated name']");
+    expect(hint).not.toBeNull();
+  });
+
+  it("job detail: shows next-run text when next_run is set", async () => {
+    const job = createJob({
+      job_id: 42,
+      next_run: Date.now() / 1000 + 300,
+    });
+    const { getByTestId } = renderHandlersTab([], [job], "j-42");
+    await waitFor(() => getByTestId("job-detail-42"));
+    expect(getByTestId("job-next-run")).toBeDefined();
+    expect(getByTestId("job-next-run").textContent).toContain("next");
+  });
+
+  it("job detail: shows fire-at text when fire_at is set but next_run is null", async () => {
+    const job = createJob({
+      job_id: 43,
+      next_run: null,
+      fire_at: Date.now() / 1000 + 60,
+    });
+    const { getByTestId } = renderHandlersTab([], [job], "j-43");
+    await waitFor(() => getByTestId("job-detail-43"));
+    expect(getByTestId("job-next-run")).toBeDefined();
+    expect(getByTestId("job-next-run").textContent).toContain("fire at");
+  });
+
+  it("job detail: shows failing badge when job has errors", async () => {
+    const job = createJob({
+      job_id: 44,
+      failed: 1,
+      last_error_type: "RuntimeError",
+      last_error_message: "boom",
+    });
+    const { getByTestId } = renderHandlersTab([], [job], "j-44");
+    await waitFor(() => getByTestId("job-detail-44"));
+    expect(getByTestId("handler-status-pill").textContent).toBe("failing");
+  });
+
+  it("shows placeholder when selectedHandler has invalid format", () => {
+    const { queryByTestId, getByTestId } = renderHandlersTab(
+      [createListener({ listener_id: 1 })],
+      [],
+      "invalid-format",
+    );
+    expect(queryByTestId("listener-detail-1")).toBeNull();
+    expect(getByTestId("detail-placeholder")).toBeDefined();
+  });
+
+  it("handler detail: calls onSwitchToCode with line number when view-in-code clicked", async () => {
+    const onSwitch = vi.fn();
+    const listener = createListener({
+      listener_id: 45,
+      source_location: "my_app.py:99",
+    });
+    const { getByTestId } = renderWithAppState(
+      <HandlersTab
+        listeners={[listener]}
+        jobs={[]}
+        selectedHandler="h-45"
+        appKey="test_app"
+        instanceQs=""
+        onSwitchToCode={onSwitch}
+      />,
+      { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
+    );
+    await waitFor(() => getByTestId("listener-detail-45"));
+    fireEvent.click(getByTestId("view-in-code-btn"));
+    expect(onSwitch).toHaveBeenCalledWith(99);
+  });
 });
