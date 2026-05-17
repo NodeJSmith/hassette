@@ -14,10 +14,10 @@ class IdempotentApp(App[AppConfig]):
         # --8<-- [end:idempotent_registration]
 
         # --8<-- [start:replace_registration]
-        # Use replace when configuration may change between reloads
+        # Use replace when the trigger or handler may change between reloads
         self.scheduler.run_every(
             self.check_sensors,
-            seconds=self.config.poll_interval,
+            seconds=120,
             name="sensor_check",
             if_exists="replace",
         )
