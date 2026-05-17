@@ -11,12 +11,17 @@ from hassette.scheduler.triggers import Cron, Every
 from hassette.utils.date_utils import now
 
 
-def _make_scheduler() -> Scheduler:
+def _make_scheduler(*, wire_dequeue: bool = False) -> Scheduler:
     """Create a minimal Scheduler instance with mocked internals.
 
     Uses a unique per-call subclass so that property overrides for owner_id do
     NOT mutate the shared Scheduler class — which would break parallel test
     workers that create real Scheduler instances concurrently.
+
+    Args:
+        wire_dequeue: If True, configure scheduler_service.dequeue_job to mimic
+            real behavior (set _dequeued=True and fire _on_job_removed callback).
+            Required for tests that exercise cancel_job paths.
     """
     # Fresh subclass per call: property assignments stay on _TestScheduler, not Scheduler.
     _TestScheduler = type("_TestScheduler", (Scheduler,), {})  # noqa: N806
@@ -26,6 +31,21 @@ def _make_scheduler() -> Scheduler:
     scheduler.scheduler_service = Mock()
     scheduler._jobs_by_name = {}
     scheduler._jobs_by_group = {}
+    scheduler._error_handler = None
+    scheduler.logger = Mock()
+
+    # Base behavior: always set _dequeued=True (matches test_scheduler_resource.py)
+    scheduler.scheduler_service.dequeue_job = Mock(side_effect=lambda job: setattr(job, "_dequeued", True) or True)
+
+    if wire_dequeue:
+
+        def _mock_dequeue(job: "ScheduledJob") -> bool:
+            job._dequeued = True
+            scheduler._on_job_removed(job)
+            return True
+
+        scheduler.scheduler_service.dequeue_job.side_effect = _mock_dequeue
+
     return scheduler
 
 
@@ -34,6 +54,7 @@ def _make_job(
     *,
     job: Callable[..., None] | None = None,
     trigger: object = None,
+    group: str | None = None,
 ) -> ScheduledJob:
     """Create a minimal ScheduledJob."""
     return ScheduledJob(
@@ -42,6 +63,7 @@ def _make_job(
         job=job or (lambda: None),
         name=name,
         trigger=trigger,
+        group=group,
     )
 
 
@@ -198,3 +220,70 @@ class TestIfExistsSkip:
 
         with pytest.raises(ValueError, match="poll"):
             scheduler.add_job(_make_job("poll", job=fn))
+
+
+class TestIfExistsReplace:
+    def test_replace_cancels_old_and_registers_new(self) -> None:
+        """if_exists='replace' cancels the existing job and registers the new one."""
+        scheduler = _make_scheduler(wire_dequeue=True)
+        fn_old = lambda: None  # noqa: E731
+        fn_new = lambda: None  # noqa: E731
+        old_job = scheduler.add_job(_make_job("sensor_check", job=fn_old))
+
+        new_job = _make_job("sensor_check", job=fn_new)
+        result = scheduler.add_job(new_job, if_exists="replace")
+
+        assert result is new_job
+        assert scheduler._jobs_by_name["sensor_check"] is new_job
+        assert old_job._dequeued is True
+
+    def test_replace_with_no_existing_job(self) -> None:
+        """if_exists='replace' with no pre-existing job behaves like a normal add."""
+        scheduler = _make_scheduler(wire_dequeue=True)
+        fn = lambda: None  # noqa: E731
+        job = _make_job("fresh_job", job=fn)
+
+        result = scheduler.add_job(job, if_exists="replace")
+
+        assert result is job
+        assert scheduler._jobs_by_name["fresh_job"] is job
+
+    def test_replace_preserves_group_membership_of_new_job(self) -> None:
+        """if_exists='replace' cleans up old job's group and adds new job to its group."""
+        scheduler = _make_scheduler(wire_dequeue=True)
+        fn_old = lambda: None  # noqa: E731
+        fn_new = lambda: None  # noqa: E731
+        old_job = _make_job("check", job=fn_old, group="monitors")
+        scheduler.add_job(old_job)
+
+        new_job = _make_job("check", job=fn_new, group="monitors")
+        scheduler.add_job(new_job, if_exists="replace")
+
+        assert new_job in scheduler._jobs_by_group["monitors"]
+        assert old_job not in scheduler._jobs_by_group["monitors"]
+
+    def test_replace_returns_new_job_not_old(self) -> None:
+        """if_exists='replace' returns the newly registered job object."""
+        scheduler = _make_scheduler(wire_dequeue=True)
+        fn = lambda: None  # noqa: E731
+        old_job = scheduler.add_job(_make_job("poller", job=fn))
+
+        new_job = _make_job("poller", job=fn, trigger=Every(seconds=120))
+        result = scheduler.add_job(new_job, if_exists="replace")
+
+        assert result is new_job
+        assert result is not old_job
+
+    def test_replace_cross_group(self) -> None:
+        """if_exists='replace' moves from old group to new group correctly."""
+        scheduler = _make_scheduler(wire_dequeue=True)
+        fn_old = lambda: None  # noqa: E731
+        fn_new = lambda: None  # noqa: E731
+        old_job = _make_job("check", job=fn_old, group="old_group")
+        scheduler.add_job(old_job)
+
+        new_job = _make_job("check", job=fn_new, group="new_group")
+        scheduler.add_job(new_job, if_exists="replace")
+
+        assert "old_group" not in scheduler._jobs_by_group or scheduler._jobs_by_group["old_group"] == set()
+        assert new_job in scheduler._jobs_by_group["new_group"]
