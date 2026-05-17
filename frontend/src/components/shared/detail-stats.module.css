@@ -1,0 +1,39 @@
+.row {
+  display: flex;
+  gap: var(--sp-6);
+  flex-wrap: wrap;
+  padding: var(--sp-3) 0;
+  border-top: 1px solid var(--line-1);
+  border-bottom: 1px solid var(--line-1);
+  margin-bottom: var(--sp-4);
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: var(--sp-9);
+}
+
+.label {
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.value {
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  color: var(--ink-1);
+}
+
+.valueErr {
+  color: var(--err);
+}
+
+.valueWarn {
+  color: var(--warn);
+}

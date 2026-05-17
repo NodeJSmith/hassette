@@ -29,3 +29,7 @@
   color: var(--warn);
   white-space: nowrap;
 }
+
+.detailCell {
+  padding: 0;
+}
