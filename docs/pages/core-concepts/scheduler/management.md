@@ -74,7 +74,7 @@ Hassette automatically cancels **all** jobs created by an app when that app stop
 
 1. **Name your jobs**: Use the `name` parameter for better logs and safe reloads.
 
-   Names serve two purposes beyond readability. First, they appear in every log line that mentions the job — making it easy to correlate scheduler activity with a specific task. Second, names are the key used for idempotent re-registration: using `run_every(..., name="sensor_check", if_exists="skip")` ensures the same logical job is never duplicated even if the scheduling code runs more than once within the same app lifecycle.
+   Names serve two purposes beyond readability. First, they appear in every log line that mentions the job — making it easy to correlate scheduler activity with a specific task. Second, names are the key used for idempotent re-registration: using `run_every(..., name="sensor_check", if_exists="skip")` ensures the same logical job is never duplicated even if the scheduling code runs more than once within the same app lifecycle. Use `if_exists="skip"` when the job configuration is stable across reloads. Use `if_exists="replace"` when the callable, trigger, or parameters may change — the old job is cancelled and the new configuration takes effect immediately.
 
    ```python
    --8<-- "pages/core-concepts/scheduler/snippets/scheduler_naming.py"

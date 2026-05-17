@@ -161,7 +161,9 @@ class Scheduler(Resource):
         """Return the log level from the config for this resource."""
         return self.hassette.config.scheduler_service_log_level
 
-    def add_job(self, job: "ScheduledJob", *, if_exists: Literal["error", "skip"] = "error") -> "ScheduledJob":
+    def add_job(
+        self, job: "ScheduledJob", *, if_exists: Literal["error", "skip", "replace"] = "error"
+    ) -> "ScheduledJob":
         """Add a job to the scheduler.
 
         Args:
@@ -170,6 +172,8 @@ class Scheduler(Resource):
                 ``"error"`` (default) raises ``ValueError``.
                 ``"skip"`` returns the existing job if it matches; raises
                 ``ValueError`` if the name matches but the configuration differs.
+                ``"replace"`` cancels the existing job (recording it as cancelled
+                in telemetry) and registers the new job in its place.
 
         Returns:
             The added job, or the existing job when ``if_exists="skip"`` and a
@@ -186,27 +190,31 @@ class Scheduler(Resource):
 
         existing = self._jobs_by_name.get(job.name)
         if existing is not None:
-            if if_exists == "skip" and existing.matches(job):
+            if if_exists == "replace":
+                self.logger.debug("Replacing existing job '%s' (cancelling old, registering new)", job.name)
+                self.cancel_job(existing)
+            elif if_exists == "skip" and existing.matches(job):
                 return existing
-            if if_exists == "skip":
+            elif if_exists == "skip":
                 changed_fields = existing.diff_fields(job)
                 raise ValueError(
                     f"A job named '{job.name}' already exists but its configuration has changed "
                     f"(changed fields: {', '.join(changed_fields)})"
                 )
-            raise ValueError(
-                f"A job named '{job.name}' already exists in scheduler for '{self.owner_id}'. "
-                "Job names must be unique per scheduler instance."
-            )
+            else:
+                raise ValueError(
+                    f"A job named '{job.name}' already exists in scheduler for '{self.owner_id}'. "
+                    "Job names must be unique per scheduler instance."
+                )
 
         self._jobs_by_name[job.name] = job
+        job._scheduler = self
 
         if job.group is not None:
             if job.group not in self._jobs_by_group:
                 self._jobs_by_group[job.group] = set()
             self._jobs_by_group[job.group].add(job)
 
-        job._scheduler = self
         job.set_app_error_handler_resolver(lambda: self._error_handler)
         self.scheduler_service.add_job(job)
 
@@ -320,7 +328,7 @@ class Scheduler(Resource):
         timeout_disabled: bool = False,
         *,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip"] = "error",
+        if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
@@ -409,7 +417,7 @@ class Scheduler(Resource):
         timeout_disabled: bool = False,
         *,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip"] = "error",
+        if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
@@ -459,7 +467,7 @@ class Scheduler(Resource):
         if_past: Literal["tomorrow", "error"] = "tomorrow",
         *,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip"] = "error",
+        if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
@@ -515,7 +523,7 @@ class Scheduler(Resource):
         timeout_disabled: bool = False,
         *,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip"] = "error",
+        if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
@@ -566,7 +574,7 @@ class Scheduler(Resource):
         timeout_disabled: bool = False,
         *,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip"] = "error",
+        if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
@@ -617,7 +625,7 @@ class Scheduler(Resource):
         timeout_disabled: bool = False,
         *,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip"] = "error",
+        if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
@@ -668,7 +676,7 @@ class Scheduler(Resource):
         timeout_disabled: bool = False,
         *,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip"] = "error",
+        if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":
@@ -720,7 +728,7 @@ class Scheduler(Resource):
         timeout_disabled: bool = False,
         *,
         on_error: "SchedulerErrorHandlerType | None" = None,
-        if_exists: Literal["error", "skip"] = "error",
+        if_exists: Literal["error", "skip", "replace"] = "error",
         args: tuple[Any, ...] | None = None,
         kwargs: Mapping[str, Any] | None = None,
     ) -> "ScheduledJob":

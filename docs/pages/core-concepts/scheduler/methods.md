@@ -17,7 +17,7 @@ The primary entry point for scheduling. All convenience methods delegate here. U
 | `jitter` | `float \| None` | `None` | Optional seconds of random offset applied at enqueue time. See [Jitter](#jitter). |
 | `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global `scheduler_job_timeout_seconds` default. A positive `float` overrides it. See [Timeouts](../configuration/global.md#timeouts). |
 | `timeout_disabled` | `bool` | `False` | When `True`, timeout enforcement is disabled for this job regardless of the global default. |
-| `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
+| `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
 
@@ -49,7 +49,7 @@ Run once after a delay. Useful for timeouts or delayed actions.
 | `group` | `str \| None` | `None` | Optional group name. See [Job Groups](#job-groups). |
 | `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global default. See [Timeouts](../configuration/global.md#timeouts). |
 | `timeout_disabled` | `bool` | `False` | Disable timeout enforcement for this job. |
-| `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
+| `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
 
@@ -68,7 +68,7 @@ Run once at a specific wall-clock time. Accepts a `"HH:MM"` string or a `ZonedDa
 | `group` | `str \| None` | `None` | Optional group name. See [Job Groups](#job-groups). |
 | `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global default. See [Timeouts](../configuration/global.md#timeouts). |
 | `timeout_disabled` | `bool` | `False` | Disable timeout enforcement for this job. |
-| `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
+| `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
 
@@ -92,7 +92,7 @@ Run repeatedly at a fixed interval. Specify the interval using `hours`, `minutes
 | `group` | `str \| None` | `None` | Optional group name. See [Job Groups](#job-groups). |
 | `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global default. See [Timeouts](../configuration/global.md#timeouts). |
 | `timeout_disabled` | `bool` | `False` | Disable timeout enforcement for this job. |
-| `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
+| `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
 
@@ -115,7 +115,7 @@ Run every N minutes. Shorthand for `run_every(minutes=N)`.
 | `group` | `str \| None` | `None` | Optional group name. See [Job Groups](#job-groups). |
 | `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global default. See [Timeouts](../configuration/global.md#timeouts). |
 | `timeout_disabled` | `bool` | `False` | Disable timeout enforcement for this job. |
-| `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
+| `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
 
@@ -134,7 +134,7 @@ Run every N hours. Shorthand for `run_every(hours=N)`.
 | `group` | `str \| None` | `None` | Optional group name. See [Job Groups](#job-groups). |
 | `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global default. See [Timeouts](../configuration/global.md#timeouts). |
 | `timeout_disabled` | `bool` | `False` | Disable timeout enforcement for this job. |
-| `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
+| `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
 
@@ -153,7 +153,7 @@ Run once per day at a fixed wall-clock time. Uses a cron-based trigger internall
 | `group` | `str \| None` | `None` | Optional group name. See [Job Groups](#job-groups). |
 | `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global default. See [Timeouts](../configuration/global.md#timeouts). |
 | `timeout_disabled` | `bool` | `False` | Disable timeout enforcement for this job. |
-| `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
+| `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
 
@@ -176,7 +176,7 @@ Run on a schedule defined by a cron expression. Accepts both 5-field (standard U
 | `group` | `str \| None` | `None` | Optional group name. See [Job Groups](#job-groups). |
 | `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` uses the global default. See [Timeouts](../configuration/global.md#timeouts). |
 | `timeout_disabled` | `bool` | `False` | Disable timeout enforcement for this job. |
-| `if_exists` | `"error"` \| `"skip"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
+| `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a job with this name already exists. See [Idempotent Registration](#idempotent-registration). |
 | `args` | `tuple` \| `None` | `None` | Positional arguments passed to `func`. |
 | `kwargs` | `Mapping` \| `None` | `None` | Keyword arguments passed to `func`. |
 
@@ -247,7 +247,8 @@ All scheduling methods accept an `if_exists` parameter to control this behavior:
 | Value | Behavior |
 |-------|----------|
 | `"error"` (default) | Raise `ValueError` if a job with the same name already exists. |
-| `"skip"` | Return the existing job if its configuration matches. Raises `ValueError` if a job with the same name exists but has a different configuration. Two jobs match when they have the same callable, trigger (by `trigger_id()`), group, jitter, timeout, timeout_disabled, `args`, and `kwargs`. Useful for safe re-registration in `on_initialize`. |
+| `"skip"` | Return the existing job if its configuration matches. Raises `ValueError` if a job with the same name exists but has a different configuration. Two jobs match when they have the same callable, trigger (by `trigger_id()`), group, jitter, timeout, timeout_disabled, `args`, and `kwargs`. Useful for safe re-registration in `on_initialize` when the job configuration is stable across reloads. |
+| `"replace"` | Cancel the existing job (recording it as cancelled in telemetry) and register the new job in its place. Unlike `"skip"`, the new job does not need to match the existing one's configuration. Useful when the callable, trigger, or parameters may change between reloads. |
 
 This is especially useful in `on_initialize`, which runs again on app reload:
 
@@ -255,7 +256,11 @@ This is especially useful in `on_initialize`, which runs again on app reload:
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_idempotent_registration.py:idempotent_registration"
 ```
 
-Without `if_exists="skip"`, a reload would raise `ValueError` because `sensor_check` is already registered from the previous initialization.
+Without `if_exists="skip"`, a reload would raise `ValueError` because `sensor_check` is already registered from the previous initialization. Use `if_exists="replace"` instead when the job's configuration may change — the old job is cancelled and the new configuration takes effect immediately:
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_idempotent_registration.py:replace_registration"
+```
 
 ## Passing Arguments to Handlers
 
@@ -318,7 +323,7 @@ The `TriggerProtocol` requires six methods:
 | `trigger_label()` | `str` | Short label for logs and the web UI. |
 | `trigger_detail()` | `str \| None` | Optional human-readable detail string. |
 | `trigger_db_type()` | `str` | Canonical type for database storage. |
-| `trigger_id()` | `str` | Stable identifier for deduplication (used by `if_exists="skip"`). |
+| `trigger_id()` | `str` | Stable identifier for deduplication (used by `if_exists="skip"` and auto-generated job names). |
 
 ## See Also
 
