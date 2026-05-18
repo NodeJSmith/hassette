@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Split Bus.on() into public and private APIs"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#7", "FR#8", "FR#11", "AC#6", "AC#7", "AC#11"]
 ---

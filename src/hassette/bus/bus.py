@@ -93,11 +93,11 @@ from hassette.resources.base import Resource
 from hassette.types import ComparisonCondition, Topic
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE
-from hassette.utils.func_utils import callable_short_name
+from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.glob_utils import is_glob
 from hassette.utils.source_capture import capture_registration_source
 
-from .listeners import Listener, Subscription
+from .listeners import DurationConfig, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions, Subscription
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
@@ -125,12 +125,7 @@ class Options(TypedDict, total=False):
     timeout_disabled: bool
     """When True, disables timeout enforcement for this listener regardless of config."""
 
-    name: str | None
-    """Optional stable name for the listener. Used as the natural key escape hatch to disambiguate
-    registrations that would otherwise share the same natural key."""
-
-    on_error: "BusErrorHandlerType | None"
-    """Optional error handler for this listener. Called when the listener's handler raises an exception."""
+    # on_error removed — now an explicit parameter on on(), _subscribe(), on_state_change(), on_attribute_change()
 
 
 class Bus(Resource):
@@ -196,12 +191,12 @@ class Bus(Resource):
         # once=True listeners are excluded from collision detection: the partial unique index
         # (WHERE once = 0) explicitly allows unlimited fresh inserts for the same natural key,
         # so two once=True registrations for the same (handler, topic) are valid and expected.
-        if not listener.once:
+        if not listener.options.once:
             natural_key = self._listener_natural_key(listener)
             if natural_key in self._registered_keys:
-                key_str = natural_key[-1] or listener.handler_name
+                key_str = natural_key[-1] or listener.identity.handler_name
                 raise ValueError(
-                    f"Duplicate listener registration detected for handler '{listener.handler_name}' "
+                    f"Duplicate listener registration detected for handler '{listener.identity.handler_name}' "
                     f"on topic '{listener.topic}' (key={key_str!r}). "
                     f"Add name= to disambiguate if intentional."
                 )
@@ -214,11 +209,11 @@ class Bus(Resource):
         if listener.predicate is not None:
             human_description = P.summarize_top_level(listener.predicate)
         return (
-            listener.app_key,
-            listener.instance_index,
-            listener.handler_name,
+            listener.identity.app_key,
+            listener.identity.instance_index,
+            listener.identity.handler_name,
             listener.topic,
-            listener.name if listener.name is not None else human_description,
+            listener.identity.name if listener.identity.name is not None else human_description,
         )
 
     def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
@@ -248,14 +243,13 @@ class Bus(Resource):
         timeout: float | None = None,
         timeout_disabled: bool = False,
         name: str | None = None,
-        immediate: bool = False,
-        duration: float | None = None,
-        entity_id: str | None = None,
-        is_attribute_listener: bool = False,
-        hold_preds: list["Predicate"] | None = None,
         on_error: "BusErrorHandlerType | None" = None,
     ) -> Subscription:
         """Subscribe to an event topic with optional filtering and modifiers.
+
+        This is the public registration method. For internal use (duration-hold listeners,
+        attribute listeners), use the convenience methods on_state_change() and
+        on_attribute_change() which call _on_internal() with the full parameter set.
 
         Args:
             topic: The event topic to listen to.
@@ -271,22 +265,12 @@ class Bus(Resource):
             timeout_disabled: When True, disables timeout enforcement for this listener regardless of config.
             name: Optional stable name for this listener. When provided, it replaces the predicate
                 summary in the natural key and disambiguates registrations that would otherwise collide.
+            on_error: Optional per-listener error handler.
 
         Returns:
             A subscription object that can be used to manage the listener.
         """
-        parent = self.parent
-        assert parent is not None
-        app_key = parent.app_key
-        instance_index = parent.index
-        source_tier = parent.source_tier
-        assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
-
-        hold_predicate = P.AllOf.ensure_iterable(hold_preds) if hold_preds else None
-
-        listener = Listener.create(
-            task_bucket=self.task_bucket,
-            owner_id=self.owner_id,
+        return self._on_internal(
             topic=topic,
             handler=handler,
             where=where,
@@ -296,32 +280,105 @@ class Bus(Resource):
             throttle=throttle,
             timeout=timeout,
             timeout_disabled=timeout_disabled,
-            priority=self.priority,
-            logger=self.logger,
+            name=name,
+            on_error=on_error,
+            duration_config=None,
+        )
+
+    def _on_internal(
+        self,
+        *,
+        topic: str,
+        handler: "HandlerType",
+        where: "Predicate | Sequence[Predicate] | None" = None,
+        kwargs: Mapping[str, Any] | None = None,
+        once: bool = False,
+        debounce: float | None = None,
+        throttle: float | None = None,
+        timeout: float | None = None,
+        timeout_disabled: bool = False,
+        name: str | None = None,
+        on_error: "BusErrorHandlerType | None" = None,
+        duration_config: "DurationConfig | None" = None,
+    ) -> Subscription:
+        """Private registration method carrying the full parameter set.
+
+        Called by on() (with duration_config=None) and by _subscribe() (which
+        builds DurationConfig from duration/entity_id when provided).
+
+        Builds all sub-structs (ListenerIdentity, ListenerOptions, HandlerInvoker)
+        here and calls Listener.create() via the sub-struct path. Source location is
+        captured before construction (while user code is still on the stack).
+        """
+        parent = self.parent
+        assert parent is not None
+        app_key = parent.app_key
+        instance_index = parent.index
+        source_tier = parent.source_tier
+        assert source_tier in ("app", "framework"), f"Invalid source_tier={source_tier!r} on {parent.class_name}"
+
+        # Capture source while user code is still on the stack (before async spawn boundary)
+        source_location, registration_source = capture_registration_source()
+
+        handler_name = callable_name(handler)
+        parts = handler_name.rsplit(".", 1)
+        short_name = parts[-1] if parts else handler_name
+
+        identity = ListenerIdentity(
+            owner_id=self.owner_id,
             app_key=app_key,
             instance_index=instance_index,
             name=name,
             source_tier=source_tier,
-            immediate=immediate,
-            duration=duration,
-            entity_id=entity_id,
-            is_attribute_listener=is_attribute_listener,
-            hold_predicate=hold_predicate,
-            error_handler=on_error,
+            handler_name=handler_name,
+            handler_short_name=short_name,
+            source_location=source_location,
+            registration_source=registration_source or "",
         )
 
-        # Capture source while user code is still on the stack (before async spawn boundary)
-        source_location, registration_source = capture_registration_source()
-        listener.source_location = source_location
-        listener.registration_source = registration_source or ""
+        options = ListenerOptions(
+            once=once,
+            debounce=debounce,
+            throttle=throttle,
+            timeout=timeout,
+            timeout_disabled=timeout_disabled,
+            priority=self.priority,
+        )
 
-        listener.set_app_error_handler_resolver(lambda: self._error_handler)
+        invoker = HandlerInvoker.create(
+            task_bucket=self.task_bucket,
+            handler=handler,
+            kwargs=kwargs,
+            options=options,
+            error_handler=on_error,
+            app_error_handler_resolver=lambda: self._error_handler,
+        )
+
+        # Cross-concern validation: duration + debounce/throttle incompatibility
+        if duration_config is not None and duration_config.duration is not None:
+            if options.debounce is not None:
+                raise ValueError("Cannot combine 'duration' with 'debounce'")
+            if options.throttle is not None:
+                raise ValueError("Cannot combine 'duration' with 'throttle'")
+
+        listener = Listener.create(
+            task_bucket=self.task_bucket,
+            owner_id=self.owner_id,
+            topic=topic,
+            handler=handler,
+            where=where,
+            logger=self.logger,
+            identity=identity,
+            options=options,
+            invoker=invoker,
+            duration_config=duration_config,
+        )
 
         def unsubscribe() -> None:
             self.remove_listener(listener)
 
-        self.add_listener(listener)
-        return Subscription(listener, unsubscribe)
+        registration_task = self.add_listener(listener)
+        return Subscription(listener, unsubscribe, registration_task)
 
     def _subscribe(
         self,
@@ -338,9 +395,11 @@ class Bus(Resource):
         entity_id: str | None = None,
         is_attribute_listener: bool = False,
         hold_preds: list["Predicate"] | None = None,
+        name: str | None = None,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
-        """Common subscription tail: log, normalize where, delegate to on()."""
+        """Common subscription tail: log, normalize where, delegate to _on_internal()."""
         if self.logger.isEnabledFor(10):  # DEBUG
             filtered = (
                 {k: v for k, v in log_params.items() if v is not None and not isinstance(v, Sentinel)}
@@ -360,18 +419,28 @@ class Bus(Resource):
             normalized_where = where if callable(where) else P.AllOf.ensure_iterable(where)
             preds.append(normalized_where)
             if hold_preds is not None:
-                hold_preds.append(normalized_where)
+                # Fix FR#11: create new list instead of mutating in place (AC#11)
+                hold_preds = [*hold_preds, normalized_where]
 
-        return self.on(
+        # Build DurationConfig when entity_id is provided (for duration or immediate listeners)
+        duration_config: DurationConfig | None = None
+        if entity_id:
+            duration_config = DurationConfig(
+                entity_id=entity_id,
+                duration=duration,
+                immediate=immediate,
+                is_attribute_listener=is_attribute_listener,
+                hold_predicate=P.AllOf.ensure_iterable(hold_preds) if hold_preds else None,
+            )
+
+        return self._on_internal(
             topic=topic,
             handler=handler,
             where=preds,
             kwargs=kwargs,
-            immediate=immediate,
-            duration=duration,
-            entity_id=entity_id,
-            is_attribute_listener=is_attribute_listener,
-            hold_preds=hold_preds,
+            duration_config=duration_config,
+            name=name,
+            on_error=on_error,
             **opts,
         )
 
@@ -409,6 +478,8 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         immediate: bool = False,
         duration: float | None = None,
+        name: str | None = None,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to state changes for a specific entity.
@@ -466,6 +537,8 @@ class Bus(Resource):
             duration=duration,
             entity_id=entity_id,
             hold_preds=hold_preds if duration is not None else None,
+            name=name,
+            on_error=on_error,
             **opts,
         )
 
@@ -482,6 +555,8 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         immediate: bool = False,
         duration: float | None = None,
+        name: str | None = None,
+        on_error: "BusErrorHandlerType | None" = None,
         **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to state change events for a specific entity's attribute.
@@ -554,6 +629,8 @@ class Bus(Resource):
             entity_id=entity_id,
             hold_preds=hold_preds if duration is not None else None,
             is_attribute_listener=True,
+            name=name,
+            on_error=on_error,
             **opts,
         )
 

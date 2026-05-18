@@ -14,6 +14,7 @@ from hassette.utils.func_utils import callable_name
 from hassette.utils.type_utils import get_typed_signature
 
 if typing.TYPE_CHECKING:
+    import asyncio
     from collections.abc import Awaitable, Callable
 
     from hassette import TaskBucket
@@ -845,6 +846,17 @@ class Subscription:
 
     unsubscribe: "Callable[[], None]"
     """Function to call to unsubscribe the listener."""
+
+    registration_task: "asyncio.Future[None] | None" = None
+    """Completion signal for the listener's database persistence attempt.
+
+    Resolves with None when the persistence attempt is complete, regardless of
+    whether persistence succeeded or failed (completion signal, not success signal).
+    Callers check listener.db_id is not None to detect persistence failures.
+
+    None for Subscription instances constructed without a task (backward compat),
+    or for cancel-listener subscriptions that skip DB registration.
+    """
 
     def cancel(self) -> None:
         """Cancel the subscription by calling the unsubscribe function."""
