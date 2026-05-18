@@ -36,7 +36,7 @@ class TestListenerCreateSourceTier:
             handler=handler,
         )
 
-        assert listener.source_tier == "app"
+        assert listener.identity.source_tier == "app"
 
     def test_listener_create_framework_source_tier(self) -> None:
         """Listener.create(source_tier='framework') stores 'framework'."""
@@ -54,7 +54,7 @@ class TestListenerCreateSourceTier:
             source_tier="framework",
         )
 
-        assert listener.source_tier == "framework"
+        assert listener.identity.source_tier == "framework"
 
 
 # ---------------------------------------------------------------------------

@@ -40,36 +40,36 @@ class TestListenerImmediateField:
     def test_listener_create_with_immediate_true(self) -> None:
         """Listener.create(immediate=True) stores immediate=True."""
         listener = _make_listener(immediate=True, entity_id="light.kitchen")
-        assert listener.immediate is True
+        assert listener.duration_config.immediate is True
 
     def test_listener_create_default_immediate_false(self) -> None:
         """Default immediate is False."""
         listener = _make_listener()
-        assert listener.immediate is False
+        assert listener.duration_config is None or listener.duration_config.immediate is False
 
 
 class TestListenerDurationField:
     def test_listener_create_with_duration(self) -> None:
         """Listener.create(duration=5.0) stores duration=5.0."""
         listener = _make_listener(duration=5.0, entity_id="light.kitchen")
-        assert listener.duration == 5.0
+        assert listener.duration_config.duration == 5.0
 
     def test_listener_create_default_duration_none(self) -> None:
         """Default duration is None."""
         listener = _make_listener()
-        assert listener.duration is None
+        assert listener.duration_config is None or listener.duration_config.duration is None
 
 
 class TestListenerEntityIdField:
     def test_listener_create_with_entity_id(self) -> None:
         """entity_id is stored on the Listener."""
         listener = _make_listener(entity_id="light.kitchen")
-        assert listener.entity_id == "light.kitchen"
+        assert listener.duration_config.entity_id == "light.kitchen"
 
     def test_listener_create_default_entity_id_none(self) -> None:
         """Default entity_id is None."""
         listener = _make_listener()
-        assert listener.entity_id is None
+        assert listener.duration_config is None
 
 
 class TestListenerDurationValidation:
@@ -96,8 +96,8 @@ class TestListenerDurationValidation:
     def test_validate_once_plus_duration_allowed(self) -> None:
         """once=True combined with duration is allowed (no ValueError)."""
         listener = _make_listener(once=True, duration=5.0, entity_id="light.kitchen")
-        assert listener.once is True
-        assert listener.duration == 5.0
+        assert listener.options.once is True
+        assert listener.duration_config.duration == 5.0
 
 
 class TestListenerErrorHandlerField:
@@ -105,18 +105,18 @@ class TestListenerErrorHandlerField:
         """Listener.create() with error_handler= stores it on the resulting Listener."""
         mock_error_handler = AsyncMock()
         listener = _make_listener(error_handler=mock_error_handler)
-        assert listener.error_handler is mock_error_handler
+        assert listener.invoker.error_handler is mock_error_handler
 
     def test_listener_create_without_error_handler_defaults_none(self) -> None:
         """Listener.create() without error_handler= sets error_handler=None."""
         listener = _make_listener()
-        assert listener.error_handler is None
+        assert listener.invoker.error_handler is None
 
     def test_listener_error_handler_stored_as_raw_callable(self) -> None:
         """The error_handler stored is the raw callable, not a normalized wrapper."""
         mock_error_handler = AsyncMock()
         listener = _make_listener(error_handler=mock_error_handler)
-        assert listener.error_handler is mock_error_handler
+        assert listener.invoker.error_handler is mock_error_handler
 
 
 def _make_task_bucket() -> MagicMock:

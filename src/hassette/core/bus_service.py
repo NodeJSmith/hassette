@@ -302,7 +302,7 @@ class BusService(Service):
 
         Falls back to ``listener.matches()`` when no hold predicate is set.
         """
-        hold_pred = listener.hold_predicate
+        hold_pred = listener.duration_config.hold_predicate if listener.duration_config else None
         if hold_pred is None:
             return listener.matches(event)
         return hold_pred(event)

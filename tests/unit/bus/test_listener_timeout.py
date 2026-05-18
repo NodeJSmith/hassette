@@ -25,22 +25,22 @@ class TestListenerTimeout:
     def test_listener_create_with_timeout(self) -> None:
         """Listener.create(..., timeout=5.0) stores timeout=5.0."""
         listener = _make_listener(timeout=5.0)
-        assert listener.timeout == 5.0
+        assert listener.options.timeout == 5.0
 
     def test_listener_create_default_timeout(self) -> None:
         """Default timeout is None."""
         listener = _make_listener()
-        assert listener.timeout is None
+        assert listener.options.timeout is None
 
     def test_listener_create_timeout_disabled(self) -> None:
         """timeout_disabled=True stores correctly."""
         listener = _make_listener(timeout_disabled=True)
-        assert listener.timeout_disabled is True
+        assert listener.options.timeout_disabled is True
 
     def test_listener_create_default_timeout_disabled(self) -> None:
         """Default timeout_disabled is False."""
         listener = _make_listener()
-        assert listener.timeout_disabled is False
+        assert listener.options.timeout_disabled is False
 
     def test_listener_timeout_validation_rejects_zero(self) -> None:
         """timeout=0 raises ValueError."""

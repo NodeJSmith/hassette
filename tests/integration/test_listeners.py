@@ -38,7 +38,7 @@ class TestListenerInvoke:
             calls.append(event.data)
 
         listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
-        await listener.invoke(mock_event("test_data"))
+        await listener.invoker.invoke(mock_event("test_data"))
         assert calls == ["test_data"], "Handler should be called with event data"
 
     async def test_async_handler_with_event(self, bucket_fixture: TaskBucket):
@@ -49,7 +49,7 @@ class TestListenerInvoke:
             calls.append(event.data)
 
         listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
-        await listener.invoke(mock_event("test_data"))
+        await listener.invoker.invoke(mock_event("test_data"))
         assert calls == ["test_data"], "Handler should be called with event data"
 
     async def test_sync_handler_no_event(self, bucket_fixture: TaskBucket):
@@ -60,7 +60,7 @@ class TestListenerInvoke:
             calls.append("called")
 
         listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
-        await listener.invoke(mock_event("test_data"))
+        await listener.invoker.invoke(mock_event("test_data"))
         assert calls == ["called"], "Handler should be called without event data"
 
     async def test_async_handler_no_event(self, bucket_fixture: TaskBucket):
@@ -71,7 +71,7 @@ class TestListenerInvoke:
             calls.append("called")
 
         listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
-        await listener.invoke(mock_event("test_data"))
+        await listener.invoker.invoke(mock_event("test_data"))
         assert calls == ["called"], "Handler should be called without event data"
 
 
@@ -375,18 +375,18 @@ class TestListenerIntegration:
             debounce=0.1,
         )
 
-        assert listener.rate_limiter is not None
-        rl = listener.rate_limiter
+        assert listener.invoker._rate_limiter is not None
+        rl = listener.invoker._rate_limiter
 
         # Simulate dispatch: rate_limiter.call(invoke_fn) — like _dispatch does
         async def invoke_fn():
-            await listener.invoke(mock_event("1"))
+            await listener.invoker.invoke(mock_event("1"))
 
         async def invoke_fn2():
-            await listener.invoke(mock_event("2"))
+            await listener.invoker.invoke(mock_event("2"))
 
         async def invoke_fn3():
-            await listener.invoke(mock_event("3"))
+            await listener.invoker.invoke(mock_event("3"))
 
         await rl.call(invoke_fn)
         await rl.call(invoke_fn2)
@@ -409,14 +409,14 @@ class TestListenerIntegration:
             throttle=0.1,
         )
 
-        assert listener.rate_limiter is not None
-        rl = listener.rate_limiter
+        assert listener.invoker._rate_limiter is not None
+        rl = listener.invoker._rate_limiter
 
         events = [mock_event("1"), mock_event("2"), mock_event("3"), mock_event("4")]
 
         def make_invoke(ev):
             async def invoke_fn():
-                await listener.invoke(ev)
+                await listener.invoker.invoke(ev)
 
             return invoke_fn
 
@@ -445,9 +445,9 @@ class TestListenerIntegration:
         )
 
         # All calls should execute immediately
-        await listener.invoke(mock_event("1"))
-        await listener.invoke(mock_event("2"))
-        await listener.invoke(mock_event("3"))
+        await listener.invoker.invoke(mock_event("1"))
+        await listener.invoker.invoke(mock_event("2"))
+        await listener.invoker.invoke(mock_event("3"))
 
         assert calls == ["1", "2", "3"], "All calls should be executed immediately"
 
@@ -481,9 +481,9 @@ class TestListenerDispatchAndCancel:
         listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
 
         async def invoke_fn():
-            await listener.invoke(mock_event("direct"))
+            await listener.invoker.invoke(mock_event("direct"))
 
-        await listener.dispatch(invoke_fn)
+        await listener.invoker.dispatch(invoke_fn)
         assert calls == ["direct"]
 
     async def test_dispatch_with_debounce_coalesces(self, bucket_fixture: TaskBucket):
@@ -500,9 +500,9 @@ class TestListenerDispatchAndCancel:
         for i in range(3):
 
             async def invoke_fn(val=str(i + 1)):
-                await listener.invoke(mock_event(val))
+                await listener.invoker.invoke(mock_event(val))
 
-            await listener.dispatch(invoke_fn)
+            await listener.invoker.dispatch(invoke_fn)
 
         await wait_for(lambda: calls == ["3"], desc="debounce fired")
 
@@ -520,9 +520,9 @@ class TestListenerDispatchAndCancel:
         for i in range(3):
 
             async def invoke_fn(val=str(i + 1)):
-                await listener.invoke(mock_event(val))
+                await listener.invoker.invoke(mock_event(val))
 
-            await listener.dispatch(invoke_fn)
+            await listener.invoker.dispatch(invoke_fn)
 
         assert calls == ["1"], "Only the first call should execute"
 
@@ -538,9 +538,9 @@ class TestListenerDispatchAndCancel:
         for i in range(3):
 
             async def invoke_fn(val=str(i + 1)):
-                await listener.invoke(mock_event(val))
+                await listener.invoker.invoke(mock_event(val))
 
-            await listener.dispatch(invoke_fn)
+            await listener.invoker.dispatch(invoke_fn)
 
         assert calls == ["1"], "Once-listener should fire exactly once via dispatch()"
 
@@ -549,16 +549,16 @@ class TestListenerDispatchAndCancel:
         listener = Listener.create(
             task_bucket=bucket_fixture, owner_id="test", topic="t", handler=lambda _e: None, debounce=0.5
         )
-        assert listener.rate_limiter is not None
-        assert not listener.rate_limiter._cancelled
+        assert listener.invoker._rate_limiter is not None
+        assert not listener.invoker._rate_limiter._cancelled
 
         listener.cancel()
-        assert listener.rate_limiter._cancelled
+        assert listener.invoker._rate_limiter._cancelled
 
     async def test_cancel_without_rate_limiter_is_noop(self, bucket_fixture: TaskBucket):
         """cancel() on a listener without rate limiter does not raise."""
         listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=lambda _e: None)
-        assert listener.rate_limiter is None
+        assert listener.invoker._rate_limiter is None
         listener.cancel()  # should not raise
 
     async def test_cancel_is_idempotent(self, bucket_fixture: TaskBucket):
@@ -586,7 +586,7 @@ class TestDependencyValidationErrors:
         listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
 
         with pytest.raises(DependencyResolutionError):
-            await listener.invoke(state_change_event)
+            await listener.invoker.invoke(state_change_event)
 
         assert len(calls) == 0
 
@@ -601,7 +601,7 @@ class TestDependencyValidationErrors:
             calls.append(new_state)
 
         listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
-        await listener.invoke(state_change_event)
+        await listener.invoker.invoke(state_change_event)
 
         assert len(calls) == 1
         assert calls[0] is None
@@ -622,7 +622,7 @@ class TestDependencyValidationErrors:
             results.append((new_state, old_state, entity_id))
 
         listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
-        await listener.invoke(state_change_event)
+        await listener.invoker.invoke(state_change_event)
 
         assert len(results) == 1
         new, old, eid = results[0]
@@ -643,7 +643,7 @@ class TestDependencyValidationErrors:
         listener = Listener.create(task_bucket=bucket_fixture, owner_id="test", topic="t", handler=handler)
 
         with pytest.raises(DependencyResolutionError):
-            await listener.invoke(event)
+            await listener.invoker.invoke(event)
 
         assert len(calls) == 0
 
@@ -666,9 +666,9 @@ class TestListenerAppKeyAndInstanceIndex:
             instance_index=1,
         )
 
-        assert listener.app_key == "my_app"
-        assert listener.instance_index == 1
-        assert listener.owner_id == "MyApp.MyApp.0"
+        assert listener.identity.app_key == "my_app"
+        assert listener.identity.instance_index == 1
+        assert listener.identity.owner_id == "MyApp.MyApp.0"
 
     async def test_listener_defaults_empty_app_key(self, bucket_fixture: TaskBucket) -> None:
         """Create a Listener without app_key, verify it defaults to empty string."""
@@ -683,8 +683,8 @@ class TestListenerAppKeyAndInstanceIndex:
             handler=handler,
         )
 
-        assert listener.app_key == ""
-        assert listener.instance_index == 0
+        assert listener.identity.app_key == ""
+        assert listener.identity.instance_index == 0
 
 
 class TestOnceWithRateLimitingProhibited:
@@ -729,7 +729,7 @@ class TestOnceWithRateLimitingProhibited:
             handler=handler,
             once=True,
         )
-        assert listener.once is True
+        assert listener.options.once is True
 
     async def test_rate_limiting_without_once_is_allowed(self, bucket_fixture: TaskBucket):
         async def handler(event):
@@ -742,7 +742,7 @@ class TestOnceWithRateLimitingProhibited:
             handler=handler,
             debounce=1.0,
         )
-        assert listener.rate_limiter is not None
+        assert listener.invoker._rate_limiter is not None
 
 
 class TestRateLimitValueValidation:
@@ -806,10 +806,10 @@ class TestMarkFired:
         listener = Listener.create(
             task_bucket=bucket_fixture, owner_id="test", topic="t", handler=lambda _e: None, once=True
         )
-        assert listener._fired is False
+        assert listener.invoker._fired is False
 
-        listener.mark_fired()
-        assert listener._fired is True
+        listener.invoker.mark_fired()
+        assert listener.invoker._fired is True
 
 
 class TestValidateOptions:

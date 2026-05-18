@@ -364,7 +364,7 @@ async def test_duration_cancel_listener_uses_framework_tier(
 
     # There should be at least one framework-tier listener (cancellation)
     # The main listener fires only after an event, so the cancel listener is the framework one
-    framework_listeners = [lst for lst in listeners if lst.source_tier == "framework"]
+    framework_listeners = [lst for lst in listeners if lst.identity.source_tier == "framework"]
     assert len(framework_listeners) >= 1, f"No framework-tier listeners found: {listeners}"
 
 
@@ -387,17 +387,17 @@ async def test_duration_cancel_listener_same_owner_id(dur_harness: tuple[Hassett
 
     topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.light.kitchen"
     listeners = await harness.bus_service.router.get_topic_listeners(topic)
-    framework_listeners = [lst for lst in listeners if lst.source_tier == "framework"]
+    framework_listeners = [lst for lst in listeners if lst.identity.source_tier == "framework"]
 
     if framework_listeners:
-        assert all(lst.owner_id == main_listener.owner_id for lst in framework_listeners)
+        assert all(lst.identity.owner_id == main_listener.identity.owner_id for lst in framework_listeners)
 
     # Cancel subscription — cancellation listener should also be removed
     sub.cancel()
     await asyncio.sleep(0.02)
 
     listeners_after = await harness.bus_service.router.get_topic_listeners(topic)
-    framework_after = [lst for lst in listeners_after if lst.source_tier == "framework"]
+    framework_after = [lst for lst in listeners_after if lst.identity.source_tier == "framework"]
     assert len(framework_after) == 0, f"Framework listener not cleaned up: {framework_after}"
 
 

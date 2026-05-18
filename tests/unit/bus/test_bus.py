@@ -85,7 +85,7 @@ def test_name_parameter_propagates_to_listener(bus: "Bus") -> None:
             name="my_listener",
         )
         assert isinstance(subscription, Subscription)
-        assert subscription.listener.name == "my_listener"
+        assert subscription.listener.identity.name == "my_listener"
     finally:
         bus.bus_service.add_listener = original_add
 
@@ -100,7 +100,7 @@ def test_name_none_by_default(bus: "Bus") -> None:
             topic="test.topic",
             handler=_handler_a,
         )
-        assert subscription.listener.name is None
+        assert subscription.listener.identity.name is None
     finally:
         bus.bus_service.add_listener = original_add
 
@@ -144,8 +144,8 @@ def test_name_disambiguates_otherwise_identical_keys(bus: "Bus") -> None:
     try:
         sub1 = bus.on(topic="test.topic", handler=_handler_a, name="listener_1")
         sub2 = bus.on(topic="test.topic", handler=_handler_a, name="listener_2")
-        assert sub1.listener.name == "listener_1"
-        assert sub2.listener.name == "listener_2"
+        assert sub1.listener.identity.name == "listener_1"
+        assert sub2.listener.identity.name == "listener_2"
     finally:
         bus.bus_service.add_listener = original_add
 
@@ -196,8 +196,8 @@ def test_listener_inherits_parent_app_key(bus: "Bus") -> None:
     bus.bus_service.add_listener = add_listener_mock
     try:
         sub = bus.on(topic="test.identity", handler=_handler_a, name="test_identity")
-        assert sub.listener.app_key == "test_app"
-        assert sub.listener.app_key != bus.app_key
+        assert sub.listener.identity.app_key == "test_app"
+        assert sub.listener.identity.app_key != bus.app_key
     finally:
         bus.bus_service.add_listener = original_add
 
@@ -209,7 +209,7 @@ def test_listener_inherits_parent_source_tier(bus: "Bus") -> None:
     bus.bus_service.add_listener = add_listener_mock
     try:
         sub = bus.on(topic="test.tier", handler=_handler_a, name="test_tier")
-        assert sub.listener.source_tier == "app"
+        assert sub.listener.identity.source_tier == "app"
     finally:
         bus.bus_service.add_listener = original_add
 
@@ -222,7 +222,7 @@ def test_listener_inherits_parent_instance_index(bus: "Bus") -> None:
     bus.bus_service.add_listener = add_listener_mock
     try:
         sub = bus.on(topic="test.index", handler=_handler_a, name="test_index")
-        assert sub.listener.instance_index == 3
+        assert sub.listener.identity.instance_index == 3
     finally:
         bus.bus_service.add_listener = original_add
         bus.parent.index = 0
@@ -237,8 +237,8 @@ def test_framework_bus_inherits_framework_tier(hassette_with_bus: "Hassette") ->
     b.bus_service.add_listener = add_listener_mock
     try:
         sub = b.on(topic="test.fw", handler=_handler_a, name="test_fw")
-        assert sub.listener.source_tier == "framework"
-        assert sub.listener.app_key.startswith("__hassette__.")
+        assert sub.listener.identity.source_tier == "framework"
+        assert sub.listener.identity.app_key.startswith("__hassette__.")
     finally:
         b.bus_service.add_listener = original_add
 

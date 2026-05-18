@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Migrate test field-access paths and Listener.create() call sites"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T04"]
 implements: ["FR#6", "AC#3"]
 ---

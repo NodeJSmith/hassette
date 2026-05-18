@@ -359,9 +359,9 @@ def test_listener_create_does_not_build_duration_timer() -> None:
         entity_id="light.kitchen",
     )
 
-    assert listener._duration_timer is None
-    assert listener.duration == 5.0
-    assert listener.entity_id == "light.kitchen"
+    assert listener.duration_config._timer is None
+    assert listener.duration_config.duration == 5.0
+    assert listener.duration_config.entity_id == "light.kitchen"
 
 
 def test_listener_create_no_duration_timer_when_no_duration() -> None:
@@ -378,7 +378,7 @@ def test_listener_create_no_duration_timer_when_no_duration() -> None:
         handler=lambda: None,
     )
 
-    assert listener._duration_timer is None
+    assert listener.duration_config is None
 
 
 def test_listener_cancel_cancels_duration_timer() -> None:
@@ -398,16 +398,21 @@ def test_listener_cancel_cancels_duration_timer() -> None:
     )
 
     # Simulate what BusService.add_listener() does
-    listener._duration_timer = DurationTimer(
-        task_bucket=task_bucket,
-        duration=5.0,
-        predicates=None,
-        entity_id="light.kitchen",
-        owner_id="test_owner",
-        create_cancel_sub=MagicMock(return_value=MagicMock()),
+    assert listener.duration_config is not None
+    object.__setattr__(
+        listener.duration_config,
+        "_timer",
+        DurationTimer(
+            task_bucket=task_bucket,
+            duration=5.0,
+            predicates=None,
+            entity_id="light.kitchen",
+            owner_id="test_owner",
+            create_cancel_sub=MagicMock(return_value=MagicMock()),
+        ),
     )
 
-    duration_timer = listener._duration_timer
+    duration_timer = listener.duration_config._timer
     cancel_calls = []
     original_cancel = duration_timer.cancel
 

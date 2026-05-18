@@ -47,7 +47,7 @@ def _make_listener_with_resolver(
         topic="test.topic",
         handler=lambda: None,
     )
-    listener._app_error_handler_resolver = resolver
+    listener.invoker.set_app_error_handler_resolver(resolver)
     return listener
 
 

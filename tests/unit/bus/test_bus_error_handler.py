@@ -113,7 +113,7 @@ def test_per_listener_on_error_stored_on_listener(bus: "Bus") -> None:
             on_error=mock_handler,
         )
         assert isinstance(subscription, Subscription)
-        assert subscription.listener.error_handler is mock_handler
+        assert subscription.listener.invoker.error_handler is mock_handler
     finally:
         bus.bus_service.add_listener = original_add
 
@@ -128,7 +128,7 @@ def test_listener_error_handler_default_none(bus: "Bus") -> None:
             topic="test.topic",
             handler=_handler,
         )
-        assert subscription.listener.error_handler is None
+        assert subscription.listener.invoker.error_handler is None
     finally:
         bus.bus_service.add_listener = original_add
 
@@ -146,7 +146,7 @@ def test_on_error_raw_callable_stored_not_normalized(bus: "Bus") -> None:
             on_error=mock_handler,
         )
         # Must be the exact same object, not a wrapper
-        assert subscription.listener.error_handler is mock_handler
+        assert subscription.listener.invoker.error_handler is mock_handler
     finally:
         bus.bus_service.add_listener = original_add
 
@@ -192,8 +192,8 @@ def test_on_error_in_options_flows_through_all_wrappers(
         wrapper = getattr(bus, wrapper_name)
         subscription = wrapper(*args, **kwargs, on_error=mock_error_handler)
         assert isinstance(subscription, Subscription), f"{wrapper_name} must return a Subscription"
-        assert subscription.listener.error_handler is mock_error_handler, (
-            f"{wrapper_name}: expected error_handler to be set, got {subscription.listener.error_handler!r}"
+        assert subscription.listener.invoker.error_handler is mock_error_handler, (
+            f"{wrapper_name}: expected error_handler to be set, got {subscription.listener.invoker.error_handler!r}"
         )
     finally:
         bus.bus_service.add_listener = original_add

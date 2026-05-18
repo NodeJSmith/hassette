@@ -82,13 +82,10 @@ def _make_listener(*, side_effect=None) -> MagicMock:
     """Build a minimal Listener-like mock."""
     listener = MagicMock()
     listener.listener_id = 1
-    listener.error_handler = None
     listener.invoker.error_handler = None
     if side_effect is None:
-        listener.invoke = AsyncMock(return_value=None)
         listener.invoker.invoke = AsyncMock(return_value=None)
     else:
-        listener.invoke = AsyncMock(side_effect=side_effect)
         listener.invoker.invoke = AsyncMock(side_effect=side_effect)
     listener.__repr__ = lambda _self: "Listener<test>"
     return listener
@@ -170,7 +167,6 @@ class TestExecutionIdContextVar:
             captured.append(CURRENT_EXECUTION_ID.get())
 
         listener = _make_listener()
-        listener.invoke = AsyncMock(side_effect=handler_fn)
         listener.invoker.invoke = AsyncMock(side_effect=handler_fn)
         cmd = _make_invoke_handler_cmd(listener=listener)
 
@@ -218,7 +214,6 @@ class TestExecutionIdContextVar:
 
         for _ in range(2):
             listener = _make_listener()
-            listener.invoke = AsyncMock(side_effect=capture)
             listener.invoker.invoke = AsyncMock(side_effect=capture)
             cmd = _make_invoke_handler_cmd(listener=listener)
             await executor._execute_handler(cmd)
@@ -434,7 +429,6 @@ class TestErrorHandlerExecutionIdInheritance:
             handler_id.append(CURRENT_EXECUTION_ID.get())
 
         listener = _make_listener(side_effect=capture_main)
-        listener.error_handler = error_handler
         listener.invoker.error_handler = error_handler
         cmd = _make_invoke_handler_cmd(listener=listener)
 

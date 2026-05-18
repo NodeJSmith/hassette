@@ -75,10 +75,10 @@ async def test_on_registers_listener_and_supports_unsubscribe(
         listener = add_listener_mock.call_args.args[0]
 
         assert listener.topic == "demo.topic"
-        assert listener.orig_handler is handler
-        assert asyncio.iscoroutinefunction(listener._async_handler)
-        assert listener.kwargs == {"suffix": "!"}
-        assert listener.once is once
+        assert listener.invoker.orig_handler is handler
+        assert asyncio.iscoroutinefunction(listener.invoker._async_handler)
+        assert listener.invoker.kwargs == {"suffix": "!"}
+        assert listener.options.once is once
         assert isinstance(listener.predicate, AllOf)
 
         subscription.unsubscribe()
@@ -790,9 +790,9 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
     deadline = asyncio.get_running_loop().time() + 3.0
     while asyncio.get_running_loop().time() < deadline:
         all_listeners = await hassette.bus_service.router.get_topic_listeners("custom.cancel_debounce")
-        if len(all_listeners) == 1 and all_listeners[0].rate_limiter is not None:
+        if len(all_listeners) == 1 and all_listeners[0].invoker._rate_limiter is not None:
             listener = all_listeners[0]
-            rate_limiter = listener.rate_limiter
+            rate_limiter = listener.invoker._rate_limiter
             break
         await asyncio.sleep(0.02)
     assert listener is not None, "Listener for custom.cancel_debounce was not registered in time"
@@ -924,8 +924,8 @@ async def test_on_state_change_accepts_immediate_param(bus: "Bus") -> None:
         pass
 
     subscription = bus.on_state_change("light.kitchen", handler=handler, immediate=True)
-    assert subscription.listener.immediate is True
-    assert subscription.listener.entity_id == "light.kitchen"
+    assert subscription.listener.duration_config.immediate is True
+    assert subscription.listener.duration_config.entity_id == "light.kitchen"
 
 
 async def test_on_state_change_accepts_duration_param(bus: "Bus") -> None:
@@ -935,8 +935,8 @@ async def test_on_state_change_accepts_duration_param(bus: "Bus") -> None:
         pass
 
     subscription = bus.on_state_change("light.kitchen", handler=handler, duration=5.0)
-    assert subscription.listener.duration == 5.0
-    assert subscription.listener.entity_id == "light.kitchen"
+    assert subscription.listener.duration_config.duration == 5.0
+    assert subscription.listener.duration_config.entity_id == "light.kitchen"
 
 
 async def test_on_state_change_rejects_glob_with_immediate(bus: "Bus") -> None:
@@ -959,8 +959,8 @@ async def test_on_attribute_change_accepts_immediate_param(bus: "Bus") -> None:
         pass
 
     subscription = bus.on_attribute_change("light.kitchen", "brightness", handler=handler, immediate=True)
-    assert subscription.listener.immediate is True
-    assert subscription.listener.entity_id == "light.kitchen"
+    assert subscription.listener.duration_config.immediate is True
+    assert subscription.listener.duration_config.entity_id == "light.kitchen"
 
 
 async def test_on_attribute_change_accepts_duration_param(bus: "Bus") -> None:
@@ -970,8 +970,8 @@ async def test_on_attribute_change_accepts_duration_param(bus: "Bus") -> None:
         pass
 
     subscription = bus.on_attribute_change("light.kitchen", "brightness", handler=handler, duration=5.0)
-    assert subscription.listener.duration == 5.0
-    assert subscription.listener.entity_id == "light.kitchen"
+    assert subscription.listener.duration_config.duration == 5.0
+    assert subscription.listener.duration_config.entity_id == "light.kitchen"
 
 
 async def test_on_attribute_change_rejects_glob_with_immediate(bus: "Bus") -> None:
