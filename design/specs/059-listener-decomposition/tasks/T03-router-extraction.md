@@ -7,12 +7,12 @@ implements: ["FR#9", "AC#8"]
 ---
 
 ## Summary
-Move the Router class from the bottom of `src/hassette/core/bus_service.py` (lines 902-1075) to a new `src/hassette/bus/router.py` module. Update BusService to import from the new location. Verify zero imports from core/ or the service layer. Write a focused unit test for Router operations.
+Move the Router class from the bottom of `src/hassette/core/bus_service.py` (lines 894-1066) to a new `src/hassette/bus/router.py` module. Update BusService to import from the new location. Verify zero imports from core/ or the service layer. Write a focused unit test for Router operations.
 
 ## Prompt
 Read the design doc section "Router extraction".
 
-**Step 1: Create `src/hassette/bus/router.py`** by moving the `Router` class from `src/hassette/core/bus_service.py:902-1075`. The class has these dependencies (all available without core/ imports):
+**Step 1: Create `src/hassette/bus/router.py`** by moving the `Router` class from `src/hassette/core/bus_service.py:894-1066`. The class has these dependencies (all available without core/ imports):
 - `FairAsyncRLock` — external package (`fair_async_rlock`)
 - `Listener` type — from `hassette.bus.listeners` (use TYPE_CHECKING guard)
 - `GLOB_CHARS` — from `hassette.utils.glob_utils`
@@ -40,7 +40,7 @@ Read the design doc section "Router extraction".
 
 ## Focus
 - Router is 173 lines, entirely self-contained. This is a mechanical extraction.
-- `bus_service.py` drops from ~1075 to ~900 lines after extraction.
+- `bus_service.py` drops from ~1066 to ~890 lines after extraction.
 - The Router currently accesses `listener.owner_id` directly. After T01, Listener's `owner_id` moves to `listener.identity.owner_id`. Router tests need a Listener mock/stub that has the right sub-struct shape.
 - Router uses `FairAsyncRLock` — tests must run in an async context (`pytest-asyncio`).
 - The `owners` dict key is `owner_id: str` — this doesn't change. Only the access path on the Listener object changes.

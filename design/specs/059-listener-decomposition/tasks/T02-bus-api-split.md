@@ -30,7 +30,7 @@ Read the design doc sections "Bus.on() / _on_internal() split", "Subscription wi
 - `Bus._listener_natural_key()`: `listener.app_key` → `listener.identity.app_key`, `listener.instance_index` → `listener.identity.instance_index`, `listener.handler_name` → `listener.identity.handler_name`, `listener.name` → `listener.identity.name`
 - `Bus.add_listener()` collision path: `listener.once` → `listener.options.once`, `listener.handler_name` → `listener.identity.handler_name`
 
-**Step 6: Review Options TypedDict** (`bus.py:111-134`) — check whether `name` is currently in the TypedDict. If it is and `name` is now an explicit parameter on `_on_internal()`, remove it from the TypedDict to avoid duplication. If `name` is NOT in the TypedDict (it may already be an explicit param on `on()`), no change needed. Keep `once`, `debounce`, `throttle`, `timeout`, `timeout_disabled`, `on_error` in the TypedDict regardless.
+**Step 6: Remove `name` from Options TypedDict** (`bus.py:111-134`) — `name` is currently in the TypedDict (line 128). Since `name` is an explicit parameter on both `on()` and `_on_internal()`, remove it from the TypedDict to avoid duplication. Keep `once`, `debounce`, `throttle`, `timeout`, `timeout_disabled`, `on_error` in the TypedDict.
 
 **Step 7: Write tests:**
 - Test `Bus.on()` public signature does not accept `is_attribute_listener`, `hold_preds`, `entity_id`
@@ -43,7 +43,7 @@ Read the design doc sections "Bus.on() / _on_internal() split", "Subscription wi
 - `_subscribe()` is the common tail for on_state_change/on_attribute_change — it normalizes predicates and delegates to on(). After refactor it delegates to _on_internal().
 - `priority` stays Bus-level: `_on_internal()` sources it from `self.priority` when constructing ListenerOptions.
 - The `source_location` and `registration_source` capture at bus.py:314-316 moves into `_on_internal()` — called before constructing ListenerIdentity.
-- `self._error_handler` resolver setup at bus.py:318 moves into `_on_internal()` — set on the invoker via `listener.invoker.set_app_error_handler_resolver(...)` or passed during HandlerInvoker construction.
+- `self._error_handler` resolver setup at bus.py:318 moves into `_on_internal()` — call `listener.invoker.set_app_error_handler_resolver(lambda: self._error_handler)`. The method is on HandlerInvoker (moved from Listener in T01).
 
 ## Verify
 - [ ] FR#7: Bus.on() signature contains no parameters named is_attribute_listener, hold_preds, entity_id, immediate, duration, or priority

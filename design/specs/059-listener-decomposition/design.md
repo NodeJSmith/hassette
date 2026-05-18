@@ -8,7 +8,7 @@
 
 ## Problem
 
-The central event listener in the bus module has grown to 26 fields serving four distinct consumers: the event router (topic matching), the dispatch engine (handler invocation), the database layer (registration telemetry), and the user (subscription lifecycle). Each new behavioral option threads through five layers: the listener data structure, its factory method, the registration facade, the options type definition, and every convenience method that forwards options.
+The central event listener in the bus module has grown to 35 fields serving four distinct consumers: the event router (topic matching), the dispatch engine (handler invocation), the database layer (registration telemetry), and the user (subscription lifecycle). Each new behavioral option threads through five layers: the listener data structure, its factory method, the registration facade, the options type definition, and every convenience method that forwards options.
 
 Duration-hold behavior is scattered across four files with implicit invariants — the timer is constructed in the service layer and attached to the listener via direct private field mutation, creating a two-phase construction protocol documented only in comments. The double-guard pattern in the dispatch path (`duration is not None and _duration_timer is not None`) reveals the codebase does not trust its own invariants.
 
@@ -16,12 +16,12 @@ The cost of inaction is continued sprawl: each new bus feature adds fields to a 
 
 ## Goals
 
-- Reduce the listener data structure from 26 flat fields to 10 or fewer, composing four focused sub-structs
+- Reduce the listener data structure from 35 flat fields to 10 or fewer, composing four focused sub-structs
 - Give each concern (identity, behavior, invocation, duration) a single owner — zero cross-struct field access for any single concern
 - Make the duration timer lifecycle owned by the duration configuration rather than wired externally — eliminate the double-guard pattern in dispatch
 - Ensure adding a new behavioral option requires changes in exactly two places: the options struct and the code that reads it (down from five today)
 - Enable each sub-struct to be instantiated and tested independently without constructing the full listener
-- Extract the event router to its own module with zero imports from the service layer, reducing the service file from 1075 to ~900 lines
+- Extract the event router to its own module with zero imports from the service layer, reducing the service file from 1066 to ~890 lines
 - Expose the registration completion signal on the subscription object — callers can await persistence confirmation
 - Fix two known invariant violations: in-place list mutation in predicate forwarding, and lazy imports in the accessor module
 
@@ -111,7 +111,7 @@ The cost of inaction is continued sprawl: each new bus feature adds fields to a 
 - **FR#2** A behavioral options struct groups execution parameters (once, debounce, throttle, timeout, timeout disabled, priority) into a single construct with self-contained validation
 - **FR#3** A handler invoker struct groups the handler callable, async wrapper, parameter injector, keyword arguments, error handler, rate limiter, and once-guard into a single construct that owns the dispatch and invocation methods
 - **FR#4** A duration configuration struct groups duration-hold fields (duration, entity ID, attribute listener flag, hold predicate, immediate flag) and owns the timer lifecycle via an explicit attachment method
-- **FR#5** The listener data structure composes these four sub-structs plus routing fields (topic, predicate) and minimal runtime state (cancelled flag, database ID), reducing total fields from 26 to 10
+- **FR#5** The listener data structure composes these four sub-structs plus routing fields (topic, predicate) and minimal runtime state (cancelled flag, database ID), reducing total fields from 35 to 10
 - **FR#6** The factory method accepts both individual keyword arguments (backward compatibility) and the new sub-structs, constructing sub-structs internally when individual arguments are provided
 - **FR#7** The public registration method exposes only user-facing parameters; internal parameters (attribute listener flag, hold predicates, entity ID) are accessible only through a private registration method
 - **FR#8** The subscription object exposes a completion signal that resolves when the handler's database persistence attempt is complete
@@ -139,7 +139,7 @@ The cost of inaction is continued sprawl: each new bus feature adds fields to a 
 
 - **AC#1** Adding a new behavioral option to the listener requires changes in exactly two places: the options struct and the implementation that reads it (FR#2)
 - **AC#2** The listener data structure has 10 or fewer direct fields, composing four sub-structs for the remaining concerns (FR#5)
-- **AC#3** All existing bus unit and integration tests pass after updating two categories of call sites: (a) factory construction signatures (~58 sites, backward-compatible via kwargs) and (b) field-access paths (~39 sites where `listener.field` becomes `listener.sub_struct.field`). No test *logic* changes — only field access paths are updated (FR#6)
+- **AC#3** All existing bus unit and integration tests pass after updating two categories of call sites: (a) factory construction signatures (~57 test sites + 5 production sites, backward-compatible via kwargs) and (b) field-access paths (~32 sites where `listener.field` becomes `listener.sub_struct.field`). No test *logic* changes — only field access paths are updated (FR#6)
 - **AC#4** The handler invoker struct can be instantiated and tested independently of the full listener — `HandlerInvoker.create()` requires a `task_bucket` (provide `MagicMock()` for unit tests) (FR#3)
 - **AC#5** The duration configuration struct validates its own constraints (duration > 0, entity_id required) at construction time without depending on external validation (FR#4)
 - **AC#6** The public registration method's signature contains no parameters named `is_attribute_listener`, `hold_preds`, or `entity_id` (FR#7)
@@ -165,7 +165,7 @@ The cost of inaction is continued sprawl: each new bus feature adds fields to a 
 - `asyncio.Task` subclasses `asyncio.Future` (verified — both satisfy `Future[None]` type annotation)
 - No circular import exists between `hassette.event_handling.accessors` and `hassette.events` (verified in research — the lazy imports are historical artifacts)
 - The `FairAsyncRLock` package is an existing dependency (used by Router, no new dependencies needed)
-- All 58 test call sites for `Listener.create()` are within this repository (no external consumers)
+- All 57 test call sites and 5 production call sites for `Listener.create()` are within this repository (no external consumers)
 - Spec 058 issues #529 (list entity IDs) and #779 (if_exists) will be implemented as follow-on work on the decomposed structure
 
 ## Architecture
@@ -205,14 +205,18 @@ Validation in `__post_init__`: mutual exclusivity of debounce/throttle, non-nega
 - `error_handler: BusErrorHandlerType | None`
 - `_app_error_handler_resolver: Callable[[], BusErrorHandlerType | None] | None`
 - `_rate_limiter: RateLimiter | None`
+- `once: bool` (default `False`)
 - `_fired: bool` (default `False`, `init=False`)
+
+The `once` field is copied from `ListenerOptions` at creation time. It drives the once-guard in `dispatch()` — keeping it here avoids threading a parameter through every dispatch call and makes HandlerInvoker independently testable (AC#4).
 
 Methods moved from `Listener`:
 - `dispatch(invoke_fn)` — once-guard + rate limiter delegation
 - `invoke(event)` — parameter injection + async handler call
 - `mark_fired()` — sets `_fired` flag
+- `set_app_error_handler_resolver(resolver)` — sets the app-level error handler closure
 
-Factory classmethod `create(task_bucket, handler, kwargs, options, ...)` constructs the async wrapper, injector, and rate limiter from the handler and options. This replaces the handler-related construction logic currently in `Listener.create()`.
+Factory classmethod `create(task_bucket, handler, kwargs, options, ...)` constructs the async wrapper, injector, and rate limiter from the handler and options. Copies `options.once` to `self.once`. This replaces the handler-related construction logic currently in `Listener.create()`.
 
 **DurationConfig** — `@dataclass(slots=True)`:
 - `duration: float`
@@ -252,9 +256,10 @@ Methods moved to sub-structs:
 - `dispatch()` → `HandlerInvoker.dispatch()`
 - `invoke()` → `HandlerInvoker.invoke()`
 - `mark_fired()` → `HandlerInvoker.mark_fired()`
+- `set_app_error_handler_resolver()` → `HandlerInvoker.set_app_error_handler_resolver()`
 
 `Listener.create()` — updated factory method:
-- Accepts both individual kwargs (backward compat for 58 test call sites) and sub-struct parameters (`identity: ListenerIdentity | None`, `options: ListenerOptions | None`, `invoker: HandlerInvoker | None`, `duration_config: DurationConfig | None`)
+- Accepts both individual kwargs (backward compat for 57 test + 5 production call sites) and sub-struct parameters (`identity: ListenerIdentity | None`, `options: ListenerOptions | None`, `invoker: HandlerInvoker | None`, `duration_config: DurationConfig | None`)
 - When sub-structs are provided, uses them directly
 - When individual kwargs are provided, constructs sub-structs internally
 - Cross-concern validation (duration + debounce incompatibility, once + debounce) lives here since it spans sub-structs
@@ -292,7 +297,7 @@ Methods moved to sub-structs:
 
 ### Router extraction
 
-Move `Router` class from `src/hassette/core/bus_service.py:902-1075` to `src/hassette/bus/router.py`.
+Move `Router` class from `src/hassette/core/bus_service.py:894-1066` to `src/hassette/bus/router.py`.
 
 Dependencies (all already available):
 - `FairAsyncRLock` — external package
@@ -394,7 +399,7 @@ class Listener:
         return listener
 ```
 
-DON'T: 26 flat fields with a factory that takes 18 parameters.
+DON'T: 35 flat fields with a factory that takes 22 parameters.
 
 ### Clean sub-struct pattern
 
@@ -463,7 +468,7 @@ DO: Simple composition with one method. We're adding `registration_task: asyncio
 ## Test Strategy
 
 - **Sub-struct unit tests:** Each of `ListenerOptions`, `HandlerInvoker`, `DurationConfig`, and `ListenerIdentity` gets independent unit tests verifying construction, validation, and (where applicable) methods. These are new tests that didn't exist before because the sub-structs didn't exist.
-- **Listener.create() regression:** All 58 existing test call sites continue working via backward-compatible keyword arguments. No test logic changes — only internal construction paths change.
+- **Listener.create() regression:** All 57 existing test call sites (plus 5 production call sites) continue working via backward-compatible keyword arguments. No test logic changes — only internal construction paths change.
 - **Registration task tests:** Test that `Subscription.registration_task` is a `Future`, is awaitable, and that `sub.cancel()` works independently of task completion. Test that cancel-listener subscriptions receive an already-resolved future.
 - **Router extraction:** Existing bus_service tests exercise the router implicitly. Add a small focused test that imports `from hassette.bus.router import Router` and verifies basic add/get/remove operations.
 - **Parity test:** New test asserting `ListenerRegistration` fields map to `ListenerIdentity` or `ListenerOptions` fields, with explicit exemption list for computed fields.
@@ -488,7 +493,7 @@ DO: Simple composition with one method. We're adding `registration_task: asyncio
 - `src/hassette/core/command_executor.py` — Field access updates (identity.app_key, identity.instance_index, invoker.invoke, invoker.error_handler)
 - `src/hassette/event_handling/accessors.py` — Lazy import fix
 - `src/hassette/test_utils/harness.py` — Mock executor field access updates (invoker.error_handler, invoker.invoke)
-- ~10 test files (58 call sites) — Call signature updates if opting into sub-struct parameters
+- ~10 test files (57 call sites) — Call signature updates if opting into sub-struct parameters
 - 1-2 doc pages
 
 **Blast radius:** Moderate-to-large. All changes are within the bus module and its consumers. The public API (`Bus.on()`, `on_state_change()`, etc.) is restructured but the external contract (what users pass) is preserved via backward compatibility. The internal contract (what BusService reads from Listener) changes significantly.
