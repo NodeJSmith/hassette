@@ -9,50 +9,17 @@ Tests:
 """
 
 import typing
-from typing import cast
 from unittest.mock import Mock
 
 import pytest
 
 from hassette.bus.listeners import Subscription
 
+from .conftest import mock_add_listener
+
 if typing.TYPE_CHECKING:
-    from hassette import Hassette, HassetteConfig
+    from hassette import Hassette
     from hassette.bus.bus import Bus
-    from hassette.test_utils.harness import HassetteHarness
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-async def hassette_with_bus(
-    hassette_harness: "typing.Callable[[HassetteConfig], HassetteHarness]",
-    test_config: "HassetteConfig",
-) -> "typing.AsyncIterator[Hassette]":
-    """Function-scoped bus harness for isolation between collision tests."""
-    async with hassette_harness(test_config).with_bus() as harness:
-        yield cast("Hassette", harness.hassette)
-
-
-@pytest.fixture
-def bus(hassette_with_bus: "Hassette") -> "Bus":
-    """Return the Bus resource with a mock parent that has an app_key.
-
-    Collision detection is only active for buses owned by an App (app_key != "").
-    We set a mock parent so the natural key is populated.
-    """
-    b = hassette_with_bus._bus  # pyright: ignore[reportReturnType]
-    mock_parent = Mock()
-    mock_parent.app_key = "test_app"
-    mock_parent.index = 0
-    mock_parent.unique_name = "test_app.0"
-    mock_parent.source_tier = "app"
-    mock_parent.class_name = "TestApp"
-    b.parent = mock_parent
-    return b  # pyright: ignore[reportReturnType]
 
 
 # ---------------------------------------------------------------------------
@@ -75,34 +42,17 @@ async def _handler_b(event) -> None:
 
 def test_name_parameter_propagates_to_listener(bus: "Bus") -> None:
     """name='my_listener' passed to Bus.on() ends up on listener.name."""
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
-        subscription = bus.on(
-            topic="test.topic",
-            handler=_handler_a,
-            name="my_listener",
-        )
+    with mock_add_listener(bus):
+        subscription = bus.on(topic="test.topic", handler=_handler_a, name="my_listener")
         assert isinstance(subscription, Subscription)
         assert subscription.listener.identity.name == "my_listener"
-    finally:
-        bus.bus_service.add_listener = original_add
 
 
 def test_name_none_by_default(bus: "Bus") -> None:
     """Without name=, listener.name is None."""
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
-        subscription = bus.on(
-            topic="test.topic",
-            handler=_handler_a,
-        )
+    with mock_add_listener(bus):
+        subscription = bus.on(topic="test.topic", handler=_handler_a)
         assert subscription.listener.identity.name is None
-    finally:
-        bus.bus_service.add_listener = original_add
 
 
 # ---------------------------------------------------------------------------
@@ -112,76 +62,46 @@ def test_name_none_by_default(bus: "Bus") -> None:
 
 def test_duplicate_natural_key_raises_value_error(bus: "Bus") -> None:
     """Registering the same handler+topic twice raises ValueError on the second call."""
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
+    with mock_add_listener(bus):
         bus.on(topic="test.topic", handler=_handler_a)
         with pytest.raises(ValueError, match="Duplicate listener"):
             bus.on(topic="test.topic", handler=_handler_a)
-    finally:
-        bus.bus_service.add_listener = original_add
 
 
 def test_duplicate_name_raises_value_error(bus: "Bus") -> None:
     """Two listeners with same handler+topic and the same name= raise ValueError."""
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
+    with mock_add_listener(bus):
         bus.on(topic="test.topic", handler=_handler_a, name="x")
         with pytest.raises(ValueError, match="Duplicate listener"):
             bus.on(topic="test.topic", handler=_handler_a, name="x")
-    finally:
-        bus.bus_service.add_listener = original_add
 
 
 def test_name_disambiguates_otherwise_identical_keys(bus: "Bus") -> None:
     """Two registrations with the same handler+topic but different name= both succeed."""
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
+    with mock_add_listener(bus):
         sub1 = bus.on(topic="test.topic", handler=_handler_a, name="listener_1")
         sub2 = bus.on(topic="test.topic", handler=_handler_a, name="listener_2")
         assert sub1.listener.identity.name == "listener_1"
         assert sub2.listener.identity.name == "listener_2"
-    finally:
-        bus.bus_service.add_listener = original_add
 
 
 def test_different_handlers_same_topic_do_not_collide(bus: "Bus") -> None:
     """Two different handlers on the same topic are distinct and do not raise."""
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
+    with mock_add_listener(bus):
         bus.on(topic="test.topic", handler=_handler_a)
-        bus.on(topic="test.topic", handler=_handler_b)  # must not raise
-    finally:
-        bus.bus_service.add_listener = original_add
+        bus.on(topic="test.topic", handler=_handler_b)
 
 
 def test_collision_detection_is_synchronous(bus: "Bus") -> None:
-    """ValueError is raised synchronously in Bus.on() before add_listener is called a second time.
-
-    Verifies that the error occurs at the Bus.on() call site (synchronous),
-    not inside an async task spawned by bus_service.add_listener.
-    """
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
+    """ValueError is raised synchronously in Bus.on() before add_listener is called a second time."""
+    with mock_add_listener(bus) as add_mock:
         bus.on(topic="test.topic", handler=_handler_a)
-        call_count_after_first = add_listener_mock.call_count  # should be 1
+        call_count_after_first = add_mock.call_count
 
         with pytest.raises(ValueError, match="Duplicate listener"):
             bus.on(topic="test.topic", handler=_handler_a)
 
-        # add_listener must NOT have been called again
-        assert add_listener_mock.call_count == call_count_after_first
-    finally:
-        bus.bus_service.add_listener = original_add
+        assert add_mock.call_count == call_count_after_first
 
 
 # ---------------------------------------------------------------------------
@@ -191,56 +111,36 @@ def test_collision_detection_is_synchronous(bus: "Bus") -> None:
 
 def test_listener_inherits_parent_app_key(bus: "Bus") -> None:
     """Bus.on() sets listener.app_key from self.parent.app_key, not from Bus itself."""
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
+    with mock_add_listener(bus):
         sub = bus.on(topic="test.identity", handler=_handler_a, name="test_identity")
         assert sub.listener.identity.app_key == "test_app"
         assert sub.listener.identity.app_key != bus.app_key
-    finally:
-        bus.bus_service.add_listener = original_add
 
 
 def test_listener_inherits_parent_source_tier(bus: "Bus") -> None:
     """Bus.on() sets listener.source_tier from self.parent.source_tier."""
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
+    with mock_add_listener(bus):
         sub = bus.on(topic="test.tier", handler=_handler_a, name="test_tier")
         assert sub.listener.identity.source_tier == "app"
-    finally:
-        bus.bus_service.add_listener = original_add
 
 
 def test_listener_inherits_parent_instance_index(bus: "Bus") -> None:
     """Bus.on() sets listener.instance_index from self.parent.index."""
     bus.parent.index = 3
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
+    with mock_add_listener(bus):
         sub = bus.on(topic="test.index", handler=_handler_a, name="test_index")
         assert sub.listener.identity.instance_index == 3
-    finally:
-        bus.bus_service.add_listener = original_add
-        bus.parent.index = 0
+    bus.parent.index = 0
 
 
 def test_framework_bus_inherits_framework_tier(hassette_with_bus: "Hassette") -> None:
     """A Bus owned by a framework Resource inherits source_tier='framework'."""
     b = hassette_with_bus._bus
     assert b is not None
-    add_listener_mock = Mock()
-    original_add = b.bus_service.add_listener
-    b.bus_service.add_listener = add_listener_mock
-    try:
+    with mock_add_listener(b):
         sub = b.on(topic="test.fw", handler=_handler_a, name="test_fw")
         assert sub.listener.identity.source_tier == "framework"
         assert sub.listener.identity.app_key.startswith("__hassette__.")
-    finally:
-        b.bus_service.add_listener = original_add
 
 
 def test_bus_requires_parent() -> None:
@@ -256,36 +156,18 @@ def test_bus_requires_parent() -> None:
 def test_source_tier_assertion_rejects_invalid_value(bus: "Bus") -> None:
     """Bus.on() raises AssertionError for invalid source_tier values."""
     bus.parent.source_tier = "invalid"
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
-        with pytest.raises(AssertionError, match="Invalid source_tier"):
-            bus.on(topic="test.invalid", handler=_handler_a, name="test_invalid")
-    finally:
-        bus.bus_service.add_listener = original_add
-        bus.parent.source_tier = "app"
+    with mock_add_listener(bus), pytest.raises(AssertionError, match="Invalid source_tier"):
+        bus.on(topic="test.invalid", handler=_handler_a, name="test_invalid")
+    bus.parent.source_tier = "app"
 
 
 def test_registered_keys_cleared_on_reinit(bus: "Bus") -> None:
-    """_registered_keys is cleared at the start of on_initialize() to prevent stale collisions.
-
-    Simulates a partial init failure: after registering a listener, we manually clear the
-    _registered_keys set (as on_initialize() would), and verify the same handler+topic
-    can be registered again without raising.
-    """
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
+    """_registered_keys is cleared at the start of on_initialize() to prevent stale collisions."""
+    with mock_add_listener(bus):
         bus.on(topic="test.topic", handler=_handler_a)
         assert len(bus._registered_keys) == 1
 
-        # Simulate on_initialize() clearing the set
         bus._registered_keys.clear()
 
-        # Same registration must succeed after the clear
         bus.on(topic="test.topic", handler=_handler_a)
         assert len(bus._registered_keys) == 1
-    finally:
-        bus.bus_service.add_listener = original_add

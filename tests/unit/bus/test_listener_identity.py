@@ -1,5 +1,7 @@
 """Unit tests for ListenerIdentity sub-struct."""
 
+import pytest
+
 from hassette.bus.listeners import ListenerIdentity
 
 
@@ -15,29 +17,20 @@ class TestListenerIdentityConstruction:
         assert identity.handler_name == "my_handler"
         assert identity.handler_short_name == "my_handler"
 
-    def test_default_app_key(self) -> None:
+    @pytest.mark.parametrize(
+        ("field", "expected"),
+        [
+            ("app_key", ""),
+            ("instance_index", 0),
+            ("name", None),
+            ("source_tier", "app"),
+            ("source_location", ""),
+            ("registration_source", ""),
+        ],
+    )
+    def test_optional_field_defaults(self, field: str, expected: object) -> None:
         identity = ListenerIdentity(owner_id="o", handler_name="h", handler_short_name="h")
-        assert identity.app_key == ""
-
-    def test_default_instance_index(self) -> None:
-        identity = ListenerIdentity(owner_id="o", handler_name="h", handler_short_name="h")
-        assert identity.instance_index == 0
-
-    def test_default_name(self) -> None:
-        identity = ListenerIdentity(owner_id="o", handler_name="h", handler_short_name="h")
-        assert identity.name is None
-
-    def test_default_source_tier(self) -> None:
-        identity = ListenerIdentity(owner_id="o", handler_name="h", handler_short_name="h")
-        assert identity.source_tier == "app"
-
-    def test_default_source_location(self) -> None:
-        identity = ListenerIdentity(owner_id="o", handler_name="h", handler_short_name="h")
-        assert identity.source_location == ""
-
-    def test_default_registration_source(self) -> None:
-        identity = ListenerIdentity(owner_id="o", handler_name="h", handler_short_name="h")
-        assert identity.registration_source == ""
+        assert getattr(identity, field) == expected
 
     def test_all_fields_set(self) -> None:
         """All 9 fields can be set explicitly."""

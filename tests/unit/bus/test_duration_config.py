@@ -56,128 +56,62 @@ class TestDurationConfigConstruction:
 
 
 class TestDurationConfigValidation:
-    def test_duration_must_be_positive(self) -> None:
-        """AC#5: DurationConfig(duration=-1, entity_id='x') raises ValueError."""
+    @pytest.mark.parametrize("invalid_duration", [-1, 0, -0.001])
+    def test_duration_must_be_positive(self, invalid_duration: float) -> None:
         with pytest.raises(ValueError, match="duration"):
-            DurationConfig(entity_id="light.kitchen", duration=-1)
+            DurationConfig(entity_id="light.kitchen", duration=invalid_duration)
 
-    def test_duration_zero_raises(self) -> None:
-        with pytest.raises(ValueError, match="duration"):
-            DurationConfig(entity_id="light.kitchen", duration=0)
-
-    def test_duration_negative_float_raises(self) -> None:
-        with pytest.raises(ValueError, match="duration"):
-            DurationConfig(entity_id="light.kitchen", duration=-0.001)
-
-    def test_entity_id_required(self) -> None:
-        """AC#5: DurationConfig(duration=5, entity_id='') raises ValueError."""
+    @pytest.mark.parametrize("duration", [5, None])
+    def test_entity_id_required(self, duration: float | None) -> None:
         with pytest.raises(ValueError, match="entity_id"):
-            DurationConfig(entity_id="", duration=5)
+            DurationConfig(entity_id="", duration=duration)
 
-    def test_entity_id_required_no_duration(self) -> None:
-        """entity_id is required even when duration is None."""
-        with pytest.raises(ValueError, match="entity_id"):
-            DurationConfig(entity_id="")
-
-    def test_positive_duration_ok(self) -> None:
-        cfg = DurationConfig(entity_id="sensor.temp", duration=0.001)
-        assert cfg.duration == 0.001
-
-    def test_large_duration_ok(self) -> None:
-        cfg = DurationConfig(entity_id="sensor.temp", duration=3600.0)
-        assert cfg.duration == 3600.0
-
-    def test_none_duration_ok(self) -> None:
-        """duration=None is valid for entity_id-only or immediate-only configs."""
-        cfg = DurationConfig(entity_id="light.kitchen")
-        assert cfg.duration is None
+    @pytest.mark.parametrize("valid_duration", [0.001, 3600.0, None])
+    def test_valid_durations_accepted(self, valid_duration: float | None) -> None:
+        cfg = DurationConfig(entity_id="sensor.temp", duration=valid_duration)
+        assert cfg.duration == valid_duration
 
 
 class TestDurationConfigAttachTimer:
-    def test_attach_timer_stores_timer(self) -> None:
-        """attach_timer() constructs a DurationTimer and stores it in _timer."""
-        cfg = DurationConfig(entity_id="light.kitchen", duration=5.0)
-
-        task_bucket = MagicMock()
-        create_cancel_sub = MagicMock(return_value=MagicMock())
-        on_cancel = MagicMock()
-
+    @staticmethod
+    def _attach(cfg: DurationConfig) -> None:
         cfg.attach_timer(
-            task_bucket=task_bucket,
+            task_bucket=MagicMock(),
             owner_id="test_owner",
-            create_cancel_sub=create_cancel_sub,
-            on_cancel=on_cancel,
+            create_cancel_sub=MagicMock(return_value=MagicMock()),
+            on_cancel=MagicMock(),
         )
 
+    def test_attach_timer_stores_timer(self) -> None:
+        cfg = DurationConfig(entity_id="light.kitchen", duration=5.0)
+        self._attach(cfg)
         assert cfg._timer is not None
 
     def test_timer_property_after_attach(self) -> None:
-        """timer property returns the DurationTimer after attach_timer()."""
         cfg = DurationConfig(entity_id="light.kitchen", duration=5.0)
-
-        task_bucket = MagicMock()
-        create_cancel_sub = MagicMock(return_value=MagicMock())
-        on_cancel = MagicMock()
-
-        cfg.attach_timer(
-            task_bucket=task_bucket,
-            owner_id="test_owner",
-            create_cancel_sub=create_cancel_sub,
-            on_cancel=on_cancel,
-        )
-
-        timer = cfg.timer
-        assert timer is not None
-        assert timer is cfg._timer
+        self._attach(cfg)
+        assert cfg.timer is not None
+        assert cfg.timer is cfg._timer
 
     def test_timer_property_raises_before_attach(self) -> None:
-        """timer property raises AssertionError when _timer is None."""
         cfg = DurationConfig(entity_id="light.kitchen", duration=5.0)
         with pytest.raises(AssertionError):
             _ = cfg.timer
 
     def test_attach_timer_raises_if_already_attached(self) -> None:
-        """attach_timer() raises if called a second time (timer already attached)."""
         cfg = DurationConfig(entity_id="light.kitchen", duration=5.0)
-
-        task_bucket = MagicMock()
-        create_cancel_sub = MagicMock(return_value=MagicMock())
-        on_cancel = MagicMock()
-
-        cfg.attach_timer(
-            task_bucket=task_bucket,
-            owner_id="test_owner",
-            create_cancel_sub=create_cancel_sub,
-            on_cancel=on_cancel,
-        )
-
+        self._attach(cfg)
         with pytest.raises(AssertionError):
-            cfg.attach_timer(
-                task_bucket=task_bucket,
-                owner_id="test_owner",
-                create_cancel_sub=create_cancel_sub,
-                on_cancel=on_cancel,
-            )
+            self._attach(cfg)
 
     def test_attach_timer_passes_fields_to_duration_timer(self) -> None:
-        """attach_timer() passes duration, entity_id, and hold_predicate to DurationTimer."""
         pred = MagicMock()
         cfg = DurationConfig(
             entity_id="binary_sensor.motion",
             duration=10.0,
             hold_predicate=pred,
         )
-
-        task_bucket = MagicMock()
-        create_cancel_sub = MagicMock(return_value=MagicMock())
-        on_cancel = MagicMock()
-
-        cfg.attach_timer(
-            task_bucket=task_bucket,
-            owner_id="test_owner",
-            create_cancel_sub=create_cancel_sub,
-            on_cancel=on_cancel,
-        )
+        self._attach(cfg)
 
         timer = cfg._timer
         assert timer is not None

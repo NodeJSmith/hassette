@@ -10,46 +10,16 @@ Tests:
 """
 
 import typing
-from typing import cast
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 import pytest
 
 from hassette.bus.listeners import Subscription
 
+from .conftest import mock_add_listener
+
 if typing.TYPE_CHECKING:
-    from hassette import Hassette, HassetteConfig
     from hassette.bus.bus import Bus
-    from hassette.test_utils.harness import HassetteHarness
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-async def hassette_with_bus(
-    hassette_harness: "typing.Callable[[HassetteConfig], HassetteHarness]",
-    test_config: "HassetteConfig",
-) -> "typing.AsyncIterator[Hassette]":
-    """Function-scoped bus harness for isolation between tests."""
-    async with hassette_harness(test_config).with_bus() as harness:
-        yield cast("Hassette", harness.hassette)
-
-
-@pytest.fixture
-def bus(hassette_with_bus: "Hassette") -> "Bus":
-    """Return the Bus resource with a mock parent that has an app_key."""
-    b = hassette_with_bus._bus  # pyright: ignore[reportReturnType]
-    mock_parent = Mock()
-    mock_parent.app_key = "test_app"
-    mock_parent.index = 0
-    mock_parent.unique_name = "test_app.0"
-    mock_parent.source_tier = "app"
-    mock_parent.class_name = "TestApp"
-    b.parent = mock_parent
-    return b  # pyright: ignore[reportReturnType]
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +59,6 @@ async def test_on_error_reset_on_initialize(bus: "Bus") -> None:
     bus.on_error(mock_handler)
     assert bus._error_handler is mock_handler
 
-    # Simulate re-initialization (hot-reload safety)
     await bus.on_initialize()
 
     assert bus._error_handler is None
@@ -103,52 +72,25 @@ async def test_on_error_reset_on_initialize(bus: "Bus") -> None:
 def test_per_listener_on_error_stored_on_listener(bus: "Bus") -> None:
     """on_error= passed to Bus.on() is stored on listener.error_handler."""
     mock_handler = AsyncMock()
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
-        subscription = bus.on(
-            topic="test.topic",
-            handler=_handler,
-            on_error=mock_handler,
-        )
+    with mock_add_listener(bus):
+        subscription = bus.on(topic="test.topic", handler=_handler, on_error=mock_handler)
         assert isinstance(subscription, Subscription)
         assert subscription.listener.invoker.error_handler is mock_handler
-    finally:
-        bus.bus_service.add_listener = original_add
 
 
 def test_listener_error_handler_default_none(bus: "Bus") -> None:
     """Listeners created without on_error= have error_handler=None."""
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
-        subscription = bus.on(
-            topic="test.topic",
-            handler=_handler,
-        )
+    with mock_add_listener(bus):
+        subscription = bus.on(topic="test.topic", handler=_handler)
         assert subscription.listener.invoker.error_handler is None
-    finally:
-        bus.bus_service.add_listener = original_add
 
 
 def test_on_error_raw_callable_stored_not_normalized(bus: "Bus") -> None:
     """The raw callable is stored on listener.error_handler, not a normalized wrapper."""
     mock_handler = AsyncMock()
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
-        subscription = bus.on(
-            topic="test.topic",
-            handler=_handler,
-            on_error=mock_handler,
-        )
-        # Must be the exact same object, not a wrapper
+    with mock_add_listener(bus):
+        subscription = bus.on(topic="test.topic", handler=_handler, on_error=mock_handler)
         assert subscription.listener.invoker.error_handler is mock_handler
-    finally:
-        bus.bus_service.add_listener = original_add
 
 
 # ---------------------------------------------------------------------------
@@ -185,15 +127,10 @@ def test_on_error_in_options_flows_through_all_wrappers(
 ) -> None:
     """on_error= passed to each convenience wrapper is stored on listener.error_handler."""
     mock_error_handler = AsyncMock()
-    add_listener_mock = Mock()
-    original_add = bus.bus_service.add_listener
-    bus.bus_service.add_listener = add_listener_mock
-    try:
+    with mock_add_listener(bus):
         wrapper = getattr(bus, wrapper_name)
         subscription = wrapper(*args, **kwargs, on_error=mock_error_handler)
         assert isinstance(subscription, Subscription), f"{wrapper_name} must return a Subscription"
         assert subscription.listener.invoker.error_handler is mock_error_handler, (
             f"{wrapper_name}: expected error_handler to be set, got {subscription.listener.invoker.error_handler!r}"
         )
-    finally:
-        bus.bus_service.add_listener = original_add

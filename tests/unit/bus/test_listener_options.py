@@ -6,39 +6,35 @@ from hassette.bus.listeners import ListenerOptions
 
 
 class TestListenerOptionsConstruction:
-    def test_default_construction(self) -> None:
-        """ListenerOptions() with no arguments uses all defaults."""
+    @pytest.mark.parametrize(
+        ("field", "expected"),
+        [
+            ("once", False),
+            ("debounce", None),
+            ("throttle", None),
+            ("timeout", None),
+            ("timeout_disabled", False),
+            ("priority", 0),
+        ],
+    )
+    def test_default_values(self, field: str, expected: object) -> None:
         opts = ListenerOptions()
-        assert opts.once is False
-        assert opts.debounce is None
-        assert opts.throttle is None
-        assert opts.timeout is None
-        assert opts.timeout_disabled is False
-        assert opts.priority == 0
+        assert getattr(opts, field) == expected
 
-    def test_set_once(self) -> None:
-        opts = ListenerOptions(once=True)
-        assert opts.once is True
-
-    def test_set_debounce(self) -> None:
-        opts = ListenerOptions(debounce=1.5)
-        assert opts.debounce == 1.5
-
-    def test_set_throttle(self) -> None:
-        opts = ListenerOptions(throttle=2.0)
-        assert opts.throttle == 2.0
-
-    def test_set_timeout(self) -> None:
-        opts = ListenerOptions(timeout=30.0)
-        assert opts.timeout == 30.0
-
-    def test_set_timeout_disabled(self) -> None:
-        opts = ListenerOptions(timeout_disabled=True)
-        assert opts.timeout_disabled is True
-
-    def test_set_priority(self) -> None:
-        opts = ListenerOptions(priority=5)
-        assert opts.priority == 5
+    @pytest.mark.parametrize(
+        ("field", "value", "expected"),
+        [
+            ("once", True, True),
+            ("debounce", 1.5, 1.5),
+            ("throttle", 2.0, 2.0),
+            ("timeout", 30.0, 30.0),
+            ("timeout_disabled", True, True),
+            ("priority", 5, 5),
+        ],
+    )
+    def test_set_field(self, field: str, value: object, expected: object) -> None:
+        opts = ListenerOptions(**{field: value})
+        assert getattr(opts, field) == expected
 
     def test_has_slots(self) -> None:
         opts = ListenerOptions()
@@ -46,29 +42,32 @@ class TestListenerOptionsConstruction:
 
 
 class TestListenerOptionsValidation:
-    def test_debounce_must_be_positive(self) -> None:
-        with pytest.raises(ValueError, match="debounce"):
-            ListenerOptions(debounce=0)
+    @pytest.mark.parametrize(
+        ("field", "invalid_value"),
+        [
+            ("debounce", 0),
+            ("debounce", -1.0),
+            ("throttle", 0),
+            ("throttle", -0.5),
+            ("timeout", 0),
+            ("timeout", -1.0),
+        ],
+    )
+    def test_rate_limit_and_timeout_must_be_positive(self, field: str, invalid_value: float) -> None:
+        with pytest.raises(ValueError, match=field):
+            ListenerOptions(**{field: invalid_value})
 
-    def test_debounce_negative_raises(self) -> None:
-        with pytest.raises(ValueError, match="debounce"):
-            ListenerOptions(debounce=-1.0)
-
-    def test_debounce_positive_ok(self) -> None:
-        opts = ListenerOptions(debounce=0.1)
-        assert opts.debounce == 0.1
-
-    def test_throttle_must_be_positive(self) -> None:
-        with pytest.raises(ValueError, match="throttle"):
-            ListenerOptions(throttle=0)
-
-    def test_throttle_negative_raises(self) -> None:
-        with pytest.raises(ValueError, match="throttle"):
-            ListenerOptions(throttle=-0.5)
-
-    def test_throttle_positive_ok(self) -> None:
-        opts = ListenerOptions(throttle=0.5)
-        assert opts.throttle == 0.5
+    @pytest.mark.parametrize(
+        ("field", "valid_value"),
+        [
+            ("debounce", 0.1),
+            ("throttle", 0.5),
+            ("timeout", 10.0),
+        ],
+    )
+    def test_positive_values_accepted(self, field: str, valid_value: float) -> None:
+        opts = ListenerOptions(**{field: valid_value})
+        assert getattr(opts, field) == valid_value
 
     def test_debounce_and_throttle_mutually_exclusive(self) -> None:
         with pytest.raises(ValueError, match=r"debounce.*throttle|throttle.*debounce|both"):
@@ -86,23 +85,10 @@ class TestListenerOptionsValidation:
         opts = ListenerOptions(once=True)
         assert opts.once is True
 
-    def test_timeout_must_be_positive(self) -> None:
-        with pytest.raises(ValueError, match="timeout"):
-            ListenerOptions(timeout=0)
-
-    def test_timeout_negative_raises(self) -> None:
-        with pytest.raises(ValueError, match="timeout"):
-            ListenerOptions(timeout=-1.0)
-
     def test_timeout_bool_raises(self) -> None:
-        """timeout=True is invalid (it's a bool, not a number)."""
         with pytest.raises(ValueError, match="timeout"):
             ListenerOptions(timeout=True)
 
     def test_timeout_and_timeout_disabled_conflict(self) -> None:
         with pytest.raises(ValueError, match="timeout"):
             ListenerOptions(timeout=5.0, timeout_disabled=True)
-
-    def test_valid_timeout_ok(self) -> None:
-        opts = ListenerOptions(timeout=10.0)
-        assert opts.timeout == 10.0
