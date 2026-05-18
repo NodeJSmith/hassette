@@ -30,7 +30,7 @@ Read the design doc sections "Bus.on() / _on_internal() split", "Subscription wi
 - `Bus._listener_natural_key()`: `listener.app_key` → `listener.identity.app_key`, `listener.instance_index` → `listener.identity.instance_index`, `listener.handler_name` → `listener.identity.handler_name`, `listener.name` → `listener.identity.name`
 - `Bus.add_listener()` collision path: `listener.once` → `listener.options.once`, `listener.handler_name` → `listener.identity.handler_name`
 
-**Step 6: Update Options TypedDict** — remove `name` if it's now an explicit parameter on `_on_internal()`. Keep `once`, `debounce`, `throttle`, `timeout`, `timeout_disabled`, `on_error`.
+**Step 6: Review Options TypedDict** (`bus.py:111-134`) — check whether `name` is currently in the TypedDict. If it is and `name` is now an explicit parameter on `_on_internal()`, remove it from the TypedDict to avoid duplication. If `name` is NOT in the TypedDict (it may already be an explicit param on `on()`), no change needed. Keep `once`, `debounce`, `throttle`, `timeout`, `timeout_disabled`, `on_error` in the TypedDict regardless.
 
 **Step 7: Write tests:**
 - Test `Bus.on()` public signature does not accept `is_attribute_listener`, `hold_preds`, `entity_id`

@@ -38,7 +38,7 @@ Read the design doc sections "BusService consumer updates", "CommandExecutor._ex
 **Step 5: Update BusService._make_tracked_invoke_fn():**
 - `listener.timeout_disabled` → `listener.options.timeout_disabled`
 - `listener.timeout` → `listener.options.timeout`
-- Error handler: `listener.invoker._app_error_handler_resolver`
+- Error handler: `listener.invoker._app_error_handler_resolver` (intentional cross-module private access — BusService is the framework orchestrator that wires and reads this field; the underscore signals "not user-facing", not "not framework-accessible")
 
 **Step 6: Replace _create_cancel_listener():**
 - The method body is replaced by calling `Listener.create_cancel_listener()` (from T01)

@@ -3,7 +3,7 @@ task_id: "T01"
 title: "Define ListenerIdentity, ListenerOptions, HandlerInvoker, DurationConfig"
 status: "planned"
 depends_on: []
-implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "AC#1", "AC#2", "AC#4", "AC#5"]
+implements: ["FR#1", "FR#2", "FR#3", "FR#4", "FR#5", "FR#6", "AC#1", "AC#2", "AC#4", "AC#5"]
 ---
 
 ## Summary
@@ -54,4 +54,5 @@ Read the design doc at `design/specs/059-listener-decomposition/design.md`, sect
 - [ ] AC#1: Adding a mock new option to ListenerOptions requires changes only in ListenerOptions and the dispatch/test that reads it
 - [ ] AC#2: Listener field count is 10 or fewer (count the fields in the dataclass definition)
 - [ ] AC#4: HandlerInvoker.create() can be called with a MagicMock task_bucket and produces a functional invoker
+- [ ] FR#6: Listener.create() accepts individual kwargs (once, debounce, etc.) and constructs ListenerOptions internally — backward compatible with existing call patterns
 - [ ] AC#5: DurationConfig(duration=-1, entity_id="x") raises ValueError; DurationConfig(duration=5, entity_id="") raises ValueError
