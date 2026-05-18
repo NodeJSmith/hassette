@@ -43,7 +43,8 @@ Read the design doc sections "BusService consumer updates", "CommandExecutor._ex
 **Step 6: Replace _create_cancel_listener():**
 - The method body is replaced by calling `Listener.create_cancel_listener()` (from T01)
 - The cancel subscription's `Subscription` construction passes an already-resolved Future as `registration_task`
-- The existing `assert main_listener._duration_timer is not None` must be updated — after refactor, the timer is on `main_listener.duration_config._timer` and is set during `attach_timer()`. The assert fires from the `make_cancel_sub` callback which runs during `DurationTimer.__init__` inside `attach_timer()`. At that point `_timer` is being set — verify the assert still holds.
+- The existing `assert main_listener._duration_timer is not None` must be updated — after refactor, the timer is on `main_listener.duration_config._timer` and is set during `attach_timer()`
+- **Timing note (critical):** The `make_cancel_sub` callback is passed INTO `DurationTimer.__init__` but is NOT called during `__init__`. It is called during `DurationTimer.start()`, which happens later in `BusService._dispatch()` or `_immediate_fire_task()`. By the time `start()` fires, `attach_timer()` has already stored the timer reference in `duration_config._timer`. Therefore `assert main_listener.duration_config._timer is not None` holds when `make_cancel_sub` runs. Verify this empirically during implementation by adding a temporary debug log in `make_cancel_sub`.
 
 **Step 7: Update CommandExecutor._execute_handler()** in `src/hassette/core/command_executor.py`:
 - `cmd.listener.app_key` → `cmd.listener.identity.app_key`

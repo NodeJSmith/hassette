@@ -27,6 +27,22 @@ None.
 - Cross-concern validation (duration + debounce) lives in Listener.create(), not any single sub-struct
 - _duration_timers_active counter is exclusively managed by BusService — not by DurationConfig.attach_timer()
 
+## Codebase Map
+
+Key files and locations referenced across tasks:
+
+| File | Key locations |
+|---|---|
+| `src/hassette/bus/listeners.py` (410 lines) | Listener dataclass :36-163, Listener.create() :286-375, _validate_options() :162-195, Subscription :378-395, dispatch() :191-215, invoke() :217-264 |
+| `src/hassette/bus/bus.py` (1002 lines) | Bus.on() :238-324, _subscribe() :326-376, _listener_natural_key() :211-222, add_listener() collision :199-208, Options TypedDict :111-134, on_state_change() :400-510, on_attribute_change() :512-601, hold_preds mutation :362-363, source_location capture :314-316 |
+| `src/hassette/core/bus_service.py` (1074 lines) | add_listener() :112-150, _create_cancel_listener() :152-204, _register_then_add_route() :215-283, _immediate_fire_task() :312-446, _dispatch() :584-676, _make_tracked_invoke_fn() :678-722, Router class :902-1075, duration timer wiring :129-145 |
+| `src/hassette/core/command_executor.py` (970 lines) | _execute_handler() field reads :425-457 |
+| `src/hassette/core/registration.py` (111 lines) | ListenerRegistration dataclass :8-62 |
+| `src/hassette/bus/duration_timer.py` (225 lines) | DurationTimer :50-180, start() :94-149, cancel() :151-180 |
+| `src/hassette/event_handling/accessors.py` (361 lines) | Lazy imports :221, :239 |
+| `src/hassette/test_utils/harness.py` (759 lines) | _stub_execute field reads :610-616 |
+| `src/hassette/bus/__init__.py` | Current exports: Bus, BusErrorContext, Listener, Subscription |
+
 ## Design Doc References
 - ## Architecture — sub-struct definitions, composed Listener, consumer updates, fixes
 - ## Edge Cases — backward compat, duration config without timer, cancel-listener identity, concurrent registration
