@@ -1,7 +1,7 @@
 # Design: Listener Decomposition
 
 **Date:** 2026-05-18
-**Status:** approved
+**Status:** archived
 **Scope-mode:** expand
 **Issues:** #438, #554
 **Research:** /tmp/claude-mine-define-research-vUWhrh/brief.md

@@ -1,4 +1,4 @@
-"""T02: Tests for Bus.on() / _on_internal() split and Subscription.registration_task.
+"""Tests for Bus.on() / _on_internal() split and Subscription.registration_task.
 
 Verify criteria:
 - FR#7: Bus.on() signature has no is_attribute_listener, hold_preds, entity_id, immediate, duration, priority

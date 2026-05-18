@@ -169,9 +169,7 @@ class BusService(Service):
             since cancel-listeners skip DB registration.
         """
         assert main_listener.duration_config is not None, "duration listener must have duration_config"
-        assert main_listener.duration_config._timer is not None, "duration listener must have timer attached"
-
-        duration_timer = main_listener.duration_config._timer
+        duration_timer = main_listener.duration_config.timer
         entity_id = main_listener.duration_config.entity_id
 
         async def cancel_handler(event: "Event[Any]") -> None:
@@ -182,7 +180,6 @@ class BusService(Service):
             owner_id=main_listener.identity.owner_id,
             topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
             handler=cancel_handler,
-            entity_id=entity_id,
         )
 
         async def _add_cancel_route() -> None:
@@ -365,7 +362,7 @@ class BusService(Service):
             )
 
             if duration_config is not None and duration_config.duration is not None:
-                assert duration_config._timer is not None, "duration timer must be attached before immediate fire"
+                duration_timer = duration_config.timer
                 elapsed = 0.0
                 if not duration_config.is_attribute_listener:
                     last_changed_raw = current_state.get("last_changed")
@@ -412,7 +409,7 @@ class BusService(Service):
                                 self.remove_listener(listener)
 
                     self._duration_timers_active += 1
-                    duration_config.timer.start(on_duration_fire_immediate, override_duration=remaining)
+                    duration_timer.start(on_duration_fire_immediate, override_duration=remaining)
                 return
 
             try:
@@ -608,15 +605,12 @@ class BusService(Service):
         # this invoke_fn — the handler receives the event that started the timer.
         invoke_fn = self._make_tracked_invoke_fn(topic, event, listener)
 
-        if listener.options.once and listener.invoker._rate_limiter:
-            raise RuntimeError("once + rate_limiting is prohibited; see Listener.create() validation")
-
         if listener.duration_config is not None and listener.duration_config.duration is not None:
             if listener.is_cancelled:
                 return
 
             duration_config = listener.duration_config
-            assert duration_config._timer is not None, "duration timer must be attached before dispatch"
+            duration_timer = duration_config.timer
             entity_id = duration_config.entity_id
             if not entity_id:
                 self.logger.error(
@@ -659,7 +653,7 @@ class BusService(Service):
                         self.remove_listener(listener)
 
             self._duration_timers_active += 1
-            duration_config.timer.start(on_duration_fire)
+            duration_timer.start(on_duration_fire)
             return
 
         # Non-duration path (unchanged behavior).
@@ -852,8 +846,8 @@ class BusService(Service):
             return False
 
         payload = event.payload
-        entity_id = getattr(payload, "entity_id", None) if payload else None
-        domain = getattr(payload, "domain", None) if payload else None
+        entity_id = getattr(payload, "entity_id", None)
+        domain = getattr(payload, "domain", None)
 
         try:
             if (
@@ -862,8 +856,8 @@ class BusService(Service):
                 and payload.data.service_data.get("level") == "debug"
             ):
                 return True
-        except Exception:
-            pass
+        except AttributeError:
+            self.logger.debug("Unexpected payload shape in system_log skip check for topic=%s", topic)
 
         if not self._has_exclusions:
             return False
@@ -875,8 +869,6 @@ class BusService(Service):
             if entity_id in self._excluded_entities_exact or matches_globs(entity_id, self._excluded_entity_globs):
                 self.logger.debug("Skipping dispatch for %s due to entity exclusion (%s)", topic, entity_id)
                 return True
-            if domain is None and "." in entity_id:
-                domain = entity_id.split(".", 1)[0]
 
         if isinstance(domain, str) and domain:
             if domain in self._excluded_domains_exact or matches_globs(domain, self._excluded_domain_globs):

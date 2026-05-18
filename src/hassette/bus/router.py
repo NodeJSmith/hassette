@@ -140,8 +140,8 @@ class Router:
             seen: set[int] = set()
             unique: list[Listener] = []
             for listener in out:
-                if id(listener) not in seen:
-                    seen.add(id(listener))
+                if listener.listener_id not in seen:
+                    seen.add(listener.listener_id)
                     unique.append(listener)
 
             # Sort by priority (highest first)

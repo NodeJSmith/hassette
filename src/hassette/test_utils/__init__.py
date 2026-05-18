@@ -56,6 +56,8 @@ from .helpers import (
     make_state_dict,
     make_switch_state_dict,
 )
+from .helpers import create_listener as create_listener
+from .helpers import make_task_bucket as make_task_bucket
 from .recording_api import RecordingApi
 
 __all__ = [

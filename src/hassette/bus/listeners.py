@@ -10,7 +10,7 @@ from hassette.bus.injection import ParameterInjector
 from hassette.bus.rate_limiter import RateLimiter
 from hassette.event_handling.predicates import normalize_where
 from hassette.types.types import SourceTier
-from hassette.utils.func_utils import callable_name
+from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.type_utils import get_typed_signature
 
 if typing.TYPE_CHECKING:
@@ -129,7 +129,8 @@ class HandlerInvoker:
     """Rate limiter for debounce/throttle. None when no rate limiting is configured."""
 
     once: bool = False
-    """Whether this invoker fires only once. Copied from ListenerOptions at creation time."""
+    """Whether this invoker fires only once. Intentional copy of ListenerOptions.once —
+    dispatch() needs this but cannot back-reference options without a circular dependency."""
 
     _fired: bool = field(default=False, init=False)
     """Guard for once=True: set before the first invocation to prevent double-fire."""
@@ -210,6 +211,11 @@ class HandlerInvoker:
         else:
             await invoke_fn()
 
+    def cancel(self) -> None:
+        """Cancel any pending rate-limiter tasks."""
+        if self._rate_limiter:
+            self._rate_limiter.cancel()
+
     async def invoke(self, event: "Event[Any]") -> None:
         """Invoke the handler with dependency injection."""
         kwargs = self._injector.inject_parameters(event, **(self.kwargs or {}))
@@ -251,6 +257,11 @@ class DurationConfig:
         """Return the attached DurationTimer. Asserts it has been attached."""
         assert self._timer is not None, "timer not yet attached — call attach_timer() first"
         return self._timer
+
+    def cancel_timer(self) -> None:
+        """Cancel the attached duration timer if present."""
+        if self._timer is not None:
+            self._timer.cancel()
 
     def attach_timer(
         self,
@@ -344,10 +355,9 @@ class Listener:
         """
         self._cancelled = True
         self.invoker.mark_fired()
-        if self.invoker._rate_limiter:
-            self.invoker._rate_limiter.cancel()
-        if self.duration_config is not None and self.duration_config._timer is not None:
-            self.duration_config._timer.cancel()
+        self.invoker.cancel()
+        if self.duration_config is not None:
+            self.duration_config.cancel_timer()
 
     def matches(self, ev: "Event[Any]") -> bool:
         """Check if the event matches the listener's predicate."""
@@ -362,165 +372,37 @@ class Listener:
     def __repr__(self) -> str:
         return f"Listener<{self.identity.owner_id} - {self.identity.handler_short_name}>"
 
-    # ------------------------------------------------------------------
-    # Validation (cross-concern — stays on Listener.create)
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _validate_options(
-        once: bool,
-        debounce: float | None,
-        throttle: float | None,
-        timeout: float | None = None,
-        timeout_disabled: bool = False,
-        duration: float | None = None,
-    ) -> None:
-        ListenerOptions(
-            once=once,
-            debounce=debounce,
-            throttle=throttle,
-            timeout=timeout,
-            timeout_disabled=timeout_disabled,
-        )
-        if duration is not None and debounce is not None:
-            raise ValueError("Cannot combine 'duration' with 'debounce'")
-        if duration is not None and throttle is not None:
-            raise ValueError("Cannot combine 'duration' with 'throttle'")
-
     @classmethod
     def create(
         cls,
-        task_bucket: "TaskBucket",
-        owner_id: str,
         topic: str,
-        handler: "HandlerType",
+        identity: ListenerIdentity,
+        options: ListenerOptions,
+        invoker: HandlerInvoker,
         where: "Predicate | Sequence[Predicate] | None" = None,
-        kwargs: Mapping[str, Any] | None = None,
-        once: bool = False,
-        debounce: float | None = None,
-        throttle: float | None = None,
-        timeout: float | None = None,
-        timeout_disabled: bool = False,
-        priority: int = 0,
-        logger: Logger = LOGGER,
-        app_key: str = "",
-        instance_index: int = 0,
-        name: str | None = None,
-        source_tier: SourceTier = "app",
-        immediate: bool = False,
-        duration: float | None = None,
-        entity_id: str | None = None,
-        is_attribute_listener: bool = False,
-        hold_predicate: "Predicate | None" = None,
-        error_handler: "BusErrorHandlerType | None" = None,
-        source_location: str = "",
-        registration_source: str = "",
-        # Sub-struct parameters (optional — when provided, used directly)
-        identity: ListenerIdentity | None = None,
-        options: ListenerOptions | None = None,
-        invoker: HandlerInvoker | None = None,
         duration_config: DurationConfig | None = None,
+        logger: Logger = LOGGER,
     ) -> "Listener":
-        """Create a Listener from individual kwargs or pre-built sub-structs.
-
-        Accepts both individual keyword arguments (backward compatible with all
-        57 test + 5 production call sites) and sub-struct parameters. When
-        individual kwargs are provided, constructs sub-structs internally.
+        """Create a Listener from pre-built sub-structs.
 
         Cross-concern validation (duration + debounce incompatibility) runs
         here since it spans two sub-structs.
         """
-        if identity is not None:
-            # Sub-struct path: use provided sub-structs directly
-            assert options is not None, "options must be provided when identity is provided"
-            assert invoker is not None, "invoker must be provided when identity is provided"
-
-            if duration_config is not None and duration_config.duration is not None:
-                if options.debounce is not None:
-                    raise ValueError("Cannot combine 'duration' with 'debounce'")
-                if options.throttle is not None:
-                    raise ValueError("Cannot combine 'duration' with 'throttle'")
-
-            pred = normalize_where(where)
-            return cls(
-                logger=logger,
-                topic=topic,
-                predicate=pred,
-                identity=identity,
-                invoker=invoker,
-                options=options,
-                duration_config=duration_config,
-            )
-
-        # Individual kwargs path: construct sub-structs internally
-        # Cross-concern validation (duration spans DurationConfig + ListenerOptions)
-        cls._validate_options(
-            once=once,
-            debounce=debounce,
-            throttle=throttle,
-            timeout=timeout,
-            timeout_disabled=timeout_disabled,
-            duration=duration,
-        )
-        if duration is not None and not entity_id:
-            raise ValueError("'duration' requires an entity_id — use on_state_change() or on_attribute_change()")
-        if immediate and not entity_id:
-            raise ValueError("'immediate' requires an entity_id — use on_state_change() or on_attribute_change()")
+        if duration_config is not None and duration_config.duration is not None:
+            if options.debounce is not None:
+                raise ValueError("Cannot combine 'duration' with 'debounce'")
+            if options.throttle is not None:
+                raise ValueError("Cannot combine 'duration' with 'throttle'")
 
         pred = normalize_where(where)
-        handler_name = callable_name(handler)
-        parts = handler_name.rsplit(".", 1)
-        short_name = parts[-1] if parts else handler_name
-
-        built_identity = ListenerIdentity(
-            owner_id=owner_id,
-            app_key=app_key,
-            instance_index=instance_index,
-            name=name,
-            source_tier=source_tier,
-            handler_name=handler_name,
-            handler_short_name=short_name,
-            source_location=source_location,
-            registration_source=registration_source,
-        )
-
-        built_options = ListenerOptions(
-            once=once,
-            debounce=debounce,
-            throttle=throttle,
-            timeout=timeout,
-            timeout_disabled=timeout_disabled,
-            priority=priority,
-        )
-
-        built_invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=handler,
-            kwargs=kwargs,
-            options=built_options,
-            error_handler=error_handler,
-        )
-
-        built_duration_config: DurationConfig | None = None
-        if entity_id:
-            # Create a DurationConfig whenever entity_id is provided, for backward compat.
-            # duration may be None for immediate-only or bare entity_id tracking.
-            built_duration_config = DurationConfig(
-                entity_id=entity_id,
-                duration=duration,
-                immediate=immediate,
-                is_attribute_listener=is_attribute_listener,
-                hold_predicate=hold_predicate,
-            )
-
         return cls(
             logger=logger,
             topic=topic,
             predicate=pred,
-            identity=built_identity,
-            invoker=built_invoker,
-            options=built_options,
-            duration_config=built_duration_config,
+            identity=identity,
+            invoker=invoker,
+            options=options,
+            duration_config=duration_config,
         )
 
     @classmethod
@@ -530,7 +412,6 @@ class Listener:
         owner_id: str,
         topic: str,
         handler: "HandlerType",
-        entity_id: str,  # noqa: ARG003 — API contract for T04 (AC#9)
         predicate: "Predicate | None" = None,
     ) -> "Listener":
         """Create a framework cancel-listener with sensible defaults.
@@ -539,8 +420,7 @@ class Listener:
         no error handler, no duration config.
         """
         handler_name = callable_name(handler)
-        parts = handler_name.rsplit(".", 1)
-        short_name = parts[-1] if parts else handler_name
+        short_name = callable_short_name(handler)
 
         identity = ListenerIdentity(
             owner_id=owner_id,

@@ -1,24 +1,14 @@
 """Tests for Listener timeout fields."""
 
-from unittest.mock import MagicMock
-
 import pytest
 
 from hassette.bus.listeners import Listener
+from hassette.test_utils.helpers import create_listener
 
 
 def _make_listener(*, timeout: float | None = None, timeout_disabled: bool = False) -> Listener:
-    """Create a Listener via create() with timeout parameters."""
-    task_bucket = MagicMock()
-    task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-    return Listener.create(
-        task_bucket=task_bucket,
-        owner_id="test_owner",
-        topic="test.topic",
-        handler=lambda: None,
-        timeout=timeout,
-        timeout_disabled=timeout_disabled,
-    )
+    """Create a Listener with timeout-test defaults (topic='test.topic')."""
+    return create_listener(topic="test.topic", timeout=timeout, timeout_disabled=timeout_disabled)
 
 
 class TestListenerTimeout:

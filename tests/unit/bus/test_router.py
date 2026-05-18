@@ -2,16 +2,10 @@
 
 import importlib.util
 import pathlib
-from unittest.mock import MagicMock
 
 from hassette.bus.listeners import Listener
 from hassette.bus.router import Router
-
-
-def _make_task_bucket() -> MagicMock:
-    tb = MagicMock()
-    tb.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-    return tb
+from hassette.test_utils.helpers import create_listener
 
 
 def _make_listener(
@@ -19,14 +13,8 @@ def _make_listener(
     owner_id: str = "test_owner",
     priority: int = 0,
 ) -> Listener:
-    """Create a Listener via Listener.create() for use in Router tests."""
-    return Listener.create(
-        task_bucket=_make_task_bucket(),
-        owner_id=owner_id,
-        topic=topic,
-        handler=lambda: None,
-        priority=priority,
-    )
+    """Create a Listener with router-test defaults (topic='state_changed')."""
+    return create_listener(topic=topic, owner_id=owner_id, priority=priority)
 
 
 class TestRouterImport:

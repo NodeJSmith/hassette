@@ -123,22 +123,6 @@ class TestHandlerInvokerCreate:
 
         assert invoker.kwargs == kwargs
 
-    def test_create_with_mock_task_bucket(self) -> None:
-        """AC#4: HandlerInvoker.create() can be called with a MagicMock task_bucket."""
-        task_bucket = MagicMock()
-        task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-        options = ListenerOptions()
-
-        invoker = HandlerInvoker.create(
-            task_bucket=task_bucket,
-            handler=_simple_handler,
-            kwargs=None,
-            options=options,
-        )
-
-        assert invoker is not None
-        assert invoker._fired is False
-
     def test_has_slots(self) -> None:
         task_bucket = _make_task_bucket()
         options = ListenerOptions()

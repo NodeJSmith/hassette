@@ -323,8 +323,7 @@ class Bus(Resource):
         source_location, registration_source = capture_registration_source()
 
         handler_name = callable_name(handler)
-        parts = handler_name.rsplit(".", 1)
-        short_name = parts[-1] if parts else handler_name
+        short_name = callable_short_name(handler)
 
         identity = ListenerIdentity(
             owner_id=self.owner_id,
@@ -356,24 +355,14 @@ class Bus(Resource):
             app_error_handler_resolver=lambda: self._error_handler,
         )
 
-        # Cross-concern validation: duration + debounce/throttle incompatibility
-        if duration_config is not None and duration_config.duration is not None:
-            if options.debounce is not None:
-                raise ValueError("Cannot combine 'duration' with 'debounce'")
-            if options.throttle is not None:
-                raise ValueError("Cannot combine 'duration' with 'throttle'")
-
         listener = Listener.create(
-            task_bucket=self.task_bucket,
-            owner_id=self.owner_id,
             topic=topic,
-            handler=handler,
-            where=where,
-            logger=self.logger,
             identity=identity,
             options=options,
             invoker=invoker,
+            where=where,
             duration_config=duration_config,
+            logger=self.logger,
         )
 
         def unsubscribe() -> None:

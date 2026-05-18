@@ -170,13 +170,12 @@ async def test_framework_listener_registration(
         pass
 
     # Directly invoke _register_then_add_route with a pre-built framework listener
-    from hassette.bus.listeners import Listener
+    from hassette.test_utils.helpers import create_listener
 
-    listener = Listener.create(
-        task_bucket=MagicMock(),
+    listener = create_listener(
+        dummy_handler,
         owner_id="__hassette__:test.framework_listener",
         topic="hassette.event.service_status",
-        handler=dummy_handler,
         app_key="__hassette__",
         instance_index=0,
         name="hassette.test.framework_listener",
