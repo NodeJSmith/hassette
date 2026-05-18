@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Extract Router to src/hassette/bus/router.py"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#9", "AC#8"]
 ---
