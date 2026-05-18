@@ -47,16 +47,16 @@ async def test_bus_on_state_change_captures_test_file_source(bus: "Bus") -> None
         add_listener_mock.assert_called_once()
         listener = add_listener_mock.call_args.args[0]
 
-        assert listener.source_location, "source_location should not be empty"
-        assert THIS_FILE in listener.source_location, (
-            f"source_location should point to this test file, got: {listener.source_location}"
+        assert listener.identity.source_location, "source_location should not be empty"
+        assert THIS_FILE in listener.identity.source_location, (
+            f"source_location should point to this test file, got: {listener.identity.source_location}"
         )
-        assert "asyncio" not in listener.source_location, (
-            f"source_location should not contain asyncio internals, got: {listener.source_location}"
+        assert "asyncio" not in listener.identity.source_location, (
+            f"source_location should not contain asyncio internals, got: {listener.identity.source_location}"
         )
-        assert listener.registration_source, "registration_source should not be empty"
-        assert "on_state_change" in listener.registration_source, (
-            f"registration_source should contain the method call, got: {listener.registration_source}"
+        assert listener.identity.registration_source, "registration_source should not be empty"
+        assert "on_state_change" in listener.identity.registration_source, (
+            f"registration_source should contain the method call, got: {listener.identity.registration_source}"
         )
     finally:
         bus.bus_service = original_service
@@ -78,9 +78,9 @@ async def test_bus_on_captures_test_file_source(bus: "Bus") -> None:
         add_listener_mock.assert_called_once()
         listener = add_listener_mock.call_args.args[0]
 
-        assert listener.source_location, "source_location should not be empty"
-        assert THIS_FILE in listener.source_location, (
-            f"source_location should point to this test file, got: {listener.source_location}"
+        assert listener.identity.source_location, "source_location should not be empty"
+        assert THIS_FILE in listener.identity.source_location, (
+            f"source_location should point to this test file, got: {listener.identity.source_location}"
         )
     finally:
         bus.bus_service = original_service

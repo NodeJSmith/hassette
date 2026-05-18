@@ -33,20 +33,20 @@ class TestBusOnPassesTimeout:
         """bus.on(topic=..., handler=..., timeout=5.0) creates listener with timeout=5.0."""
         bus = _make_bus()
         sub = bus.on(topic="test.topic", handler=lambda: None, timeout=5.0)
-        assert sub.listener.timeout == 5.0
+        assert sub.listener.options.timeout == 5.0
 
     def test_bus_on_passes_timeout_disabled(self) -> None:
         """timeout_disabled=True threads through to listener."""
         bus = _make_bus()
         sub = bus.on(topic="test.topic", handler=lambda: None, timeout_disabled=True)
-        assert sub.listener.timeout_disabled is True
+        assert sub.listener.options.timeout_disabled is True
 
     def test_bus_on_default_timeout(self) -> None:
         """Default timeout is None when not specified."""
         bus = _make_bus()
         sub = bus.on(topic="test.topic", handler=lambda: None)
-        assert sub.listener.timeout is None
-        assert sub.listener.timeout_disabled is False
+        assert sub.listener.options.timeout is None
+        assert sub.listener.options.timeout_disabled is False
 
 
 class TestConvenienceMethodPassesTimeout:
@@ -54,13 +54,13 @@ class TestConvenienceMethodPassesTimeout:
         """Convenience method forwards timeout through _subscribe -> on()."""
         bus = _make_bus()
         sub = bus.on_state_change("light.test", handler=lambda: None, timeout=10.0)
-        assert sub.listener.timeout == 10.0
+        assert sub.listener.options.timeout == 10.0
 
     def test_on_state_change_passes_timeout_disabled_via_options(self) -> None:
         """Convenience method forwards timeout_disabled through _subscribe -> on()."""
         bus = _make_bus()
         sub = bus.on_state_change("light.test", handler=lambda: None, timeout_disabled=True)
-        assert sub.listener.timeout_disabled is True
+        assert sub.listener.options.timeout_disabled is True
 
 
 class TestOptionsTypedDict:

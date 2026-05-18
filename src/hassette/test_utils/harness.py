@@ -607,13 +607,13 @@ class HassetteHarness:
 
         async def _stub_execute(cmd: Any) -> None:
             if isinstance(cmd, InvokeHandler):
-                error_handler = cmd.listener.error_handler or cmd.app_level_error_handler
+                error_handler = cmd.listener.invoker.error_handler or cmd.app_level_error_handler
                 if error_handler is None:
-                    await cmd.listener.invoke(cmd.event)
+                    await cmd.listener.invoker.invoke(cmd.event)
                     return
 
                 try:
-                    await cmd.listener.invoke(cmd.event)
+                    await cmd.listener.invoker.invoke(cmd.event)
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:

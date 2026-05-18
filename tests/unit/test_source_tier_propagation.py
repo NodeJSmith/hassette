@@ -15,12 +15,12 @@ import pytest
 
 from hassette.app.app import App, AppSync
 from hassette.resources.base import Resource, Service
+from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import After
 
 if typing.TYPE_CHECKING:
     from hassette import HassetteConfig
     from hassette.bus.bus import Bus
-    from hassette.scheduler.scheduler import Scheduler
     from hassette.test_utils.harness import HassetteHarness
 
 
@@ -95,17 +95,17 @@ class TestBusSourceTierPropagation:
     async def test_framework_bus_creates_framework_listener(self, framework_bus: "Bus") -> None:
         """Bus.on() with a framework parent passes source_tier='framework' to Listener."""
         sub = framework_bus.on(topic="test.topic", handler=_handler)
-        assert sub.listener.source_tier == "framework"
+        assert sub.listener.identity.source_tier == "framework"
 
     async def test_app_bus_creates_app_listener(self, app_bus: "Bus") -> None:
         """Bus.on() with an app parent passes source_tier='app' to Listener."""
         sub = app_bus.on(topic="test.topic", handler=_handler)
-        assert sub.listener.source_tier == "app"
+        assert sub.listener.identity.source_tier == "app"
 
     async def test_convenience_methods_propagate_tier(self, framework_bus: "Bus") -> None:
         """on_state_change and other convenience methods also propagate source_tier."""
         sub = framework_bus.on_state_change("sensor.test", handler=_handler)
-        assert sub.listener.source_tier == "framework"
+        assert sub.listener.identity.source_tier == "framework"
 
 
 # ---------------------------------------------------------------------------
@@ -115,8 +115,6 @@ class TestBusSourceTierPropagation:
 
 def _make_scheduler_with_parent(source_tier: str) -> "Scheduler":
     """Create a minimal Scheduler with a mocked parent at the given source_tier."""
-    from hassette.scheduler.scheduler import Scheduler
-
     _TestScheduler = type("_TestScheduler", (Scheduler,), {})  # noqa: N806
 
     mock_parent = Mock()

@@ -119,7 +119,9 @@ def _make_mock_listener() -> MagicMock:
     """Return a mock Listener whose invoke() is an awaitable coroutine."""
     listener = MagicMock()
     listener.invoke = AsyncMock()
+    listener.invoker.invoke = AsyncMock()
     listener.error_handler = None
+    listener.invoker.error_handler = None
     return listener
 
 
@@ -139,6 +141,7 @@ async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
     """CancelledError must be re-raised after queueing a 'cancelled' record."""
     listener = _make_mock_listener()
     listener.invoke.side_effect = asyncio.CancelledError()
+    listener.invoker.invoke.side_effect = asyncio.CancelledError()
 
     cmd = InvokeHandler(
         listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
@@ -161,6 +164,7 @@ async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
 
     listener = _make_mock_listener()
     listener.invoke.side_effect = DependencyError("missing dep")
+    listener.invoker.invoke.side_effect = DependencyError("missing dep")
 
     cmd = InvokeHandler(
         listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
@@ -186,6 +190,7 @@ async def test_hassette_error_swallowed(executor: CommandExecutor) -> None:
 
     listener = _make_mock_listener()
     listener.invoke.side_effect = HassetteError("framework error")
+    listener.invoker.invoke.side_effect = HassetteError("framework error")
 
     cmd = InvokeHandler(
         listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
@@ -206,6 +211,7 @@ async def test_unexpected_error_swallowed(executor: CommandExecutor) -> None:
     """Generic Exception must be swallowed and include traceback."""
     listener = _make_mock_listener()
     listener.invoke.side_effect = ValueError("oops")
+    listener.invoker.invoke.side_effect = ValueError("oops")
 
     cmd = InvokeHandler(
         listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
@@ -228,6 +234,7 @@ async def test_success_record_queued(executor: CommandExecutor) -> None:
     """Successful invocation must queue a 'success' record."""
     listener = _make_mock_listener()
     listener.invoke.return_value = None
+    listener.invoker.invoke.return_value = None
 
     cmd = InvokeHandler(
         listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
@@ -259,6 +266,7 @@ async def test_execute_timeout_fires(executor: CommandExecutor) -> None:
 
     listener = _make_mock_listener()
     listener.invoke = slow_handler
+    listener.invoker.invoke = slow_handler
 
     cmd = InvokeHandler(
         listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=0.05
@@ -276,6 +284,7 @@ async def test_execute_timeout_none_is_noop(executor: CommandExecutor) -> None:
     """effective_timeout=None does not enforce timeout."""
     listener = _make_mock_listener()
     listener.invoke.return_value = None
+    listener.invoker.invoke.return_value = None
 
     cmd = InvokeHandler(
         listener=listener, event=MagicMock(), topic="test", listener_id=1, source_tier="app", effective_timeout=None
@@ -297,6 +306,7 @@ async def test_timeout_warning_rate_limited(executor: CommandExecutor) -> None:
 
     listener = _make_mock_listener()
     listener.invoke = slow_handler
+    listener.invoker.invoke = slow_handler
 
     warnings_logged: list[str] = []
     original_warning = executor.logger.warning
@@ -333,6 +343,7 @@ async def test_timeout_warning_lazy_eviction(executor: CommandExecutor) -> None:
 
     listener = _make_mock_listener()
     listener.invoke = slow_handler
+    listener.invoker.invoke = slow_handler
 
     # Manually seed a stale entry (>60s ago)
     executor._timeout_warn_timestamps = {1: time.monotonic() - 120.0}  # pyright: ignore[reportAttributeAccessIssue]

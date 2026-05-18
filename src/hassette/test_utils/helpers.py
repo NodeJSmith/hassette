@@ -1,14 +1,23 @@
 import asyncio
 import json
 import textwrap
-from logging import getLogger
+from collections.abc import Mapping, Sequence
+from logging import Logger, getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import tomli_w
 
 import hassette.utils.date_utils as _date_utils
+from hassette.bus.listeners import (
+    DurationConfig,
+    HandlerInvoker,
+    Listener,
+    ListenerIdentity,
+    ListenerOptions,
+)
 from hassette.config.classes import AppManifest
 from hassette.events import (
     CallServiceEvent,
@@ -19,12 +28,14 @@ from hassette.events import (
 )
 from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent
 from hassette.types.enums import ResourceStatus
+from hassette.utils.func_utils import callable_name, callable_short_name
 
 if TYPE_CHECKING:
     from hassette.bus.bus import Bus
     from hassette.core.core import Hassette
     from hassette.events import HassEventEnvelopeDict
     from hassette.resources.base import Service
+    from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate, SourceTier
 
 
 def _create_hass_event(event_type: str, data: dict[str, Any]) -> Any:
@@ -402,3 +413,112 @@ def wire_up_app_state_listener(
 def wire_up_app_running_listener(bus: "Bus", event: asyncio.Event, app_key: str) -> None:
     """Wire up a listener that fires when a specific app reaches RUNNING status."""
     wire_up_app_state_listener(bus, event, app_key, ResourceStatus.RUNNING)
+
+
+def make_task_bucket() -> MagicMock:
+    """Create a MagicMock TaskBucket suitable for Listener construction in tests."""
+    tb = MagicMock()
+    tb.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
+    return tb
+
+
+def create_listener(
+    handler: "HandlerType | None" = None,
+    *,
+    topic: str = "state_changed.light.test",
+    owner_id: str = "test_owner",
+    task_bucket: Any = None,
+    where: "Predicate | Sequence[Predicate] | None" = None,
+    kwargs: Mapping[str, Any] | None = None,
+    once: bool = False,
+    debounce: float | None = None,
+    throttle: float | None = None,
+    timeout: float | None = None,
+    timeout_disabled: bool = False,
+    priority: int = 0,
+    app_key: str = "",
+    instance_index: int = 0,
+    name: str | None = None,
+    source_tier: "SourceTier" = "app",
+    immediate: bool = False,
+    duration: float | None = None,
+    entity_id: str | None = None,
+    is_attribute_listener: bool = False,
+    hold_predicate: "Predicate | None" = None,
+    error_handler: "BusErrorHandlerType | None" = None,
+    source_location: str = "",
+    registration_source: str = "",
+    logger: Logger | None = None,
+) -> Listener:
+    """Test factory: build a Listener from simple kwargs.
+
+    Constructs sub-structs internally and delegates to Listener.create().
+    Default handler is a sync lambda; default task_bucket is a MagicMock.
+    """
+    if duration is not None and debounce is not None:
+        raise ValueError("Cannot combine 'duration' with 'debounce'")
+    if duration is not None and throttle is not None:
+        raise ValueError("Cannot combine 'duration' with 'throttle'")
+    if duration is not None and not entity_id:
+        raise ValueError("'duration' requires an entity_id — use on_state_change() or on_attribute_change()")
+    if immediate and not entity_id:
+        raise ValueError("'immediate' requires an entity_id — use on_state_change() or on_attribute_change()")
+
+    if handler is None:
+        handler = lambda: None  # noqa: E731
+    if task_bucket is None:
+        task_bucket = make_task_bucket()
+
+    handler_name = callable_name(handler)
+    short_name = callable_short_name(handler)
+
+    identity = ListenerIdentity(
+        owner_id=owner_id,
+        app_key=app_key,
+        instance_index=instance_index,
+        name=name,
+        source_tier=source_tier,
+        handler_name=handler_name,
+        handler_short_name=short_name,
+        source_location=source_location,
+        registration_source=registration_source,
+    )
+
+    options = ListenerOptions(
+        once=once,
+        debounce=debounce,
+        throttle=throttle,
+        timeout=timeout,
+        timeout_disabled=timeout_disabled,
+        priority=priority,
+    )
+
+    invoker = HandlerInvoker.create(
+        task_bucket=task_bucket,
+        handler=handler,
+        kwargs=kwargs,
+        options=options,
+        error_handler=error_handler,
+    )
+
+    duration_config: DurationConfig | None = None
+    if entity_id:
+        # DurationConfig carries entity_id even when duration/immediate are None —
+        # BusService uses entity_id for cancel-listener topic construction and state reads.
+        duration_config = DurationConfig(
+            entity_id=entity_id,
+            duration=duration,
+            immediate=immediate,
+            is_attribute_listener=is_attribute_listener,
+            hold_predicate=hold_predicate,
+        )
+
+    return Listener.create(
+        topic=topic,
+        identity=identity,
+        options=options,
+        invoker=invoker,
+        where=where,
+        duration_config=duration_config,
+        logger=logger or getLogger("test"),
+    )

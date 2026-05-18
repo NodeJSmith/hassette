@@ -6,10 +6,10 @@ from unittest.mock import patch
 
 import pytest
 
-from hassette.bus import Listener
 from hassette.core.app_change_detector import ChangeSet
 from hassette.test_utils import wait_for
 from hassette.test_utils.harness import HassetteHarness
+from hassette.test_utils.helpers import create_listener
 from hassette.types import Topic
 from hassette.utils.app_utils import load_app_class_from_manifest
 
@@ -72,12 +72,11 @@ class TestApps:
             self.hassette.task_bucket.post_to_loop(event.set)
 
         self.hassette.bus_service.add_listener(
-            Listener.create(
-                self.app_handler.task_bucket,
+            create_listener(
+                handler,
+                task_bucket=self.app_handler.task_bucket,
                 owner_id="test",
                 topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
-                handler=handler,
-                where=None,
             )
         )
 
@@ -112,12 +111,11 @@ class TestApps:
             self.hassette.task_bucket.post_to_loop(event.set)
 
         self.hassette.bus_service.add_listener(
-            Listener.create(
-                self.app_handler.task_bucket,
+            create_listener(
+                handler,
+                task_bucket=self.app_handler.task_bucket,
                 owner_id="test",
                 topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
-                handler=handler,
-                where=None,
             )
         )
 
@@ -152,12 +150,11 @@ class TestApps:
             self.hassette.task_bucket.post_to_loop(event.set)
 
         self.hassette.bus_service.add_listener(
-            Listener.create(
-                self.app_handler.task_bucket,
+            create_listener(
+                handler,
+                task_bucket=self.app_handler.task_bucket,
                 owner_id="test",
                 topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
-                handler=handler,
-                where=None,
             )
         )
 

@@ -42,7 +42,7 @@ uv run mkdocs serve
 
 **App** (`src/hassette/app/app.py`) - Base class for user automations. Generic over `AppConfig` type. Each app gets its own Bus, Scheduler, Api, and StateManager. Lifecycle hooks: `on_initialize`, `on_ready`, `on_shutdown`.
 
-**Bus** (`src/hassette/bus/`) - Event pub/sub with filtering. Methods: `on_state_change`, `on_attribute_change`, `on_call_service`, `on`. Supports glob patterns, predicates, conditions, debounce, throttle.
+**Bus** (`src/hassette/bus/`) - Event pub/sub with filtering. Methods: `on_state_change`, `on_attribute_change`, `on_call_service`, `on`. Supports glob patterns, predicates, conditions, debounce, throttle. The internal `Listener` dataclass composes four sub-structs: `ListenerIdentity` (ownership/telemetry fields), `ListenerOptions` (behavioral timing parameters), `HandlerInvoker` (handler invocation, dispatch, rate limiting), and `DurationConfig` (duration-hold configuration and timer lifecycle). Registration methods return a `Subscription` with a `registration_task` completion signal — await it for deterministic startup ordering; check `listener.db_id` to verify persistence.
 
 **Scheduler** (`src/hassette/scheduler/`) - Task scheduling via trigger objects. Primary entry: `schedule(func, trigger)`. Convenience methods: `run_in()`, `run_once()`, `run_every()`, `run_daily()`, `run_cron()`. Trigger types: `After`, `Once`, `Every`, `Daily`, `Cron` (all in `hassette.scheduler.triggers`). Custom triggers implement `TriggerProtocol`. Supports job groups (`group=`, `cancel_group()`, `list_jobs(group=)`) and jitter (`jitter=`).
 

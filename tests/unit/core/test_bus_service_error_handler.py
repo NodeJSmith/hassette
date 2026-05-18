@@ -7,6 +7,7 @@ from hassette.bus.listeners import Listener
 from hassette.core.bus_service import BusService
 from hassette.core.commands import InvokeHandler
 from hassette.events.base import Event
+from hassette.test_utils.helpers import create_listener
 
 
 def _make_bus_service(*, config_timeout: float = 600.0) -> BusService:
@@ -39,15 +40,8 @@ def _make_listener_with_resolver(
     resolver=None,
 ) -> Listener:
     """Create a Listener with a pre-set app_error_handler_resolver."""
-    task_bucket = MagicMock()
-    task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-    listener = Listener.create(
-        task_bucket=task_bucket,
-        owner_id="test_owner",
-        topic="test.topic",
-        handler=lambda: None,
-    )
-    listener._app_error_handler_resolver = resolver
+    listener = create_listener(topic="test.topic")
+    listener.invoker.set_app_error_handler_resolver(resolver)
     return listener
 
 

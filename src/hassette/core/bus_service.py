@@ -2,16 +2,13 @@ import asyncio
 import typing
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
-from fnmatch import fnmatch
 from functools import cached_property
 from typing import Any, ClassVar
 from uuid import uuid4
 
-from fair_async_rlock import FairAsyncRLock
-
 import hassette.utils.date_utils as _date_utils
-from hassette.bus.duration_timer import DurationTimer
 from hassette.bus.listeners import Listener, Subscription
+from hassette.bus.router import Router
 from hassette.core.commands import InvokeHandler
 from hassette.core.registration import ListenerRegistration
 from hassette.core.registration_tracker import RegistrationTracker
@@ -24,7 +21,7 @@ from hassette.resources.base import Resource, RestartSpec, Service
 from hassette.types import Topic
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
-from hassette.utils.glob_utils import GLOB_CHARS, matches_globs, split_exact_and_glob
+from hassette.utils.glob_utils import matches_globs, split_exact_and_glob
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
 if typing.TYPE_CHECKING:
@@ -120,13 +117,12 @@ class BusService(Service):
         Registration tasks are tracked per ``app_key`` so
         ``await_registrations_complete()`` can drain them before reconciliation.
 
-        For duration listeners, wires the ``_duration_timer`` as the single
-        authority — ``Listener.create()`` does not construct it.  Uses
-        ``listener.hold_predicate`` (state-value predicates only) for cancel
-        evaluation, falling back to ``listener.predicate`` if hold predicates
-        were not provided.
+        For duration listeners, wires the timer via ``DurationConfig.attach_timer()``
+        which owns the timer reference. Uses ``duration_config.hold_predicate``
+        (state-value predicates only) for cancel evaluation, falling back to
+        ``listener.predicate`` if hold predicates were not provided.
         """
-        if listener.duration is not None and listener.entity_id:
+        if listener.duration_config is not None and listener.duration_config.duration is not None:
 
             def make_cancel_sub() -> Subscription:
                 return self._create_cancel_listener(listener)
@@ -134,17 +130,14 @@ class BusService(Service):
             def on_timer_cancel() -> None:
                 self._duration_timers_active -= 1
 
-            listener._duration_timer = DurationTimer(
+            listener.duration_config.attach_timer(
                 task_bucket=self.task_bucket,
-                duration=listener.duration,
-                predicates=listener.hold_predicate or listener.predicate,
-                entity_id=listener.entity_id,
-                owner_id=listener.owner_id,
+                owner_id=listener.identity.owner_id,
                 create_cancel_sub=make_cancel_sub,
                 on_cancel=on_timer_cancel,
             )
 
-        app_key = listener.app_key or listener.owner_id
+        app_key = listener.identity.app_key or listener.identity.owner_id
         task = self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_listener")
         self._reg_tracker.prune_and_track(app_key, task)
         return task
@@ -172,21 +165,21 @@ class BusService(Service):
 
         Returns:
             A ``Subscription`` whose ``cancel()`` removes the listener from Router.
+            The subscription carries an already-resolved Future as registration_task
+            since cancel-listeners skip DB registration.
         """
-        assert main_listener.entity_id is not None, "duration listener must have entity_id"
-        assert main_listener._duration_timer is not None, "duration listener must have _duration_timer"
-
-        duration_timer = main_listener._duration_timer
+        assert main_listener.duration_config is not None, "duration listener must have duration_config"
+        duration_timer = main_listener.duration_config.timer
+        entity_id = main_listener.duration_config.entity_id
 
         async def cancel_handler(event: "Event[Any]") -> None:
             duration_timer.evaluate_cancel_event(event)
 
-        cancel_listener = Listener.create(
+        cancel_listener = Listener.create_cancel_listener(
             task_bucket=self.task_bucket,
-            owner_id=main_listener.owner_id,
-            topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{main_listener.entity_id}",
+            owner_id=main_listener.identity.owner_id,
+            topic=f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
             handler=cancel_handler,
-            source_tier="framework",
         )
 
         async def _add_cancel_route() -> None:
@@ -201,7 +194,9 @@ class BusService(Service):
             cancel_listener.cancel()
             self._remove_listener_by_id(cancel_listener.topic, cancel_listener.listener_id)
 
-        return Subscription(cancel_listener, unsubscribe)
+        resolved: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        resolved.set_result(None)
+        return Subscription(cancel_listener, unsubscribe, registration_task=resolved)
 
     async def drain_framework_registrations(self) -> None:
         """Drain all pending framework registration tasks.
@@ -226,38 +221,38 @@ class BusService(Service):
         state.  This is decoupled from registration to prevent serialization of
         N startup state reads.
         """
-        source_location = listener.source_location
-        registration_source: str | None = listener.registration_source or None
+        source_location = listener.identity.source_location
+        registration_source: str | None = listener.identity.registration_source or None
         human_description: str | None = None
         if listener.predicate is not None:
             human_description = summarize_top_level(listener.predicate)
         reg = ListenerRegistration(
-            app_key=listener.app_key,
-            instance_index=listener.instance_index,
-            handler_method=listener.handler_name,
+            app_key=listener.identity.app_key,
+            instance_index=listener.identity.instance_index,
+            handler_method=listener.identity.handler_name,
             topic=listener.topic,
-            debounce=listener.debounce,
-            throttle=listener.throttle,
-            once=listener.once,
-            priority=listener.priority,
+            debounce=listener.options.debounce,
+            throttle=listener.options.throttle,
+            once=listener.options.once,
+            priority=listener.options.priority,
             predicate_description=repr(listener.predicate) if listener.predicate else None,
             human_description=human_description,
             source_location=source_location,
             registration_source=registration_source,
-            name=listener.name,
-            source_tier=listener.source_tier,
-            immediate=listener.immediate,
-            duration=listener.duration,
-            entity_id=listener.entity_id,
+            name=listener.identity.name,
+            source_tier=listener.identity.source_tier,
+            immediate=listener.duration_config.immediate if listener.duration_config else False,
+            duration=listener.duration_config.duration if listener.duration_config else None,
+            entity_id=listener.duration_config.entity_id if listener.duration_config else None,
         )
-        if listener.once:
+        if listener.options.once:
             try:
                 listener.mark_registered(await self._executor.register_listener(reg))
             except Exception:
                 self.logger.exception(
                     "Failed to register once=True listener in DB for owner_id=%s topic=%s; "
                     "listener will fire once and produce an orphan invocation record",
-                    listener.owner_id,
+                    listener.identity.owner_id,
                     listener.topic,
                 )
             await self.router.add_route(listener.topic, listener)
@@ -269,11 +264,11 @@ class BusService(Service):
                 self.logger.exception(
                     "Failed to register listener in DB for owner_id=%s topic=%s; "
                     "listener will run without telemetry until next restart",
-                    listener.owner_id,
+                    listener.identity.owner_id,
                     listener.topic,
                 )
 
-        if listener.immediate and listener.entity_id:
+        if listener.duration_config is not None and listener.duration_config.immediate:
             self._dispatch_pending += 1
             self._dispatch_idle_event.clear()
             task = self.task_bucket.spawn(
@@ -304,7 +299,7 @@ class BusService(Service):
 
         Falls back to ``listener.matches()`` when no hold predicate is set.
         """
-        hold_pred = listener.hold_predicate
+        hold_pred = listener.duration_config.hold_predicate if listener.duration_config else None
         if hold_pred is None:
             return listener.matches(event)
         return hold_pred(event)
@@ -326,12 +321,13 @@ class BusService(Service):
               apps' ``on_initialize`` runs) → log at ERROR as a sequencing violation.
             - Any other exception → log at WARNING; immediate fire becomes a no-op.
         """
-        entity_id = listener.entity_id
+        duration_config = listener.duration_config
+        entity_id = duration_config.entity_id if duration_config else None
         if not entity_id:
             self.logger.error(
                 "immediate_fire: listener has no entity_id — construction invariant violated. "
                 "Listener owner=%s topic=%s",
-                listener.owner_id,
+                listener.identity.owner_id,
                 listener.topic,
             )
             return
@@ -365,25 +361,26 @@ class BusService(Service):
                 synthetic_event.topic, synthetic_event, listener, is_synthetic=True
             )
 
-            if listener.duration is not None and listener._duration_timer is not None:
+            if duration_config is not None and duration_config.duration is not None:
+                duration_timer = duration_config.timer
                 elapsed = 0.0
-                if not listener.is_attribute_listener:
+                if not duration_config.is_attribute_listener:
                     last_changed_raw = current_state.get("last_changed")
                     if isinstance(last_changed_raw, str):
                         last_changed = _date_utils.convert_datetime_str_to_system_tz(last_changed_raw)
                         if last_changed is not None:
                             now_dt = _date_utils.now()
                             raw_elapsed = (now_dt - last_changed).in_seconds()
-                            elapsed = max(0.0, min(raw_elapsed, listener.duration))
+                            elapsed = max(0.0, min(raw_elapsed, duration_config.duration))
 
-                if elapsed >= listener.duration:
+                if elapsed >= duration_config.duration:
                     try:
-                        await listener.dispatch(invoke_fn)
+                        await listener.invoker.dispatch(invoke_fn)
                     finally:
-                        if listener.once:
+                        if listener.options.once:
                             self.remove_listener(listener)
                 else:
-                    remaining = listener.duration - elapsed
+                    remaining = duration_config.duration - elapsed
                     self.logger.debug(
                         "immediate_fire: entity %s elapsed=%.2fs, starting duration timer for remaining=%.2fs",
                         entity_id,
@@ -395,30 +392,30 @@ class BusService(Service):
                         self._duration_timers_active -= 1
                         current = self._read_entity_state(entity_id)
                         if current is None:
-                            if listener.once:
+                            if listener.options.once:
                                 self.remove_listener(listener)
                             return
 
                         recheck_event = self._make_synthetic_state_event(entity_id, current)
                         if not self._hold_matches(listener, recheck_event):
-                            if listener.once:
+                            if listener.options.once:
                                 self.remove_listener(listener)
                             return
 
                         try:
-                            await listener.dispatch(invoke_fn)
+                            await listener.invoker.dispatch(invoke_fn)
                         finally:
-                            if listener.once:
+                            if listener.options.once:
                                 self.remove_listener(listener)
 
                     self._duration_timers_active += 1
-                    listener._duration_timer.start(on_duration_fire_immediate, override_duration=remaining)
+                    duration_timer.start(on_duration_fire_immediate, override_duration=remaining)
                 return
 
             try:
-                await listener.dispatch(invoke_fn)
+                await listener.invoker.dispatch(invoke_fn)
             finally:
-                if listener.once:
+                if listener.options.once:
                     self.remove_listener(listener)
 
         except ResourceNotReadyError as exc:
@@ -427,7 +424,7 @@ class BusService(Service):
                 "StateProxy is not ready at registration time; this is a sequencing invariant violation. "
                 "Listener owner=%s topic=%s",
                 entity_id,
-                listener.owner_id,
+                listener.identity.owner_id,
                 listener.topic,
                 exc_info=exc,
             )
@@ -436,7 +433,7 @@ class BusService(Service):
                 "immediate_fire: unexpected error for entity %s, "
                 "immediate fire will not occur. Listener owner=%s topic=%s",
                 entity_id,
-                listener.owner_id,
+                listener.identity.owner_id,
                 listener.topic,
                 exc_info=exc,
             )
@@ -608,19 +605,18 @@ class BusService(Service):
         # this invoke_fn — the handler receives the event that started the timer.
         invoke_fn = self._make_tracked_invoke_fn(topic, event, listener)
 
-        if listener.once and listener.rate_limiter:
-            raise RuntimeError("once + rate_limiting is prohibited; see Listener.create() validation")
-
-        if listener.duration is not None and listener._duration_timer is not None:
+        if listener.duration_config is not None and listener.duration_config.duration is not None:
             if listener.is_cancelled:
                 return
 
-            entity_id = listener.entity_id
+            duration_config = listener.duration_config
+            duration_timer = duration_config.timer
+            entity_id = duration_config.entity_id
             if not entity_id:
                 self.logger.error(
                     "duration_fire: listener has no entity_id — construction invariant violated. "
                     "Listener owner=%s topic=%s",
-                    listener.owner_id,
+                    listener.identity.owner_id,
                     listener.topic,
                 )
                 return
@@ -648,23 +644,23 @@ class BusService(Service):
                     self.logger.debug(
                         "duration_fire: entity %s held state for %.2fs, dispatching handler",
                         entity_id,
-                        listener.duration,
+                        duration_config.duration,
                     )
-                    await listener.dispatch(invoke_fn)
+                    await listener.invoker.dispatch(invoke_fn)
                 finally:
                     self._duration_timers_active -= 1
-                    if listener.once:
+                    if listener.options.once:
                         self.remove_listener(listener)
 
             self._duration_timers_active += 1
-            listener._duration_timer.start(on_duration_fire)
+            duration_timer.start(on_duration_fire)
             return
 
         # Non-duration path (unchanged behavior).
         try:
-            await listener.dispatch(invoke_fn)
+            await listener.invoker.dispatch(invoke_fn)
         finally:
-            if listener.once:
+            if listener.options.once:
                 self.remove_listener(listener)
 
     def _make_tracked_invoke_fn(
@@ -685,26 +681,25 @@ class BusService(Service):
             # Resolve effective timeout lazily at fire time (not capture time) so that
             # debounced handlers see config changes applied via hot reload, consistent
             # with the lazy db_id resolution documented above.
-            if listener.timeout_disabled:
+            if listener.options.timeout_disabled:
                 effective_timeout = None
-            elif listener.timeout is not None:
-                effective_timeout = listener.timeout
+            elif listener.options.timeout is not None:
+                effective_timeout = listener.options.timeout
             else:
                 effective_timeout = self.hassette.config.event_handler_timeout_seconds
 
             # Resolve the app-level error handler at dispatch time from the owning Bus.
             # The resolver is a closure set by Bus.on() that reads Bus._error_handler lazily,
             # so this always reflects the current handler at the moment of dispatch.
-            app_level_error_handler = (
-                listener._app_error_handler_resolver() if listener._app_error_handler_resolver is not None else None
-            )
+            resolver = listener.invoker._app_error_handler_resolver
+            app_level_error_handler = resolver() if resolver is not None else None
 
             cmd = InvokeHandler(
                 listener=listener,
                 event=event,
                 topic=topic,
                 listener_id=listener.db_id,
-                source_tier=listener.source_tier,
+                source_tier=listener.identity.source_tier,
                 effective_timeout=effective_timeout,
                 app_level_error_handler=app_level_error_handler,
                 is_synthetic=is_synthetic,
@@ -851,8 +846,8 @@ class BusService(Service):
             return False
 
         payload = event.payload
-        entity_id = getattr(payload, "entity_id", None) if payload else None
-        domain = getattr(payload, "domain", None) if payload else None
+        entity_id = getattr(payload, "entity_id", None)
+        domain = getattr(payload, "domain", None)
 
         try:
             if (
@@ -861,8 +856,8 @@ class BusService(Service):
                 and payload.data.service_data.get("level") == "debug"
             ):
                 return True
-        except Exception:
-            pass
+        except AttributeError:
+            self.logger.debug("Unexpected payload shape in system_log skip check for topic=%s", topic)
 
         if not self._has_exclusions:
             return False
@@ -870,18 +865,10 @@ class BusService(Service):
         if not entity_id or not domain:
             return False
 
-        if typing.TYPE_CHECKING:
-            assert entity_id is not None
-            assert isinstance(entity_id, str)
-            assert domain is not None
-            assert isinstance(domain, str)
-
         if isinstance(entity_id, str):
             if entity_id in self._excluded_entities_exact or matches_globs(entity_id, self._excluded_entity_globs):
                 self.logger.debug("Skipping dispatch for %s due to entity exclusion (%s)", topic, entity_id)
                 return True
-            if domain is None and "." in entity_id:
-                domain = entity_id.split(".", 1)[0]
 
         if isinstance(domain, str) and domain:
             if domain in self._excluded_domains_exact or matches_globs(domain, self._excluded_domain_globs):
@@ -889,178 +876,3 @@ class BusService(Service):
                 return True
 
         return False
-
-
-class Router:
-    exact: dict[str, list["Listener"]]
-    globs: dict[str, list["Listener"]]
-    owners: dict[str, list["Listener"]]
-
-    def __init__(self) -> None:
-        # self.lock = asyncio.Lock()
-        self.lock = FairAsyncRLock()
-        self.exact = defaultdict(list)
-        self.globs = defaultdict(list)  # keys contain glob chars
-        self.owners = defaultdict(list)
-
-    async def add_route(self, topic: str, listener: "Listener") -> None:
-        """Add a listener to the appropriate route based on whether it contains glob characters.
-
-        Checks ``listener.is_cancelled`` before insertion to prevent orphaned
-        listeners when ``Subscription.cancel()`` races with the async add task (#451).
-
-        Args:
-            topic: The topic to add the listener to.
-            listener: The listener to add.
-        """
-        async with self.lock:
-            if listener.is_cancelled:
-                return
-            if any(ch in topic for ch in GLOB_CHARS):
-                self.globs[topic].append(listener)
-            else:
-                self.exact[topic].append(listener)
-
-            self.owners[listener.owner_id].append(listener)
-
-    async def remove_route(self, topic: str, predicate: Callable[["Listener"], bool]) -> None:
-        """Remove a listener from the appropriate route based on whether it contains glob characters.
-
-        Args:
-            topic: The topic to remove the listener from.
-            predicate: A function that returns True for listeners to be removed.
-        """
-
-        bucket = self.globs if any(ch in topic for ch in GLOB_CHARS) else self.exact
-
-        async with self.lock:
-            listeners = bucket.get(topic)
-            if not listeners:
-                return
-
-            removed: list[Listener] = []
-            kept: list[Listener] = []
-
-            for listener in listeners:
-                if predicate(listener):
-                    removed.append(listener)
-                else:
-                    kept.append(listener)
-
-            if not removed:
-                return
-
-            if kept:
-                bucket[topic] = kept
-            else:
-                bucket.pop(topic, None)
-
-            removed_by_owner: dict[str, set[int]] = defaultdict(set)
-            for listener in removed:
-                removed_by_owner[listener.owner_id].add(listener.listener_id)
-
-            for owner, removed_ids in removed_by_owner.items():
-                owner_listeners = self.owners.get(owner)
-                if not owner_listeners:
-                    continue
-                remaining = [x for x in owner_listeners if x.listener_id not in removed_ids]
-                if remaining:
-                    self.owners[owner] = remaining
-                else:
-                    self.owners.pop(owner, None)
-
-    async def remove_listener(self, listener: "Listener") -> None:
-        """Remove a specific listener from the router.
-
-        Args:
-            listener: The listener to remove.
-        """
-
-        def pred(x: "Listener") -> bool:
-            return x.listener_id == listener.listener_id
-
-        await self.remove_route(listener.topic, pred)
-
-    async def remove_listener_by_id(self, topic: str, listener_id: int) -> None:
-        """Remove a listener by its ID.
-
-        Args:
-            topic: The topic the listener is associated with.
-            listener_id: The ID of the listener to remove.
-        """
-
-        def pred(x: "Listener") -> bool:
-            return x.listener_id == listener_id
-
-        await self.remove_route(topic, pred)
-
-    async def get_topic_listeners(self, topic: str) -> list["Listener"]:
-        """Get all listeners that match the given topic.
-
-        Args:
-            topic: The topic to match against.
-
-        Returns:
-            A list of listeners that match the topic, sorted by priority (highest first).
-        """
-        async with self.lock:
-            out: list[Listener] = []
-            out.extend(self.exact.get(topic, ()))
-
-            for k, listener in self.globs.items():
-                if fnmatch(topic, k):
-                    out.extend(listener)
-
-            # de-dup preserving order
-            seen: set[int] = set()
-            unique: list[Listener] = []
-            for listener in out:
-                if id(listener) not in seen:
-                    seen.add(id(listener))
-                    unique.append(listener)
-
-            # Sort by priority (highest first)
-            unique.sort(key=lambda x: x.priority, reverse=True)
-            return unique
-
-    async def get_listeners_by_owner(self, owner: str) -> list["Listener"]:
-        """Get all listeners associated with the given owner.
-
-        Args:
-            owner: The owner whose listeners should be retrieved.
-
-        Returns:
-            A list of listeners associated with the owner.
-        """
-        async with self.lock:
-            return list(self.owners.get(owner, ()))
-
-    async def clear_owner(self, owner: str) -> list["Listener"]:
-        """Remove all listeners associated with the given owner.
-
-        Args:
-            owner: The owner whose listeners should be removed.
-
-        Returns:
-            The list of removed listeners (for cleanup such as cancelling debounce tasks).
-        """
-
-        async with self.lock:
-            owner_listeners = self.owners.pop(owner, None)
-            if not owner_listeners:
-                return []
-
-            handled_topics = {listener.topic for listener in owner_listeners}
-            for topic in handled_topics:
-                bucket = self.globs if any(ch in topic for ch in GLOB_CHARS) else self.exact
-                listeners = bucket.get(topic)
-                if not listeners:
-                    continue
-
-                remaining = [listener for listener in listeners if listener.owner_id != owner]
-                if remaining:
-                    bucket[topic] = remaining
-                else:
-                    bucket.pop(topic, None)
-
-            return owner_listeners

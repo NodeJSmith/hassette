@@ -1,46 +1,36 @@
 """Tests for Listener timeout fields."""
 
-from unittest.mock import MagicMock
-
 import pytest
 
 from hassette.bus.listeners import Listener
+from hassette.test_utils.helpers import create_listener
 
 
 def _make_listener(*, timeout: float | None = None, timeout_disabled: bool = False) -> Listener:
-    """Create a Listener via create() with timeout parameters."""
-    task_bucket = MagicMock()
-    task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-    return Listener.create(
-        task_bucket=task_bucket,
-        owner_id="test_owner",
-        topic="test.topic",
-        handler=lambda: None,
-        timeout=timeout,
-        timeout_disabled=timeout_disabled,
-    )
+    """Create a Listener with timeout-test defaults (topic='test.topic')."""
+    return create_listener(topic="test.topic", timeout=timeout, timeout_disabled=timeout_disabled)
 
 
 class TestListenerTimeout:
     def test_listener_create_with_timeout(self) -> None:
         """Listener.create(..., timeout=5.0) stores timeout=5.0."""
         listener = _make_listener(timeout=5.0)
-        assert listener.timeout == 5.0
+        assert listener.options.timeout == 5.0
 
     def test_listener_create_default_timeout(self) -> None:
         """Default timeout is None."""
         listener = _make_listener()
-        assert listener.timeout is None
+        assert listener.options.timeout is None
 
     def test_listener_create_timeout_disabled(self) -> None:
         """timeout_disabled=True stores correctly."""
         listener = _make_listener(timeout_disabled=True)
-        assert listener.timeout_disabled is True
+        assert listener.options.timeout_disabled is True
 
     def test_listener_create_default_timeout_disabled(self) -> None:
         """Default timeout_disabled is False."""
         listener = _make_listener()
-        assert listener.timeout_disabled is False
+        assert listener.options.timeout_disabled is False
 
     def test_listener_timeout_validation_rejects_zero(self) -> None:
         """timeout=0 raises ValueError."""

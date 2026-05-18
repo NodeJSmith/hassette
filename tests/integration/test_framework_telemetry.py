@@ -16,6 +16,7 @@ import pytest
 from hassette import HassetteConfig
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.command_executor import CommandExecutor
+from hassette.core.commands import InvokeHandler
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_query_service import TelemetryQueryService
@@ -98,8 +99,8 @@ async def test_framework_listener_registers_with_source_tier(harness_config: Has
         listeners = await harness.bus_service.router.get_topic_listeners("test.topic")
         assert len(listeners) > 0
         listener = listeners[0]
-        assert listener.source_tier == "framework"
-        assert listener.app_key.startswith("__hassette__.")
+        assert listener.identity.source_tier == "framework"
+        assert listener.identity.app_key.startswith("__hassette__.")
 
 
 async def test_framework_job_registers_with_db(mock_hassette_with_db: MagicMock) -> None:
@@ -151,10 +152,8 @@ async def test_command_executor_records_source_tier_on_error(mock_hassette_with_
 
     # Create a listener invocation that fails
     listener = MagicMock()
-    listener.invoke = AsyncMock(side_effect=ValueError("handler error"))
-    listener.error_handler = None
-
-    from hassette.core.commands import InvokeHandler
+    listener.invoker.invoke = AsyncMock(side_effect=ValueError("handler error"))
+    listener.invoker.error_handler = None
 
     mock_event = MagicMock()
     mock_event.payload.event_id = None
@@ -249,10 +248,8 @@ async def test_queue_persistence_via_drain_and_persist(mock_hassette_with_db: Ma
 
     # Queue an invocation record
     listener = MagicMock()
-    listener.invoke = AsyncMock()
-    listener.error_handler = None
-
-    from hassette.core.commands import InvokeHandler
+    listener.invoker.invoke = AsyncMock()
+    listener.invoker.error_handler = None
 
     mock_event = MagicMock()
     mock_event.payload.event_id = None
@@ -301,10 +298,8 @@ async def test_pre_registration_orphan_persisted_with_null_listener_id(mock_hass
 
     # Queue an invocation record with listener_id=None (pre-registration)
     listener = MagicMock()
-    listener.invoke = AsyncMock()
-    listener.error_handler = None
-
-    from hassette.core.commands import InvokeHandler
+    listener.invoker.invoke = AsyncMock()
+    listener.invoker.error_handler = None
 
     mock_event = MagicMock()
     mock_event.payload.event_id = None
@@ -433,8 +428,8 @@ async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: Magi
 
     # Enqueue records until queue is full
     listener = MagicMock()
-    listener.invoke = AsyncMock()
-    listener.error_handler = None
+    listener.invoker.invoke = AsyncMock()
+    listener.invoker.error_handler = None
 
     from hassette.core.commands import InvokeHandler
 

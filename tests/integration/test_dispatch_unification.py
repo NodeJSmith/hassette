@@ -93,13 +93,13 @@ async def executor(mock_hassette: MagicMock, initialized_db: tuple[DatabaseServi
     return exc
 
 
-def _make_mock_listener(*, listener_id: int = 1, db_id: int | None = None, source_tier: str = "app") -> MagicMock:
-    """Return a mock Listener with configurable db_id and source_tier."""
+def _make_mock_listener(*, listener_id: int = 1, db_id: int | None = None) -> MagicMock:
+    """Return a mock Listener with configurable db_id."""
     listener = MagicMock()
     listener.listener_id = listener_id
     listener.db_id = db_id
-    listener.source_tier = source_tier
-    listener.invoke = AsyncMock()
+    listener.invoker.invoke = AsyncMock()
+    listener.invoker.error_handler = None
     return listener
 
 
@@ -110,7 +110,7 @@ def _make_mock_listener(*, listener_id: int = 1, db_id: int | None = None, sourc
 
 async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> None:
     """All listeners produce HandlerInvocationRecord when fired, even when db_id is set."""
-    listener = _make_mock_listener(db_id=42, source_tier="app")
+    listener = _make_mock_listener(db_id=42)
     cmd = InvokeHandler(
         listener=listener,
         event=MagicMock(),
@@ -132,7 +132,7 @@ async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> Non
 
 async def test_pre_registration_listener_produces_orphan_record(executor: CommandExecutor) -> None:
     """Pre-registration listeners (db_id=None at fire time) produce records with listener_id=None."""
-    listener = _make_mock_listener(db_id=None, source_tier="app")
+    listener = _make_mock_listener(db_id=None)
     cmd = InvokeHandler(
         listener=listener,
         event=MagicMock(),
@@ -170,13 +170,12 @@ async def test_framework_listener_registration(
         pass
 
     # Directly invoke _register_then_add_route with a pre-built framework listener
-    from hassette.bus.listeners import Listener
+    from hassette.test_utils.helpers import create_listener
 
-    listener = Listener.create(
-        task_bucket=MagicMock(),
+    listener = create_listener(
+        dummy_handler,
         owner_id="__hassette__:test.framework_listener",
         topic="hassette.event.service_status",
-        handler=dummy_handler,
         app_key="__hassette__",
         instance_index=0,
         name="hassette.test.framework_listener",
@@ -202,7 +201,7 @@ async def test_framework_listener_registration(
 
 async def test_framework_listener_produces_telemetry(executor: CommandExecutor) -> None:
     """Framework listeners produce execution records with source_tier='framework'."""
-    listener = _make_mock_listener(db_id=99, source_tier="framework")
+    listener = _make_mock_listener(db_id=99)
     cmd = InvokeHandler(
         listener=listener,
         event=MagicMock(),

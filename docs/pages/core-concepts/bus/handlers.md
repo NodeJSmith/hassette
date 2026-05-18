@@ -153,6 +153,39 @@ class MyApp(App[AppConfig]):
 !!! note "Error handler failures"
     If the error handler itself raises or times out, the failure is logged at ERROR/WARNING and counted in the executor's error handler failure counter. The original listener's telemetry record is unaffected.
 
+## Subscription and Registration
+
+Every call to `bus.on_state_change()`, `bus.on_attribute_change()`, or `bus.on()` returns a `Subscription` object.
+
+| Attribute | Description |
+|-----------|-------------|
+| `sub.cancel()` | Removes the listener immediately. |
+| `sub.listener` | The underlying `Listener` object. |
+| `sub.registration_task` | Completion signal for database persistence (see below). |
+
+### Awaiting persistence confirmation
+
+`registration_task` is an `asyncio.Future` that resolves with `None` when the database persistence attempt completes. It is a **completion signal**, not a success signal — it resolves regardless of whether persistence succeeded or failed.
+
+```python
+class MyApp(App[AppConfig]):
+    async def on_initialize(self):
+        sub = self.bus.on_state_change("sensor.temperature", handler=self.on_temp)
+
+        # Wait until the listener is persisted to the DB before continuing
+        if sub.registration_task is not None:
+            await sub.registration_task
+
+        # Check whether persistence actually succeeded
+        if sub.listener.db_id is None:
+            self.logger.warning("Listener was not persisted to the database")
+```
+
+Use `registration_task` when your initialization logic depends on a listener being fully registered before proceeding (e.g., integration tests verifying telemetry, startup sequences with strict ordering requirements).
+
+!!! note "registration_task may be None"
+    `registration_task` is `None` for subscriptions created without a backing registration task (e.g., cancel-listener subscriptions that skip DB registration, or Subscription instances constructed directly in tests). Always guard with `if sub.registration_task is not None`.
+
 ## See Also
 
 - [Filtering & Predicates](filtering.md) - Filter which events trigger your handlers

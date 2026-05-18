@@ -51,9 +51,10 @@ from glom import PathAccessError, glom
 
 from hassette.const import MISSING_VALUE
 from hassette.const.misc import FalseySentinel
+from hassette.events import CallServiceEvent, RawStateChangeEvent
 
 if typing.TYPE_CHECKING:
-    from hassette.events import CallServiceEvent, HassContext, HassEvent, HassStateDict, RawStateChangeEvent
+    from hassette.events import HassContext, HassEvent, HassStateDict
 
 LOGGER = getLogger(__name__)
 DEFAULT_EXCLUDE = ("last_reported", "last_updated", "last_changed", "context")
@@ -218,8 +219,6 @@ def get_all_attrs_old_new(
 
 def get_domain(event: "HassEvent") -> str | FalseySentinel:
     """Get the domain from the event payload."""
-    from hassette.events import RawStateChangeEvent
-
     result = cast("str", get_path("payload.data.domain")(event))
     if result is not MISSING_VALUE:
         return result
@@ -236,8 +235,6 @@ def get_domain(event: "HassEvent") -> str | FalseySentinel:
 
 def get_entity_id(event: "HassEvent") -> str | FalseySentinel:
     """Get the entity_id from the event payload."""
-    from hassette.events import CallServiceEvent
-
     result = cast("str", get_path("payload.data.entity_id")(event))
     if result is not MISSING_VALUE:
         return result

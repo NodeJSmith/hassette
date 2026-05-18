@@ -1,22 +1,22 @@
 import itertools
 import typing
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from logging import Logger, getLogger
 from typing import Any, cast
 
+from hassette.bus.duration_timer import DurationTimer
 from hassette.bus.injection import ParameterInjector
 from hassette.bus.rate_limiter import RateLimiter
 from hassette.event_handling.predicates import normalize_where
 from hassette.types.types import SourceTier
-from hassette.utils.func_utils import callable_name
+from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.type_utils import get_typed_signature
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    import asyncio
 
     from hassette import TaskBucket
-    from hassette.bus.duration_timer import DurationTimer
     from hassette.events.base import Event
     from hassette.types import AsyncHandlerType, HandlerType, Predicate
     from hassette.types.types import BusErrorHandlerType
@@ -26,40 +26,25 @@ LOGGER = getLogger(__name__)
 # next_id() is only called at listener creation time on the event loop thread.
 # itertools.count.__next__ is C-atomic. No lock needed unless the project targets
 # free-threaded CPython (PEP 703), which would require a broader concurrency audit.
-seq = itertools.count(1)
+_listener_id_seq = itertools.count(1)
 
 
 def next_id() -> int:
-    return next(seq)
+    return next(_listener_id_seq)
 
 
 @dataclass(slots=True)
-class Listener:
-    """A listener for events with a specific topic and handler."""
-
-    logger: Logger
-    """Logger for the listener."""
-
-    listener_id: int = field(default_factory=next_id, init=False)
-    """Unique identifier for the listener instance."""
+class ListenerIdentity:
+    """Groups ownership and telemetry fields that identify who registered a listener and where it came from."""
 
     owner_id: str
-    """Unique string identifier for the owner of the listener, e.g., a component or integration name."""
+    """Unique string identifier for the owner of the listener."""
 
-    topic: str
-    """Topic the listener is subscribed to."""
+    handler_name: str
+    """Human-readable fully-qualified name for the handler, computed once at creation time."""
 
-    orig_handler: "HandlerType"
-    """Original handler function provided by the user."""
-
-    _async_handler: "AsyncHandlerType"
-    """Async-wrapped handler function. Private — not part of the public API."""
-
-    _injector: ParameterInjector
-    """Parameter injector for dependency injection. Private — invoked by :meth:`invoke`."""
-
-    predicate: "Predicate | None"
-    """Predicate to filter events before invoking the handler."""
+    handler_short_name: str
+    """Short (last-segment) name for the handler, computed once at creation time."""
 
     app_key: str = ""
     """Configuration-level app key for DB registration (e.g., 'my_app'). Empty for non-App owners."""
@@ -67,8 +52,22 @@ class Listener:
     instance_index: int = 0
     """App instance index for DB registration. 0 for non-App owners."""
 
-    kwargs: Mapping[str, Any] | None = None
-    """Keyword arguments to pass to the handler."""
+    name: str | None = None
+    """Optional stable name for the listener (the name= escape hatch on Bus.on())."""
+
+    source_tier: SourceTier = "app"
+    """Whether this listener originates from a user app or the framework itself."""
+
+    source_location: str = ""
+    """Captured source location (file:line) of the user code that registered this listener."""
+
+    registration_source: str = ""
+    """Captured source code snippet of the registration call."""
+
+
+@dataclass(slots=True)
+class ListenerOptions:
+    """Behavioral timing parameters (once, debounce, throttle, timeout, priority) with validation."""
 
     once: bool = False
     """Whether the listener should be removed after one invocation."""
@@ -89,88 +88,250 @@ class Listener:
     priority: int = 0
     """Priority for listener ordering. Higher values run first. Default is 0 for app handlers."""
 
-    db_id: int | None = None
-    """Database row ID for this listener. Set by the executor after persistence; None until then."""
+    def __post_init__(self) -> None:
+        if self.debounce is not None and self.debounce <= 0:
+            raise ValueError("'debounce' must be a positive number")
+        if self.throttle is not None and self.throttle <= 0:
+            raise ValueError("'throttle' must be a positive number")
+        if self.debounce is not None and self.throttle is not None:
+            raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
+        if self.once and (self.debounce is not None or self.throttle is not None):
+            raise ValueError("Cannot combine 'once=True' with 'debounce' or 'throttle'")
+        if self.timeout is not None and (isinstance(self.timeout, bool) or self.timeout <= 0):
+            raise ValueError("timeout must be a positive number")
+        if self.timeout_disabled and self.timeout is not None:
+            raise ValueError("Cannot specify both 'timeout' and 'timeout_disabled=True'")
 
-    _rate_limiter: RateLimiter | None = field(default=None, init=False, repr=False)
-    """Rate limiter for debounce/throttle. Private — use :attr:`rate_limiter` for read access
-    and :meth:`cancel` for lifecycle management.  Contains an active runtime component
-    (spawns tasks, holds event loop references) — not a simple scalar like ``_fired``."""
 
-    _duration_timer: "DurationTimer | None" = field(default=None, init=False, repr=False)
-    """Duration timer for state-hold listeners. Private — attached during listener
-    registration when ``duration`` is set, and cancelled in :meth:`cancel` alongside
-    ``_rate_limiter``."""
+@dataclass(slots=True)
+class HandlerInvoker:
+    """Owns handler invocation, async wrapping, parameter injection, rate limiting, and the once-guard."""
 
-    handler_name: str = ""
-    """Human-readable name for the handler, computed once at creation time."""
+    orig_handler: "HandlerType"
+    """Original handler function provided by the user."""
 
-    handler_short_name: str = ""
-    """Short (last-segment) name for the handler, computed once at creation time."""
+    _async_handler: "AsyncHandlerType"
+    """Async-wrapped handler function. Private — not part of the public API."""
 
-    source_location: str = ""
-    """Captured source location (file:line) of the user code that registered this listener."""
+    _injector: ParameterInjector
+    """Parameter injector for dependency injection. Private — invoked by invoke()."""
 
-    registration_source: str = ""
-    """Captured source code snippet of the registration call."""
+    kwargs: Mapping[str, Any] | None
+    """Keyword arguments to pass to the handler."""
 
-    name: str | None = None
-    """Optional stable name for the listener (the name= escape hatch on Bus.on())."""
+    error_handler: "BusErrorHandlerType | None"
+    """Optional per-listener error handler."""
 
-    source_tier: SourceTier = "app"
-    """Whether this listener originates from a user app or the framework itself."""
+    _app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None"
+    """Closure that resolves the app-level error handler at dispatch time."""
+
+    _rate_limiter: RateLimiter | None
+    """Rate limiter for debounce/throttle. None when no rate limiting is configured."""
+
+    once: bool = False
+    """Whether this invoker fires only once. Intentional copy of ListenerOptions.once —
+    dispatch() needs this but cannot back-reference options without a circular dependency."""
+
+    _fired: bool = field(default=False, init=False)
+    """Guard for once=True: set before the first invocation to prevent double-fire."""
+
+    @classmethod
+    def create(
+        cls,
+        task_bucket: "TaskBucket",
+        handler: "HandlerType",
+        kwargs: Mapping[str, Any] | None,
+        options: ListenerOptions,
+        error_handler: "BusErrorHandlerType | None" = None,
+        app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None" = None,
+    ) -> "HandlerInvoker":
+        """Construct a HandlerInvoker from a handler and options.
+
+        Builds the async wrapper, injector, and rate limiter. Copies options.once.
+
+        Args:
+            task_bucket: TaskBucket for async adapter and rate limiter.
+            handler: The user-supplied handler callable.
+            kwargs: Optional keyword arguments to pass to the handler.
+            options: Behavioral options (once, debounce, throttle).
+            error_handler: Optional per-listener error handler.
+            app_error_handler_resolver: Closure for app-level error handler resolution.
+        """
+        handler_name = callable_name(handler)
+        signature = get_typed_signature(handler)
+        async_handler = make_async_handler(handler, task_bucket)
+        injector = ParameterInjector(handler_name, signature)
+
+        rate_limiter: RateLimiter | None = None
+        if options.debounce is not None or options.throttle is not None:
+            rate_limiter = RateLimiter(
+                task_bucket=task_bucket,
+                debounce=options.debounce,
+                throttle=options.throttle,
+                handler_name=handler_name,
+            )
+
+        return cls(
+            orig_handler=handler,
+            _async_handler=async_handler,
+            _injector=injector,
+            kwargs=kwargs,
+            error_handler=error_handler,
+            _app_error_handler_resolver=app_error_handler_resolver,
+            _rate_limiter=rate_limiter,
+            once=options.once,
+        )
+
+    def mark_fired(self) -> None:
+        """Mark this once-invoker as having fired. Called by dispatch() and Listener.cancel()."""
+        self._fired = True
+
+    def set_app_error_handler_resolver(self, resolver: "Callable[[], BusErrorHandlerType | None]") -> None:
+        """Set the closure that resolves the app-level error handler at dispatch time."""
+        self._app_error_handler_resolver = resolver
+
+    async def dispatch(self, invoke_fn: Callable[[], Awaitable[None]]) -> None:
+        """Apply rate limiting around the given invoke function.
+
+        BusService builds the invoke function (internal error-catching or tracked
+        telemetry), HandlerInvoker wraps it with rate limiting. BusService never
+        touches the RateLimiter directly.
+
+        Includes once-guard: if ``once=True`` and the invoker has already fired,
+        this method returns immediately. Safe without a lock — no ``await`` between
+        check-and-set.
+        """
+        if self.once and self._fired:
+            return
+        if self.once:
+            self.mark_fired()
+
+        if self._rate_limiter:
+            await self._rate_limiter.call(invoke_fn)
+        else:
+            await invoke_fn()
+
+    def cancel(self) -> None:
+        """Cancel any pending rate-limiter tasks."""
+        if self._rate_limiter:
+            self._rate_limiter.cancel()
+
+    async def invoke(self, event: "Event[Any]") -> None:
+        """Invoke the handler with dependency injection."""
+        kwargs = self._injector.inject_parameters(event, **(self.kwargs or {}))
+        await self._async_handler(**kwargs)
+
+
+@dataclass(slots=True)
+class DurationConfig:
+    """Groups duration-hold configuration fields and owns the timer lifecycle; timer is attached via attach_timer()."""
+
+    entity_id: str
+    """Entity ID this duration listener is tracking. Required — non-empty."""
+
+    duration: float | None = None
+    """Duration in seconds the entity must remain in the matching state before the handler fires.
+    None for immediate-only or entity_id-only listeners."""
 
     immediate: bool = False
     """If True, fire the handler immediately with the current entity state on registration."""
 
-    duration: float | None = None
-    """Duration in seconds the entity must remain in the matching state before the handler fires."""
-
-    entity_id: str | None = None
-    """Entity ID for this listener. Set by on_state_change/on_attribute_change at registration time."""
+    is_attribute_listener: bool = False
+    """True when this listener was registered via on_attribute_change."""
 
     hold_predicate: "Predicate | None" = None
     """State-value predicates only (excludes transition predicates like StateFrom, StateDidChange).
-    Used by DurationTimer for cancel evaluation and fire-time recheck.  None when duration is not set."""
+    Used by DurationTimer for cancel evaluation and fire-time recheck. None when not set."""
 
-    is_attribute_listener: bool = False
-    """True when this listener was registered via on_attribute_change.
+    _timer: "DurationTimer | None" = field(default=None, init=False)
+    """Duration timer. Attached via attach_timer() during BusService registration."""
 
-    Used by the immediate+duration elapsed-time path: attribute listeners always start
-    from zero elapsed time because HA's last_changed reflects primary state changes, not
-    attribute changes.  See the design doc for the documented known limitation.
+    def __post_init__(self) -> None:
+        if not self.entity_id:
+            raise ValueError("'entity_id' must be a non-empty string")
+        if self.duration is not None and self.duration <= 0:
+            raise ValueError("'duration' must be a positive number")
+
+    @property
+    def timer(self) -> "DurationTimer":
+        """Return the attached DurationTimer. Asserts it has been attached."""
+        assert self._timer is not None, "timer not yet attached — call attach_timer() first"
+        return self._timer
+
+    def cancel_timer(self) -> None:
+        """Cancel the attached duration timer if present."""
+        if self._timer is not None:
+            self._timer.cancel()
+
+    def attach_timer(
+        self,
+        task_bucket: "TaskBucket",
+        owner_id: str,
+        create_cancel_sub: "Callable[[], Subscription]",
+        on_cancel: Callable[[], None] | None = None,
+    ) -> None:
+        """Construct a DurationTimer and store it.
+
+        BusService calls this method during registration, passing the
+        cancel-subscription factory and on_cancel callback. Counter
+        ownership stays in BusService.
+        """
+        assert self._timer is None, "timer already attached — call cancel() before re-attaching"
+        assert self.duration is not None, "attach_timer() requires a non-None duration"
+        self._timer = DurationTimer(
+            task_bucket=task_bucket,
+            duration=self.duration,
+            predicates=self.hold_predicate,
+            entity_id=self.entity_id,
+            owner_id=owner_id,
+            create_cancel_sub=create_cancel_sub,
+            on_cancel=on_cancel,
+        )
+
+
+@dataclass(slots=True)
+class Listener:
+    """A listener for events with a specific topic and handler.
+
+    Composes four focused sub-structs (identity, invoker, options, duration_config)
+    plus routing fields (topic, predicate) and minimal runtime state (_cancelled, db_id).
+    Total: 10 fields (AC#2).
     """
 
-    error_handler: "BusErrorHandlerType | None" = None
-    """Optional per-listener error handler. Stored as the raw callable for reliable identity comparison.
-    Normalization via make_async_adapter happens at invocation time."""
+    logger: Logger
+    """Logger for the listener."""
 
-    _app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None" = field(
-        default=None, init=False, repr=False
-    )
-    """Closure that resolves the app-level error handler at dispatch time.
+    topic: str
+    """Topic the listener is subscribed to."""
 
-    Set via :meth:`set_app_error_handler_resolver` by Bus.on(). Defaults to None for listeners
-    created outside of a Bus context (e.g., framework listeners, test harness).
-    """
+    predicate: "Predicate | None"
+    """Predicate to filter events before invoking the handler."""
+
+    identity: ListenerIdentity
+    """Ownership and telemetry identity fields."""
+
+    invoker: HandlerInvoker
+    """Handler callable, dispatch engine, and once-guard."""
+
+    options: ListenerOptions
+    """Behavioral execution parameters."""
+
+    duration_config: DurationConfig | None
+    """Duration-hold configuration and timer. None for non-duration listeners."""
+
+    listener_id: int = field(default_factory=next_id, init=False)
+    """Unique identifier for the listener instance."""
 
     _cancelled: bool = field(default=False, init=False, repr=False)
-    """Set by cancel() to signal that a pending add_listener task should skip route insertion.
-    Prevents orphaned listeners when Subscription.cancel() races with the async add task (#451)."""
+    """Set by cancel() to signal that a pending add_listener task should skip route insertion."""
 
-    _fired: bool = field(default=False, init=False, repr=False)
-    """Guard for once=True listeners: set before the first invocation to prevent double-fire
-    when two rapid events both match before the removal task executes."""
+    db_id: int | None = field(default=None, init=False)
+    """Database row ID for this listener. Set by the executor after persistence; None until then."""
 
     @property
     def is_cancelled(self) -> bool:
-        """Whether this listener has been cancelled. Read-only — use :meth:`cancel` to set."""
+        """Whether this listener has been cancelled. Read-only — use cancel() to set."""
         return self._cancelled
-
-    @property
-    def rate_limiter(self) -> RateLimiter | None:
-        """Read-only access to the rate limiter. Use :meth:`cancel` for lifecycle management."""
-        return self._rate_limiter
 
     def mark_registered(self, db_id: int) -> None:
         """Set the database ID after persistence. One-time assignment by BusService."""
@@ -184,58 +345,19 @@ class Listener:
             return
         self.db_id = db_id
 
-    def mark_fired(self) -> None:
-        """Mark this once-listener as having fired. Called internally by dispatch()."""
-        self._fired = True
-
-    async def dispatch(self, invoke_fn: "Callable[[], Awaitable[None]]") -> None:
-        """Apply rate limiting around the given invoke function.
-
-        BusService builds the invoke function (internal error-catching or tracked
-        telemetry), Listener wraps it with rate limiting.  BusService never touches
-        the RateLimiter directly.
-
-        For debounced listeners, the rate limiter spawns a background task that calls
-        ``invoke_fn`` after the quiet period.  This method returns immediately after
-        spawning — the handler fires later.
-
-        Includes once-guard: if ``once=True`` and the listener has already fired,
-        this method returns immediately.  This is the sole once-guard — callers
-        that bypass BusService (e.g., test harness, command executor) are protected.
-        Safe without a lock — no ``await`` between check-and-set.
-        """
-        if self.once and self._fired:
-            return
-        if self.once:
-            self.mark_fired()
-
-        if self._rate_limiter:
-            await self._rate_limiter.call(invoke_fn)
-        else:
-            await invoke_fn()
-
-    def set_app_error_handler_resolver(self, resolver: "Callable[[], BusErrorHandlerType | None]") -> None:
-        """Set the closure that resolves the app-level error handler at dispatch time."""
-        self._app_error_handler_resolver = resolver
-
     def cancel(self) -> None:
-        """Cancel the listener: set the cancelled flag and stop any pending rate limiter tasks.
+        """Cancel the listener: set the cancelled flag and stop any pending tasks.
 
-        The ``_cancelled`` flag signals a pending ``_register_then_add_route`` task
-        to skip route insertion, preventing orphaned listeners when
-        ``Subscription.cancel()`` races with the async add task (#451).
-
-        Also cancels any active rate limiter (debounce/throttle) tasks.
-        This is the sole cancellation path — external code must not call
-        ``_rate_limiter.cancel()`` directly.
+        Sets _cancelled flag, calls invoker.mark_fired() to prevent handler invocation
+        on any in-flight dispatch task, and cancels rate limiter and duration timer.
 
         Terminal operation: the listener must not be reused after this call.
         """
         self._cancelled = True
-        if self._rate_limiter:
-            self._rate_limiter.cancel()
-        if self._duration_timer:
-            self._duration_timer.cancel()
+        self.invoker.mark_fired()
+        self.invoker.cancel()
+        if self.duration_config is not None:
+            self.duration_config.cancel_timer()
 
     def matches(self, ev: "Event[Any]") -> bool:
         """Check if the event matches the listener's predicate."""
@@ -247,132 +369,85 @@ class Listener:
         self.logger.debug("Listener %s %s predicate for event: %s", self, match_str, ev)
         return matched
 
-    async def invoke(self, event: "Event[Any]") -> None:
-        """Invoke the handler with dependency injection."""
-        kwargs = self._injector.inject_parameters(event, **(self.kwargs or {}))
-        await self._async_handler(**kwargs)
-
     def __repr__(self) -> str:
-        return f"Listener<{self.owner_id} - {self.handler_short_name}>"
-
-    @staticmethod
-    def _validate_options(
-        once: bool,
-        debounce: float | None,
-        throttle: float | None,
-        timeout: float | None = None,
-        timeout_disabled: bool = False,
-        duration: float | None = None,
-    ) -> None:
-        if debounce is not None and debounce <= 0:
-            raise ValueError("'debounce' must be a positive number")
-        if throttle is not None and throttle <= 0:
-            raise ValueError("'throttle' must be a positive number")
-        if debounce is not None and throttle is not None:
-            raise ValueError("Cannot specify both 'debounce' and 'throttle' parameters")
-        if once and (debounce is not None or throttle is not None):
-            raise ValueError("Cannot combine 'once=True' with 'debounce' or 'throttle'")
-        if timeout is not None and (isinstance(timeout, bool) or timeout <= 0):
-            raise ValueError("timeout must be a positive number")
-        if timeout_disabled and timeout is not None:
-            raise ValueError("Cannot specify both 'timeout' and 'timeout_disabled=True'")
-        if duration is not None and duration <= 0:
-            raise ValueError("'duration' must be a positive number")
-        if duration is not None and debounce is not None:
-            raise ValueError("Cannot combine 'duration' with 'debounce'")
-        if duration is not None and throttle is not None:
-            raise ValueError("Cannot combine 'duration' with 'throttle'")
+        return f"Listener<{self.identity.owner_id} - {self.identity.handler_short_name}>"
 
     @classmethod
     def create(
+        cls,
+        topic: str,
+        identity: ListenerIdentity,
+        options: ListenerOptions,
+        invoker: HandlerInvoker,
+        where: "Predicate | Sequence[Predicate] | None" = None,
+        duration_config: DurationConfig | None = None,
+        logger: Logger = LOGGER,
+    ) -> "Listener":
+        """Create a Listener from pre-built sub-structs.
+
+        Cross-concern validation (duration + debounce incompatibility) runs
+        here since it spans two sub-structs.
+        """
+        if duration_config is not None and duration_config.duration is not None:
+            if options.debounce is not None:
+                raise ValueError("Cannot combine 'duration' with 'debounce'")
+            if options.throttle is not None:
+                raise ValueError("Cannot combine 'duration' with 'throttle'")
+
+        pred = normalize_where(where)
+        return cls(
+            logger=logger,
+            topic=topic,
+            predicate=pred,
+            identity=identity,
+            invoker=invoker,
+            options=options,
+            duration_config=duration_config,
+        )
+
+    @classmethod
+    def create_cancel_listener(
         cls,
         task_bucket: "TaskBucket",
         owner_id: str,
         topic: str,
         handler: "HandlerType",
-        where: "Predicate | Sequence[Predicate] | None" = None,
-        kwargs: Mapping[str, Any] | None = None,
-        once: bool = False,
-        debounce: float | None = None,
-        throttle: float | None = None,
-        timeout: float | None = None,
-        timeout_disabled: bool = False,
-        priority: int = 0,
-        logger: Logger = LOGGER,
-        app_key: str = "",
-        instance_index: int = 0,
-        name: str | None = None,
-        source_tier: SourceTier = "app",
-        immediate: bool = False,
-        duration: float | None = None,
-        entity_id: str | None = None,
-        is_attribute_listener: bool = False,
-        hold_predicate: "Predicate | None" = None,
-        error_handler: "BusErrorHandlerType | None" = None,
+        predicate: "Predicate | None" = None,
     ) -> "Listener":
-        cls._validate_options(
-            once=once,
-            debounce=debounce,
-            throttle=throttle,
-            timeout=timeout,
-            timeout_disabled=timeout_disabled,
-            duration=duration,
-        )
-        if duration is not None and not entity_id:
-            raise ValueError("'duration' requires an entity_id — use on_state_change() or on_attribute_change()")
-        if immediate and not entity_id:
-            raise ValueError("'immediate' requires an entity_id — use on_state_change() or on_attribute_change()")
+        """Create a framework cancel-listener with sensible defaults.
 
-        pred = normalize_where(where)
-        signature = get_typed_signature(handler)
+        Produces a listener with source_tier='framework'. No rate limiter,
+        no error handler, no duration config.
+        """
         handler_name = callable_name(handler)
-        parts = handler_name.rsplit(".", 1)
-        short_name = parts[-1] if parts else handler_name
+        short_name = callable_short_name(handler)
 
-        # Create async handler and injector
-        async_handler = make_async_handler(handler, task_bucket)
-        injector = ParameterInjector(handler_name, signature)
-
-        listener = cls(
-            logger=logger,
+        identity = ListenerIdentity(
             owner_id=owner_id,
-            app_key=app_key,
-            instance_index=instance_index,
-            topic=topic,
-            orig_handler=handler,
-            _async_handler=async_handler,
-            _injector=injector,
-            predicate=pred,
-            kwargs=kwargs,
-            once=once,
-            debounce=debounce,
-            throttle=throttle,
-            timeout=timeout,
-            timeout_disabled=timeout_disabled,
-            priority=priority,
             handler_name=handler_name,
             handler_short_name=short_name,
-            name=name,
-            source_tier=source_tier,
-            immediate=immediate,
-            duration=duration,
-            entity_id=entity_id,
-            hold_predicate=hold_predicate,
-            is_attribute_listener=is_attribute_listener,
-            error_handler=error_handler,
+            source_tier="framework",
         )
 
-        # One-time construction-phase init — _rate_limiter is set here (inside create()),
-        # not by external callers, so it doesn't need a mark_* guard like db_id.
-        if debounce is not None or throttle is not None:
-            listener._rate_limiter = RateLimiter(
-                task_bucket=task_bucket,
-                debounce=debounce,
-                throttle=throttle,
-                handler_name=handler_name,
-            )
+        options = ListenerOptions()
 
-        return listener
+        invoker = HandlerInvoker.create(
+            task_bucket=task_bucket,
+            handler=handler,
+            kwargs=None,
+            options=options,
+            error_handler=None,
+        )
+
+        return cls(
+            logger=LOGGER,
+            topic=topic,
+            predicate=predicate,
+            identity=identity,
+            invoker=invoker,
+            options=options,
+            duration_config=None,
+        )
 
 
 @dataclass(slots=True)
@@ -386,8 +461,19 @@ class Subscription:
     listener: Listener
     """The listener associated with this subscription."""
 
-    unsubscribe: "Callable[[], None]"
+    unsubscribe: Callable[[], None]
     """Function to call to unsubscribe the listener."""
+
+    registration_task: "asyncio.Future[None] | None" = None
+    """Completion signal for the listener's database persistence attempt.
+
+    Resolves with None when the persistence attempt is complete, regardless of
+    whether persistence succeeded or failed (completion signal, not success signal).
+    Callers check listener.db_id is not None to detect persistence failures.
+
+    None for Subscription instances constructed without a task (backward compat),
+    or for cancel-listener subscriptions that skip DB registration.
+    """
 
     def cancel(self) -> None:
         """Cancel the subscription by calling the unsubscribe function."""

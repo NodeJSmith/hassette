@@ -7,12 +7,12 @@ from whenever import ZonedDateTime
 
 from hassette.app.app_config import AppConfig
 from hassette.bus.invocation_record import HandlerInvocationRecord
-from hassette.bus.listeners import Listener
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_models import HandlerErrorRecord, JobErrorRecord
 from hassette.exceptions import DependencyError, DependencyInjectionError
 from hassette.scheduler.classes import JobExecutionRecord, ScheduledJob
+from hassette.test_utils.helpers import create_listener
 from hassette.utils.execution import ExecutionResult, track_execution
 
 # ---------------------------------------------------------------------------
@@ -23,38 +23,19 @@ from hassette.utils.execution import ExecutionResult, track_execution
 class TestListenerCreateSourceTier:
     def test_listener_create_default_source_tier(self) -> None:
         """Listener.create() with no source_tier produces 'app'."""
-        task_bucket = MagicMock()
-        task_bucket.make_async_adapter = lambda _fn: AsyncMock()
+        listener = create_listener(topic="test.topic")
 
-        async def handler(event: object) -> None:
-            pass
-
-        listener = Listener.create(
-            task_bucket=task_bucket,
-            owner_id="test_owner",
-            topic="test.topic",
-            handler=handler,
-        )
-
-        assert listener.source_tier == "app"
+        assert listener.identity.source_tier == "app"
 
     def test_listener_create_framework_source_tier(self) -> None:
         """Listener.create(source_tier='framework') stores 'framework'."""
-        task_bucket = MagicMock()
-        task_bucket.make_async_adapter = lambda _fn: AsyncMock()
-
-        async def handler(event: object) -> None:
-            pass
-
-        listener = Listener.create(
-            task_bucket=task_bucket,
-            owner_id="framework_owner",
+        listener = create_listener(
             topic="framework.topic",
-            handler=handler,
+            owner_id="framework_owner",
             source_tier="framework",
         )
 
-        assert listener.source_tier == "framework"
+        assert listener.identity.source_tier == "framework"
 
 
 # ---------------------------------------------------------------------------

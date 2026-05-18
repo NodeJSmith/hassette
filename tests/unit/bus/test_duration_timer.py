@@ -17,6 +17,7 @@ from unittest.mock import MagicMock
 
 from hassette.bus.duration_timer import DurationTimer
 from hassette.test_utils import wait_for
+from hassette.test_utils.helpers import create_listener, make_task_bucket
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -345,69 +346,42 @@ async def test_cancel_sets_cancelled_flag_first() -> None:
 
 def test_listener_create_does_not_build_duration_timer() -> None:
     """Listener.create() does not construct DurationTimer — BusService.add_listener() does."""
-    from hassette.bus.listeners import Listener
+    listener = create_listener(topic="test.topic", duration=5.0, entity_id="light.kitchen")
 
-    task_bucket = MagicMock()
-    task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-
-    listener = Listener.create(
-        task_bucket=task_bucket,
-        owner_id="test_owner",
-        topic="test.topic",
-        handler=lambda: None,
-        duration=5.0,
-        entity_id="light.kitchen",
-    )
-
-    assert listener._duration_timer is None
-    assert listener.duration == 5.0
-    assert listener.entity_id == "light.kitchen"
+    assert listener.duration_config._timer is None
+    assert listener.duration_config.duration == 5.0
+    assert listener.duration_config.entity_id == "light.kitchen"
 
 
 def test_listener_create_no_duration_timer_when_no_duration() -> None:
     """Listener.create(duration=None) leaves _duration_timer as None."""
-    from hassette.bus.listeners import Listener
+    listener = create_listener(topic="test.topic")
 
-    task_bucket = MagicMock()
-    task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-
-    listener = Listener.create(
-        task_bucket=task_bucket,
-        owner_id="test_owner",
-        topic="test.topic",
-        handler=lambda: None,
-    )
-
-    assert listener._duration_timer is None
+    assert listener.duration_config is None
 
 
 def test_listener_cancel_cancels_duration_timer() -> None:
     """Listener.cancel() calls DurationTimer.cancel() when _duration_timer is set."""
-    from hassette.bus.listeners import Listener
+    task_bucket = make_task_bucket()
 
-    task_bucket = MagicMock()
-    task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-
-    listener = Listener.create(
-        task_bucket=task_bucket,
-        owner_id="test_owner",
-        topic="test.topic",
-        handler=lambda: None,
-        duration=5.0,
-        entity_id="light.kitchen",
-    )
+    listener = create_listener(topic="test.topic", duration=5.0, entity_id="light.kitchen", task_bucket=task_bucket)
 
     # Simulate what BusService.add_listener() does
-    listener._duration_timer = DurationTimer(
-        task_bucket=task_bucket,
-        duration=5.0,
-        predicates=None,
-        entity_id="light.kitchen",
-        owner_id="test_owner",
-        create_cancel_sub=MagicMock(return_value=MagicMock()),
+    assert listener.duration_config is not None
+    object.__setattr__(
+        listener.duration_config,
+        "_timer",
+        DurationTimer(
+            task_bucket=task_bucket,
+            duration=5.0,
+            predicates=None,
+            entity_id="light.kitchen",
+            owner_id="test_owner",
+            create_cancel_sub=MagicMock(return_value=MagicMock()),
+        ),
     )
 
-    duration_timer = listener._duration_timer
+    duration_timer = listener.duration_config._timer
     cancel_calls = []
     original_cancel = duration_timer.cancel
 

@@ -3,10 +3,10 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-from hassette.bus.listeners import Listener
 from hassette.core.bus_service import BusService
 from hassette.core.commands import InvokeHandler
 from hassette.events.base import Event
+from hassette.test_utils.helpers import create_listener
 
 
 def _make_bus_service(*, config_timeout: float | None = 600.0) -> BusService:
@@ -37,26 +37,6 @@ def _make_bus_service(*, config_timeout: float | None = 600.0) -> BusService:
     return svc
 
 
-def _make_listener(
-    *,
-    timeout: float | None = None,
-    timeout_disabled: bool = False,
-    once: bool = False,
-) -> Listener:
-    """Create a minimal Listener for testing."""
-    task_bucket = MagicMock()
-    task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-    return Listener.create(
-        task_bucket=task_bucket,
-        owner_id="test_owner",
-        topic="test.topic",
-        handler=lambda: None,
-        timeout=timeout,
-        timeout_disabled=timeout_disabled,
-        once=once,
-    )
-
-
 def _make_event() -> Event:
     """Create a minimal Event for testing."""
     return MagicMock(spec=Event)
@@ -66,7 +46,7 @@ class TestDispatchResolvesEffectiveTimeout:
     async def test_dispatch_resolves_effective_timeout_from_listener(self) -> None:
         """listener.timeout=5 -> effective_timeout=5."""
         svc = _make_bus_service(config_timeout=600.0)
-        listener = _make_listener(timeout=5.0)
+        listener = create_listener(topic="test.topic", timeout=5.0)
         event = _make_event()
 
         invoke_fn = svc._make_tracked_invoke_fn("test.topic", event, listener)
@@ -79,7 +59,7 @@ class TestDispatchResolvesEffectiveTimeout:
     async def test_dispatch_resolves_effective_timeout_from_config(self) -> None:
         """listener.timeout=None -> uses config default."""
         svc = _make_bus_service(config_timeout=600.0)
-        listener = _make_listener(timeout=None)
+        listener = create_listener(topic="test.topic")
         event = _make_event()
 
         invoke_fn = svc._make_tracked_invoke_fn("test.topic", event, listener)
@@ -92,7 +72,7 @@ class TestDispatchResolvesEffectiveTimeout:
     async def test_dispatch_resolves_timeout_disabled(self) -> None:
         """listener.timeout_disabled=True -> effective_timeout=None."""
         svc = _make_bus_service(config_timeout=600.0)
-        listener = _make_listener(timeout_disabled=True)
+        listener = create_listener(topic="test.topic", timeout_disabled=True)
         event = _make_event()
 
         invoke_fn = svc._make_tracked_invoke_fn("test.topic", event, listener)
@@ -105,7 +85,7 @@ class TestDispatchResolvesEffectiveTimeout:
     async def test_once_listener_removed_after_dispatch(self) -> None:
         """once=True handler is removed from the bus after dispatch regardless of execution outcome."""
         svc = _make_bus_service(config_timeout=600.0)
-        listener = _make_listener(timeout=0.001, once=True)
+        listener = create_listener(topic="test.topic", timeout=0.001, once=True)
         event = _make_event()
 
         # After dispatch, listener.once should cause removal
