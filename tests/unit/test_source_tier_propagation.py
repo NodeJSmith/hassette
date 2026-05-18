@@ -15,12 +15,12 @@ import pytest
 
 from hassette.app.app import App, AppSync
 from hassette.resources.base import Resource, Service
+from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import After
 
 if typing.TYPE_CHECKING:
     from hassette import HassetteConfig
     from hassette.bus.bus import Bus
-    from hassette.scheduler.scheduler import Scheduler
     from hassette.test_utils.harness import HassetteHarness
 
 
@@ -115,8 +115,6 @@ class TestBusSourceTierPropagation:
 
 def _make_scheduler_with_parent(source_tier: str) -> "Scheduler":
     """Create a minimal Scheduler with a mocked parent at the given source_tier."""
-    from hassette.scheduler.scheduler import Scheduler
-
     _TestScheduler = type("_TestScheduler", (Scheduler,), {})  # noqa: N806
 
     mock_parent = Mock()

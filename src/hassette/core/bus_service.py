@@ -871,12 +871,6 @@ class BusService(Service):
         if not entity_id or not domain:
             return False
 
-        if typing.TYPE_CHECKING:
-            assert entity_id is not None
-            assert isinstance(entity_id, str)
-            assert domain is not None
-            assert isinstance(domain, str)
-
         if isinstance(entity_id, str):
             if entity_id in self._excluded_entities_exact or matches_globs(entity_id, self._excluded_entity_globs):
                 self.logger.debug("Skipping dispatch for %s due to entity exclusion (%s)", topic, entity_id)

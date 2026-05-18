@@ -1,6 +1,6 @@
 import itertools
 import typing
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from logging import Logger, getLogger
 from typing import Any, cast
@@ -15,7 +15,6 @@ from hassette.utils.type_utils import get_typed_signature
 
 if typing.TYPE_CHECKING:
     import asyncio
-    from collections.abc import Awaitable, Callable
 
     from hassette import TaskBucket
     from hassette.events.base import Event
@@ -27,16 +26,11 @@ LOGGER = getLogger(__name__)
 # next_id() is only called at listener creation time on the event loop thread.
 # itertools.count.__next__ is C-atomic. No lock needed unless the project targets
 # free-threaded CPython (PEP 703), which would require a broader concurrency audit.
-seq = itertools.count(1)
+_listener_id_seq = itertools.count(1)
 
 
 def next_id() -> int:
-    return next(seq)
-
-
-# ---------------------------------------------------------------------------
-# Sub-struct: ListenerIdentity
-# ---------------------------------------------------------------------------
+    return next(_listener_id_seq)
 
 
 @dataclass(slots=True)
@@ -69,11 +63,6 @@ class ListenerIdentity:
 
     registration_source: str = ""
     """Captured source code snippet of the registration call."""
-
-
-# ---------------------------------------------------------------------------
-# Sub-struct: ListenerOptions
-# ---------------------------------------------------------------------------
 
 
 @dataclass(slots=True)
@@ -112,11 +101,6 @@ class ListenerOptions:
             raise ValueError("timeout must be a positive number")
         if self.timeout_disabled and self.timeout is not None:
             raise ValueError("Cannot specify both 'timeout' and 'timeout_disabled=True'")
-
-
-# ---------------------------------------------------------------------------
-# Sub-struct: HandlerInvoker
-# ---------------------------------------------------------------------------
 
 
 @dataclass(slots=True)
@@ -205,7 +189,7 @@ class HandlerInvoker:
         """Set the closure that resolves the app-level error handler at dispatch time."""
         self._app_error_handler_resolver = resolver
 
-    async def dispatch(self, invoke_fn: "Callable[[], Awaitable[None]]") -> None:
+    async def dispatch(self, invoke_fn: Callable[[], Awaitable[None]]) -> None:
         """Apply rate limiting around the given invoke function.
 
         BusService builds the invoke function (internal error-catching or tracked
@@ -230,11 +214,6 @@ class HandlerInvoker:
         """Invoke the handler with dependency injection."""
         kwargs = self._injector.inject_parameters(event, **(self.kwargs or {}))
         await self._async_handler(**kwargs)
-
-
-# ---------------------------------------------------------------------------
-# Sub-struct: DurationConfig
-# ---------------------------------------------------------------------------
 
 
 @dataclass(slots=True)
@@ -278,7 +257,7 @@ class DurationConfig:
         task_bucket: "TaskBucket",
         owner_id: str,
         create_cancel_sub: "Callable[[], Subscription]",
-        on_cancel: "Callable[[], None] | None" = None,
+        on_cancel: Callable[[], None] | None = None,
     ) -> None:
         """Construct a DurationTimer and store it.
 
@@ -297,11 +276,6 @@ class DurationConfig:
             create_cancel_sub=create_cancel_sub,
             on_cancel=on_cancel,
         )
-
-
-# ---------------------------------------------------------------------------
-# Listener (composed)
-# ---------------------------------------------------------------------------
 
 
 @dataclass(slots=True)
@@ -607,7 +581,7 @@ class Subscription:
     listener: Listener
     """The listener associated with this subscription."""
 
-    unsubscribe: "Callable[[], None]"
+    unsubscribe: Callable[[], None]
     """Function to call to unsubscribe the listener."""
 
     registration_task: "asyncio.Future[None] | None" = None

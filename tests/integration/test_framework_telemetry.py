@@ -16,6 +16,7 @@ import pytest
 from hassette import HassetteConfig
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.command_executor import CommandExecutor
+from hassette.core.commands import InvokeHandler
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_query_service import TelemetryQueryService
@@ -154,8 +155,6 @@ async def test_command_executor_records_source_tier_on_error(mock_hassette_with_
     listener.invoker.invoke = AsyncMock(side_effect=ValueError("handler error"))
     listener.invoker.error_handler = None
 
-    from hassette.core.commands import InvokeHandler
-
     mock_event = MagicMock()
     mock_event.payload.event_id = None
     mock_event.payload.origin = None
@@ -252,8 +251,6 @@ async def test_queue_persistence_via_drain_and_persist(mock_hassette_with_db: Ma
     listener.invoker.invoke = AsyncMock()
     listener.invoker.error_handler = None
 
-    from hassette.core.commands import InvokeHandler
-
     mock_event = MagicMock()
     mock_event.payload.event_id = None
     mock_event.payload.origin = None
@@ -303,8 +300,6 @@ async def test_pre_registration_orphan_persisted_with_null_listener_id(mock_hass
     listener = MagicMock()
     listener.invoker.invoke = AsyncMock()
     listener.invoker.error_handler = None
-
-    from hassette.core.commands import InvokeHandler
 
     mock_event = MagicMock()
     mock_event.payload.event_id = None

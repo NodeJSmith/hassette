@@ -80,6 +80,7 @@ Examples:
 """
 
 import asyncio
+import logging
 import typing
 from collections.abc import Mapping
 from typing import Any, Unpack
@@ -124,8 +125,6 @@ class Options(TypedDict, total=False):
 
     timeout_disabled: bool
     """When True, disables timeout enforcement for this listener regardless of config."""
-
-    # on_error removed — now an explicit parameter on on(), _subscribe(), on_state_change(), on_attribute_change()
 
 
 class Bus(Resource):
@@ -403,7 +402,7 @@ class Bus(Resource):
         **opts: Unpack[Options],
     ) -> Subscription:
         """Common subscription tail: log, normalize where, delegate to _on_internal()."""
-        if self.logger.isEnabledFor(10):  # DEBUG
+        if self.logger.isEnabledFor(logging.DEBUG):
             filtered = (
                 {k: v for k, v in log_params.items() if v is not None and not isinstance(v, Sentinel)}
                 if log_params
@@ -422,7 +421,6 @@ class Bus(Resource):
             normalized_where = where if callable(where) else P.AllOf.ensure_iterable(where)
             preds.append(normalized_where)
             if hold_preds is not None:
-                # Fix FR#11: create new list instead of mutating in place (AC#11)
                 hold_preds = [*hold_preds, normalized_where]
 
         # Build DurationConfig when entity_id is provided (for duration or immediate listeners)

@@ -2,7 +2,6 @@
 
 import asyncio
 import contextlib
-import dataclasses
 import sqlite3
 import time
 import traceback
@@ -10,6 +9,7 @@ import typing
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from dataclasses import replace as dataclass_replace
 from typing import ClassVar
 
 import structlog.contextvars
@@ -106,6 +106,12 @@ class CommandExecutor(Service):
 
     _TIMEOUT_WARN_SUPPRESS_SECS: float = 60.0
     """Minimum interval between timeout WARNINGs for the same entity."""
+
+    _TIMEOUT_WARN_CACHE_MAX: int = 1000
+    """Maximum number of entries in _timeout_warn_timestamps before a full clear."""
+
+    _BATCH_DRAIN_CAP: int = 100
+    """Maximum number of items drained from the write queue per batch flush."""
 
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
@@ -302,7 +308,7 @@ class CommandExecutor(Service):
         ]
         for k in stale_ids:
             del self._timeout_warn_timestamps[k]
-        if len(self._timeout_warn_timestamps) > 1000:
+        if len(self._timeout_warn_timestamps) > self._TIMEOUT_WARN_CACHE_MAX:
             self._timeout_warn_timestamps.clear()
 
         # Rate-limit check
@@ -687,8 +693,8 @@ class CommandExecutor(Service):
         if first_item is not None:
             _classify(first_item)
 
-        # Drain remaining items up to a total batch size of 100 (non-blocking)
-        for _ in range(99 if first_item is not None else 100):
+        # Drain remaining items up to a total batch size of _BATCH_DRAIN_CAP (non-blocking)
+        for _ in range(self._BATCH_DRAIN_CAP - 1 if first_item is not None else self._BATCH_DRAIN_CAP):
             try:
                 item = self._write_queue.get_nowait()
             except asyncio.QueueEmpty:
@@ -781,11 +787,10 @@ class CommandExecutor(Service):
 
         if current_session_id is not None:
             invocations = [
-                dataclasses.replace(r, session_id=current_session_id) if r.session_id is None else r
-                for r in invocations
+                dataclass_replace(r, session_id=current_session_id) if r.session_id is None else r for r in invocations
             ]
             job_executions = [
-                dataclasses.replace(r, session_id=current_session_id) if r.session_id is None else r
+                dataclass_replace(r, session_id=current_session_id) if r.session_id is None else r
                 for r in job_executions
             ]
         else:
