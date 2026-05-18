@@ -132,9 +132,9 @@ class Router:
             out: list[Listener] = []
             out.extend(self.exact.get(topic, ()))
 
-            for k, listener in self.globs.items():
+            for k, listeners in self.globs.items():
                 if fnmatch(topic, k):
-                    out.extend(listener)
+                    out.extend(listeners)
 
             # de-dup preserving order
             seen: set[int] = set()
