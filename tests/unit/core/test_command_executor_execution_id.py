@@ -83,10 +83,13 @@ def _make_listener(*, side_effect=None) -> MagicMock:
     listener = MagicMock()
     listener.listener_id = 1
     listener.error_handler = None
+    listener.invoker.error_handler = None
     if side_effect is None:
         listener.invoke = AsyncMock(return_value=None)
+        listener.invoker.invoke = AsyncMock(return_value=None)
     else:
         listener.invoke = AsyncMock(side_effect=side_effect)
+        listener.invoker.invoke = AsyncMock(side_effect=side_effect)
     listener.__repr__ = lambda _self: "Listener<test>"
     return listener
 
@@ -168,6 +171,7 @@ class TestExecutionIdContextVar:
 
         listener = _make_listener()
         listener.invoke = AsyncMock(side_effect=handler_fn)
+        listener.invoker.invoke = AsyncMock(side_effect=handler_fn)
         cmd = _make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
@@ -215,6 +219,7 @@ class TestExecutionIdContextVar:
         for _ in range(2):
             listener = _make_listener()
             listener.invoke = AsyncMock(side_effect=capture)
+            listener.invoker.invoke = AsyncMock(side_effect=capture)
             cmd = _make_invoke_handler_cmd(listener=listener)
             await executor._execute_handler(cmd)
 
@@ -281,10 +286,12 @@ class TestExecutionIdContextVar:
 
         listener1 = _make_listener()
         listener1.invoke = AsyncMock(side_effect=capture_with_yield)
+        listener1.invoker.invoke = AsyncMock(side_effect=capture_with_yield)
         cmd1 = _make_invoke_handler_cmd(listener=listener1)
 
         listener2 = _make_listener()
         listener2.invoke = AsyncMock(side_effect=capture_after_barrier)
+        listener2.invoker.invoke = AsyncMock(side_effect=capture_after_barrier)
         cmd2 = _make_invoke_handler_cmd(listener=listener2)
 
         await asyncio.gather(
@@ -428,6 +435,7 @@ class TestErrorHandlerExecutionIdInheritance:
 
         listener = _make_listener(side_effect=capture_main)
         listener.error_handler = error_handler
+        listener.invoker.error_handler = error_handler
         cmd = _make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)

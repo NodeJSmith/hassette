@@ -64,7 +64,9 @@ def _make_listener(
     listener = MagicMock()
     listener.listener_id = 1
     listener.error_handler = error_handler
+    listener.invoker.error_handler = error_handler
     listener.invoke = AsyncMock(return_value=None)
+    listener.invoker.invoke = AsyncMock(return_value=None)
     listener.__repr__ = lambda _self: "Listener<test>"
     return listener
 
@@ -133,6 +135,7 @@ class TestBusErrorHandlerInvocation:
 
         listener = _make_listener(error_handler=error_handler)
         listener.invoke = AsyncMock(side_effect=RuntimeError("boom"))
+        listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("boom"))
         cmd = _make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
@@ -154,6 +157,7 @@ class TestBusErrorHandlerInvocation:
         listener = _make_listener(error_handler=error_handler)
         exc = ValueError("ctx test")
         listener.invoke = AsyncMock(side_effect=exc)
+        listener.invoker.invoke = AsyncMock(side_effect=exc)
         event = MagicMock()
         cmd = _make_invoke_handler_cmd(listener=listener)
         cmd.event = event
@@ -181,6 +185,7 @@ class TestBusErrorHandlerInvocation:
 
         listener = _make_listener(error_handler=error_handler)
         listener.invoke = AsyncMock(return_value=None)
+        listener.invoker.invoke = AsyncMock(return_value=None)
         cmd = _make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
@@ -198,6 +203,7 @@ class TestBusErrorHandlerInvocation:
 
         listener = _make_listener(error_handler=error_handler)
         listener.invoke = AsyncMock(side_effect=asyncio.CancelledError)
+        listener.invoker.invoke = AsyncMock(side_effect=asyncio.CancelledError)
         cmd = _make_invoke_handler_cmd(listener=listener)
 
         with pytest.raises(asyncio.CancelledError):
@@ -216,6 +222,7 @@ class TestBusErrorHandlerInvocation:
 
         listener = _make_listener(error_handler=error_handler)
         listener.invoke = AsyncMock(side_effect=TimeoutError("timed out"))
+        listener.invoker.invoke = AsyncMock(side_effect=TimeoutError("timed out"))
         cmd = _make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
@@ -238,6 +245,7 @@ class TestBusErrorHandlerInvocation:
 
         listener = _make_listener(error_handler=per_reg_handler)
         listener.invoke = AsyncMock(side_effect=RuntimeError("oops"))
+        listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("oops"))
         cmd = _make_invoke_handler_cmd(listener=listener, app_level_error_handler=app_handler)
 
         await executor._execute_handler(cmd)
@@ -256,6 +264,7 @@ class TestBusErrorHandlerInvocation:
 
         listener = _make_listener(error_handler=None)
         listener.invoke = AsyncMock(side_effect=RuntimeError("app level"))
+        listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("app level"))
         cmd = _make_invoke_handler_cmd(listener=listener, app_level_error_handler=app_handler)
 
         await executor._execute_handler(cmd)
@@ -268,6 +277,7 @@ class TestBusErrorHandlerInvocation:
         executor = _make_executor()
         listener = _make_listener(error_handler=None)
         listener.invoke = AsyncMock(side_effect=RuntimeError("unhandled"))
+        listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("unhandled"))
         cmd = _make_invoke_handler_cmd(listener=listener, app_level_error_handler=None)
 
         # Should not raise
@@ -286,6 +296,7 @@ class TestBusErrorHandlerInvocation:
 
         listener = _make_listener(error_handler=bad_handler)
         listener.invoke = AsyncMock(side_effect=RuntimeError("original"))
+        listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("original"))
         cmd = _make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
@@ -305,6 +316,7 @@ class TestBusErrorHandlerInvocation:
         for _ in range(3):
             listener = _make_listener(error_handler=bad_handler)
             listener.invoke = AsyncMock(side_effect=RuntimeError("original"))
+            listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("original"))
             cmd = _make_invoke_handler_cmd(listener=listener)
             await executor._execute_handler(cmd)
 
@@ -321,6 +333,7 @@ class TestBusErrorHandlerInvocation:
 
         listener = _make_listener(error_handler=slow_handler)
         listener.invoke = AsyncMock(side_effect=RuntimeError("original"))
+        listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("original"))
         cmd = _make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
@@ -347,6 +360,7 @@ class TestBusErrorHandlerInvocation:
 
         listener = _make_listener(error_handler=error_handler)
         listener.invoke = AsyncMock(side_effect=RuntimeError("original"))
+        listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("original"))
         cmd = _make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
@@ -364,6 +378,7 @@ class TestBusErrorHandlerInvocation:
 
         listener = _make_listener(error_handler=error_handler)
         listener.invoke = AsyncMock(side_effect=RuntimeError("test"))
+        listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("test"))
         cmd = _make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
@@ -384,6 +399,7 @@ class TestBusErrorHandlerInvocation:
 
         listener = _make_listener(error_handler=bad_handler)
         listener.invoke = AsyncMock(side_effect=RuntimeError("original"))
+        listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("original"))
         cmd = _make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)

@@ -87,7 +87,9 @@ def _make_mock_listener(*, error_handler=None) -> MagicMock:
     """Return a mock Listener whose invoke() is an awaitable coroutine."""
     listener = MagicMock()
     listener.invoke = AsyncMock()
+    listener.invoker.invoke = AsyncMock()
     listener.error_handler = error_handler
+    listener.invoker.error_handler = error_handler
     return listener
 
 
@@ -111,6 +113,7 @@ async def test_error_handler_runs_after_framework_log(executor: CommandExecutor)
     """Error handler is invoked after framework logging — not instead of it."""
     listener = _make_mock_listener()
     listener.invoke.side_effect = ValueError("handler error")
+    listener.invoker.invoke.side_effect = ValueError("handler error")
 
     handler_called = asyncio.Event()
     received_ctx: list[BusErrorContext] = []
@@ -146,6 +149,7 @@ async def test_sync_error_handler_wraps_in_thread(executor: CommandExecutor) -> 
     """A sync error handler is wrapped via make_async_adapter and runs without error."""
     listener = _make_mock_listener()
     listener.invoke.side_effect = RuntimeError("sync handler test")
+    listener.invoker.invoke.side_effect = RuntimeError("sync handler test")
 
     handler_called = asyncio.Event()
     received_ctx: list[BusErrorContext] = []
@@ -179,6 +183,7 @@ async def test_double_failure_logged_and_counted(executor: CommandExecutor) -> N
     """When both the listener and its error handler raise, _error_handler_failures is incremented."""
     listener = _make_mock_listener()
     listener.invoke.side_effect = ValueError("original error")
+    listener.invoker.invoke.side_effect = ValueError("original error")
 
     handler_ran = asyncio.Event()
 
@@ -208,6 +213,7 @@ async def test_cancelled_error_not_routed_to_handler(executor: CommandExecutor) 
     """CancelledError is re-raised and never routed to the user error handler."""
     listener = _make_mock_listener()
     listener.invoke.side_effect = asyncio.CancelledError()
+    listener.invoker.invoke.side_effect = asyncio.CancelledError()
 
     handler_called = asyncio.Event()
 
@@ -240,6 +246,7 @@ async def test_timeout_error_routed_to_handler(executor: CommandExecutor) -> Non
         await asyncio.sleep(10)
 
     listener.invoke = slow_handler
+    listener.invoker.invoke = slow_handler
 
     handler_called = asyncio.Event()
     received_ctx: list[BusErrorContext] = []

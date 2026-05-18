@@ -368,6 +368,7 @@ def test_build_record_reads_source_tier():
 
     listener = MagicMock()
     listener.invoke = AsyncMock()
+    listener.invoker.invoke = AsyncMock()
     event = MagicMock()
 
     cmd = InvokeHandler(
@@ -399,6 +400,7 @@ def test_build_record_reads_is_di_failure():
 
     listener = MagicMock()
     listener.invoke = AsyncMock()
+    listener.invoker.invoke = AsyncMock()
     event = MagicMock()
 
     cmd = InvokeHandler(

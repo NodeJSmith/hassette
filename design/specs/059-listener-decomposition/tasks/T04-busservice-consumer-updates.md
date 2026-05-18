@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Update BusService and CommandExecutor for sub-struct field access"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03"]
 implements: ["FR#10", "AC#9", "AC#10"]
 ---

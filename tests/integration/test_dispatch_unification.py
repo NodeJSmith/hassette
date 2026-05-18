@@ -100,6 +100,9 @@ def _make_mock_listener(*, listener_id: int = 1, db_id: int | None = None, sourc
     listener.db_id = db_id
     listener.source_tier = source_tier
     listener.invoke = AsyncMock()
+    listener.invoker.invoke = AsyncMock()
+    listener.error_handler = None
+    listener.invoker.error_handler = None
     return listener
 
 

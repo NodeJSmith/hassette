@@ -422,8 +422,8 @@ class CommandExecutor(Service):
         """
         execution_id = str(uuid.uuid4())
         token = CURRENT_EXECUTION_ID.set(execution_id)
-        app_key = cmd.listener.app_key
-        instance_index = cmd.listener.instance_index
+        app_key = cmd.listener.identity.app_key
+        instance_index = cmd.listener.identity.instance_index
         instance_name: str | None = None
         if app_key:
             app_inst = self.hassette.app_handler.get(app_key, instance_index)
@@ -450,11 +450,11 @@ class CommandExecutor(Service):
                         result.error_traceback,
                     )
 
-            result = await self._execute(lambda: cmd.listener.invoke(cmd.event), cmd, _log_error, execution_id)
+            result = await self._execute(lambda: cmd.listener.invoker.invoke(cmd.event), cmd, _log_error, execution_id)
 
             if (result.is_error or result.is_timed_out) and result.exc is not None:
                 # Resolution order: per-registration handler first; app-level fallback second.
-                error_handler = cmd.listener.error_handler or cmd.app_level_error_handler
+                error_handler = cmd.listener.invoker.error_handler or cmd.app_level_error_handler
                 if error_handler is not None:
                     ctx = BusErrorContext(
                         exception=result.exc,

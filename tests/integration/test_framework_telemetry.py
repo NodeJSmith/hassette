@@ -152,7 +152,9 @@ async def test_command_executor_records_source_tier_on_error(mock_hassette_with_
     # Create a listener invocation that fails
     listener = MagicMock()
     listener.invoke = AsyncMock(side_effect=ValueError("handler error"))
+    listener.invoker.invoke = AsyncMock(side_effect=ValueError("handler error"))
     listener.error_handler = None
+    listener.invoker.error_handler = None
 
     from hassette.core.commands import InvokeHandler
 
@@ -250,7 +252,9 @@ async def test_queue_persistence_via_drain_and_persist(mock_hassette_with_db: Ma
     # Queue an invocation record
     listener = MagicMock()
     listener.invoke = AsyncMock()
+    listener.invoker.invoke = AsyncMock()
     listener.error_handler = None
+    listener.invoker.error_handler = None
 
     from hassette.core.commands import InvokeHandler
 
@@ -302,7 +306,9 @@ async def test_pre_registration_orphan_persisted_with_null_listener_id(mock_hass
     # Queue an invocation record with listener_id=None (pre-registration)
     listener = MagicMock()
     listener.invoke = AsyncMock()
+    listener.invoker.invoke = AsyncMock()
     listener.error_handler = None
+    listener.invoker.error_handler = None
 
     from hassette.core.commands import InvokeHandler
 
@@ -434,7 +440,9 @@ async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: Magi
     # Enqueue records until queue is full
     listener = MagicMock()
     listener.invoke = AsyncMock()
+    listener.invoker.invoke = AsyncMock()
     listener.error_handler = None
+    listener.invoker.error_handler = None
 
     from hassette.core.commands import InvokeHandler
 

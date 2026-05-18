@@ -1,10 +1,11 @@
-"""Unit tests for Listener immediate, duration, entity_id, and error_handler fields."""
+"""Unit tests for Listener immediate, duration, entity_id, error_handler, and cancel-listener factory."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.bus.listeners import Listener
+from hassette.bus.listeners import Listener, Subscription
 
 
 def _make_listener(
@@ -116,3 +117,142 @@ class TestListenerErrorHandlerField:
         mock_error_handler = AsyncMock()
         listener = _make_listener(error_handler=mock_error_handler)
         assert listener.error_handler is mock_error_handler
+
+
+def _make_task_bucket() -> MagicMock:
+    tb = MagicMock()
+    tb.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
+    return tb
+
+
+class TestCreateCancelListener:
+    """Tests for Listener.create_cancel_listener() (FR#10, AC#9)."""
+
+    def test_source_tier_is_framework(self) -> None:
+        """cancel_listener.identity.source_tier is 'framework'."""
+        tb = _make_task_bucket()
+        listener = Listener.create_cancel_listener(
+            task_bucket=tb,
+            owner_id="test_owner",
+            topic="hass.event.state_changed.light.kitchen",
+            handler=lambda: None,
+            entity_id="light.kitchen",
+        )
+        assert listener.identity.source_tier == "framework"
+
+    def test_owner_id_is_preserved(self) -> None:
+        """cancel_listener.identity.owner_id matches the supplied owner_id."""
+        tb = _make_task_bucket()
+        listener = Listener.create_cancel_listener(
+            task_bucket=tb,
+            owner_id="my_owner",
+            topic="hass.event.state_changed.light.office",
+            handler=lambda: None,
+            entity_id="light.office",
+        )
+        assert listener.identity.owner_id == "my_owner"
+
+    def test_no_duration_config(self) -> None:
+        """cancel_listener.duration_config is None."""
+        tb = _make_task_bucket()
+        listener = Listener.create_cancel_listener(
+            task_bucket=tb,
+            owner_id="test_owner",
+            topic="hass.event.state_changed.sensor.temp",
+            handler=lambda: None,
+            entity_id="sensor.temp",
+        )
+        assert listener.duration_config is None
+
+    def test_no_rate_limiter(self) -> None:
+        """cancel_listener has no rate limiter (debounce/throttle)."""
+        tb = _make_task_bucket()
+        listener = Listener.create_cancel_listener(
+            task_bucket=tb,
+            owner_id="test_owner",
+            topic="hass.event.state_changed.light.kitchen",
+            handler=lambda: None,
+            entity_id="light.kitchen",
+        )
+        assert listener.invoker._rate_limiter is None
+
+    def test_no_error_handler(self) -> None:
+        """cancel_listener has no error handler."""
+        tb = _make_task_bucket()
+        listener = Listener.create_cancel_listener(
+            task_bucket=tb,
+            owner_id="test_owner",
+            topic="hass.event.state_changed.light.kitchen",
+            handler=lambda: None,
+            entity_id="light.kitchen",
+        )
+        assert listener.invoker.error_handler is None
+
+    def test_topic_is_set(self) -> None:
+        """cancel_listener.topic matches the supplied topic."""
+        tb = _make_task_bucket()
+        topic = "hass.event.state_changed.switch.fan"
+        listener = Listener.create_cancel_listener(
+            task_bucket=tb,
+            owner_id="owner",
+            topic=topic,
+            handler=lambda: None,
+            entity_id="switch.fan",
+        )
+        assert listener.topic == topic
+
+    def test_predicate_default_none(self) -> None:
+        """cancel_listener.predicate defaults to None when not supplied."""
+        tb = _make_task_bucket()
+        listener = Listener.create_cancel_listener(
+            task_bucket=tb,
+            owner_id="owner",
+            topic="hass.event.state_changed.light.x",
+            handler=lambda: None,
+            entity_id="light.x",
+        )
+        assert listener.predicate is None
+
+    def test_predicate_can_be_set(self) -> None:
+        """cancel_listener.predicate is stored when supplied."""
+        tb = _make_task_bucket()
+        pred = MagicMock(return_value=True)
+        listener = Listener.create_cancel_listener(
+            task_bucket=tb,
+            owner_id="owner",
+            topic="hass.event.state_changed.light.x",
+            handler=lambda: None,
+            entity_id="light.x",
+            predicate=pred,
+        )
+        assert listener.predicate is pred
+
+    def test_works_without_bus_instance(self) -> None:
+        """create_cancel_listener() requires no Bus instance — only task_bucket."""
+        tb = _make_task_bucket()
+        # This must not raise — no Bus, no BusService, no Hassette instance
+        listener = Listener.create_cancel_listener(
+            task_bucket=tb,
+            owner_id="standalone_owner",
+            topic="hass.event.state_changed.light.z",
+            handler=lambda: None,
+            entity_id="light.z",
+        )
+        assert listener.listener_id > 0
+
+    def test_cancel_subscription_has_resolved_future(self) -> None:
+        """A Subscription for a cancel-listener receives an already-resolved Future (AC#9)."""
+        loop = asyncio.new_event_loop()
+        try:
+            resolved: asyncio.Future[None] = loop.create_future()
+            resolved.set_result(None)
+            sub = Subscription(
+                listener=MagicMock(),
+                unsubscribe=MagicMock(),
+                registration_task=resolved,
+            )
+            assert sub.registration_task is not None
+            assert sub.registration_task.done()
+            assert sub.registration_task.result() is None
+        finally:
+            loop.close()
