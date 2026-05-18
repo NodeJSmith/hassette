@@ -268,7 +268,10 @@ class Bus(Resource):
             on_error: Optional per-listener error handler.
 
         Returns:
-            A subscription object that can be used to manage the listener.
+            A subscription object. `sub.cancel()` removes the listener. `sub.registration_task`
+            is a completion signal that resolves (with None) when the database persistence attempt
+            finishes — await it for deterministic ordering. Check `sub.listener.db_id` to verify
+            whether persistence succeeded.
         """
         return self._on_internal(
             topic=topic,

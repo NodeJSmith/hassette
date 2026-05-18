@@ -41,12 +41,7 @@ def next_id() -> int:
 
 @dataclass(slots=True)
 class ListenerIdentity:
-    """Ownership and telemetry identity fields for a listener.
-
-    Groups all 9 identity/telemetry fields that identify who registered a
-    listener and where it came from. Used by the database layer for registration
-    telemetry (ListenerRegistration DTO) and by the Bus for collision detection.
-    """
+    """Groups ownership and telemetry fields that identify who registered a listener and where it came from."""
 
     owner_id: str
     """Unique string identifier for the owner of the listener."""
@@ -83,12 +78,7 @@ class ListenerIdentity:
 
 @dataclass(slots=True)
 class ListenerOptions:
-    """Behavioral execution parameters for a listener.
-
-    Groups all 6 behavioral timing/execution fields with self-contained
-    validation. Adding a new option requires changes only here and in the code
-    that reads it (AC#1).
-    """
+    """Behavioral timing parameters (once, debounce, throttle, timeout, priority) with validation."""
 
     once: bool = False
     """Whether the listener should be removed after one invocation."""
@@ -131,12 +121,7 @@ class ListenerOptions:
 
 @dataclass(slots=True)
 class HandlerInvoker:
-    """Handler callable, async wrapper, injector, rate limiter, and once-guard.
-
-    Owns the dispatch and invocation methods. Created via the HandlerInvoker.create()
-    classmethod which constructs the async wrapper, injector, and rate limiter from
-    the handler and options.
-    """
+    """Owns handler invocation, async wrapping, parameter injection, rate limiting, and the once-guard."""
 
     orig_handler: "HandlerType"
     """Original handler function provided by the user."""
@@ -254,17 +239,7 @@ class HandlerInvoker:
 
 @dataclass(slots=True)
 class DurationConfig:
-    """Duration-hold configuration and timer lifecycle for a listener.
-
-    Groups all duration-hold declarative fields plus the timer reference.
-    The timer is attached after construction via attach_timer(), which takes
-    BusService-supplied dependencies. This makes the two-phase construction
-    explicit rather than silent field mutation.
-
-    ``duration`` is None when this config holds only entity_id/immediate fields
-    without a full duration-hold setup (e.g., immediate-only registrations or
-    bare entity_id tracking).
-    """
+    """Groups duration-hold configuration fields and owns the timer lifecycle; timer is attached via attach_timer()."""
 
     entity_id: str
     """Entity ID this duration listener is tracking. Required — non-empty."""

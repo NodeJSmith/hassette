@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Update documentation for decomposed Listener and registration_task"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#8", "AC#7"]
 ---
