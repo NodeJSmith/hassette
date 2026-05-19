@@ -114,12 +114,11 @@ def _migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
     db_service = DatabaseService(mock, parent=mock)
 
-    loop = asyncio.new_event_loop()
-    try:
-        loop.run_until_complete(db_service.on_initialize())
-        loop.run_until_complete(db_service.on_shutdown())
-    finally:
-        loop.close()
+    async def _migrate() -> None:
+        await db_service.on_initialize()
+        await db_service.on_shutdown()
+
+    asyncio.run(_migrate())
 
     return tmpl_dir / "hassette.db"
 
