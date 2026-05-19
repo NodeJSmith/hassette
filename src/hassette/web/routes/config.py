@@ -52,9 +52,9 @@ async def get_config(hassette: HassetteDep) -> ConfigResponse:
             directory=str(cfg.app.directory),
         ),
         scheduler=SchedulerConfigResponse(
-            min_delay_seconds=int(cfg.scheduler.min_delay_seconds),
-            max_delay_seconds=int(cfg.scheduler.max_delay_seconds),
-            default_delay_seconds=int(cfg.scheduler.default_delay_seconds),
+            min_delay_seconds=cfg.scheduler.min_delay_seconds,
+            max_delay_seconds=cfg.scheduler.max_delay_seconds,
+            default_delay_seconds=cfg.scheduler.default_delay_seconds,
         ),
         file_watcher=FileWatcherConfigResponse(
             watch_files=cfg.file_watcher.watch_files,

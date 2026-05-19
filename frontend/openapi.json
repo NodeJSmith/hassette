@@ -3145,15 +3145,36 @@
       "SchedulerConfigResponse": {
         "properties": {
           "min_delay_seconds": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
             "title": "Min Delay Seconds"
           },
           "max_delay_seconds": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
             "title": "Max Delay Seconds"
           },
           "default_delay_seconds": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
             "title": "Default Delay Seconds"
           }
         },

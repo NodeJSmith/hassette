@@ -412,9 +412,9 @@ class AppGroupConfigResponse(BaseModel):
 class SchedulerConfigResponse(BaseModel):
     """Sanitized scheduler configuration fields."""
 
-    min_delay_seconds: int
-    max_delay_seconds: int
-    default_delay_seconds: int
+    min_delay_seconds: int | float
+    max_delay_seconds: int | float
+    default_delay_seconds: int | float
 
 
 class FileWatcherConfigResponse(BaseModel):
