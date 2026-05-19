@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Decompose _dispatch duration path into named helper"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#2", "AC#2", "AC#4", "AC#5"]
 ---

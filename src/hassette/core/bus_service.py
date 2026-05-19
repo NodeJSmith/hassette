@@ -430,25 +430,72 @@ class BusService(Service):
         """Start a timer for the ``remaining`` hold seconds; rechecks predicates at fire time."""
 
         async def on_duration_fire_immediate() -> None:
-            self._duration_timers_active -= 1
-            current = self._read_entity_state(entity_id)
-            if current is None:
-                if listener.options.once:
-                    self.remove_listener(listener)
-                return
-            recheck_event = self._make_synthetic_state_event(entity_id, current)
-            if not self._hold_matches(listener, recheck_event):
-                if listener.options.once:
-                    self.remove_listener(listener)
-                return
             try:
+                current = self._read_entity_state(entity_id)
+                if current is None:
+                    self.logger.debug(
+                        "immediate_fire: entity %s not found in StateProxy, dropping fire",
+                        entity_id,
+                    )
+                    return
+                recheck_event = self._make_synthetic_state_event(entity_id, current)
+                if not self._hold_matches(listener, recheck_event):
+                    self.logger.debug(
+                        "immediate_fire: entity %s predicate no longer matches, dropping fire",
+                        entity_id,
+                    )
+                    return
                 await listener.invoker.dispatch(invoke_fn)
             finally:
+                self._duration_timers_active -= 1
                 if listener.options.once:
                     self.remove_listener(listener)
 
         self._duration_timers_active += 1
         duration_config.timer.start(on_duration_fire_immediate, override_duration=remaining)
+
+    def start_duration_timer(
+        self,
+        listener: Listener,
+        entity_id: str,
+        duration_config: DurationConfig,
+        invoke_fn: "Callable[[], Awaitable[None]]",
+    ) -> None:
+        """Start the full-duration hold timer; rechecks predicates at fire time."""
+
+        async def on_duration_fire() -> None:
+            """Called by DurationTimer after the full hold period elapses."""
+            try:
+                current_state = self._read_entity_state(entity_id)
+                if current_state is None:
+                    self.logger.debug(
+                        "duration_fire: entity %s not found in StateProxy, dropping fire",
+                        entity_id,
+                    )
+                    return
+
+                recheck_event = self._make_synthetic_state_event(entity_id, current_state)
+
+                if not self._hold_matches(listener, recheck_event):
+                    self.logger.debug(
+                        "duration_fire: entity %s predicate no longer matches, dropping fire",
+                        entity_id,
+                    )
+                    return
+
+                self.logger.debug(
+                    "duration_fire: entity %s held state for %.2fs, dispatching handler",
+                    entity_id,
+                    duration_config.duration,
+                )
+                await listener.invoker.dispatch(invoke_fn)
+            finally:
+                self._duration_timers_active -= 1
+                if listener.options.once:
+                    self.remove_listener(listener)
+
+        self._duration_timers_active += 1
+        duration_config.timer.start(on_duration_fire)
 
     def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Remove a listener from the bus.
@@ -622,7 +669,6 @@ class BusService(Service):
                 return
 
             duration_config = listener.duration_config
-            duration_timer = duration_config.timer
             entity_id = duration_config.entity_id
             if not entity_id:
                 self.logger.error(
@@ -633,39 +679,7 @@ class BusService(Service):
                 )
                 return
 
-            async def on_duration_fire() -> None:
-                """Called by DurationTimer after the full hold period elapses."""
-                try:
-                    current_state = self._read_entity_state(entity_id)
-                    if current_state is None:
-                        self.logger.debug(
-                            "duration_fire: entity %s not found in StateProxy, dropping fire",
-                            entity_id,
-                        )
-                        return
-
-                    recheck_event = self._make_synthetic_state_event(entity_id, current_state)
-
-                    if not self._hold_matches(listener, recheck_event):
-                        self.logger.debug(
-                            "duration_fire: entity %s predicate no longer matches, dropping fire",
-                            entity_id,
-                        )
-                        return
-
-                    self.logger.debug(
-                        "duration_fire: entity %s held state for %.2fs, dispatching handler",
-                        entity_id,
-                        duration_config.duration,
-                    )
-                    await listener.invoker.dispatch(invoke_fn)
-                finally:
-                    self._duration_timers_active -= 1
-                    if listener.options.once:
-                        self.remove_listener(listener)
-
-            self._duration_timers_active += 1
-            duration_timer.start(on_duration_fire)
+            self.start_duration_timer(listener, entity_id, duration_config, invoke_fn)
             return
 
         # Non-duration path (unchanged behavior).
