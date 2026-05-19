@@ -96,7 +96,7 @@ async def test_framework_listener_registers_with_source_tier(harness_config: Has
         )
         await harness.bus_service.await_registrations_complete(bus.parent.app_key)
 
-        listeners = await harness.bus_service.router.get_topic_listeners("test.topic")
+        listeners = harness.bus_service.router.get_topic_listeners("test.topic")
         assert len(listeners) > 0
         listener = listeners[0]
         assert listener.identity.source_tier == "framework"

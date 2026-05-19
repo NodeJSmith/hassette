@@ -28,4 +28,6 @@ def _make_hassette_stub(*, strict_lifecycle: bool = False) -> AsyncMock:
     # creating an unawaited coroutine.
     hassette._scheduler_service.register_removal_callback = Mock()
     hassette._scheduler_service.deregister_removal_callback = Mock()
+    hassette._bus_service.remove_listeners_by_owner = Mock()
+    hassette._bus_service.get_listeners_by_owner = Mock(return_value=[])
     return hassette

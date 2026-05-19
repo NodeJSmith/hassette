@@ -104,6 +104,8 @@ def _make_mock_listener(
     listener.predicate = None
     listener.listener_id = 1
     listener.db_id = None
+    # Must be None to avoid the duration-timer branch in add_listener.
+    listener.duration_config = None
     return listener
 
 
@@ -213,12 +215,15 @@ async def test_job_registration_persists_correct_app_key(
 
 
 # ---------------------------------------------------------------------------
-# BusService._register_then_add_route registers listener then adds route
+# BusService.add_listener inserts route synchronously, spawns bus:register_listener for DB
 # ---------------------------------------------------------------------------
 
 
 def test_listener_with_app_key_spawns_combined_task(mock_hassette: MagicMock) -> None:
-    """add_listener with app_key spawns a single _register_then_add_route task."""
+    """add_listener with app_key spawns a single bus:register_listener task.
+
+    Route insertion is synchronous; only the DB registration background task is spawned.
+    """
     executor_mock = MagicMock()
     stream = MagicMock()
     bus_service = BusService(mock_hassette, stream=stream, executor=executor_mock, parent=mock_hassette)
@@ -228,8 +233,10 @@ def test_listener_with_app_key_spawns_combined_task(mock_hassette: MagicMock) ->
 
     bus_service.add_listener(listener)
 
-    # Single combined spawn: _register_then_add_route
+    # Single spawn: bus:register_listener (DB registration; route insertion is sync)
     assert bus_service.task_bucket.spawn.call_count == 1
+    spawn_kwargs = bus_service.task_bucket.spawn.call_args
+    assert spawn_kwargs.kwargs.get("name") == "bus:register_in_db"
 
 
 # ---------------------------------------------------------------------------
@@ -251,12 +258,16 @@ def test_job_with_app_key_spawns_combined_task(mock_hassette: MagicMock) -> None
 
 
 # ---------------------------------------------------------------------------
-# Non-App owner guard: empty app_key skips DB registration
+# Non-App owner guard: empty app_key still spawns DB registration
 # ---------------------------------------------------------------------------
 
 
-def test_listener_with_empty_app_key_skips_registration(mock_hassette: MagicMock) -> None:
-    """Listeners with empty app_key (non-App owners) skip DB registration."""
+def test_listener_with_empty_app_key_spawns_db_registration(mock_hassette: MagicMock) -> None:
+    """Listeners with empty app_key (non-App owners) still spawn one DB registration task.
+
+    Route insertion is now synchronous. The single spawn is the DB registration task
+    (bus:register_listener), which uses the owner_id as the app_key fallback.
+    """
     executor_mock = MagicMock()
     stream = MagicMock()
     bus_service = BusService(mock_hassette, stream=stream, executor=executor_mock, parent=mock_hassette)
@@ -266,16 +277,17 @@ def test_listener_with_empty_app_key_skips_registration(mock_hassette: MagicMock
 
     bus_service.add_listener(listener)
 
-    # Only one spawn call should have happened: the router.add_route call
-    # The _register_listener_to_db call should NOT have happened
+    # One spawn call: the DB registration task (route insertion is now synchronous).
     assert bus_service.task_bucket.spawn.call_count == 1
-    # The single spawn call should be for the router, not for registration
     spawn_kwargs = bus_service.task_bucket.spawn.call_args
-    assert spawn_kwargs.kwargs.get("name") == "bus:add_listener"
+    assert spawn_kwargs.kwargs.get("name") == "bus:register_in_db"
 
 
 def test_listener_with_app_key_triggers_registration(mock_hassette: MagicMock) -> None:
-    """Listeners with non-empty app_key use a single combined register-then-route task."""
+    """Listeners with non-empty app_key spawn a single bus:register_listener task.
+
+    Route insertion is synchronous; the DB registration background task is always spawned.
+    """
     executor_mock = MagicMock()
     stream = MagicMock()
     bus_service = BusService(mock_hassette, stream=stream, executor=executor_mock, parent=mock_hassette)
@@ -285,8 +297,10 @@ def test_listener_with_app_key_triggers_registration(mock_hassette: MagicMock) -
 
     bus_service.add_listener(listener)
 
-    # Single spawn: _register_then_add_route (DB registration + router add in sequence)
+    # Single spawn: bus:register_listener (DB registration; route insertion is now sync)
     assert bus_service.task_bucket.spawn.call_count == 1
+    spawn_kwargs = bus_service.task_bucket.spawn.call_args
+    assert spawn_kwargs.kwargs.get("name") == "bus:register_in_db"
 
 
 def test_job_with_empty_app_key_skips_registration(mock_hassette: MagicMock) -> None:

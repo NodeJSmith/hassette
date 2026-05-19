@@ -31,7 +31,7 @@ def mock_hassette() -> MagicMock:
     hassette.bus_service = MagicMock()
     hassette.bus_service.await_registrations_complete = AsyncMock()
     hassette.bus_service.router = MagicMock()
-    hassette.bus_service.router.get_listeners_by_owner = AsyncMock(return_value=[])
+    hassette.bus_service.router.get_listeners_by_owner = Mock(return_value=[])
     hassette.scheduler_service = MagicMock()
     hassette.scheduler_service.await_registrations_complete = AsyncMock()
     hassette.session_id = 1
@@ -96,7 +96,7 @@ def mock_app_instance() -> AsyncMock:
     app.mark_ready = Mock()
     app.logger = Mock()
     app.bus = MagicMock()
-    app.bus.get_listeners = AsyncMock(return_value=[])
+    app.bus.get_listeners = Mock(return_value=[])
     app.bus.owner_id = "MockApp.test_instance"
     app.scheduler = MagicMock()
     app.scheduler.get_job_db_ids = Mock(return_value=[])
@@ -200,7 +200,7 @@ class TestInitializeInstances:
         app1.initialize = AsyncMock()
         app1.mark_ready = Mock()
         app1.bus = MagicMock()
-        app1.bus.get_listeners = AsyncMock(return_value=[])
+        app1.bus.get_listeners = Mock(return_value=[])
         app1.bus.owner_id = "TestApp.instance_0"
         app1.scheduler = MagicMock()
         app1.scheduler.get_job_db_ids = Mock(return_value=[])
@@ -210,7 +210,7 @@ class TestInitializeInstances:
         app2.initialize = AsyncMock()
         app2.mark_ready = Mock()
         app2.bus = MagicMock()
-        app2.bus.get_listeners = AsyncMock(return_value=[])
+        app2.bus.get_listeners = Mock(return_value=[])
         app2.bus.owner_id = "TestApp.instance_1"
         app2.scheduler = MagicMock()
         app2.scheduler.get_job_db_ids = Mock(return_value=[])
@@ -270,7 +270,7 @@ class TestInitializeInstances:
         app1.initialize = AsyncMock(side_effect=ValueError("Failed"))
         app1.status = ResourceStatus.NOT_STARTED
         app1.bus = MagicMock()
-        app1.bus.get_listeners = AsyncMock(return_value=[])
+        app1.bus.get_listeners = Mock(return_value=[])
         app1.bus.owner_id = "TestApp.instance_0"
         app1.scheduler = MagicMock()
         app1.scheduler.get_job_db_ids = Mock(return_value=[])
@@ -280,7 +280,7 @@ class TestInitializeInstances:
         app2.initialize = AsyncMock()
         app2.mark_ready = Mock()
         app2.bus = MagicMock()
-        app2.bus.get_listeners = AsyncMock(return_value=[])
+        app2.bus.get_listeners = Mock(return_value=[])
         app2.bus.owner_id = "TestApp.instance_1"
         app2.scheduler = MagicMock()
         app2.scheduler.get_job_db_ids = Mock(return_value=[])

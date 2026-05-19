@@ -46,12 +46,15 @@ async def reset_bus(bus: "Bus") -> None:
     """Remove all listeners owned by this bus instance.
 
     Bus listeners accumulate in the BusService router as tests register handlers.
-    This clears them between tests to prevent ordering dependencies.
+    This clears them between tests to prevent ordering dependencies. The body is
+    synchronous (remove_all_listeners is sync) but the signature remains async
+    for interface consistency with sibling reset_* helpers that are awaited
+    by HassetteHarness.
 
     Args:
         bus: The Bus instance to reset.
     """
-    await bus.remove_all_listeners()
+    bus.remove_all_listeners()
 
 
 async def reset_scheduler(scheduler: "Scheduler") -> None:
@@ -93,7 +96,7 @@ async def reset_app_handler(app_handler: "AppHandler", original_manifests: dict[
 
     # Clear test-owned listeners before re-bootstrap so they don't fire
     # on APP_LOAD_COMPLETED events during bootstrap_apps().
-    await app_handler.hassette.bus_service.remove_listeners_by_owner("test")
+    app_handler.hassette.bus_service.remove_listeners_by_owner("test")
 
     app_handler.registry.clear_all()
     app_handler.registry.set_manifests({k: v.model_copy(deep=True) for k, v in original_manifests.items()})

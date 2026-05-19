@@ -152,7 +152,7 @@ async def test_pre_registration_listener_produces_orphan_record(executor: Comman
 
 
 # ---------------------------------------------------------------------------
-# Subtask 4 & 5: framework listener DB registration via _register_then_add_route
+# Subtask 4 & 5: framework listener DB registration via add_listener
 # ---------------------------------------------------------------------------
 
 
@@ -161,7 +161,11 @@ async def test_framework_listener_registration(
     initialized_db: tuple[DatabaseService, int],
     mock_hassette: MagicMock,
 ) -> None:
-    """Framework listener via _register_then_add_route writes a DB row with source_tier='framework'."""
+    """Framework listener via add_listener writes a DB row with source_tier='framework'.
+
+    With sync routing, add_listener inserts the route immediately and spawns the DB
+    registration as a background task. We await the returned task to verify the DB write.
+    """
     db_service, _ = initialized_db
     stream = MagicMock()
     bus_service = BusService(mock_hassette, stream=stream, executor=executor, parent=mock_hassette)
@@ -169,7 +173,6 @@ async def test_framework_listener_registration(
     async def dummy_handler(event: object) -> None:
         pass
 
-    # Directly invoke _register_then_add_route with a pre-built framework listener
     from hassette.test_utils.helpers import create_listener
 
     listener = create_listener(
@@ -181,11 +184,8 @@ async def test_framework_listener_registration(
         name="hassette.test.framework_listener",
         source_tier="framework",
     )
-    # Patch router.add_route to be a no-op so we only test DB registration
-    bus_service.router = MagicMock()
-    bus_service.router.add_route = AsyncMock()
-
-    await bus_service._register_then_add_route(listener)
+    reg = bus_service._build_registration(listener)
+    await bus_service._register_in_db(listener, reg)
 
     # Verify the DB row
     cursor = await db_service.db.execute(

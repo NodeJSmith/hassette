@@ -1,5 +1,6 @@
 """Shared fixtures for bus unit tests."""
 
+import asyncio
 import contextlib
 import typing
 from collections.abc import Generator
@@ -42,8 +43,18 @@ def bus(hassette_with_bus: "Hassette") -> "Bus":
 
 @contextlib.contextmanager
 def mock_add_listener(bus: "Bus") -> Generator[Mock]:
-    """Replace bus.bus_service.add_listener with a Mock, restoring on exit."""
-    mock = Mock()
+    """Replace bus.bus_service.add_listener with a Mock, restoring on exit.
+
+    The default return value is a resolved asyncio.Future[None] (not an
+    asyncio.Task) so that tests which check
+    ``isinstance(sub.registration_task, asyncio.Future)`` pass without needing
+    to set ``add_mock.return_value`` explicitly. Production returns a Task
+    (which is a Future subclass), so isinstance checks work in both cases.
+    """
+    loop = asyncio.get_event_loop()
+    future: asyncio.Future[None] = loop.create_future()
+    future.set_result(None)
+    mock = Mock(return_value=future)
     original = bus.bus_service.add_listener
     bus.bus_service.add_listener = mock
     try:

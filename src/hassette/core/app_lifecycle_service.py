@@ -553,7 +553,7 @@ class AppLifecycleService(Resource):
             live_listener_ids: set[int] = set()
             for inst in instances.values():
                 try:
-                    listeners = await inst.bus.get_listeners()
+                    listeners = inst.bus.get_listeners()
                     for listener in listeners:
                         if listener.db_id is not None:
                             live_listener_ids.add(listener.db_id)
@@ -568,7 +568,7 @@ class AppLifecycleService(Resource):
             try:
                 router = bus_service.router
                 for inst in instances.values():
-                    router_listeners = await router.get_listeners_by_owner(inst.bus.owner_id)
+                    router_listeners = router.get_listeners_by_owner(inst.bus.owner_id)
                     for listener in router_listeners:
                         if listener.db_id is not None:
                             live_listener_ids.add(listener.db_id)

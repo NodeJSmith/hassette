@@ -87,7 +87,7 @@ class TestStateProxyInit:
         """State proxy subscribes to state_changed and homeassistant_stop events."""
         self.setup_hassette(hassette_with_state_proxy)
 
-        listeners = await self.proxy.bus.get_listeners()
+        listeners = self.proxy.bus.get_listeners()
         assert len(listeners) > 0, "Should have listeners after initialization"
         topic_set = {listener.topic for listener in listeners}
         assert Topic.HASS_EVENT_STATE_CHANGED in topic_set, "Should subscribe to state_changed"
@@ -119,10 +119,8 @@ def state_proxy():
     mock_hassette.config.bus_service_log_level = "DEBUG"
 
     # Bus.remove_all_listeners() delegates to bus_service.remove_listeners_by_owner()
-    # which must return an awaitable Task, not a plain Mock.
-    mock_hassette._bus_service.remove_listeners_by_owner.side_effect = lambda *_args, **_kwargs: asyncio.ensure_future(
-        asyncio.sleep(0)
-    )
+    # which is now synchronous and returns None.
+    mock_hassette._bus_service.remove_listeners_by_owner.return_value = None
 
     proxy = StateProxy(mock_hassette, parent=mock_hassette)
     proxy.mark_ready(reason="Test setup")
@@ -345,7 +343,7 @@ class TestStateProxyWebsocketListeners:
 
         proxy = hassette_with_state_proxy.state_proxy
 
-        listeners = await proxy.bus.get_listeners()
+        listeners = proxy.bus.get_listeners()
 
         initial_subscription_count = len(listeners)
         expected_sub_count = initial_subscription_count - 1  # because state_change_listener removes itself
@@ -356,7 +354,7 @@ class TestStateProxyWebsocketListeners:
         mock_mark_not_ready.assert_called_once()
 
         # Subscriptions should remain the same (all registered in on_initialize)
-        listeners_after = await proxy.bus.get_listeners()
+        listeners_after = proxy.bus.get_listeners()
         assert len(listeners_after) == expected_sub_count
 
     async def test_resyncs_on_start(self, state_proxy: "StateProxy") -> None:
@@ -501,13 +499,13 @@ class TestStateProxyShutdown:
         """Shutdown removes all bus listeners via propagation to child Bus."""
         proxy = hassette_with_state_proxy.state_proxy
 
-        listeners = await proxy.bus.get_listeners()
+        listeners = proxy.bus.get_listeners()
         assert len(listeners) > 0, "Should have listeners before shutdown"
 
         await proxy.shutdown()
 
         # All subscriptions should be removed (Bus.on_shutdown calls remove_all_listeners)
-        listeners_after = await proxy.bus.get_listeners()
+        listeners_after = proxy.bus.get_listeners()
         assert len(listeners_after) == 0, "All listeners should be removed on shutdown"
 
     async def test_clears_cache_on_shutdown(self, state_proxy: "StateProxy") -> None:
@@ -577,7 +575,7 @@ class TestStateProxyRestartRoundTrip:
         await proxy.initialize()
 
         # Verify subscriptions are re-established by checking listeners
-        listeners = await proxy.bus.get_listeners()
+        listeners = proxy.bus.get_listeners()
         assert len(listeners) > 0, "Should have listeners after re-initialize"
         topic_set = {listener.topic for listener in listeners}
         assert Topic.HASS_EVENT_STATE_CHANGED in topic_set, "Should subscribe to state_changed after re-initialize"

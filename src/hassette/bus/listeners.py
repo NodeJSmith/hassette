@@ -467,9 +467,15 @@ class Subscription:
     registration_task: "asyncio.Future[None] | None" = None
     """Completion signal for the listener's database persistence attempt.
 
-    Resolves with None when the persistence attempt is complete, regardless of
-    whether persistence succeeded or failed (completion signal, not success signal).
-    Callers check listener.db_id is not None to detect persistence failures.
+    Routing is synchronous — the listener is immediately routable in the in-memory
+    router table before this future resolves. ``registration_task`` tracks only DB
+    persistence, which is independent of routing. A listener that fails to persist
+    to the database is still active and receiving events.
+
+    The future resolves with None when the persistence attempt is complete, regardless
+    of whether persistence succeeded or failed — including ``CancelledError`` from a
+    timeout (completion signal, not success signal). Callers check
+    ``listener.db_id is not None`` to detect persistence failures.
 
     None for Subscription instances constructed without a task (backward compat),
     or for cancel-listener subscriptions that skip DB registration.
