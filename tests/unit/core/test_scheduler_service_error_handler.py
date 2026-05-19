@@ -11,12 +11,12 @@ def _make_scheduler_service() -> SchedulerService:
     """Create a SchedulerService with mocked internals."""
     svc = SchedulerService.__new__(SchedulerService)
     svc.hassette = MagicMock()
-    svc.hassette.config.scheduler_job_timeout_seconds = 30.0
-    svc.hassette.config.scheduler_service_log_level = "DEBUG"
-    svc.hassette.config.scheduler_min_delay_seconds = 0.1
-    svc.hassette.config.scheduler_max_delay_seconds = 60.0
-    svc.hassette.config.scheduler_default_delay_seconds = 30.0
-    svc.hassette.config.scheduler_behind_schedule_threshold_seconds = 30.0
+    svc.hassette.config.scheduler.job_timeout_seconds = 30.0
+    svc.hassette.config.logging.scheduler_service = "DEBUG"
+    svc.hassette.config.scheduler.min_delay_seconds = 0.1
+    svc.hassette.config.scheduler.max_delay_seconds = 60.0
+    svc.hassette.config.scheduler.default_delay_seconds = 30.0
+    svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 30.0
     svc.logger = MagicMock()
     svc._executor = MagicMock()
     svc._executor.execute = AsyncMock()

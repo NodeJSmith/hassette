@@ -29,16 +29,16 @@ from hassette.types.enums import ResourceRole, RestartType
 def _make_hassette_stub(*, strict_lifecycle: bool = False) -> MagicMock:
     """Minimal Hassette stub for ServiceWatcher unit tests."""
     hassette = MagicMock()
-    hassette.config.log_level = "DEBUG"
+    hassette.config.logging.log_level = "DEBUG"
     hassette.config.strict_lifecycle = strict_lifecycle
     hassette.config.data_dir = "/tmp/hassette-test"
     hassette.config.default_cache_size = 1024
-    hassette.config.resource_shutdown_timeout_seconds = 1
-    hassette.config.startup_timeout_seconds = 30
-    hassette.config.task_cancellation_timeout_seconds = 1
-    hassette.config.task_bucket_log_level = "DEBUG"
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 1
+    hassette.config.lifecycle.startup_timeout_seconds = 30
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 1
+    hassette.config.logging.task_bucket = "DEBUG"
     hassette.config.dev_mode = False
-    hassette.config.service_watcher_log_level = "DEBUG"
+    hassette.config.logging.service_watcher = "DEBUG"
     hassette.event_streams_closed = False
     hassette.ready_event = asyncio.Event()
     hassette.ready_event.set()

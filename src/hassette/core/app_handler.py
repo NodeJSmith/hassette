@@ -64,7 +64,7 @@ class AppHandler(Resource):
         self.bus = self.add_child(Bus)
         self.registry = AppRegistry()
         self.lifecycle = self.add_child(AppLifecycleService, registry=self.registry)
-        self.lifecycle.set_apps_configs(hassette.config.app_manifests)
+        self.lifecycle.set_apps_configs(hassette.config.app.manifests)
 
     # --- Public API (thin delegation) ---
 
@@ -80,7 +80,7 @@ class AppHandler(Resource):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.app_handler_log_level
+        return self.hassette.config.logging.app_handler
 
     def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":
         """Get a specific app instance if running."""

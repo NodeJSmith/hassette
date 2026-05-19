@@ -392,7 +392,7 @@ class TestLogsEndpoints:
         """When records=[] and execution is old, retention_expired=True."""
         mock_get.return_value = ([], False)
         mock_cutoff.return_value = True
-        mock_hassette.config.log_retention_days = 3
+        mock_hassette.config.logging.log_retention_days = 3
         response = await client.get("/api/logs/by-execution/old-exec")
         assert response.status_code == 200
         data = response.json()
@@ -407,7 +407,7 @@ class TestLogsEndpoints:
         """When records=[] and execution is not old, retention_expired=False."""
         mock_get.return_value = ([], False)
         mock_cutoff.return_value = False
-        mock_hassette.config.log_retention_days = 3
+        mock_hassette.config.logging.log_retention_days = 3
         response = await client.get("/api/logs/by-execution/new-exec")
         assert response.status_code == 200
         data = response.json()
@@ -497,7 +497,7 @@ class TestConfigEndpointExpanded:
     async def test_dir_fields_present_as_strings(self, client: "AsyncClient", mock_hassette) -> None:
         """app_dir, data_dir, config_dir are present and are strings (WP03)."""
         mock_hassette.config.model_dump.return_value = {"dev_mode": False}
-        mock_hassette.config.app_dir = "/srv/hassette/apps"
+        mock_hassette.config.app.directory = "/srv/hassette/apps"
         mock_hassette.config.data_dir = "/srv/hassette/data"
         mock_hassette.config.config_dir = "/srv/hassette/config"
         response = await client.get("/api/config")

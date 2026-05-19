@@ -16,13 +16,13 @@ def mock_hassette() -> MagicMock:
     """Create a mock Hassette instance with config."""
     hassette = MagicMock()
     hassette.config = MagicMock()
-    hassette.config.app_startup_timeout_seconds = 30
-    hassette.config.app_shutdown_timeout_seconds = 10
+    hassette.config.lifecycle.app_startup_timeout_seconds = 30
+    hassette.config.lifecycle.app_shutdown_timeout_seconds = 10
     hassette.config.dev_mode = True
     hassette.config.allow_only_app_in_prod = False
     hassette.config.allow_reload_in_prod = False
-    hassette.config.app_handler_log_level = "DEBUG"
-    hassette.config.app_manifests = {}
+    hassette.config.logging.app_handler = "DEBUG"
+    hassette.config.app.manifests = {}
     hassette.config.data_dir = Path("/tmp/hassette-test")
     hassette.send_event = AsyncMock()
     hassette.wait_for_ready = AsyncMock(return_value=True)
@@ -171,14 +171,14 @@ class TestAppLifecycleServiceProperties:
     def test_startup_timeout_from_config(
         self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock
     ) -> None:
-        """Returns hassette.config.app_startup_timeout_seconds."""
-        assert lifecycle_service.startup_timeout == mock_hassette.config.app_startup_timeout_seconds
+        """Returns hassette.config.lifecycle.app_startup_timeout_seconds."""
+        assert lifecycle_service.startup_timeout == mock_hassette.config.lifecycle.app_startup_timeout_seconds
 
     def test_shutdown_timeout_from_config(
         self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock
     ) -> None:
-        """Returns hassette.config.app_shutdown_timeout_seconds."""
-        assert lifecycle_service.shutdown_timeout == mock_hassette.config.app_shutdown_timeout_seconds
+        """Returns hassette.config.lifecycle.app_shutdown_timeout_seconds."""
+        assert lifecycle_service.shutdown_timeout == mock_hassette.config.lifecycle.app_shutdown_timeout_seconds
 
 
 class TestInitializeInstances:
@@ -744,7 +744,7 @@ class TestRefreshConfig:
         manifest1 = MagicMock()
         manifest1.enabled = True
         mock_registry.manifests = {"app_a": manifest1}
-        mock_hassette.config.app_manifests = {"app_a": manifest1}
+        mock_hassette.config.app.manifests = {"app_a": manifest1}
         mock_hassette.config.reload = Mock()
 
         original, current = await lifecycle_service.refresh_config()

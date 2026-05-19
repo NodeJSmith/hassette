@@ -126,7 +126,7 @@ class WebsocketService(Service):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.websocket_log_level
+        return self.hassette.config.logging.websocket
 
     @property
     def connection_state(self) -> ConnectionState:
@@ -173,23 +173,23 @@ class WebsocketService(Service):
 
     @property
     def resp_timeout_seconds(self) -> int:
-        return self.hassette.config.websocket_response_timeout_seconds
+        return self.hassette.config.websocket.response_timeout_seconds
 
     @property
     def connection_timeout_seconds(self) -> int:
-        return self.hassette.config.websocket_connection_timeout_seconds
+        return self.hassette.config.websocket.connection_timeout_seconds
 
     @property
     def total_timeout_seconds(self) -> int:
-        return self.hassette.config.websocket_total_timeout_seconds
+        return self.hassette.config.websocket.total_timeout_seconds
 
     @property
     def heartbeat_interval_seconds(self) -> int:
-        return self.hassette.config.websocket_heartbeat_interval_seconds
+        return self.hassette.config.websocket.heartbeat_interval_seconds
 
     @property
     def authentication_timeout_seconds(self) -> int:
-        return self.hassette.config.websocket_authentication_timeout_seconds
+        return self.hassette.config.websocket.authentication_timeout_seconds
 
     @property
     def connected(self) -> bool:
@@ -205,15 +205,15 @@ class WebsocketService(Service):
     async def serve(self) -> None:
         """Connect to the WebSocket and run the receive loop."""
         config = self.hassette.config
-        max_early_drops = config.websocket_early_drop_max_retries
-        max_recovery = config.websocket_max_recovery_seconds
+        max_early_drops = config.websocket.early_drop_max_retries
+        max_recovery = config.websocket.max_recovery_seconds
         self.logger.info(
             "WebSocket resilience budget: max ~%.0f minutes to permanent shutdown "
             "(early-drop: %d retries capped at %ds, connection: %d retries, service: %d restarts)",
             max_recovery / 60,
             max_early_drops,
             int(max_recovery),
-            config.websocket_connect_retry_max_attempts,
+            config.websocket.connect_retry_max_attempts,
             self.restart_spec.budget_intensity,
         )
 
@@ -222,7 +222,7 @@ class WebsocketService(Service):
 
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 early_drop_attempts = 0
-                stable_window = config.websocket_early_drop_stable_window_seconds
+                stable_window = config.websocket.early_drop_stable_window_seconds
                 recovery_started_at: float | None = None
 
                 # Set CONNECTING before the first connection attempt
@@ -359,9 +359,9 @@ class WebsocketService(Service):
         """
         config = self.hassette.config
         backoff = min(
-            config.websocket_early_drop_backoff_initial_seconds * (2 ** (attempt - 1)),
-            config.websocket_early_drop_backoff_max_seconds,
-        ) + random.uniform(0, config.websocket_early_drop_backoff_initial_seconds)
+            config.websocket.early_drop_backoff_initial_seconds * (2 ** (attempt - 1)),
+            config.websocket.early_drop_backoff_max_seconds,
+        ) + random.uniform(0, config.websocket.early_drop_backoff_initial_seconds)
         await asyncio.sleep(backoff)
 
     async def _make_connection(self, session: aiohttp.ClientSession) -> asyncio.Task:
@@ -371,10 +371,10 @@ class WebsocketService(Service):
         @retry(
             retry=retry_if_not_exception_type(NON_RETRYABLE) | retry_if_exception_type(RETRYABLE),
             wait=wait_exponential_jitter(
-                initial=self.hassette.config.websocket_connect_retry_initial_wait_seconds,
-                max=self.hassette.config.websocket_connect_retry_max_wait_seconds,
+                initial=self.hassette.config.websocket.connect_retry_initial_wait_seconds,
+                max=self.hassette.config.websocket.connect_retry_max_wait_seconds,
             ),
-            stop=stop_after_attempt(self.hassette.config.websocket_connect_retry_max_attempts),
+            stop=stop_after_attempt(self.hassette.config.websocket.connect_retry_max_attempts),
             reraise=True,
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
         )

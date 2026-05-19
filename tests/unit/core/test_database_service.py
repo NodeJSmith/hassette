@@ -16,17 +16,17 @@ def mock_hassette(tmp_path: Path) -> MagicMock:
     """Create a mock Hassette with database config defaults."""
     hassette = MagicMock()
     hassette.config.data_dir = tmp_path
-    hassette.config.db_path = None
-    hassette.config.db_retention_days = 7
-    hassette.config.db_max_size_mb = 500
-    hassette.config.db_migration_timeout_seconds = 120
-    hassette.config.telemetry_write_queue_max = 500
-    hassette.config.db_write_queue_max = 2000
-    hassette.config.database_service_log_level = "INFO"
-    hassette.config.log_level = "INFO"
-    hassette.config.task_bucket_log_level = "INFO"
-    hassette.config.resource_shutdown_timeout_seconds = 5
-    hassette.config.task_cancellation_timeout_seconds = 5
+    hassette.config.database.path = None
+    hassette.config.database.retention_days = 7
+    hassette.config.database.max_size_mb = 500
+    hassette.config.database.migration_timeout_seconds = 120
+    hassette.config.database.telemetry_write_queue_max = 500
+    hassette.config.database.write_queue_max = 2000
+    hassette.config.logging.database_service = "INFO"
+    hassette.config.logging.log_level = "INFO"
+    hassette.config.logging.task_bucket = "INFO"
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
     hassette.ready_event = asyncio.Event()
     return hassette
 
@@ -74,7 +74,7 @@ def test_init_sets_defaults(service: DatabaseService) -> None:
 
 def test_config_log_level_delegates_to_config(service: DatabaseService) -> None:
     """config_log_level returns the value from hassette config."""
-    service.hassette.config.database_service_log_level = "DEBUG"
+    service.hassette.config.logging.database_service = "DEBUG"
     assert service.config_log_level == "DEBUG"
 
 
@@ -86,14 +86,14 @@ def test_db_property_raises_when_uninitialized(service: DatabaseService) -> None
 
 def test_resolve_db_path_uses_config_when_set(service: DatabaseService) -> None:
     """When db_path is configured, use it directly."""
-    service.hassette.config.db_path = Path("/custom/path/my.db")
+    service.hassette.config.database.path = Path("/custom/path/my.db")
     result = service._resolve_db_path()
     assert result == Path("/custom/path/my.db").resolve()
 
 
 def test_resolve_db_path_defaults_to_data_dir(service: DatabaseService, tmp_path: Path) -> None:
     """When db_path is None, default to data_dir / hassette.db."""
-    service.hassette.config.db_path = None
+    service.hassette.config.database.path = None
     service.hassette.config.data_dir = tmp_path
     result = service._resolve_db_path()
     assert result == tmp_path / "hassette.db"
@@ -170,7 +170,7 @@ async def test_db_max_size_mb_zero_disables_failsafe(
     initialized_service_with_worker: DatabaseService,
 ) -> None:
     """_check_size_failsafe() returns immediately when db_max_size_mb is 0."""
-    initialized_service_with_worker.hassette.config.db_max_size_mb = 0
+    initialized_service_with_worker.hassette.config.database.max_size_mb = 0
 
     # Patch _get_db_size_mb to prove it's never called — the early return
     # should skip the size check entirely.

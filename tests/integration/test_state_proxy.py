@@ -113,10 +113,10 @@ class TestStateProxyInit:
 @pytest.fixture
 def state_proxy():
     mock_hassette = Mock()
-    mock_hassette.config.state_proxy_log_level = "DEBUG"
-    mock_hassette.config.task_bucket_log_level = "DEBUG"
-    mock_hassette.config.log_level = "DEBUG"
-    mock_hassette.config.bus_service_log_level = "DEBUG"
+    mock_hassette.config.logging.state_proxy = "DEBUG"
+    mock_hassette.config.logging.task_bucket = "DEBUG"
+    mock_hassette.config.logging.log_level = "DEBUG"
+    mock_hassette.config.logging.bus_service = "DEBUG"
 
     # Bus.remove_all_listeners() delegates to bus_service.remove_listeners_by_owner()
     # which is now synchronous and returns None.

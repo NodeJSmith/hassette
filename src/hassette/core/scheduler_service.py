@@ -65,20 +65,20 @@ class SchedulerService(Service):
 
     @property
     def min_delay(self) -> float:
-        return self.hassette.config.scheduler_min_delay_seconds
+        return self.hassette.config.scheduler.min_delay_seconds
 
     @property
     def max_delay(self) -> float:
-        return self.hassette.config.scheduler_max_delay_seconds
+        return self.hassette.config.scheduler.max_delay_seconds
 
     @property
     def default_delay(self) -> float:
-        return self.hassette.config.scheduler_default_delay_seconds
+        return self.hassette.config.scheduler.default_delay_seconds
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.scheduler_service_log_level
+        return self.hassette.config.logging.scheduler_service
 
     async def before_initialize(self) -> None:
         self.logger.debug("Waiting for Hassette ready event")
@@ -268,7 +268,7 @@ class SchedulerService(Service):
         Args:
             app_key: The app key whose pending registration tasks to await.
         """
-        timeout = float(self.hassette.config.registration_await_timeout)
+        timeout = float(self.hassette.config.lifecycle.registration_await_timeout)
         await self._reg_tracker.await_complete(app_key, timeout=timeout, logger=self.logger)
 
     async def _enqueue_then_register(self, job: "ScheduledJob") -> None:
@@ -359,7 +359,7 @@ class SchedulerService(Service):
             job: The job to run.
         """
         lag = (date_utils.now() - job.fire_at).in_seconds()
-        if lag > self.hassette.config.scheduler_behind_schedule_threshold_seconds:
+        if lag > self.hassette.config.scheduler.behind_schedule_threshold_seconds:
             self.logger.warning("Job %s is behind schedule by %.2fs", job, lag)
 
         async_fn = self.task_bucket.make_async_adapter(job.job)
@@ -374,7 +374,7 @@ class SchedulerService(Service):
         elif job.timeout is not None:
             effective_timeout = job.timeout
         else:
-            effective_timeout = self.hassette.config.scheduler_job_timeout_seconds
+            effective_timeout = self.hassette.config.scheduler.job_timeout_seconds
 
         # Resolve the app-level error handler at dispatch time via the closure set by
         # Scheduler.add_job(). This avoids coupling the dispatch path to Scheduler internals.
@@ -535,7 +535,7 @@ class _ScheduledJobQueue(Resource):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.scheduler_service_log_level
+        return self.hassette.config.logging.scheduler_service
 
     async def add(self, job: "ScheduledJob") -> None:
         """Add a job to the queue."""

@@ -26,9 +26,9 @@ from hassette.task_bucket import TaskBucket
 def _make_hassette_mock() -> MagicMock:
     """Return a MagicMock Hassette with just enough attributes for TaskBucket.__init__."""
     hassette = MagicMock()
-    hassette.config.task_bucket_log_level = "DEBUG"
-    hassette.config.task_cancellation_timeout_seconds = 5
-    hassette.config.log_level = "DEBUG"
+    hassette.config.logging.task_bucket = "DEBUG"
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
+    hassette.config.logging.log_level = "DEBUG"
     return hassette
 
 

@@ -55,7 +55,7 @@ class SessionManager(Resource):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.database_service_log_level
+        return self.hassette.config.logging.database_service
 
     @property
     def session_id(self) -> int:

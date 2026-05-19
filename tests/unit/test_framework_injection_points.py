@@ -38,11 +38,11 @@ def _make_mock_hassette(name: str = "mock_hassette") -> Mock:
     """Create a minimal mock Hassette instance."""
     m = Mock(name=name)
     m.config = Mock()
-    m.config.apps_log_level = "DEBUG"
-    m.config.log_level = "DEBUG"
+    m.config.logging.apps = "DEBUG"
+    m.config.logging.log_level = "DEBUG"
     m.config.disable_state_proxy_polling = False
     m.config.state_proxy_poll_interval_seconds = 30
-    m.config.app_shutdown_timeout_seconds = 5
+    m.config.lifecycle.app_shutdown_timeout_seconds = 5
     m.task_bucket = Mock()
     m.task_bucket.spawn = Mock()
     return m
@@ -439,9 +439,9 @@ class TestHermeticConfigClosure:
 def _make_task_bucket() -> TaskBucket:
     """Build a TaskBucket with a minimal Hassette mock — bypasses __init__ to avoid Resource wiring."""
     hassette = Mock()
-    hassette.config.task_cancellation_timeout_seconds = 5
-    hassette.config.task_bucket_log_level = "DEBUG"
-    hassette.config.log_level = "DEBUG"
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
+    hassette.config.logging.task_bucket = "DEBUG"
+    hassette.config.logging.log_level = "DEBUG"
     hassette.config.dev_mode = False
     hassette._loop_thread_id = None
 

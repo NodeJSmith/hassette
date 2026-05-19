@@ -41,11 +41,11 @@ Files with `config_log_level` overrides (from grep):
 - `src/hassette/core/websocket_service.py` → `.logging.websocket`
 - `src/hassette/core/service_watcher.py` → `.logging.service_watcher`
 - `src/hassette/core/file_watcher.py` → `.logging.file_watcher`
-- `src/hassette/core/event_stream_service.py` → `.logging.database_service` (child of DB service)
+- `src/hassette/core/event_stream_service.py` → `.logging.bus_service` (peer of bus service)
 - `src/hassette/core/runtime_query_service.py` → `.logging.web_api` (child of web API)
-- `src/hassette/core/telemetry_query_service.py` → `.logging.database_service` (child of DB service)
+- `src/hassette/core/telemetry_query_service.py` → `.logging.web_api` (child of web API)
 - `src/hassette/core/session_manager.py` → `.logging.database_service` (child of DB service)
-- `src/hassette/core/web_ui_watcher.py` → `.logging.web_api` (child of web API)
+- `src/hassette/core/web_ui_watcher.py` → `.logging.file_watcher` (child of file watcher)
 - `src/hassette/core/api_resource.py` → `.logging.api`
 - `src/hassette/core/state_proxy.py` → `.logging.state_proxy`
 - `src/hassette/core/app_lifecycle_service.py` → `.logging.app_handler` (child of app handler)

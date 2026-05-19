@@ -136,7 +136,7 @@ async def test_wait_for_ready_uses_config_timeout(monkeypatch: pytest.MonkeyPatc
 
     waiter.assert_awaited_once_with(
         resources,
-        timeout=hassette_instance.config.startup_timeout_seconds,
+        timeout=hassette_instance.config.lifecycle.startup_timeout_seconds,
         shutdown_event=hassette_instance.shutdown_event,
     )
     assert result is True, "Expected wait_for_ready to return True from the helper"
@@ -186,7 +186,7 @@ async def test_run_forever_starts_and_shuts_down(hassette_instance: Hassette) ->
     # wait_for_ready called: once for DB, then once per startup wave.
     assert hassette_instance.wait_for_ready.await_count >= 2
     hassette_instance.wait_for_ready.assert_any_await(
-        [hassette_instance.database_service], timeout=hassette_instance.config.startup_timeout_seconds
+        [hassette_instance.database_service], timeout=hassette_instance.config.lifecycle.startup_timeout_seconds
     )
     # Session created between phase 1 and phase 2
     hassette_instance._session_manager.mark_orphaned_sessions.assert_awaited_once()

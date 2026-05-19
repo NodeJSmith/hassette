@@ -40,8 +40,8 @@ def _make_cmd_execute_job(source_tier: str) -> MagicMock:
 def _make_executor() -> CommandExecutor:
     """Build a CommandExecutor with all dependencies mocked out."""
     hassette = MagicMock()
-    hassette.config.telemetry_write_queue_max = 1000
-    hassette.config.command_executor_log_level = "DEBUG"
+    hassette.config.database.telemetry_write_queue_max = 1000
+    hassette.config.logging.command_executor = "DEBUG"
     hassette.database_service = MagicMock()
     hassette.session_id = 42
     executor = CommandExecutor.__new__(CommandExecutor)

@@ -774,7 +774,7 @@ def wire_config(hassette) -> None:
     """Wire a realistic config stub on mock_hassette so GET /config works.
 
     The config route calls ``hassette.config.model_dump(include=...)`` then reads
-    ``hassette.config.app_dir``, ``.data_dir``, and ``.config_dir`` via str().
+    ``hassette.config.app.directory``, ``.data_dir``, and ``.config_dir`` via str().
     A plain MagicMock fails Pydantic validation, so we replace it with a
     SimpleNamespace whose ``model_dump`` method returns a real dict and whose
     path attributes are Path objects.

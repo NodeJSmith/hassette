@@ -24,7 +24,7 @@ Remove the manual Path field injection (lines 45-47 for `app_dir`, `data_dir`, `
 
 **`src/hassette/web/models.py` (ConfigResponse at line 376):**
 
-Restructure `ConfigResponse` from a flat 26-field model to a nested structure mirroring the config groups. Create lightweight response sub-models for each group that only include the safe-to-expose fields:
+Restructure `ConfigResponse` from a flat 27-field model to a nested structure mirroring the config groups. Create lightweight response sub-models for each group that only include the safe-to-expose fields:
 
 ```python
 class DatabaseConfigResponse(BaseModel):
@@ -88,7 +88,7 @@ timeout 300 uv run pytest tests/integration/test_web_api.py -v -k config
 ## Focus
 
 - `src/hassette/web/routes/config.py` (48 lines) — small file, complete rewrite of the route logic. The current `_CONFIG_SAFE_FIELDS` set has 24 entries. After migration, use exclude-based approach or restructured include set.
-- `src/hassette/web/models.py:376-405` — `ConfigResponse` is currently 26 flat fields with defaults. Restructure into nested sub-models.
+- `src/hassette/web/models.py:376-405` — `ConfigResponse` is currently 27 flat fields with defaults (24 from allowlist + 3 injected Path fields). Restructure into nested sub-models.
 - `frontend/src/pages/config.tsx` (129 lines) — hardcodes 6 display groups with 28 field accesses. All field access patterns change.
 - `frontend/src/test/factories.ts` — `createSystemConfig()` produces flat config mock data.
 - `frontend/src/pages/config.test.tsx` — tests for the config page.

@@ -31,7 +31,7 @@ from hassette.test_utils.harness import HassetteHarness
 def harness_config(tmp_path: Path) -> HassetteConfig:
     """Create a test config pointing to a temporary database."""
     config = HassetteConfig(data_dir=tmp_path, token="test-token")
-    config.telemetry_write_queue_max = 10  # Small queue for testing overflow
+    config.database.telemetry_write_queue_max = 10  # Small queue for testing overflow
     return config
 
 
@@ -40,18 +40,18 @@ async def mock_hassette_with_db(premigrated_db_path: Path) -> MagicMock:
     """Create a mock Hassette with database service for direct executor tests."""
     hassette = MagicMock()
     hassette.config.data_dir = premigrated_db_path.parent
-    hassette.config.db_path = None
-    hassette.config.db_retention_days = 7
-    hassette.config.db_migration_timeout_seconds = 120
-    hassette.config.db_max_size_mb = 0
-    hassette.config.database_service_log_level = "INFO"
-    hassette.config.log_level = "INFO"
-    hassette.config.task_bucket_log_level = "INFO"
-    hassette.config.resource_shutdown_timeout_seconds = 5
-    hassette.config.task_cancellation_timeout_seconds = 5
-    hassette.config.command_executor_log_level = "INFO"
-    hassette.config.telemetry_write_queue_max = 1000
-    hassette.config.db_write_queue_max = 2000
+    hassette.config.database.path = None
+    hassette.config.database.retention_days = 7
+    hassette.config.database.migration_timeout_seconds = 120
+    hassette.config.database.max_size_mb = 0
+    hassette.config.logging.database_service = "INFO"
+    hassette.config.logging.log_level = "INFO"
+    hassette.config.logging.task_bucket = "INFO"
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
+    hassette.config.logging.command_executor = "INFO"
+    hassette.config.database.telemetry_write_queue_max = 1000
+    hassette.config.database.write_queue_max = 2000
     hassette.ready_event = asyncio.Event()
     hassette._loop_thread_id = threading.get_ident()
 
@@ -422,7 +422,7 @@ async def test_telemetry_query_service_exists(harness_config: HassetteConfig) ->
 async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: MagicMock) -> None:
     """Write queue full → dropped records incremented (AC-13)."""
     hassette = mock_hassette_with_db
-    hassette.config.telemetry_write_queue_max = 2
+    hassette.config.database.telemetry_write_queue_max = 2
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -433,7 +433,7 @@ async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: Magi
 
     from hassette.core.commands import InvokeHandler
 
-    for i in range(hassette.config.telemetry_write_queue_max):
+    for i in range(hassette.config.database.telemetry_write_queue_max):
         mock_event = MagicMock()
         mock_event.payload.event_id = None
         mock_event.payload.origin = None

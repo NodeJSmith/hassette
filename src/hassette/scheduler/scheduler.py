@@ -159,7 +159,7 @@ class Scheduler(Resource):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.scheduler_service_log_level
+        return self.hassette.config.logging.scheduler_service
 
     def add_job(
         self, job: "ScheduledJob", *, if_exists: Literal["error", "skip", "replace"] = "error"

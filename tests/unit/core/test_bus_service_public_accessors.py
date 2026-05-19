@@ -29,10 +29,10 @@ from hassette.types.types import FRAMEWORK_APP_KEY, FRAMEWORK_APP_KEY_PREFIX
 def _make_hassette_mock() -> MagicMock:
     """Return a MagicMock Hassette with just enough attributes for BusService.__init__."""
     hassette = MagicMock()
-    hassette.config.bus_service_log_level = "DEBUG"
-    hassette.config.log_level = "DEBUG"
-    hassette.config.task_bucket_log_level = "DEBUG"
-    hassette.config.task_cancellation_timeout_seconds = 5
+    hassette.config.logging.bus_service = "DEBUG"
+    hassette.config.logging.log_level = "DEBUG"
+    hassette.config.logging.task_bucket = "DEBUG"
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
     hassette.config.bus_excluded_domains = []
     hassette.config.bus_excluded_entities = []
     hassette.ready_event = asyncio.Event()

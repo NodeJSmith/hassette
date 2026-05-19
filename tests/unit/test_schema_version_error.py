@@ -43,9 +43,9 @@ class TestDatabaseServiceRaisesSchemaVersionError:
     def _make_svc(self, tmp_path: Path) -> DatabaseService:
         """Build a DatabaseService instance without going through __init__."""
         hassette_mock = MagicMock()
-        hassette_mock.config.db_path = None
+        hassette_mock.config.database.path = None
         hassette_mock.config.data_dir = tmp_path
-        hassette_mock.config.database_service_log_level = "INFO"
+        hassette_mock.config.logging.database_service = "INFO"
 
         svc = DatabaseService.__new__(DatabaseService)
         svc._db = None

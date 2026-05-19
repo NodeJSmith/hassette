@@ -315,15 +315,18 @@ def write_app_toml(
     """Write a hassette.toml with specified apps."""
     apps = apps or []
 
-    hassette_dict = {
-        "app_dir": app_dir.as_posix(),
-        "autodetect_apps": False,
+    hassette_dict: dict = {
         "dev_mode": dev_mode,
+        "app": {
+            "directory": app_dir.as_posix(),
+            "autodetect": False,
+        },
     }
 
-    app_dicts = {"apps": {app.app_key: get_app_manifest_for_toml(app) for app in apps}}
+    if apps:
+        hassette_dict["app"]["apps"] = {app.app_key: get_app_manifest_for_toml(app) for app in apps}
 
-    toml_dict = {"hassette": hassette_dict, **app_dicts}
+    toml_dict = {"hassette": hassette_dict}
 
     # Convert any non-serializable types to strings for TOML compatibility
     toml_dict = json.loads(json.dumps(toml_dict, indent=2, default=str))

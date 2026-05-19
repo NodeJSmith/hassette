@@ -99,7 +99,7 @@ async def _check_retention_expired(hassette: "Hassette", execution_id: str) -> b
     execution's timestamp is older than log_retention_days, its logs have been expired.
     """
     try:
-        cutoff = time.time() - hassette.config.log_retention_days * _SECONDS_PER_DAY
+        cutoff = time.time() - hassette.config.logging.log_retention_days * _SECONDS_PER_DAY
         return await _repo.check_execution_predates_retention_cutoff(
             hassette.database_service.read_db, execution_id, cutoff
         )

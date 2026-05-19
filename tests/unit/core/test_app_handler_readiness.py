@@ -17,15 +17,15 @@ from hassette.core.app_handler import AppHandler
 def mock_hassette() -> MagicMock:
     hassette = MagicMock()
     hassette.config = MagicMock()
-    hassette.config.app_startup_timeout_seconds = 30
-    hassette.config.app_shutdown_timeout_seconds = 10
+    hassette.config.lifecycle.app_startup_timeout_seconds = 30
+    hassette.config.lifecycle.app_shutdown_timeout_seconds = 10
     hassette.config.dev_mode = False
     hassette.config.allow_only_app_in_prod = False
     hassette.config.allow_reload_in_prod = False
-    hassette.config.app_handler_log_level = "DEBUG"
-    hassette.config.app_manifests = {}
+    hassette.config.logging.app_handler = "DEBUG"
+    hassette.config.app.manifests = {}
     hassette.config.data_dir = Path("/tmp/hassette-test")
-    hassette.config.log_level = "DEBUG"
+    hassette.config.logging.log_level = "DEBUG"
     hassette.send_event = AsyncMock()
     hassette.shutdown_event = asyncio.Event()
     hassette._bus_service = MagicMock()

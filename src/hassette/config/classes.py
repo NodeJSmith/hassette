@@ -41,6 +41,10 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
                 key,
             )
 
+        # Merge hassette_values into toml_data, preserving nested sub-dicts.
+        # In TOML, [hassette.database] is parsed as hassette_values["database"] = {...}.
+        # These nested dicts must remain as dicts so Pydantic's nested model resolution
+        # can coerce them into the appropriate model classes (e.g. DatabaseConfig).
         self.toml_data.update(hassette_values)
 
         # need to call InitSettingSource directly, as super() expects a file path

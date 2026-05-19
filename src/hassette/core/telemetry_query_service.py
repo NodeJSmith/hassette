@@ -137,10 +137,10 @@ class TelemetryQueryService(Resource):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        return self.hassette.config.web_api_log_level
+        return self.hassette.config.logging.web_api
 
     async def on_initialize(self) -> None:
-        if not self.hassette.config.run_web_api:
+        if not self.hassette.config.web_api.run:
             self.mark_ready(reason="Web API disabled")
             return
 

@@ -42,7 +42,7 @@ async def get_config(hassette: HassetteDep) -> ConfigResponse:
     # The three Path fields are intentionally outside _CONFIG_SAFE_FIELDS: model_dump() would
     # serialize them as PosixPath objects, not strings.  We inject them manually after str() cast
     # so that ConfigResponse receives plain strings regardless of the underlying Path type.
-    raw["app_dir"] = str(hassette.config.app_dir)
+    raw["app_dir"] = str(hassette.config.app.directory)
     raw["data_dir"] = str(hassette.config.data_dir)
     raw["config_dir"] = str(hassette.config.config_dir)
     return ConfigResponse.model_validate(raw)

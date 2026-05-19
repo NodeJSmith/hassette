@@ -13,10 +13,10 @@ from hassette.core.event_stream_service import EventStreamService
 def _make_mock_hassette(buffer_size: int = 1000) -> MagicMock:
     hassette = MagicMock()
     hassette.config.hassette_event_buffer_size = buffer_size
-    hassette.config.log_level = "INFO"
-    hassette.config.task_bucket_log_level = "INFO"
-    hassette.config.resource_shutdown_timeout_seconds = 5
-    hassette.config.task_cancellation_timeout_seconds = 5
+    hassette.config.logging.log_level = "INFO"
+    hassette.config.logging.task_bucket = "INFO"
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
     return hassette
 
 

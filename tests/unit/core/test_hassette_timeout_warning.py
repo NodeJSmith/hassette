@@ -16,8 +16,8 @@ def _make_hassette_stub(
     """
     h = object.__new__(Hassette)
     config = MagicMock()
-    config.scheduler_job_timeout_seconds = scheduler_job_timeout
-    config.event_handler_timeout_seconds = event_handler_timeout
+    config.scheduler.job_timeout_seconds = scheduler_job_timeout
+    config.lifecycle.event_handler_timeout_seconds = event_handler_timeout
     h.config = config
     h.logger = MagicMock()
     return h

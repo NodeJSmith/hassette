@@ -22,7 +22,7 @@ def _make_scheduler_service() -> "SchedulerService":  # noqa: F821
     svc = SchedulerService.__new__(SchedulerService)
     # Minimal mock for hassette with required config
     svc.hassette = MagicMock()
-    svc.hassette.config.registration_await_timeout = 30
+    svc.hassette.config.lifecycle.registration_await_timeout = 30
     svc._reg_tracker = RegistrationTracker()
     # Logger used by await_registrations_complete
     svc.logger = MagicMock()
@@ -89,7 +89,7 @@ class TestAwaitRegistrationsComplete:
     async def test_timeout_logs_warning_does_not_raise(self) -> None:
         """Timeout triggers a warning log but does not propagate as an exception."""
         svc = _make_scheduler_service()
-        svc.hassette.config.registration_await_timeout = 0.01  # very short timeout
+        svc.hassette.config.lifecycle.registration_await_timeout = 0.01  # very short timeout
 
         gate = asyncio.Event()
 

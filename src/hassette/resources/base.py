@@ -276,7 +276,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.log_level
+        return self.hassette.config.logging.log_level
 
     def add_child(self, child_class: type[_ResourceT], **kwargs: Any) -> _ResourceT:
         """Create and add a child resource to this resource.
@@ -315,7 +315,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         for child in self.children:
             child.start()
 
-        effective_timeout = timeout if timeout is not None else self.hassette.config.startup_timeout_seconds
+        effective_timeout = timeout if timeout is not None else self.hassette.config.lifecycle.startup_timeout_seconds
         ready = await wait_for_ready(
             self.children, timeout=effective_timeout, shutdown_event=self.hassette.shutdown_event
         )
@@ -440,7 +440,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     async def _shutdown_children(self) -> bool:
         """Propagate shutdown to children. Returns True if all completed within timeout and without errors."""
-        timeout = self.hassette.config.resource_shutdown_timeout_seconds
+        timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
         children = self._ordered_children_for_shutdown()
         if not children:
             return True
@@ -464,7 +464,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
     async def _finalize_shutdown(self) -> None:
         """Common shutdown cleanup: cancel tasks, propagate to children, emit stopped event."""
-        timeout = self.hassette.config.resource_shutdown_timeout_seconds
+        timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
         try:
             async with asyncio.timeout(timeout):
                 await self.cleanup()
@@ -636,7 +636,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         This method is called during shutdown to ensure that all resources are properly released.
         """
-        timeout = timeout or self.hassette.config.resource_shutdown_timeout_seconds
+        timeout = timeout or self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
 
         self.cancel()
         with suppress(asyncio.CancelledError):
@@ -781,7 +781,7 @@ class Service(Resource):
                 try:
                     await asyncio.wait_for(
                         self._serve_task,
-                        timeout=self.hassette.config.resource_shutdown_timeout_seconds,
+                        timeout=self.hassette.config.lifecycle.resource_shutdown_timeout_seconds,
                     )
                 except asyncio.CancelledError:  # noqa: ASYNC103 — we just called .cancel(); this is the expected path
                     pass  # noqa: ASYNC104

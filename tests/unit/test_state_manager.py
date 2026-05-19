@@ -13,10 +13,10 @@ from hassette.test_utils import make_light_state_dict
 def _make_hassette_mock() -> MagicMock:
     """Return a MagicMock Hassette with just enough attributes for StateManager.__init__."""
     hassette = MagicMock()
-    hassette.config.state_proxy_log_level = "DEBUG"
-    hassette.config.log_level = "DEBUG"
-    hassette.config.task_bucket_log_level = "DEBUG"
-    hassette.config.task_cancellation_timeout_seconds = 5
+    hassette.config.logging.state_proxy = "DEBUG"
+    hassette.config.logging.log_level = "DEBUG"
+    hassette.config.logging.task_bucket = "DEBUG"
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
     return hassette
 
 

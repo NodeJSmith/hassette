@@ -13,11 +13,11 @@ def _make_bus_service(*, config_timeout: float | None = 600.0) -> BusService:
     """Create a BusService with mocked internals, bypassing Resource.__init__."""
     svc = BusService.__new__(BusService)
     svc.hassette = MagicMock()
-    svc.hassette.config.event_handler_timeout_seconds = config_timeout
+    svc.hassette.config.lifecycle.event_handler_timeout_seconds = config_timeout
     svc.hassette.config.bus_excluded_domains = ()
     svc.hassette.config.bus_excluded_entities = ()
-    svc.hassette.config.log_all_events = False
-    svc.hassette.config.registration_await_timeout = 30
+    svc.hassette.config.logging.all_events = False
+    svc.hassette.config.lifecycle.registration_await_timeout = 30
     svc.logger = MagicMock()
 
     # Mock the executor

@@ -115,7 +115,7 @@ class CommandExecutor(Service):
 
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
-        self._write_queue = asyncio.Queue(maxsize=hassette.config.telemetry_write_queue_max)
+        self._write_queue = asyncio.Queue(maxsize=hassette.config.database.telemetry_write_queue_max)
         self.repository = TelemetryRepository(hassette.database_service)
         self._dropped_overflow = 0
         self._dropped_exhausted = 0
@@ -128,7 +128,7 @@ class CommandExecutor(Service):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.command_executor_log_level
+        return self.hassette.config.logging.command_executor
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -558,7 +558,7 @@ class CommandExecutor(Service):
         here — sub-tasks spawned by user error handler code will inherit the same ID.
         """
         async_handler = self.task_bucket.make_async_adapter(handler)
-        timeout = self.hassette.config.error_handler_timeout_seconds
+        timeout = self.hassette.config.lifecycle.error_handler_timeout_seconds
         label = ctx.log_label
         try:
             async with asyncio.timeout(timeout):

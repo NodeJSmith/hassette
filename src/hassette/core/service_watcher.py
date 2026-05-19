@@ -96,7 +96,7 @@ class ServiceWatcher(Resource):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.service_watcher_log_level
+        return self.hassette.config.logging.service_watcher
 
     async def on_initialize(self) -> None:
         self._budgets = {}

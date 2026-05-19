@@ -19,8 +19,8 @@ FRONTEND_DIR = REPO_ROOT / "frontend"
 def _create_stub_hassette() -> MagicMock:
     """Minimal mock matching what ``create_fastapi_app`` needs."""
     stub = MagicMock()
-    stub.config.web_api_cors_origins = ()
-    stub.config.run_web_ui = False
+    stub.config.web_api.cors_origins = ()
+    stub.config.web_api.run_ui = False
     return stub
 
 

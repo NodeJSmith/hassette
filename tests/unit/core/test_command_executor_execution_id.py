@@ -21,9 +21,9 @@ from hassette.events.base import Event, HassContext, HassettePayload, HassPayloa
 def _make_executor() -> CommandExecutor:
     """Build a CommandExecutor with all dependencies mocked out."""
     hassette = MagicMock()
-    hassette.config.telemetry_write_queue_max = 1000
-    hassette.config.command_executor_log_level = "DEBUG"
-    hassette.config.error_handler_timeout_seconds = 5.0
+    hassette.config.database.telemetry_write_queue_max = 1000
+    hassette.config.logging.command_executor = "DEBUG"
+    hassette.config.lifecycle.error_handler_timeout_seconds = 5.0
     hassette.database_service = MagicMock()
     hassette.session_id = 42
     executor = CommandExecutor.__new__(CommandExecutor)

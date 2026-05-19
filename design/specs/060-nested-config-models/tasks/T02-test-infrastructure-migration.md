@@ -61,7 +61,7 @@ Update `tests/unit/test_make_test_config.py` to verify:
 
 ## Focus
 
-- `src/hassette/test_utils/config.py` (99 lines) — `make_test_config()` function and hermetic class factory. The closure-ref pattern (`cell[0] = merged`) must continue working. The key change is the defaults dict structure and adding `extra="forbid"`.
+- `src/hassette/test_utils/config.py` (98 lines) — `make_test_config()` function and hermetic class factory. The closure-ref pattern (`cell[0] = merged`) must continue working. The key change is the defaults dict structure and adding `extra="forbid"`.
 - `src/hassette/test_utils/harness.py:152-162` — `preserve_config` context manager. The `model_dump()` → `model_validate()` change is straightforward but verify it works with the nested structure.
 - `src/hassette/test_utils/web_mocks.py:60-80` — `create_hassette_stub()` sets 7 config attributes directly on a MagicMock. MagicMock auto-creates nested attrs, so `hassette.config.web_api.run` works naturally.
 - `tests/unit/test_make_test_config.py` (12 config accesses) — existing tests for the factory.

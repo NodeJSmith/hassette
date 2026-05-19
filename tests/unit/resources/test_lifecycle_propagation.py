@@ -287,7 +287,7 @@ async def test_shutdown_propagation_with_no_children():
 async def test_shutdown_propagation_timeout_forces_terminal_state():
     """When child shutdown times out, timed-out children are forced to consistent terminal state."""
     hassette = _make_hassette_stub()
-    hassette.config.resource_shutdown_timeout_seconds = 0.1  # very short timeout
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1  # very short timeout
 
     class HangingChild(Resource):
         """Resource whose shutdown hangs indefinitely."""
@@ -646,8 +646,8 @@ async def test_scheduler_on_shutdown_dequeues_all_jobs():
 async def test_app_shutdown_propagates_to_bus_and_scheduler():
     """App shutdown propagates to Bus.on_shutdown and Scheduler.on_shutdown via children."""
     hassette = _make_hassette_stub()
-    hassette.config.app_shutdown_timeout_seconds = 5
-    hassette.config.apps_log_level = "DEBUG"
+    hassette.config.lifecycle.app_shutdown_timeout_seconds = 5
+    hassette.config.logging.apps = "DEBUG"
 
     app = App(hassette, app_config=AppConfig(instance_name="test_app"), index=0)
 
@@ -813,7 +813,7 @@ async def test_on_children_stopped_called_on_clean_shutdown():
 async def test_on_children_stopped_skipped_on_timeout():
     """_on_children_stopped() is NOT called when child shutdown times out."""
     hassette = _make_hassette_stub()
-    hassette.config.resource_shutdown_timeout_seconds = 0.1
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
 
     class HangingChild(Resource):
         async def on_shutdown(self) -> None:
@@ -837,7 +837,7 @@ async def test_on_children_stopped_skipped_on_timeout():
 async def test_cleanup_timeout_fires_on_hung_cleanup():
     """When cleanup() hangs, asyncio.timeout catches it and logs a warning."""
     hassette = _make_hassette_stub()
-    hassette.config.resource_shutdown_timeout_seconds = 0.1
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
 
     class HungCleanupResource(Resource):
         async def cleanup(self, timeout: int | None = None) -> None:
@@ -934,12 +934,12 @@ class _TotalTimeoutRoot(Resource):
 
     async def shutdown(self) -> None:
         try:
-            async with asyncio.timeout(self.hassette.config.total_shutdown_timeout_seconds):
+            async with asyncio.timeout(self.hassette.config.lifecycle.total_shutdown_timeout_seconds):
                 await super().shutdown()
         except TimeoutError:
             self.logger.critical(
                 "Total shutdown timeout (%ss) exceeded — forcing termination",
-                self.hassette.config.total_shutdown_timeout_seconds,
+                self.hassette.config.lifecycle.total_shutdown_timeout_seconds,
             )
             for child in self.children:
                 child._force_terminal()
@@ -962,8 +962,8 @@ class _TotalTimeoutRoot(Resource):
 async def test_total_shutdown_timeout_caps_wall_clock():
     """Hassette-style total timeout ensures shutdown completes within budget even when a child hangs."""
     hassette = _make_hassette_stub()
-    hassette.config.total_shutdown_timeout_seconds = 0.2
-    hassette.config.resource_shutdown_timeout_seconds = 5  # per-level timeout is much larger
+    hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.2
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5  # per-level timeout is much larger
 
     root = _TotalTimeoutRoot(hassette)
     hanging = root.add_child(_HangingChild)
@@ -986,8 +986,8 @@ async def test_total_shutdown_timeout_caps_wall_clock():
 async def test_total_timeout_force_patches_all_descendants():
     """On total timeout, _force_terminal() is called recursively on all descendants."""
     hassette = _make_hassette_stub()
-    hassette.config.total_shutdown_timeout_seconds = 0.1
-    hassette.config.resource_shutdown_timeout_seconds = 5
+    hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.1
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
 
     root = _TotalTimeoutRoot(hassette)
     hanging = root.add_child(_HangingChild)
@@ -1009,8 +1009,8 @@ async def test_total_timeout_force_patches_all_descendants():
 async def test_total_timeout_finally_always_closes_streams():
     """close_streams() equivalent is called even when the total timeout fires."""
     hassette = _make_hassette_stub()
-    hassette.config.total_shutdown_timeout_seconds = 0.1
-    hassette.config.resource_shutdown_timeout_seconds = 5
+    hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.1
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
 
     root = _TotalTimeoutRoot(hassette)
     root.add_child(_HangingChild)
@@ -1025,8 +1025,8 @@ async def test_total_timeout_finally_always_closes_streams():
 async def test_total_timeout_sets_shutdown_completed_first():
     """_shutdown_completed=True is set before handle_stop() and close_streams() in the finally block."""
     hassette = _make_hassette_stub()
-    hassette.config.total_shutdown_timeout_seconds = 0.1
-    hassette.config.resource_shutdown_timeout_seconds = 5
+    hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.1
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
 
     root = _TotalTimeoutRoot(hassette)
     root.add_child(_HangingChild)

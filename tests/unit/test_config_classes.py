@@ -143,7 +143,8 @@ class TestHassetteConfigModelDump:
 
         assert "token" in result
         assert "base_url" in result
-        assert "log_level" in result
+        assert "logging" in result
+        assert "log_level" in result["logging"]
 
     def test_model_dump_json_excludes_extras(self, test_config) -> None:
         if test_config.__pydantic_extra__ is None:

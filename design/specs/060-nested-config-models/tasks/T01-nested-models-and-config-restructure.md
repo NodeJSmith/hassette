@@ -54,7 +54,7 @@ Modify `HassetteTomlConfigSettingsSource` so that after extracting `[hassette]`,
 
 ### Step 4: Restructure dev/prod TOML defaults
 
-Update `src/hassette/config/hassette.dev.toml` and `src/hassette/config/hassette.prod.toml`: move the 16 grouped keys into nested sections (`[hassette.websocket]`, `[hassette.scheduler]`, `[hassette.lifecycle]`, `[hassette.file_watcher]`). Keep the 3 root-level keys (`dev_mode`, `allow_startup_if_app_precheck_fails`, `state_proxy_poll_interval_seconds`) directly under `[hassette]`.
+Update `src/hassette/config/hassette.dev.toml` and `src/hassette/config/hassette.prod.toml`: move the 16 grouped keys into nested sections (`[hassette.websocket]`, `[hassette.scheduler]`, `[hassette.lifecycle]`, `[hassette.file_watcher]`). Keep the 3 root-level keys (`dev_mode`, `allow_startup_if_app_precheck_fails`, `state_proxy_poll_interval_seconds`) directly under `[hassette]`. Only these 4 groups have keys in the dev/prod defaults; the other 4 groups (database, logging, web_api, app) have no defaults in these TOML files and should be left absent.
 
 Update `model_post_init` in `config.py` to handle nested groups from `get_defaults_dict()`. The existing flat iteration still works for the 3 root-level keys. For grouped keys, iterate group names, retrieve each nested sub-dict, and apply via `setattr(getattr(self, group_name), sub_field, value)`.
 

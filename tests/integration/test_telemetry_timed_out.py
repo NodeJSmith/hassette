@@ -25,19 +25,19 @@ from hassette.web.telemetry_helpers import compute_health_metrics
 def mock_hassette(premigrated_db_path: Path) -> MagicMock:
     hassette = MagicMock()
     hassette.config.data_dir = premigrated_db_path.parent
-    hassette.config.db_path = None
-    hassette.config.db_retention_days = 7
-    hassette.config.telemetry_write_queue_max = 500
-    hassette.config.db_write_queue_max = 2000
-    hassette.config.database_service_log_level = "INFO"
-    hassette.config.log_level = "INFO"
-    hassette.config.task_bucket_log_level = "INFO"
-    hassette.config.resource_shutdown_timeout_seconds = 5
-    hassette.config.task_cancellation_timeout_seconds = 5
-    hassette.config.web_api_log_level = "INFO"
-    hassette.config.run_web_api = True
-    hassette.config.db_migration_timeout_seconds = 120
-    hassette.config.db_max_size_mb = 0
+    hassette.config.database.path = None
+    hassette.config.database.retention_days = 7
+    hassette.config.database.telemetry_write_queue_max = 500
+    hassette.config.database.write_queue_max = 2000
+    hassette.config.logging.database_service = "INFO"
+    hassette.config.logging.log_level = "INFO"
+    hassette.config.logging.task_bucket = "INFO"
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
+    hassette.config.logging.web_api = "INFO"
+    hassette.config.web_api.run = True
+    hassette.config.database.migration_timeout_seconds = 120
+    hassette.config.database.max_size_mb = 0
     hassette.ready_event = asyncio.Event()
     return hassette
 

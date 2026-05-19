@@ -16,7 +16,7 @@ from hassette.core.web_ui_watcher import _WEB_DIR, WebUiWatcherService
 @pytest.fixture
 def mock_hassette() -> MagicMock:
     hassette = MagicMock()
-    hassette.config.web_ui_hot_reload = True
+    hassette.config.web_api.ui_hot_reload = True
     hassette.runtime_query_service = MagicMock()
     hassette.runtime_query_service.broadcast = AsyncMock()
     return hassette
@@ -96,7 +96,7 @@ async def test_multiple_changes_in_single_batch(watcher: WebUiWatcherService) ->
 
 
 async def test_disabled_config_does_not_broadcast(watcher: WebUiWatcherService) -> None:
-    watcher.hassette.config.web_ui_hot_reload = False
+    watcher.hassette.config.web_api.ui_hot_reload = False
     watcher.shutdown_event.set()
     await watcher.serve()
     watcher.hassette.runtime_query_service.broadcast.assert_not_awaited()

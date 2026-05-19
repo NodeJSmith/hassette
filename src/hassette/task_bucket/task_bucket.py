@@ -48,12 +48,12 @@ class TaskBucket(Resource):
     @property
     def config_cancel_timeout(self) -> int | float:
         """Return the task cancellation timeout from the config."""
-        return self.hassette.config.task_cancellation_timeout_seconds
+        return self.hassette.config.lifecycle.task_cancellation_timeout_seconds
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config."""
-        return self.hassette.config.task_bucket_log_level
+        return self.hassette.config.logging.task_bucket
 
     def __bool__(self) -> bool:
         # truthiness should not trigger __len__
@@ -224,7 +224,7 @@ class TaskBucket(Resource):
             The result of the function call.
         """
 
-        timeout_seconds = timeout_seconds or self.hassette.config.run_sync_timeout_seconds
+        timeout_seconds = timeout_seconds or self.hassette.config.lifecycle.run_sync_timeout_seconds
 
         # If we're already in an event loop, don't allow blocking calls.
         try:

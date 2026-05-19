@@ -84,7 +84,7 @@ Separately, 7 operational parameters in the database service are hardcoded as mo
 
 - **AC#1** Root configuration field count is reduced to ~21 cross-cutting fields (FR#1, FR#8)
 - **AC#2** `config.database.path`, `config.websocket.heartbeat_interval_seconds`, and similar nested access paths work correctly (FR#2)
-- **AC#3** A TOML file with `[database]` / `[websocket]` / `[logging]` sections loads correctly (FR#3)
+- **AC#3** A TOML file with `[hassette.database]` / `[hassette.websocket]` / `[hassette.logging]` sections loads correctly (FR#3)
 - **AC#4** `HASSETTE__DATABASE__RETENTION_DAYS=14` sets only that field without replacing other database defaults (FR#4, FR#5)
 - **AC#5** `log_retention_days > db_retention_days` raises a validation error referencing both nested paths (FR#6)
 - **AC#6** Database service reads all 7 operational parameters from config instead of module constants (FR#7)
@@ -111,7 +111,7 @@ Separately, 7 operational parameters in the database service are hardcoded as mo
 
 Extract 8 `BaseModel` subclasses from `HassetteConfig`. Each becomes a field on the root with a default instance. All nested models inherit `ExcludeExtrasMixin`.
 
-Field naming: strip the group prefix when moving to a nested model. `db_retention_days` becomes `database.retention_days`. `websocket_heartbeat_interval_seconds` becomes `websocket.heartbeat_interval_seconds`. Exception: core `LoggingConfig` fields that start with `log_` retain the prefix (e.g., `log_level`, `log_format`, `log_retention_days`) so the shared `log_level_default_factory` works unchanged for both `LoggingConfig` and `AppConfig`. The `log_all_*` boolean fields strip the `log_` prefix (→ `all_events`, `all_hass_events`, `all_hassette_events`) because they don't use the factory and the stripped names are clearer.
+Field naming: strip the group prefix when moving to a nested model. `db_retention_days` becomes `database.retention_days`. `websocket_heartbeat_interval_seconds` becomes `websocket.heartbeat_interval_seconds`. Per-service log level fields strip the `_log_level` suffix: `database_service_log_level` becomes `logging.database_service`. Exception: core `LoggingConfig` fields that start with `log_` retain the prefix (e.g., `log_level`, `log_format`, `log_retention_days`) so the shared `log_level_default_factory` works unchanged for both `LoggingConfig` and `AppConfig`. The `log_all_*` boolean fields strip the `log_` prefix (→ `all_events`, `all_hass_events`, `all_hassette_events`) because they don't use the factory and the stripped names are clearer.
 
 **DatabaseConfig** (13 fields — `src/hassette/config/models.py`):
 

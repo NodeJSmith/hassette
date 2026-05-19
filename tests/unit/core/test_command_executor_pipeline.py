@@ -60,14 +60,14 @@ def make_job_record(
 def make_executor(queue_max: int = 10) -> CommandExecutor:
     """Build a CommandExecutor with mocked Hassette dependencies."""
     hassette = MagicMock()
-    hassette.config.telemetry_write_queue_max = queue_max
-    hassette.config.command_executor_log_level = "DEBUG"
+    hassette.config.database.telemetry_write_queue_max = queue_max
+    hassette.config.logging.command_executor = "DEBUG"
     hassette.session_id = 42
     hassette.database_service = MagicMock()
     hassette.database_service.submit = AsyncMock(return_value=None)
     # Resource base class needs these
-    hassette.config.resource_shutdown_timeout_seconds = 30
-    hassette.config.startup_timeout_seconds = 30
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 30
+    hassette.config.lifecycle.startup_timeout_seconds = 30
     hassette.shutdown_event = asyncio.Event()
     hassette.ready_event = asyncio.Event()
     hassette.task_bucket = MagicMock()
@@ -85,7 +85,7 @@ def _init_executor(queue_max: int = 10) -> CommandExecutor:
     executor.repository.persist_batch = MagicMock()
     executor.hassette = MagicMock()
     executor.hassette.session_id = 42
-    executor.hassette.config.telemetry_write_queue_max = queue_max
+    executor.hassette.config.database.telemetry_write_queue_max = queue_max
     executor.hassette.database_service = MagicMock()
     executor.hassette.database_service.submit = AsyncMock(return_value=None)
     executor.logger = MagicMock()

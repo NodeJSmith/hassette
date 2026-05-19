@@ -65,11 +65,11 @@ def create_hassette_stub(
     hassette = MagicMock()
 
     # --- Config ---
-    hassette.config.run_web_api = run_web_api
-    hassette.config.run_web_ui = run_web_ui
-    hassette.config.web_api_cors_origins = cors_origins
-    hassette.config.web_api_event_buffer_size = event_buffer_size
-    hassette.config.web_api_log_level = log_level
+    hassette.config.web_api.run = run_web_api
+    hassette.config.web_api.run_ui = run_web_ui
+    hassette.config.web_api.cors_origins = cors_origins
+    hassette.config.web_api.event_buffer_size = event_buffer_size
+    hassette.config.logging.web_api = log_level
     hassette.config.dev_mode = dev_mode
     hassette.config.allow_reload_in_prod = allow_reload_in_prod
 

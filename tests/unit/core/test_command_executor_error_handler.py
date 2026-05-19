@@ -19,9 +19,9 @@ from hassette.scheduler.error_context import SchedulerErrorContext
 def _make_executor() -> CommandExecutor:
     """Build a CommandExecutor with all dependencies mocked out."""
     hassette = MagicMock()
-    hassette.config.telemetry_write_queue_max = 1000
-    hassette.config.command_executor_log_level = "DEBUG"
-    hassette.config.error_handler_timeout_seconds = 5.0
+    hassette.config.database.telemetry_write_queue_max = 1000
+    hassette.config.logging.command_executor = "DEBUG"
+    hassette.config.lifecycle.error_handler_timeout_seconds = 5.0
     hassette.database_service = MagicMock()
     hassette.session_id = 42
     executor = CommandExecutor.__new__(CommandExecutor)
@@ -314,7 +314,7 @@ class TestBusErrorHandlerInvocation:
     async def test_error_handler_timeout_logs_warning(self) -> None:
         """When error handler times out, _error_handler_failures is incremented."""
         executor = _make_executor()
-        executor.hassette.config.error_handler_timeout_seconds = 0.01
+        executor.hassette.config.lifecycle.error_handler_timeout_seconds = 0.01
 
         async def slow_handler(_ctx: BusErrorContext) -> None:
             await asyncio.sleep(10)  # will be cancelled by timeout
@@ -527,7 +527,7 @@ class TestSchedulerErrorHandlerInvocation:
     async def test_error_handler_timeout_increments_counter(self) -> None:
         """_error_handler_failures incremented when scheduler handler times out."""
         executor = _make_executor()
-        executor.hassette.config.error_handler_timeout_seconds = 0.01
+        executor.hassette.config.lifecycle.error_handler_timeout_seconds = 0.01
 
         async def slow(_ctx: SchedulerErrorContext) -> None:
             await asyncio.sleep(10)

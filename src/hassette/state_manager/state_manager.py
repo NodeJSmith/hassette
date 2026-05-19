@@ -230,7 +230,7 @@ class StateManager(Resource):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.state_proxy_log_level
+        return self.hassette.config.logging.state_proxy
 
     @property
     def _state_proxy(self) -> StateProxy:

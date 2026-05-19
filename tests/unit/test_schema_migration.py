@@ -269,10 +269,10 @@ class TestDbVersionMismatch:
         db_path.touch()  # Simulate existing DB file
 
         hassette_mock = MagicMock()
-        hassette_mock.config.db_path = db_path
+        hassette_mock.config.database.path = db_path
         hassette_mock.config.data_dir = tmp_path
-        hassette_mock.config.database_service_log_level = "INFO"
-        hassette_mock.config.db_migration_timeout_seconds = 30
+        hassette_mock.config.logging.database_service = "INFO"
+        hassette_mock.config.database.migration_timeout_seconds = 30
 
         svc = DatabaseService.__new__(DatabaseService)
         svc._db = None
@@ -303,4 +303,4 @@ class TestHassetteConfigTelemetryQueueMax:
     def test_telemetry_write_queue_max_default(self) -> None:
         """HassetteConfig.telemetry_write_queue_max defaults to 1000."""
         config = HassetteConfig(token="test-token", _cli_parse_args=False)
-        assert config.telemetry_write_queue_max == 1000
+        assert config.database.telemetry_write_queue_max == 1000

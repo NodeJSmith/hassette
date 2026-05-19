@@ -38,7 +38,7 @@ class EventStreamService(Resource):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.bus_service_log_level
+        return self.hassette.config.logging.bus_service
 
     @property
     def receive_stream(self) -> "MemoryObjectReceiveStream[tuple[str, Event[Any]]]":

@@ -233,7 +233,7 @@ async def test_is_true_identity_check_mock_safe():
     from unittest.mock import AsyncMock
 
     hassette = AsyncMock()
-    hassette.config.log_level = "DEBUG"
+    hassette.config.logging.log_level = "DEBUG"
     resource = _SimpleResource(hassette)
 
     assert resource.hassette.config.strict_lifecycle

@@ -157,7 +157,7 @@ async def test_send_and_wait_returns_response(websocket_service: WebsocketServic
 
 async def test_send_and_wait_times_out(websocket_service: WebsocketService) -> None:
     """Raise FailedMessageError when the response future times out."""
-    websocket_service.hassette.config.websocket_response_timeout_seconds = 0
+    websocket_service.hassette.config.websocket.response_timeout_seconds = 0
 
     websocket_service.send_json = AsyncMock(return_value=None)
 
@@ -569,10 +569,10 @@ async def test_early_drop_retries_and_succeeds(
 
     websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     websocket_service._partial_cleanup = fake_partial_cleanup  # pyright: ignore[reportAttributeAccessIssue]
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_max_retries", 5)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_stable_window_seconds", 30.0)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_backoff_initial_seconds", 0.001)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_backoff_max_seconds", 0.01)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 5)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_max_seconds", 0.01)
 
     await websocket_service.serve()
 
@@ -608,10 +608,10 @@ async def test_early_drop_exhausts_retry_budget(
 
     websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_max_retries", 2)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_stable_window_seconds", 30.0)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_backoff_initial_seconds", 0.001)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_backoff_max_seconds", 0.01)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 2)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_max_seconds", 0.01)
 
     with pytest.raises(RetryableConnectionClosedError):
         await websocket_service.serve()
@@ -645,11 +645,11 @@ async def test_early_drop_exhausts_recovery_timeout(
     websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
     # Configure very short max recovery (effectively 0)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_max_retries", 10)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_stable_window_seconds", 30.0)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_max_recovery_seconds", 0.0)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_backoff_initial_seconds", 0.001)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_backoff_max_seconds", 0.01)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 10)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "max_recovery_seconds", 0.0)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_max_seconds", 0.01)
 
     with pytest.raises(RetryableConnectionClosedError):
         await websocket_service.serve()
@@ -680,7 +680,7 @@ async def test_stable_connection_failure_propagates_immediately(
         return asyncio.ensure_future(_fail())
 
     websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_stable_window_seconds", 30.0)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
 
     with pytest.raises(RetryableConnectionClosedError):
         await websocket_service.serve()
@@ -710,7 +710,7 @@ async def test_non_retryable_exception_in_stable_window(
         return asyncio.ensure_future(_fail())
 
     websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_stable_window_seconds", 30.0)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
 
     with pytest.raises(RuntimeError):
         await websocket_service.serve()
@@ -743,10 +743,10 @@ async def test_auth_failure_on_reconnect_logs_distinctive_message(
 
     websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_max_retries", 5)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_stable_window_seconds", 30.0)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_backoff_initial_seconds", 0.001)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_backoff_max_seconds", 0.01)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 5)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_max_seconds", 0.01)
 
     with pytest.raises(InvalidAuthError):
         await websocket_service.serve()
@@ -829,10 +829,10 @@ async def test_service_status_stays_running_during_early_drop(
     websocket_service.mark_not_ready = capturing_mark_not_ready  # pyright: ignore[reportAttributeAccessIssue]
     websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
     websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_max_retries", 5)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_stable_window_seconds", 30.0)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_backoff_initial_seconds", 0.001)
-    monkeypatch.setattr(websocket_service.hassette.config, "websocket_early_drop_backoff_max_seconds", 0.01)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_max_retries", 5)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_stable_window_seconds", 30.0)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_initial_seconds", 0.001)
+    monkeypatch.setattr(websocket_service.hassette.config.websocket, "early_drop_backoff_max_seconds", 0.01)
 
     # Set service to RUNNING state using ._status bypass — deliberate test fixture setup,
     # not a lifecycle operation. handle_running() requires STARTING → RUNNING which needs
