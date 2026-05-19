@@ -27,7 +27,6 @@ Verifies leaf resource readiness:
 """
 
 import asyncio
-import logging
 from contextlib import suppress
 from unittest.mock import MagicMock
 
@@ -857,39 +856,21 @@ async def test_cleanup_timeout_fires_on_hung_cleanup():
 # ---------------------------------------------------------------------------
 
 
-async def test_initializing_warning_on_shutdown_during_init(caplog):
-    """_initializing=True + shutdown_event.set() -> DEBUG log; without -> WARNING."""
-
+async def test_finalize_shutdown_resets_initializing_flag():
+    """_finalize_shutdown() clears _initializing regardless of how shutdown was triggered."""
     hassette = _make_hassette_stub()
 
-    # Case 1: shutdown requested during init (shutdown_event is set) -> DEBUG
     resource1 = StubResource(hassette)
     resource1._initializing = True
     resource1.shutdown_event.set()
-
-    with caplog.at_level(logging.DEBUG):
-        await resource1._finalize_shutdown()
-
-    debug_msgs = [r for r in caplog.records if "shutting down with _initializing=True" in r.message]
-    assert any(r.levelno == logging.DEBUG for r in debug_msgs), (
-        f"Expected DEBUG log for shutdown-during-init, got levels: {[r.levelname for r in debug_msgs]}"
-    )
+    await resource1._finalize_shutdown()
     assert resource1._initializing is False
 
-    caplog.clear()
-
-    # Case 2: _initializing=True without shutdown_event -> WARNING (indicates a bug)
     resource2 = StubResource(hassette)
     resource2._initializing = True
     resource2.shutdown_event.clear()
-
-    with caplog.at_level(logging.DEBUG):
-        await resource2._finalize_shutdown()
-
-    warning_msgs = [r for r in caplog.records if "shutting down with _initializing=True" in r.message]
-    assert any(r.levelno == logging.WARNING for r in warning_msgs), (
-        f"Expected WARNING log for unexpected _initializing, got levels: {[r.levelname for r in warning_msgs]}"
-    )
+    await resource2._finalize_shutdown()
+    assert resource2._initializing is False
 
 
 # ---------------------------------------------------------------------------

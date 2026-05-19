@@ -159,7 +159,11 @@ def preserve_config(config: HassetteConfig) -> Generator[None, None, None]:
         yield
     finally:
         for key, value in original.items():
-            setattr(config, key, value)
+            field_info = type(config).model_fields.get(key)
+            if field_info and isinstance(value, dict) and hasattr(field_info.annotation, "model_validate"):
+                setattr(config, key, field_info.annotation.model_validate(value))
+            else:
+                setattr(config, key, value)
 
 
 # ---------------------------------------------------------------------------
