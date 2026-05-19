@@ -204,9 +204,7 @@ class Bus(Resource):
 
     def _listener_natural_key(self, listener: "Listener") -> tuple[str, int, str, str, str]:
         """Compute the natural key tuple for a listener (for collision tracking)."""
-        human_description: str = ""
-        if listener.predicate is not None:
-            human_description = P.summarize_top_level(listener.predicate)
+        human_description = P.summarize_top_level(listener.predicate) if listener.predicate is not None else ""
         return (
             listener.identity.app_key,
             listener.identity.instance_index,
@@ -499,21 +497,9 @@ class Bus(Resource):
                 f"'duration' is not supported with glob patterns. entity_id={entity_id!r} contains glob characters."
             )
 
-        preds: list[Predicate] = [P.EntityMatches(entity_id)]
-        hold_preds: list[Predicate] = [P.EntityMatches(entity_id)]
-
-        if changed:
-            if changed is True:
-                preds.append(P.StateDidChange())
-            else:
-                preds.append(P.StateComparison(condition=changed))
-
-        if changed_from is not NOT_PROVIDED:
-            preds.append(P.StateFrom(condition=changed_from))
-
-        if changed_to is not NOT_PROVIDED:
-            preds.append(P.StateTo(condition=changed_to))
-            hold_preds.append(P.StateTo(condition=changed_to))
+        preds, hold_preds = build_state_preds(
+            entity_id, changed=changed, changed_from=changed_from, changed_to=changed_to
+        )
 
         return self._subscribe(
             method_name=f"entity '{entity_id}'",
@@ -566,7 +552,6 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-
         if immediate and is_glob(entity_id):
             raise ValueError(
                 f"'immediate=True' is not supported with glob patterns. "
@@ -577,18 +562,7 @@ class Bus(Resource):
                 f"'duration' is not supported with glob patterns. entity_id={entity_id!r} contains glob characters."
             )
 
-        preds: list[Predicate] = [P.EntityMatches(entity_id)]
-        hold_preds: list[Predicate] = [P.EntityMatches(entity_id)]
-
-        # if not changed then we are going to fire every time the entity has a StateChanged event
-        # regardless of what changed - not sure if that is desired behavior or not, but it is consistent with the main
-        # on_state_change method
-        if changed:
-            if changed is True:
-                preds.append(P.AttrDidChange(attr))
-            else:
-                preds.append(P.AttrComparison(attr, condition=changed))
-        else:
+        if not changed:
             self.logger.warning(
                 (
                     "Handler '%s' - attribute change subscription "
@@ -599,12 +573,9 @@ class Bus(Resource):
                 entity_id,
             )
 
-        if changed_from is not NOT_PROVIDED:
-            preds.append(P.AttrFrom(attr, condition=changed_from))
-
-        if changed_to is not NOT_PROVIDED:
-            preds.append(P.AttrTo(attr, condition=changed_to))
-            hold_preds.append(P.AttrTo(attr, condition=changed_to))
+        preds, hold_preds = build_attr_preds(
+            entity_id, attr, changed=changed, changed_from=changed_from, changed_to=changed_to
+        )
 
         return self._subscribe(
             method_name=f"entity '{entity_id}' attribute '{attr}'",
@@ -1067,3 +1038,68 @@ class Bus(Resource):
         return self.on_app_state_changed(
             handler=handler, app_key=app_key, status=ResourceStatus.STOPPING, where=where, kwargs=kwargs, **opts
         )
+
+
+def build_state_preds(
+    entity_id: str,
+    *,
+    changed: "bool | ComparisonCondition",
+    changed_from: Any,
+    changed_to: Any,
+) -> "tuple[list[Predicate], list[Predicate]]":
+    """Build predicate lists for state change subscriptions.
+
+    Returns (preds, hold_preds). Both start with EntityMatches. The caller
+    decides whether to pass hold_preds to _subscribe (only when duration is set).
+    """
+    preds: list[Predicate] = [P.EntityMatches(entity_id)]
+    hold_preds: list[Predicate] = [P.EntityMatches(entity_id)]
+
+    if changed:
+        if changed is True:
+            preds.append(P.StateDidChange())
+        else:
+            preds.append(P.StateComparison(condition=changed))
+
+    if changed_from is not NOT_PROVIDED:
+        preds.append(P.StateFrom(condition=changed_from))
+
+    if changed_to is not NOT_PROVIDED:
+        changed_to_pred = P.StateTo(condition=changed_to)
+        preds.append(changed_to_pred)
+        hold_preds.append(changed_to_pred)
+
+    return preds, hold_preds
+
+
+def build_attr_preds(
+    entity_id: str,
+    attr: str,
+    *,
+    changed: "bool | ComparisonCondition",
+    changed_from: Any,
+    changed_to: Any,
+) -> "tuple[list[Predicate], list[Predicate]]":
+    """Build predicate lists for attribute change subscriptions.
+
+    Returns (preds, hold_preds). Both start with EntityMatches. The caller
+    decides whether to pass hold_preds to _subscribe (only when duration is set).
+    """
+    preds: list[Predicate] = [P.EntityMatches(entity_id)]
+    hold_preds: list[Predicate] = [P.EntityMatches(entity_id)]
+
+    if changed:
+        if changed is True:
+            preds.append(P.AttrDidChange(attr))
+        else:
+            preds.append(P.AttrComparison(attr, condition=changed))
+
+    if changed_from is not NOT_PROVIDED:
+        preds.append(P.AttrFrom(attr, condition=changed_from))
+
+    if changed_to is not NOT_PROVIDED:
+        changed_to_pred = P.AttrTo(attr, condition=changed_to)
+        preds.append(changed_to_pred)
+        hold_preds.append(changed_to_pred)
+
+    return preds, hold_preds
