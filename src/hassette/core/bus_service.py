@@ -160,7 +160,7 @@ class BusService(Service):
         # Async: spawn DB registration as a background task.
         app_key = listener.identity.app_key or listener.identity.owner_id
         reg = self._build_registration(listener)
-        task = self.task_bucket.spawn(self._register_in_db(listener, reg), name="bus:register_listener")
+        task = self.task_bucket.spawn(self._register_in_db(listener, reg), name="bus:register_in_db")
         self._reg_tracker.prune_and_track(app_key, task)
 
         if listener.duration_config is not None and listener.duration_config.immediate:
@@ -555,7 +555,7 @@ class BusService(Service):
 
         # Route first, then dedupe by "first match wins" because routes are ordered by specificity
         for route in routes:
-            listeners = self.router.get_topic_listeners(route)  # sync — no await
+            listeners = self.router.get_topic_listeners(route)
             for listener in listeners:
                 if listener.listener_id in chosen:
                     continue

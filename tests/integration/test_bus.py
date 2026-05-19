@@ -746,14 +746,8 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
     assert not handler_fired, "Handler should not fire after rate limiter cancellation"
 
 
-# test_cancel_before_add_task_completes_does_not_orphan_listener and
-# test_cancel_before_add_task_completes_app_key_path were deleted in the sync-routing
-# migration (WP060). Both tests used an async gated_add_route monkey-patch that blocked
-# router.add_route with asyncio.Event.wait(). With synchronous routing, add_route is no
-# longer a coroutine — the patch creates a coroutine that is never awaited, so the tests
-# passed vacuously. The race they guarded against is eliminated by construction: route
-# insertion is now synchronous and completes before add_listener returns to the caller.
-# Ordering correctness is verified by the AC#1 test in test_bus_ordering.py (T05).
+# test_cancel_before_add_task_completes_* tests deleted — the add-before-cancel race they
+# guarded is eliminated by sync routing. See test_bus_ordering.py AC#1 for the replacement.
 
 
 # ---------------------------------------------------------------------------

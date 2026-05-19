@@ -107,7 +107,7 @@ async def test_cancel_then_add_routes_exactly_one_handler(bus: "Bus") -> None:
 async def test_cancel_then_add_different_topics_both_routed(bus: "Bus") -> None:
     """Cancel on one topic + add on another topic — both are independent, no collision."""
     sub_a = bus.on(topic="test.ordering.topic_a", handler=_handler_alpha)
-    bus.on(topic="test.ordering.topic_b", handler=_handler_beta)
+    sub_b = bus.on(topic="test.ordering.topic_b", handler=_handler_beta)  # noqa: F841
 
     # Cancel topic_a handler
     sub_a.cancel()
@@ -241,8 +241,9 @@ async def test_interleaved_add_remove_preserves_count(bus: "Bus") -> None:
     assert len(bus.get_listeners()) == 2
 
     sub1.cancel()
-    assert len(bus.get_listeners()) == 1
-    assert bus.get_listeners()[0].listener_id == sub2.listener.listener_id
+    listeners = bus.get_listeners()
+    assert len(listeners) == 1
+    assert listeners[0].listener_id == sub2.listener.listener_id
 
     sub2.cancel()
     assert bus.get_listeners() == []

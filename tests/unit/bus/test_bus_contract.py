@@ -12,7 +12,9 @@ Tests:
 """
 
 import asyncio
+import importlib.util
 import inspect
+import pathlib
 import typing
 from unittest.mock import AsyncMock, patch
 
@@ -20,6 +22,11 @@ import pytest
 
 from hassette.bus.router import Router
 from hassette.events.base import Event
+
+
+class _CustomDbError(Exception):
+    pass
+
 
 if typing.TYPE_CHECKING:
     from hassette.bus import Bus
@@ -184,10 +191,7 @@ async def test_registration_task_resolves_on_exception_subclass(
     completes.
     """
 
-    class CustomDbError(Exception):
-        pass
-
-    with patch.object(bus_service._executor, "register_listener", new=AsyncMock(side_effect=CustomDbError("custom"))):
+    with patch.object(bus_service._executor, "register_listener", new=AsyncMock(side_effect=_CustomDbError("custom"))):
         sub = bus.on(topic="test.contract.custom_exc", handler=_handler_contract)
 
         assert sub.registration_task is not None
@@ -219,10 +223,6 @@ class TestRouterSyncContract:
 
     These tests prevent silent regression where someone re-adds async to Router
     methods. Checking at the class level catches both instance and unbound forms.
-
-    Note: Structural tests for Router also exist in test_router.py::TestRouterSyncContract.
-    These contract tests duplicate the assertion here to anchor them to the routing-vs-
-    registration independence story and make the AC traceability explicit.
     """
 
     ROUTER_MUTATION_METHODS: typing.ClassVar[list[str]] = [
@@ -288,9 +288,6 @@ class TestRouterSyncContract:
         Verifies the source-level constraint, not just the runtime instance. This
         catches cases where FairAsyncRLock is imported but unused (lint dead code).
         """
-        import importlib.util
-        import pathlib
-
         spec = importlib.util.find_spec("hassette.bus.router")
         assert spec is not None
         assert spec.origin is not None

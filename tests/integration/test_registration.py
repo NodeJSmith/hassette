@@ -236,7 +236,7 @@ def test_listener_with_app_key_spawns_combined_task(mock_hassette: MagicMock) ->
     # Single spawn: bus:register_listener (DB registration; route insertion is sync)
     assert bus_service.task_bucket.spawn.call_count == 1
     spawn_kwargs = bus_service.task_bucket.spawn.call_args
-    assert spawn_kwargs.kwargs.get("name") == "bus:register_listener"
+    assert spawn_kwargs.kwargs.get("name") == "bus:register_in_db"
 
 
 # ---------------------------------------------------------------------------
@@ -280,7 +280,7 @@ def test_listener_with_empty_app_key_spawns_db_registration(mock_hassette: Magic
     # One spawn call: the DB registration task (route insertion is now synchronous).
     assert bus_service.task_bucket.spawn.call_count == 1
     spawn_kwargs = bus_service.task_bucket.spawn.call_args
-    assert spawn_kwargs.kwargs.get("name") == "bus:register_listener"
+    assert spawn_kwargs.kwargs.get("name") == "bus:register_in_db"
 
 
 def test_listener_with_app_key_triggers_registration(mock_hassette: MagicMock) -> None:
@@ -300,7 +300,7 @@ def test_listener_with_app_key_triggers_registration(mock_hassette: MagicMock) -
     # Single spawn: bus:register_listener (DB registration; route insertion is now sync)
     assert bus_service.task_bucket.spawn.call_count == 1
     spawn_kwargs = bus_service.task_bucket.spawn.call_args
-    assert spawn_kwargs.kwargs.get("name") == "bus:register_listener"
+    assert spawn_kwargs.kwargs.get("name") == "bus:register_in_db"
 
 
 def test_job_with_empty_app_key_skips_registration(mock_hassette: MagicMock) -> None:
