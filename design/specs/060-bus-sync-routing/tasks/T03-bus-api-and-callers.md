@@ -82,5 +82,5 @@ Reference: design doc `## Architecture > ### Bus: public API changes`, `### Call
 - The `before_shutdown` method in `core.py` wraps `remove_all_listeners` in `try/except Exception` — this correctly handles synchronous exceptions from the now-sync call.
 
 ## Verify
-- [ ] FR#6: `_on_internal` passes the DB registration task from `bus_service.add_listener` to `Subscription.registration_task` — callers can await it to know when persistence was attempted
-- [ ] AC#6: `Subscription.registration_task` docstring states that routing is synchronous and the future resolves regardless of DB success or failure (including `CancelledError` from timeout)
+- [ ] FR#6: `_on_internal` passes the DB registration task from `bus_service.add_listener` to `Subscription.registration_task` — callers can await it to know when persistence was attempted. Verify: `grep -n 'registration_task' src/hassette/bus/bus.py` shows the task assignment in `_on_internal`.
+- [ ] AC#6: `Subscription.registration_task` docstring states that routing is synchronous and the future resolves regardless of DB success or failure (including `CancelledError` from timeout). Verify: `grep -A5 'registration_task' src/hassette/bus/listeners.py` confirms the updated docstring includes "routing is synchronous" and "resolves regardless".

@@ -10,6 +10,8 @@ implements: ["AC#9"]
 Update all test mocks, assertions, and patterns across the test suite to match the new synchronous routing contract. This is a mechanical migration — replacing `AsyncMock` with `Mock`, removing `await` from sync calls, deleting tests for races that no longer exist, and updating spawn count/name assertions. The full test suite must pass with no regressions.
 
 ## Prompt
+**Note:** Line numbers below are from the time of planning. T01–T03 may shift lines in shared files. Verify all line numbers against the actual file content before editing.
+
 Migrate the following test files. For each, the change pattern is documented below.
 
 **`tests/integration/test_core.py`:**
@@ -37,7 +39,7 @@ Migrate the following test files. For each, the change pattern is documented bel
 - Delete `test_cancel_before_add_task_completes_does_not_orphan_listener` (lines 749-808) and `test_cancel_before_add_task_completes_app_key_path` (lines 809-842). These tests use an async gate on `router.add_route` that is incompatible with sync routing. The race they tested is eliminated by construction and covered by new AC#1 ordering test in T05.
 
 **`tests/integration/test_dispatch_unification.py`:**
-- Line 188: `await bus_service._register_then_add_route(listener)` — method is deleted. Replace with `bus_service.router.add_route(listener.topic, listener)` followed by `await bus_service._register_in_db(listener, bus_service._build_registration(listener))`.
+- Line 188: `await bus_service._register_then_add_route(listener)` — method is deleted. Preferred: restructure the test to call the public `bus_service.add_listener(listener)` path (sync route + spawned DB task) and await the returned task if DB verification is needed. Fallback: call `bus_service.router.add_route(listener.topic, listener)` + `await bus_service._register_in_db(listener, bus_service._build_registration(listener))` directly, but note this tests internals.
 
 **`tests/unit/bus/test_bus_timeout_threading.py`:**
 - Line 13: `add_listener` mock returns `MagicMock(spec=["add_done_callback"])` — change to return a resolved `asyncio.Future[None]` or `None`.
