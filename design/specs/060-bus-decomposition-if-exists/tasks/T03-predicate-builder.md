@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Extract shared predicate builder for state/attribute change"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#3", "AC#3", "AC#4", "AC#5"]
 ---
