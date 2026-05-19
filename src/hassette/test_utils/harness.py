@@ -160,7 +160,12 @@ def preserve_config(config: HassetteConfig) -> Generator[None, None, None]:
     finally:
         for key, value in original.items():
             field_info = type(config).model_fields.get(key)
-            if field_info and isinstance(value, dict) and hasattr(field_info.annotation, "model_validate"):
+            if (
+                field_info
+                and field_info.annotation is not None
+                and isinstance(value, dict)
+                and hasattr(field_info.annotation, "model_validate")
+            ):
                 setattr(config, key, field_info.annotation.model_validate(value))
             else:
                 setattr(config, key, value)

@@ -213,7 +213,7 @@ class TaskBucket(Resource):
 
         return _sync_fn
 
-    def run_sync(self, fn: Coroutine[Any, Any, R], timeout_seconds: int | None = None) -> R:
+    def run_sync(self, fn: Coroutine[Any, Any, R], timeout_seconds: int | float | None = None) -> R:
         """Run an async function in a synchronous context.
 
         Args:
