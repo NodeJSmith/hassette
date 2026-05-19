@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Decompose _immediate_fire_task into focused helpers"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "AC#1", "AC#4", "AC#5"]
 ---

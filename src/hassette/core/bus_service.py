@@ -7,7 +7,7 @@ from typing import Any, ClassVar
 from uuid import uuid4
 
 import hassette.utils.date_utils as _date_utils
-from hassette.bus.listeners import Listener, Subscription
+from hassette.bus.listeners import DurationConfig, Listener, Subscription
 from hassette.bus.router import Router
 from hassette.core.commands import InvokeHandler
 from hassette.core.registration import ListenerRegistration
@@ -25,12 +25,73 @@ from hassette.utils.glob_utils import matches_globs, split_exact_and_glob
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
 if typing.TYPE_CHECKING:
+    import logging
+
     from anyio.streams.memory import MemoryObjectReceiveStream
 
     from hassette import Hassette
     from hassette.core.command_executor import CommandExecutor
     from hassette.events import EventPayload
     from hassette.events.hass.raw import HassStateDict
+
+
+def read_current_state(
+    hassette: "Hassette",
+    entity_id: str,
+    listener: "Listener",
+    logger: "logging.Logger",
+) -> "HassStateDict | None":
+    """Read entity state from StateProxy; returns None and logs on any failure."""
+    try:
+        state_proxy = hassette._state_proxy
+        if state_proxy is None:
+            logger.debug("immediate_fire: StateProxy not available for entity %s, skipping", entity_id)
+            return None
+        current_state = state_proxy.states.get(entity_id)
+        if current_state is None:
+            logger.debug("immediate_fire: entity %s not found in StateProxy, skipping", entity_id)
+            return None
+        return current_state
+    except ResourceNotReadyError as exc:
+        logger.error(
+            "immediate_fire: ResourceNotReadyError for entity %s (sequencing violation). owner=%s topic=%s",
+            entity_id,
+            listener.identity.owner_id,
+            listener.topic,
+            exc_info=exc,
+        )
+        return None
+    except Exception as exc:
+        logger.warning(
+            "immediate_fire: unexpected error for entity %s, immediate fire will not occur. owner=%s topic=%s",
+            entity_id,
+            listener.identity.owner_id,
+            listener.topic,
+            exc_info=exc,
+        )
+        return None
+
+
+def compute_elapsed(current_state: "HassStateDict", duration_config: DurationConfig) -> float:
+    """Compute how long an entity has been in its current state.
+
+    For attribute listeners, returns 0.0 (elapsed time is not tracked the same way).
+    Returns a value clamped to [0.0, duration_config.duration].
+    """
+    if duration_config.is_attribute_listener:
+        return 0.0
+
+    last_changed_raw = current_state.get("last_changed")
+    if not isinstance(last_changed_raw, str):
+        return 0.0
+
+    last_changed = _date_utils.convert_datetime_str_to_system_tz(last_changed_raw)
+    if last_changed is None:
+        return 0.0
+
+    now_dt = _date_utils.now()
+    raw_elapsed = (now_dt - last_changed).in_seconds()
+    return max(0.0, min(raw_elapsed, duration_config.duration))
 
 
 class BusService(Service):
@@ -307,136 +368,87 @@ class BusService(Service):
     async def _immediate_fire_task(self, listener: Listener) -> None:
         """Fire a handler immediately with the current entity state.
 
-        Called as a separate spawned task (not inline) after route insertion and
-        DB registration complete.  Reads the current entity state from StateProxy
-        via direct dict access — no retries, no HTTP, no exception path.
-
-        This implements the ``immediate=True`` semantics: if the entity already
-        exists in the cache at registration time the handler fires once with a
-        synthetic ``RawStateChangeEvent`` whose ``old_state`` is None.
-
-        Error contract:
-            - If the entity is not found → return silently, log at DEBUG.
-            - ``ResourceNotReadyError`` (should not occur; StateProxy is ready before
-              apps' ``on_initialize`` runs) → log at ERROR as a sequencing violation.
-            - Any other exception → log at WARNING; immediate fire becomes a no-op.
+        Implements ``immediate=True``: fires once with a synthetic ``RawStateChangeEvent``
+        (``old_state=None``) if the entity is in the cache.  Error handling is delegated
+        to ``read_current_state``.
         """
         duration_config = listener.duration_config
         entity_id = duration_config.entity_id if duration_config else None
         if not entity_id:
             self.logger.error(
-                "immediate_fire: listener has no entity_id — construction invariant violated. "
-                "Listener owner=%s topic=%s",
+                "immediate_fire: listener has no entity_id (invariant violated). owner=%s topic=%s",
                 listener.identity.owner_id,
                 listener.topic,
             )
             return
 
+        current_state = read_current_state(self.hassette, entity_id, listener, self.logger)
+        if current_state is None:
+            return
+
+        synthetic_event = self._make_synthetic_state_event(entity_id, current_state)
+        if not listener.matches(synthetic_event):
+            return
+
+        # FR4: handler receives the synthetic event built at registration time;
+        # fire-time rechecks validate state but don't change what the handler sees.
+        invoke_fn = self._make_tracked_invoke_fn(synthetic_event.topic, synthetic_event, listener, is_synthetic=True)
+
+        if duration_config is not None and duration_config.duration is not None:
+            elapsed = compute_elapsed(current_state, duration_config)
+            if elapsed >= duration_config.duration:
+                try:
+                    await listener.invoker.dispatch(invoke_fn)
+                finally:
+                    if listener.options.once:
+                        self.remove_listener(listener)
+            else:
+                remaining = duration_config.duration - elapsed
+                self.logger.debug(
+                    "immediate_fire: %s elapsed=%.2fs, timer remaining=%.2fs",
+                    entity_id,
+                    elapsed,
+                    remaining,
+                )
+                self.start_remaining_duration_timer(listener, entity_id, duration_config, invoke_fn, remaining)
+            return
+
         try:
-            state_proxy = self.hassette._state_proxy
-            if state_proxy is None:
-                self.logger.debug(
-                    "immediate_fire: StateProxy not available for entity %s, skipping",
-                    entity_id,
-                )
+            await listener.invoker.dispatch(invoke_fn)
+        finally:
+            if listener.options.once:
+                self.remove_listener(listener)
+
+    def start_remaining_duration_timer(
+        self,
+        listener: Listener,
+        entity_id: str,
+        duration_config: DurationConfig,
+        invoke_fn: "Callable[[], Awaitable[None]]",
+        remaining: float,
+    ) -> None:
+        """Start a timer for the ``remaining`` hold seconds; rechecks predicates at fire time."""
+
+        async def on_duration_fire_immediate() -> None:
+            self._duration_timers_active -= 1
+            current = self._read_entity_state(entity_id)
+            if current is None:
+                if listener.options.once:
+                    self.remove_listener(listener)
                 return
-
-            current_state = state_proxy.states.get(entity_id)
-            if current_state is None:
-                self.logger.debug(
-                    "immediate_fire: entity %s not found in StateProxy, skipping",
-                    entity_id,
-                )
+            recheck_event = self._make_synthetic_state_event(entity_id, current)
+            if not self._hold_matches(listener, recheck_event):
+                if listener.options.once:
+                    self.remove_listener(listener)
                 return
-
-            synthetic_event = self._make_synthetic_state_event(entity_id, current_state)
-
-            if not listener.matches(synthetic_event):
-                return
-
-            # FR4: handler receives the original triggering event (the synthetic event
-            # built from current state at registration time).  The recheck at fire time
-            # validates current state but does not change what event the handler receives.
-            invoke_fn = self._make_tracked_invoke_fn(
-                synthetic_event.topic, synthetic_event, listener, is_synthetic=True
-            )
-
-            if duration_config is not None and duration_config.duration is not None:
-                duration_timer = duration_config.timer
-                elapsed = 0.0
-                if not duration_config.is_attribute_listener:
-                    last_changed_raw = current_state.get("last_changed")
-                    if isinstance(last_changed_raw, str):
-                        last_changed = _date_utils.convert_datetime_str_to_system_tz(last_changed_raw)
-                        if last_changed is not None:
-                            now_dt = _date_utils.now()
-                            raw_elapsed = (now_dt - last_changed).in_seconds()
-                            elapsed = max(0.0, min(raw_elapsed, duration_config.duration))
-
-                if elapsed >= duration_config.duration:
-                    try:
-                        await listener.invoker.dispatch(invoke_fn)
-                    finally:
-                        if listener.options.once:
-                            self.remove_listener(listener)
-                else:
-                    remaining = duration_config.duration - elapsed
-                    self.logger.debug(
-                        "immediate_fire: entity %s elapsed=%.2fs, starting duration timer for remaining=%.2fs",
-                        entity_id,
-                        elapsed,
-                        remaining,
-                    )
-
-                    async def on_duration_fire_immediate() -> None:
-                        self._duration_timers_active -= 1
-                        current = self._read_entity_state(entity_id)
-                        if current is None:
-                            if listener.options.once:
-                                self.remove_listener(listener)
-                            return
-
-                        recheck_event = self._make_synthetic_state_event(entity_id, current)
-                        if not self._hold_matches(listener, recheck_event):
-                            if listener.options.once:
-                                self.remove_listener(listener)
-                            return
-
-                        try:
-                            await listener.invoker.dispatch(invoke_fn)
-                        finally:
-                            if listener.options.once:
-                                self.remove_listener(listener)
-
-                    self._duration_timers_active += 1
-                    duration_timer.start(on_duration_fire_immediate, override_duration=remaining)
-                return
-
             try:
                 await listener.invoker.dispatch(invoke_fn)
             finally:
                 if listener.options.once:
                     self.remove_listener(listener)
 
-        except ResourceNotReadyError as exc:
-            self.logger.error(
-                "immediate_fire: ResourceNotReadyError for entity %s — "
-                "StateProxy is not ready at registration time; this is a sequencing invariant violation. "
-                "Listener owner=%s topic=%s",
-                entity_id,
-                listener.identity.owner_id,
-                listener.topic,
-                exc_info=exc,
-            )
-        except Exception as exc:
-            self.logger.warning(
-                "immediate_fire: unexpected error for entity %s, "
-                "immediate fire will not occur. Listener owner=%s topic=%s",
-                entity_id,
-                listener.identity.owner_id,
-                listener.topic,
-                exc_info=exc,
-            )
+        self._duration_timers_active += 1
+        duration_config.timer.start(on_duration_fire_immediate, override_duration=remaining)
 
     def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
         """Remove a listener from the bus.
