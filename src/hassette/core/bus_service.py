@@ -77,7 +77,12 @@ def compute_elapsed(current_state: "HassStateDict", duration_config: DurationCon
 
     For attribute listeners, returns 0.0 (elapsed time is not tracked the same way).
     Returns a value clamped to [0.0, duration_config.duration].
+    Caller must ensure duration_config.duration is not None.
     """
+    duration = duration_config.duration
+    if duration is None:
+        return 0.0
+
     if duration_config.is_attribute_listener:
         return 0.0
 
@@ -91,7 +96,7 @@ def compute_elapsed(current_state: "HassStateDict", duration_config: DurationCon
 
     now_dt = _date_utils.now()
     raw_elapsed = (now_dt - last_changed).in_seconds()
-    return max(0.0, min(raw_elapsed, duration_config.duration))
+    return max(0.0, min(raw_elapsed, duration))
 
 
 class BusService(Service):
@@ -369,8 +374,11 @@ class BusService(Service):
         """Fire a handler immediately with the current entity state.
 
         Implements ``immediate=True``: fires once with a synthetic ``RawStateChangeEvent``
-        (``old_state=None``) if the entity is in the cache.  Error handling is delegated
-        to ``read_current_state``.
+        (``old_state=None``) if the entity is in the cache.
+
+        Error contract: any exception → log at WARNING; immediate fire becomes a no-op.
+        ``read_current_state`` handles state-read errors; the outer try/except catches
+        everything else (synthetic event build, predicate match, dispatch).
         """
         duration_config = listener.duration_config
         entity_id = duration_config.entity_id if duration_config else None
@@ -386,38 +394,56 @@ class BusService(Service):
         if current_state is None:
             return
 
-        synthetic_event = self._make_synthetic_state_event(entity_id, current_state)
-        if not listener.matches(synthetic_event):
-            return
-
-        # FR4: handler receives the synthetic event built at registration time;
-        # fire-time rechecks validate state but don't change what the handler sees.
-        invoke_fn = self._make_tracked_invoke_fn(synthetic_event.topic, synthetic_event, listener, is_synthetic=True)
-
-        if duration_config is not None and duration_config.duration is not None:
-            elapsed = compute_elapsed(current_state, duration_config)
-            if elapsed >= duration_config.duration:
-                try:
-                    await listener.invoker.dispatch(invoke_fn)
-                finally:
-                    if listener.options.once:
-                        self.remove_listener(listener)
-            else:
-                remaining = duration_config.duration - elapsed
-                self.logger.debug(
-                    "immediate_fire: %s elapsed=%.2fs, timer remaining=%.2fs",
-                    entity_id,
-                    elapsed,
-                    remaining,
-                )
-                self.start_remaining_duration_timer(listener, entity_id, duration_config, invoke_fn, remaining)
-            return
-
         try:
-            await listener.invoker.dispatch(invoke_fn)
-        finally:
-            if listener.options.once:
-                self.remove_listener(listener)
+            synthetic_event = self._make_synthetic_state_event(entity_id, current_state)
+            if not listener.matches(synthetic_event):
+                return
+
+            invoke_fn = self._make_tracked_invoke_fn(
+                synthetic_event.topic,
+                synthetic_event,
+                listener,
+                is_synthetic=True,
+            )
+
+            if duration_config is not None and duration_config.duration is not None:
+                elapsed = compute_elapsed(current_state, duration_config)
+                if elapsed >= duration_config.duration:
+                    try:
+                        await listener.invoker.dispatch(invoke_fn)
+                    finally:
+                        if listener.options.once:
+                            self.remove_listener(listener)
+                else:
+                    remaining = duration_config.duration - elapsed
+                    self.logger.debug(
+                        "immediate_fire: %s elapsed=%.2fs, timer remaining=%.2fs",
+                        entity_id,
+                        elapsed,
+                        remaining,
+                    )
+                    self.start_remaining_duration_timer(
+                        listener,
+                        entity_id,
+                        duration_config,
+                        invoke_fn,
+                        remaining,
+                    )
+                return
+
+            try:
+                await listener.invoker.dispatch(invoke_fn)
+            finally:
+                if listener.options.once:
+                    self.remove_listener(listener)
+        except Exception as exc:
+            self.logger.warning(
+                "immediate_fire: unexpected error for entity %s, immediate fire will not occur. owner=%s topic=%s",
+                entity_id,
+                listener.identity.owner_id,
+                listener.topic,
+                exc_info=exc,
+            )
 
     def start_remaining_duration_timer(
         self,
