@@ -148,8 +148,14 @@ class Router:
             self.exact[topic].append(listener)
         self.owners[listener.identity.owner_id].append(listener)
 
+    def remove_route(self, topic: str, predicate: Callable[[Listener], bool]) -> None:
+        # ... same filtering logic across topic buckets + owners sync, no async/lock ...
+
+    def remove_listener(self, listener: Listener) -> None:
+        # ... delegates to remove_route with listener_id predicate ...
+
     def remove_listener_by_id(self, topic: str, listener_id: int) -> None:
-        # ... same filtering logic, no async/lock ...
+        # ... delegates to remove_route with listener_id predicate ...
 
     def clear_owner(self, owner: str) -> list[Listener]:
         # ... same logic, returns removed listeners ...
@@ -277,10 +283,11 @@ def _on_internal(self, ...) -> Subscription:
 
 `bus_service.add_listener` returns `asyncio.Task[None] | None` — the DB registration task. `_on_internal` passes it to `Subscription` as the `registration_task`. This preserves the existing completion signal contract.
 
-**`remove_listener`** — Returns None:
+**`remove_listener`** — Returns None, preserves collision-key cleanup:
 
 ```python
 def remove_listener(self, listener: Listener) -> None:
+    self._registered_keys.discard(self._listener_natural_key(listener))
     self.bus_service.remove_listener(listener)
 ```
 
@@ -351,7 +358,7 @@ async def dispatch(self, base_topic: str, event: Event[Any]) -> None:
 | Call site | Current | After |
 |---|---|---|
 | `Bus.on_shutdown` | `await self.remove_all_listeners()` | `self.remove_all_listeners()` |
-| `Hassette.before_shutdown` (`core.py:618`) | `await self._bus.remove_all_listeners()` | `self._bus.remove_all_listeners()` |
+| `Hassette.before_shutdown` (`core.py:620`) | `await self._bus.remove_all_listeners()` | `self._bus.remove_all_listeners()` |
 | `reset_bus` (`test_utils/reset.py`) | `await bus.remove_all_listeners()` | `bus.remove_all_listeners()` |
 | `StateProxy.subscribe_to_events` (`state_proxy.py:82`) | `self.state_change_sub.cancel()` (already sync) | No change — ordering bug is fixed by sync routing |
 | `AppLifecycleService._reconcile` (`app_lifecycle_service.py:556`) | `await inst.bus.get_listeners()` | `inst.bus.get_listeners()` |
@@ -497,7 +504,7 @@ Make all BusService methods `async def`. Callers await them.
 
 ### Regression suite
 
-Full test suite (`timeout 300 pytest -n 2`) must pass with no regressions (AC#8).
+Full test suite (`timeout 300 pytest -n 2`) must pass with no regressions (AC#9).
 
 ## Documentation Updates
 
@@ -536,7 +543,7 @@ Full test suite (`timeout 300 pytest -n 2`) must pass with no regressions (AC#8)
 
 ### Blast radius
 
-- **Router** — complete rewrite of method signatures (6 methods). Internal to framework; no user-facing API change.
+- **Router** — complete rewrite of method signatures (7 methods). Internal to framework; no user-facing API change.
 - **BusService** — 5 methods restructured. Internal to framework.
 - **Bus** — 4 method return types change. `add_listener` and `remove_listener` are rarely called directly by users (they use `on_state_change` etc. which go through `_on_internal`). `get_listeners` is used in tests.
 - **Caller sites** — ~6 call sites lose `await`. All internal framework code.

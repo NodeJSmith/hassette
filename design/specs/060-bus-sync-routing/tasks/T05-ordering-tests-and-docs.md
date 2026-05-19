@@ -3,7 +3,7 @@ task_id: "T05"
 title: "Add ordering guarantee tests, contract tests, and documentation"
 status: "planned"
 depends_on: ["T03"]
-implements: ["AC#1", "AC#2", "AC#3", "AC#4"]
+implements: ["AC#1", "AC#2", "AC#3", "AC#4", "AC#5", "AC#6"]
 ---
 
 ## Summary
@@ -24,7 +24,13 @@ Write new tests that prove the ordering guarantees and routing/DB independence c
 
 - **Registration task resolves on DB failure (AC#6 — verified here as a behavioral test):** Mock `_executor.register_listener` to raise. Register a handler. `await sub.registration_task`. Assert it resolved with `None` (no exception propagated). Assert `listener.db_id is None`.
 
-**3. Update docs site** — modify `docs/pages/core-concepts/bus/handlers.md`:
+**3. Router structural tests (AC#5)** — add to `tests/unit/bus/test_bus_contract.py` or the ordering test file:
+
+- **Router methods are synchronous:** Use `inspect.iscoroutinefunction()` to assert that all 7 Router methods (`add_route`, `remove_route`, `remove_listener`, `remove_listener_by_id`, `clear_owner`, `get_topic_listeners`, `get_listeners_by_owner`) are plain `def`, not `async def`. This prevents silent regression if someone re-adds async.
+
+- **No async lock in Router:** Assert `FairAsyncRLock` does not appear in `router.py`'s module attributes or imports. A simple `assert not hasattr(Router, 'lock')` or `assert 'FairAsyncRLock' not in inspect.getsource(Router)` suffices.
+
+**4. Update docs site** — modify `docs/pages/core-concepts/bus/handlers.md`:
 
 Add a new "Registration vs Routing" section after the existing "Awaiting persistence confirmation" block. Cover:
 - Routing is synchronous — the handler is immediately routable when registration returns
@@ -34,7 +40,7 @@ Add a new "Registration vs Routing" section after the existing "Awaiting persist
 - Check `listener.db_id is not None` to confirm persistence succeeded
 - Link to existing `registration_task` code example
 
-Reference: design doc `## Architecture > ### Contract documentation (#781)`, `## Test Strategy`, `## Documentation Updates`.
+Reference: design doc `## Architecture > ### Contract documentation (#781)`, `## Test Strategy` (including Router-specific tests), `## Documentation Updates`.
 
 ## Focus
 - Use `HassetteHarness` for integration-style ordering tests — it wires real Bus, Router, and BusService.
@@ -47,3 +53,5 @@ Reference: design doc `## Architecture > ### Contract documentation (#781)`, `##
 - [ ] AC#2: A test mocks DB failure, dispatches an event, and verifies the handler was invoked with `db_id is None`
 - [ ] AC#3: A test registers a handler and immediately queries — the handler is present in the result (no stale snapshot)
 - [ ] AC#4: A test calls `remove_all_listeners()` then `get_listeners()` — the list is empty (synchronous completion)
+- [ ] AC#5: A test verifies all 7 Router methods are plain `def` (not coroutine functions) and no `FairAsyncRLock` exists in the Router
+- [ ] AC#6: A test mocks DB failure, awaits `sub.registration_task`, and confirms it resolves with no exception and `db_id is None`

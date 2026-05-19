@@ -45,7 +45,7 @@ Migrate the following test files. For each, the change pattern is documented bel
 - Line 13: `add_listener` mock returns `MagicMock(spec=["add_done_callback"])` — change to return a resolved `asyncio.Future[None]` or `None`.
 
 **`tests/integration/test_registration.py`:**
-- Lines 270-274: Spawn count assertion `task_bucket.spawn.call_count == 1` and task name `"bus:add_listener"` — update: empty-app_key path spawns 0 tasks (no DB task); app_key path task name changes to `"bus:register_listener"`.
+- Lines 270-274: Spawn count assertion `task_bucket.spawn.call_count == 1` and task name `"bus:add_listener"` — update: empty-app_key path still spawns 1 task (DB registration only, route insertion is now sync), task name changes to `"bus:register_listener"`. The stale comment "router.add_route call" / "_register_listener_to_db should NOT have happened" should be updated to reflect that the single spawn is now the DB task, not the route insertion. App_key path: same — 1 spawn, name `"bus:register_listener"`.
 
 After all changes, run `timeout 300 pytest -n 2` and confirm zero failures.
 

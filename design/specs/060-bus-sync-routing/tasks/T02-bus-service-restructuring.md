@@ -62,7 +62,7 @@ def get_listeners_by_owner(self, owner: str) -> list[Listener]:
 Reference: design doc `## Architecture > ### BusService: immediate routing`, `### Cancel-listener route insertion`, `### Dispatch path`, `## Documentation Updates`.
 
 ## Focus
-- `bus_service.py` is ~930 lines. The key methods to restructure are: `add_listener` (line 121), `_register_then_add_route` (line 228), `_create_cancel_listener` (line 157), `remove_listener` (line 473), `_remove_listener_by_id` (line 481), `remove_listeners_by_owner` (line 485), `get_listeners_by_owner` (line 499), `dispatch` (line 536).
+- `bus_service.py` is ~930 lines. The key methods to restructure are: `add_listener` (line 121), `_register_then_add_route` (line 223), `_create_cancel_listener` (line 157), `remove_listener` (line 473), `_remove_listener_by_id` (line 481), `remove_listeners_by_owner` (line 485), `get_listeners_by_owner` (line 499), `dispatch` (line 536).
 - The `_build_registration` helper extracts lines 237-260 from `_register_then_add_route` into a reusable method.
 - The `once=True` branch at lines 261-271 is deleted. The `else` branch at lines 273-282 is also deleted — its route insertion moves to `add_listener` (sync), its DB logic moves to `_register_in_db`.
 - `_dispatch_pending` is only incremented for genuine async work: handler dispatch tasks and immediate-fire tasks. NOT for route insertions (now sync).

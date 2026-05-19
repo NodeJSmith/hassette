@@ -39,9 +39,10 @@ registration_task = self.bus_service.add_listener(listener)
 return Subscription(listener, unsubscribe, registration_task)
 ```
 
-`remove_listener` — returns `None`:
+`remove_listener` — returns `None`, preserves collision-key cleanup:
 ```python
 def remove_listener(self, listener: Listener) -> None:
+    self._registered_keys.discard(self._listener_natural_key(listener))
     self.bus_service.remove_listener(listener)
 ```
 
@@ -64,7 +65,7 @@ def get_listeners(self) -> list[Listener]:
 
 | File | Change |
 |---|---|
-| `src/hassette/core/core.py:618` | `await self._bus.remove_all_listeners()` → `self._bus.remove_all_listeners()` |
+| `src/hassette/core/core.py:620` | `await self._bus.remove_all_listeners()` → `self._bus.remove_all_listeners()` |
 | `src/hassette/test_utils/reset.py:54` | `await bus.remove_all_listeners()` → `bus.remove_all_listeners()` |
 | `src/hassette/test_utils/reset.py:96` | `await app_handler.hassette.bus_service.remove_listeners_by_owner("test")` → remove `await` |
 | `src/hassette/core/app_lifecycle_service.py:556` | `await inst.bus.get_listeners()` → `inst.bus.get_listeners()` |
