@@ -3,7 +3,6 @@
 **Date:** 2026-05-19
 **Status:** archived
 **Scope-mode:** expand
-**Research:** /tmp/claude-mine-research-apZoKy/brief.md
 
 ## Problem
 

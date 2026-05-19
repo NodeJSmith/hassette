@@ -274,10 +274,11 @@ class BusService(Service):
         already in the routing table. If ``db_id`` is still ``None`` at handler
         fire time, ``InvokeHandler`` records an orphan invocation row.
 
-        Catches ``BaseException`` (not just ``Exception``) to handle
-        ``CancelledError`` from ``RegistrationTracker.await_complete()`` timeout.
-        This ensures ``registration_task`` always resolves cleanly, satisfying
-        AC#6: the ``Subscription.registration_task`` future never raises.
+        Catches ``CancelledError`` (from ``RegistrationTracker.await_complete()``
+        timeout) and ``Exception`` separately, suppressing both so that
+        ``registration_task`` always resolves cleanly (AC#6). Fatal signals
+        (``KeyboardInterrupt``, ``SystemExit``) are not caught and propagate
+        normally.
 
         Contract: routing (event delivery) and database registration (telemetry
         persistence) are independent operations. This method owns only the latter.
