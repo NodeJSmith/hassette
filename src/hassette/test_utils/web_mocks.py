@@ -54,8 +54,6 @@ def create_hassette_stub(
     app_action_mocks: bool = False,
     # Scheduler
     scheduler_jobs: list[Any] | None = None,
-    # Config endpoint
-    config_dump: dict[str, Any] | None = None,
 ) -> MagicMock:
     """Build a fully-wired MagicMock Hassette stub for web/API test fixtures.
 
@@ -65,13 +63,40 @@ def create_hassette_stub(
     hassette = MagicMock()
 
     # --- Config ---
+    # Root-level fields
+    hassette.config.dev_mode = dev_mode
+    hassette.config.base_url = "http://127.0.0.1:8123"
+    hassette.config.asyncio_debug_mode = False
+    hassette.config.allow_reload_in_prod = allow_reload_in_prod
+    hassette.config.data_dir = "/srv/hassette/data"
+    hassette.config.config_dir = "/srv/hassette/config"
+    # web_api group
     hassette.config.web_api.run = run_web_api
     hassette.config.web_api.run_ui = run_web_ui
+    hassette.config.web_api.ui_hot_reload = False
+    hassette.config.web_api.host = "0.0.0.0"
+    hassette.config.web_api.port = 8126
     hassette.config.web_api.cors_origins = cors_origins
     hassette.config.web_api.event_buffer_size = event_buffer_size
+    hassette.config.web_api.log_buffer_size = 2000
+    hassette.config.web_api.job_history_size = 1000
+    # logging group
+    hassette.config.logging.log_level = log_level
     hassette.config.logging.web_api = log_level
-    hassette.config.dev_mode = dev_mode
-    hassette.config.allow_reload_in_prod = allow_reload_in_prod
+    # lifecycle group
+    hassette.config.lifecycle.startup_timeout_seconds = 30
+    hassette.config.lifecycle.app_startup_timeout_seconds = 20
+    hassette.config.lifecycle.app_shutdown_timeout_seconds = 10
+    # app group
+    hassette.config.app.autodetect = True
+    hassette.config.app.directory = "/srv/hassette/apps"
+    # scheduler group
+    hassette.config.scheduler.min_delay_seconds = 1
+    hassette.config.scheduler.max_delay_seconds = 30
+    hassette.config.scheduler.default_delay_seconds = 15
+    # file_watcher group
+    hassette.config.file_watcher.watch_files = True
+    hassette.config.file_watcher.debounce_milliseconds = 3000
 
     # --- State proxy ---
     hassette.state_proxy = hassette._state_proxy
@@ -127,10 +152,6 @@ def create_hassette_stub(
 
     # --- Telemetry query service stubs ---
     _wire_telemetry_stubs(hassette)
-
-    # --- Config endpoint ---
-    if config_dump is not None:
-        hassette.config.model_dump.return_value = config_dump
 
     # --- Drop counters (telemetry pipeline) ---
     hassette.get_drop_counters.return_value = (0, 0, 0, 0)

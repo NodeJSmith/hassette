@@ -773,47 +773,52 @@ def wire_owner_resolution(hassette) -> None:
 def wire_config(hassette) -> None:
     """Wire a realistic config stub on mock_hassette so GET /config works.
 
-    The config route calls ``hassette.config.model_dump(include=...)`` then reads
-    ``hassette.config.app.directory``, ``.data_dir``, and ``.config_dir`` via str().
-    A plain MagicMock fails Pydantic validation, so we replace it with a
-    SimpleNamespace whose ``model_dump`` method returns a real dict and whose
-    path attributes are Path objects.
+    The config route reads nested config attributes directly (no model_dump call).
+    A plain MagicMock returns MagicMock for all attribute accesses, which Pydantic
+    cannot coerce to the expected types for iterable fields (cors_origins). We
+    replace hassette.config with a nested SimpleNamespace so all attribute reads
+    return real typed values.
     """
-    _safe_fields_values: dict[str, object] = {
-        "dev_mode": False,
-        "log_level": "INFO",
-        "base_url": "http://localhost:8126",
-        "run_web_api": True,
-        "run_web_ui": True,
-        "web_api_host": "0.0.0.0",
-        "web_api_port": 8126,
-        "web_api_cors_origins": [],
-        "web_api_event_buffer_size": 500,
-        "web_api_log_buffer_size": 2000,
-        "web_api_job_history_size": 1000,
-        "web_api_log_level": "INFO",
-        "autodetect_apps": True,
-        "startup_timeout_seconds": 10,
-        "app_startup_timeout_seconds": 20,
-        "app_shutdown_timeout_seconds": 10,
-        "watch_files": True,
-        "file_watcher_debounce_milliseconds": 3000,
-        "scheduler_min_delay_seconds": 1,
-        "scheduler_max_delay_seconds": 30,
-        "scheduler_default_delay_seconds": 15,
-        "asyncio_debug_mode": False,
-        "allow_reload_in_prod": False,
-        "web_ui_hot_reload": False,
-    }
-
     config_stub = SimpleNamespace(
-        **_safe_fields_values,
-        app_dir=Path("/srv/hassette/apps"),
+        dev_mode=False,
+        base_url="http://localhost:8126",
+        asyncio_debug_mode=False,
+        allow_reload_in_prod=False,
         data_dir=Path("/srv/hassette/data"),
         config_dir=Path("/srv/hassette/config"),
-    )
-    config_stub.model_dump = lambda include=None, **_kwargs: (
-        {k: v for k, v in _safe_fields_values.items() if include is None or k in include}
+        web_api=SimpleNamespace(
+            run=True,
+            run_ui=True,
+            ui_hot_reload=False,
+            host="0.0.0.0",
+            port=8126,
+            cors_origins=(),
+            event_buffer_size=500,
+            log_buffer_size=2000,
+            job_history_size=1000,
+        ),
+        logging=SimpleNamespace(
+            log_level="INFO",
+            web_api="INFO",
+        ),
+        lifecycle=SimpleNamespace(
+            startup_timeout_seconds=30,
+            app_startup_timeout_seconds=20,
+            app_shutdown_timeout_seconds=10,
+        ),
+        app=SimpleNamespace(
+            autodetect=True,
+            directory=Path("/srv/hassette/apps"),
+        ),
+        scheduler=SimpleNamespace(
+            min_delay_seconds=1,
+            max_delay_seconds=30,
+            default_delay_seconds=15,
+        ),
+        file_watcher=SimpleNamespace(
+            watch_files=True,
+            debounce_milliseconds=3000,
+        ),
     )
     hassette.config = config_stub
 

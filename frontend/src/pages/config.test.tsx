@@ -51,7 +51,7 @@ describe("ConfigPage", () => {
 
   it("renders path fields in a Paths group", () => {
     useApi.mockReturnValue(fakeApiResult(createSystemConfig({
-      app_dir: "/my/apps",
+      app: { autodetect: true, directory: "/my/apps" },
       data_dir: "/my/data",
       config_dir: "/my/config",
     })));
@@ -69,8 +69,8 @@ describe("ConfigPage", () => {
     useApi.mockReturnValue(fakeApiResult(createSystemConfig()));
     const { getByText } = renderWithAppState(<ConfigPage />);
     expect(getByText("connection")).toBeDefined();
-    expect(getByText("web_api_host")).toBeDefined();
-    expect(getByText("web_api_port")).toBeDefined();
+    expect(getByText("host")).toBeDefined();
+    expect(getByText("port")).toBeDefined();
   });
 
   it("renders general settings group", () => {
@@ -89,7 +89,7 @@ describe("ConfigPage", () => {
   });
 
   it("displays numeric config values as text", () => {
-    useApi.mockReturnValue(fakeApiResult(createSystemConfig({ web_api_port: 9000 })));
+    useApi.mockReturnValue(fakeApiResult(createSystemConfig({ web_api: { run: true, run_ui: true, ui_hot_reload: false, host: "0.0.0.0", port: 9000, cors_origins: [], event_buffer_size: 500, log_buffer_size: 2000, job_history_size: 1000 } })));
     const { getByText } = renderWithAppState(<ConfigPage />);
     expect(getByText("9000")).toBeDefined();
   });

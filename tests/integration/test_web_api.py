@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
 from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.types.enums import ResourceStatus
-from hassette.web.routes.config import _CONFIG_SAFE_FIELDS
 
 _LOGS_REPO = "hassette.web.routes.logs._repo"
 
@@ -54,7 +53,6 @@ def mock_hassette():
         },
         old_snapshot=AppStatusSnapshot(running=[_instance], failed=[]),
         app_action_mocks=True,
-        config_dump={"dev_mode": True, "web_api_port": 8126},
     )
 
 
@@ -463,49 +461,53 @@ class TestServicesEndpoint:
 
 
 class TestConfigEndpointExpanded:
-    async def test_response_keys_are_subset_of_safe_fields(self, client: "AsyncClient", mock_hassette) -> None:
-        """All returned keys must be in the allowlist plus the explicit dir fields."""
-        mock_hassette.config.model_dump.return_value = {
-            "dev_mode": True,
-            "web_api_port": 8126,
-            "log_level": "INFO",
-        }
+    async def test_response_has_nested_groups(self, client: "AsyncClient", mock_hassette) -> None:
+        """Response is organized into nested config groups."""
         response = await client.get("/api/config")
         assert response.status_code == 200
         data = response.json()
-        allowed = _CONFIG_SAFE_FIELDS | {"app_dir", "data_dir", "config_dir"}
-        assert set(data.keys()) <= allowed
+        assert "web_api" in data
+        assert "logging" in data
+        assert "lifecycle" in data
+        assert "app" in data
+        assert "scheduler" in data
+        assert "file_watcher" in data
 
-    async def test_model_dump_called_with_safe_fields_include(self, client: "AsyncClient", mock_hassette) -> None:
-        """Verify model_dump is called with include=_CONFIG_SAFE_FIELDS to enforce allowlist."""
-        mock_hassette.config.model_dump.return_value = {"dev_mode": True}
-        await client.get("/api/config")
-        mock_hassette.config.model_dump.assert_called_with(include=_CONFIG_SAFE_FIELDS)
+    async def test_token_not_in_response(self, client: "AsyncClient", mock_hassette) -> None:
+        """Verify token is never returned in the config response."""
+        response = await client.get("/api/config")
+        assert response.status_code == 200
+        data = response.json()
+        assert "token" not in data
 
-    async def test_sensitive_fields_not_in_allowlist(self) -> None:
-        """Verify token and hass_url are not in the allowlist set."""
-        assert "token" not in _CONFIG_SAFE_FIELDS
-        assert "hass_url" not in _CONFIG_SAFE_FIELDS
-
-    async def test_known_safe_field_present(self, client: "AsyncClient", mock_hassette) -> None:
-        mock_hassette.config.model_dump.return_value = {"dev_mode": True}
+    async def test_dev_mode_present_at_root(self, client: "AsyncClient", mock_hassette) -> None:
+        mock_hassette.config.dev_mode = True
         response = await client.get("/api/config")
         data = response.json()
         assert "dev_mode" in data
         assert data["dev_mode"] is True
 
     async def test_dir_fields_present_as_strings(self, client: "AsyncClient", mock_hassette) -> None:
-        """app_dir, data_dir, config_dir are present and are strings (WP03)."""
-        mock_hassette.config.model_dump.return_value = {"dev_mode": False}
+        """data_dir and config_dir are present at root; app.directory is under app group."""
         mock_hassette.config.app.directory = "/srv/hassette/apps"
         mock_hassette.config.data_dir = "/srv/hassette/data"
         mock_hassette.config.config_dir = "/srv/hassette/config"
         response = await client.get("/api/config")
         assert response.status_code == 200
         data = response.json()
-        assert data["app_dir"] == "/srv/hassette/apps"
+        assert data["app"]["directory"] == "/srv/hassette/apps"
         assert data["data_dir"] == "/srv/hassette/data"
         assert data["config_dir"] == "/srv/hassette/config"
+
+    async def test_web_api_fields_nested(self, client: "AsyncClient", mock_hassette) -> None:
+        """web_api group contains host, port, and other API settings."""
+        mock_hassette.config.web_api.host = "127.0.0.1"
+        mock_hassette.config.web_api.port = 9000
+        response = await client.get("/api/config")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["web_api"]["host"] == "127.0.0.1"
+        assert data["web_api"]["port"] == 9000
 
 
 class TestOpenApiDocs:
