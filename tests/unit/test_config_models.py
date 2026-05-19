@@ -444,6 +444,9 @@ class TestHassetteConfigNested:
                     InitSettingsSource(settings_cls, init_kwargs={"token": "test-token", "run_app_precheck": False}),
                 )
 
+            def model_post_init(self, *args):
+                pass
+
         return _IsolatedConfig
 
     def test_database_path_default(self, isolated_config_cls):
