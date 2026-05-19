@@ -186,6 +186,50 @@ Use `registration_task` when your initialization logic depends on a listener bei
 !!! note "registration_task may be None"
     `registration_task` is `None` for subscriptions created without a backing registration task (e.g., cancel-listener subscriptions that skip DB registration, or Subscription instances constructed directly in tests). Always guard with `if sub.registration_task is not None`.
 
+### Routing vs registration independence
+
+Routing and database registration are independent operations. Understanding the distinction matters for sequential handler management (cancel-then-resubscribe, bulk replacement) and for reasoning about failure modes.
+
+**Routing is synchronous.** When `bus.on_state_change()` (or any registration method) returns, the handler is immediately present in the routing table and will receive events. No await, no background task, no window where the handler is absent.
+
+**DB registration is asynchronous and may fail independently.** The database write happens in a background task after routing completes. If the write fails — due to a transient DB error, a timeout, or session cleanup during shutdown — the failure is logged but the handler is not removed from the routing table. Event delivery continues unaffected.
+
+**A failed registration does not remove the handler.** Route insertion is unconditional. DB failure is not treated as a signal to undo the route.
+
+**`registration_task` resolves when the persistence attempt completes, regardless of outcome.** It is a completion signal, not a success signal. Awaiting it tells you "the attempt finished" — not "it succeeded".
+
+**Check `db_id` to confirm persistence succeeded.** After awaiting `registration_task`, inspect `sub.listener.db_id is not None` to know whether the telemetry row was written.
+
+```python
+class MyApp(App[AppConfig]):
+    async def on_initialize(self):
+        sub = self.bus.on_state_change("sensor.temperature", handler=self.on_temp)
+
+        # Handler is already routable here — no await needed for event delivery.
+        # Await only if you need to know whether persistence succeeded.
+        if sub.registration_task is not None:
+            await sub.registration_task  # resolves whether DB write succeeded or failed
+
+        if sub.listener.db_id is None:
+            self.logger.warning("Listener was not persisted — telemetry unavailable")
+        # Either way, the handler is routing and will receive events.
+```
+
+**Sequential operations are deterministic.** Because routing is synchronous, cancel-then-resubscribe sequences have no race conditions:
+
+```python
+async def on_initialize(self):
+    self.sub = self.bus.on_state_change("light.kitchen", handler=self.on_light)
+
+async def resubscribe(self):
+    # Cancel the old subscription — routing removal is immediate.
+    self.sub.cancel()
+
+    # Register the replacement — it is routable before this line returns.
+    # The old handler is guaranteed gone; no overlap, no gap.
+    self.sub = self.bus.on_state_change("light.kitchen", handler=self.on_light)
+```
+
 ## See Also
 
 - [Filtering & Predicates](filtering.md) - Filter which events trigger your handlers
