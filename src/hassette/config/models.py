@@ -14,7 +14,7 @@ from pydantic import BaseModel, BeforeValidator, Field, field_validator, model_v
 
 from hassette.config.classes import AppManifest, ExcludeExtrasMixin
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
-from hassette.config.helpers import coerce_log_level
+from hassette.config.helpers import coerce_log_level, log_level_default_factory
 from hassette.types.types import LOG_LEVEL_TYPE, RawAppDict
 
 LOGGER = getLogger(__name__)
@@ -130,44 +130,43 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     log_retention_days: int = Field(default=3, ge=1)
     """Number of days to retain persisted log records. Must be <= database.retention_days."""
 
-    # Per-service log levels — default to None; model_validator fills from log_level
-    database_service: LOG_ANNOTATION | None = Field(default=None)
+    database_service: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the database service. Defaults to log_level."""
 
-    bus_service: LOG_ANNOTATION | None = Field(default=None)
+    bus_service: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the event bus service. Defaults to log_level."""
 
-    scheduler_service: LOG_ANNOTATION | None = Field(default=None)
+    scheduler_service: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the scheduler service. Defaults to log_level."""
 
-    app_handler: LOG_ANNOTATION | None = Field(default=None)
+    app_handler: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the app handler service. Defaults to log_level."""
 
-    web_api: LOG_ANNOTATION | None = Field(default=None)
+    web_api: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the web API service. Defaults to log_level."""
 
-    websocket: LOG_ANNOTATION | None = Field(default=None)
+    websocket: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the WebSocket service. Defaults to log_level."""
 
-    service_watcher: LOG_ANNOTATION | None = Field(default=None)
+    service_watcher: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the service watcher. Defaults to log_level."""
 
-    file_watcher: LOG_ANNOTATION | None = Field(default=None)
+    file_watcher: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the file watcher service. Defaults to log_level."""
 
-    task_bucket: LOG_ANNOTATION | None = Field(default=None)
+    task_bucket: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for task buckets. Defaults to log_level."""
 
-    command_executor: LOG_ANNOTATION | None = Field(default=None)
+    command_executor: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the command executor service. Defaults to log_level."""
 
-    apps: LOG_ANNOTATION | None = Field(default=None)
+    apps: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Default logging level for apps, can be overridden in app initialization. Defaults to log_level."""
 
-    state_proxy: LOG_ANNOTATION | None = Field(default=None)
+    state_proxy: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the state proxy resource. Defaults to log_level."""
 
-    api: LOG_ANNOTATION | None = Field(default=None)
+    api: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the API resource (REST/WebSocket client). Defaults to log_level."""
 
     all_events: bool = Field(default=False)
@@ -182,34 +181,12 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     Defaults to False or the value of all_events."""
 
     @model_validator(mode="after")
-    def fill_per_service_log_levels(self) -> "LoggingConfig":
-        """Fill None per-service log levels from log_level, and all_hass/hassette_events from all_events."""
-        # Fill per-service log levels
-        per_service_fields = (
-            "database_service",
-            "bus_service",
-            "scheduler_service",
-            "app_handler",
-            "web_api",
-            "websocket",
-            "service_watcher",
-            "file_watcher",
-            "task_bucket",
-            "command_executor",
-            "apps",
-            "state_proxy",
-            "api",
-        )
-        for field_name in per_service_fields:
-            if getattr(self, field_name) is None:
-                object.__setattr__(self, field_name, self.log_level)
-
-        # Fill all_hass_events and all_hassette_events from all_events
+    def fill_event_defaults(self) -> "LoggingConfig":
+        """Fill all_hass/hassette_events from all_events when not explicitly set."""
         if self.all_hass_events is None:
-            object.__setattr__(self, "all_hass_events", self.all_events)
+            self.all_hass_events = self.all_events
         if self.all_hassette_events is None:
-            object.__setattr__(self, "all_hassette_events", self.all_events)
-
+            self.all_hassette_events = self.all_events
         return self
 
 
