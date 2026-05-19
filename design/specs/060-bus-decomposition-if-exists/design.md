@@ -1,7 +1,7 @@
 # Design: Bus Dispatch and Subscription Decomposition
 
 **Date:** 2026-05-18
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Issues:** #783
 
