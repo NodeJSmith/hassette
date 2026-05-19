@@ -18,6 +18,7 @@ from hassette.config.helpers import (
     filter_paths_to_unique_existing,
     get_dev_mode,
 )
+from hassette.config.legacy import LEGACY_KEY_MIGRATION
 from hassette.config.models import (
     AppConfig,
     DatabaseConfig,
@@ -298,6 +299,17 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                     sub_value,
                 )
                 setattr(group_obj, sub_field, sub_value)
+
+        if self.model_extra:
+            legacy_hits = {k: LEGACY_KEY_MIGRATION[k] for k in self.model_extra if k in LEGACY_KEY_MIGRATION}
+            if legacy_hits:
+                lines = [f"  {old} -> [hassette.{new}]" for old, new in legacy_hits.items()]
+                LOGGER.warning(
+                    "Detected %d legacy flat config key(s) that moved to nested groups. "
+                    "These keys are being ignored — update your configuration:\n%s",
+                    len(legacy_hits),
+                    "\n".join(lines),
+                )
 
     @classmethod
     def get_config(cls) -> "HassetteConfig":
