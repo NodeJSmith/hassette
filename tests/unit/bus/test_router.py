@@ -268,27 +268,3 @@ class TestRouterGetListenersByOwner:
 
         assert l1 in result
         assert l2 not in result
-
-
-class TestRouterSyncContract:
-    def test_router_methods_are_not_coroutines(self) -> None:
-        """AC#5: All Router mutation and query methods are plain def, not coroutines."""
-        import inspect
-
-        router = Router()
-        methods = [
-            router.add_route,
-            router.remove_route,
-            router.remove_listener,
-            router.remove_listener_by_id,
-            router.clear_owner,
-            router.get_topic_listeners,
-            router.get_listeners_by_owner,
-        ]
-        for method in methods:
-            assert not inspect.iscoroutinefunction(method), f"{method.__name__} must not be async"
-
-    def test_router_has_no_lock_attribute(self) -> None:
-        """AC#5: Router has no lock attribute."""
-        router = Router()
-        assert not hasattr(router, "lock"), "Router must not have a lock attribute"

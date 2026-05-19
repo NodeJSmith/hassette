@@ -118,7 +118,7 @@ class BusService(Service):
         if exc:
             self.logger.error("Bus background task failed", exc_info=exc)
 
-    def add_listener(self, listener: "Listener") -> "asyncio.Task[None] | None":
+    def add_listener(self, listener: "Listener") -> "asyncio.Task[None]":
         """Add a listener to the bus.
 
         Routing is synchronous — the route is inserted into the in-memory table
@@ -137,7 +137,7 @@ class BusService(Service):
 
         Returns:
             The DB registration task (used by ``Bus._on_internal`` to populate
-            ``Subscription.registration_task``), or None if no task was spawned.
+            ``Subscription.registration_task``).
         """
         if listener.duration_config is not None and listener.duration_config.duration is not None:
 
@@ -487,14 +487,7 @@ class BusService(Service):
         returns — no background task is spawned.
         """
         listener.cancel()
-        self._remove_listener_by_id(listener.topic, listener.listener_id)
-
-    def _remove_listener_by_id(self, topic: str, listener_id: int) -> None:
-        """Remove a listener by its ID synchronously.
-
-        Delegates directly to ``Router.remove_listener_by_id``. No task spawn.
-        """
-        self.router.remove_listener_by_id(topic, listener_id)
+        self.router.remove_listener_by_id(listener.topic, listener.listener_id)
 
     def remove_listeners_by_owner(self, owner: str) -> None:
         """Remove all listeners owned by a specific owner.

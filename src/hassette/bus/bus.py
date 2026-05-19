@@ -179,7 +179,12 @@ class Bus(Resource):
         return self.hassette.config.bus_service_log_level
 
     def add_listener(self, listener: "Listener") -> None:
-        """Add a listener to the bus.
+        """Add a pre-built listener to the bus.
+
+        This is the direct entry point for callers that construct a ``Listener``
+        externally. The normal registration flow (``on_state_change``, ``on()``,
+        etc.) goes through ``_on_internal`` instead, which captures the DB task
+        for ``Subscription.registration_task``.
 
         Raises:
             ValueError: If the listener's natural key is already registered on this bus instance.

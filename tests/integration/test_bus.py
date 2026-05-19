@@ -753,7 +753,7 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
 # longer a coroutine — the patch creates a coroutine that is never awaited, so the tests
 # passed vacuously. The race they guarded against is eliminated by construction: route
 # insertion is now synchronous and completes before add_listener returns to the caller.
-# Ordering correctness is verified by the AC#1 test in test_bus_sync_ordering.py (T05).
+# Ordering correctness is verified by the AC#1 test in test_bus_ordering.py (T05).
 
 
 # ---------------------------------------------------------------------------

@@ -215,7 +215,7 @@ async def test_job_registration_persists_correct_app_key(
 
 
 # ---------------------------------------------------------------------------
-# BusService._register_then_add_route registers listener then adds route
+# BusService.add_listener inserts route synchronously, spawns bus:register_listener for DB
 # ---------------------------------------------------------------------------
 
 
@@ -258,11 +258,11 @@ def test_job_with_app_key_spawns_combined_task(mock_hassette: MagicMock) -> None
 
 
 # ---------------------------------------------------------------------------
-# Non-App owner guard: empty app_key skips DB registration
+# Non-App owner guard: empty app_key still spawns DB registration
 # ---------------------------------------------------------------------------
 
 
-def test_listener_with_empty_app_key_skips_registration(mock_hassette: MagicMock) -> None:
+def test_listener_with_empty_app_key_spawns_db_registration(mock_hassette: MagicMock) -> None:
     """Listeners with empty app_key (non-App owners) still spawn one DB registration task.
 
     Route insertion is now synchronous. The single spawn is the DB registration task

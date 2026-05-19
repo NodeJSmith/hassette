@@ -46,7 +46,10 @@ async def reset_bus(bus: "Bus") -> None:
     """Remove all listeners owned by this bus instance.
 
     Bus listeners accumulate in the BusService router as tests register handlers.
-    This clears them between tests to prevent ordering dependencies.
+    This clears them between tests to prevent ordering dependencies. The body is
+    synchronous (remove_all_listeners is sync) but the signature remains async
+    for interface consistency with sibling reset_* helpers that are awaited
+    by HassetteHarness.
 
     Args:
         bus: The Bus instance to reset.
