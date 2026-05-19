@@ -33,6 +33,7 @@ def _make_bus_service(*, config_timeout: float | None = 600.0) -> BusService:
     svc._dispatch_pending = 0
     svc._dispatch_idle_event = asyncio.Event()
     svc._dispatch_idle_event.set()
+    svc._duration_timers_active = 0
 
     return svc
 
@@ -90,7 +91,7 @@ class TestDispatchResolvesEffectiveTimeout:
 
         # After dispatch, listener.once should cause removal
         # We test that _dispatch calls remove_listener after once handler fires
-        svc.remove_listener = MagicMock(return_value=MagicMock(spec=["add_done_callback"]))
+        svc.remove_listener = MagicMock(return_value=None)
 
         await svc._dispatch("test.topic", event, listener)
 

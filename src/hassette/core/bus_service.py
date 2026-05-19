@@ -118,13 +118,14 @@ class BusService(Service):
         if exc:
             self.logger.error("Bus background task failed", exc_info=exc)
 
-    def add_listener(self, listener: "Listener") -> asyncio.Task[None]:
+    def add_listener(self, listener: "Listener") -> "asyncio.Task[None] | None":
         """Add a listener to the bus.
 
-        When the listener belongs to an app (has app_key), both route-add and
-        DB registration happen in a single task. For ``once=True`` listeners,
-        registration completes first to prevent orphan DB rows. For regular
-        listeners, the route is added first for immediate event delivery.
+        Routing is synchronous — the route is inserted into the in-memory table
+        before this method returns, so the listener is immediately routable.
+        Database registration is spawned as a fire-and-forget background task
+        after route insertion; a DB failure does not remove the route or prevent
+        event delivery.
 
         Registration tasks are tracked per ``app_key`` so
         ``await_registrations_complete()`` can drain them before reconciliation.
@@ -133,6 +134,10 @@ class BusService(Service):
         which owns the timer reference. Uses ``duration_config.hold_predicate``
         (state-value predicates only) for cancel evaluation, falling back to
         ``listener.predicate`` if hold predicates were not provided.
+
+        Returns:
+            The DB registration task (used by ``Bus._on_internal`` to populate
+            ``Subscription.registration_task``), or None if no task was spawned.
         """
         if listener.duration_config is not None and listener.duration_config.duration is not None:
 
@@ -149,9 +154,24 @@ class BusService(Service):
                 on_cancel=on_timer_cancel,
             )
 
+        # Sync: insert route immediately — listener is routable before this returns.
+        self.router.add_route(listener.topic, listener)
+
+        # Async: spawn DB registration as a background task.
         app_key = listener.identity.app_key or listener.identity.owner_id
-        task = self.task_bucket.spawn(self._register_then_add_route(listener), name="bus:add_listener")
+        reg = self._build_registration(listener)
+        task = self.task_bucket.spawn(self._register_in_db(listener, reg), name="bus:register_listener")
         self._reg_tracker.prune_and_track(app_key, task)
+
+        if listener.duration_config is not None and listener.duration_config.immediate:
+            self._dispatch_pending += 1
+            self._dispatch_idle_event.clear()
+            immediate_task = self.task_bucket.spawn(
+                self._immediate_fire_task(listener),
+                name="bus:immediate_fire",
+            )
+            immediate_task.add_done_callback(self._on_dispatch_done)
+
         return task
 
     def _create_cancel_listener(self, main_listener: "Listener") -> Subscription:
@@ -162,10 +182,9 @@ class BusService(Service):
         ``state_changed`` event.  The old_state stripping and predicate
         re-evaluation are handled inside ``evaluate_cancel_event()``.
 
-        Route insertion is spawned as a task and tracked so that
-        ``await_dispatch_idle()`` waits for it.  The fire-time recheck in
-        ``on_duration_fire`` is the definitive correctness gate for the
-        one-event-loop-iteration window before route insertion completes.
+        Route insertion is synchronous — the cancel-listener is immediately
+        routable when this method returns. No background task is spawned for
+        route insertion; ``_dispatch_pending`` is not incremented.
 
         Properties:
         - Uses ``source_tier="framework"`` (filtered from user-facing counts).
@@ -194,17 +213,12 @@ class BusService(Service):
             handler=cancel_handler,
         )
 
-        async def _add_cancel_route() -> None:
-            await self.router.add_route(cancel_listener.topic, cancel_listener)
-
-        self._dispatch_pending += 1
-        self._dispatch_idle_event.clear()
-        task = self.task_bucket.spawn(_add_cancel_route(), name="bus:add_cancel_listener")
-        task.add_done_callback(self._on_dispatch_done)
+        # Sync route insertion — no task spawn, no _dispatch_pending tracking.
+        self.router.add_route(cancel_listener.topic, cancel_listener)
 
         def unsubscribe() -> None:
             cancel_listener.cancel()
-            self._remove_listener_by_id(cancel_listener.topic, cancel_listener.listener_id)
+            self.router.remove_listener_by_id(cancel_listener.topic, cancel_listener.listener_id)
 
         # Cancel listeners skip DB registration — provide an already-resolved future.
         resolved: asyncio.Future[None] = asyncio.get_running_loop().create_future()
@@ -220,26 +234,18 @@ class BusService(Service):
         """
         await self._reg_tracker.drain_framework_keys(self.await_registrations_complete)
 
-    async def _register_then_add_route(self, listener: Listener) -> None:
-        """Register a listener in the DB and add its route.
+    def _build_registration(self, listener: Listener) -> ListenerRegistration:
+        """Build a ``ListenerRegistration`` struct from listener identity and options.
 
-        For ``once=True`` listeners, DB registration completes before the route
-        is added to prevent orphan rows (the listener could fire and be removed
-        before registration finishes). For regular listeners, the route is added
-        first so events are received immediately; ``db_id`` is set once DB
-        registration completes, and invocations before then produce orphan records.
-
-        When ``listener.immediate`` is True, spawns a separate task after route
-        insertion and DB registration to fire the handler with the current entity
-        state.  This is decoupled from registration to prevent serialization of
-        N startup state reads.
+        Extracts all fields needed for DB persistence. Called synchronously during
+        ``add_listener`` before spawning the DB registration background task.
         """
         source_location = listener.identity.source_location
         registration_source: str | None = listener.identity.registration_source or None
         human_description: str | None = None
         if listener.predicate is not None:
             human_description = summarize_top_level(listener.predicate)
-        reg = ListenerRegistration(
+        return ListenerRegistration(
             app_key=listener.identity.app_key,
             instance_index=listener.identity.instance_index,
             handler_method=listener.identity.handler_name,
@@ -258,37 +264,40 @@ class BusService(Service):
             duration=listener.duration_config.duration if listener.duration_config else None,
             entity_id=listener.duration_config.entity_id if listener.duration_config else None,
         )
-        if listener.options.once:
-            try:
-                listener.mark_registered(await self._executor.register_listener(reg))
-            except Exception:
-                self.logger.exception(
-                    "Failed to register once=True listener in DB for owner_id=%s topic=%s; "
-                    "listener will fire once and produce an orphan invocation record",
-                    listener.identity.owner_id,
-                    listener.topic,
-                )
-            await self.router.add_route(listener.topic, listener)
-        else:
-            await self.router.add_route(listener.topic, listener)
-            try:
-                listener.mark_registered(await self._executor.register_listener(reg))
-            except Exception:
-                self.logger.exception(
-                    "Failed to register listener in DB for owner_id=%s topic=%s; "
-                    "listener will run without telemetry until next restart",
-                    listener.identity.owner_id,
-                    listener.topic,
-                )
 
-        if listener.duration_config is not None and listener.duration_config.immediate:
-            self._dispatch_pending += 1
-            self._dispatch_idle_event.clear()
-            task = self.task_bucket.spawn(
-                self._immediate_fire_task(listener),
-                name="bus:immediate_fire",
+    async def _register_in_db(self, listener: Listener, reg: ListenerRegistration) -> None:
+        """Persist a listener to the database for telemetry.
+
+        This method contains only the DB write — routing has already completed
+        synchronously in ``add_listener`` before this coroutine is spawned.
+        A failure here does not affect event delivery: the listener's route is
+        already in the routing table. If ``db_id`` is still ``None`` at handler
+        fire time, ``InvokeHandler`` records an orphan invocation row.
+
+        Catches ``BaseException`` (not just ``Exception``) to handle
+        ``CancelledError`` from ``RegistrationTracker.await_complete()`` timeout.
+        This ensures ``registration_task`` always resolves cleanly, satisfying
+        AC#6: the ``Subscription.registration_task`` future never raises.
+
+        Contract: routing (event delivery) and database registration (telemetry
+        persistence) are independent operations. This method owns only the latter.
+        """
+        try:
+            listener.mark_registered(await self._executor.register_listener(reg))
+        except asyncio.CancelledError:  # noqa: ASYNC103 — deliberately suppressed per AC#6
+            self.logger.warning(
+                "DB registration cancelled for owner_id=%s topic=%s; "
+                "listener will run without telemetry until next restart",
+                listener.identity.owner_id,
+                listener.topic,
             )
-            task.add_done_callback(self._on_dispatch_done)
+        except Exception:
+            self.logger.exception(
+                "Failed to register listener in DB for owner_id=%s topic=%s; "
+                "listener will run without telemetry until next restart",
+                listener.identity.owner_id,
+                listener.topic,
+            )
 
     def _make_synthetic_state_event(self, entity_id: str, current_state: "HassStateDict") -> RawStateChangeEvent:
         """Build a synthetic RawStateChangeEvent with old_state=None."""
@@ -470,35 +479,41 @@ class BusService(Service):
         self._duration_timers_active += 1
         duration_config.timer.start(on_duration_fire)
 
-    def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
+    def remove_listener(self, listener: "Listener") -> None:
         """Remove a listener from the bus.
 
-        Cancels any pending debounce task to prevent dangling references.
+        Cancels any pending debounce task and removes the route from the routing
+        table synchronously. The listener is no longer routable when this method
+        returns — no background task is spawned.
         """
         listener.cancel()
-        return self._remove_listener_by_id(listener.topic, listener.listener_id)
+        self._remove_listener_by_id(listener.topic, listener.listener_id)
 
-    def _remove_listener_by_id(self, topic: str, listener_id: int) -> asyncio.Task[None]:
-        """Remove a listener by its ID (internal — use remove_listener for full cleanup)."""
-        return self.task_bucket.spawn(self.router.remove_listener_by_id(topic, listener_id), name="bus:remove_listener")
+    def _remove_listener_by_id(self, topic: str, listener_id: int) -> None:
+        """Remove a listener by its ID synchronously.
 
-    def remove_listeners_by_owner(self, owner: str) -> asyncio.Task[None]:
+        Delegates directly to ``Router.remove_listener_by_id``. No task spawn.
+        """
+        self.router.remove_listener_by_id(topic, listener_id)
+
+    def remove_listeners_by_owner(self, owner: str) -> None:
         """Remove all listeners owned by a specific owner.
 
-        Uses ``Router.clear_owner`` which atomically removes and returns listeners
-        under a single lock, then cancels debounce tasks on the returned set.
+        Uses ``Router.clear_owner`` to remove all routes for the owner
+        synchronously, then cancels debounce tasks on the returned set.
+        All routes are removed from the routing table when this method returns —
+        no background task is spawned.
         """
+        removed = self.router.clear_owner(owner)
+        for listener in removed:
+            listener.cancel()
 
-        async def _clear_and_cancel() -> None:
-            removed = await self.router.clear_owner(owner)
-            for listener in removed:
-                listener.cancel()
+    def get_listeners_by_owner(self, owner: str) -> list["Listener"]:
+        """Get all listeners owned by a specific owner.
 
-        return self.task_bucket.spawn(_clear_and_cancel(), name="bus:remove_listeners_by_owner")
-
-    def get_listeners_by_owner(self, owner: str) -> asyncio.Task[list["Listener"]]:
-        """Get all listeners owned by a specific owner."""
-        return self.task_bucket.spawn(self.router.get_listeners_by_owner(owner), name="bus:get_listeners_by_owner")
+        Returns the result directly — no task spawn, no deferred computation.
+        """
+        return self.router.get_listeners_by_owner(owner)
 
     async def await_registrations_complete(self, app_key: str) -> None:
         """Wait for all pending DB registration tasks for an app to complete.
@@ -547,7 +562,7 @@ class BusService(Service):
 
         # Route first, then dedupe by "first match wins" because routes are ordered by specificity
         for route in routes:
-            listeners = await self.router.get_topic_listeners(route)
+            listeners = self.router.get_topic_listeners(route)  # sync — no await
             for listener in listeners:
                 if listener.listener_id in chosen:
                     continue
