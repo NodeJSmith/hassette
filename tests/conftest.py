@@ -133,7 +133,7 @@ def test_config(unused_tcp_port_factory) -> HassetteConfig:
 
     port = unused_tcp_port_factory()
 
-    tc = TestConfig(web_api={"port": port, "run": False})
+    tc = TestConfig(web_api={"port": port})
 
     return tc
 

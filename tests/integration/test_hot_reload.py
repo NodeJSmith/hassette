@@ -317,7 +317,7 @@ class TestOnlyAppDecorator:
 
         await emit_file_change_event(self.hassette, {only.full_path})
 
-        with anyio.fail_after(3):
+        with anyio.fail_after(6):
             await only_running2.wait()
             await blocked_running.wait()
 

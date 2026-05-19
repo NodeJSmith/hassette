@@ -412,7 +412,8 @@ def _clean_log_level_env(monkeypatch):
     monkeypatch restores the original env on teardown.
     """
     for key in list(os.environ):
-        if key.lower().startswith("hassette__") and "log_level" in key.lower():
+        k = key.lower()
+        if k.startswith("hassette__") and ("log_level" in k or k.startswith("hassette__logging__")):
             monkeypatch.delenv(key, raising=False)
     return
 

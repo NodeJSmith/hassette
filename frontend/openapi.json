@@ -1428,44 +1428,6 @@
           }
         }
       }
-    },
-    "/{path}": {
-      "get": {
-        "summary": "Spa Catch All",
-        "description": "Serve index.html for SPA client-side routing.\n\nStatic files in the SPA build output (e.g., hassette-logo.png) are\nserved directly.  Other static-looking paths and API paths get a 404.",
-        "operationId": "spa_catch_all__path__get",
-        "parameters": [
-          {
-            "name": "path",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {

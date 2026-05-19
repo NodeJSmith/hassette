@@ -96,20 +96,20 @@ def _migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
     tmpl_dir = tmp_path_factory.mktemp("db_template")
     mock = MagicMock()
     mock.config.data_dir = tmpl_dir
-    mock.config.db_path = None
-    mock.config.db_retention_days = 7
-    mock.config.log_retention_days = 3
-    mock.config.telemetry_write_queue_max = 500
-    mock.config.db_write_queue_max = 2000
-    mock.config.database_service_log_level = "INFO"
-    mock.config.log_level = "INFO"
-    mock.config.task_bucket_log_level = "INFO"
-    mock.config.resource_shutdown_timeout_seconds = 5
-    mock.config.task_cancellation_timeout_seconds = 5
-    mock.config.web_api_log_level = "INFO"
-    mock.config.run_web_api = True
-    mock.config.db_migration_timeout_seconds = 120
-    mock.config.db_max_size_mb = 0
+    mock.config.database.path = None
+    mock.config.database.retention_days = 7
+    mock.config.logging.log_retention_days = 3
+    mock.config.database.telemetry_write_queue_max = 500
+    mock.config.database.write_queue_max = 2000
+    mock.config.logging.database_service = "INFO"
+    mock.config.logging.log_level = "INFO"
+    mock.config.logging.task_bucket = "INFO"
+    mock.config.lifecycle.resource_shutdown_timeout_seconds = 5
+    mock.config.lifecycle.task_cancellation_timeout_seconds = 5
+    mock.config.logging.web_api = "INFO"
+    mock.config.web_api.run = True
+    mock.config.database.migration_timeout_seconds = 120
+    mock.config.database.max_size_mb = 0
     mock.ready_event = asyncio.Event()
 
     db_service = DatabaseService(mock, parent=mock)

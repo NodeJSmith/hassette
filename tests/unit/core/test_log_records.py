@@ -31,7 +31,7 @@ from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_models import LogRecord
 from hassette.core.telemetry_repository import get_log_records, get_log_records_by_execution, insert_log_records
-from hassette.logging_ import LogPersistenceHandler, get_log_persistence_handler
+from hassette.logging_ import LogPersistenceHandler
 
 # ---------------------------------------------------------------------------
 # Helpers to run Alembic migrations
@@ -1006,11 +1006,7 @@ class TestSizeFailsafePrePass:
 class TestRuntimeQueryServiceWiring:
     async def test_set_database_wires_db_service_on_persistence_handler(self) -> None:
         """set_database() stores the db_service reference on LogPersistenceHandler."""
-
-        persistence_handler = get_log_persistence_handler()
-        if persistence_handler is None:
-            pytest.skip("LogPersistenceHandler not installed (enable_logging() not called)")
-
+        persistence_handler = LogPersistenceHandler(persistence_level=logging.INFO)
         mock_db_service = MagicMock()
         persistence_handler.set_database(mock_db_service, asyncio.get_event_loop())
         assert persistence_handler._db_service is mock_db_service  # pyright: ignore[reportPrivateUsage]
