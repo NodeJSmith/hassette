@@ -428,7 +428,7 @@ async def test_dispatch_calls_executor(hassette_with_bus: "HassetteHarness") -> 
 
     # Simulate an app-owned listener by setting db_id (internal listeners have db_id=None)
     await wait_for(lambda: not hassette.bus.task_bucket.pending_tasks(), desc="registration task completed")
-    all_listeners = await hassette.bus_service.router.get_topic_listeners("custom.exec_test")
+    all_listeners = hassette.bus_service.router.get_topic_listeners("custom.exec_test")
     for listener in all_listeners:
         if listener.db_id is None:
             listener.mark_registered(99)
@@ -720,7 +720,7 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
     rate_limiter = None
     deadline = asyncio.get_running_loop().time() + 3.0
     while asyncio.get_running_loop().time() < deadline:
-        all_listeners = await hassette.bus_service.router.get_topic_listeners("custom.cancel_debounce")
+        all_listeners = hassette.bus_service.router.get_topic_listeners("custom.cancel_debounce")
         if len(all_listeners) == 1 and all_listeners[0].invoker._rate_limiter is not None:
             listener = all_listeners[0]
             rate_limiter = listener.invoker._rate_limiter
@@ -746,101 +746,14 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
     assert not handler_fired, "Handler should not fire after rate limiter cancellation"
 
 
-async def test_cancel_before_add_task_completes_does_not_orphan_listener(hassette_with_bus: "HassetteHarness") -> None:
-    """Cancelling a subscription before the add_listener task runs must not leave an orphaned listener.
-
-    Regression test for #451: Bus.on() spawns an async task for add_listener and
-    immediately returns a Subscription. If cancel() is called before the add task
-    completes, the remove finds nothing in the router, then the add task runs —
-    leaving the listener permanently registered with no way to remove it.
-
-    Uses an asyncio.Event gate to block the add task, ensuring cancel() runs first.
-    """
-    hassette = hassette_with_bus
-    router = hassette.bus_service.router
-
-    async def handler(_event) -> None:
-        pass
-
-    # Gate to block the add_route call until we've called cancel()
-    gate = asyncio.Event()
-    original_add_route = router.add_route
-
-    async def gated_add_route(topic: str, listener) -> None:
-        await gate.wait()
-        await original_add_route(topic, listener)
-
-    router.add_route = gated_add_route  # pyright: ignore[reportAttributeAccessIssue]
-    try:
-        # Subscribe — the add task spawns but blocks on the gate
-        sub = hassette.bus.on(topic="custom.orphan_test", handler=handler)
-
-        # Cancel before the add task can proceed
-        sub.cancel()
-        # Let the remove task run (finds nothing, completes)
-        await asyncio.sleep(0)
-
-        # Now release the gate — add task proceeds
-        gate.set()
-        await wait_for(lambda: not hassette.bus.task_bucket.pending_tasks(), desc="add task completed")
-
-        # The listener must not be in the router
-        listeners = await router.get_topic_listeners("custom.orphan_test")
-        assert len(listeners) == 0, (
-            f"Expected 0 listeners after immediate cancel, found {len(listeners)} — "
-            "listener was orphaned (add ran after remove)"
-        )
-    finally:
-        router.add_route = original_add_route  # pyright: ignore[reportAttributeAccessIssue]
-
-
-async def test_cancel_before_add_task_completes_app_key_path(hassette_with_bus: "HassetteHarness") -> None:
-    """Same race as above but via the app-key code path (_register_then_add_route).
-
-    When a Bus has an app_key, add_listener goes through _register_then_add_route
-    which awaits DB registration before/after add_route. The _cancelled guard in
-    add_route must prevent orphaned listeners on this path too.
-    """
-    hassette = hassette_with_bus
-    bus = hassette.bus
-    router = hassette.bus_service.router
-
-    # Give the bus a mock parent with app_key so it takes the _register_then_add_route path
-    mock_parent = Mock()
-    mock_parent.app_key = "test_app"
-    mock_parent.index = 0
-    mock_parent.unique_name = "test_app.0"
-    mock_parent.source_tier = "app"
-    mock_parent.class_name = "TestApp"
-    original_parent = bus.parent
-    bus.parent = mock_parent
-
-    async def handler(_event) -> None:
-        pass
-
-    gate = asyncio.Event()
-    original_add_route = router.add_route
-
-    async def gated_add_route(topic: str, listener) -> None:
-        await gate.wait()
-        await original_add_route(topic, listener)
-
-    router.add_route = gated_add_route  # pyright: ignore[reportAttributeAccessIssue]
-    try:
-        sub = bus.on(topic="custom.orphan_app_test", handler=handler)
-        sub.cancel()
-        await asyncio.sleep(0)
-
-        gate.set()
-        await wait_for(lambda: not hassette.bus.task_bucket.pending_tasks(), desc="add task completed")
-
-        listeners = await router.get_topic_listeners("custom.orphan_app_test")
-        assert len(listeners) == 0, (
-            f"Expected 0 listeners after immediate cancel (app-key path), found {len(listeners)}"
-        )
-    finally:
-        router.add_route = original_add_route  # pyright: ignore[reportAttributeAccessIssue]
-        bus.parent = original_parent
+# test_cancel_before_add_task_completes_does_not_orphan_listener and
+# test_cancel_before_add_task_completes_app_key_path were deleted in the sync-routing
+# migration (WP060). Both tests used an async gated_add_route monkey-patch that blocked
+# router.add_route with asyncio.Event.wait(). With synchronous routing, add_route is no
+# longer a coroutine — the patch creates a coroutine that is never awaited, so the tests
+# passed vacuously. The race they guarded against is eliminated by construction: route
+# insertion is now synchronous and completes before add_listener returns to the caller.
+# Ordering correctness is verified by the AC#1 test in test_bus_sync_ordering.py (T05).
 
 
 # ---------------------------------------------------------------------------

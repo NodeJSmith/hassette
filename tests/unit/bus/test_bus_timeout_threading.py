@@ -10,7 +10,7 @@ def _make_bus() -> Bus:
     bus = Bus.__new__(Bus)
     bus.hassette = MagicMock()
     bus.bus_service = MagicMock()
-    bus.bus_service.add_listener = MagicMock(return_value=MagicMock(spec=["add_done_callback"]))
+    bus.bus_service.add_listener = MagicMock(return_value=None)
     bus.priority = 0
     bus.logger = MagicMock()
     bus.task_bucket = MagicMock()

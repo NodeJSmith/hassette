@@ -232,9 +232,7 @@ async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) 
 
 async def test_before_shutdown_removes_listeners_and_finalizes(hassette_instance: Hassette) -> None:
     """before_shutdown removes bus listeners and finalizes the session."""
-    completed_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
-    completed_future.set_result(None)
-    hassette_instance._bus.remove_all_listeners = Mock(return_value=completed_future)
+    hassette_instance._bus.remove_all_listeners = Mock()
     hassette_instance._session_manager.finalize_session = AsyncMock()
 
     await hassette_instance.before_shutdown()
@@ -245,12 +243,12 @@ async def test_before_shutdown_removes_listeners_and_finalizes(hassette_instance
 
 async def test_before_shutdown_finalizes_even_when_listener_removal_fails(hassette_instance: Hassette) -> None:
     """before_shutdown still finalizes session when remove_all_listeners raises."""
-    hassette_instance._bus.remove_all_listeners = AsyncMock(side_effect=RuntimeError("bus error"))
+    hassette_instance._bus.remove_all_listeners = Mock(side_effect=RuntimeError("bus error"))
     hassette_instance._session_manager.finalize_session = AsyncMock()
 
     await hassette_instance.before_shutdown()
 
-    hassette_instance._bus.remove_all_listeners.assert_awaited_once()
+    hassette_instance._bus.remove_all_listeners.assert_called_once()
     hassette_instance._session_manager.finalize_session.assert_awaited_once()
 
 

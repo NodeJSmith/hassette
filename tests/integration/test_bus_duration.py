@@ -360,7 +360,7 @@ async def test_duration_cancel_listener_uses_framework_tier(
     # Collect all registered listeners for the entity topic
 
     topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.light.kitchen"
-    listeners = await harness.bus_service.router.get_topic_listeners(topic)
+    listeners = harness.bus_service.router.get_topic_listeners(topic)
 
     # There should be at least one framework-tier listener (cancellation)
     # The main listener fires only after an event, so the cancel listener is the framework one
@@ -386,7 +386,7 @@ async def test_duration_cancel_listener_same_owner_id(dur_harness: tuple[Hassett
     # Check that cancellation listener has same owner_id
 
     topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.light.kitchen"
-    listeners = await harness.bus_service.router.get_topic_listeners(topic)
+    listeners = harness.bus_service.router.get_topic_listeners(topic)
     framework_listeners = [lst for lst in listeners if lst.identity.source_tier == "framework"]
 
     if framework_listeners:
@@ -396,7 +396,7 @@ async def test_duration_cancel_listener_same_owner_id(dur_harness: tuple[Hassett
     sub.cancel()
     await asyncio.sleep(0.02)
 
-    listeners_after = await harness.bus_service.router.get_topic_listeners(topic)
+    listeners_after = harness.bus_service.router.get_topic_listeners(topic)
     framework_after = [lst for lst in listeners_after if lst.identity.source_tier == "framework"]
     assert len(framework_after) == 0, f"Framework listener not cleaned up: {framework_after}"
 
