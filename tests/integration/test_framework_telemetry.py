@@ -36,10 +36,10 @@ def harness_config(tmp_path: Path) -> HassetteConfig:
 
 
 @pytest.fixture
-async def mock_hassette_with_db(tmp_path: Path) -> MagicMock:
+async def mock_hassette_with_db(premigrated_db_path: Path) -> MagicMock:
     """Create a mock Hassette with database service for direct executor tests."""
     hassette = MagicMock()
-    hassette.config.data_dir = tmp_path
+    hassette.config.data_dir = premigrated_db_path.parent
     hassette.config.db_path = None
     hassette.config.db_retention_days = 7
     hassette.config.db_migration_timeout_seconds = 120

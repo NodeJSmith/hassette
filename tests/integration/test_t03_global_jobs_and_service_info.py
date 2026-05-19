@@ -36,9 +36,9 @@ from hassette.web.utils import gather_all_listeners
 
 
 @pytest.fixture
-def mock_hassette_db(tmp_path: Path) -> MagicMock:
+def mock_hassette_db(premigrated_db_path: Path) -> MagicMock:
     hassette = MagicMock()
-    hassette.config.data_dir = tmp_path
+    hassette.config.data_dir = premigrated_db_path.parent
     hassette.config.db_path = None
     hassette.config.db_retention_days = 7
     hassette.config.telemetry_write_queue_max = 500

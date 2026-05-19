@@ -1,13 +1,18 @@
 """Shared fixtures for integration tests."""
 
+import asyncio
+import shutil
 from contextlib import suppress
+from pathlib import Path
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from hassette import Hassette
 from hassette.config.config import HassetteConfig
+from hassette.core.database_service import DatabaseService
 from hassette.test_utils.web_mocks import create_mock_runtime_query_service
 from hassette.web.app import create_fastapi_app
 
@@ -78,3 +83,50 @@ async def client(app):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+
+@pytest.fixture(scope="session")
+def _migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Run Alembic migrations once per pytest worker and return the migrated DB file path.
+
+    Under xdist (-n 2), each worker runs this independently — still a large win since each
+    worker has ~75+ DB-heavy tests. Copying this file (~135KB) takes <1ms vs ~700ms for
+    running migrations from scratch.
+    """
+    tmpl_dir = tmp_path_factory.mktemp("db_template")
+    mock = MagicMock()
+    mock.config.data_dir = tmpl_dir
+    mock.config.db_path = None
+    mock.config.db_retention_days = 7
+    mock.config.log_retention_days = 3
+    mock.config.telemetry_write_queue_max = 500
+    mock.config.db_write_queue_max = 2000
+    mock.config.database_service_log_level = "INFO"
+    mock.config.log_level = "INFO"
+    mock.config.task_bucket_log_level = "INFO"
+    mock.config.resource_shutdown_timeout_seconds = 5
+    mock.config.task_cancellation_timeout_seconds = 5
+    mock.config.web_api_log_level = "INFO"
+    mock.config.run_web_api = True
+    mock.config.db_migration_timeout_seconds = 120
+    mock.config.db_max_size_mb = 0
+    mock.ready_event = asyncio.Event()
+
+    db_service = DatabaseService(mock, parent=mock)
+
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(db_service.on_initialize())
+        loop.run_until_complete(db_service.on_shutdown())
+    finally:
+        loop.close()
+
+    return tmpl_dir / "hassette.db"
+
+
+@pytest.fixture
+def premigrated_db_path(_migrated_db_template: Path, tmp_path: Path) -> Path:
+    """Copy the pre-migrated DB template into a fresh tmp_path for test isolation."""
+    dst = tmp_path / "hassette.db"
+    shutil.copy2(_migrated_db_template, dst)
+    return dst
