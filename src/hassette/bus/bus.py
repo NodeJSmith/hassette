@@ -269,9 +269,7 @@ class Bus(Resource):
 
     def _listener_natural_key(self, listener: "Listener") -> tuple[str, int, str, str, str]:
         """Compute the natural key tuple for a listener (for collision tracking)."""
-        human_description: str = ""
-        if listener.predicate is not None:
-            human_description = P.summarize_top_level(listener.predicate)
+        human_description = P.summarize_top_level(listener.predicate) if listener.predicate is not None else ""
         return (
             listener.identity.app_key,
             listener.identity.instance_index,
@@ -619,7 +617,6 @@ class Bus(Resource):
         Returns:
             A subscription object that can be used to manage the listener.
         """
-
         if immediate and is_glob(entity_id):
             raise ValueError(
                 f"'immediate=True' is not supported with glob patterns. "
@@ -630,9 +627,6 @@ class Bus(Resource):
                 f"'duration' is not supported with glob patterns. entity_id={entity_id!r} contains glob characters."
             )
 
-        # if not changed then we are going to fire every time the entity has a StateChanged event
-        # regardless of what changed - not sure if that is desired behavior or not, but it is consistent with the main
-        # on_state_change method
         if not changed:
             self.logger.warning(
                 (

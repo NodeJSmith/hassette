@@ -34,6 +34,16 @@ if typing.TYPE_CHECKING:
     from hassette.events import EventPayload
     from hassette.events.hass.raw import HassStateDict
 
+_DISPATCH_STABILITY_SLEEP = 0.005
+_DISPATCH_IDLE_DEFAULT_TIMEOUT = 2.0
+
+_HASS_TOPIC_PREFIX = "hass."
+_HASSETTE_TOPIC_PREFIX = "hassette."
+
+_SYSTEM_LOG_SKIP_EVENT_TYPE = "call_service"
+_SYSTEM_LOG_SKIP_DOMAIN = "system_log"
+_SYSTEM_LOG_SKIP_LEVEL = "debug"
+
 
 def read_current_state(
     hassette: "Hassette",
@@ -260,6 +270,7 @@ class BusService(Service):
             cancel_listener.cancel()
             self._remove_listener_by_id(cancel_listener.topic, cancel_listener.listener_id)
 
+        # Cancel listeners skip DB registration — provide an already-resolved future.
         resolved: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         resolved.set_result(None)
         return Subscription(cancel_listener, unsubscribe, registration_task=resolved)
@@ -455,19 +466,19 @@ class BusService(Service):
     ) -> None:
         """Start a timer for the ``remaining`` hold seconds; rechecks predicates at fire time."""
 
-        async def on_duration_fire_immediate() -> None:
+        async def on_duration_fire() -> None:
             try:
-                current = self._read_entity_state(entity_id)
-                if current is None:
+                current_state = self._read_entity_state(entity_id)
+                if current_state is None:
                     self.logger.debug(
-                        "immediate_fire: entity %s not found in StateProxy, dropping fire",
+                        "remaining_duration_fire: entity %s not found in StateProxy, dropping fire",
                         entity_id,
                     )
                     return
-                recheck_event = self._make_synthetic_state_event(entity_id, current)
+                recheck_event = self._make_synthetic_state_event(entity_id, current_state)
                 if not self._hold_matches(listener, recheck_event):
                     self.logger.debug(
-                        "immediate_fire: entity %s predicate no longer matches, dropping fire",
+                        "remaining_duration_fire: entity %s predicate no longer matches, dropping fire",
                         entity_id,
                     )
                     return
@@ -478,7 +489,7 @@ class BusService(Service):
                     self.remove_listener(listener)
 
         self._duration_timers_active += 1
-        duration_config.timer.start(on_duration_fire_immediate, override_duration=remaining)
+        duration_config.timer.start(on_duration_fire, override_duration=remaining)
 
     def start_duration_timer(
         self,
@@ -578,10 +589,10 @@ class BusService(Service):
         if self.config_log_all_events:
             return True
 
-        if self.hassette.config.log_all_hass_events and event.topic.startswith("hass."):
+        if self.hassette.config.log_all_hass_events and event.topic.startswith(_HASS_TOPIC_PREFIX):
             return True
 
-        if self.hassette.config.log_all_hassette_events and event.topic.startswith("hassette."):
+        if self.hassette.config.log_all_hassette_events and event.topic.startswith(_HASSETTE_TOPIC_PREFIX):
             return True
 
         return False
@@ -636,7 +647,6 @@ class BusService(Service):
         if payload.event_type != "state_changed":
             return [topic]
 
-        # only specialize HA events you care about
         entity_id = payload.entity_id
         if not valid_entity_id(entity_id):
             self.logger.debug("Cannot expand topics for invalid entity_id: %r", entity_id)
@@ -685,9 +695,9 @@ class BusService(Service):
             docstring for the atomicity argument.  The same single-threaded scheduling
             applies to the throttle check in ``RateLimiter._throttled_call``.
         """
-        # FR4: invoke_fn captures the original triggering event.  Duration timer
-        # callbacks re-verify current state via hold predicates but dispatch via
-        # this invoke_fn — the handler receives the event that started the timer.
+        # invoke_fn captures the original triggering event. Duration timer callbacks
+        # re-verify current state via hold predicates but dispatch via this invoke_fn
+        # — the handler receives the event that started the timer.
         invoke_fn = self._make_tracked_invoke_fn(topic, event, listener)
 
         if listener.duration_config is not None and listener.duration_config.duration is not None:
@@ -731,8 +741,7 @@ class BusService(Service):
 
         async def execute_fn() -> None:
             # Resolve effective timeout lazily at fire time (not capture time) so that
-            # debounced handlers see config changes applied via hot reload, consistent
-            # with the lazy db_id resolution documented above.
+            # debounced handlers see config changes applied via hot reload.
             if listener.options.timeout_disabled:
                 effective_timeout = None
             elif listener.options.timeout is not None:
@@ -790,7 +799,7 @@ class BusService(Service):
         """
         return self._dispatch_pending
 
-    async def await_dispatch_idle(self, *, timeout: float = 2.0) -> None:
+    async def await_dispatch_idle(self, *, timeout: float = _DISPATCH_IDLE_DEFAULT_TIMEOUT) -> None:
         """Wait until all dispatched handler tasks have completed.
 
         Uses a monotonic dispatch counter (incremented on spawn, decremented on
@@ -821,27 +830,25 @@ class BusService(Service):
         """
         deadline = asyncio.get_running_loop().time() + timeout
 
+        def timeout_error() -> TimeoutError:
+            return TimeoutError(
+                f"BusService dispatch tasks did not complete within {timeout}s "
+                f"({self._dispatch_pending} dispatch tasks still pending)"
+            )
+
         while True:
-            # Wait for in-flight dispatches to complete.
             remaining = deadline - asyncio.get_running_loop().time()
             if remaining <= 0:
-                raise TimeoutError(
-                    f"BusService dispatch tasks did not complete within {timeout}s "
-                    f"({self._dispatch_pending} dispatch tasks still pending)"
-                )
+                raise timeout_error()
             try:
                 await asyncio.wait_for(self._dispatch_idle_event.wait(), timeout=remaining)
             except TimeoutError:
-                raise TimeoutError(
-                    f"BusService dispatch tasks did not complete within {timeout}s "
-                    f"({self._dispatch_pending} dispatch tasks still pending)"
-                ) from None
+                raise timeout_error() from None
 
             # Stability check: yield to let any in-transit events from the
             # anyio memory channel reach serve() → dispatch(). If idle_event
-            # is still set after the yield, no new dispatches were triggered
-            # by in-flight events and we are truly idle.
-            await asyncio.sleep(0.005)
+            # is still set after the yield, no new dispatches were triggered.
+            await asyncio.sleep(_DISPATCH_STABILITY_SLEEP)
             if self._dispatch_idle_event.is_set():
                 break
 
@@ -903,9 +910,9 @@ class BusService(Service):
 
         try:
             if (
-                payload.event_type == "call_service"
-                and payload.data.domain == "system_log"
-                and payload.data.service_data.get("level") == "debug"
+                payload.event_type == _SYSTEM_LOG_SKIP_EVENT_TYPE
+                and payload.data.domain == _SYSTEM_LOG_SKIP_DOMAIN
+                and payload.data.service_data.get("level") == _SYSTEM_LOG_SKIP_LEVEL
             ):
                 return True
         except AttributeError:
