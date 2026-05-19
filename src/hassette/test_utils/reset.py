@@ -51,7 +51,7 @@ async def reset_bus(bus: "Bus") -> None:
     Args:
         bus: The Bus instance to reset.
     """
-    await bus.remove_all_listeners()
+    bus.remove_all_listeners()
 
 
 async def reset_scheduler(scheduler: "Scheduler") -> None:
@@ -93,7 +93,7 @@ async def reset_app_handler(app_handler: "AppHandler", original_manifests: dict[
 
     # Clear test-owned listeners before re-bootstrap so they don't fire
     # on APP_LOAD_COMPLETED events during bootstrap_apps().
-    await app_handler.hassette.bus_service.remove_listeners_by_owner("test")
+    app_handler.hassette.bus_service.remove_listeners_by_owner("test")
 
     app_handler.registry.clear_all()
     app_handler.registry.set_manifests({k: v.model_copy(deep=True) for k, v in original_manifests.items()})

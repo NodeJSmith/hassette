@@ -79,7 +79,6 @@ Examples:
     ```
 """
 
-import asyncio
 import logging
 import typing
 from collections.abc import Mapping
@@ -152,7 +151,7 @@ class Bus(Resource):
 
     async def on_shutdown(self) -> None:
         """Cleanup all listeners owned by this bus's owner on shutdown."""
-        await self.remove_all_listeners()
+        self.remove_all_listeners()
 
     def on_error(self, handler: "BusErrorHandlerType") -> None:
         """Register an app-level error handler for this bus.
@@ -179,14 +178,14 @@ class Bus(Resource):
         """Return the log level from the config for this resource."""
         return self.hassette.config.bus_service_log_level
 
-    def add_listener(self, listener: "Listener") -> asyncio.Task[None]:
+    def add_listener(self, listener: "Listener") -> None:
         """Add a listener to the bus.
 
         Raises:
             ValueError: If the listener's natural key is already registered on this bus instance.
         """
         # Collision detection is synchronous so ValueError propagates to user code in on_initialize().
-        # (Detection in the async BusService._register_then_add_route() would be swallowed by the task runner.)
+        # (Running this check inside the background _register_in_db() task would swallow the ValueError.)
         # once=True listeners are excluded from collision detection: the partial unique index
         # (WHERE once = 0) explicitly allows unlimited fresh inserts for the same natural key,
         # so two once=True registrations for the same (handler, topic) are valid and expected.
@@ -200,7 +199,7 @@ class Bus(Resource):
                     f"Add name= to disambiguate if intentional."
                 )
             self._registered_keys.add(natural_key)
-        return self.bus_service.add_listener(listener)
+        self.bus_service.add_listener(listener)
 
     def _listener_natural_key(self, listener: "Listener") -> tuple[str, int, str, str, str]:
         """Compute the natural key tuple for a listener (for collision tracking)."""
@@ -213,17 +212,17 @@ class Bus(Resource):
             listener.identity.name if listener.identity.name is not None else human_description,
         )
 
-    def remove_listener(self, listener: "Listener") -> asyncio.Task[None]:
+    def remove_listener(self, listener: "Listener") -> None:
         """Remove a listener from the bus."""
         self._registered_keys.discard(self._listener_natural_key(listener))
-        return self.bus_service.remove_listener(listener)
+        self.bus_service.remove_listener(listener)
 
-    def remove_all_listeners(self) -> asyncio.Task[None]:
+    def remove_all_listeners(self) -> None:
         """Remove all listeners owned by this bus's owner."""
         self._registered_keys.clear()
-        return self.bus_service.remove_listeners_by_owner(self.owner_id)
+        self.bus_service.remove_listeners_by_owner(self.owner_id)
 
-    def get_listeners(self) -> asyncio.Task[list["Listener"]]:
+    def get_listeners(self) -> list["Listener"]:
         """Get all listeners owned by this bus's owner."""
         return self.bus_service.get_listeners_by_owner(self.owner_id)
 
@@ -363,10 +362,23 @@ class Bus(Resource):
             logger=self.logger,
         )
 
+        # Collision check — same guard as add_listener, required because _on_internal
+        # bypasses add_listener to capture the DB registration task directly.
+        if not listener.options.once:
+            natural_key = self._listener_natural_key(listener)
+            if natural_key in self._registered_keys:
+                key_str = natural_key[-1] or listener.identity.handler_name
+                raise ValueError(
+                    f"Duplicate listener registration detected for handler '{listener.identity.handler_name}' "
+                    f"on topic '{listener.topic}' (key={key_str!r}). "
+                    f"Add name= to disambiguate if intentional."
+                )
+            self._registered_keys.add(natural_key)
+
         def unsubscribe() -> None:
             self.remove_listener(listener)
 
-        registration_task = self.add_listener(listener)
+        registration_task = self.bus_service.add_listener(listener)
         return Subscription(listener, unsubscribe, registration_task)
 
     def _subscribe(

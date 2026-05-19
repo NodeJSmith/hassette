@@ -617,7 +617,7 @@ class Hassette(Resource):
         shutdown_logging()
         try:
             if self._bus is not None:
-                await self._bus.remove_all_listeners()
+                self._bus.remove_all_listeners()
         except Exception:
             self.logger.exception("Failed to remove bus listeners during shutdown")
         finally:
