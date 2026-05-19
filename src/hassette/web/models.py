@@ -376,72 +376,69 @@ class ActionResponse(BaseModel):
 class WebApiConfigResponse(BaseModel):
     """Sanitized web API configuration fields."""
 
-    run: bool = True
-    run_ui: bool = True
-    ui_hot_reload: bool = False
-    host: str = "0.0.0.0"
-    port: int = 8126
-    cors_origins: list[str] = Field(default_factory=list)
-    event_buffer_size: int = 500
-    log_buffer_size: int = 2000
-    job_history_size: int = 1000
+    run: bool
+    run_ui: bool
+    ui_hot_reload: bool
+    host: str
+    port: int
+    cors_origins: list[str]
+    event_buffer_size: int
+    log_buffer_size: int
+    job_history_size: int
 
 
 class LoggingConfigResponse(BaseModel):
     """Sanitized logging configuration fields."""
 
-    log_level: str = "INFO"
-    web_api: str = "INFO"
+    log_level: str
+    web_api: str
 
 
 class LifecycleConfigResponse(BaseModel):
     """Sanitized lifecycle configuration fields."""
 
-    startup_timeout_seconds: int = 30
-    app_startup_timeout_seconds: int = 20
-    app_shutdown_timeout_seconds: int = 10
+    startup_timeout_seconds: int
+    app_startup_timeout_seconds: int
+    app_shutdown_timeout_seconds: int
 
 
 class AppGroupConfigResponse(BaseModel):
     """Sanitized app configuration fields (config group sub-response)."""
 
-    autodetect: bool = True
-    directory: str = ""
+    autodetect: bool
+    directory: str
 
 
 class SchedulerConfigResponse(BaseModel):
     """Sanitized scheduler configuration fields."""
 
-    min_delay_seconds: int = 1
-    max_delay_seconds: int = 30
-    default_delay_seconds: int = 15
+    min_delay_seconds: int
+    max_delay_seconds: int
+    default_delay_seconds: int
 
 
 class FileWatcherConfigResponse(BaseModel):
     """Sanitized file watcher configuration fields."""
 
-    watch_files: bool = True
-    debounce_milliseconds: int = 3000
+    watch_files: bool
+    debounce_milliseconds: int
 
 
 class ConfigResponse(BaseModel):
     """Sanitized configuration response organized by config group."""
 
-    # Root-level cross-cutting fields
-    dev_mode: bool = False
-    base_url: str = ""
-    asyncio_debug_mode: bool = False
-    allow_reload_in_prod: bool = False
-    data_dir: str = ""
-    config_dir: str = ""
-
-    # Nested group sub-responses
-    web_api: WebApiConfigResponse = Field(default_factory=WebApiConfigResponse)
-    logging: LoggingConfigResponse = Field(default_factory=LoggingConfigResponse)
-    lifecycle: LifecycleConfigResponse = Field(default_factory=LifecycleConfigResponse)
-    app: AppGroupConfigResponse = Field(default_factory=AppGroupConfigResponse)
-    scheduler: SchedulerConfigResponse = Field(default_factory=SchedulerConfigResponse)
-    file_watcher: FileWatcherConfigResponse = Field(default_factory=FileWatcherConfigResponse)
+    dev_mode: bool
+    base_url: str
+    asyncio_debug_mode: bool
+    allow_reload_in_prod: bool
+    data_dir: str
+    config_dir: str
+    web_api: WebApiConfigResponse
+    logging: LoggingConfigResponse
+    lifecycle: LifecycleConfigResponse
+    app: AppGroupConfigResponse
+    scheduler: SchedulerConfigResponse
+    file_watcher: FileWatcherConfigResponse
 
 
 class AppConfigResponse(BaseModel):

@@ -476,29 +476,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/{path}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Spa Catch All
-         * @description Serve index.html for SPA client-side routing.
-         *
-         *     Static files in the SPA build output (e.g., hassette-logo.png) are
-         *     served directly.  Other static-looking paths and API paths get a 404.
-         */
-        get: operations["spa_catch_all__path__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -579,15 +556,9 @@ export interface components {
          * @description Sanitized app configuration fields (config group sub-response).
          */
         AppGroupConfigResponse: {
-            /**
-             * Autodetect
-             * @default true
-             */
+            /** Autodetect */
             autodetect: boolean;
-            /**
-             * Directory
-             * @default
-             */
+            /** Directory */
             directory: string;
         };
         /**
@@ -730,42 +701,24 @@ export interface components {
          * @description Sanitized configuration response organized by config group.
          */
         ConfigResponse: {
-            /**
-             * Dev Mode
-             * @default false
-             */
+            /** Dev Mode */
             dev_mode: boolean;
-            /**
-             * Base Url
-             * @default
-             */
+            /** Base Url */
             base_url: string;
-            /**
-             * Asyncio Debug Mode
-             * @default false
-             */
+            /** Asyncio Debug Mode */
             asyncio_debug_mode: boolean;
-            /**
-             * Allow Reload In Prod
-             * @default false
-             */
+            /** Allow Reload In Prod */
             allow_reload_in_prod: boolean;
-            /**
-             * Data Dir
-             * @default
-             */
+            /** Data Dir */
             data_dir: string;
-            /**
-             * Config Dir
-             * @default
-             */
+            /** Config Dir */
             config_dir: string;
-            web_api?: components["schemas"]["WebApiConfigResponse"];
-            logging?: components["schemas"]["LoggingConfigResponse"];
-            lifecycle?: components["schemas"]["LifecycleConfigResponse"];
-            app?: components["schemas"]["AppGroupConfigResponse"];
-            scheduler?: components["schemas"]["SchedulerConfigResponse"];
-            file_watcher?: components["schemas"]["FileWatcherConfigResponse"];
+            web_api: components["schemas"]["WebApiConfigResponse"];
+            logging: components["schemas"]["LoggingConfigResponse"];
+            lifecycle: components["schemas"]["LifecycleConfigResponse"];
+            app: components["schemas"]["AppGroupConfigResponse"];
+            scheduler: components["schemas"]["SchedulerConfigResponse"];
+            file_watcher: components["schemas"]["FileWatcherConfigResponse"];
         };
         /**
          * DashboardAppGridEntry
@@ -838,15 +791,9 @@ export interface components {
          * @description Sanitized file watcher configuration fields.
          */
         FileWatcherConfigResponse: {
-            /**
-             * Watch Files
-             * @default true
-             */
+            /** Watch Files */
             watch_files: boolean;
-            /**
-             * Debounce Milliseconds
-             * @default 3000
-             */
+            /** Debounce Milliseconds */
             debounce_milliseconds: number;
         };
         /** HTTPValidationError */
@@ -999,20 +946,11 @@ export interface components {
          * @description Sanitized lifecycle configuration fields.
          */
         LifecycleConfigResponse: {
-            /**
-             * Startup Timeout Seconds
-             * @default 30
-             */
+            /** Startup Timeout Seconds */
             startup_timeout_seconds: number;
-            /**
-             * App Startup Timeout Seconds
-             * @default 20
-             */
+            /** App Startup Timeout Seconds */
             app_startup_timeout_seconds: number;
-            /**
-             * App Shutdown Timeout Seconds
-             * @default 10
-             */
+            /** App Shutdown Timeout Seconds */
             app_shutdown_timeout_seconds: number;
         };
         /**
@@ -1175,15 +1113,9 @@ export interface components {
          * @description Sanitized logging configuration fields.
          */
         LoggingConfigResponse: {
-            /**
-             * Log Level
-             * @default INFO
-             */
+            /** Log Level */
             log_level: string;
-            /**
-             * Web Api
-             * @default INFO
-             */
+            /** Web Api */
             web_api: string;
         };
         /**
@@ -1203,20 +1135,11 @@ export interface components {
          * @description Sanitized scheduler configuration fields.
          */
         SchedulerConfigResponse: {
-            /**
-             * Min Delay Seconds
-             * @default 1
-             */
+            /** Min Delay Seconds */
             min_delay_seconds: number;
-            /**
-             * Max Delay Seconds
-             * @default 30
-             */
+            /** Max Delay Seconds */
             max_delay_seconds: number;
-            /**
-             * Default Delay Seconds
-             * @default 15
-             */
+            /** Default Delay Seconds */
             default_delay_seconds: number;
         };
         /**
@@ -1318,47 +1241,23 @@ export interface components {
          * @description Sanitized web API configuration fields.
          */
         WebApiConfigResponse: {
-            /**
-             * Run
-             * @default true
-             */
+            /** Run */
             run: boolean;
-            /**
-             * Run Ui
-             * @default true
-             */
+            /** Run Ui */
             run_ui: boolean;
-            /**
-             * Ui Hot Reload
-             * @default false
-             */
+            /** Ui Hot Reload */
             ui_hot_reload: boolean;
-            /**
-             * Host
-             * @default 0.0.0.0
-             */
+            /** Host */
             host: string;
-            /**
-             * Port
-             * @default 8126
-             */
+            /** Port */
             port: number;
             /** Cors Origins */
-            cors_origins?: string[];
-            /**
-             * Event Buffer Size
-             * @default 500
-             */
+            cors_origins: string[];
+            /** Event Buffer Size */
             event_buffer_size: number;
-            /**
-             * Log Buffer Size
-             * @default 2000
-             */
+            /** Log Buffer Size */
             log_buffer_size: number;
-            /**
-             * Job History Size
-             * @default 1000
-             */
+            /** Job History Size */
             job_history_size: number;
         };
     };
@@ -2103,37 +2002,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobSummary"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    spa_catch_all__path__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                path: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

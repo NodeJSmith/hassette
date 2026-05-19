@@ -1,7 +1,7 @@
 # Design: Migrate HassetteConfig to Nested Pydantic Models
 
 **Date:** 2026-05-19
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-05-01-config-class-organization/research.md
 

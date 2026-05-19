@@ -33,18 +33,6 @@ from hassette.utils.app_utils import autodetect_apps, clean_app
 
 LOGGER = getLogger(__name__)
 
-# Group name → nested model class mapping for model_post_init defaults iteration
-_NESTED_GROUPS: dict[str, type] = {
-    "database": DatabaseConfig,
-    "websocket": WebSocketConfig,
-    "logging": LoggingConfig,
-    "lifecycle": LifecycleConfig,
-    "web_api": WebApiConfig,
-    "app": AppConfig,
-    "scheduler": SchedulerConfig,
-    "file_watcher": FileWatcherConfig,
-}
-
 
 class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Configuration for Hassette."""
@@ -91,10 +79,6 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         )
         return sources
 
-    # -------------------------------------------------------------------------
-    # Nested model groups (8 groups)
-    # -------------------------------------------------------------------------
-
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     """Database storage, retention, and operational settings."""
 
@@ -118,10 +102,6 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
     file_watcher: FileWatcherConfig = Field(default_factory=FileWatcherConfig)
     """File watcher debounce, step, and enable/disable settings."""
-
-    # -------------------------------------------------------------------------
-    # Root-level cross-cutting fields (21 fields)
-    # -------------------------------------------------------------------------
 
     # note - not actually used here, reflects the options in __main__ argparser for --help
     config_file: Path | str | None = Field(default=Path("hassette.toml"))
@@ -208,10 +188,6 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     allow_only_app_in_prod: bool = Field(default=False)
     """Whether to allow the `only_app` decorator in production mode. Defaults to False."""
 
-    # -------------------------------------------------------------------------
-    # Properties
-    # -------------------------------------------------------------------------
-
     @property
     def env_files(self) -> set[Path]:
         """Return a list of environment files that Pydantic will check."""
@@ -257,10 +233,6 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             return f"{self.token[:3]}***"
         return f"{self.token[:6]}...{self.token[-6:]}"
 
-    # -------------------------------------------------------------------------
-    # Validators
-    # -------------------------------------------------------------------------
-
     @model_validator(mode="after")
     def validate_log_retention_days(self) -> "HassetteConfig":
         """Ensure logging.log_retention_days <= database.retention_days.
@@ -285,10 +257,6 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             LOGGER.debug("Creating directory %s as it does not exist", resolved)
             resolved.mkdir(parents=True, exist_ok=True)
         return resolved
-
-    # -------------------------------------------------------------------------
-    # Lifecycle
-    # -------------------------------------------------------------------------
 
     def reload(self):
         """Reload the configuration from all sources."""
@@ -315,17 +283,13 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
         # Apply nested group defaults (e.g. [hassette.websocket], [hassette.scheduler])
         for group_name in _NESTED_GROUPS:
-            if group_name not in defaults:
+            if group_name not in defaults or group_name in self.model_fields_set:
                 continue
             group_defaults = defaults[group_name]
             if not isinstance(group_defaults, dict):
                 continue
             group_obj = getattr(self, group_name)
             for sub_field, sub_value in group_defaults.items():
-                # Only apply if not already explicitly set by the user
-                if group_name in self.model_fields_set:
-                    # The whole group was set explicitly; skip
-                    break
                 LOGGER.debug(
                     "Setting %s for unset nested field %s.%s: %s",
                     default_str,
@@ -387,3 +351,10 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             app_manifest_dict[k] = AppManifest.model_validate(v)
 
         self.app.manifests = app_manifest_dict
+
+
+_NESTED_GROUPS: dict[str, type] = {
+    name: field.annotation
+    for name, field in HassetteConfig.model_fields.items()
+    if isinstance(field.annotation, type) and issubclass(field.annotation, ExcludeExtrasMixin)
+}

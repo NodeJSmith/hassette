@@ -1602,16 +1602,18 @@
         "properties": {
           "autodetect": {
             "type": "boolean",
-            "title": "Autodetect",
-            "default": true
+            "title": "Autodetect"
           },
           "directory": {
             "type": "string",
-            "title": "Directory",
-            "default": ""
+            "title": "Directory"
           }
         },
         "type": "object",
+        "required": [
+          "autodetect",
+          "directory"
+        ],
         "title": "AppGroupConfigResponse",
         "description": "Sanitized app configuration fields (config group sub-response)."
       },
@@ -1982,33 +1984,27 @@
         "properties": {
           "dev_mode": {
             "type": "boolean",
-            "title": "Dev Mode",
-            "default": false
+            "title": "Dev Mode"
           },
           "base_url": {
             "type": "string",
-            "title": "Base Url",
-            "default": ""
+            "title": "Base Url"
           },
           "asyncio_debug_mode": {
             "type": "boolean",
-            "title": "Asyncio Debug Mode",
-            "default": false
+            "title": "Asyncio Debug Mode"
           },
           "allow_reload_in_prod": {
             "type": "boolean",
-            "title": "Allow Reload In Prod",
-            "default": false
+            "title": "Allow Reload In Prod"
           },
           "data_dir": {
             "type": "string",
-            "title": "Data Dir",
-            "default": ""
+            "title": "Data Dir"
           },
           "config_dir": {
             "type": "string",
-            "title": "Config Dir",
-            "default": ""
+            "title": "Config Dir"
           },
           "web_api": {
             "$ref": "#/components/schemas/WebApiConfigResponse"
@@ -2030,6 +2026,20 @@
           }
         },
         "type": "object",
+        "required": [
+          "dev_mode",
+          "base_url",
+          "asyncio_debug_mode",
+          "allow_reload_in_prod",
+          "data_dir",
+          "config_dir",
+          "web_api",
+          "logging",
+          "lifecycle",
+          "app",
+          "scheduler",
+          "file_watcher"
+        ],
         "title": "ConfigResponse",
         "description": "Sanitized configuration response organized by config group."
       },
@@ -2196,16 +2206,18 @@
         "properties": {
           "watch_files": {
             "type": "boolean",
-            "title": "Watch Files",
-            "default": true
+            "title": "Watch Files"
           },
           "debounce_milliseconds": {
             "type": "integer",
-            "title": "Debounce Milliseconds",
-            "default": 3000
+            "title": "Debounce Milliseconds"
           }
         },
         "type": "object",
+        "required": [
+          "watch_files",
+          "debounce_milliseconds"
+        ],
         "title": "FileWatcherConfigResponse",
         "description": "Sanitized file watcher configuration fields."
       },
@@ -2661,21 +2673,23 @@
         "properties": {
           "startup_timeout_seconds": {
             "type": "integer",
-            "title": "Startup Timeout Seconds",
-            "default": 30
+            "title": "Startup Timeout Seconds"
           },
           "app_startup_timeout_seconds": {
             "type": "integer",
-            "title": "App Startup Timeout Seconds",
-            "default": 20
+            "title": "App Startup Timeout Seconds"
           },
           "app_shutdown_timeout_seconds": {
             "type": "integer",
-            "title": "App Shutdown Timeout Seconds",
-            "default": 10
+            "title": "App Shutdown Timeout Seconds"
           }
         },
         "type": "object",
+        "required": [
+          "startup_timeout_seconds",
+          "app_startup_timeout_seconds",
+          "app_shutdown_timeout_seconds"
+        ],
         "title": "LifecycleConfigResponse",
         "description": "Sanitized lifecycle configuration fields."
       },
@@ -3086,16 +3100,18 @@
         "properties": {
           "log_level": {
             "type": "string",
-            "title": "Log Level",
-            "default": "INFO"
+            "title": "Log Level"
           },
           "web_api": {
             "type": "string",
-            "title": "Web Api",
-            "default": "INFO"
+            "title": "Web Api"
           }
         },
         "type": "object",
+        "required": [
+          "log_level",
+          "web_api"
+        ],
         "title": "LoggingConfigResponse",
         "description": "Sanitized logging configuration fields."
       },
@@ -3130,21 +3146,23 @@
         "properties": {
           "min_delay_seconds": {
             "type": "integer",
-            "title": "Min Delay Seconds",
-            "default": 1
+            "title": "Min Delay Seconds"
           },
           "max_delay_seconds": {
             "type": "integer",
-            "title": "Max Delay Seconds",
-            "default": 30
+            "title": "Max Delay Seconds"
           },
           "default_delay_seconds": {
             "type": "integer",
-            "title": "Default Delay Seconds",
-            "default": 15
+            "title": "Default Delay Seconds"
           }
         },
         "type": "object",
+        "required": [
+          "min_delay_seconds",
+          "max_delay_seconds",
+          "default_delay_seconds"
+        ],
         "title": "SchedulerConfigResponse",
         "description": "Sanitized scheduler configuration fields."
       },
@@ -3342,28 +3360,23 @@
         "properties": {
           "run": {
             "type": "boolean",
-            "title": "Run",
-            "default": true
+            "title": "Run"
           },
           "run_ui": {
             "type": "boolean",
-            "title": "Run Ui",
-            "default": true
+            "title": "Run Ui"
           },
           "ui_hot_reload": {
             "type": "boolean",
-            "title": "Ui Hot Reload",
-            "default": false
+            "title": "Ui Hot Reload"
           },
           "host": {
             "type": "string",
-            "title": "Host",
-            "default": "0.0.0.0"
+            "title": "Host"
           },
           "port": {
             "type": "integer",
-            "title": "Port",
-            "default": 8126
+            "title": "Port"
           },
           "cors_origins": {
             "items": {
@@ -3374,21 +3387,29 @@
           },
           "event_buffer_size": {
             "type": "integer",
-            "title": "Event Buffer Size",
-            "default": 500
+            "title": "Event Buffer Size"
           },
           "log_buffer_size": {
             "type": "integer",
-            "title": "Log Buffer Size",
-            "default": 2000
+            "title": "Log Buffer Size"
           },
           "job_history_size": {
             "type": "integer",
-            "title": "Job History Size",
-            "default": 1000
+            "title": "Job History Size"
           }
         },
         "type": "object",
+        "required": [
+          "run",
+          "run_ui",
+          "ui_hot_reload",
+          "host",
+          "port",
+          "cors_origins",
+          "event_buffer_size",
+          "log_buffer_size",
+          "job_history_size"
+        ],
         "title": "WebApiConfigResponse",
         "description": "Sanitized web API configuration fields."
       }
