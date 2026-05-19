@@ -45,70 +45,6 @@ _SYSTEM_LOG_SKIP_DOMAIN = "system_log"
 _SYSTEM_LOG_SKIP_LEVEL = "debug"
 
 
-def read_current_state(
-    hassette: "Hassette",
-    entity_id: str,
-    listener: "Listener",
-    logger: "logging.Logger",
-) -> "HassStateDict | None":
-    """Read entity state from StateProxy; returns None and logs on any failure."""
-    try:
-        state_proxy = hassette._state_proxy
-        if state_proxy is None:
-            logger.debug("immediate_fire: StateProxy not available for entity %s, skipping", entity_id)
-            return None
-        current_state = state_proxy.states.get(entity_id)
-        if current_state is None:
-            logger.debug("immediate_fire: entity %s not found in StateProxy, skipping", entity_id)
-            return None
-        return current_state
-    except ResourceNotReadyError as exc:
-        logger.error(
-            "immediate_fire: ResourceNotReadyError for entity %s (sequencing violation). owner=%s topic=%s",
-            entity_id,
-            listener.identity.owner_id,
-            listener.topic,
-            exc_info=exc,
-        )
-        return None
-    except Exception as exc:
-        logger.warning(
-            "immediate_fire: unexpected error for entity %s, immediate fire will not occur. owner=%s topic=%s",
-            entity_id,
-            listener.identity.owner_id,
-            listener.topic,
-            exc_info=exc,
-        )
-        return None
-
-
-def compute_elapsed(current_state: "HassStateDict", duration_config: DurationConfig) -> float:
-    """Compute how long an entity has been in its current state.
-
-    For attribute listeners, returns 0.0 (elapsed time is not tracked the same way).
-    Returns a value clamped to [0.0, duration_config.duration].
-    Caller must ensure duration_config.duration is not None.
-    """
-    duration = duration_config.duration
-    if duration is None:
-        return 0.0
-
-    if duration_config.is_attribute_listener:
-        return 0.0
-
-    last_changed_raw = current_state.get("last_changed")
-    if not isinstance(last_changed_raw, str):
-        return 0.0
-
-    last_changed = _date_utils.convert_datetime_str_to_system_tz(last_changed_raw)
-    if last_changed is None:
-        return 0.0
-
-    now_dt = _date_utils.now()
-    raw_elapsed = (now_dt - last_changed).in_seconds()
-    return max(0.0, min(raw_elapsed, duration))
-
-
 class BusService(Service):
     """EventBus service that handles event dispatching and listener management."""
 
@@ -935,3 +871,67 @@ class BusService(Service):
                 return True
 
         return False
+
+
+def read_current_state(
+    hassette: "Hassette",
+    entity_id: str,
+    listener: "Listener",
+    logger: "logging.Logger",
+) -> "HassStateDict | None":
+    """Read entity state from StateProxy; returns None and logs on any failure."""
+    try:
+        state_proxy = hassette._state_proxy
+        if state_proxy is None:
+            logger.debug("immediate_fire: StateProxy not available for entity %s, skipping", entity_id)
+            return None
+        current_state = state_proxy.states.get(entity_id)
+        if current_state is None:
+            logger.debug("immediate_fire: entity %s not found in StateProxy, skipping", entity_id)
+            return None
+        return current_state
+    except ResourceNotReadyError as exc:
+        logger.error(
+            "immediate_fire: ResourceNotReadyError for entity %s (sequencing violation). owner=%s topic=%s",
+            entity_id,
+            listener.identity.owner_id,
+            listener.topic,
+            exc_info=exc,
+        )
+        return None
+    except Exception as exc:
+        logger.warning(
+            "immediate_fire: unexpected error for entity %s, immediate fire will not occur. owner=%s topic=%s",
+            entity_id,
+            listener.identity.owner_id,
+            listener.topic,
+            exc_info=exc,
+        )
+        return None
+
+
+def compute_elapsed(current_state: "HassStateDict", duration_config: DurationConfig) -> float:
+    """Compute how long an entity has been in its current state.
+
+    For attribute listeners, returns 0.0 (elapsed time is not tracked the same way).
+    Returns a value clamped to [0.0, duration_config.duration].
+    Caller must ensure duration_config.duration is not None.
+    """
+    duration = duration_config.duration
+    if duration is None:
+        return 0.0
+
+    if duration_config.is_attribute_listener:
+        return 0.0
+
+    last_changed_raw = current_state.get("last_changed")
+    if not isinstance(last_changed_raw, str):
+        return 0.0
+
+    last_changed = _date_utils.convert_datetime_str_to_system_tz(last_changed_raw)
+    if last_changed is None:
+        return 0.0
+
+    now_dt = _date_utils.now()
+    raw_elapsed = (now_dt - last_changed).in_seconds()
+    return max(0.0, min(raw_elapsed, duration))
