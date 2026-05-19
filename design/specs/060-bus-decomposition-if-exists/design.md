@@ -121,7 +121,7 @@ Both `on_state_change` and `on_attribute_change` call this function and pass the
 **Source:** `src/hassette/scheduler/scheduler.py:164-221`
 
 ```python
-def add_job(self, job: "ScheduledJob", *, if_exists: Literal["error", "skip"] = "error") -> "ScheduledJob":
+def add_job(self, job: "ScheduledJob", *, if_exists: Literal["error", "skip", "replace"] = "error") -> "ScheduledJob":
     existing = self._jobs_by_name.get(job.name)
     if existing is not None:
         if if_exists == "skip" and existing.matches(job):
@@ -138,7 +138,7 @@ def add_job(self, job: "ScheduledJob", *, if_exists: Literal["error", "skip"] = 
 
 ### Natural key computation
 
-**Source:** `src/hassette/bus/bus.py:205-216`
+**Source:** `src/hassette/bus/bus.py:270-281`
 
 ```python
 def _listener_natural_key(self, listener: "Listener") -> tuple[str, int, str, str, str]:
