@@ -14,8 +14,30 @@ from hassette.core.database_service import DatabaseService
 
 
 @pytest.fixture
-def mock_hassette(tmp_path: Path) -> MagicMock:
-    """Create a mock Hassette with database config pointing to tmp_path."""
+def mock_hassette(premigrated_db_path: Path) -> MagicMock:
+    """Create a mock Hassette with database config pointing to a pre-migrated DB."""
+    hassette = MagicMock()
+    hassette.config.data_dir = premigrated_db_path.parent
+    hassette.config.db_path = None
+    hassette.config.db_retention_days = 7
+    hassette.config.log_retention_days = 3
+    hassette.config.db_max_size_mb = 500
+    hassette.config.db_migration_timeout_seconds = 120
+    hassette.config.telemetry_write_queue_max = 500
+    hassette.config.db_write_queue_max = 2000
+    hassette.config.database_service_log_level = "INFO"
+    hassette.config.log_level = "INFO"
+    hassette.config.task_bucket_log_level = "INFO"
+    hassette.config.resource_shutdown_timeout_seconds = 5
+    hassette.config.task_cancellation_timeout_seconds = 5
+    hassette.ready_event = asyncio.Event()
+    hassette._session_id = None
+    return hassette
+
+
+@pytest.fixture
+def mock_hassette_fresh(tmp_path: Path) -> MagicMock:
+    """Create a mock Hassette with a fresh (empty) data_dir for migration-from-scratch tests."""
     hassette = MagicMock()
     hassette.config.data_dir = tmp_path
     hassette.config.db_path = None
@@ -42,6 +64,30 @@ def service(mock_hassette: MagicMock) -> DatabaseService:
 
 
 @pytest.fixture
+def fresh_service(mock_hassette_fresh: MagicMock) -> DatabaseService:
+    """Create a DatabaseService against a fresh (empty) data_dir — no pre-migrated DB."""
+    return DatabaseService(mock_hassette_fresh, parent=mock_hassette_fresh)
+
+
+@pytest.fixture
+async def initialized_fresh_service(fresh_service: DatabaseService) -> AsyncIterator[DatabaseService]:
+    """Initialize a DatabaseService from scratch (runs real migrations) with a seeded session."""
+    await fresh_service.on_initialize()
+    try:
+        now = time.time()
+        cursor = await fresh_service.db.execute(
+            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
+            (now, now),
+        )
+        fresh_service.hassette._session_id = cursor.lastrowid
+        fresh_service.hassette.session_id = cursor.lastrowid
+        await fresh_service.db.commit()
+        yield fresh_service
+    finally:
+        await fresh_service.on_shutdown()
+
+
+@pytest.fixture
 async def initialized_service(service: DatabaseService) -> AsyncIterator[DatabaseService]:
     """Initialize a DatabaseService and create a session row for heartbeat tests."""
     await service.on_initialize()
@@ -60,11 +106,11 @@ async def initialized_service(service: DatabaseService) -> AsyncIterator[Databas
         await service.on_shutdown()
 
 
-async def test_fresh_db_creates_all_tables(initialized_service: DatabaseService) -> None:
+async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseService) -> None:
     """on_initialize creates all tables and indexes on a fresh database."""
     import sqlite3
 
-    db_path = initialized_service._db_path
+    db_path = initialized_fresh_service._db_path
     conn = sqlite3.connect(db_path)
     try:
         cursor = conn.execute(

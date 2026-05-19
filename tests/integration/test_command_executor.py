@@ -23,10 +23,10 @@ from hassette.utils.execution import ExecutionResult
 
 
 @pytest.fixture
-def mock_hassette(tmp_path: Path) -> MagicMock:
-    """Create a mock Hassette with database config pointing to tmp_path."""
+def mock_hassette(premigrated_db_path: Path) -> MagicMock:
+    """Create a mock Hassette with database config pointing to a pre-migrated DB."""
     hassette = MagicMock()
-    hassette.config.data_dir = tmp_path
+    hassette.config.data_dir = premigrated_db_path.parent
     hassette.config.db_path = None
     hassette.config.db_retention_days = 7
     hassette.config.db_migration_timeout_seconds = 120
@@ -619,7 +619,7 @@ async def test_register_job_blocks_until_database_ready(
 
 async def test_concurrent_registrations_do_not_raise(
     mock_hassette: MagicMock,
-    tmp_path: Path,
+    premigrated_db_path: Path,
 ) -> None:
     """N concurrent register_listener() calls complete without OperationalError.
 
@@ -630,7 +630,7 @@ async def test_concurrent_registrations_do_not_raise(
     After the fix, all writes are serialized through the DatabaseService worker, so
     concurrent callers wait their turn and every call returns a valid positive ID.
     """
-    mock_hassette.config.data_dir = tmp_path
+    mock_hassette.config.data_dir = premigrated_db_path.parent
     mock_hassette.config.db_path = None
     mock_hassette.config.db_retention_days = 7
     mock_hassette.config.db_migration_timeout_seconds = 120

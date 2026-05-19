@@ -27,9 +27,9 @@ from hassette.core.telemetry_query_service import TelemetryQueryService
 
 
 @pytest.fixture
-def mock_hassette(tmp_path: Path) -> MagicMock:
+def mock_hassette(premigrated_db_path: Path) -> MagicMock:
     hassette = MagicMock()
-    hassette.config.data_dir = tmp_path
+    hassette.config.data_dir = premigrated_db_path.parent
     hassette.config.db_path = None
     hassette.config.db_retention_days = 7
     hassette.config.log_retention_days = 3
