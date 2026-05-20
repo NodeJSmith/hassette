@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { listenerToRow, jobToRow, compareHandlerRows } from "./handlers-types";
-import type { UnifiedRow, HandlerSortKey } from "./handlers-types";
+import { listenerToRow, jobToRow, compareHandlerRows } from "./handler-rows";
+import type { UnifiedRow, HandlerSortKey } from "./handler-rows";
 import type { SortState } from "../components/shared/sort-header";
 import { createListener, createJob } from "../test/factories";
 
@@ -354,12 +354,10 @@ describe("compareHandlerRows — next_run", () => {
     expect(compareHandlerRows(a, b, asc("next_run"))).toBeLessThan(0);
   });
 
-  it("both null produce NaN (Infinity - Infinity)", () => {
-    // The implementation uses Infinity for null timestamps; Infinity - Infinity = NaN.
-    // Sort is stable for equal-timestamp rows in practice (browser sort treats NaN as 0).
+  it("both null next_run sort as equal", () => {
     const a = row({ next_run_ts: null });
     const b = row({ next_run_ts: null });
-    expect(compareHandlerRows(a, b, asc("next_run"))).toBeNaN();
+    expect(compareHandlerRows(a, b, asc("next_run"))).toBe(0);
   });
 });
 

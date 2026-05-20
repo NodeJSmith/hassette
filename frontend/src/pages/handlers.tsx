@@ -13,7 +13,7 @@ import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
 import { type ColumnFilters } from "../components/shared/table-types";
 import { pluralize } from "../utils/format";
-import { type HandlerSortKey, listenerToRow, jobToRow, compareHandlerRows } from "./handlers-types";
+import { type HandlerSortKey, listenerToRow, jobToRow, compareHandlerRows } from "../utils/handler-rows";
 import { HandlerTableRow, HandlerMobileRow } from "./handlers-rows";
 import styles from "./handlers.module.css";
 

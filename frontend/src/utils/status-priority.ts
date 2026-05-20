@@ -1,6 +1,10 @@
 /**
  * Canonical status priority ordering. Lower number = more severe / worse.
  * Used for both worst-of-children resolution (sidebar) and table column sorting.
+ *
+ * This replaces two previously divergent maps. The table sort previously grouped
+ * stopping/shutting_down with blocked (tier 1); they now sort between running (4)
+ * and stopped (6), which is more semantically correct for transitional statuses.
  */
 export const STATUS_PRIORITY: Readonly<Record<string, number>> = {
   failed: 0,

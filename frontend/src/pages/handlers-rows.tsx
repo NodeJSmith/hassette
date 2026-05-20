@@ -3,7 +3,7 @@ import { Chip } from "../components/shared/chip";
 import { AppLink } from "../components/shared/app-link";
 import { formatDurationOrDash, formatRate, MS_PER_SECOND } from "../utils/format";
 import { useRelativeTime } from "../hooks/use-relative-time";
-import type { UnifiedRow } from "./handlers-types";
+import type { UnifiedRow } from "../utils/handler-rows";
 import styles from "./handlers.module.css";
 
 // Coarse kind labels for the table view — overview-tab-helpers uses handlerKindLabel() for richer per-listener kinds

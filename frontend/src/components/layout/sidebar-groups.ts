@@ -31,12 +31,8 @@ export function worstStatus(manifest: AppManifest): string {
   }, manifest.status);
 }
 
-function isMultiInstance(m: AppManifest): boolean {
-  return m.instance_count > 1;
-}
-
 export function getGroupKey(manifest: AppManifest): GroupKey {
-  const status = isMultiInstance(manifest) ? worstStatus(manifest) : manifest.status;
+  const status = manifest.instance_count > 1 ? worstStatus(manifest) : manifest.status;
 
   if (status === "blocked") return "blocked";
   if (status === "disabled") return "disabled";

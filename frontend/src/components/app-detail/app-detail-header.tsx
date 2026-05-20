@@ -28,6 +28,7 @@ export function AppDetailHeader({
   showParentOverview,
 }: Props) {
   const showStatusBadge = liveStatus !== "running" && liveStatus !== "starting";
+  const errorMsg = currentInstance?.error_message ?? manifest?.error_message ?? null;
 
   return (
     <>
@@ -63,9 +64,9 @@ export function AppDetailHeader({
         )}
       </p>
 
-      {(currentInstance?.error_message ?? manifest?.error_message) && (
+      {errorMsg && (
         <ErrorBanner
-          errorMessage={(currentInstance?.error_message ?? manifest?.error_message)!}
+          errorMessage={errorMsg}
           traceback={manifest?.error_traceback ?? null}
           data-testid="error-display"
         />
