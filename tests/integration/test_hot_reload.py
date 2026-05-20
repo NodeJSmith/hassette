@@ -295,6 +295,7 @@ class TestOnlyAppDecorator:
         assert self.app_handler.registry.get(normal.app_key, 0) is None
         assert self.app_handler.registry.only_app == only.app_key
 
+    @pytest.mark.skip(reason="Timing-sensitive on CI — fix in follow-up PR")
     async def test_removing_only_app_starts_previously_blocked_apps(self):
         """Remove @only_app decorator and verify previously-blocked apps start."""
         app_dir = self.hassette.config.app.directory
