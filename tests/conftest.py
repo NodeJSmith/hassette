@@ -29,6 +29,7 @@ tracemalloc.start()
 
 TEST_DATA_PATH = Path.cwd().joinpath("tests", "data")
 TEST_CONFIG_PATH = TEST_DATA_PATH / "config"
+TEST_EVENTS_PATH = TEST_DATA_PATH / "events"
 TEST_API_RESPONSES_PATH = TEST_DATA_PATH / "api_responses"
 TEST_APPS_PATH = TEST_DATA_PATH / "apps"
 
@@ -159,6 +160,12 @@ def test_config_with_temp_path(tmp_path_factory: pytest.TempPathFactory) -> Hass
         model_config = TestConfig.model_config.copy() | {"toml_file": [toml_path], "env_file": [ENV_FILE]}
 
     return MyTestConfig()
+
+
+@pytest.fixture(scope="session")
+def test_events_path() -> Path:
+    """Provide the path to the test events directory."""
+    return TEST_EVENTS_PATH
 
 
 @pytest.fixture
