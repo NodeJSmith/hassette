@@ -3,31 +3,21 @@
 import asyncio
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 
 import pytest
 
 from hassette.core.event_stream_service import EventStreamService
-
-
-def _make_mock_hassette(buffer_size: int = 1000) -> MagicMock:
-    hassette = MagicMock()
-    hassette.config.hassette_event_buffer_size = buffer_size
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    return hassette
+from hassette.test_utils import make_mock_hassette
 
 
 @pytest.fixture
-def mock_hassette() -> MagicMock:
+def mock_hassette():
     """Create a mock Hassette with the event buffer size config."""
-    return _make_mock_hassette()
+    return make_mock_hassette(sealed=False)
 
 
 @pytest.fixture
-async def event_stream_service(mock_hassette: MagicMock) -> AsyncIterator[EventStreamService]:
+async def event_stream_service(mock_hassette) -> AsyncIterator[EventStreamService]:
     """Create an EventStreamService with default buffer size, cleaned up after test."""
     service = EventStreamService(mock_hassette, parent=mock_hassette)
     try:
@@ -60,7 +50,7 @@ async def test_close_streams_closes_both(event_stream_service: EventStreamServic
 
 async def test_custom_buffer_size() -> None:
     """Buffer size is read from config, not hardcoded."""
-    hassette = _make_mock_hassette(buffer_size=3)
+    hassette = make_mock_hassette(sealed=False, hassette_event_buffer_size=3)
     service = EventStreamService(hassette, parent=hassette)
 
     try:
@@ -89,7 +79,7 @@ async def test_custom_buffer_size() -> None:
 
 async def test_default_buffer_size() -> None:
     """Default buffer size of 1000 is used when config is not explicitly set."""
-    hassette = _make_mock_hassette(buffer_size=1000)
+    hassette = make_mock_hassette(sealed=False, hassette_event_buffer_size=1000)
     service = EventStreamService(hassette, parent=hassette)
 
     try:

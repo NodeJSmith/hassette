@@ -11,7 +11,6 @@ exception — it uses the base-class global default.
 """
 
 import inspect
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -40,46 +39,38 @@ from hassette.resources.base import Resource
 from hassette.scheduler.scheduler import Scheduler
 from hassette.state_manager.state_manager import StateManager
 from hassette.task_bucket.task_bucket import TaskBucket
+from hassette.test_utils import make_mock_hassette
 from hassette.types.types import LOG_LEVEL_TYPE
 
-
-def _make_mock_hassette() -> MagicMock:
-    """Create a minimal mock Hassette with all log level config fields set to distinct values."""
-    hassette = MagicMock()
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.database_service = "DEBUG"
-    hassette.config.logging.bus_service = "WARNING"
-    hassette.config.logging.scheduler_service = "ERROR"
-    hassette.config.logging.app_handler = "CRITICAL"
-    hassette.config.logging.web_api = "DEBUG"
-    hassette.config.logging.websocket = "WARNING"
-    hassette.config.logging.service_watcher = "ERROR"
-    hassette.config.logging.file_watcher = "CRITICAL"
-    hassette.config.logging.task_bucket = "DEBUG"
-    hassette.config.logging.command_executor = "WARNING"
-    hassette.config.logging.apps = "ERROR"
-    hassette.config.logging.state_proxy = "CRITICAL"
-    hassette.config.logging.api = "DEBUG"
-    return hassette
+LOG_LEVEL_OVERRIDES = {
+    "log_level": "INFO",
+    "database_service": "DEBUG",
+    "bus_service": "WARNING",
+    "scheduler_service": "ERROR",
+    "app_handler": "CRITICAL",
+    "web_api": "DEBUG",
+    "websocket": "WARNING",
+    "service_watcher": "ERROR",
+    "file_watcher": "CRITICAL",
+    "task_bucket": "DEBUG",
+    "command_executor": "WARNING",
+    "apps": "ERROR",
+    "state_proxy": "CRITICAL",
+    "api": "DEBUG",
+}
 
 
 def _stub_resource(cls: type[Resource]) -> Resource:
-    """Create a Resource instance by calling Resource.__init__ only (skips subclass constructors).
-
-    This lets us test config_log_level in isolation without wiring up each class's
-    specific dependencies (streams, executors, registries, etc.).
-    """
-    hassette = _make_mock_hassette()
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
+    """Create a Resource instance by calling Resource.__init__ only (skips subclass constructors)."""
+    hassette = make_mock_hassette(
+        sealed=False,
+        logging=LOG_LEVEL_OVERRIDES,
+        lifecycle={"resource_shutdown_timeout_seconds": 5, "task_cancellation_timeout_seconds": 5},
+    )
     obj = cls.__new__(cls)
     Resource.__init__(obj, hassette, parent=hassette)
     return obj
 
-
-# ---------------------------------------------------------------------------
-# All config_log_level override cases
-# ---------------------------------------------------------------------------
 
 OVERRIDE_CASES = [
     # Dedicated field overrides (Hassette-registered services)
@@ -125,11 +116,6 @@ def test_config_log_level_returns_expected_field(cls: type[Resource], logging_at
     assert resource.config_log_level == expected
 
 
-# ---------------------------------------------------------------------------
-# No-op override regression: Api and ApiResource must NOT return global log_level
-# ---------------------------------------------------------------------------
-
-
 def test_api_does_not_return_global_log_level() -> None:
     """Api.config_log_level returns logging.api, not the global logging.log_level."""
     resource = _stub_resource(Api)
@@ -147,10 +133,6 @@ def test_api_resource_does_not_return_global_log_level() -> None:
     assert resource.config_log_level == "DEBUG"
     assert resource.config_log_level != resource.hassette.config.logging.log_level
 
-
-# ---------------------------------------------------------------------------
-# Type annotation introspection
-# ---------------------------------------------------------------------------
 
 ALL_OVERRIDE_CLASSES: list[type[Resource]] = [cls for cls, _ in OVERRIDE_CASES] + [App]
 

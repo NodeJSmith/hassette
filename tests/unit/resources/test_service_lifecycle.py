@@ -8,10 +8,8 @@ import pytest
 
 from hassette.exceptions import CannotOverrideFinalError
 from hassette.resources.base import FinalMeta, RestartSpec, Service
-from hassette.test_utils import wait_for
+from hassette.test_utils import make_mock_hassette, wait_for
 from hassette.types.enums import ResourceStatus
-
-from .conftest import _make_hassette_stub
 
 
 class SimpleService(Service):
@@ -72,14 +70,9 @@ class ServiceWithOrderTracking(Service):
         self.order.append("on_shutdown")
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
-
 async def test_serve_task_spawned_even_when_on_initialize_overridden():
     """serve() task is spawned even when on_initialize is overridden without super()."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     svc = ServiceWithCustomHooks(hassette)
     svc.order = []  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -96,7 +89,7 @@ async def test_serve_task_spawned_even_when_on_initialize_overridden():
 
 async def test_serve_task_cancelled_even_when_on_shutdown_overridden():
     """serve() task is cancelled even when on_shutdown is overridden without super()."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     svc = ServiceWithCustomHooks(hassette)
 
     await svc.initialize()
@@ -112,7 +105,7 @@ async def test_serve_task_cancelled_even_when_on_shutdown_overridden():
 
 async def test_on_initialize_runs_before_serve_task_spawned():
     """on_initialize() runs before the serve task is spawned (ordering)."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     svc = ServiceWithOrderTracking(hassette)
     svc.order = []
 
@@ -131,7 +124,7 @@ async def test_on_initialize_runs_before_serve_task_spawned():
 
 async def test_serve_task_cancelled_before_on_shutdown():
     """serve() task is cancelled before on_shutdown() runs (ordering)."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     svc = ServiceWithOrderTracking(hassette)
     svc.order = []
 
@@ -185,7 +178,7 @@ def test_finalmeta_blocks_service_subclass_from_overriding_shutdown():
 
 async def test_simple_service_completes_full_lifecycle():
     """A simple service can initialize and shut down cleanly."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     svc = SimpleService(hassette)
 
     await svc.initialize()

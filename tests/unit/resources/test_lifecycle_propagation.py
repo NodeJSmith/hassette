@@ -40,15 +40,9 @@ from hassette.core.scheduler_service import _ScheduledJobQueue
 from hassette.resources.base import FinalMeta, Resource, RestartSpec, Service
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.scheduler import Scheduler
-from hassette.test_utils import wait_for
+from hassette.test_utils import make_mock_hassette, wait_for
 from hassette.types.enums import ResourceStatus
 from hassette.utils.date_utils import now
-
-from .conftest import _make_hassette_stub
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 class ShutdownCounter(Resource):
@@ -60,14 +54,16 @@ class ShutdownCounter(Resource):
         self.shutdown_count += 1
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
+class HangingChild(Resource):
+    """Resource whose shutdown hangs indefinitely."""
+
+    async def on_shutdown(self) -> None:
+        await asyncio.Event().wait()
 
 
 async def test_shutdown_completed_prevents_double_shutdown():
     """Calling shutdown() twice only runs on_shutdown once."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     resource = ShutdownCounter(hassette)
 
     await resource.initialize()
@@ -79,7 +75,7 @@ async def test_shutdown_completed_prevents_double_shutdown():
 
 async def test_shutdown_completed_reset_by_initialize():
     """After shutdown then initialize, shutdown() works again."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     resource = ShutdownCounter(hassette)
 
     await resource.initialize()
@@ -93,7 +89,7 @@ async def test_shutdown_completed_reset_by_initialize():
 
 async def test_shutdown_event_cleared_by_initialize():
     """initialize() clears shutdown_event so it is not set."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     resource = ShutdownCounter(hassette)
 
     await resource.initialize()
@@ -106,7 +102,7 @@ async def test_shutdown_event_cleared_by_initialize():
 
 async def test_start_resets_shutdown_completed():
     """start() resets _shutdown_completed so the init task is spawned."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     resource = ShutdownCounter(hassette)
 
     await resource.initialize()
@@ -122,10 +118,6 @@ async def test_start_resets_shutdown_completed():
     await resource._init_task
     await resource.shutdown()
 
-
-# ---------------------------------------------------------------------------
-# Propagation Helpers
-# ---------------------------------------------------------------------------
 
 # Shared list to record shutdown order across multiple children
 _shutdown_order: list[str] = []
@@ -152,14 +144,9 @@ class SimpleParent(Resource):
     pass
 
 
-# ---------------------------------------------------------------------------
-# Propagation Tests
-# ---------------------------------------------------------------------------
-
-
 async def test_ordered_children_for_shutdown_returns_reversed():
     """_ordered_children_for_shutdown() returns children in reverse insertion order."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
 
     child_a = parent.add_child(ShutdownCounter)
@@ -173,7 +160,7 @@ async def test_ordered_children_for_shutdown_returns_reversed():
 async def test_shutdown_propagates_to_children_in_reverse_order():
     """Parent with 3 children: shutdown propagates in reverse insertion order."""
     _shutdown_order.clear()
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
 
     child_a = parent.add_child(OrderTrackingChild)
@@ -198,7 +185,7 @@ async def test_shutdown_propagates_to_children_in_reverse_order():
 async def test_shutdown_propagation_error_tolerance():
     """Middle child raises during shutdown; other children still shut down."""
     _shutdown_order.clear()
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
 
     child_a = parent.add_child(OrderTrackingChild)
@@ -226,7 +213,7 @@ async def test_shutdown_propagation_completes_despite_child_exception():
     itself raises (not just on_shutdown hooks), the parent still sets
     _shutdown_completed and processes remaining children.
     """
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
 
     child_ok = parent.add_child(ShutdownCounter)
@@ -253,7 +240,7 @@ async def test_shutdown_propagation_completes_despite_child_exception():
 
 async def test_shutdown_propagation_skips_completed_children():
     """Pre-shutting down a child means parent propagation is a no-op for that child."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
 
     child = parent.add_child(ShutdownCounter)
@@ -273,7 +260,7 @@ async def test_shutdown_propagation_skips_completed_children():
 
 async def test_shutdown_propagation_with_no_children():
     """Leaf Resource (no children) shuts down normally without errors."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     leaf = ShutdownCounter(hassette)
 
     await leaf.initialize()
@@ -285,14 +272,8 @@ async def test_shutdown_propagation_with_no_children():
 
 async def test_shutdown_propagation_timeout_forces_terminal_state():
     """When child shutdown times out, timed-out children are forced to consistent terminal state."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1  # very short timeout
-
-    class HangingChild(Resource):
-        """Resource whose shutdown hangs indefinitely."""
-
-        async def on_shutdown(self) -> None:
-            await asyncio.Event().wait()  # hang forever
 
     parent = SimpleParent(hassette)
     hanging = parent.add_child(HangingChild)
@@ -325,7 +306,7 @@ class SimpleService(Service):
 async def test_service_inherits_shutdown_propagation():
     """Service subclass with children propagates shutdown after serve task cancellation."""
     _shutdown_order.clear()
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent_svc = SimpleService(hassette)
 
     child_a = parent_svc.add_child(OrderTrackingChild)
@@ -345,10 +326,6 @@ async def test_service_inherits_shutdown_propagation():
         child_a.unique_name,
     ], f"Expected reverse order, got {_shutdown_order}"
 
-
-# ---------------------------------------------------------------------------
-# Init Propagation Helpers
-# ---------------------------------------------------------------------------
 
 # Shared list to record init order across multiple children
 _init_order: list[str] = []
@@ -395,15 +372,10 @@ class ServiceInitTrackingChild(Resource):
             self.parent_serve_task_exists = self.parent._serve_task is not None
 
 
-# ---------------------------------------------------------------------------
-# Init Propagation Tests
-# ---------------------------------------------------------------------------
-
-
 async def test_init_propagates_to_children_in_insertion_order():
     """Parent with 3 children: init propagates in insertion order."""
     _init_order.clear()
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
 
     child_a = parent.add_child(InitTrackingChild)
@@ -425,7 +397,7 @@ async def test_init_propagates_to_children_in_insertion_order():
 async def test_init_skips_running_children():
     """Pre-initialized (RUNNING) children are not re-initialized."""
     _init_order.clear()
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
 
     child_a = parent.add_child(InitTrackingChild)
@@ -447,7 +419,7 @@ async def test_init_skips_running_children():
 async def test_init_skips_starting_children():
     """Children in STARTING status are skipped during propagation."""
     _init_order.clear()
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
 
     child = parent.add_child(InitTrackingChild)
@@ -466,7 +438,7 @@ async def test_init_skips_starting_children():
 async def test_init_reinitializes_stopped_children():
     """Stopped children are re-initialized when parent initializes."""
     _init_order.clear()
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
 
     child = parent.add_child(InitTrackingChild)
@@ -486,7 +458,7 @@ async def test_init_reinitializes_stopped_children():
 async def test_init_reinitializes_failed_children():
     """Failed children are re-initialized when parent initializes."""
     _init_order.clear()
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
 
     child = parent.add_child(InitTrackingChild)
@@ -503,7 +475,7 @@ async def test_init_reinitializes_failed_children():
 
 async def test_init_propagation_runs_before_handle_running():
     """Parent is still STARTING during child initialization, RUNNING after."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
 
     child = parent.add_child(StatusCapturingChild)
@@ -518,7 +490,7 @@ async def test_init_propagation_runs_before_handle_running():
 
 async def test_service_init_propagation_after_serve_spawn():
     """Service child init runs after serve task is spawned."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent_svc = SimpleServiceWithServeFlag(hassette)
 
     child = parent_svc.add_child(ServiceInitTrackingChild)
@@ -539,7 +511,7 @@ async def test_service_status_is_starting_after_initialize():
     Service defers handle_running() to _serve_wrapper(). This is intentional:
     Services are ready when serve() actually starts, not when initialize() returns.
     """
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     svc = SimpleServiceWithServeFlag(hassette)
 
     await svc.initialize()
@@ -548,11 +520,6 @@ async def test_service_status_is_starting_after_initialize():
 
     # Cleanup
     await svc.shutdown()
-
-
-# ---------------------------------------------------------------------------
-# Leaf Resource Readiness Tests (WP04)
-# ---------------------------------------------------------------------------
 
 
 def _make_leaf(hassette, leaf_type: str) -> Resource:
@@ -577,7 +544,7 @@ _LEAF_TYPES = ["Bus", "Scheduler", "Api", "ApiSyncFacade", "_ScheduledJobQueue"]
 @pytest.mark.parametrize("leaf_type", _LEAF_TYPES)
 async def test_leaf_ready_after_initialize_not_after_init(leaf_type: str):
     """Leaf resources should NOT be ready after construction — only after initialize()."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     resource = _make_leaf(hassette, leaf_type)
 
     assert not resource.is_ready(), f"{leaf_type} should not be ready after construction"
@@ -594,7 +561,7 @@ async def test_leaf_ready_after_initialize_not_after_init(leaf_type: str):
 @pytest.mark.parametrize("leaf_type", _LEAF_TYPES)
 async def test_leaf_ready_after_restart(leaf_type: str):
     """After shutdown + re-initialize, leaf resources restore readiness."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     resource = _make_leaf(hassette, leaf_type)
     init_target = resource.parent if leaf_type == "ApiSyncFacade" else resource
 
@@ -608,11 +575,6 @@ async def test_leaf_ready_after_restart(leaf_type: str):
     assert resource.is_ready(), f"{leaf_type} should be ready after re-initialize"
 
 
-# ---------------------------------------------------------------------------
-# Scheduler.on_shutdown / App propagation Tests (WP05)
-# ---------------------------------------------------------------------------
-
-
 def _make_dummy_job(owner_id: str, name: str = "test_job") -> ScheduledJob:
     """Create a minimal ScheduledJob for testing."""
 
@@ -624,7 +586,7 @@ def _make_dummy_job(owner_id: str, name: str = "test_job") -> ScheduledJob:
 
 async def test_scheduler_on_shutdown_dequeues_all_jobs():
     """Scheduler.on_shutdown() awaits _remove_all_jobs (via remove_jobs_by_owner)."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     # Make add_job a sync MagicMock so calling it doesn't create an unawaited coroutine
     hassette._scheduler_service.add_job = MagicMock()
     scheduler = Scheduler(hassette, parent=hassette)
@@ -644,7 +606,7 @@ async def test_scheduler_on_shutdown_dequeues_all_jobs():
 
 async def test_app_shutdown_propagates_to_bus_and_scheduler():
     """App shutdown propagates to Bus.on_shutdown and Scheduler.on_shutdown via children."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.app_shutdown_timeout_seconds = 5
     hassette.config.logging.apps = "DEBUG"
 
@@ -667,11 +629,6 @@ async def test_app_shutdown_propagates_to_bus_and_scheduler():
     assert not app.scheduler.is_ready(), "Scheduler should not be ready after app shutdown"
 
 
-# ---------------------------------------------------------------------------
-# _force_terminal() Tests (WP09)
-# ---------------------------------------------------------------------------
-
-
 class StubResource(Resource):
     """Simple resource for testing _force_terminal()."""
 
@@ -689,7 +646,7 @@ class StubService(Service):
 
 async def test_force_terminal_recurses_to_grandchildren():
     """_force_terminal() recursively sets all descendants to STOPPED with _shutdown_completed=True."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     root = StubResource(hassette)
 
     child = root.add_child(StubResource)
@@ -714,7 +671,7 @@ async def test_force_terminal_recurses_to_grandchildren():
 
 async def test_force_terminal_cancels_task_bucket():
     """_force_terminal() calls cancel_all_sync() on each resource's task bucket."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     root = StubResource(hassette)
     child = root.add_child(StubResource)
 
@@ -732,7 +689,7 @@ async def test_force_terminal_cancels_task_bucket():
 
 async def test_force_terminal_skips_completed_children():
     """_force_terminal() returns early for resources with _shutdown_completed=True."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     root = StubResource(hassette)
     child = root.add_child(StubResource)
 
@@ -757,7 +714,7 @@ async def test_force_terminal_skips_completed_children():
 
 async def test_service_force_terminal_cancels_serve_task():
     """Service._force_terminal() cancels the _serve_task before calling super()."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     svc = StubService(hassette)
 
     await svc.initialize()
@@ -779,11 +736,6 @@ async def test_service_force_terminal_cancels_serve_task():
     assert svc._serve_task.done(), "serve task should be done after yielding to event loop"
 
 
-# ---------------------------------------------------------------------------
-# _on_children_stopped() Hook Tests (WP09b)
-# ---------------------------------------------------------------------------
-
-
 class HookTrackingParent(Resource):
     """Resource that records whether _on_children_stopped was called."""
 
@@ -796,7 +748,7 @@ class HookTrackingParent(Resource):
 
 async def test_on_children_stopped_called_on_clean_shutdown():
     """_on_children_stopped() fires when children shut down cleanly."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = HookTrackingParent(hassette)
     child = parent.add_child(ShutdownCounter)
 
@@ -811,12 +763,8 @@ async def test_on_children_stopped_called_on_clean_shutdown():
 
 async def test_on_children_stopped_skipped_on_timeout():
     """_on_children_stopped() is NOT called when child shutdown times out."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
-
-    class HangingChild(Resource):
-        async def on_shutdown(self) -> None:
-            await asyncio.Event().wait()
 
     parent = HookTrackingParent(hassette)
     parent.add_child(HangingChild)
@@ -828,14 +776,9 @@ async def test_on_children_stopped_skipped_on_timeout():
     assert parent.hook_called is False, "_on_children_stopped should NOT be called on timeout"
 
 
-# ---------------------------------------------------------------------------
-# cleanup() Timeout Tests (WP09b)
-# ---------------------------------------------------------------------------
-
-
 async def test_cleanup_timeout_fires_on_hung_cleanup():
     """When cleanup() hangs, asyncio.timeout catches it and logs a warning."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.1
 
     class HungCleanupResource(Resource):
@@ -851,14 +794,9 @@ async def test_cleanup_timeout_fires_on_hung_cleanup():
     assert resource._shutdown_completed is True
 
 
-# ---------------------------------------------------------------------------
-# _initializing Warning Tests (WP09b)
-# ---------------------------------------------------------------------------
-
-
 async def test_finalize_shutdown_resets_initializing_flag():
     """_finalize_shutdown() clears _initializing regardless of how shutdown was triggered."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
 
     resource1 = StubResource(hassette)
     resource1._initializing = True
@@ -871,18 +809,6 @@ async def test_finalize_shutdown_resets_initializing_flag():
     resource2.shutdown_event.clear()
     await resource2._finalize_shutdown()
     assert resource2._initializing is False
-
-
-# ---------------------------------------------------------------------------
-# Total Shutdown Timeout Tests (WP11)
-# ---------------------------------------------------------------------------
-
-
-class _HangingChild(Resource):
-    """Resource whose shutdown hangs indefinitely."""
-
-    async def on_shutdown(self) -> None:
-        await asyncio.Event().wait()
 
 
 # Pre-register so FinalMeta allows the shutdown() override on this test helper
@@ -942,12 +868,12 @@ class _TotalTimeoutRoot(Resource):
 
 async def test_total_shutdown_timeout_caps_wall_clock():
     """Hassette-style total timeout ensures shutdown completes within budget even when a child hangs."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.2
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5  # per-level timeout is much larger
 
     root = _TotalTimeoutRoot(hassette)
-    hanging = root.add_child(_HangingChild)
+    hanging = root.add_child(HangingChild)
     normal = root.add_child(ShutdownCounter)
 
     await root.initialize()
@@ -966,12 +892,12 @@ async def test_total_shutdown_timeout_caps_wall_clock():
 
 async def test_total_timeout_force_patches_all_descendants():
     """On total timeout, _force_terminal() is called recursively on all descendants."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.1
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
 
     root = _TotalTimeoutRoot(hassette)
-    hanging = root.add_child(_HangingChild)
+    hanging = root.add_child(HangingChild)
     grandchild = hanging.add_child(StubResource)
 
     await root.initialize()
@@ -989,12 +915,12 @@ async def test_total_timeout_force_patches_all_descendants():
 
 async def test_total_timeout_finally_always_closes_streams():
     """close_streams() equivalent is called even when the total timeout fires."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.1
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
 
     root = _TotalTimeoutRoot(hassette)
-    root.add_child(_HangingChild)
+    root.add_child(HangingChild)
 
     await root.initialize()
 
@@ -1005,12 +931,12 @@ async def test_total_timeout_finally_always_closes_streams():
 
 async def test_total_timeout_sets_shutdown_completed_first():
     """_shutdown_completed=True is set before handle_stop() and close_streams() in the finally block."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.1
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
 
     root = _TotalTimeoutRoot(hassette)
-    root.add_child(_HangingChild)
+    root.add_child(HangingChild)
 
     await root.initialize()
 

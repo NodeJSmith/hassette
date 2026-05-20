@@ -21,6 +21,7 @@ from hassette.config.models import (
     WebApiConfig,
     WebSocketConfig,
 )
+from hassette.test_utils.config import TEST_TOKEN
 
 # ---------------------------------------------------------------------------
 # FR#9: All 8 nested model classes inherit BaseModel, not BaseSettings
@@ -440,9 +441,7 @@ class TestHassetteConfigNested:
 
             @classmethod
             def settings_customise_sources(cls, settings_cls, **_kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
-                return (
-                    InitSettingsSource(settings_cls, init_kwargs={"token": "test-token", "run_app_precheck": False}),
-                )
+                return (InitSettingsSource(settings_cls, init_kwargs={"token": TEST_TOKEN, "run_app_precheck": False}),)
 
             def model_post_init(self, *args):
                 pass
@@ -590,7 +589,7 @@ class TestEnvVarPartialUpdate:
             @classmethod
             def settings_customise_sources(cls, settings_cls, **_kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
                 return (
-                    InitSettingsSource(settings_cls, init_kwargs={"token": "test-token", "run_app_precheck": False}),
+                    InitSettingsSource(settings_cls, init_kwargs={"token": TEST_TOKEN, "run_app_precheck": False}),
                     cls.settings_customise_sources.__func__(cls, settings_cls, **_kwargs)  # pyright: ignore[reportAttributeAccessIssue]
                     if False
                     else __import__("pydantic_settings").EnvSettingsSource(settings_cls),
@@ -604,7 +603,7 @@ class TestEnvVarPartialUpdate:
                 "env_file": None,
             }
 
-            token: str = "test-token"
+            token: str = TEST_TOKEN
             run_app_precheck: bool = False
 
         config = _EnvConfig2()
@@ -625,7 +624,7 @@ class TestEnvVarPartialUpdate:
                 "env_file": None,
             }
 
-            token: str = "test-token"
+            token: str = TEST_TOKEN
             run_app_precheck: bool = False
 
         config = _EnvConfig()
@@ -651,7 +650,7 @@ class TestCrossModelValidation:
                 "env_file": None,
             }
 
-            token: str = "test-token"
+            token: str = TEST_TOKEN
             run_app_precheck: bool = False
 
         with pytest.raises((ValidationError, ValueError)) as exc_info:

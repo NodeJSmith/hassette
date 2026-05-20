@@ -7,9 +7,6 @@ Tests verify:
 """
 
 import asyncio
-import time
-from collections.abc import AsyncIterator
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -20,68 +17,11 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.scheduler_service import SchedulerService
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture
-def mock_hassette(premigrated_db_path: Path) -> MagicMock:
-    """Create a mock Hassette with database config pointing to a pre-migrated DB."""
-    hassette = MagicMock()
-    hassette.config.data_dir = premigrated_db_path.parent
-    hassette.config.database.path = None
-    hassette.config.database.retention_days = 7
-    hassette.config.database.migration_timeout_seconds = 120
-    hassette.config.database.max_size_mb = 0
-    hassette.config.database.telemetry_write_queue_max = 500
-    hassette.config.database.write_queue_max = 2000
-    hassette.config.logging.database_service = "INFO"
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.config.logging.command_executor = "INFO"
-    hassette.config.logging.bus_service = "INFO"
-    hassette.config.logging.scheduler_service = "INFO"
-    hassette.config.scheduler.min_delay_seconds = 0.1
-    hassette.config.scheduler.max_delay_seconds = 60.0
-    hassette.config.scheduler.default_delay_seconds = 1.0
-    hassette.config.bus_excluded_domains = ()
-    hassette.config.bus_excluded_entities = ()
-    hassette.config.logging.all_events = False
-    hassette.config.logging.all_hass_events = False
-    hassette.config.logging.all_hassette_events = False
-    hassette.ready_event = asyncio.Event()
-    return hassette
-
-
-@pytest.fixture
-async def initialized_db(mock_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
-    """Initialize a real DatabaseService and create a session row."""
-    db_service = DatabaseService(mock_hassette, parent=mock_hassette)
-    await db_service.on_initialize()
-    try:
-        ts = time.time()
-        cursor = await db_service.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-            (ts, ts),
-        )
-        session_id = cursor.lastrowid
-        assert session_id is not None
-        mock_hassette.session_id = session_id
-        await db_service.db.commit()
-        mock_hassette.database_service = db_service
-        yield db_service, session_id
-    finally:
-        await db_service.on_shutdown()
-
-
-@pytest.fixture
-async def executor(mock_hassette: MagicMock, initialized_db: tuple[DatabaseService, int]) -> CommandExecutor:  # noqa: ARG001
+async def executor(db_hassette: AsyncMock, initialized_db: tuple[DatabaseService, int]) -> CommandExecutor:  # noqa: ARG001
     """Create and prepare a CommandExecutor with real DB wired in."""
-    mock_hassette.wait_for_ready = AsyncMock(return_value=True)
-    exc = CommandExecutor(mock_hassette, parent=mock_hassette)
+    exc = CommandExecutor(db_hassette, parent=db_hassette)
     await exc.on_initialize()
     return exc
 
@@ -142,11 +82,6 @@ def _stub_task_bucket() -> MagicMock:
 
     bucket.spawn.side_effect = _spawn
     return bucket
-
-
-# ---------------------------------------------------------------------------
-# Listener registration uses app_key and instance_index
-# ---------------------------------------------------------------------------
 
 
 async def test_listener_registration_persists_correct_app_key(
@@ -214,19 +149,14 @@ async def test_job_registration_persists_correct_app_key(
     assert row[1] == 3, f"Expected instance_index=3, got {row[1]}"
 
 
-# ---------------------------------------------------------------------------
-# BusService.add_listener inserts route synchronously, spawns bus:register_listener for DB
-# ---------------------------------------------------------------------------
-
-
-def test_listener_with_app_key_spawns_combined_task(mock_hassette: MagicMock) -> None:
+def test_listener_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> None:
     """add_listener with app_key spawns a single bus:register_listener task.
 
     Route insertion is synchronous; only the DB registration background task is spawned.
     """
     executor_mock = MagicMock()
     stream = MagicMock()
-    bus_service = BusService(mock_hassette, stream=stream, executor=executor_mock, parent=mock_hassette)
+    bus_service = BusService(db_hassette, stream=stream, executor=executor_mock, parent=db_hassette)
     bus_service.task_bucket = _stub_task_bucket()
 
     listener = _make_mock_listener(owner_id="bus:MyApp:0", app_key="my_app", instance_index=2)
@@ -239,15 +169,10 @@ def test_listener_with_app_key_spawns_combined_task(mock_hassette: MagicMock) ->
     assert spawn_kwargs.kwargs.get("name") == "bus:register_in_db"
 
 
-# ---------------------------------------------------------------------------
-# SchedulerService._register_then_enqueue registers job then enqueues
-# ---------------------------------------------------------------------------
-
-
-def test_job_with_app_key_spawns_combined_task(mock_hassette: MagicMock) -> None:
+def test_job_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> None:
     """add_job with app_key spawns a single _register_then_enqueue task."""
     executor_mock = MagicMock()
-    scheduler_service = SchedulerService(mock_hassette, executor=executor_mock, parent=mock_hassette)
+    scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
     scheduler_service.task_bucket = _stub_task_bucket()
 
     job = _make_mock_job(owner_id="scheduler:MyApp:0", app_key="my_app", instance_index=3)
@@ -257,12 +182,7 @@ def test_job_with_app_key_spawns_combined_task(mock_hassette: MagicMock) -> None
     assert scheduler_service.task_bucket.spawn.call_count == 1
 
 
-# ---------------------------------------------------------------------------
-# Non-App owner guard: empty app_key still spawns DB registration
-# ---------------------------------------------------------------------------
-
-
-def test_listener_with_empty_app_key_spawns_db_registration(mock_hassette: MagicMock) -> None:
+def test_listener_with_empty_app_key_spawns_db_registration(db_hassette: AsyncMock) -> None:
     """Listeners with empty app_key (non-App owners) still spawn one DB registration task.
 
     Route insertion is now synchronous. The single spawn is the DB registration task
@@ -270,7 +190,7 @@ def test_listener_with_empty_app_key_spawns_db_registration(mock_hassette: Magic
     """
     executor_mock = MagicMock()
     stream = MagicMock()
-    bus_service = BusService(mock_hassette, stream=stream, executor=executor_mock, parent=mock_hassette)
+    bus_service = BusService(db_hassette, stream=stream, executor=executor_mock, parent=db_hassette)
     bus_service.task_bucket = _stub_task_bucket()
 
     listener = _make_mock_listener(app_key="", instance_index=0)
@@ -283,14 +203,14 @@ def test_listener_with_empty_app_key_spawns_db_registration(mock_hassette: Magic
     assert spawn_kwargs.kwargs.get("name") == "bus:register_in_db"
 
 
-def test_listener_with_app_key_triggers_registration(mock_hassette: MagicMock) -> None:
+def test_listener_with_app_key_triggers_registration(db_hassette: AsyncMock) -> None:
     """Listeners with non-empty app_key spawn a single bus:register_listener task.
 
     Route insertion is synchronous; the DB registration background task is always spawned.
     """
     executor_mock = MagicMock()
     stream = MagicMock()
-    bus_service = BusService(mock_hassette, stream=stream, executor=executor_mock, parent=mock_hassette)
+    bus_service = BusService(db_hassette, stream=stream, executor=executor_mock, parent=db_hassette)
     bus_service.task_bucket = _stub_task_bucket()
 
     listener = _make_mock_listener(app_key="my_app", instance_index=1)
@@ -303,10 +223,10 @@ def test_listener_with_app_key_triggers_registration(mock_hassette: MagicMock) -
     assert spawn_kwargs.kwargs.get("name") == "bus:register_in_db"
 
 
-def test_job_with_empty_app_key_skips_registration(mock_hassette: MagicMock) -> None:
+def test_job_with_empty_app_key_skips_registration(db_hassette: AsyncMock) -> None:
     """Jobs with empty app_key (non-App owners) skip DB registration."""
     executor_mock = MagicMock()
-    scheduler_service = SchedulerService(mock_hassette, executor=executor_mock, parent=mock_hassette)
+    scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
     scheduler_service.task_bucket = _stub_task_bucket()
 
     job = _make_mock_job(app_key="", instance_index=0)
@@ -319,10 +239,10 @@ def test_job_with_empty_app_key_skips_registration(mock_hassette: MagicMock) -> 
     assert spawn_kwargs.kwargs.get("name") == "scheduler:add_job"
 
 
-def test_job_with_app_key_triggers_registration(mock_hassette: MagicMock) -> None:
+def test_job_with_app_key_triggers_registration(db_hassette: AsyncMock) -> None:
     """Jobs with non-empty app_key use a single combined register-then-enqueue task."""
     executor_mock = MagicMock()
-    scheduler_service = SchedulerService(mock_hassette, executor=executor_mock, parent=mock_hassette)
+    scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
     scheduler_service.task_bucket = _stub_task_bucket()
 
     job = _make_mock_job(app_key="my_app", instance_index=1)
@@ -331,11 +251,6 @@ def test_job_with_app_key_triggers_registration(mock_hassette: MagicMock) -> Non
 
     # Single spawn: _register_then_enqueue (DB registration + enqueue in sequence)
     assert scheduler_service.task_bucket.spawn.call_count == 1
-
-
-# ---------------------------------------------------------------------------
-# Group persistence at registration
-# ---------------------------------------------------------------------------
 
 
 async def test_group_persisted_at_registration(

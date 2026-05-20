@@ -4,6 +4,7 @@ Exposes :func:`make_test_config` for end users who need a minimal
 ``HassetteConfig`` without TOML files or env vars.
 """
 
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -11,11 +12,24 @@ from pydantic_settings.sources import InitSettingsSource
 
 from hassette.config.config import HassetteConfig
 
+TEST_TOKEN = "test-token"
+TEST_BASE_URL = "http://test.invalid:8123"
+TEST_WS_URL = "ws://test.invalid:8123/api/websocket"
+SECONDS_PER_DAY = 86_400
+TEST_SOURCE_LOCATION = "test.py:1"
+
 # Cached (hermetic_subclass, init_kwargs_ref) pair — avoids creating a new class per
 # make_test_config call, which would accumulate permanently in __subclasses__()
 # and Pydantic's internal model cache.
 # Same closure-ref pattern as _get_hermetic_subclass in app_harness.py (per-AppConfig variant).
 _HermeticHassetteConfigPair: tuple[type[HassetteConfig], list[dict[str, Any]]] | None = None
+
+# Protects both the lazy-init check-and-create in _get_hermetic_hassette_config_cls()
+# and the cell[0] = merged → cls() sequence in make_test_config() against OS-thread races.
+# Async tests run on a single thread so asyncio cooperative multitasking cannot interleave,
+# but session-scoped fixtures (e.g. _migrated_db_template) may call make_test_config() from
+# threads created by pytest-xdist workers.
+_config_lock: threading.Lock = threading.Lock()
 
 
 def _get_hermetic_hassette_config_cls() -> tuple[type[HassetteConfig], list[dict[str, Any]]]:
@@ -27,6 +41,8 @@ def _get_hermetic_hassette_config_cls() -> tuple[type[HassetteConfig], list[dict
 
     The hermetic subclass uses ``extra="forbid"`` so stale flat field names
     (that should now be nested) fail loudly instead of being silently absorbed.
+
+    Callers must hold ``_config_lock`` before calling this function.
     """
     global _HermeticHassetteConfigPair
     if _HermeticHassetteConfigPair is not None:
@@ -91,8 +107,8 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
         config = make_test_config(data_dir=tmp_path, database={"retention_days": 14})
     """
     defaults: dict[str, Any] = {
-        "token": "test-token",
-        "base_url": "http://test.invalid:8123",
+        "token": TEST_TOKEN,
+        "base_url": TEST_BASE_URL,
         "data_dir": data_dir,
         "disable_state_proxy_polling": True,
         "app": {"autodetect": False},
@@ -101,8 +117,7 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
     }
     merged = {**defaults, **overrides}
 
-    cls, cell = _get_hermetic_hassette_config_cls()
-    # Update the cell before instantiation; no await between here and cls()
-    # so asyncio cooperative multitasking cannot interleave a concurrent caller.
-    cell[0] = merged
-    return cls()
+    with _config_lock:
+        cls, cell = _get_hermetic_hassette_config_cls()
+        cell[0] = merged
+        return cls()

@@ -8,6 +8,7 @@ import pytest
 
 from hassette import context
 from hassette.config.config import HassetteConfig
+from hassette.test_utils.config import TEST_TOKEN
 from hassette.utils.app_utils import autodetect_apps
 
 
@@ -608,7 +609,7 @@ class TestAutoDetectIntegration:
         )
 
         # Create config with the temp app directory
-        config = HassetteConfig(token="test-token", app={"directory": app_dir}, cli_parse_args=False)
+        config = HassetteConfig(token=TEST_TOKEN, app={"directory": app_dir}, cli_parse_args=False)
         config.set_validated_app_manifests()
         result = config.app.manifests
 
@@ -636,7 +637,7 @@ class TestAutoDetectIntegration:
 
         # Create config with auto-detect disabled
         config = HassetteConfig(
-            token="test-token",
+            token=TEST_TOKEN,
             app={"directory": app_dir, "autodetect": False},
             cli_parse_args=False,
         )
@@ -670,7 +671,7 @@ class TestAutoDetectIntegration:
 
         # Create config with manual app configuration that conflicts
         config = HassetteConfig(
-            token="test-token",
+            token=TEST_TOKEN,
             app={
                 "directory": app_dir,
                 "apps": {
@@ -714,7 +715,7 @@ class TestAutoDetectIntegration:
 
         # Create config with manual app configuration that conflicts
         config = HassetteConfig(
-            token="test-token",
+            token=TEST_TOKEN,
             app={
                 "directory": app_dir,
                 "apps": {
@@ -771,7 +772,7 @@ class TestAutoDetectIntegration:
 
         # Create config with one manual app
         config = HassetteConfig(
-            token="test-token",
+            token=TEST_TOKEN,
             app={
                 "directory": app_dir,
                 "apps": {

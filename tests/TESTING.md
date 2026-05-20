@@ -31,6 +31,7 @@ Two parallel systems exist for different testing needs:
 | Scenario                                         | Tool                              | Why                                              |
 | ------------------------------------------------ | --------------------------------- | ------------------------------------------------ |
 | Bus routing, scheduler firing, state propagation | `HassetteHarness`                 | Wires real components — catches integration bugs |
+| Unit tests needing a hassette mock with real config | `make_mock_hassette()`         | Real Pydantic validation, sealed by default, no drift |
 | HTTP endpoints, HTML responses, WebSocket frames | `create_hassette_stub()`          | MagicMock stub — fast, no real services needed   |
 | RuntimeQueryService + event buffer               | `create_mock_runtime_query_service()` | Bypasses `__init__`, wires to the stub       |
 | FastAPI app from a stub                          | `create_test_fastapi_app()`       | Thin wrapper with optional log handler patch     |
@@ -70,7 +71,8 @@ app = create_fastapi_app(stub)
 
 ### Web mock fixtures
 
-- `mock_hassette` — MagicMock Hassette created via `create_hassette_stub()` (local to each test file)
+- `mock_hassette` — in unit/integration non-web tests: lightweight hassette mock via `make_mock_hassette()` from `hassette.test_utils`; in web/API tests: MagicMock stub via `create_hassette_stub()` (defined locally per file, out of scope for consolidation)
+- `db_hassette` — database-backed hassette mock with `premigrated_db_path`, also via `make_mock_hassette()`
 - `runtime_query_service` — RuntimeQueryService wired to the mock, via `create_mock_runtime_query_service()` (shared in `tests/integration/conftest.py`)
 - `app` — FastAPI application instance (shared in `tests/integration/conftest.py`, can be overridden locally)
 - `client` — httpx `AsyncClient` (shared in `tests/integration/conftest.py`, can be overridden locally)
@@ -140,6 +142,14 @@ always reset explicitly when active. The cost is negligible (one
 Reset functions are defined in `src/hassette/test_utils/reset.py`.
 
 ## Available Factories
+
+### `make_mock_hassette(**config_overrides)` — `test_utils/mock_hassette.py`
+
+Builds a sealed `AsyncMock` hassette with real Pydantic-validated config via `make_test_config()`. Accepts any `HassetteConfig` field as a keyword override. Non-config attributes (`ready_event`, `shutdown_event`, service stubs, etc.) are wired automatically.
+
+### `make_ws_hassette_stub(**kwargs)` — `test_utils/mock_hassette.py`
+
+Thin wrapper around `make_mock_hassette()` with WebSocket config fields pre-set to fast values for retry/timeout testing (sub-millisecond backoff waits, low-single-digit-second connection/heartbeat timeouts).
 
 ### `create_hassette_stub(**kwargs)` — `test_utils/web_mocks.py`
 

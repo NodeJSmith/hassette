@@ -1,10 +1,8 @@
 """Integration tests for CommandExecutor with real SQLite database."""
 
 import asyncio
-import threading
 import time
 from collections.abc import AsyncIterator
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -14,72 +12,24 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
+from hassette.exceptions import DependencyError, HassetteError
 from hassette.scheduler.classes import JobExecutionRecord, ScheduledJob
+from hassette.test_utils.config import TEST_SOURCE_LOCATION
 from hassette.utils.execution import ExecutionResult
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def mock_hassette(premigrated_db_path: Path) -> MagicMock:
-    """Create a mock Hassette with database config pointing to a pre-migrated DB."""
-    hassette = MagicMock()
-    hassette.config.data_dir = premigrated_db_path.parent
-    hassette.config.database.path = None
-    hassette.config.database.retention_days = 7
-    hassette.config.database.migration_timeout_seconds = 120
-    hassette.config.database.max_size_mb = 0
-    hassette.config.logging.database_service = "INFO"
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.config.logging.command_executor = "INFO"
-    hassette.config.database.telemetry_write_queue_max = 1000
-    hassette.config.database.write_queue_max = 2000
-    hassette.ready_event = asyncio.Event()
-    hassette._loop_thread_id = threading.get_ident()
-    return hassette
-
-
-@pytest.fixture
-async def initialized_db(mock_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
-    """Initialize a real DatabaseService and create a session row.
-
-    Yields:
-        Tuple of (DatabaseService instance, session_id).
-    """
-    db_service = DatabaseService(mock_hassette, parent=mock_hassette)
-    await db_service.on_initialize()
-    try:
-        now = time.time()
-        cursor = await db_service.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-            (now, now),
-        )
-        session_id = cursor.lastrowid
-        assert session_id is not None
-        mock_hassette.session_id = session_id
-        await db_service.db.commit()
-        mock_hassette.database_service = db_service
-        yield db_service, session_id
-    finally:
-        await db_service.on_shutdown()
 
 
 @pytest.fixture
 async def executor(
-    mock_hassette: MagicMock, initialized_db: tuple[DatabaseService, int]
+    db_hassette: AsyncMock, initialized_db: tuple[DatabaseService, int]
 ) -> AsyncIterator[CommandExecutor]:
     """Create and prepare a CommandExecutor with real DB wired in."""
     _db_service, _session_id = initialized_db
-    # wait_for_ready on the mock should be a no-op
-    mock_hassette.wait_for_ready = AsyncMock(return_value=True)
-    exc = CommandExecutor(mock_hassette, parent=mock_hassette)
+    exc = CommandExecutor(db_hassette, parent=db_hassette)
     await exc.on_initialize()
-    return exc
+    try:
+        yield exc
+    finally:
+        await exc.on_shutdown()
 
 
 def _make_listener_registration(*, topic: str = "hass.event.state_changed") -> ListenerRegistration:
@@ -132,11 +82,6 @@ def _make_mock_job() -> MagicMock:
     return job
 
 
-# ---------------------------------------------------------------------------
-# Exception contract tests
-# ---------------------------------------------------------------------------
-
-
 async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
     """CancelledError must be re-raised after queueing a 'cancelled' record."""
     listener = _make_mock_listener()
@@ -160,8 +105,6 @@ async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
 
 async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
     """DependencyError must be swallowed (not re-raised) and logged as error."""
-    from hassette.exceptions import DependencyError
-
     listener = _make_mock_listener()
     listener.invoke.side_effect = DependencyError("missing dep")
     listener.invoker.invoke.side_effect = DependencyError("missing dep")
@@ -186,8 +129,6 @@ async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
 
 async def test_hassette_error_swallowed(executor: CommandExecutor) -> None:
     """HassetteError must be swallowed and logged without traceback."""
-    from hassette.exceptions import HassetteError
-
     listener = _make_mock_listener()
     listener.invoke.side_effect = HassetteError("framework error")
     listener.invoker.invoke.side_effect = HassetteError("framework error")
@@ -251,11 +192,6 @@ async def test_success_record_queued(executor: CommandExecutor) -> None:
     assert record.error_message is None
     assert record.error_traceback is None
     assert record.duration_ms >= 0
-
-
-# ---------------------------------------------------------------------------
-# Timeout enforcement tests
-# ---------------------------------------------------------------------------
 
 
 async def test_execute_timeout_fires(executor: CommandExecutor) -> None:
@@ -363,11 +299,6 @@ async def test_timeout_warning_lazy_eviction(executor: CommandExecutor) -> None:
     assert 1 not in executor._timeout_warn_timestamps
 
 
-# ---------------------------------------------------------------------------
-# Write queue / DB persistence tests
-# ---------------------------------------------------------------------------
-
-
 async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """Records placed in the write queue appear in handler_invocations after drain."""
     db_service, session_id = initialized_db
@@ -438,11 +369,6 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
     assert row[0] == 2
 
 
-# ---------------------------------------------------------------------------
-# Job execution tests
-# ---------------------------------------------------------------------------
-
-
 async def test_execute_job_success_record_queued(executor: CommandExecutor) -> None:
     """Successful job execution queues a JobExecutionRecord with status='success'."""
     job = _make_mock_job()
@@ -476,22 +402,15 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
     assert record.error_traceback is not None
 
 
-# ---------------------------------------------------------------------------
-# Startup race regression tests
-# ---------------------------------------------------------------------------
-
-
-def test_build_record_uses_session_id_directly(mock_hassette: MagicMock) -> None:
+def test_build_record_uses_session_id_directly(db_hassette: AsyncMock) -> None:
     """_build_record() reads session_id from self.hassette.session_id directly.
 
     _safe_session_id() was removed in WP03. session_id is now always read directly.
     The phased startup contract guarantees a valid session_id exists before any
     handler can fire, so RuntimeError from session_id is a programming error.
     """
-    mock_hassette.config.database.telemetry_write_queue_max = 1000
-    mock_hassette.config.database.write_queue_max = 2000
-    exc = CommandExecutor(mock_hassette, parent=mock_hassette)
-    mock_hassette.session_id = 99
+    exc = CommandExecutor(db_hassette, parent=db_hassette)
+    db_hassette.session_id = 99
 
     listener = _make_mock_listener()
 
@@ -557,7 +476,7 @@ async def test_persist_batch_drops_presession_records(
 
 
 async def test_register_listener_blocks_until_database_ready(
-    mock_hassette: MagicMock,
+    db_hassette: AsyncMock,
     initialized_db: tuple[DatabaseService, int],
 ) -> None:
     """register_listener() waits for DatabaseService before accessing .db.
@@ -575,8 +494,8 @@ async def test_register_listener_blocks_until_database_ready(
             await db_ready.wait()
         return True
 
-    mock_hassette.wait_for_ready = gated_wait
-    exc = CommandExecutor(mock_hassette, parent=mock_hassette)
+    db_hassette.wait_for_ready = gated_wait
+    exc = CommandExecutor(db_hassette, parent=db_hassette)
 
     task = asyncio.create_task(exc.register_listener(_make_listener_registration()))
     await asyncio.sleep(0)
@@ -588,7 +507,7 @@ async def test_register_listener_blocks_until_database_ready(
 
 
 async def test_register_job_blocks_until_database_ready(
-    mock_hassette: MagicMock,
+    db_hassette: AsyncMock,
     initialized_db: tuple[DatabaseService, int],
 ) -> None:
     """register_job() waits for DatabaseService before accessing .db.
@@ -605,8 +524,8 @@ async def test_register_job_blocks_until_database_ready(
             await db_ready.wait()
         return True
 
-    mock_hassette.wait_for_ready = gated_wait
-    exc = CommandExecutor(mock_hassette, parent=mock_hassette)
+    db_hassette.wait_for_ready = gated_wait
+    exc = CommandExecutor(db_hassette, parent=db_hassette)
 
     task = asyncio.create_task(exc.register_job(_make_job_registration()))
     await asyncio.sleep(0)
@@ -618,8 +537,7 @@ async def test_register_job_blocks_until_database_ready(
 
 
 async def test_concurrent_registrations_do_not_raise(
-    mock_hassette: MagicMock,
-    premigrated_db_path: Path,
+    db_hassette: AsyncMock,
 ) -> None:
     """N concurrent register_listener() calls complete without OperationalError.
 
@@ -630,27 +548,12 @@ async def test_concurrent_registrations_do_not_raise(
     After the fix, all writes are serialized through the DatabaseService worker, so
     concurrent callers wait their turn and every call returns a valid positive ID.
     """
-    mock_hassette.config.data_dir = premigrated_db_path.parent
-    mock_hassette.config.database.path = None
-    mock_hassette.config.database.retention_days = 7
-    mock_hassette.config.database.migration_timeout_seconds = 120
-    mock_hassette.config.database.max_size_mb = 0
-    mock_hassette.config.logging.database_service = "INFO"
-    mock_hassette.config.logging.log_level = "INFO"
-    mock_hassette.config.logging.task_bucket = "INFO"
-    mock_hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    mock_hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    mock_hassette.config.logging.command_executor = "INFO"
-    mock_hassette.config.database.write_queue_max = 2000
-    mock_hassette.ready_event = asyncio.Event()
-
-    db_service = DatabaseService(mock_hassette, parent=mock_hassette)
+    db_service = DatabaseService(db_hassette, parent=db_hassette)
     await db_service.on_initialize()
-    mock_hassette.database_service = db_service
-    mock_hassette.wait_for_ready = AsyncMock(return_value=True)
+    db_hassette.database_service = db_service
 
     try:
-        exc = CommandExecutor(mock_hassette, parent=mock_hassette)
+        exc = CommandExecutor(db_hassette, parent=db_hassette)
         await exc.on_initialize()
 
         batch_size = 10
@@ -662,11 +565,6 @@ async def test_concurrent_registrations_do_not_raise(
         assert all(isinstance(id_, int) and id_ > 0 for id_ in ids), f"All IDs must be positive ints, got: {ids}"
     finally:
         await db_service.on_shutdown()
-
-
-# ---------------------------------------------------------------------------
-# FK preservation / reconciliation tests
-# ---------------------------------------------------------------------------
 
 
 async def test_fk_preserved_across_restart(
@@ -737,7 +635,7 @@ async def test_reconciliation_ordering(
         priority=0,
         predicate_description=None,
         human_description=None,
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
     )
     id_a = await executor.register_listener(reg_a)

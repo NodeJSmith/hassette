@@ -3,7 +3,7 @@
 import pytest
 
 from hassette.resources.base import Resource
-from tests.unit.resources.conftest import _make_hassette_stub
+from hassette.test_utils import make_mock_hassette
 
 
 class _ConcreteResource(Resource):
@@ -19,7 +19,7 @@ class TestLifecycleSideEffectFree:
     @pytest.mark.asyncio
     async def test_mark_ready_does_not_emit(self) -> None:
         """mark_ready() must not call hassette.send_event."""
-        hassette = _make_hassette_stub()
+        hassette = make_mock_hassette(sealed=False)
         resource = _ConcreteResource(hassette=hassette)
 
         resource.mark_ready("some reason")
@@ -30,7 +30,7 @@ class TestLifecycleSideEffectFree:
     @pytest.mark.asyncio
     async def test_mark_not_ready_does_not_emit(self) -> None:
         """mark_not_ready() must not call hassette.send_event."""
-        hassette = _make_hassette_stub()
+        hassette = make_mock_hassette(sealed=False)
         resource = _ConcreteResource(hassette=hassette)
 
         # Set ready first, then clear

@@ -5,9 +5,8 @@ including error handling, pre-DB queue drain, orphan records, reconciliation,
 and drop counter behavior.
 """
 
-import asyncio
-import threading
 import time
+from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -20,42 +19,31 @@ from hassette.core.commands import InvokeHandler
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_query_service import TelemetryQueryService
+from hassette.test_utils.config import TEST_SOURCE_LOCATION, TEST_TOKEN
 from hassette.test_utils.harness import HassetteHarness
-
-# ============================================================================
-# Fixtures
-# ============================================================================
+from hassette.test_utils.mock_hassette import make_mock_hassette
 
 
 @pytest.fixture
 def harness_config(tmp_path: Path) -> HassetteConfig:
     """Create a test config pointing to a temporary database."""
-    config = HassetteConfig(data_dir=tmp_path, token="test-token")
+    config = HassetteConfig(data_dir=tmp_path, token=TEST_TOKEN)
     config.database.telemetry_write_queue_max = 10  # Small queue for testing overflow
     return config
 
 
 @pytest.fixture
-async def mock_hassette_with_db(premigrated_db_path: Path) -> MagicMock:
+async def db_hassette(premigrated_db_path: Path) -> AsyncIterator[MagicMock]:
     """Create a mock Hassette with database service for direct executor tests."""
-    hassette = MagicMock()
-    hassette.config.data_dir = premigrated_db_path.parent
-    hassette.config.database.path = None
-    hassette.config.database.retention_days = 7
-    hassette.config.database.migration_timeout_seconds = 120
-    hassette.config.database.max_size_mb = 0
-    hassette.config.logging.database_service = "INFO"
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.config.logging.command_executor = "INFO"
-    hassette.config.database.telemetry_write_queue_max = 1000
-    hassette.config.database.write_queue_max = 2000
-    hassette.ready_event = asyncio.Event()
-    hassette._loop_thread_id = threading.get_ident()
+    hassette = make_mock_hassette(
+        sealed=False,
+        data_dir=premigrated_db_path.parent,
+        set_ready=False,
+        database={"max_size_mb": 0},
+        lifecycle={"resource_shutdown_timeout_seconds": 5},
+    )
 
-    db_service = DatabaseService(hassette, parent=hassette)
+    db_service = DatabaseService(hassette, parent=None)
     await db_service.on_initialize()
 
     now = time.time()
@@ -69,16 +57,10 @@ async def mock_hassette_with_db(premigrated_db_path: Path) -> MagicMock:
     await db_service.db.commit()
     hassette.session_id = session_id
     hassette.database_service = db_service
-    hassette.wait_for_ready = AsyncMock(return_value=True)
 
     yield hassette
 
     await db_service.on_shutdown()
-
-
-# ============================================================================
-# AC-10: Framework listener/job error → source_tier='framework'
-# ============================================================================
 
 
 async def test_framework_listener_registers_with_source_tier(harness_config: HassetteConfig) -> None:
@@ -103,9 +85,9 @@ async def test_framework_listener_registers_with_source_tier(harness_config: Has
         assert listener.identity.app_key.startswith("__hassette__.")
 
 
-async def test_framework_job_registers_with_db(mock_hassette_with_db: MagicMock) -> None:
+async def test_framework_job_registers_with_db(db_hassette: MagicMock) -> None:
     """Framework job registration creates DB record with source_tier='framework'."""
-    hassette = mock_hassette_with_db
+    hassette = db_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -122,7 +104,7 @@ async def test_framework_job_registers_with_db(mock_hassette_with_db: MagicMock)
         trigger_detail=None,
         args_json="[]",
         kwargs_json="{}",
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
         source_tier="framework",
     )
@@ -144,9 +126,9 @@ async def test_framework_job_registers_with_db(mock_hassette_with_db: MagicMock)
     assert source_tier == "framework"
 
 
-async def test_command_executor_records_source_tier_on_error(mock_hassette_with_db: MagicMock) -> None:
+async def test_command_executor_records_source_tier_on_error(db_hassette: MagicMock) -> None:
     """Framework listener error → invocation record with source_tier='framework'."""
-    hassette = mock_hassette_with_db
+    hassette = db_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -179,9 +161,9 @@ async def test_command_executor_records_source_tier_on_error(mock_hassette_with_
     assert record.error_type == "ValueError"
 
 
-async def test_command_executor_job_registration_with_source_tier(mock_hassette_with_db: MagicMock) -> None:
+async def test_command_executor_job_registration_with_source_tier(db_hassette: MagicMock) -> None:
     """Framework job registration stores source_tier='framework' in DB."""
-    hassette = mock_hassette_with_db
+    hassette = db_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -198,7 +180,7 @@ async def test_command_executor_job_registration_with_source_tier(mock_hassette_
         trigger_detail=None,
         args_json="[]",
         kwargs_json="{}",
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
         source_tier="framework",
     )
@@ -215,14 +197,9 @@ async def test_command_executor_job_registration_with_source_tier(mock_hassette_
     assert source_tier == "framework"
 
 
-# ============================================================================
-# AC-11a: Pre-DB queue drain
-# ============================================================================
-
-
-async def test_queue_persistence_via_drain_and_persist(mock_hassette_with_db: MagicMock) -> None:
+async def test_queue_persistence_via_drain_and_persist(db_hassette: MagicMock) -> None:
     """Records queued → _drain_and_persist() → persisted to DB."""
-    hassette = mock_hassette_with_db
+    hassette = db_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -240,7 +217,7 @@ async def test_queue_persistence_via_drain_and_persist(mock_hassette_with_db: Ma
         priority=0,
         predicate_description=None,
         human_description=None,
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
         source_tier="app",
     )
@@ -283,14 +260,9 @@ async def test_queue_persistence_via_drain_and_persist(mock_hassette_with_db: Ma
     assert status == "success"
 
 
-# ============================================================================
-# AC-11b: Pre-registration orphan
-# ============================================================================
-
-
-async def test_pre_registration_orphan_persisted_with_null_listener_id(mock_hassette_with_db: MagicMock) -> None:
+async def test_pre_registration_orphan_persisted_with_null_listener_id(db_hassette: MagicMock) -> None:
     """Handler invocation before DB registration → listener_id=None in DB."""
-    hassette = mock_hassette_with_db
+    hassette = db_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -329,14 +301,9 @@ async def test_pre_registration_orphan_persisted_with_null_listener_id(mock_hass
     assert status == "success"
 
 
-# ============================================================================
-# AC-19: Reconciliation safety
-# ============================================================================
-
-
-async def test_reconciliation_excludes_framework_app_key(mock_hassette_with_db: MagicMock) -> None:
+async def test_reconciliation_excludes_framework_app_key(db_hassette: MagicMock) -> None:
     """Reconciliation with non-framework app_key → __hassette__ rows unaffected."""
-    hassette = mock_hassette_with_db
+    hassette = db_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -354,7 +321,7 @@ async def test_reconciliation_excludes_framework_app_key(mock_hassette_with_db: 
         priority=0,
         predicate_description=None,
         human_description=None,
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
         source_tier="framework",
     )
@@ -372,7 +339,7 @@ async def test_reconciliation_excludes_framework_app_key(mock_hassette_with_db: 
         priority=0,
         predicate_description=None,
         human_description=None,
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
         source_tier="app",
     )
@@ -398,11 +365,6 @@ async def test_reconciliation_excludes_framework_app_key(mock_hassette_with_db: 
     assert app_key == "__hassette__"
 
 
-# ============================================================================
-# Tier isolation: framework not exposed in app summaries
-# ============================================================================
-
-
 async def test_telemetry_query_service_exists(harness_config: HassetteConfig) -> None:
     """TelemetryQueryService can be instantiated (filtering tested in DB tests)."""
     async with HassetteHarness(harness_config).with_bus() as harness:
@@ -414,14 +376,9 @@ async def test_telemetry_query_service_exists(harness_config: HassetteConfig) ->
         assert callable(query_service.get_all_app_summaries)
 
 
-# ============================================================================
-# Drop counter e2e: overflow tracking
-# ============================================================================
-
-
-async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: MagicMock) -> None:
+async def test_drop_counter_overflow_when_queue_full(db_hassette: MagicMock) -> None:
     """Write queue full → dropped records incremented (AC-13)."""
-    hassette = mock_hassette_with_db
+    hassette = db_hassette
     hassette.config.database.telemetry_write_queue_max = 2
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
@@ -430,8 +387,6 @@ async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: Magi
     listener = MagicMock()
     listener.invoker.invoke = AsyncMock()
     listener.invoker.error_handler = None
-
-    from hassette.core.commands import InvokeHandler
 
     for i in range(hassette.config.database.telemetry_write_queue_max):
         mock_event = MagicMock()
@@ -469,9 +424,9 @@ async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: Magi
     assert dropped_overflow > 0
 
 
-async def test_get_drop_counters_returns_tuple(mock_hassette_with_db: MagicMock) -> None:
+async def test_get_drop_counters_returns_tuple(db_hassette: MagicMock) -> None:
     """get_drop_counters() returns (overflow, exhausted, no_session, shutdown) counters."""
-    hassette = mock_hassette_with_db
+    hassette = db_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -487,9 +442,9 @@ async def test_get_drop_counters_returns_tuple(mock_hassette_with_db: MagicMock)
     assert shutdown == 0
 
 
-async def test_sentinel_filtering_listener_id_zero(mock_hassette_with_db: MagicMock) -> None:
+async def test_sentinel_filtering_listener_id_zero(db_hassette: MagicMock) -> None:
     """Sentinel filtering: listener_id=0 dropped (regression check)."""
-    hassette = mock_hassette_with_db
+    hassette = db_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -514,9 +469,9 @@ async def test_sentinel_filtering_listener_id_zero(mock_hassette_with_db: MagicM
     assert rows_list[0][0] == 0  # No records persisted
 
 
-async def test_sentinel_filtering_session_id_zero(mock_hassette_with_db: MagicMock) -> None:
+async def test_sentinel_filtering_session_id_zero(db_hassette: MagicMock) -> None:
     """Sentinel filtering: session_id=0 dropped (regression check)."""
-    hassette = mock_hassette_with_db
+    hassette = db_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 

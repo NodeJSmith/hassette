@@ -9,32 +9,24 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hassette.core.database_service import DatabaseService
+from hassette.test_utils.mock_hassette import make_mock_hassette
 
 
 @pytest.fixture
 def mock_hassette(tmp_path: Path) -> MagicMock:
     """Create a mock Hassette with database config defaults."""
-    hassette = MagicMock()
-    hassette.config.data_dir = tmp_path
-    hassette.config.database.path = None
-    hassette.config.database.retention_days = 7
-    hassette.config.database.max_size_mb = 500
-    hassette.config.database.migration_timeout_seconds = 120
-    hassette.config.database.telemetry_write_queue_max = 500
-    hassette.config.database.write_queue_max = 2000
-    hassette.config.logging.database_service = "INFO"
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.ready_event = asyncio.Event()
-    return hassette
+    return make_mock_hassette(
+        data_dir=tmp_path,
+        set_ready=False,
+        database={"telemetry_write_queue_max": 500},
+        lifecycle={"resource_shutdown_timeout_seconds": 5},
+    )
 
 
 @pytest.fixture
 def service(mock_hassette: MagicMock) -> DatabaseService:
     """Create a DatabaseService instance."""
-    return DatabaseService(mock_hassette, parent=mock_hassette)
+    return DatabaseService(mock_hassette, parent=None)
 
 
 @pytest.fixture

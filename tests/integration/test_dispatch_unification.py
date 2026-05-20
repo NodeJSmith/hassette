@@ -11,10 +11,7 @@ Tests verify:
 8. All scheduled jobs produce telemetry (JobExecutionRecord queued), regardless of db_id state.
 """
 
-import asyncio
 import time
-from collections.abc import AsyncIterator
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -26,69 +23,13 @@ from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.scheduler.classes import JobExecutionRecord
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+from hassette.test_utils.helpers import create_listener
 
 
 @pytest.fixture
-def mock_hassette(premigrated_db_path: Path) -> MagicMock:
-    """Create a mock Hassette with database config pointing to a pre-migrated DB."""
-    hassette = MagicMock()
-    hassette.config.data_dir = premigrated_db_path.parent
-    hassette.config.database.path = None
-    hassette.config.database.retention_days = 7
-    hassette.config.database.migration_timeout_seconds = 120
-    hassette.config.database.max_size_mb = 0
-    hassette.config.logging.database_service = "INFO"
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.config.logging.command_executor = "INFO"
-    hassette.config.logging.bus_service = "INFO"
-    hassette.config.logging.scheduler_service = "INFO"
-    hassette.config.scheduler.min_delay_seconds = 0.1
-    hassette.config.scheduler.max_delay_seconds = 60.0
-    hassette.config.scheduler.default_delay_seconds = 1.0
-    hassette.config.bus_excluded_domains = ()
-    hassette.config.bus_excluded_entities = ()
-    hassette.config.logging.all_events = False
-    hassette.config.logging.all_hass_events = False
-    hassette.config.logging.all_hassette_events = False
-    hassette.config.database.telemetry_write_queue_max = 1000
-    hassette.config.database.write_queue_max = 2000
-    hassette.ready_event = asyncio.Event()
-    return hassette
-
-
-@pytest.fixture
-async def initialized_db(mock_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
-    """Initialize a real DatabaseService and create a session row."""
-    db_service = DatabaseService(mock_hassette, parent=mock_hassette)
-    await db_service.on_initialize()
-    try:
-        ts = time.time()
-        cursor = await db_service.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-            (ts, ts),
-        )
-        session_id = cursor.lastrowid
-        assert session_id is not None
-        mock_hassette.session_id = session_id
-        await db_service.db.commit()
-        mock_hassette.database_service = db_service
-        yield db_service, session_id
-    finally:
-        await db_service.on_shutdown()
-
-
-@pytest.fixture
-async def executor(mock_hassette: MagicMock, initialized_db: tuple[DatabaseService, int]) -> CommandExecutor:  # noqa: ARG001
+async def executor(db_hassette: AsyncMock, initialized_db: tuple[DatabaseService, int]) -> CommandExecutor:  # noqa: ARG001
     """Create and prepare a CommandExecutor with real DB wired in."""
-    mock_hassette.wait_for_ready = AsyncMock(return_value=True)
-    exc = CommandExecutor(mock_hassette, parent=mock_hassette)
+    exc = CommandExecutor(db_hassette, parent=db_hassette)
     await exc.on_initialize()
     return exc
 
@@ -101,11 +42,6 @@ def _make_mock_listener(*, listener_id: int = 1, db_id: int | None = None) -> Ma
     listener.invoker.invoke = AsyncMock()
     listener.invoker.error_handler = None
     return listener
-
-
-# ---------------------------------------------------------------------------
-# Subtask 1 & 2: _dispatch always uses _make_tracked_invoke_fn
-# ---------------------------------------------------------------------------
 
 
 async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> None:
@@ -151,15 +87,10 @@ async def test_pre_registration_listener_produces_orphan_record(executor: Comman
     assert record.status == "success"
 
 
-# ---------------------------------------------------------------------------
-# Subtask 4 & 5: framework listener DB registration via add_listener
-# ---------------------------------------------------------------------------
-
-
 async def test_framework_listener_registration(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
-    mock_hassette: MagicMock,
+    db_hassette: AsyncMock,
 ) -> None:
     """Framework listener via add_listener writes a DB row with source_tier='framework'.
 
@@ -168,12 +99,10 @@ async def test_framework_listener_registration(
     """
     db_service, _ = initialized_db
     stream = MagicMock()
-    bus_service = BusService(mock_hassette, stream=stream, executor=executor, parent=mock_hassette)
+    bus_service = BusService(db_hassette, stream=stream, executor=executor, parent=db_hassette)
 
     async def dummy_handler(event: object) -> None:
         pass
-
-    from hassette.test_utils.helpers import create_listener
 
     listener = create_listener(
         dummy_handler,
@@ -219,11 +148,6 @@ async def test_framework_listener_produces_telemetry(executor: CommandExecutor) 
     assert record.listener_id == 99
     assert record.source_tier == "framework"
     assert record.status == "success"
-
-
-# ---------------------------------------------------------------------------
-# Subtask 9: reconcile_registrations guard for __hassette__
-# ---------------------------------------------------------------------------
 
 
 async def test_reconciliation_guard_rejects_hassette(
@@ -338,11 +262,6 @@ async def test_reconciliation_preserves_framework_actors(
     assert (await cursor.fetchone()) is None, "Stale app listener was NOT deleted during reconciliation"
 
 
-# ---------------------------------------------------------------------------
-# Subtask 10: once=True deferred cleanup in SessionManager
-# ---------------------------------------------------------------------------
-
-
 async def test_once_true_deferred_cleanup(
     initialized_db: tuple[DatabaseService, int],
 ) -> None:
@@ -452,11 +371,6 @@ async def test_once_true_deferred_cleanup(
     # Framework once=True listener must survive
     cursor = await db_service.db.execute("SELECT id FROM listeners WHERE id = ?", (fw_once_listener_id,))
     assert (await cursor.fetchone()) is not None, "Framework once=True listener was incorrectly deleted"
-
-
-# ---------------------------------------------------------------------------
-# Subtask 7: All scheduler jobs produce telemetry
-# ---------------------------------------------------------------------------
 
 
 async def test_all_jobs_produce_telemetry(executor: CommandExecutor) -> None:

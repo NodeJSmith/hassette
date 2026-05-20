@@ -19,39 +19,18 @@ import pytest
 
 from hassette.core.bus_service import BusService
 from hassette.core.registration_tracker import RegistrationTracker
+from hassette.test_utils import make_mock_hassette
 from hassette.types.types import FRAMEWORK_APP_KEY, FRAMEWORK_APP_KEY_PREFIX
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_hassette_mock() -> MagicMock:
-    """Return a MagicMock Hassette with just enough attributes for BusService.__init__."""
-    hassette = MagicMock()
-    hassette.config.logging.bus_service = "DEBUG"
-    hassette.config.logging.log_level = "DEBUG"
-    hassette.config.logging.task_bucket = "DEBUG"
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.config.bus_excluded_domains = []
-    hassette.config.bus_excluded_entities = []
-    hassette.ready_event = asyncio.Event()
-    return hassette
 
 
 @pytest.fixture
 def bus_service() -> BusService:
     """Construct a BusService backed by mocks, ready for accessor tests."""
-    hassette = _make_hassette_mock()
+    hassette = make_mock_hassette()
     stream = MagicMock()
     executor = MagicMock()
     executor.execute = AsyncMock()
     return BusService(hassette, stream=stream, executor=executor)
-
-
-# ---------------------------------------------------------------------------
-# is_dispatch_idle
-# ---------------------------------------------------------------------------
 
 
 def test_is_dispatch_idle_true_when_no_pending(bus_service: BusService) -> None:
@@ -94,11 +73,6 @@ def test_is_dispatch_idle_delegates_to_event_not_pending_count(bus_service: BusS
     assert bus_service.is_dispatch_idle is True
 
 
-# ---------------------------------------------------------------------------
-# dispatch_pending_count
-# ---------------------------------------------------------------------------
-
-
 def test_dispatch_pending_count_zero_for_fresh_service(bus_service: BusService) -> None:
     """dispatch_pending_count is 0 for a freshly constructed BusService."""
     assert bus_service.dispatch_pending_count == 0
@@ -135,11 +109,6 @@ def test_is_dispatch_idle_is_authoritative_over_pending_count(bus_service: BusSe
     assert bus_service.is_dispatch_idle is True
     # Counter is still 1 but is not authoritative for the idle check
     assert bus_service.dispatch_pending_count == 1
-
-
-# ---------------------------------------------------------------------------
-# drain_framework_registrations
-# ---------------------------------------------------------------------------
 
 
 async def test_drain_framework_registrations_drains_only_framework_keys(bus_service: BusService) -> None:
@@ -181,11 +150,6 @@ async def test_drain_framework_registrations_uses_list_snapshot(bus_service: Bus
 
     await bus_service.drain_framework_registrations()
     assert framework_key in drained
-
-
-# ---------------------------------------------------------------------------
-# _on_dispatch_done underflow guard
-# ---------------------------------------------------------------------------
 
 
 def test_on_dispatch_done_warns_on_underflow(bus_service: BusService) -> None:

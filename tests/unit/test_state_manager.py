@@ -1,38 +1,29 @@
 """Unit tests for StateManager.__getattr__ and DomainStates._validate_or_return_from_cache."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from hassette.exceptions import RegistryNotReadyError
 from hassette.models.states import BaseState, LightState, SensorState
 from hassette.state_manager.state_manager import DomainStates, StateManager
-from hassette.test_utils import make_light_state_dict
+from hassette.test_utils import make_light_state_dict, make_mock_hassette
 
 
-def _make_hassette_mock() -> MagicMock:
-    """Return a MagicMock Hassette with just enough attributes for StateManager.__init__."""
-    hassette = MagicMock()
-    hassette.config.logging.state_proxy = "DEBUG"
-    hassette.config.logging.log_level = "DEBUG"
-    hassette.config.logging.task_bucket = "DEBUG"
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
+@pytest.fixture
+def mock_hassette() -> AsyncMock:
+    hassette = make_mock_hassette(
+        sealed=False,
+        logging={"log_level": "DEBUG", "state_proxy": "DEBUG", "task_bucket": "DEBUG"},
+        lifecycle={"task_cancellation_timeout_seconds": 5},
+    )
+    hassette.state_registry = MagicMock()
     return hassette
 
 
 @pytest.fixture
-def mock_hassette() -> MagicMock:
-    return _make_hassette_mock()
-
-
-@pytest.fixture
-def state_manager(mock_hassette: MagicMock) -> StateManager:
+def state_manager(mock_hassette: AsyncMock) -> StateManager:
     return StateManager(mock_hassette, parent=mock_hassette)
-
-
-# ---------------------------------------------------------------------------
-# TestStateManagerGetattr — __getattr__ dispatch logic
-# ---------------------------------------------------------------------------
 
 
 class TestStateManagerGetattr:
@@ -91,11 +82,6 @@ class TestStateManagerGetattr:
         result = state_manager.items
         assert callable(result)
         assert not isinstance(result, DomainStates)
-
-
-# ---------------------------------------------------------------------------
-# TestDomainStatesCacheValidation — _validate_or_return_from_cache logic
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture

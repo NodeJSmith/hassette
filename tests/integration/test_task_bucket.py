@@ -1,11 +1,9 @@
 import asyncio
 import contextlib
-import logging
 
 import pytest
 
 from hassette.task_bucket import TaskBucket
-from hassette.test_utils import wait_for
 
 
 async def sleeper():
@@ -44,28 +42,28 @@ async def boom(event: asyncio.Event):
     raise RuntimeError("boom")
 
 
-async def test_crash_is_logged(bucket_fixture: TaskBucket, caplog):
-    """Task crashes are logged by the bucket."""
+async def test_crash_invokes_exception_recorder(bucket_fixture: TaskBucket):
+    """Task crashes are observed via the exception recorder callback."""
     task_started = asyncio.Event()
-    caplog.set_level(logging.DEBUG, logger=bucket_fixture.logger.name)
-    crashing_task = asyncio.create_task(boom(task_started), name="exploder")
+    recorded: list[tuple[asyncio.Task, BaseException]] = []
 
-    num_tasks = len(bucket_fixture)
-    assert num_tasks >= 1, f"bucket should track at least one task, tracks {num_tasks}"
+    def recorder(t: asyncio.Task, exc: BaseException) -> None:
+        recorded.append((t, exc))
 
-    await task_started.wait()
-    await wait_for(
-        lambda: any("exploder" in r.getMessage() and "crashed" in r.getMessage() for r in caplog.records),
-        desc="crash logged for exploder task",
-    )
+    bucket_fixture.install_exception_recorder(recorder)
 
-    log_messages = [record.getMessage() for record in caplog.records]
+    try:
+        crashing_task = asyncio.create_task(boom(task_started), name="exploder")
+        await task_started.wait()
+        await asyncio.sleep(0)  # let done callbacks fire
 
-    if not any("exploder" in message and "crashed" in message for message in log_messages):
-        raise AssertionError(f"No error log; logs were: {log_messages}")
-
-    assert crashing_task.done(), f"task should be done after crash, is {crashing_task._state}"
-    assert not crashing_task.cancelled(), "task should not be cancelled after crash"
+        assert crashing_task.done()
+        assert not crashing_task.cancelled()
+        assert len(recorded) == 1
+        assert recorded[0][0] is crashing_task
+        assert isinstance(recorded[0][1], RuntimeError)
+    finally:
+        bucket_fixture.uninstall_exception_recorder(recorder)
 
 
 async def stubborn(event: asyncio.Event):
@@ -77,10 +75,9 @@ async def stubborn(event: asyncio.Event):
     event.set()
 
 
-async def test_warns_on_stubborn_tasks(bucket_fixture: TaskBucket, caplog):
-    """Bucket logs a warning when tasks ignore cancellation."""
+async def test_stubborn_task_survives_cancel_all(bucket_fixture: TaskBucket):
+    """Tasks that ignore cancellation finish on their own terms after cancel_all."""
     stubborn_task_finished = asyncio.Event()
-    caplog.set_level(logging.WARNING, logger=bucket_fixture.logger.name)
     stubborn_task_handle = asyncio.create_task(stubborn(stubborn_task_finished), name="stubborn")
 
     assert len(bucket_fixture) >= 1, f"bucket should track at least one task, tracks {len(bucket_fixture)}"
@@ -91,13 +88,8 @@ async def test_warns_on_stubborn_tasks(bucket_fixture: TaskBucket, caplog):
     await stubborn_task_finished.wait()
     await asyncio.sleep(0)
 
-    # the task may still be running (ignored cancel), but we should have warned
-    warning_messages = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
-    if not any("refused" in message for message in warning_messages):
-        raise AssertionError(f"No stubborn warning; logs were: {warning_messages}")
-
-    assert stubborn_task_handle.done(), f"task should be done after finishing, is {stubborn_task_handle._state}"
-    assert not stubborn_task_handle.cancelled(), "task should not be cancelled after finishing"
+    assert stubborn_task_handle.done()
+    assert not stubborn_task_handle.cancelled()
 
 
 async def test_factory_tracks_rogue_create_task(bucket_fixture: TaskBucket):

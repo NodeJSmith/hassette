@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hassette.core.web_ui_watcher import _WATCH_DIRS, _WEB_DIR, WebUiWatcherService, _change_kind
+from hassette.test_utils.mock_hassette import make_mock_hassette
 
 # --- _change_kind classification ---
 
@@ -47,8 +48,7 @@ def test_watch_dirs_contains_static() -> None:
 
 @pytest.fixture
 def mock_hassette() -> MagicMock:
-    hassette = MagicMock()
-    hassette.config.web_api.ui_hot_reload = False
+    hassette = make_mock_hassette(sealed=False)
     hassette.runtime_query_service = MagicMock()
     hassette.runtime_query_service.broadcast = AsyncMock()
     return hassette

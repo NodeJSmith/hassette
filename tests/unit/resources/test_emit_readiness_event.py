@@ -10,7 +10,7 @@ from hassette.types.enums import ResourceStatus
 
 if TYPE_CHECKING:
     from hassette.events.hassette import ServiceStatusPayload
-from tests.unit.resources.conftest import _make_hassette_stub
+from hassette.test_utils import make_mock_hassette
 
 
 class _ConcreteResource(Resource):
@@ -22,7 +22,7 @@ class _ConcreteResource(Resource):
 
 async def _make_resource() -> tuple[_ConcreteResource, AsyncMock]:
     """Create a Resource instance with a stubbed hassette."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     resource = _ConcreteResource(hassette=hassette)
     return resource, hassette
 

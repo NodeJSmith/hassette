@@ -9,6 +9,7 @@ Covers:
 """
 
 import asyncio
+import sqlite3
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -23,42 +24,35 @@ from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.telemetry_models import JobSummary, ListenerSummary
 from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.scheduler.triggers import Every
+from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.test_utils.web_helpers import make_real_job
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.types.enums import ResourceRole, ResourceStatus
 from hassette.web.app import create_fastapi_app
 from hassette.web.mappers import system_status_response_from
+from hassette.web.models import ServiceInfoResponse
 from hassette.web.utils import gather_all_listeners
 
-# ---------------------------------------------------------------------------
-# Fixtures: real DB for TelemetryQueryService tests
-# ---------------------------------------------------------------------------
+from .telemetry_query_helpers import insert_execution, insert_job
+
+STUB_TIMESTAMP = 1_700_000_000.0
 
 
 @pytest.fixture
-def mock_hassette_db(premigrated_db_path: Path) -> MagicMock:
-    hassette = MagicMock()
-    hassette.config.data_dir = premigrated_db_path.parent
-    hassette.config.database.path = None
-    hassette.config.database.retention_days = 7
-    hassette.config.database.telemetry_write_queue_max = 500
-    hassette.config.database.write_queue_max = 2000
-    hassette.config.logging.database_service = "INFO"
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.config.logging.web_api = "INFO"
-    hassette.config.web_api.run = True
-    hassette.config.database.migration_timeout_seconds = 120
-    hassette.config.database.max_size_mb = 0
-    hassette.ready_event = asyncio.Event()
-    return hassette
+def db_hassette(premigrated_db_path: Path) -> MagicMock:
+    return make_mock_hassette(
+        data_dir=premigrated_db_path.parent,
+        set_ready=False,
+        sealed=False,
+        database={"telemetry_write_queue_max": 500, "max_size_mb": 0},
+        lifecycle={"resource_shutdown_timeout_seconds": 5},
+        web_api={"run": True},
+    )
 
 
 @pytest.fixture
-async def db(mock_hassette_db: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
-    db_service = DatabaseService(mock_hassette_db, parent=mock_hassette_db)
+async def db(db_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
+    db_service = DatabaseService(db_hassette, parent=None)
     await db_service.on_initialize()
     cursor = await db_service.db.execute(
         "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
@@ -66,98 +60,19 @@ async def db(mock_hassette_db: MagicMock) -> AsyncIterator[tuple[DatabaseService
     )
     session_id = cursor.lastrowid
     await db_service.db.commit()
-    mock_hassette_db.session_id = session_id
-    mock_hassette_db.database_service = db_service
+    db_hassette.session_id = session_id
+    db_hassette.database_service = db_service
     yield db_service, session_id
     await db_service.on_shutdown()
 
 
 @pytest.fixture
-def svc(mock_hassette_db: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQueryService:  # noqa: ARG001
+def svc(db_hassette: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQueryService:  # noqa: ARG001
     service = TelemetryQueryService.__new__(TelemetryQueryService)
-    service.hassette = mock_hassette_db
+    service.hassette = db_hassette
     service.logger = MagicMock()
     service._snapshot_lock = asyncio.Lock()
     return service
-
-
-# ---------------------------------------------------------------------------
-# DB helpers
-# ---------------------------------------------------------------------------
-
-
-async def _insert_job(
-    db_svc: DatabaseService,
-    *,
-    app_key: str = "test_app",
-    instance_index: int = 0,
-    job_name: str = "my_job",
-    handler_method: str = "run_job",
-    source_tier: str = "app",
-) -> int:
-    cursor = await db_svc.db.execute(
-        """INSERT INTO scheduled_jobs
-               (app_key, instance_index, job_name, handler_method,
-                trigger_type, repeat,
-                source_location, source_tier)
-           VALUES (?, ?, ?, ?, 'interval', 1, 'test.py:1', ?)""",
-        (app_key, instance_index, job_name, handler_method, source_tier),
-    )
-    await db_svc.db.commit()
-    assert cursor.lastrowid is not None
-    return cursor.lastrowid
-
-
-async def _insert_execution(
-    db_svc: DatabaseService,
-    job_id: int,
-    session_id: int,
-    *,
-    status: str = "success",
-    duration_ms: float = 20.0,
-    error_type: str | None = None,
-    error_message: str | None = None,
-    execution_start_ts: float | None = None,
-    source_tier: str = "app",
-) -> int:
-    ts = execution_start_ts if execution_start_ts is not None else time.time()
-    cursor = await db_svc.db.execute(
-        """INSERT INTO job_executions
-               (job_id, session_id, execution_start_ts, duration_ms,
-                status, error_type, error_message, source_tier, is_di_failure)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)""",
-        (job_id, session_id, ts, duration_ms, status, error_type, error_message, source_tier),
-    )
-    await db_svc.db.commit()
-    assert cursor.lastrowid is not None
-    return cursor.lastrowid
-
-
-async def _insert_listener(
-    db_svc: DatabaseService,
-    *,
-    app_key: str = "test_app",
-    instance_index: int = 0,
-    handler_method: str = "on_event",
-    topic: str = "hass.event.state_changed",
-    source_tier: str = "app",
-) -> int:
-    cursor = await db_svc.db.execute(
-        """INSERT INTO listeners
-               (app_key, instance_index, handler_method, topic,
-                debounce, throttle, once, priority,
-                source_location, source_tier)
-           VALUES (?, ?, ?, ?, NULL, NULL, 0, 0, 'test.py:1', ?)""",
-        (app_key, instance_index, handler_method, topic, source_tier),
-    )
-    await db_svc.db.commit()
-    assert cursor.lastrowid is not None
-    return cursor.lastrowid
-
-
-# ---------------------------------------------------------------------------
-# Tests: get_all_jobs_summary
-# ---------------------------------------------------------------------------
 
 
 class TestGetAllJobsSummary:
@@ -169,11 +84,11 @@ class TestGetAllJobsSummary:
         """get_all_jobs_summary() aggregates jobs from multiple apps without app_key filter."""
         db_svc, session_id = db
 
-        j1 = await _insert_job(db_svc, app_key="app_alpha", job_name="alpha_job")
-        j2 = await _insert_job(db_svc, app_key="app_beta", job_name="beta_job")
+        j1 = await insert_job(db_svc, app_key="app_alpha", job_name="alpha_job")
+        j2 = await insert_job(db_svc, app_key="app_beta", job_name="beta_job")
 
-        await _insert_execution(db_svc, j1, session_id, status="success", duration_ms=10.0)
-        await _insert_execution(db_svc, j2, session_id, status="error", duration_ms=50.0, error_type="ValueError")
+        await insert_execution(db_svc, j1, session_id, status="success", duration_ms=10.0)
+        await insert_execution(db_svc, j2, session_id, status="error", duration_ms=50.0, error_type="ValueError")
 
         results = await svc.get_all_jobs_summary()
 
@@ -191,7 +106,7 @@ class TestGetAllJobsSummary:
         db_svc, _ = db
 
         for i in range(5):
-            await _insert_job(db_svc, app_key=f"app_{i}", job_name=f"job_{i}")
+            await insert_job(db_svc, app_key=f"app_{i}", job_name=f"job_{i}")
 
         results = await svc.get_all_jobs_summary()
         assert len(results) == 5
@@ -204,8 +119,8 @@ class TestGetAllJobsSummary:
         """Jobs with failed executions have last_error_type, last_error_message populated."""
         db_svc, session_id = db
 
-        j1 = await _insert_job(db_svc, app_key="my_app", job_name="failing_job")
-        await _insert_execution(
+        j1 = await insert_job(db_svc, app_key="my_app", job_name="failing_job")
+        await insert_execution(
             db_svc,
             j1,
             session_id,
@@ -229,10 +144,10 @@ class TestGetAllJobsSummary:
         """min_duration_ms and max_duration_ms are populated from executions."""
         db_svc, session_id = db
 
-        j1 = await _insert_job(db_svc, app_key="my_app", job_name="timed_job")
-        await _insert_execution(db_svc, j1, session_id, status="success", duration_ms=5.0)
-        await _insert_execution(db_svc, j1, session_id, status="success", duration_ms=100.0)
-        await _insert_execution(db_svc, j1, session_id, status="success", duration_ms=50.0)
+        j1 = await insert_job(db_svc, app_key="my_app", job_name="timed_job")
+        await insert_execution(db_svc, j1, session_id, status="success", duration_ms=5.0)
+        await insert_execution(db_svc, j1, session_id, status="success", duration_ms=100.0)
+        await insert_execution(db_svc, j1, session_id, status="success", duration_ms=50.0)
 
         results = await svc.get_all_jobs_summary()
         assert len(results) == 1
@@ -248,7 +163,7 @@ class TestGetAllJobsSummary:
         """Jobs with no executions have min/max duration as None (never executed)."""
         db_svc, _ = db
 
-        await _insert_job(db_svc, app_key="my_app", job_name="idle_job")
+        await insert_job(db_svc, app_key="my_app", job_name="idle_job")
 
         results = await svc.get_all_jobs_summary()
         assert len(results) == 1
@@ -267,11 +182,11 @@ class TestGetAllJobsSummary:
         base_ts = 1_000_000.0
         since_ts = base_ts + 5.0
 
-        j1 = await _insert_job(db_svc, app_key="my_app", job_name="my_job")
+        j1 = await insert_job(db_svc, app_key="my_app", job_name="my_job")
         # Before since: counts should not include this
-        await _insert_execution(db_svc, j1, session_id, status="success", execution_start_ts=base_ts + 1.0)
+        await insert_execution(db_svc, j1, session_id, status="success", execution_start_ts=base_ts + 1.0)
         # After since: should count
-        await _insert_execution(db_svc, j1, session_id, status="success", execution_start_ts=base_ts + 10.0)
+        await insert_execution(db_svc, j1, session_id, status="success", execution_start_ts=base_ts + 10.0)
 
         results = await svc.get_all_jobs_summary(since=since_ts)
         assert len(results) == 1
@@ -286,8 +201,8 @@ class TestGetAllJobsSummary:
         """source_tier='app' excludes framework-tier jobs."""
         db_svc, _ = db
 
-        await _insert_job(db_svc, app_key="my_app", job_name="app_job", source_tier="app")
-        await _insert_job(db_svc, app_key="fw_app", job_name="fw_job", source_tier="framework")
+        await insert_job(db_svc, app_key="my_app", job_name="app_job", source_tier="app")
+        await insert_job(db_svc, app_key="fw_app", job_name="fw_job", source_tier="framework")
 
         results = await svc.get_all_jobs_summary(source_tier="app")
         assert len(results) == 1
@@ -301,16 +216,11 @@ class TestGetAllJobsSummary:
         """source_tier='all' returns both app and framework tier jobs."""
         db_svc, _ = db
 
-        await _insert_job(db_svc, app_key="my_app", job_name="app_job", source_tier="app")
-        await _insert_job(db_svc, app_key="fw_app", job_name="fw_job", source_tier="framework")
+        await insert_job(db_svc, app_key="my_app", job_name="app_job", source_tier="app")
+        await insert_job(db_svc, app_key="fw_app", job_name="fw_job", source_tier="framework")
 
         results = await svc.get_all_jobs_summary(source_tier="all")
         assert len(results) == 2
-
-
-# ---------------------------------------------------------------------------
-# Tests: GET /api/scheduler/jobs (global jobs endpoint)
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -349,7 +259,7 @@ def _make_job_summary(
         total_executions=3,
         successful=3,
         failed=0,
-        last_executed_at=1700000000.0,
+        last_executed_at=STUB_TIMESTAMP,
         total_duration_ms=90.0,
         avg_duration_ms=30.0,
     )
@@ -431,8 +341,6 @@ class TestGlobalJobsEndpointDegradedOnHeapFailure:
 
     async def test_db_error_returns_503(self, scheduler_client) -> None:
         """DB failure returns 503 response."""
-        import sqlite3
-
         client, mock_hassette = scheduler_client
 
         mock_hassette.telemetry_query_service.get_all_jobs_summary = AsyncMock(
@@ -442,11 +350,6 @@ class TestGlobalJobsEndpointDegradedOnHeapFailure:
         response = await client.get("/api/scheduler/jobs")
         assert response.status_code == 503
         assert response.json() == []
-
-
-# ---------------------------------------------------------------------------
-# Tests: gather_all_listeners returns all tiers
-# ---------------------------------------------------------------------------
 
 
 class TestGatherAllListenersTiers:
@@ -552,31 +455,22 @@ class TestGatherAllListenersTiers:
             )
 
 
-# ---------------------------------------------------------------------------
-# Tests: ServiceInfoResponse extensions
-# ---------------------------------------------------------------------------
-
-
 class TestServiceInfoResponseExtension:
     def test_service_info_response_has_role_ready_phase_retry_at(self) -> None:
         """ServiceInfoResponse has role, ready_phase, retry_at fields."""
-        from hassette.web.models import ServiceInfoResponse
-
         svc = ServiceInfoResponse(
             name="WebSocketService",
             status="running",
             role="Service",
             ready_phase="connected",
-            retry_at=1700000000.0,
+            retry_at=STUB_TIMESTAMP,
         )
         assert svc.role == "Service"
         assert svc.ready_phase == "connected"
-        assert svc.retry_at == 1700000000.0
+        assert svc.retry_at == STUB_TIMESTAMP
 
     def test_service_info_response_defaults(self) -> None:
         """ServiceInfoResponse has sensible defaults when role/ready_phase/retry_at omitted."""
-        from hassette.web.models import ServiceInfoResponse
-
         svc = ServiceInfoResponse(name="SomeService", status="running")
         assert svc.role == ""
         assert svc.ready_phase is None

@@ -1,6 +1,7 @@
 """Unit tests for telemetry Pydantic models."""
 
 from hassette.core.telemetry_models import JobSummary
+from hassette.test_utils.config import TEST_SOURCE_LOCATION
 
 # ---------------------------------------------------------------------------
 # JobSummary model tests
@@ -20,7 +21,7 @@ def test_job_summary_new_fields_defaults() -> None:
         trigger_detail=None,
         args_json="[]",
         kwargs_json="{}",
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
         total_executions=0,
         successful=0,

@@ -3,6 +3,7 @@
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
 from hassette.core.domain_models import SystemStatus
 from hassette.core.telemetry_models import ListenerSummary
+from hassette.test_utils.config import TEST_SOURCE_LOCATION
 from hassette.types.enums import ResourceStatus
 from hassette.web.mappers import (
     app_manifest_list_response_from,
@@ -293,7 +294,7 @@ def _make_listener_summary(**overrides) -> ListenerSummary:
         "priority": 0,
         "predicate_description": None,
         "human_description": None,
-        "source_location": "test.py:1",
+        "source_location": TEST_SOURCE_LOCATION,
         "registration_source": None,
         "source_tier": "app",
         "total_invocations": 0,

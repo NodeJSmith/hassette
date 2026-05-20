@@ -11,42 +11,23 @@ Tests cover the snapshot-semantics and filtering guarantees of
 """
 
 import asyncio
-import threading
-from unittest.mock import MagicMock
 
 import pytest
 
 from hassette.task_bucket import TaskBucket
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_hassette_mock() -> MagicMock:
-    """Return a MagicMock Hassette with just enough attributes for TaskBucket.__init__."""
-    hassette = MagicMock()
-    hassette.config.logging.task_bucket = "DEBUG"
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.config.logging.log_level = "DEBUG"
-    return hassette
+from hassette.test_utils import make_mock_hassette
 
 
 @pytest.fixture
-def hassette_mock() -> MagicMock:
+def hassette_mock():
     """Minimal Hassette mock sufficient to construct a TaskBucket."""
-    return _make_hassette_mock()
+    return make_mock_hassette()
 
 
 @pytest.fixture
-def bucket(hassette_mock: MagicMock) -> TaskBucket:
+def bucket(hassette_mock) -> TaskBucket:
     """Fresh TaskBucket with no tasks tracked."""
     return TaskBucket(hassette_mock)
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 async def test_pending_tasks_returns_empty_for_fresh_bucket(bucket: TaskBucket) -> None:
@@ -149,8 +130,7 @@ class TestSpawnTaskNaming:
 
     @pytest.fixture
     async def spawn_bucket(self, bucket: TaskBucket) -> TaskBucket:
-        bucket.hassette._loop_thread_id = threading.get_ident()
-        bucket.hassette.loop = asyncio.get_running_loop()
+        # _loop_thread_id and loop are already set by make_mock_hassette()
         return bucket
 
     async def test_spawn_without_name_uses_coroutine_qualname(self, spawn_bucket: TaskBucket) -> None:

@@ -5,30 +5,23 @@ completes — the core fix for #621.
 """
 
 import asyncio
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from hassette.core.app_handler import AppHandler
+from hassette.test_utils.mock_hassette import make_mock_hassette
 
 
 @pytest.fixture
-def mock_hassette() -> MagicMock:
-    hassette = MagicMock()
-    hassette.config = MagicMock()
-    hassette.config.lifecycle.app_startup_timeout_seconds = 30
-    hassette.config.lifecycle.app_shutdown_timeout_seconds = 10
-    hassette.config.dev_mode = False
-    hassette.config.allow_only_app_in_prod = False
-    hassette.config.allow_reload_in_prod = False
-    hassette.config.logging.app_handler = "DEBUG"
-    hassette.config.app.manifests = {}
-    hassette.config.data_dir = Path("/tmp/hassette-test")
-    hassette.config.logging.log_level = "DEBUG"
+def mock_hassette() -> AsyncMock:
+    hassette = make_mock_hassette(
+        sealed=False,
+        dev_mode=False,
+        logging={"log_level": "DEBUG"},
+        lifecycle={"app_startup_timeout_seconds": 30},
+    )
     hassette.send_event = AsyncMock()
-    hassette.shutdown_event = asyncio.Event()
-    hassette._bus_service = MagicMock()
     hassette._bus_service.router = MagicMock()
     hassette.session_id = 1
     return hassette

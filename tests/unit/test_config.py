@@ -9,6 +9,7 @@ import pytest
 from hassette import HassetteConfig, context
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.test_utils import run_hassette_startup_tasks
+from hassette.test_utils.config import TEST_TOKEN
 
 
 def _cleanup_env(*keys: str) -> None:
@@ -74,7 +75,7 @@ def test_env_files_can_be_configured_as_multiple_files(monkeypatch, tmp_path):
             "toml_file": [],
         }
 
-        token: str = "test-token"
+        token: str = TEST_TOKEN
         run_app_precheck: bool = False
 
     config = MultiEnvConfig()
@@ -96,7 +97,7 @@ def test_env_file_contributes_to_settings_without_mutating_os_environ(monkeypatc
             "toml_file": [],
         }
 
-        token: str = "test-token"
+        token: str = TEST_TOKEN
         run_app_precheck: bool = False
         import_dot_env_files: bool = False
 
@@ -120,7 +121,7 @@ async def test_import_dot_env_files_true_loads_vars_into_os_environ(monkeypatch,
             "toml_file": [],
         }
 
-        token: str = "test-token"
+        token: str = TEST_TOKEN
         run_app_precheck: bool = False
 
     config = ImportingConfig(import_dot_env_files=True)
@@ -143,7 +144,7 @@ async def test_import_dot_env_files_false_does_not_touch_os_environ(monkeypatch,
             "toml_file": [],
         }
 
-        token: str = "test-token"
+        token: str = TEST_TOKEN
         run_app_precheck: bool = False
 
     config = NonImportingConfig(import_dot_env_files=False)
@@ -167,7 +168,7 @@ async def test_import_dot_env_files_does_not_override_existing_environ(monkeypat
             "toml_file": [],
         }
 
-        token: str = "test-token"
+        token: str = TEST_TOKEN
         run_app_precheck: bool = False
 
     config = NonOverridingConfig(import_dot_env_files=True)
@@ -194,7 +195,7 @@ async def test_multiple_env_files_import_non_conflicting_keys(monkeypatch, tmp_p
             "toml_file": [],
         }
 
-        token: str = "test-token"
+        token: str = TEST_TOKEN
         run_app_precheck: bool = False
 
     config = MultiImportConfig(import_dot_env_files=True)
@@ -228,7 +229,7 @@ async def test_multiple_env_files_conflicting_key_is_effectively_order_dependent
             "toml_file": [],
         }
 
-        token: str = "test-token"
+        token: str = TEST_TOKEN
         run_app_precheck: bool = False
 
     config = MultiConflictConfig(import_dot_env_files=True)
@@ -258,7 +259,7 @@ def test_spec_env_files_preserves_declared_order(tmp_path):
             "toml_file": [],
         }
 
-        token: str = "test-token"
+        token: str = TEST_TOKEN
         run_app_precheck: bool = False
 
     config = OrderedEnvConfig()
@@ -292,7 +293,7 @@ async def test_spec_last_env_file_wins_on_conflicts(monkeypatch, tmp_path):
             "toml_file": [],
         }
 
-        token: str = "test-token"
+        token: str = TEST_TOKEN
         run_app_precheck: bool = False
 
     config = MultiConflictSpecConfig(import_dot_env_files=True)
@@ -385,7 +386,7 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(monke
             "env_file": [env_file],
         }
 
-        token: str = "test-token"
+        token: str = TEST_TOKEN
 
     config = AppImportConfig(import_dot_env_files=True)
     with context.use_hassette_config(config):
@@ -449,7 +450,7 @@ class _LogLevelTestConfig(HassetteConfig):
         "env_file": [],
     }
 
-    token: str = "test-token"
+    token: str = TEST_TOKEN
     run_app_precheck: bool = False
 
 

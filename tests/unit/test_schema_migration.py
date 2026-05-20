@@ -10,6 +10,7 @@ import pytest
 
 from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
+from hassette.test_utils.config import TEST_TOKEN
 from hassette.types.types import SourceTier
 
 # ---------------------------------------------------------------------------
@@ -302,5 +303,5 @@ class TestDbVersionMismatch:
 class TestHassetteConfigTelemetryQueueMax:
     def test_telemetry_write_queue_max_default(self) -> None:
         """HassetteConfig.telemetry_write_queue_max defaults to 1000."""
-        config = HassetteConfig(token="test-token", _cli_parse_args=False)
+        config = HassetteConfig(token=TEST_TOKEN, _cli_parse_args=False)
         assert config.database.telemetry_write_queue_max == 1000

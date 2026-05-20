@@ -7,9 +7,10 @@ import pytest
 
 from hassette import HassetteConfig, context
 from hassette.test_utils import HassetteHarness, build_harness, run_hassette_startup_tasks, wait_for
+from hassette.test_utils.config import TEST_TOKEN
 
 APP_KEY = "env_reader"
-TOKEN = "test-token"
+TOKEN = TEST_TOKEN
 
 ENV_IMPORT_KEY = "HASSETTE_TEST_APP_IMPORT"
 ENV_SETTINGS_KEY = "MY_SECRET"
