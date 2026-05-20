@@ -21,7 +21,7 @@ None.
 - Do NOT migrate `test_hassette_timeout_warning.py` — it uses `object.__new__(Hassette)` to bypass `__init__` and is the wrong pattern for `make_mock_hassette()`.
 - Do NOT promote `bus_test_helpers.py` to shared utilities.
 - Do NOT address `caplog` test usage (tracked in #473).
-- Tests that mutate `hassette.config.X` after construction will break with real frozen config — these must pass the value as a config override at construction time instead.
+- Tests that mutate `hassette.config.X` after construction will break with real frozen config — these must pass the value as a config override at construction time instead. **Pre-migration audit required:** before migrating each file, grep for `hassette.config.*` and `executor.hassette.config.*` assignment sites within that file, extract the assigned values, and cross-reference against `ge`/`le`/`gt`/`lt` constraints in `src/hassette/config/models.py`. Tests assigning values outside Pydantic constraint ranges must retain a mock config layer for that field or the constraint must be relaxed.
 - Tests that assert `config.reload()` was called need `hassette.config.reload = Mock()` patched on top of the real config.
 - The factory must work without `asyncio.get_running_loop()` when `set_loop=False` (needed for session-scoped fixtures that run outside an event loop).
 

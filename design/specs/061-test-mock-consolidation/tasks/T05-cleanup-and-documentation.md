@@ -65,7 +65,7 @@ If any AC fails, investigate and fix before marking complete.
 
 ## Verify
 - [ ] FR#8: `grep -n 'def test_data_path\|def test_config_path\|def test_events_path\|def test_api_responses_path\|def test_apps_path' tests/conftest.py` returns zero results
-- [ ] AC#3: `make_mock_hassette()` uses `make_test_config()` which uses real `HassetteConfig` model — fields with defaults require no test file changes
+- [ ] AC#3: `make_mock_hassette(nonexistent_field="x")` raises `pydantic.ValidationError` (proves real config validation is active, not MagicMock passthrough)
 - [ ] AC#4: `uv run nox -s dev -- -n 2` exits with status 0
 - [ ] AC#5: `git diff --stat` shows net negative line count in test files
 - [ ] AC#6: The 5 dead root-level fixtures are removed from `tests/conftest.py`

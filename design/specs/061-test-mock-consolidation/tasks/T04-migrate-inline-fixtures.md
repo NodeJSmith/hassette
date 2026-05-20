@@ -53,5 +53,5 @@ Run `timeout 300 uv run pytest tests/unit/ tests/integration/ -x -n 2` after eac
 - `test_web_ui_watcher.py` exists in both `tests/unit/core/` and `tests/integration/` — check both.
 
 ## Verify
-- [ ] FR#6: No test file outside `test_utils/` or `e2e/` defines a `mock_hassette` fixture that manually sets `.config.` attributes on a MagicMock
+- [ ] FR#6: `grep -rn 'def mock_hassette\|def mock_hassette_for_db\|def mock_hassette_fresh\|def mock_hassette_with_db' tests/unit/ tests/integration/` returns only fixtures that call `make_mock_hassette()` (no manual `.config.` attribute assignment on MagicMock)
 - [ ] AC#1: Combined with T02's grep, the full AC#1 check passes — no named factories AND no inline manual-config fixtures remain

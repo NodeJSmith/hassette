@@ -31,7 +31,20 @@ Implementation:
 2. Call `make_test_config(data_dir=data_dir, **config_overrides)` to get a real validated `HassetteConfig`.
 3. Create `hassette = AsyncMock()`.
 4. Set `hassette.config = config` (the real config object).
-5. Wire all non-config attributes listed in the design doc "Architecture" section under "Non-configuration attributes wired by default" — see context.md for the full list of 13 attributes.
+5. Wire all 13 non-config attributes:
+   - `hassette.ready_event` — `asyncio.Event()`, call `.set()` if `set_ready=True`
+   - `hassette.shutdown_event` — `asyncio.Event()`, not set
+   - `hassette.event_streams_closed` — `False`
+   - `hassette._loop_thread_id` — `threading.get_ident()`
+   - `hassette.loop` — `asyncio.get_running_loop()` if `set_loop=True`, else `None`
+   - `hassette._scheduler_service.register_removal_callback` — `Mock()`
+   - `hassette._scheduler_service.deregister_removal_callback` — `Mock()`
+   - `hassette._bus_service.remove_listeners_by_owner` — `Mock()`
+   - `hassette._bus_service.get_listeners_by_owner` — `Mock(return_value=[])`
+   - `hassette.session_id` — `None`
+   - `hassette.database_service` — `None`
+   - `hassette.wait_for_ready` — `AsyncMock(return_value=True)`
+   - `hassette.children` — `[]`
 6. For `hassette.loop`: use `asyncio.get_running_loop()` if `set_loop=True`, else `None`.
 7. For `hassette.ready_event`: create `asyncio.Event()` and call `.set()` if `set_ready=True`.
 8. If `sealed=True`, call `seal(hassette)` from `unittest.mock`.
