@@ -37,7 +37,7 @@ from hassette.web.utils import gather_all_listeners
 
 
 @pytest.fixture
-def mock_hassette_db(premigrated_db_path: Path) -> MagicMock:
+def db_hassette(premigrated_db_path: Path) -> MagicMock:
     return make_mock_hassette(
         data_dir=premigrated_db_path.parent,
         set_ready=False,
@@ -49,8 +49,8 @@ def mock_hassette_db(premigrated_db_path: Path) -> MagicMock:
 
 
 @pytest.fixture
-async def db(mock_hassette_db: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
-    db_service = DatabaseService(mock_hassette_db, parent=None)
+async def db(db_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
+    db_service = DatabaseService(db_hassette, parent=None)
     await db_service.on_initialize()
     cursor = await db_service.db.execute(
         "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
@@ -58,16 +58,16 @@ async def db(mock_hassette_db: MagicMock) -> AsyncIterator[tuple[DatabaseService
     )
     session_id = cursor.lastrowid
     await db_service.db.commit()
-    mock_hassette_db.session_id = session_id
-    mock_hassette_db.database_service = db_service
+    db_hassette.session_id = session_id
+    db_hassette.database_service = db_service
     yield db_service, session_id
     await db_service.on_shutdown()
 
 
 @pytest.fixture
-def svc(mock_hassette_db: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQueryService:  # noqa: ARG001
+def svc(db_hassette: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQueryService:  # noqa: ARG001
     service = TelemetryQueryService.__new__(TelemetryQueryService)
-    service.hassette = mock_hassette_db
+    service.hassette = db_hassette
     service.logger = MagicMock()
     service._snapshot_lock = asyncio.Lock()
     return service

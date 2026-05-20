@@ -44,7 +44,7 @@ def _make_crashed_event(
 
 
 @pytest.fixture
-def db_hassette(premigrated_db_path: Path) -> MagicMock:
+def db_hassette(premigrated_db_path: Path) -> AsyncMock:
     """Create a mock Hassette with database config pointing to a pre-migrated DB."""
     return make_mock_hassette(
         data_dir=premigrated_db_path.parent,

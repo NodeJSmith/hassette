@@ -15,7 +15,7 @@ from hassette.test_utils.mock_hassette import make_mock_hassette
 
 
 @pytest.fixture
-def db_hassette(premigrated_db_path: Path) -> MagicMock:
+def db_hassette(premigrated_db_path: Path) -> AsyncMock:
     """Create a mock Hassette with database config pointing to a pre-migrated DB."""
     hassette = make_mock_hassette(
         sealed=False,
@@ -28,7 +28,7 @@ def db_hassette(premigrated_db_path: Path) -> MagicMock:
 
 
 @pytest.fixture
-def mock_hassette_fresh(tmp_path: Path) -> MagicMock:
+def mock_hassette_fresh(tmp_path: Path) -> AsyncMock:
     """Create a mock Hassette with a fresh (empty) data_dir for migration-from-scratch tests."""
     return make_mock_hassette(
         sealed=False,

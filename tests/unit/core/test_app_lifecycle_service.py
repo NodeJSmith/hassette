@@ -13,7 +13,7 @@ from hassette.types.enums import BlockReason, ResourceStatus
 
 
 @pytest.fixture
-def mock_hassette() -> MagicMock:
+def mock_hassette() -> AsyncMock:
     """Create a mock Hassette instance with config."""
     hassette = make_mock_hassette(
         sealed=False,

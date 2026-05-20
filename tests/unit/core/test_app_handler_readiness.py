@@ -14,7 +14,7 @@ from hassette.test_utils.mock_hassette import make_mock_hassette
 
 
 @pytest.fixture
-def mock_hassette() -> MagicMock:
+def mock_hassette() -> AsyncMock:
     hassette = make_mock_hassette(
         sealed=False,
         dev_mode=False,

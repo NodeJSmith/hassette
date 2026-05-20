@@ -125,8 +125,8 @@ Non-config attributes (`ready_event`, `shutdown_event`, `session_id`, `_schedule
 | `token` | `"test-token"` |
 | `base_url` | `"http://test.invalid:8123"` |
 | `disable_state_proxy_polling` | `True` |
-| `autodetect_apps` | `False` |
-| `run_web_api` | `False` |
+| `app` | `{"autodetect": False}` |
+| `web_api` | `{"run": False}` |
 | `run_app_precheck` | `False` |
 
 Pass `**overrides` to replace any of the defaults.
