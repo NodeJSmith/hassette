@@ -7,6 +7,7 @@ and app-lifecycle pipeline.
 """
 
 import asyncio
+import shutil
 from typing import TYPE_CHECKING
 
 import anyio
@@ -20,7 +21,7 @@ from hassette.test_utils import (
     write_app_toml,
     write_test_app_with_decorator,
 )
-from hassette.test_utils.harness import HassetteHarness
+from hassette.test_utils.harness import HassetteHarness, preserve_config
 from hassette.types import ResourceStatus
 
 if TYPE_CHECKING:
@@ -31,8 +32,19 @@ if TYPE_CHECKING:
 def hassette_and_handler(
     hassette_with_app_handler_custom_config: HassetteHarness,
 ) -> tuple[HassetteHarness, "AppHandler"]:
-    """Extract HassetteHarness + AppHandler pair from the custom-config fixture."""
-    return hassette_with_app_handler_custom_config, hassette_with_app_handler_custom_config.app_handler
+    """Extract HassetteHarness + AppHandler pair from the custom-config fixture.
+
+    Wraps the session-scoped config in preserve_config so that reload() mutations
+    from one test don't leak into the next test's starting state.
+    """
+    app_dir = hassette_with_app_handler_custom_config.config.app.directory
+    with preserve_config(hassette_with_app_handler_custom_config.config):
+        yield hassette_with_app_handler_custom_config, hassette_with_app_handler_custom_config.app_handler
+    for f in app_dir.iterdir():
+        if f.is_file():
+            f.unlink()
+        elif f.is_dir() and f.name == "__pycache__":
+            shutil.rmtree(f)
 
 
 class TestBasicHotReload:
