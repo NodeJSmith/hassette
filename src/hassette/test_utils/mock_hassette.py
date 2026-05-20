@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, Mock, seal
 
-from hassette.test_utils.config import make_test_config
+from hassette.test_utils.config import TEST_WS_URL, make_test_config
 
 
 def make_mock_hassette(
@@ -184,7 +184,7 @@ def make_ws_hassette_stub(*, strict_lifecycle: bool = False, sealed: bool = True
         },
         strict_lifecycle=strict_lifecycle,
     )
-    hassette.ws_url = "ws://test.invalid:8123/api/websocket"
+    hassette.ws_url = TEST_WS_URL
     if sealed:
         seal(hassette)
     return hassette

@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every
+from hassette.test_utils.config import TEST_SOURCE_LOCATION
 
 _PATCH_TARGET = "hassette.scheduler.scheduler.capture_registration_source"
 
@@ -80,21 +81,21 @@ class TestSchedulerOnErrorMethod:
 class TestPerJobOnError:
     def test_per_job_on_error_stored(self) -> None:
         """on_error= kwarg on schedule() is stored on the ScheduledJob."""
-        with patch(_PATCH_TARGET, return_value=("test.py:1", "schedule(...)")):
+        with patch(_PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
             scheduler = _make_scheduler()
             job = scheduler.schedule(_noop, Every(hours=1), on_error=_handler_a)
             assert job.error_handler is _handler_a
 
     def test_job_error_handler_default_none(self) -> None:
         """error_handler defaults to None on ScheduledJob when not provided."""
-        with patch(_PATCH_TARGET, return_value=("test.py:1", "schedule(...)")):
+        with patch(_PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
             scheduler = _make_scheduler()
             job = scheduler.schedule(_noop, Every(hours=1))
             assert job.error_handler is None
 
     def test_convenience_methods_pass_on_error(self) -> None:
         """All 7 convenience methods accept and pass on_error to ScheduledJob."""
-        with patch(_PATCH_TARGET, return_value=("test.py:1", "schedule(...)")):
+        with patch(_PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
             scheduler = _make_scheduler()
 
             job_run_in = scheduler.run_in(_noop, delay=60, on_error=_handler_a)

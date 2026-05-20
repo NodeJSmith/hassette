@@ -30,11 +30,6 @@ def bucket(hassette_mock) -> TaskBucket:
     return TaskBucket(hassette_mock)
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
-
 async def test_pending_tasks_returns_empty_for_fresh_bucket(bucket: TaskBucket) -> None:
     """A newly-created TaskBucket with no tasks returns an empty list."""
     assert bucket.pending_tasks() == []

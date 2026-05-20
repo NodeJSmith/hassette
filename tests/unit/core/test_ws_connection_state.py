@@ -5,13 +5,14 @@ _set_connection_state() validation, and proper state transitions in serve/connec
 """
 
 import asyncio
+import logging
 import time
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from hassette.core.websocket_service import WebsocketService
-from hassette.exceptions import InvalidLifecycleTransitionError, RetryableConnectionClosedError
+from hassette.exceptions import InvalidAuthError, InvalidLifecycleTransitionError, RetryableConnectionClosedError
 from hassette.test_utils import make_ws_hassette_stub
 from hassette.types.enums import ConnectionState
 
@@ -120,8 +121,6 @@ class TestInvalidTransitions:
 class TestHasattrGuard:
     async def test_invalid_transition_no_hassette_no_crash(self) -> None:
         """Invalid WS transition on an object without hassette must not AttributeError."""
-        import logging
-
         ws = WebsocketService.__new__(WebsocketService)
         ws._connection_state = ConnectionState.DISCONNECTED
         ws.logger = logging.getLogger("test")
@@ -226,8 +225,6 @@ class TestReconnectSequence:
 class TestAuthFailureDisconnects:
     async def test_auth_failure_disconnects(self, websocket_service: WebsocketService) -> None:
         """serve() sets DISCONNECTED when InvalidAuthError propagates (non-retryable failure)."""
-        from hassette.exceptions import InvalidAuthError
-
         websocket_service.hassette.send_event = AsyncMock()
 
         async def fake_make_connection(_session):

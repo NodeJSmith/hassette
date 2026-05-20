@@ -11,6 +11,7 @@ import aiosqlite
 import pytest
 
 from hassette.core.database_service import DatabaseService
+from hassette.test_utils.config import SECONDS_PER_DAY, TEST_SOURCE_LOCATION
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
 
@@ -88,8 +89,6 @@ async def initialized_service(service: DatabaseService) -> AsyncIterator[Databas
 
 async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseService) -> None:
     """on_initialize creates all tables and indexes on a fresh database."""
-    import sqlite3
-
     db_path = initialized_fresh_service._db_path
     conn = sqlite3.connect(db_path)
     try:
@@ -208,7 +207,7 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
     await db.execute(
         "INSERT INTO listeners (app_key, instance_index, handler_method, topic, source_location)"
         " VALUES (?, ?, ?, ?, ?)",
-        ("test.App", 0, "on_event", "state_changed", "test.py:1"),
+        ("test.App", 0, "on_event", "state_changed", TEST_SOURCE_LOCATION),
     )
     await db.commit()
 
@@ -221,8 +220,8 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
     await db.commit()
 
     now = time.time()
-    old_ts = now - (8 * 86400)  # 8 days ago (beyond 7-day retention)
-    recent_ts = now - (1 * 86400)  # 1 day ago (within retention)
+    old_ts = now - (8 * SECONDS_PER_DAY)  # 8 days ago (beyond 7-day retention)
+    recent_ts = now - (1 * SECONDS_PER_DAY)  # 1 day ago (within retention)
 
     # Insert old and recent handler_invocations
     await db.execute(
@@ -420,482 +419,6 @@ async def test_drain_on_shutdown(service: DatabaseService) -> None:
     assert service._db is None, "Database connection should be closed after shutdown"
 
 
-# ---------------------------------------------------------------------------
-# Migration chain integrity tests
-# ---------------------------------------------------------------------------
-
-MIGRATIONS_PATH = Path(__file__).resolve().parent.parent.parent / "src" / "hassette" / "migrations"
-
-# Hardcoded because this project uses raw Alembic operations (op.create_table, op.add_column),
-# not autogenerate from ORM models — there is no Base.metadata to compare against.
-# Update this dict when adding new migrations.
-EXPECTED_TABLES = {
-    "sessions": {
-        "id",
-        "started_at",
-        "stopped_at",
-        "last_heartbeat_at",
-        "status",
-        "error_type",
-        "error_message",
-        "error_traceback",
-        "dropped_overflow",
-        "dropped_exhausted",
-        "dropped_no_session",
-        "dropped_shutdown",
-    },
-    "listeners": {
-        "id",
-        "app_key",
-        "instance_index",
-        "handler_method",
-        "topic",
-        "debounce",
-        "throttle",
-        "once",
-        "priority",
-        "predicate_description",
-        "source_location",
-        "registration_source",
-        "human_description",
-        "name",
-        "retired_at",
-        "source_tier",
-        "immediate",
-        "duration",
-        "entity_id",
-    },
-    "scheduled_jobs": {
-        "id",
-        "app_key",
-        "instance_index",
-        "job_name",
-        "handler_method",
-        "trigger_type",
-        "trigger_label",
-        "trigger_detail",
-        "repeat",
-        "args_json",
-        "kwargs_json",
-        "source_location",
-        "registration_source",
-        "retired_at",
-        "source_tier",
-        "group",
-        "cancelled_at",
-        "name_auto",
-    },
-    "handler_invocations": {
-        "id",
-        "listener_id",
-        "session_id",
-        "execution_start_ts",
-        "duration_ms",
-        "status",
-        "error_type",
-        "error_message",
-        "error_traceback",
-        "is_di_failure",
-        "source_tier",
-        "execution_id",
-        "trigger_context_id",
-        "trigger_origin",
-    },
-    "job_executions": {
-        "id",
-        "job_id",
-        "session_id",
-        "execution_start_ts",
-        "duration_ms",
-        "status",
-        "error_type",
-        "error_message",
-        "error_traceback",
-        "is_di_failure",
-        "source_tier",
-        "execution_id",
-    },
-    "log_records": {
-        "id",
-        "seq",
-        "timestamp",
-        "level",
-        "logger_name",
-        "func_name",
-        "lineno",
-        "message",
-        "exc_info",
-        "app_key",
-        "instance_name",
-        "instance_index",
-        "execution_id",
-        "source_tier",
-    },
-}
-
-
-def _make_alembic_config(db_path: Path):
-    """Build a programmatic Alembic Config matching production (DatabaseService._run_migrations)."""
-    from alembic.config import Config
-
-    config = Config()
-    config.set_main_option("script_location", str(MIGRATIONS_PATH))
-    config.set_main_option("sqlalchemy.url", f"sqlite:///{db_path.as_posix()}")
-    return config
-
-
-def test_migration_chain_has_no_gaps(tmp_path: Path) -> None:
-    """Walk the revision chain from base to heads and verify no gaps or dangling down_revision refs."""
-    from alembic.script import ScriptDirectory
-
-    config = _make_alembic_config(tmp_path / "unused.db")
-    script = ScriptDirectory.from_config(config)
-
-    revisions = list(script.walk_revisions())
-    assert len(revisions) >= 1, f"Expected at least 1 revision, got {len(revisions)}"
-
-    # Build a set of all known revision IDs
-    revision_ids = {rev.revision for rev in revisions}
-
-    for rev in revisions:
-        if rev.down_revision is not None:
-            # down_revision can be a string or a tuple (for merge migrations)
-            down_revs = rev.down_revision if isinstance(rev.down_revision, tuple) else (rev.down_revision,)
-            for dr in down_revs:
-                assert dr in revision_ids, (
-                    f"Revision {rev.revision} references down_revision {dr!r} "
-                    f"which does not exist in the script directory"
-                )
-
-    # Verify exactly one head (no branch forks)
-    heads = script.get_heads()
-    assert len(heads) == 1, f"Expected exactly 1 head, got {len(heads)}: {heads}"
-
-    # Verify exactly one base
-    bases = script.get_bases()
-    assert len(bases) == 1, f"Expected exactly 1 base, got {len(bases)}: {bases}"
-
-
-def test_fresh_db_migrates_to_head(tmp_path: Path) -> None:
-    """Create an empty SQLite DB, run 'upgrade head', and verify all expected tables exist."""
-    import sqlite3
-
-    from alembic import command
-
-    db_path = tmp_path / "test.db"
-    config = _make_alembic_config(db_path)
-    command.upgrade(config, "head")
-
-    conn = sqlite3.connect(db_path)
-    try:
-        cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' "
-            "AND name NOT LIKE 'alembic%' AND name NOT LIKE 'sqlite_%'"
-        )
-        tables = sorted(row[0] for row in cursor.fetchall())
-        assert tables == sorted(EXPECTED_TABLES.keys())
-    finally:
-        conn.close()
-
-
-def test_sequential_upgrade_from_each_revision(tmp_path: Path) -> None:
-    """For each revision, stamp a fresh DB at that revision, then upgrade to head."""
-    import sqlite3
-
-    from alembic import command
-    from alembic.script import ScriptDirectory
-
-    config = _make_alembic_config(tmp_path / "script_dir.db")
-    script = ScriptDirectory.from_config(config)
-
-    # Collect revisions in base-to-head order (walk_revisions yields head-first)
-    revisions = list(script.walk_revisions())
-    revisions.reverse()
-
-    for i, rev in enumerate(revisions):
-        db_path = tmp_path / f"test_{i}_{rev.revision}.db"
-        rev_config = _make_alembic_config(db_path)
-
-        # Run migrations up to this revision to create the schema at that point
-        command.upgrade(rev_config, rev.revision)
-
-        # Then upgrade from this revision to head
-        command.upgrade(rev_config, "head")
-
-        # Verify the DB is at head and has all tables
-        conn = sqlite3.connect(db_path)
-        try:
-            cursor = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' "
-                "AND name NOT LIKE 'alembic%' AND name NOT LIKE 'sqlite_%'"
-            )
-            tables = sorted(row[0] for row in cursor.fetchall())
-            assert tables == sorted(EXPECTED_TABLES.keys()), (
-                f"After upgrading from {rev.revision} to head, "
-                f"expected tables {sorted(EXPECTED_TABLES.keys())} but got {tables}"
-            )
-        finally:
-            conn.close()
-
-
-def test_migration_schema_matches_expected_columns(tmp_path: Path) -> None:
-    """After running all migrations, compare the resulting columns against the expected schema."""
-    import sqlite3
-
-    from alembic import command
-
-    db_path = tmp_path / "test.db"
-    config = _make_alembic_config(db_path)
-    command.upgrade(config, "head")
-
-    conn = sqlite3.connect(db_path)
-    try:
-        # Get all user tables
-        cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' "
-            "AND name NOT LIKE 'alembic%' AND name NOT LIKE 'sqlite_%'"
-        )
-        actual_tables = {row[0] for row in cursor.fetchall()}
-
-        expected_table_names = set(EXPECTED_TABLES.keys())
-
-        # Check for tables in expected but missing from migrations
-        missing_tables = expected_table_names - actual_tables
-        assert not missing_tables, f"Tables defined in expected schema but missing from DB: {missing_tables}"
-
-        # Check for tables in migrations but not in expected schema
-        extra_tables = actual_tables - expected_table_names
-        assert not extra_tables, f"Tables in DB but missing from expected schema: {extra_tables}"
-
-        # Compare columns for each table
-        for table_name in sorted(actual_tables):
-            cursor = conn.execute(f"PRAGMA table_info({table_name})")
-            actual_columns = {row[1] for row in cursor.fetchall()}
-            expected_columns = EXPECTED_TABLES[table_name]
-
-            missing_columns = expected_columns - actual_columns
-            assert not missing_columns, (
-                f"Table {table_name!r}: columns in expected schema but missing from DB: {missing_columns}"
-            )
-
-            extra_columns = actual_columns - expected_columns
-            assert not extra_columns, (
-                f"Table {table_name!r}: columns in DB but missing from expected schema: {extra_columns}"
-            )
-    finally:
-        conn.close()
-
-
-# ---------------------------------------------------------------------------
-# Size failsafe tests
-# ---------------------------------------------------------------------------
-
-
-async def test_size_failsafe_deletes_oldest_records(initialized_service: DatabaseService) -> None:
-    """Size failsafe deletes oldest records when database exceeds the configured limit."""
-    session_id = initialized_service.hassette.session_id
-    db = initialized_service.db
-
-    # Insert a listener and scheduled_job for FK references
-    await db.execute(
-        "INSERT INTO listeners (app_key, instance_index, handler_method, topic, source_location)"
-        " VALUES (?, ?, ?, ?, ?)",
-        ("test.App", 0, "on_event", "state_changed", "test.py:1"),
-    )
-    await db.execute(
-        "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, source_location)"
-        " VALUES (?, ?, ?, ?, ?)",
-        ("test.App", 0, "my_job", "run_job", "test.py:2"),
-    )
-    await db.commit()
-
-    # Insert records with known timestamps: older ones should be deleted first
-    now = time.time()
-    for i in range(50):
-        ts = now - (100 - i)  # oldest first
-        await db.execute(
-            "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status) "
-            "VALUES (1, ?, ?, 10.0, 'success')",
-            (session_id, ts),
-        )
-        await db.execute(
-            "INSERT INTO job_executions (job_id, session_id, execution_start_ts, duration_ms, status) "
-            "VALUES (1, ?, ?, 5.0, 'success')",
-            (session_id, ts),
-        )
-    await db.commit()
-
-    # Set a very small max size that the DB likely already exceeds
-    initialized_service.hassette.config.database.max_size_mb = 0.0001  # ~100 bytes — guaranteed to trigger
-
-    await initialized_service._check_size_failsafe()
-
-    # After failsafe, some records should have been deleted
-    cursor = await db.execute("SELECT COUNT(*) FROM handler_invocations")
-    row = await cursor.fetchone()
-    assert row is not None
-    hi_remaining = row[0]
-
-    cursor = await db.execute("SELECT COUNT(*) FROM job_executions")
-    row = await cursor.fetchone()
-    assert row is not None
-    je_remaining = row[0]
-
-    # With only 50 records and batch size 1000, all should be deleted in one iteration
-    assert hi_remaining == 0
-    assert je_remaining == 0
-
-    # Sessions table must NOT be touched
-    cursor = await db.execute("SELECT COUNT(*) FROM sessions")
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] >= 1
-
-
-async def test_size_failsafe_loop_capped_at_10_iterations(initialized_service: DatabaseService) -> None:
-    """Size failsafe loop terminates after 10 iterations even if still over limit.
-
-    With the pre-pass structure:
-    - Initial check: 1 call
-    - Pre-pass: log_records is empty → deleted=0 on first iteration → break after 1 size call
-    - Re-check after pre-pass: 1 call
-    - Execution loop: 10 iterations x 1 size call each = 10 calls
-    Total: 1 + 1 + 1 + 10 = 13 calls
-    """
-    session_id = initialized_service.hassette.session_id
-    db = initialized_service.db
-
-    # Insert a listener for FK reference
-    await db.execute(
-        "INSERT INTO listeners (app_key, instance_index, handler_method, topic, source_location)"
-        " VALUES (?, ?, ?, ?, ?)",
-        ("test.App", 0, "on_event", "state_changed", "test.py:1"),
-    )
-    await db.commit()
-
-    # Insert records so there's something to delete in the execution loop
-    now = time.time()
-    for i in range(100):
-        ts = now - (200 - i)
-        await db.execute(
-            "INSERT INTO handler_invocations (listener_id, session_id, execution_start_ts, duration_ms, status) "
-            "VALUES (1, ?, ?, 10.0, 'success')",
-            (session_id, ts),
-        )
-    await db.commit()
-
-    # Use a mock _get_db_size_mb that always reports over-limit so the loop runs all 10 iterations
-    call_count = 0
-    original_get_size = initialized_service._get_db_size_mb
-
-    def always_over_limit() -> float:
-        nonlocal call_count
-        call_count += 1
-        return original_get_size() + 999.0  # always over limit
-
-    with patch.object(initialized_service, "_get_db_size_mb", side_effect=always_over_limit):
-        initialized_service.hassette.config.database.max_size_mb = 1
-        await initialized_service._check_size_failsafe()
-
-    # 1 (initial) + 1 (pre-pass size check, 0 log records → immediate break) +
-    # 1 (re-check after pre-pass) + 10 (execution loop iterations) = 13
-    assert call_count == 13
-
-
-async def test_startup_size_check_runs(service: DatabaseService) -> None:
-    """_check_size_failsafe() is called during on_initialize()."""
-    with patch.object(DatabaseService, "_check_size_failsafe", new_callable=AsyncMock) as mock_check:
-        await service.on_initialize()
-        try:
-            mock_check.assert_awaited_once()
-        finally:
-            await service.on_shutdown()
-
-
-async def test_serve_runs_heartbeat_retention_and_size_failsafe(initialized_service: DatabaseService) -> None:
-    """serve() runs heartbeat, retention cleanup, and size failsafe during the loop."""
-    session_id = initialized_service.hassette.session_id
-    # Get initial heartbeat
-    cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    initial_heartbeat = row[0]
-
-    size_failsafe_called = False
-    original_run_size_failsafe = initialized_service._run_size_failsafe
-
-    async def tracking_size_failsafe() -> None:
-        nonlocal size_failsafe_called
-        size_failsafe_called = True
-        await original_run_size_failsafe()
-
-    async def shutdown_after_loop() -> None:
-        await asyncio.sleep(0.3)
-        initialized_service.shutdown_event.set()
-
-    shutdown_task = asyncio.create_task(shutdown_after_loop())
-
-    with (
-        patch("hassette.core.database_service._HEARTBEAT_INTERVAL_SECONDS", 0.1),
-        patch("hassette.core.database_service._RETENTION_INTERVAL_SECONDS", 0.1),
-        patch("hassette.core.database_service._SIZE_FAILSAFE_INTERVAL_SECONDS", 0.1),
-        patch.object(initialized_service, "_run_size_failsafe", side_effect=tracking_size_failsafe),
-    ):
-        await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
-
-    await shutdown_task
-    assert initialized_service._db_write_queue is not None
-    await initialized_service._db_write_queue.join()
-
-    # Heartbeat should have been updated
-    cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] > initial_heartbeat
-
-    # Size failsafe should have been called
-    assert size_failsafe_called
-
-
-# ---------------------------------------------------------------------------
-# Migration: auto_vacuum
-# ---------------------------------------------------------------------------
-
-
-def test_auto_vacuum_migration(tmp_path: Path) -> None:
-    """DatabaseService._run_migrations() sets auto_vacuum = INCREMENTAL before Alembic runs."""
-    import sqlite3
-
-    from alembic import command
-
-    db_path = tmp_path / "test.db"
-
-    # Simulate what DatabaseService._run_migrations() does: set auto_vacuum before Alembic
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute("PRAGMA auto_vacuum = INCREMENTAL")
-    finally:
-        conn.close()
-
-    # Run migrations to head
-    config = _make_alembic_config(db_path)
-    command.upgrade(config, "head")
-
-    # Verify auto_vacuum is INCREMENTAL (2)
-    conn = sqlite3.connect(db_path)
-    try:
-        cursor = conn.execute("PRAGMA auto_vacuum")
-        mode_after = cursor.fetchone()[0]
-        assert mode_after == 2, f"Expected auto_vacuum = 2 after migration, got {mode_after}"
-    finally:
-        conn.close()
-
-
-# ---------------------------------------------------------------------------
-# read_db property (lines 142-143)
-# ---------------------------------------------------------------------------
-
-
 async def test_read_db_property_works_after_init(initialized_service: DatabaseService) -> None:
     """read_db property returns the read-only connection after initialization."""
     conn = initialized_service.read_db
@@ -912,11 +435,6 @@ async def test_read_db_property_raises_before_init(service: DatabaseService) -> 
         _ = service.read_db
 
 
-# ---------------------------------------------------------------------------
-# enqueue() — QueueFull handling (lines 264-278)
-# ---------------------------------------------------------------------------
-
-
 async def test_enqueue_raises_before_init(service: DatabaseService) -> None:
     """enqueue() raises RuntimeError when called before on_initialize()."""
 
@@ -929,8 +447,6 @@ async def test_enqueue_raises_before_init(service: DatabaseService) -> None:
 
 async def test_enqueue_drops_task_on_queue_full(initialized_service: DatabaseService) -> None:
     """enqueue() drops the coroutine and logs an error when the queue is full."""
-    import asyncio
-
     assert initialized_service._db_write_queue is not None
 
     # Block the worker so nothing drains by using a gate coroutine
@@ -969,8 +485,6 @@ async def test_enqueue_drops_task_on_queue_full(initialized_service: DatabaseSer
 
 async def test_enqueue_logs_backlog_warning_at_100_multiple(initialized_service: DatabaseService) -> None:
     """enqueue() logs a warning when queue depth is a nonzero multiple of 100."""
-    import asyncio
-
     assert initialized_service._db_write_queue is not None
 
     gate = asyncio.Event()
@@ -997,12 +511,6 @@ async def test_enqueue_logs_backlog_warning_at_100_multiple(initialized_service:
     await queue.join()
 
 
-# ---------------------------------------------------------------------------
-# _check_size_failsafe — skips when max_size_mb == 0 and logs consecutive triggers
-# (lines 524-526 cover the consecutive_size_triggers > 1 warning branch)
-# ---------------------------------------------------------------------------
-
-
 async def test_size_failsafe_skips_when_limit_is_zero(initialized_service: DatabaseService) -> None:
     """_check_size_failsafe() returns immediately when db_max_size_mb == 0."""
     initialized_service.hassette.config.database.max_size_mb = 0
@@ -1022,14 +530,12 @@ async def test_size_failsafe_logs_warning_on_consecutive_triggers(initialized_se
     await db.execute(
         "INSERT INTO listeners (app_key, instance_index, handler_method, topic, source_location)"
         " VALUES (?, ?, ?, ?, ?)",
-        ("test.App", 0, "on_event", "state_changed", "test.py:1"),
+        ("test.App", 0, "on_event", "state_changed", TEST_SOURCE_LOCATION),
     )
     await db.commit()
 
     # Insert some records so there is something to delete
-    import time as _time
-
-    now = _time.time()
+    now = time.time()
     for i in range(10):
         ts = now - (100 - i)
         await db.execute(

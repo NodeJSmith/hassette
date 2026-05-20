@@ -12,12 +12,10 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
+from hassette.exceptions import DependencyError, HassetteError
 from hassette.scheduler.classes import JobExecutionRecord, ScheduledJob
+from hassette.test_utils.config import TEST_SOURCE_LOCATION
 from hassette.utils.execution import ExecutionResult
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -84,11 +82,6 @@ def _make_mock_job() -> MagicMock:
     return job
 
 
-# ---------------------------------------------------------------------------
-# Exception contract tests
-# ---------------------------------------------------------------------------
-
-
 async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
     """CancelledError must be re-raised after queueing a 'cancelled' record."""
     listener = _make_mock_listener()
@@ -112,8 +105,6 @@ async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
 
 async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
     """DependencyError must be swallowed (not re-raised) and logged as error."""
-    from hassette.exceptions import DependencyError
-
     listener = _make_mock_listener()
     listener.invoke.side_effect = DependencyError("missing dep")
     listener.invoker.invoke.side_effect = DependencyError("missing dep")
@@ -138,8 +129,6 @@ async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
 
 async def test_hassette_error_swallowed(executor: CommandExecutor) -> None:
     """HassetteError must be swallowed and logged without traceback."""
-    from hassette.exceptions import HassetteError
-
     listener = _make_mock_listener()
     listener.invoke.side_effect = HassetteError("framework error")
     listener.invoker.invoke.side_effect = HassetteError("framework error")
@@ -203,11 +192,6 @@ async def test_success_record_queued(executor: CommandExecutor) -> None:
     assert record.error_message is None
     assert record.error_traceback is None
     assert record.duration_ms >= 0
-
-
-# ---------------------------------------------------------------------------
-# Timeout enforcement tests
-# ---------------------------------------------------------------------------
 
 
 async def test_execute_timeout_fires(executor: CommandExecutor) -> None:
@@ -315,11 +299,6 @@ async def test_timeout_warning_lazy_eviction(executor: CommandExecutor) -> None:
     assert 1 not in executor._timeout_warn_timestamps
 
 
-# ---------------------------------------------------------------------------
-# Write queue / DB persistence tests
-# ---------------------------------------------------------------------------
-
-
 async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_db: tuple[DatabaseService, int]) -> None:
     """Records placed in the write queue appear in handler_invocations after drain."""
     db_service, session_id = initialized_db
@@ -390,11 +369,6 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
     assert row[0] == 2
 
 
-# ---------------------------------------------------------------------------
-# Job execution tests
-# ---------------------------------------------------------------------------
-
-
 async def test_execute_job_success_record_queued(executor: CommandExecutor) -> None:
     """Successful job execution queues a JobExecutionRecord with status='success'."""
     job = _make_mock_job()
@@ -426,11 +400,6 @@ async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
     assert record.error_type == "RuntimeError"
     assert record.error_message == "job failed"
     assert record.error_traceback is not None
-
-
-# ---------------------------------------------------------------------------
-# Startup race regression tests
-# ---------------------------------------------------------------------------
 
 
 def test_build_record_uses_session_id_directly(db_hassette: AsyncMock) -> None:
@@ -598,11 +567,6 @@ async def test_concurrent_registrations_do_not_raise(
         await db_service.on_shutdown()
 
 
-# ---------------------------------------------------------------------------
-# FK preservation / reconciliation tests
-# ---------------------------------------------------------------------------
-
-
 async def test_fk_preserved_across_restart(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
@@ -671,7 +635,7 @@ async def test_reconciliation_ordering(
         priority=0,
         predicate_description=None,
         human_description=None,
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
     )
     id_a = await executor.register_listener(reg_a)

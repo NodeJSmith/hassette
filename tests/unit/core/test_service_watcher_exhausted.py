@@ -21,10 +21,6 @@ from hassette.test_utils import make_mock_hassette
 from hassette.types import ResourceStatus
 from hassette.types.enums import ResourceRole, RestartType
 
-# ---------------------------------------------------------------------------
-# Test helpers
-# ---------------------------------------------------------------------------
-
 
 def _build_hassette(*, strict_lifecycle: bool = False) -> AsyncMock:
     """Minimal Hassette stub for ServiceWatcher unit tests."""
@@ -104,11 +100,6 @@ def _make_watcher(hassette: MagicMock) -> ServiceWatcher:
     task_bucket.spawn = Mock(side_effect=lambda coro, **_kw: asyncio.ensure_future(coro))
     watcher.task_bucket = task_bucket
     return watcher
-
-
-# ---------------------------------------------------------------------------
-# Tests: _handle_exhaustion sets status on service instance
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio

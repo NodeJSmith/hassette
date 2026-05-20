@@ -9,8 +9,16 @@ import pytest
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
 from hassette.core.domain_models import SystemStatus
 from hassette.core.runtime_query_service import RuntimeQueryService
+from hassette.events.hassette import (
+    HassetteExecutionCompletedEvent,
+    HassetteInvocationCompletedEvent,
+    HassetteServiceEvent,
+)
 from hassette.test_utils.mock_hassette import make_mock_hassette
-from hassette.types.enums import ResourceStatus
+from hassette.types.enums import ResourceRole, ResourceStatus
+
+EVENT_BUFFER_SIZE = 100
+WS_QUEUE_MAX = 256
 
 
 @pytest.fixture
@@ -18,7 +26,7 @@ def mock_hassette():
     """Create a mock Hassette instance with required attributes."""
     hassette = make_mock_hassette(
         sealed=False,
-        web_api={"run": True, "event_buffer_size": 100},
+        web_api={"run": True, "event_buffer_size": EVENT_BUFFER_SIZE},
         lifecycle={"startup_timeout_seconds": 5},
     )
 
@@ -57,14 +65,14 @@ def mock_hassette():
     hassette._websocket_service.is_ready = Mock(return_value=True)
 
     # Mock app handler — sync methods need explicit Mock (parent is AsyncMock)
-    _instance = AppInstanceInfo(
+    instance = AppInstanceInfo(
         app_key="my_app",
         index=0,
         instance_name="MyApp[0]",
         class_name="MyApp",
         status=ResourceStatus.RUNNING,
     )
-    hassette._app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(running=[_instance], failed=[]))
+    hassette._app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(running=[instance], failed=[]))
     hassette._app_handler.registry.get_full_snapshot = Mock(return_value=AppFullSnapshot(manifests=[]))
 
     # Mock scheduler service
@@ -78,7 +86,7 @@ def runtime(mock_hassette):
     """Create a RuntimeQueryService instance with mocked Hassette."""
     svc = RuntimeQueryService.__new__(RuntimeQueryService)
     svc.hassette = mock_hassette
-    svc._event_buffer = deque(maxlen=100)
+    svc._event_buffer = deque(maxlen=EVENT_BUFFER_SIZE)
     svc._ws_clients = set()
     svc._lock = asyncio.Lock()
     svc._ws_drops = 0
@@ -192,8 +200,6 @@ class TestCompletionBatching:
 
         runtime.broadcast = fake_broadcast
 
-        from hassette.events.hassette import HassetteInvocationCompletedEvent
-
         ev1 = HassetteInvocationCompletedEvent.from_record(listener_id=1, status="success", duration_ms=10.0)
         ev2 = HassetteInvocationCompletedEvent.from_record(
             listener_id=2, status="failed", duration_ms=20.0, error_type="ValueError"
@@ -231,8 +237,6 @@ class TestCompletionBatching:
 
         runtime.broadcast = fake_broadcast
 
-        from hassette.events.hassette import HassetteExecutionCompletedEvent
-
         ev1 = HassetteExecutionCompletedEvent.from_record(job_id=10, status="success", duration_ms=50.0)
         ev2 = HassetteExecutionCompletedEvent.from_record(job_id=11, status="success", duration_ms=30.0)
 
@@ -253,8 +257,6 @@ class TestCompletionBatching:
         runtime.register_listener_meta(5, "buf_app", 0)
         runtime.broadcast = AsyncMock()
 
-        from hassette.events.hassette import HassetteInvocationCompletedEvent
-
         ev = HassetteInvocationCompletedEvent.from_record(listener_id=5, status="success", duration_ms=1.0)
         await runtime._on_invocation_completed(ev)
         await runtime._flush_completions()
@@ -269,8 +271,6 @@ class TestCompletionBatching:
         """After flush, pending lists are empty."""
         runtime.register_listener_meta(3, "app", 0)
         runtime.broadcast = AsyncMock()
-
-        from hassette.events.hassette import HassetteInvocationCompletedEvent
 
         ev = HassetteInvocationCompletedEvent.from_record(listener_id=3, status="success", duration_ms=1.0)
         await runtime._on_invocation_completed(ev)
@@ -299,8 +299,6 @@ class TestCompletionBatching:
             broadcast_calls.append(msg)
 
         runtime.broadcast = fake_broadcast
-
-        from hassette.events.hassette import HassetteExecutionCompletedEvent, HassetteInvocationCompletedEvent
 
         inv_ev = HassetteInvocationCompletedEvent.from_record(listener_id=1, status="success", duration_ms=5.0)
         exec_ev = HassetteExecutionCompletedEvent.from_record(job_id=10, status="success", duration_ms=8.0)
@@ -362,22 +360,19 @@ class TestWebSocketClientManagement:
     async def test_broadcast_drops_for_full_queue(self, runtime: RuntimeQueryService) -> None:
         queue = await runtime.register_ws_client()
         # Fill the queue
-        for i in range(256):
+        for i in range(WS_QUEUE_MAX):
             await queue.put({"type": "filler", "index": i})
 
         # This should not raise, just drop
         await runtime.broadcast({"type": "dropped"})
 
-        assert queue.qsize() == 256  # still full, message was dropped
+        assert queue.qsize() == WS_QUEUE_MAX  # still full, message was dropped
 
         await runtime.unregister_ws_client(queue)
 
 
 class TestServiceStatusMapping:
     async def test_on_service_status_maps_ready_fields(self, runtime: RuntimeQueryService) -> None:
-        from hassette.events.hassette import HassetteServiceEvent
-        from hassette.types.enums import ResourceRole
-
         broadcast_calls: list[dict] = []
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
@@ -396,9 +391,6 @@ class TestServiceStatusMapping:
         assert data["ready_phase"] == "Connected and authenticated"
 
     async def test_on_service_status_defaults_ready_false(self, runtime: RuntimeQueryService) -> None:
-        from hassette.events.hassette import HassetteServiceEvent
-        from hassette.types.enums import ResourceRole
-
         broadcast_calls: list[dict] = []
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 

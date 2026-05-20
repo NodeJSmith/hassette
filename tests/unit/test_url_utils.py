@@ -4,13 +4,14 @@ import pytest
 
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import BaseUrlRequiredError, IPV6NotSupportedError, SchemeRequiredInBaseUrlError
+from hassette.test_utils.config import TEST_TOKEN
 from hassette.utils.url_utils import _parse_and_normalize_url, build_rest_url, build_ws_url
 
 
 def _make_config(base_url: str, api_port: int = 8123) -> HassetteConfig:
     """Create a test configuration with the given base_url and api_port."""
     config = HassetteConfig.model_construct(_fields_set=set())
-    config.token = "test-token"
+    config.token = TEST_TOKEN
     config.base_url = base_url
     config.api_port = api_port
     return config

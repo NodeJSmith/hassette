@@ -70,11 +70,6 @@ class ServiceWithOrderTracking(Service):
         self.order.append("on_shutdown")
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
-
 async def test_serve_task_spawned_even_when_on_initialize_overridden():
     """serve() task is spawned even when on_initialize is overridden without super()."""
     hassette = make_mock_hassette(sealed=False)

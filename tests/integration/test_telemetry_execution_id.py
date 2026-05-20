@@ -18,9 +18,7 @@ from hassette.core.telemetry_repository import TelemetryRepository, _inv_insert_
 from hassette.scheduler.classes import JobExecutionRecord
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+from .telemetry_query_helpers import insert_job, insert_listener
 
 
 @pytest.fixture
@@ -66,41 +64,6 @@ def svc(db_hassette: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQue
     return service
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-async def _insert_listener(db_svc: DatabaseService, *, app_key: str = "test_app") -> int:
-    """Insert a minimal listener row and return its id."""
-    cursor = await db_svc.db.execute(
-        """INSERT INTO listeners
-               (app_key, instance_index, handler_method, topic,
-                debounce, throttle, once, priority,
-                source_location, source_tier)
-           VALUES (?, ?, ?, ?, NULL, NULL, 0, 0, 'test.py:1', 'app')""",
-        (app_key, 0, "on_event", "hass.event.state_changed"),
-    )
-    await db_svc.db.commit()
-    assert cursor.lastrowid is not None
-    return cursor.lastrowid
-
-
-async def _insert_job(db_svc: DatabaseService, *, app_key: str = "test_app") -> int:
-    """Insert a minimal scheduled_job row and return its id."""
-    cursor = await db_svc.db.execute(
-        """INSERT INTO scheduled_jobs
-               (app_key, instance_index, job_name, handler_method,
-                trigger_type, repeat,
-                source_location, source_tier)
-           VALUES (?, ?, ?, ?, 'interval', 1, 'test.py:1', 'app')""",
-        (app_key, 0, "my_job", "run_job"),
-    )
-    await db_svc.db.commit()
-    assert cursor.lastrowid is not None
-    return cursor.lastrowid
-
-
 def _make_inv_record(
     listener_id: int | None,
     session_id: int,
@@ -137,18 +100,13 @@ def _make_job_record(
     )
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
-
 class TestHandlerInvocationExecutionId:
     async def test_persist_and_query_handler_invocation_with_execution_id(
         self, db: tuple[DatabaseService, int], repo: TelemetryRepository, svc: TelemetryQueryService
     ) -> None:
         """Persist a HandlerInvocationRecord with all three new fields and query them back."""
         db_svc, session_id = db
-        listener_id = await _insert_listener(db_svc)
+        listener_id = await insert_listener(db_svc)
         record = _make_inv_record(
             listener_id,
             session_id,
@@ -171,7 +129,7 @@ class TestHandlerInvocationExecutionId:
     ) -> None:
         """Persist a record with execution_id=None and confirm it comes back as None (not empty string)."""
         db_svc, session_id = db
-        listener_id = await _insert_listener(db_svc)
+        listener_id = await insert_listener(db_svc)
         record = _make_inv_record(listener_id, session_id, execution_id=None)
 
         await repo.persist_batch([record], [])
@@ -214,7 +172,7 @@ class TestHandlerInvocationExecutionId:
     async def test_shared_params_match_persist_batch_columns(self, db: tuple[DatabaseService, int]) -> None:
         """_inv_insert_params() keys must match the column list used in persist_batch() INSERT."""
         db_svc, session_id = db
-        listener_id = await _insert_listener(db_svc)
+        listener_id = await insert_listener(db_svc)
         record = _make_inv_record(listener_id, session_id)
         params = _inv_insert_params(record)
 
@@ -253,7 +211,7 @@ class TestJobExecutionExecutionId:
     ) -> None:
         """Persist a JobExecutionRecord with execution_id and query it back."""
         db_svc, session_id = db
-        job_id = await _insert_job(db_svc)
+        job_id = await insert_job(db_svc)
         record = _make_job_record(job_id, session_id, execution_id="def-789")
 
         await repo.persist_batch([], [record])
@@ -267,7 +225,7 @@ class TestJobExecutionExecutionId:
     async def test_job_shared_params_match_persist_batch_columns(self, db: tuple[DatabaseService, int]) -> None:
         """_job_insert_params() keys must match the column list used in persist_batch() INSERT."""
         db_svc, session_id = db
-        job_id = await _insert_job(db_svc)
+        job_id = await insert_job(db_svc)
         record = _make_job_record(job_id, session_id)
         params = _job_insert_params(record)
 

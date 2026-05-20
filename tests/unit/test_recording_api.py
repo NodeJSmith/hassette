@@ -31,10 +31,6 @@ from hassette.test_utils.api_call import ApiCall
 from hassette.test_utils.helpers import make_state_dict
 from hassette.test_utils.recording_api import ApiProtocol, RecordingApi
 
-# ---------------------------------------------------------------------------
-# Test harness helpers
-# ---------------------------------------------------------------------------
-
 
 def _make_recording_api(states: dict | None = None) -> RecordingApi:
     """Create a RecordingApi with an optional pre-seeded StateProxy."""
@@ -48,11 +44,6 @@ def _make_recording_api(states: dict | None = None) -> RecordingApi:
 
     api = RecordingApi(hassette, state_proxy=state_proxy)
     return api
-
-
-# ---------------------------------------------------------------------------
-# Subtask 1 + 3: Write method call recording
-# ---------------------------------------------------------------------------
 
 
 async def test_turn_on_records_call():
@@ -130,11 +121,6 @@ async def test_toggle_service_records_call():
     assert call.kwargs == {"entity_id": "light.kitchen", "domain": "homeassistant"}
 
 
-# ---------------------------------------------------------------------------
-# Subtask 3: Read methods delegate to StateProxy
-# ---------------------------------------------------------------------------
-
-
 async def test_get_state_delegates_to_state_proxy():
     state_dict = make_state_dict(
         entity_id="light.kitchen",
@@ -196,11 +182,6 @@ async def test_get_states_returns_list_of_base_states():
 # is get_state's job.
 
 
-# ---------------------------------------------------------------------------
-# Subtask 3: Unstubbed methods raise NotImplementedError
-# ---------------------------------------------------------------------------
-
-
 async def test_unstubbed_method_raises_not_implemented():
     api = _make_recording_api()
     with pytest.raises(NotImplementedError) as exc_info:
@@ -212,11 +193,6 @@ async def test_unstubbed_get_history_raises():
     api = _make_recording_api()
     with pytest.raises(NotImplementedError):
         await api.get_history("sensor.temp", "2026-01-01")
-
-
-# ---------------------------------------------------------------------------
-# Subtask 4: Assertion helpers
-# ---------------------------------------------------------------------------
 
 
 async def test_assert_called_matching():
@@ -314,11 +290,6 @@ async def test_reset_clears_calls():
     assert len(api.calls) == 0
 
 
-# ---------------------------------------------------------------------------
-# Subtask 5: mark_ready in on_initialize / lifecycle
-# ---------------------------------------------------------------------------
-
-
 async def test_mark_ready_on_initialize():
     """RecordingApi should reach RUNNING status when started."""
     api = _make_recording_api()
@@ -328,11 +299,6 @@ async def test_mark_ready_on_initialize():
     assert api.is_ready()
 
 
-# ---------------------------------------------------------------------------
-# Subtask 5: ApiProtocol conformance (smoke test)
-# ---------------------------------------------------------------------------
-
-
 def test_protocol_conformance_smoke():
     """Verify RecordingApi can be cast to ApiProtocol without error (import-time check)."""
     # The module-level assertion fires at import time; this test confirms import succeeds
@@ -340,21 +306,11 @@ def test_protocol_conformance_smoke():
     _: ApiProtocol = cast("ApiProtocol", RecordingApi)
 
 
-# ---------------------------------------------------------------------------
-# ApiCall dataclass
-# ---------------------------------------------------------------------------
-
-
 def test_api_call_dataclass():
     call = ApiCall(method="turn_on", args=("light.x",), kwargs={"brightness": 100})
     assert call.method == "turn_on"
     assert call.args == ("light.x",)
     assert call.kwargs == {"brightness": 100}
-
-
-# ---------------------------------------------------------------------------
-# StrEnum conversion in turn_on
-# ---------------------------------------------------------------------------
 
 
 class _TestEntityId(StrEnum):
@@ -369,11 +325,6 @@ async def test_turn_on_converts_strenum_to_str():
     entity_id = call.kwargs.get("entity_id")
     assert type(entity_id) is str, f"Expected plain str, got {type(entity_id).__name__} (StrEnum not converted)"
     assert entity_id == "light.kitchen"
-
-
-# ---------------------------------------------------------------------------
-# New tests: WP01 additions
-# ---------------------------------------------------------------------------
 
 
 async def test_turn_on_accepts_strenum():
@@ -442,11 +393,6 @@ def test_apicall_import_from_api_call_module():
     assert ApiCall is ApiCallFromInit
 
 
-# ---------------------------------------------------------------------------
-# F4: dict shallow-copy at record time (async side)
-# ---------------------------------------------------------------------------
-
-
 async def test_call_service_target_dict_is_shallow_copied():
     """call_service records a copy of target; mutating the original does not change the recording."""
     api = _make_recording_api()
@@ -486,11 +432,6 @@ async def test_fire_event_event_data_dict_is_shallow_copied():
     )
 
 
-# ---------------------------------------------------------------------------
-# F9: reset() replaces list (does not mutate in place)
-# ---------------------------------------------------------------------------
-
-
 async def test_reset_replaces_calls_list_not_in_place():
     """reset() replaces self.calls with a new list; saved references are not cleared."""
     api = _make_recording_api()
@@ -504,11 +445,6 @@ async def test_reset_replaces_calls_list_not_in_place():
         "reset() must replace the list (self.calls = []), not clear it in place (self.calls.clear()). "
         "Callers holding a reference to the old list must not see it emptied."
     )
-
-
-# ---------------------------------------------------------------------------
-# WP01: get_entity_or_none BaseEntity subclass regression tests
-# ---------------------------------------------------------------------------
 
 
 async def test_get_entity_or_none_returns_base_entity_subclass():
@@ -535,11 +471,6 @@ async def test_get_entity_or_none_returns_none_for_missing_entity_with_model():
     result = await api.get_entity_or_none("sensor.unseeded", model=LightEntity)
 
     assert result is None
-
-
-# ---------------------------------------------------------------------------
-# WP06: assert_called_exact and assert_called_partial
-# ---------------------------------------------------------------------------
 
 
 async def test_assert_called_exact_match():

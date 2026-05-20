@@ -12,6 +12,12 @@ from pydantic_settings.sources import InitSettingsSource
 
 from hassette.config.config import HassetteConfig
 
+TEST_TOKEN = "test-token"
+TEST_BASE_URL = "http://test.invalid:8123"
+TEST_WS_URL = "ws://test.invalid:8123/api/websocket"
+SECONDS_PER_DAY = 86_400
+TEST_SOURCE_LOCATION = "test.py:1"
+
 # Cached (hermetic_subclass, init_kwargs_ref) pair — avoids creating a new class per
 # make_test_config call, which would accumulate permanently in __subclasses__()
 # and Pydantic's internal model cache.
@@ -101,8 +107,8 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
         config = make_test_config(data_dir=tmp_path, database={"retention_days": 14})
     """
     defaults: dict[str, Any] = {
-        "token": "test-token",
-        "base_url": "http://test.invalid:8123",
+        "token": TEST_TOKEN,
+        "base_url": TEST_BASE_URL,
         "data_dir": data_dir,
         "disable_state_proxy_polling": True,
         "app": {"autodetect": False},

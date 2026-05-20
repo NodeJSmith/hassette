@@ -8,10 +8,6 @@ import pytest
 from hassette.resources.base import Resource, RestartSpec, Service
 from hassette.test_utils import make_mock_hassette
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def _build_hassette(
     *,
@@ -90,11 +86,6 @@ class _ServiceWithDepA(Service):
         pass
 
 
-# ---------------------------------------------------------------------------
-# Test 1: empty depends_on is a no-op
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_empty_depends_on_is_noop() -> None:
     """Resource with no depends_on completes _auto_wait_dependencies without calling wait_for_ready."""
@@ -104,11 +95,6 @@ async def test_empty_depends_on_is_noop() -> None:
     await resource._auto_wait_dependencies()
 
     hassette.wait_for_ready.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
-# Test 2: depends_on waits for matching instance
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -124,11 +110,6 @@ async def test_depends_on_waits_for_matching_instance() -> None:
     hassette.wait_for_ready.assert_called_once_with([dep_a])
 
 
-# ---------------------------------------------------------------------------
-# Test 3: missing type raises RuntimeError
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_depends_on_missing_type_raises() -> None:
     """RuntimeError raised with actionable message when no matching child exists."""
@@ -142,11 +123,6 @@ async def test_depends_on_missing_type_raises() -> None:
     assert "_SimpleDepA" in str(exc_info.value)
 
 
-# ---------------------------------------------------------------------------
-# Test 4: subclass match
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_depends_on_subclass_match() -> None:
     """depends_on=[BaseType] finds a ConcreteSubclass instance in children."""
@@ -158,11 +134,6 @@ async def test_depends_on_subclass_match() -> None:
     await resource._auto_wait_dependencies()
 
     hassette.wait_for_ready.assert_called_once_with([sub])
-
-
-# ---------------------------------------------------------------------------
-# Test 5: multiple dep types — all matching instances waited on
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -179,11 +150,6 @@ async def test_depends_on_multiple_matches() -> None:
     hassette.wait_for_ready.assert_called_once_with([dep_a, dep_b])
 
 
-# ---------------------------------------------------------------------------
-# Test 6: timeout raises RuntimeError
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_depends_on_timeout_raises() -> None:
     """RuntimeError raised naming timed-out deps when wait_for_ready returns False and shutdown not set."""
@@ -195,11 +161,6 @@ async def test_depends_on_timeout_raises() -> None:
 
     with pytest.raises(RuntimeError, match="timed out"):
         await resource._auto_wait_dependencies()
-
-
-# ---------------------------------------------------------------------------
-# Test 7: shutdown during wait marks not_ready and returns
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -215,11 +176,6 @@ async def test_depends_on_shutdown_marks_not_ready() -> None:
     await resource._auto_wait_dependencies()
 
     assert not resource.is_ready()
-
-
-# ---------------------------------------------------------------------------
-# Test 8: handle_failed called before RuntimeError propagates from initialize()
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -247,11 +203,6 @@ async def test_depends_on_timeout_calls_handle_failed() -> None:
     assert len(handle_failed_calls) == 1
 
 
-# ---------------------------------------------------------------------------
-# Test 9: _should_skip_dependency_check bypasses all logic
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_skip_dependency_check_bypasses() -> None:
     """When hassette._should_skip_dependency_check() returns True, _auto_wait_dependencies returns immediately."""
@@ -265,11 +216,6 @@ async def test_skip_dependency_check_bypasses() -> None:
     await resource._auto_wait_dependencies()
 
     hassette.wait_for_ready.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
-# Test 10: Service.initialize() also runs _auto_wait_dependencies
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio

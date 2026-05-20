@@ -30,10 +30,6 @@ from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.harness import TIMEOUTS, HassetteHarness
 
-# ---------------------------------------------------------------------------
-# Fixtures and helpers
-# ---------------------------------------------------------------------------
-
 
 def _build_mock_hassette():
     hassette = make_mock_hassette(
@@ -51,11 +47,6 @@ class _MinimalAppConfig:
 
     instance_name = "test"
     log_level = "DEBUG"
-
-
-# ---------------------------------------------------------------------------
-# Fixture: clean ContextVar state for set_global_hassette tests
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture(autouse=False)
@@ -88,11 +79,6 @@ def clean_hassette_context():
     ctx_module.HASSETTE_INSTANCE = _orig_instance  # pyright: ignore[reportAttributeAccessIssue]
     ctx_module.HASSETTE_SET_LOCATION = _orig_location  # pyright: ignore[reportAttributeAccessIssue]
     _this_module.HASSETTE_INSTANCE = _orig_test_instance  # pyright: ignore[reportAttributeAccessIssue]
-
-
-# ---------------------------------------------------------------------------
-# Tests: set_global_hassette returns Token
-# ---------------------------------------------------------------------------
 
 
 class TestSetGlobalHassetteReturnsToken:
@@ -140,11 +126,6 @@ class TestSetGlobalHassetteReturnsToken:
 
         # Clean up
         fresh_instance.reset(first_token)
-
-
-# ---------------------------------------------------------------------------
-# Tests: App api_factory constructor parameter
-# ---------------------------------------------------------------------------
 
 
 class TestAppApiFactory:
@@ -208,11 +189,6 @@ class TestAppApiFactory:
         assert _FakeApi in created_classes, f"Expected _FakeApi, got: {created_classes}"
         assert Api not in created_classes, "Api should not be created when api_factory is passed"
         assert isinstance(app.api, _FakeApi)
-
-
-# ---------------------------------------------------------------------------
-# Tests: HassetteHarness.seed_state
-# ---------------------------------------------------------------------------
 
 
 class TestHarnessSeedState:
@@ -337,16 +313,6 @@ class TestHarnessSeedState:
         assert not mark_ready_called, "seed_state must not call mark_ready()"
 
 
-# ---------------------------------------------------------------------------
-# now() import invariant
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# Tests: hermetic config closure
-# ---------------------------------------------------------------------------
-
-
 class TestHermeticConfigClosure:
     """_make_hermetic_config() closure-based approach — race-free, cache-retained."""
 
@@ -427,11 +393,6 @@ class TestHermeticConfigClosure:
 
         assert r1.instance_name == "first"
         assert r2.instance_name == "second"
-
-
-# ---------------------------------------------------------------------------
-# Tests: TaskBucket exception recorder list
-# ---------------------------------------------------------------------------
 
 
 def _make_task_bucket() -> TaskBucket:
@@ -558,11 +519,6 @@ class TestTaskBucketExceptionRecorderList:
         assert len(calls_r2) == 1, "r2 must be called once"
         assert calls_r1[0][1] is err
         assert calls_r2[0][1] is err
-
-
-# ---------------------------------------------------------------------------
-# now() import invariant
-# ---------------------------------------------------------------------------
 
 
 class TestNowImportInvariant:

@@ -19,11 +19,13 @@ WP02 additions:
 """
 
 import asyncio
+from unittest.mock import AsyncMock
 
 import pytest
 
 from hassette.exceptions import InvalidLifecycleTransitionError
 from hassette.resources.base import Resource, RestartSpec, Service
+from hassette.resources.mixins import LifecycleMixin
 from hassette.test_utils import make_mock_hassette, wait_for
 from hassette.types.enums import ResourceStatus
 
@@ -44,11 +46,6 @@ class _SimpleService(Service):
             await asyncio.Event().wait()
         except asyncio.CancelledError:
             raise
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -177,8 +174,6 @@ async def test_terminal_state_rejects_transitions():
 @pytest.mark.asyncio
 async def test_hasattr_guard_no_hassette():
     """Setting status on an object without 'hassette' attribute should not raise (construction-time guard)."""
-    from hassette.resources.mixins import LifecycleMixin
-
     # Create a LifecycleMixin directly — it does not call Resource.__init__,
     # so self.hassette will not be set.
     mixin = LifecycleMixin.__new__(LifecycleMixin)
@@ -206,16 +201,9 @@ async def test_same_state_no_transition():
     assert resource._previous_status == ResourceStatus.STARTING
 
 
-# ---------------------------------------------------------------------------
-# Mutation testing: survivors from mutation testing pass
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_hasattr_guard_invalid_transition_no_hassette():
     """Invalid transition on an object without hassette attribute should not raise AttributeError."""
-    from hassette.resources.mixins import LifecycleMixin
-
     mixin = LifecycleMixin.__new__(LifecycleMixin)
     mixin._status = ResourceStatus.NOT_STARTED
     mixin._previous_status = ResourceStatus.NOT_STARTED
@@ -228,8 +216,6 @@ async def test_hasattr_guard_invalid_transition_no_hassette():
 @pytest.mark.asyncio
 async def test_is_true_identity_check_mock_safe():
     """MagicMock's truthy strict_lifecycle must NOT trigger strict mode (is True identity check)."""
-    from unittest.mock import AsyncMock
-
     hassette = AsyncMock()
     hassette.config.logging.log_level = "DEBUG"
     resource = _SimpleResource(hassette)
@@ -253,11 +239,6 @@ async def test_same_state_setter_no_raise():
 
     assert resource.status == ResourceStatus.RUNNING
     assert resource._previous_status == ResourceStatus.STARTING
-
-
-# ---------------------------------------------------------------------------
-# WP02: shutdown() sets STOPPING before hooks run
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio

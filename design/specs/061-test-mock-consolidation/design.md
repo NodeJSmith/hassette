@@ -1,7 +1,7 @@
 # Design: Test Mock Consolidation
 
 **Date:** 2026-05-19
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** /tmp/claude-test-cleanup-audit-zf9eWW/research-brief.md, /tmp/claude-test-cleanup-audit-XDFQQ8/research-brief.md
 

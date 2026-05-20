@@ -23,10 +23,7 @@ from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.scheduler.classes import JobExecutionRecord
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+from hassette.test_utils.helpers import create_listener
 
 
 @pytest.fixture
@@ -45,11 +42,6 @@ def _make_mock_listener(*, listener_id: int = 1, db_id: int | None = None) -> Ma
     listener.invoker.invoke = AsyncMock()
     listener.invoker.error_handler = None
     return listener
-
-
-# ---------------------------------------------------------------------------
-# Subtask 1 & 2: _dispatch always uses _make_tracked_invoke_fn
-# ---------------------------------------------------------------------------
 
 
 async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> None:
@@ -95,11 +87,6 @@ async def test_pre_registration_listener_produces_orphan_record(executor: Comman
     assert record.status == "success"
 
 
-# ---------------------------------------------------------------------------
-# Subtask 4 & 5: framework listener DB registration via add_listener
-# ---------------------------------------------------------------------------
-
-
 async def test_framework_listener_registration(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
@@ -116,8 +103,6 @@ async def test_framework_listener_registration(
 
     async def dummy_handler(event: object) -> None:
         pass
-
-    from hassette.test_utils.helpers import create_listener
 
     listener = create_listener(
         dummy_handler,
@@ -163,11 +148,6 @@ async def test_framework_listener_produces_telemetry(executor: CommandExecutor) 
     assert record.listener_id == 99
     assert record.source_tier == "framework"
     assert record.status == "success"
-
-
-# ---------------------------------------------------------------------------
-# Subtask 9: reconcile_registrations guard for __hassette__
-# ---------------------------------------------------------------------------
 
 
 async def test_reconciliation_guard_rejects_hassette(
@@ -282,11 +262,6 @@ async def test_reconciliation_preserves_framework_actors(
     assert (await cursor.fetchone()) is None, "Stale app listener was NOT deleted during reconciliation"
 
 
-# ---------------------------------------------------------------------------
-# Subtask 10: once=True deferred cleanup in SessionManager
-# ---------------------------------------------------------------------------
-
-
 async def test_once_true_deferred_cleanup(
     initialized_db: tuple[DatabaseService, int],
 ) -> None:
@@ -396,11 +371,6 @@ async def test_once_true_deferred_cleanup(
     # Framework once=True listener must survive
     cursor = await db_service.db.execute("SELECT id FROM listeners WHERE id = ?", (fw_once_listener_id,))
     assert (await cursor.fetchone()) is not None, "Framework once=True listener was incorrectly deleted"
-
-
-# ---------------------------------------------------------------------------
-# Subtask 7: All scheduler jobs produce telemetry
-# ---------------------------------------------------------------------------
 
 
 async def test_all_jobs_produce_telemetry(executor: CommandExecutor) -> None:

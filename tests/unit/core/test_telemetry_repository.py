@@ -12,6 +12,7 @@ from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.scheduler.classes import JobExecutionRecord
+from hassette.test_utils.config import TEST_SOURCE_LOCATION
 
 # ---------------------------------------------------------------------------
 # Schema DDL (mirrors migrations through 003 final state)
@@ -417,7 +418,7 @@ async def test_reconcile_preserves_live_listeners(
         priority=0,
         predicate_description=None,
         human_description=None,
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
     )
     id_a = await repo.register_listener(reg_a)
@@ -453,7 +454,7 @@ async def test_reconcile_deletes_once_true_previous_session(
         priority=0,
         predicate_description=None,
         human_description=None,
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
     )
     once_id = await repo.register_listener(once_reg)
@@ -493,7 +494,7 @@ async def test_reconcile_preserves_once_true_with_current_invocations(
         priority=0,
         predicate_description=None,
         human_description=None,
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
     )
     once_id = await repo.register_listener(once_reg)
@@ -959,7 +960,7 @@ async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
         priority=0,
         predicate_description=None,
         human_description=None,
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
     )
     once_id = await repo.register_listener(once_reg)

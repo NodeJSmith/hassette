@@ -19,18 +19,15 @@ from hassette.core.commands import InvokeHandler
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_query_service import TelemetryQueryService
+from hassette.test_utils.config import TEST_SOURCE_LOCATION, TEST_TOKEN
 from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.mock_hassette import make_mock_hassette
-
-# ============================================================================
-# Fixtures
-# ============================================================================
 
 
 @pytest.fixture
 def harness_config(tmp_path: Path) -> HassetteConfig:
     """Create a test config pointing to a temporary database."""
-    config = HassetteConfig(data_dir=tmp_path, token="test-token")
+    config = HassetteConfig(data_dir=tmp_path, token=TEST_TOKEN)
     config.database.telemetry_write_queue_max = 10  # Small queue for testing overflow
     return config
 
@@ -64,11 +61,6 @@ async def mock_hassette_with_db(premigrated_db_path: Path) -> AsyncIterator[Magi
     yield hassette
 
     await db_service.on_shutdown()
-
-
-# ============================================================================
-# AC-10: Framework listener/job error → source_tier='framework'
-# ============================================================================
 
 
 async def test_framework_listener_registers_with_source_tier(harness_config: HassetteConfig) -> None:
@@ -112,7 +104,7 @@ async def test_framework_job_registers_with_db(mock_hassette_with_db: MagicMock)
         trigger_detail=None,
         args_json="[]",
         kwargs_json="{}",
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
         source_tier="framework",
     )
@@ -188,7 +180,7 @@ async def test_command_executor_job_registration_with_source_tier(mock_hassette_
         trigger_detail=None,
         args_json="[]",
         kwargs_json="{}",
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
         source_tier="framework",
     )
@@ -203,11 +195,6 @@ async def test_command_executor_job_registration_with_source_tier(mock_hassette_
     app_key, source_tier = rows_list[0]
     assert app_key == "__hassette__"
     assert source_tier == "framework"
-
-
-# ============================================================================
-# AC-11a: Pre-DB queue drain
-# ============================================================================
 
 
 async def test_queue_persistence_via_drain_and_persist(mock_hassette_with_db: MagicMock) -> None:
@@ -230,7 +217,7 @@ async def test_queue_persistence_via_drain_and_persist(mock_hassette_with_db: Ma
         priority=0,
         predicate_description=None,
         human_description=None,
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
         source_tier="app",
     )
@@ -271,11 +258,6 @@ async def test_queue_persistence_via_drain_and_persist(mock_hassette_with_db: Ma
     assert queried_listener_id == listener_id
     assert source_tier == "app"
     assert status == "success"
-
-
-# ============================================================================
-# AC-11b: Pre-registration orphan
-# ============================================================================
 
 
 async def test_pre_registration_orphan_persisted_with_null_listener_id(mock_hassette_with_db: MagicMock) -> None:
@@ -319,11 +301,6 @@ async def test_pre_registration_orphan_persisted_with_null_listener_id(mock_hass
     assert status == "success"
 
 
-# ============================================================================
-# AC-19: Reconciliation safety
-# ============================================================================
-
-
 async def test_reconciliation_excludes_framework_app_key(mock_hassette_with_db: MagicMock) -> None:
     """Reconciliation with non-framework app_key → __hassette__ rows unaffected."""
     hassette = mock_hassette_with_db
@@ -344,7 +321,7 @@ async def test_reconciliation_excludes_framework_app_key(mock_hassette_with_db: 
         priority=0,
         predicate_description=None,
         human_description=None,
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
         source_tier="framework",
     )
@@ -362,7 +339,7 @@ async def test_reconciliation_excludes_framework_app_key(mock_hassette_with_db: 
         priority=0,
         predicate_description=None,
         human_description=None,
-        source_location="test.py:1",
+        source_location=TEST_SOURCE_LOCATION,
         registration_source=None,
         source_tier="app",
     )
@@ -388,11 +365,6 @@ async def test_reconciliation_excludes_framework_app_key(mock_hassette_with_db: 
     assert app_key == "__hassette__"
 
 
-# ============================================================================
-# Tier isolation: framework not exposed in app summaries
-# ============================================================================
-
-
 async def test_telemetry_query_service_exists(harness_config: HassetteConfig) -> None:
     """TelemetryQueryService can be instantiated (filtering tested in DB tests)."""
     async with HassetteHarness(harness_config).with_bus() as harness:
@@ -402,11 +374,6 @@ async def test_telemetry_query_service_exists(harness_config: HassetteConfig) ->
         # Verify service exists and has the method
         assert hasattr(query_service, "get_all_app_summaries")
         assert callable(query_service.get_all_app_summaries)
-
-
-# ============================================================================
-# Drop counter e2e: overflow tracking
-# ============================================================================
 
 
 async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: MagicMock) -> None:
@@ -420,8 +387,6 @@ async def test_drop_counter_overflow_when_queue_full(mock_hassette_with_db: Magi
     listener = MagicMock()
     listener.invoker.invoke = AsyncMock()
     listener.invoker.error_handler = None
-
-    from hassette.core.commands import InvokeHandler
 
     for i in range(hassette.config.database.telemetry_write_queue_max):
         mock_event = MagicMock()

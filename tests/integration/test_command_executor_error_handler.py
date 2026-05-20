@@ -14,9 +14,7 @@ from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.test_utils import wait_for
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+WAIT_TIMEOUT = 2.0
 
 
 @pytest.fixture
@@ -54,11 +52,6 @@ def _make_mock_job(*, error_handler=None) -> MagicMock:
     return job
 
 
-# ---------------------------------------------------------------------------
-# Bus error handler execution path tests
-# ---------------------------------------------------------------------------
-
-
 async def test_error_handler_runs_after_framework_log(executor: CommandExecutor) -> None:
     """Error handler is invoked after framework logging — not instead of it."""
     listener = _make_mock_listener()
@@ -84,7 +77,7 @@ async def test_error_handler_runs_after_framework_log(executor: CommandExecutor)
 
     await executor.execute(cmd)
 
-    await asyncio.wait_for(handler_called.wait(), timeout=2.0)
+    await asyncio.wait_for(handler_called.wait(), timeout=WAIT_TIMEOUT)
 
     assert len(received_ctx) == 1
     assert isinstance(received_ctx[0].exception, ValueError)
@@ -123,7 +116,7 @@ async def test_sync_error_handler_wraps_in_thread(executor: CommandExecutor) -> 
 
     await executor.execute(cmd)
 
-    await asyncio.wait_for(handler_called.wait(), timeout=2.0)
+    await asyncio.wait_for(handler_called.wait(), timeout=WAIT_TIMEOUT)
 
     assert len(received_ctx) == 1
     assert isinstance(received_ctx[0].exception, RuntimeError)
@@ -153,7 +146,7 @@ async def test_double_failure_logged_and_counted(executor: CommandExecutor) -> N
 
     await executor.execute(cmd)
 
-    await asyncio.wait_for(handler_ran.wait(), timeout=2.0)
+    await asyncio.wait_for(handler_ran.wait(), timeout=WAIT_TIMEOUT)
     await wait_for(lambda: executor.get_error_handler_failures() >= 1, desc="error handler failure recorded")
 
     assert executor.get_error_handler_failures() >= 1
@@ -217,7 +210,7 @@ async def test_timeout_error_routed_to_handler(executor: CommandExecutor) -> Non
 
     await executor.execute(cmd)
 
-    await asyncio.wait_for(handler_called.wait(), timeout=2.0)
+    await asyncio.wait_for(handler_called.wait(), timeout=WAIT_TIMEOUT)
     assert len(received_ctx) == 1
     assert isinstance(received_ctx[0].exception, TimeoutError)
 
@@ -225,11 +218,6 @@ async def test_timeout_error_routed_to_handler(executor: CommandExecutor) -> Non
     assert not executor._write_queue.empty()
     record = executor._write_queue.get_nowait()
     assert record.status == "timed_out"
-
-
-# ---------------------------------------------------------------------------
-# Scheduler error handler execution path tests
-# ---------------------------------------------------------------------------
 
 
 async def test_error_handler_timeout_logs_warning(executor: CommandExecutor) -> None:
@@ -258,7 +246,7 @@ async def test_error_handler_timeout_logs_warning(executor: CommandExecutor) -> 
 
     await executor.execute(cmd)
 
-    await asyncio.wait_for(job_ran.wait(), timeout=2.0)
+    await asyncio.wait_for(job_ran.wait(), timeout=WAIT_TIMEOUT)
     # Wait for timeout to trigger
     await asyncio.sleep(0.2)
 

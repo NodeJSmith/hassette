@@ -26,11 +26,6 @@ def state_manager(mock_hassette: AsyncMock) -> StateManager:
     return StateManager(mock_hassette, parent=mock_hassette)
 
 
-# ---------------------------------------------------------------------------
-# TestStateManagerGetattr — __getattr__ dispatch logic
-# ---------------------------------------------------------------------------
-
-
 class TestStateManagerGetattr:
     def test_underscore_prefix_raises_attribute_error(self, state_manager: StateManager) -> None:
         with pytest.raises(AttributeError, match="has no attribute '_internal_attr'"):
@@ -87,11 +82,6 @@ class TestStateManagerGetattr:
         result = state_manager.items
         assert callable(result)
         assert not isinstance(result, DomainStates)
-
-
-# ---------------------------------------------------------------------------
-# TestDomainStatesCacheValidation — _validate_or_return_from_cache logic
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture

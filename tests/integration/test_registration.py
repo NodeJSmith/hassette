@@ -17,10 +17,6 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.scheduler_service import SchedulerService
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture
 async def executor(db_hassette: AsyncMock, initialized_db: tuple[DatabaseService, int]) -> CommandExecutor:  # noqa: ARG001
@@ -88,11 +84,6 @@ def _stub_task_bucket() -> MagicMock:
     return bucket
 
 
-# ---------------------------------------------------------------------------
-# Listener registration uses app_key and instance_index
-# ---------------------------------------------------------------------------
-
-
 async def test_listener_registration_persists_correct_app_key(
     executor: CommandExecutor,
     initialized_db: tuple[DatabaseService, int],
@@ -158,11 +149,6 @@ async def test_job_registration_persists_correct_app_key(
     assert row[1] == 3, f"Expected instance_index=3, got {row[1]}"
 
 
-# ---------------------------------------------------------------------------
-# BusService.add_listener inserts route synchronously, spawns bus:register_listener for DB
-# ---------------------------------------------------------------------------
-
-
 def test_listener_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> None:
     """add_listener with app_key spawns a single bus:register_listener task.
 
@@ -183,11 +169,6 @@ def test_listener_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> N
     assert spawn_kwargs.kwargs.get("name") == "bus:register_in_db"
 
 
-# ---------------------------------------------------------------------------
-# SchedulerService._register_then_enqueue registers job then enqueues
-# ---------------------------------------------------------------------------
-
-
 def test_job_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> None:
     """add_job with app_key spawns a single _register_then_enqueue task."""
     executor_mock = MagicMock()
@@ -199,11 +180,6 @@ def test_job_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> None:
     scheduler_service.add_job(job)
 
     assert scheduler_service.task_bucket.spawn.call_count == 1
-
-
-# ---------------------------------------------------------------------------
-# Non-App owner guard: empty app_key still spawns DB registration
-# ---------------------------------------------------------------------------
 
 
 def test_listener_with_empty_app_key_spawns_db_registration(db_hassette: AsyncMock) -> None:
@@ -275,11 +251,6 @@ def test_job_with_app_key_triggers_registration(db_hassette: AsyncMock) -> None:
 
     # Single spawn: _register_then_enqueue (DB registration + enqueue in sequence)
     assert scheduler_service.task_bucket.spawn.call_count == 1
-
-
-# ---------------------------------------------------------------------------
-# Group persistence at registration
-# ---------------------------------------------------------------------------
 
 
 async def test_group_persisted_at_registration(

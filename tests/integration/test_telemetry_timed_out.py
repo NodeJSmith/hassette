@@ -17,9 +17,7 @@ from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.web.telemetry_helpers import compute_health_metrics
 
-# ---------------------------------------------------------------------------
-# Fixtures (mirrors test_telemetry_query_service.py)
-# ---------------------------------------------------------------------------
+from .telemetry_query_helpers import insert_execution, insert_invocation, insert_job, insert_listener
 
 
 @pytest.fixture
@@ -58,79 +56,6 @@ def svc(db_hassette: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQue
     return service
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-async def _insert_listener(db_svc: DatabaseService, *, app_key: str = "test_app") -> int:
-    cursor = await db_svc.db.execute(
-        """INSERT INTO listeners
-               (app_key, instance_index, handler_method, topic,
-                debounce, throttle, once, priority,
-                source_location, source_tier)
-           VALUES (?, 0, 'on_event', 'state_changed.light.test', NULL, NULL, 0, 0, 'test.py:1', 'app')""",
-        (app_key,),
-    )
-    await db_svc.db.commit()
-    assert cursor.lastrowid is not None
-    return cursor.lastrowid
-
-
-async def _insert_job(db_svc: DatabaseService, *, app_key: str = "test_app") -> int:
-    cursor = await db_svc.db.execute(
-        """INSERT INTO scheduled_jobs
-               (app_key, instance_index, job_name, handler_method,
-                trigger_type, repeat, source_location, source_tier)
-           VALUES (?, 0, 'my_job', 'run_job', 'interval', 1, 'test.py:1', 'app')""",
-        (app_key,),
-    )
-    await db_svc.db.commit()
-    assert cursor.lastrowid is not None
-    return cursor.lastrowid
-
-
-async def _insert_invocation(
-    db_svc: DatabaseService,
-    listener_id: int,
-    session_id: int,
-    *,
-    status: str = "success",
-    duration_ms: float = 10.0,
-) -> None:
-    await db_svc.db.execute(
-        """INSERT INTO handler_invocations
-               (listener_id, session_id, execution_start_ts, duration_ms,
-                status, source_tier)
-           VALUES (?, ?, ?, ?, ?, 'app')""",
-        (listener_id, session_id, time.time(), duration_ms, status),
-    )
-    await db_svc.db.commit()
-
-
-async def _insert_execution(
-    db_svc: DatabaseService,
-    job_id: int,
-    session_id: int,
-    *,
-    status: str = "success",
-    duration_ms: float = 20.0,
-) -> None:
-    await db_svc.db.execute(
-        """INSERT INTO job_executions
-               (job_id, session_id, execution_start_ts, duration_ms,
-                status, source_tier)
-           VALUES (?, ?, ?, ?, ?, 'app')""",
-        (job_id, session_id, time.time(), duration_ms, status),
-    )
-    await db_svc.db.commit()
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
-
 class TestListenerSummaryTimedOut:
     async def test_listener_summary_counts_timed_out(
         self,
@@ -139,11 +64,11 @@ class TestListenerSummaryTimedOut:
     ) -> None:
         """Verify timed_out is a separate bucket in ListenerSummary."""
         db_svc, session_id = db
-        lid = await _insert_listener(db_svc)
-        await _insert_invocation(db_svc, lid, session_id, status="success")
-        await _insert_invocation(db_svc, lid, session_id, status="error")
-        await _insert_invocation(db_svc, lid, session_id, status="timed_out")
-        await _insert_invocation(db_svc, lid, session_id, status="timed_out")
+        lid = await insert_listener(db_svc)
+        await insert_invocation(db_svc, lid, session_id, status="success")
+        await insert_invocation(db_svc, lid, session_id, status="error")
+        await insert_invocation(db_svc, lid, session_id, status="timed_out")
+        await insert_invocation(db_svc, lid, session_id, status="timed_out")
 
         summaries = await svc.get_listener_summary("test_app", 0)
         assert len(summaries) == 1
@@ -163,11 +88,11 @@ class TestJobSummaryTimedOut:
     ) -> None:
         """Verify timed_out is a separate bucket in JobSummary."""
         db_svc, session_id = db
-        jid = await _insert_job(db_svc)
-        await _insert_execution(db_svc, jid, session_id, status="success")
-        await _insert_execution(db_svc, jid, session_id, status="success")
-        await _insert_execution(db_svc, jid, session_id, status="error")
-        await _insert_execution(db_svc, jid, session_id, status="timed_out")
+        jid = await insert_job(db_svc)
+        await insert_execution(db_svc, jid, session_id, status="success")
+        await insert_execution(db_svc, jid, session_id, status="success")
+        await insert_execution(db_svc, jid, session_id, status="error")
+        await insert_execution(db_svc, jid, session_id, status="timed_out")
 
         summaries = await svc.get_job_summary("test_app", 0)
         assert len(summaries) == 1
@@ -186,18 +111,18 @@ class TestErrorRateIncludesTimedOut:
     ) -> None:
         """Verify compute_health_metrics treats timed_out as a failure subtype."""
         db_svc, session_id = db
-        lid = await _insert_listener(db_svc)
-        jid = await _insert_job(db_svc)
+        lid = await insert_listener(db_svc)
+        jid = await insert_job(db_svc)
 
         # 2 success, 1 error, 1 timed_out = 50% error rate for handlers
-        await _insert_invocation(db_svc, lid, session_id, status="success")
-        await _insert_invocation(db_svc, lid, session_id, status="success")
-        await _insert_invocation(db_svc, lid, session_id, status="error")
-        await _insert_invocation(db_svc, lid, session_id, status="timed_out")
+        await insert_invocation(db_svc, lid, session_id, status="success")
+        await insert_invocation(db_svc, lid, session_id, status="success")
+        await insert_invocation(db_svc, lid, session_id, status="error")
+        await insert_invocation(db_svc, lid, session_id, status="timed_out")
 
         # 1 success, 1 timed_out = 50% error rate for jobs
-        await _insert_execution(db_svc, jid, session_id, status="success")
-        await _insert_execution(db_svc, jid, session_id, status="timed_out")
+        await insert_execution(db_svc, jid, session_id, status="success")
+        await insert_execution(db_svc, jid, session_id, status="timed_out")
 
         listeners = await svc.get_listener_summary("test_app", 0)
         jobs = await svc.get_job_summary("test_app", 0)

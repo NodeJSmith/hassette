@@ -47,11 +47,6 @@ class _HarnessApp(App[_HarnessConfig]):
         pass
 
 
-# ---------------------------------------------------------------------------
-# Test harness helpers (mirrors test_recording_api.py pattern)
-# ---------------------------------------------------------------------------
-
-
 def _make_recording_api() -> RecordingApi:
     """Create a RecordingApi with an empty StateProxy."""
     hassette = make_mock_hassette(sealed=False)
@@ -60,11 +55,6 @@ def _make_recording_api() -> RecordingApi:
     state_proxy.states = {}
     state_proxy.is_ready = lambda: True
     return RecordingApi(hassette, state_proxy=state_proxy)
-
-
-# ---------------------------------------------------------------------------
-# seed_helper round-trip
-# ---------------------------------------------------------------------------
 
 
 async def test_seed_helper_then_list_returns_seeded_record():
@@ -118,11 +108,6 @@ async def test_seed_helper_type_map_covers_all_imports():
     assert set(_RECORD_TYPE_TO_DOMAIN.keys()) == expected
 
 
-# ---------------------------------------------------------------------------
-# create_input_boolean — list round-trip, slug, collision
-# ---------------------------------------------------------------------------
-
-
 async def test_create_input_boolean_adds_to_list():
     api = _make_recording_api()
     record = await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
@@ -150,11 +135,6 @@ async def test_create_input_boolean_auto_suffixes_collision():
     assert len(all_records) == 2
 
 
-# ---------------------------------------------------------------------------
-# update_input_boolean — missing id raises, mutation works
-# ---------------------------------------------------------------------------
-
-
 async def test_update_input_boolean_raises_on_missing_id():
     api = _make_recording_api()
 
@@ -178,11 +158,6 @@ async def test_update_input_boolean_mutates_seed():
     assert listed[0].initial is True
 
 
-# ---------------------------------------------------------------------------
-# delete_input_boolean — missing id raises, removal works
-# ---------------------------------------------------------------------------
-
-
 async def test_delete_input_boolean_raises_on_missing_id():
     api = _make_recording_api()
 
@@ -201,11 +176,6 @@ async def test_delete_input_boolean_removes_from_list():
     assert result == []
 
 
-# ---------------------------------------------------------------------------
-# reset clears helper_definitions
-# ---------------------------------------------------------------------------
-
-
 async def test_reset_clears_helper_definitions():
     api = _make_recording_api()
     # Seed across multiple domains
@@ -221,11 +191,6 @@ async def test_reset_clears_helper_definitions():
     assert api.calls == []
 
 
-# ---------------------------------------------------------------------------
-# create records ApiCall
-# ---------------------------------------------------------------------------
-
-
 async def test_create_records_api_call():
     api = _make_recording_api()
     await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
@@ -234,11 +199,6 @@ async def test_create_records_api_call():
     call = api.calls[0]
     assert call.method == "create_input_boolean"
     assert call.kwargs["name"] == "vacation_mode"
-
-
-# ---------------------------------------------------------------------------
-# counter action methods record ApiCall
-# ---------------------------------------------------------------------------
 
 
 async def test_counter_action_records_api_call_increment():
@@ -269,11 +229,6 @@ async def test_counter_action_records_api_call_reset():
     assert call.kwargs["entity_id"] == "counter.baz"
 
 
-# ---------------------------------------------------------------------------
-# _slugify_helper_name — HA-aligned fallback for empty slugs
-# ---------------------------------------------------------------------------
-
-
 def test_slugify_helper_name_fallback_for_empty_slug():
     """Cover all three branches of _slugify_helper_name.
 
@@ -286,12 +241,6 @@ def test_slugify_helper_name_fallback_for_empty_slug():
     assert _slugify_helper_name("") == ""
     assert _slugify_helper_name(None) == ""
     assert _slugify_helper_name("Vacation Mode") == "vacation_mode"
-
-
-# ---------------------------------------------------------------------------
-# list_* returns isolated copies (mutation on returned list items does not
-# alter the stored helper_definitions state).
-# ---------------------------------------------------------------------------
 
 
 async def test_list_returns_isolated_copies():
@@ -332,11 +281,6 @@ async def test_list_isolation_preserves_nested_collections():
 
     fetched_after_create = next(r for r in await api.list_input_selects() if r.id == created.id)
     assert fetched_after_create.options == ["x", "y"]
-
-
-# ---------------------------------------------------------------------------
-# seed_helper — duplicate id guard and ValueError path via public API
-# ---------------------------------------------------------------------------
 
 
 async def test_seed_helper_rejects_duplicate_id():

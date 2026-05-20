@@ -72,10 +72,6 @@ def _stub_resource(cls: type[Resource]) -> Resource:
     return obj
 
 
-# ---------------------------------------------------------------------------
-# All config_log_level override cases
-# ---------------------------------------------------------------------------
-
 OVERRIDE_CASES = [
     # Dedicated field overrides (Hassette-registered services)
     # Each tuple: (ResourceClass, nested_attr_on_config_logging)
@@ -120,11 +116,6 @@ def test_config_log_level_returns_expected_field(cls: type[Resource], logging_at
     assert resource.config_log_level == expected
 
 
-# ---------------------------------------------------------------------------
-# No-op override regression: Api and ApiResource must NOT return global log_level
-# ---------------------------------------------------------------------------
-
-
 def test_api_does_not_return_global_log_level() -> None:
     """Api.config_log_level returns logging.api, not the global logging.log_level."""
     resource = _stub_resource(Api)
@@ -142,10 +133,6 @@ def test_api_resource_does_not_return_global_log_level() -> None:
     assert resource.config_log_level == "DEBUG"
     assert resource.config_log_level != resource.hassette.config.logging.log_level
 
-
-# ---------------------------------------------------------------------------
-# Type annotation introspection
-# ---------------------------------------------------------------------------
 
 ALL_OVERRIDE_CLASSES: list[type[Resource]] = [cls for cls, _ in OVERRIDE_CASES] + [App]
 

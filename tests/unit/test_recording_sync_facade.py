@@ -40,10 +40,6 @@ from hassette.test_utils.helpers import make_state_dict
 from hassette.test_utils.recording_api import RecordingApi
 from hassette.test_utils.sync_facade import _STUB_MSG_GENERIC, _STUB_MSG_STATE_CONVERSION, _RecordingSyncFacade
 
-# ---------------------------------------------------------------------------
-# Test harness helpers (mirroring test_recording_api.py pattern)
-# ---------------------------------------------------------------------------
-
 
 def _make_recording_api(states: dict | None = None) -> RecordingApi:
     """Create a RecordingApi with an optional pre-seeded StateProxy."""
@@ -56,20 +52,10 @@ def _make_recording_api(states: dict | None = None) -> RecordingApi:
     return api
 
 
-# ---------------------------------------------------------------------------
-# Sanity: sync attribute is a _RecordingSyncFacade instance
-# ---------------------------------------------------------------------------
-
-
 async def test_recording_api_sync_is_recording_sync_facade():
     """RecordingApi.sync must be a _RecordingSyncFacade instance (not a Mock)."""
     api = _make_recording_api()
     assert isinstance(api.sync, _RecordingSyncFacade)
-
-
-# ---------------------------------------------------------------------------
-# Write method: turn_on
-# ---------------------------------------------------------------------------
 
 
 async def test_sync_turn_on_records_with_correct_shape():
@@ -107,11 +93,6 @@ async def test_sync_turn_on_passes_extra_data():
     assert call.kwargs["domain"] == "homeassistant"
 
 
-# ---------------------------------------------------------------------------
-# Write method: turn_off
-# ---------------------------------------------------------------------------
-
-
 async def test_sync_turn_off_records_with_correct_shape():
     """sync.turn_off records ApiCall with correct method, args, and kwargs."""
     api = _make_recording_api()
@@ -123,11 +104,6 @@ async def test_sync_turn_off_records_with_correct_shape():
     assert call.kwargs == {"entity_id": "switch.fan", "domain": "homeassistant"}
 
 
-# ---------------------------------------------------------------------------
-# Write method: toggle_service
-# ---------------------------------------------------------------------------
-
-
 async def test_sync_toggle_service_records_with_correct_shape():
     """sync.toggle_service records ApiCall with correct method, args, and kwargs."""
     api = _make_recording_api()
@@ -137,11 +113,6 @@ async def test_sync_toggle_service_records_with_correct_shape():
     assert call.method == "toggle_service"
     assert call.args == ("light.kitchen",)
     assert call.kwargs == {"entity_id": "light.kitchen", "domain": "homeassistant"}
-
-
-# ---------------------------------------------------------------------------
-# Write method: call_service
-# ---------------------------------------------------------------------------
 
 
 async def test_sync_call_service_records_with_correct_shape():
@@ -174,11 +145,6 @@ async def test_sync_call_service_returns_none_by_default():
     assert result is None
 
 
-# ---------------------------------------------------------------------------
-# Write method: set_state
-# ---------------------------------------------------------------------------
-
-
 async def test_sync_set_state_records_and_returns_empty_dict():
     """sync.set_state records ApiCall and returns an empty dict."""
     api = _make_recording_api()
@@ -189,11 +155,6 @@ async def test_sync_set_state_records_and_returns_empty_dict():
     assert call.method == "set_state"
     assert call.args == ("sensor.temp", "22.5")
     assert call.kwargs == {"entity_id": "sensor.temp", "state": "22.5", "attributes": None}
-
-
-# ---------------------------------------------------------------------------
-# Write method: fire_event
-# ---------------------------------------------------------------------------
 
 
 async def test_sync_fire_event_records_and_returns_empty_dict():
@@ -208,11 +169,6 @@ async def test_sync_fire_event_records_and_returns_empty_dict():
     assert call.kwargs == {"event_type": "custom_event", "event_data": {"key": "value"}}
 
 
-# ---------------------------------------------------------------------------
-# Shared calls list between async and sync paths
-# ---------------------------------------------------------------------------
-
-
 async def test_sync_and_async_share_calls_list():
     """Async and sync write calls append to the same api.calls list."""
     api = _make_recording_api()
@@ -221,11 +177,6 @@ async def test_sync_and_async_share_calls_list():
     assert len(api.calls) == 2
     assert api.calls[0].method == "turn_on"
     assert api.calls[1].method == "turn_on"
-
-
-# ---------------------------------------------------------------------------
-# Read method: get_state
-# ---------------------------------------------------------------------------
 
 
 async def test_sync_get_state_delegates_to_state_proxy():
@@ -244,11 +195,6 @@ async def test_sync_get_state_raises_for_unseeded():
         api.sync.get_state("light.nonexistent")
 
 
-# ---------------------------------------------------------------------------
-# Read method: get_states
-# ---------------------------------------------------------------------------
-
-
 async def test_sync_get_states_returns_all_seeded_entities():
     """sync.get_states returns typed states for all seeded entities."""
     state_a = make_state_dict(entity_id="light.a", state="on")
@@ -265,22 +211,12 @@ async def test_sync_get_states_returns_all_seeded_entities():
 # state, no specific entity model" use case is served by sync.get_state above.
 
 
-# ---------------------------------------------------------------------------
-# Read method: entity_exists
-# ---------------------------------------------------------------------------
-
-
 async def test_sync_entity_exists_returns_bool():
     """sync.entity_exists returns True for seeded entities and False otherwise."""
     state_dict = make_state_dict(entity_id="light.kitchen", state="on")
     api = _make_recording_api(states={"light.kitchen": state_dict})
     assert api.sync.entity_exists("light.kitchen") is True
     assert api.sync.entity_exists("light.missing") is False
-
-
-# ---------------------------------------------------------------------------
-# Read method: get_state_or_none
-# ---------------------------------------------------------------------------
 
 
 async def test_sync_get_state_or_none_returns_none_for_unseeded():
@@ -290,22 +226,12 @@ async def test_sync_get_state_or_none_returns_none_for_unseeded():
     assert result is None
 
 
-# ---------------------------------------------------------------------------
-# __getattr__ fallback behavior
-# ---------------------------------------------------------------------------
-
-
 async def test_sync_getattr_raises_notimplementederror_with_default_message_for_unknown_method():
     """Accessing an unknown public method on sync raises NotImplementedError via __getattr__ with seed-state message."""
     api = _make_recording_api()
     with pytest.raises(NotImplementedError) as exc_info:
         api.sync.some_unknown_method()
     assert str(exc_info.value) == _STUB_MSG_GENERIC.format(name="some_unknown_method")
-
-
-# ---------------------------------------------------------------------------
-# F4: dict shallow-copy at record time (sync side)
-# ---------------------------------------------------------------------------
 
 
 async def test_sync_call_service_target_dict_is_shallow_copied():
@@ -326,11 +252,6 @@ async def test_sync_private_attributes_raise_attribute_error():
     api = _make_recording_api()
     with pytest.raises(AttributeError):
         _ = api.sync._something_private
-
-
-# ---------------------------------------------------------------------------
-# Explicit stub methods raise NotImplementedError (not AttributeError)
-# ---------------------------------------------------------------------------
 
 
 async def test_sync_get_state_value_raises_not_implemented():
@@ -355,11 +276,6 @@ async def test_sync_get_attribute_raises_not_implemented():
     with pytest.raises(NotImplementedError) as exc_info:
         api.sync.get_attribute("sensor.temp", "unit_of_measurement")
     assert str(exc_info.value) == _STUB_MSG_STATE_CONVERSION.format(name="get_attribute")
-
-
-# ---------------------------------------------------------------------------
-# Runtime smoke test: body-copied methods must not return coroutines
-# ---------------------------------------------------------------------------
 
 
 async def test_body_copied_methods_are_sync():
