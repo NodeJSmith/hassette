@@ -24,7 +24,7 @@ export function TracebackViewer({ traceback, testIdPrefix }: Props) {
             <pre class="ht-text-mono">{split.errorLine}</pre>
           </div>
           <pre class={styles.tracebackFrames} data-testid={`${testIdPrefix}-traceback`}>
-            {traceback}
+            {split.frames}
           </pre>
         </>
       ) : (
