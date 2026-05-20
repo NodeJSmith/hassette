@@ -10,7 +10,7 @@ None.
 1. The new factory uses `make_test_config()` for real config validation combined with `AsyncMock` for non-config attributes — not pure MagicMock (catches invalid/phantom fields) and not real Hassette (too many __init__ side effects for unit tests).
 2. `data_dir` defaults to `tempfile.mkdtemp()` so unit tests don't need `tmp_path`. Integration tests that need DB isolation pass `tmp_path` explicitly.
 3. `seal()` is called by default after wiring attributes — prevents phantom attribute auto-vivification. Tests needing extra attributes pass `sealed=False`.
-4. `make_ws_hassette_stub()` is a thin preset wrapper, not a separate factory — it calls `make_mock_hassette()` with 13 WebSocket config field overrides.
+4. `make_ws_hassette_stub()` is a thin preset wrapper, not a separate factory — it calls `make_mock_hassette()` with 20 config overrides (13 `websocket.*` namespace fields + 7 non-websocket fields that differ from model defaults: `logging.log_level="DEBUG"`, `logging.websocket="DEBUG"`, `logging.task_bucket="DEBUG"`, `default_cache_size=1024`, `lifecycle.resource_shutdown_timeout_seconds=1`, `lifecycle.task_cancellation_timeout_seconds=1`, `verify_ssl=False`).
 5. The `_migrated_db_template` fixture needs exactly 4 explicit overrides: `database.max_size_mb=0`, `database.telemetry_write_queue_max=500`, `lifecycle.resource_shutdown_timeout_seconds=5`, `web_api.run=True`. The other 11 values match defaults.
 6. Database-backed fixtures use name `db_hassette`; lightweight stubs use `mock_hassette` — distinct at grep time.
 7. `make_test_config()`'s shared mutable cell needs a `threading.Lock` before this migration promotes it to canonical usage.
@@ -21,7 +21,7 @@ None.
 - Do NOT migrate `test_hassette_timeout_warning.py` — it uses `object.__new__(Hassette)` to bypass `__init__` and is the wrong pattern for `make_mock_hassette()`.
 - Do NOT promote `bus_test_helpers.py` to shared utilities.
 - Do NOT address `caplog` test usage (tracked in #473).
-- Tests that mutate `hassette.config.X` after construction will break with real frozen config — these must pass the value as a config override at construction time instead. **Pre-migration audit required:** before migrating each file, grep for `hassette.config.*` and `executor.hassette.config.*` assignment sites within that file, extract the assigned values, and cross-reference against `ge`/`le`/`gt`/`lt` constraints in `src/hassette/config/models.py`. Tests assigning values outside Pydantic constraint ranges must retain a mock config layer for that field or the constraint must be relaxed.
+- Tests that mutate `hassette.config.X` after construction will break with real frozen config — 3 in-scope files (`test_app_lifecycle_service.py`, `test_database_service.py` [unit], `test_command_executor.py`) must pass the value as a config override at construction time instead. **Pre-migration audit required:** before migrating each file, grep for `hassette.config.*` and `executor.hassette.config.*` assignment sites within that file, extract the assigned values, and cross-reference against `ge`/`le`/`gt`/`lt` constraints in `src/hassette/config/models.py`. Tests assigning values outside Pydantic constraint ranges must retain a mock config layer for that field or the constraint must be relaxed.
 - Tests that assert `config.reload()` was called need `hassette.config.reload = Mock()` patched on top of the real config.
 - The factory must work without `asyncio.get_running_loop()` when `set_loop=False` (needed for session-scoped fixtures that run outside an event loop).
 

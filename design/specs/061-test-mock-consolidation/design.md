@@ -91,7 +91,7 @@ The cost is threefold:
 ## Edge Cases
 
 - **Session-scoped fixtures** — the factory needs to work without `tmp_path` (which is function-scoped). Session-scoped callers must use `tmp_path_factory.mktemp()` and pass the result as `data_dir`.
-- **Tests that mutate config mid-test** — rare (2–3 files), but if a test modifies `hassette.config.X` after construction, the real configuration model raises a validation error (frozen model). These tests must pass the desired value as a `config_overrides` parameter at construction time instead of mutating post-construction. **Pre-migration audit required:** grep for all `hassette.config.*` and `executor.hassette.config.*` mutation sites, extract the assigned values, and cross-reference against `ge`/`le`/`gt`/`lt` constraints in `src/hassette/config/models.py`. Tests that require values outside Pydantic constraint ranges (e.g., `queue_max=0` below `ge=1`) must retain a mock config layer for that specific field or the constraint must be relaxed.
+- **Tests that mutate config mid-test** — rare (3 in-scope files: `test_app_lifecycle_service.py`, `test_database_service.py` [unit], `test_command_executor.py`), but if a test modifies `hassette.config.X` after construction, the real configuration model raises a validation error (frozen model). These tests must pass the desired value as a `config_overrides` parameter at construction time instead of mutating post-construction. **Pre-migration audit required:** grep for all `hassette.config.*` and `executor.hassette.config.*` mutation sites, extract the assigned values, and cross-reference against `ge`/`le`/`gt`/`lt` constraints in `src/hassette/config/models.py`. Tests that require values outside Pydantic constraint ranges (e.g., `queue_max=0` below `ge=1`) must retain a mock config layer for that specific field or the constraint must be relaxed.
 - **Tests that assert `config.reload()` was called** — with real config, `reload()` would actually execute. These need `hassette.config.reload = Mock()` patched on top.
 - **`config_dir` directory creation** — `HassetteConfig` validators create the `config_dir` directory during construction. The hermetic factory already handles this, but tests should verify no stale directories leak between runs.
 - **Accessing unlisted attributes on the mock** — the factory calls `seal(hassette)` after wiring all known attributes, so accessing an attribute not explicitly set by the factory raises `AttributeError`. This catches tests that relied on auto-vivified phantom attributes. Tests that need additional attributes must pass `sealed=False`, set their extras, and optionally seal the mock themselves.
@@ -217,7 +217,7 @@ Add `make_mock_hassette` and `make_ws_hassette_stub` to `src/hassette/test_utils
 
 Location: `src/hassette/test_utils/mock_hassette.py` (alongside `make_mock_hassette`)
 
-A thin wrapper around `make_mock_hassette()` that bakes in the 13 WebSocket config fields needed for sub-millisecond retry/timeout testing. Both `test_ws_connection_state.py` and `test_websocket_readiness_events.py` share this identical config set. Domain-specific presets like this are permitted as thin wrappers when a coherent set of 5+ overrides is shared across 2+ files.
+A thin wrapper around `make_mock_hassette()` that bakes in the 20 config overrides needed for WebSocket sub-millisecond retry/timeout testing: 13 `websocket.*` namespace fields plus 7 non-websocket fields that differ from model defaults (`logging.log_level="DEBUG"`, `logging.websocket="DEBUG"`, `logging.task_bucket="DEBUG"`, `default_cache_size=1024`, `lifecycle.resource_shutdown_timeout_seconds=1`, `lifecycle.task_cancellation_timeout_seconds=1`, `verify_ssl=False`). Both `test_ws_connection_state.py` and `test_websocket_readiness_events.py` share this identical config set. Domain-specific presets like this are permitted as thin wrappers when a coherent set of 5+ overrides is shared across 2+ files.
 
 ## Convention Examples
 
@@ -336,13 +336,13 @@ No new tests are needed for the factory itself — the existing tests ARE the te
 
 ## Impact
 
-**Files modified:** ~34 test files (factory removal + import change), 3 conftest files (fixture consolidation), 1 new file (`mock_hassette.py`), 1 updated export (`test_utils/__init__.py`), 1 doc file (`TESTING.md`)
+**Files modified:** ~30 test files (factory removal + import change), 3 conftest files (fixture consolidation), 1 new file (`mock_hassette.py`), 1 updated export (`test_utils/__init__.py`), 1 doc file (`TESTING.md`)
 
 **Blast radius:** Test infrastructure only. No application code changes. No API changes. No frontend changes.
 
 **Risk:** Low. Each file migration is mechanical (replace local factory with shared factory call). The real config validation may surface tests that relied on phantom fields — these are real bugs being exposed, not regressions.
 
-<!-- Gap check 2026-05-19: 2 gaps included — 12 inline mock_hassette fixtures with manual config (unit: test_app_handler_readiness.py, test_app_lifecycle_service.py, test_database_service.py, test_log_records.py, test_runtime_query_service.py; integration: test_database_service.py, test_telemetry_query_service.py, test_session_manager.py, test_framework_telemetry.py, test_telemetry_execution_id.py, test_telemetry_timed_out.py, test_global_jobs_and_service_info.py) → T03/T04; dead fixture test_events_path → T05 -->
+<!-- Gap check 2026-05-19: 2 gaps included — 14 inline mock_hassette fixtures with manual config (unit: test_app_handler_readiness.py, test_app_lifecycle_service.py, test_database_service.py, test_log_records.py, test_runtime_query_service.py, test_web_ui_watcher.py; integration: test_database_service.py, test_telemetry_query_service.py, test_session_manager.py, test_framework_telemetry.py, test_telemetry_execution_id.py, test_telemetry_timed_out.py, test_global_jobs_and_service_info.py, test_web_ui_watcher.py) → T03/T04; dead fixture test_events_path → T05 -->
 
 ## Open Questions
 

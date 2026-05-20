@@ -51,9 +51,20 @@ Implementation:
 
 ### `make_ws_hassette_stub()`
 
-A thin wrapper around `make_mock_hassette()` that bakes in the 13 WebSocket config fields for sub-millisecond retry/timeout testing. Accept `strict_lifecycle: bool = False` as an optional parameter (one of the two WS test files passes this).
+A thin wrapper around `make_mock_hassette()` that bakes in the 20 config overrides needed for sub-millisecond retry/timeout WebSocket testing. Accept `strict_lifecycle: bool = False` as an optional parameter (one of the two WS test files passes this).
 
-Extract the exact 13 field values from `tests/unit/core/test_ws_connection_state.py` lines 19-55 — these are the canonical WebSocket test config values. Pass them as `**config_overrides` to `make_mock_hassette()`.
+Extract the config values from `tests/unit/core/test_ws_connection_state.py` lines 19-55 — these are the canonical WebSocket test config values. The factory sets ~22 total config fields; compare each against `make_mock_hassette()` defaults (which delegates to `make_test_config()` → Pydantic model defaults). Only values that DIFFER from defaults become overrides passed to `make_mock_hassette()`. Expected overrides (20 total):
+
+**13 websocket.* fields** (all set to sub-millisecond/minimal values for fast tests):
+- `websocket.response_timeout_seconds`, `websocket.connection_timeout_seconds`, `websocket.total_timeout_seconds`, `websocket.heartbeat_interval_seconds`, `websocket.authentication_timeout_seconds`, `websocket.early_drop_max_retries`, `websocket.early_drop_stable_window_seconds`, `websocket.early_drop_backoff_initial_seconds`, `websocket.early_drop_backoff_max_seconds`, `websocket.max_recovery_seconds`, `websocket.connect_retry_max_attempts`, `websocket.connect_retry_initial_wait_seconds`, `websocket.connect_retry_max_wait_seconds`
+
+**7 non-websocket fields** that differ from model defaults:
+- `logging={"log_level": "DEBUG", "websocket": "DEBUG", "task_bucket": "DEBUG"}`
+- `default_cache_size=1024` (model default: 104857600)
+- `lifecycle={"resource_shutdown_timeout_seconds": 1, "task_cancellation_timeout_seconds": 1}`
+- `verify_ssl=False` (model default: True)
+
+Fields that MATCH defaults (do NOT pass as overrides): `lifecycle.startup_timeout_seconds=30`, `dev_mode=False`, `strict_lifecycle=False` (parameterized separately).
 
 ### Thread safety for `make_test_config()`
 
@@ -68,14 +79,15 @@ In `src/hassette/test_utils/__init__.py`:
 Import pattern: `from .mock_hassette import make_mock_hassette as make_mock_hassette` (Tier 1) and `from .mock_hassette import make_ws_hassette_stub as make_ws_hassette_stub` (Tier 2).
 
 ## Focus
-- The existing `make_test_config()` is at `src/hassette/test_utils/config.py:54`. Its cell pattern uses a global `_HermeticHassetteConfigPair` at line 18 — the Lock must protect both the lazy init in `_get_hermetic_hassette_config_cls()` (lines 31-33) and the `cell[0] = merged; cls()` sequence (lines 107-108).
+- The existing `make_test_config()` is at `src/hassette/test_utils/config.py:54`. Its cell pattern uses a global `_HermeticHassetteConfigPair` at line 18 — the Lock must protect both the lazy init in `_get_hermetic_hassette_config_cls()` (lines 21-33, including the check-and-create logic) and the `cell[0] = merged; cls()` sequence (lines 107-108).
 - The `__init__.py` has a clear Tier 1 / Tier 2 structure — Tier 1 imports come from submodules (`.config`, `.app_harness`, etc.) and are listed in `__all__`. Tier 2 re-exports come from `._internal` with `X as X` pattern. New imports from `.mock_hassette` follow the Tier 1 submodule pattern.
 - `seal()` is from `unittest.mock` — import it alongside `AsyncMock` and `Mock`.
-- The 13 WS config fields set values like `0.001` for timeouts — they must remain as floats, not rounded.
+- The WS config fields set values like `0.001` for timeouts — they must remain as floats, not rounded.
+- The WS factory has ~22 total config field assignments in lines 19-55, but only ~20 differ from make_mock_hassette() defaults. Fields matching defaults (startup_timeout_seconds=30, dev_mode=False) should NOT be passed as overrides.
 - `set_loop=False` is critical for the `_migrated_db_template` session-scoped fixture which runs outside an event loop via `asyncio.new_event_loop()`.
 
 ## Verify
 - [ ] FR#1: `make_mock_hassette()` returns an `AsyncMock` with `.config` set to a real `HassetteConfig` instance (not MagicMock)
 - [ ] FR#2: Passing `strict_lifecycle=True` to `make_mock_hassette()` produces a config where `config.strict_lifecycle is True`
 - [ ] FR#3: The returned mock has all 13 non-config attributes wired (ready_event, shutdown_event, event_streams_closed, _loop_thread_id, loop, _scheduler_service callbacks, _bus_service methods, session_id, database_service, wait_for_ready, children)
-- [ ] AC#8: `make_ws_hassette_stub()` is importable from `hassette.test_utils` and returns a mock with WebSocket config fields set to sub-millisecond values
+- [ ] AC#8: `make_ws_hassette_stub()` is importable from `hassette.test_utils` and returns a mock with 20 config overrides (13 websocket.* + 7 non-websocket) set for sub-millisecond retry/timeout testing

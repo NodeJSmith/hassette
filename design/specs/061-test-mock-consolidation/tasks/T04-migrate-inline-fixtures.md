@@ -37,6 +37,8 @@ These have `mock_hassette` fixtures with DB config. Exclude files that use `crea
 - **`tests/integration/test_framework_telemetry.py:39`** — `mock_hassette_with_db(premigrated_db_path)` (async fixture)
 - **`tests/integration/test_telemetry_execution_id.py:26`** — `mock_hassette(premigrated_db_path)` with DB config
 - **`tests/integration/test_telemetry_timed_out.py:25`** — `mock_hassette(premigrated_db_path)` with DB config
+- **`tests/integration/test_global_jobs_and_service_info.py:39`** — `mock_hassette_db()` with 10+ DB config fields. Note: the same file's `mock_hassette_scheduler()` at line 317 uses `create_hassette_stub()` and is out of scope — only `mock_hassette_db` is migrated.
+- **`tests/integration/test_web_ui_watcher.py`** — `mock_hassette()` with 1 config field (`web_api.ui_hot_reload=True`) plus `runtime_query_service`. Integration counterpart to the unit test version.
 
 For integration files that take `premigrated_db_path`, use `make_mock_hassette(data_dir=premigrated_db_path.parent)` and let real config provide defaults for the DB fields.
 
@@ -49,9 +51,10 @@ Run `timeout 300 uv run pytest tests/unit/ tests/integration/ -x -n 2` after eac
 - `test_log_records.py` has the fixture at line 734 (deep in the file, not at the top) — named `mock_hassette_for_db`, not `mock_hassette`.
 - `test_framework_telemetry.py` uses an async fixture (`async def mock_hassette_with_db`) — the `make_mock_hassette()` call itself is sync, so the async wrapper may still be needed if it does async setup.
 - Integration DB fixtures that take `premigrated_db_path` currently set many config fields that match defaults (`retention_days=7`, `write_queue_max=2000`, `migration_timeout_seconds=120`, etc.). The factory call with `data_dir=premigrated_db_path.parent` should produce identical config — verify by running the tests.
-- Web test files (`test_api_app_config.py`, `test_api_app_source.py`, `test_web_api.py`, `test_ws_endpoint.py`, `test_telemetry_route.py`, `test_global_jobs_and_service_info.py`, `test_dashboard_api.py`) use `create_hassette_stub()` and are OUT OF SCOPE.
-- `test_web_ui_watcher.py` exists in both `tests/unit/core/` and `tests/integration/` — check both.
+- Web test files (`test_api_app_config.py`, `test_api_app_source.py`, `test_web_api.py`, `test_ws_endpoint.py`, `test_telemetry_route.py`, `test_dashboard_api.py`) use `create_hassette_stub()` and are OUT OF SCOPE.
+- `test_global_jobs_and_service_info.py` has TWO fixtures: `mock_hassette_db()` (manual config — IN SCOPE) and `mock_hassette_scheduler()` (uses `create_hassette_stub()` — OUT OF SCOPE). Only migrate `mock_hassette_db`.
+- `test_web_ui_watcher.py` exists in both `tests/unit/core/` and `tests/integration/` — both are in scope and listed above.
 
 ## Verify
-- [ ] FR#6: `grep -rn 'def mock_hassette\|def mock_hassette_for_db\|def mock_hassette_fresh\|def mock_hassette_with_db' tests/unit/ tests/integration/` returns only fixtures that call `make_mock_hassette()` (no manual `.config.` attribute assignment on MagicMock)
+- [ ] FR#6: `grep -rn 'def mock_hassette\|def mock_hassette_for_db\|def mock_hassette_fresh\|def mock_hassette_with_db\|def mock_hassette_db' tests/unit/ tests/integration/` returns only fixtures that call `make_mock_hassette()` (no manual `.config.` attribute assignment on MagicMock)
 - [ ] AC#1: Combined with T02's grep, the full AC#1 check passes — no named factories AND no inline manual-config fixtures remain
