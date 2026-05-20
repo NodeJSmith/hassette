@@ -34,7 +34,7 @@ export function ConfigPage() {
           rows: [
             { key: "dev_mode", value: formatValue(config.dev_mode) },
             { key: "log_level", value: formatValue(config.logging?.log_level) },
-            { key: "autodetect", value: formatValue(config.app?.autodetect) },
+            { key: "autodetect", value: formatValue(config.apps?.autodetect) },
             { key: "asyncio_debug_mode", value: formatValue(config.asyncio_debug_mode) },
             { key: "allow_reload_in_prod", value: formatValue(config.allow_reload_in_prod) },
           ],
@@ -86,7 +86,7 @@ export function ConfigPage() {
         {
           label: "paths",
           rows: [
-            { key: "app_dir", value: formatValue(config.app?.directory) },
+            { key: "app_dir", value: formatValue(config.apps?.directory) },
             { key: "data_dir", value: formatValue(config.data_dir) },
             { key: "config_dir", value: formatValue(config.config_dir) },
           ],

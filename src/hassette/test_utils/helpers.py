@@ -315,16 +315,19 @@ def write_app_toml(
     """Write a hassette.toml with specified apps."""
     apps = apps or []
 
-    hassette_dict: dict = {
-        "dev_mode": dev_mode,
-        "app": {
-            "directory": app_dir.as_posix(),
-            "autodetect": False,
-        },
+    apps_section: dict = {
+        "directory": app_dir.as_posix(),
+        "autodetect": False,
     }
 
     if apps:
-        hassette_dict["app"]["apps"] = {app.app_key: get_app_manifest_for_toml(app) for app in apps}
+        for app in apps:
+            apps_section[app.app_key] = get_app_manifest_for_toml(app)
+
+    hassette_dict: dict = {
+        "dev_mode": dev_mode,
+        "apps": apps_section,
+    }
 
     toml_dict = {"hassette": hassette_dict}
 

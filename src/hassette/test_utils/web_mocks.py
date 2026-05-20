@@ -89,8 +89,8 @@ def create_hassette_stub(
     hassette.config.lifecycle.app_startup_timeout_seconds = 20
     hassette.config.lifecycle.app_shutdown_timeout_seconds = 10
     # app group
-    hassette.config.app.autodetect = True
-    hassette.config.app.directory = "/srv/hassette/apps"
+    hassette.config.apps.autodetect = True
+    hassette.config.apps.directory = "/srv/hassette/apps"
     # scheduler group
     hassette.config.scheduler.min_delay_seconds = 1
     hassette.config.scheduler.max_delay_seconds = 30

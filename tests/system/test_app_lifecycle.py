@@ -20,8 +20,8 @@ _DOMAIN = "light"
 def _enable_autodetect(config: HassetteConfig, app_dir: Path) -> HassetteConfig:
     """Return a deep copy of config with app autodetection enabled and directory set."""
     config = config.model_copy(deep=True)
-    config.app.autodetect = True
-    config.app.directory = app_dir
+    config.apps.autodetect = True
+    config.apps.directory = app_dir
     return config
 
 

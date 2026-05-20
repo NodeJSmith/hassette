@@ -300,7 +300,7 @@ export function createSystemConfig(overrides: Partial<ConfigResponse> = {}): Con
       app_startup_timeout_seconds: 20,
       app_shutdown_timeout_seconds: 10,
     },
-    app: {
+    apps: {
       autodetect: true,
       directory: "/home/user/apps",
     },

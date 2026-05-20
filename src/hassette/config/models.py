@@ -273,8 +273,23 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
     """Maximum number of job execution records to keep."""
 
 
-class AppConfig(ExcludeExtrasMixin, BaseModel):
-    """App directory, auto-detection, exclusion, manifest, and raw-app-dict settings."""
+class AppsConfig(ExcludeExtrasMixin, BaseModel):
+    """App directory, auto-detection, exclusion, manifest, and raw-app-dict settings.
+
+    In TOML, app definitions live alongside these settings under ``[hassette.apps]``:
+
+    .. code-block:: toml
+
+        [hassette.apps]
+        directory = "apps"
+
+        [hassette.apps.my_app]
+        filename = "my_app.py"
+        class_name = "MyApp"
+
+    The ``model_validator`` separates known config fields from app-definition
+    dicts so both coexist in the same TOML section.
+    """
 
     autodetect: bool = Field(default=True)
     """Whether to automatically detect apps in the app directory."""
@@ -299,6 +314,26 @@ class AppConfig(ExcludeExtrasMixin, BaseModel):
 
     directory: Path = Field(default_factory=lambda: Path.cwd() / "apps")
     """Directory to load user apps from."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def extract_app_definitions(cls, data: Any) -> Any:
+        """Separate app-definition dicts from known config fields."""
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        known = set(cls.model_fields)
+        app_defs: dict[str, Any] = {}
+        for key in list(data):
+            if key not in known and isinstance(data[key], dict):
+                app_defs[key] = data.pop(key)
+        if app_defs:
+            existing = data.get("apps")
+            if isinstance(existing, dict):
+                data["apps"] = {**existing, **app_defs}
+            else:
+                data["apps"] = app_defs
+        return data
 
     @field_validator("apps", mode="before")
     @classmethod

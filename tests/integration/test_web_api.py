@@ -469,7 +469,7 @@ class TestConfigEndpointExpanded:
         assert "web_api" in data
         assert "logging" in data
         assert "lifecycle" in data
-        assert "app" in data
+        assert "apps" in data
         assert "scheduler" in data
         assert "file_watcher" in data
 
@@ -488,14 +488,14 @@ class TestConfigEndpointExpanded:
         assert data["dev_mode"] is True
 
     async def test_dir_fields_present_as_strings(self, client: "AsyncClient", mock_hassette) -> None:
-        """data_dir and config_dir are present at root; app.directory is under app group."""
-        mock_hassette.config.app.directory = "/srv/hassette/apps"
+        """data_dir and config_dir are present at root; apps.directory is under apps group."""
+        mock_hassette.config.apps.directory = "/srv/hassette/apps"
         mock_hassette.config.data_dir = "/srv/hassette/data"
         mock_hassette.config.config_dir = "/srv/hassette/config"
         response = await client.get("/api/config")
         assert response.status_code == 200
         data = response.json()
-        assert data["app"]["directory"] == "/srv/hassette/apps"
+        assert data["apps"]["directory"] == "/srv/hassette/apps"
         assert data["data_dir"] == "/srv/hassette/data"
         assert data["config_dir"] == "/srv/hassette/config"
 

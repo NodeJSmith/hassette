@@ -1,7 +1,7 @@
 from .classes import AppManifest
 from .config import HassetteConfig
 from .models import (
-    AppConfig,
+    AppsConfig,
     DatabaseConfig,
     FileWatcherConfig,
     LifecycleConfig,
@@ -12,8 +12,8 @@ from .models import (
 )
 
 __all__ = [
-    "AppConfig",
     "AppManifest",
+    "AppsConfig",
     "DatabaseConfig",
     "FileWatcherConfig",
     "HassetteConfig",

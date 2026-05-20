@@ -64,7 +64,7 @@ class AppHandler(Resource):
         self.bus = self.add_child(Bus)
         self.registry = AppRegistry()
         self.lifecycle = self.add_child(AppLifecycleService, registry=self.registry)
-        self.lifecycle.set_apps_configs(hassette.config.app.manifests)
+        self.lifecycle.set_apps_configs(hassette.config.apps.manifests)
 
     # --- Public API (thin delegation) ---
 

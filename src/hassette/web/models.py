@@ -402,8 +402,8 @@ class LifecycleConfigResponse(BaseModel):
     app_shutdown_timeout_seconds: int
 
 
-class AppGroupConfigResponse(BaseModel):
-    """Sanitized app configuration fields (config group sub-response)."""
+class AppsConfigResponse(BaseModel):
+    """Sanitized apps configuration fields (config group sub-response)."""
 
     autodetect: bool
     directory: str
@@ -436,7 +436,7 @@ class ConfigResponse(BaseModel):
     web_api: WebApiConfigResponse
     logging: LoggingConfigResponse
     lifecycle: LifecycleConfigResponse
-    app: AppGroupConfigResponse
+    apps: AppsConfigResponse
     scheduler: SchedulerConfigResponse
     file_watcher: FileWatcherConfigResponse
 

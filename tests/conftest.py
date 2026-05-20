@@ -10,7 +10,7 @@ from pydantic import Field
 
 from hassette import HassetteConfig
 from hassette.config.models import (
-    AppConfig,
+    AppsConfig,
     FileWatcherConfig,
     LifecycleConfig,
     LoggingConfig,
@@ -80,8 +80,8 @@ def _test_logging() -> LoggingConfig:
     return LoggingConfig(task_bucket="DEBUG")
 
 
-def _test_app() -> AppConfig:
-    return AppConfig(directory=TEST_APPS_PATH, autodetect=False)
+def _test_apps() -> AppsConfig:
+    return AppsConfig(directory=TEST_APPS_PATH, autodetect=False)
 
 
 def _test_web_api() -> WebApiConfig:
@@ -107,7 +107,7 @@ class TestConfig(HassetteConfig):
     lifecycle: LifecycleConfig = Field(default_factory=_test_lifecycle)
     scheduler: SchedulerConfig = Field(default_factory=_test_scheduler)
     logging: LoggingConfig = Field(default_factory=_test_logging)
-    app: AppConfig = Field(default_factory=_test_app)
+    apps: AppsConfig = Field(default_factory=_test_apps)
     web_api: WebApiConfig = Field(default_factory=_test_web_api)
 
     def model_post_init(self, *args: Any) -> None:
@@ -152,7 +152,7 @@ def test_config_with_temp_path(tmp_path_factory: pytest.TempPathFactory) -> Hass
     app_dir = temp_dir / "apps"
     app_dir.mkdir()
 
-    toml_dict = {"hassette": {"dev_mode": True, "app": {"directory": app_dir.as_posix()}}}
+    toml_dict = {"hassette": {"dev_mode": True, "apps": {"directory": app_dir.as_posix()}}}
 
     toml_path.write_text(tomli_w.dumps(toml_dict), encoding="utf-8")
 

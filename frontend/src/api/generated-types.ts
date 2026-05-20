@@ -552,16 +552,6 @@ export interface components {
             } | null;
         };
         /**
-         * AppGroupConfigResponse
-         * @description Sanitized app configuration fields (config group sub-response).
-         */
-        AppGroupConfigResponse: {
-            /** Autodetect */
-            autodetect: boolean;
-            /** Directory */
-            directory: string;
-        };
-        /**
          * AppHealthResponse
          * @description Health metrics for a single app instance.
          */
@@ -682,6 +672,16 @@ export interface components {
             only_app?: string | null;
         };
         /**
+         * AppsConfigResponse
+         * @description Sanitized apps configuration fields (config group sub-response).
+         */
+        AppsConfigResponse: {
+            /** Autodetect */
+            autodetect: boolean;
+            /** Directory */
+            directory: string;
+        };
+        /**
          * BootIssueResponse
          * @description A boot-time issue entry in the system status response.
          */
@@ -716,7 +716,7 @@ export interface components {
             web_api: components["schemas"]["WebApiConfigResponse"];
             logging: components["schemas"]["LoggingConfigResponse"];
             lifecycle: components["schemas"]["LifecycleConfigResponse"];
-            app: components["schemas"]["AppGroupConfigResponse"];
+            apps: components["schemas"]["AppsConfigResponse"];
             scheduler: components["schemas"]["SchedulerConfigResponse"];
             file_watcher: components["schemas"]["FileWatcherConfigResponse"];
         };
