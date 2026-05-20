@@ -118,7 +118,10 @@ function StatusGroupHeader({ def, count, isOpen, onToggle }: StatusGroupHeaderPr
   return (
     <button
       type="button"
-      class={clsx(styles.groupHeader, { [styles.groupHeaderErr]: def.tone === "err", [styles.groupHeaderWarn]: def.tone === "warn" })}
+      class={clsx(styles.groupHeader, {
+        [styles.groupHeaderErr]: def.tone === "err",
+        [styles.groupHeaderWarn]: def.tone === "warn",
+      })}
       data-testid="group-header"
       aria-expanded={isOpen}
       onClick={onToggle}

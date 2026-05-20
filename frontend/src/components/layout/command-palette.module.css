@@ -183,7 +183,7 @@
   opacity: 0;
 }
 
-/* — Responsive: 768px ————————————————————————————————— */
+/* — Responsive (sync: BREAKPOINT_MOBILE) ——————————————— */
 @media (max-width: 768px) {
   .footer {
     display: none;

@@ -14,20 +14,12 @@ import {
   buildAppItems,
   buildHandlerItems,
   matchesQuery,
+  KIND_ORDER,
+  KIND_LABEL,
   type PaletteItem,
   type PaletteItemKind,
 } from "./palette-items";
 import styles from "./command-palette.module.css";
-
-const KIND_ORDER: PaletteItemKind[] = ["page", "app", "instance", "handler", "action"];
-
-const KIND_LABEL: Record<PaletteItemKind, string> = {
-  page: "pages",
-  app: "apps",
-  instance: "instances",
-  handler: "handlers",
-  action: "actions",
-};
 
 interface CommandPaletteProps {
   open: boolean;
@@ -70,6 +62,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   }, [open, onClose]);
 
   if (!open) return null;
+
   const pageItems = buildStaticPageItems(navigate);
   const actionItems = buildActionItems(allManifests, onClose);
   const appItems = buildAppItems(allManifests, navigate, onClose);

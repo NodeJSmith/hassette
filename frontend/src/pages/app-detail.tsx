@@ -27,8 +27,12 @@ interface Props {
 }
 
 function Tab({ id, label, badge, appKey, instanceQs, activeTab }: {
-  id: TabId; label: string; badge?: number;
-  appKey: string; instanceQs: string; activeTab: TabId;
+  id: TabId;
+  label: string;
+  badge?: number;
+  appKey: string;
+  instanceQs: string;
+  activeTab: TabId;
 }) {
   const isActive = activeTab === id;
   const href = `/apps/${appKey}/${id}${instanceQs}`;
@@ -41,7 +45,8 @@ function Tab({ id, label, badge, appKey, instanceQs, activeTab }: {
       aria-controls={`tabpanel-${id}`}
       class={clsx(styles.tabBtn, isActive && styles.tabBtnActive)}
     >
-      {label}{badge !== undefined && <span class={styles.tabBtnBadge}>{badge}</span>}
+      {label}
+      {badge !== undefined && <span class={styles.tabBtnBadge}>{badge}</span>}
     </Link>
   );
 }
@@ -188,20 +193,20 @@ export function AppDetailPage({ params }: Props) {
       )}
       {activeTab === "handlers" && (
         <div role="tabpanel" id="tabpanel-handlers" aria-labelledby="tab-handlers">
-        <HandlersTab
-          listeners={displayListeners}
-          jobs={displayJobs}
-          selectedHandler={params.handler ?? null}
-          appKey={appKey}
-          instanceQs={instanceQs}
-          onSwitchToCode={(line) => {
-            const qs = new URLSearchParams();
-            if (line !== undefined) qs.set("line", String(line));
-            if (instanceParam) qs.set("instance", instanceParam);
-            const query = qs.toString();
-            navigate(`/apps/${appKey}/code${query ? `?${query}` : ""}`);
-          }}
-        />
+          <HandlersTab
+            listeners={displayListeners}
+            jobs={displayJobs}
+            selectedHandler={params.handler ?? null}
+            appKey={appKey}
+            instanceQs={instanceQs}
+            onSwitchToCode={(line) => {
+              const qs = new URLSearchParams();
+              if (line !== undefined) qs.set("line", String(line));
+              if (instanceParam) qs.set("instance", instanceParam);
+              const query = qs.toString();
+              navigate(`/apps/${appKey}/code${query ? `?${query}` : ""}`);
+            }}
+          />
         </div>
       )}
       {activeTab === "code" && (

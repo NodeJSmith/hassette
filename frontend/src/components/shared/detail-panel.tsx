@@ -27,7 +27,7 @@ export function DetailPanel({
   context,
   testId,
 }: Props) {
-  const hasTraceback = status === "error" && errorTraceback;
+  const hasTraceback = status === "error" && !!errorTraceback;
 
   return (
     <div class={styles.panel} data-testid={testId}>

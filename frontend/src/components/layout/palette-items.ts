@@ -6,6 +6,16 @@ const DOCS_URL = "https://hassette.readthedocs.io";
 
 export type PaletteItemKind = "page" | "app" | "instance" | "handler" | "action";
 
+export const KIND_ORDER: PaletteItemKind[] = ["page", "app", "instance", "handler", "action"];
+
+export const KIND_LABEL: Record<PaletteItemKind, string> = {
+  page: "pages",
+  app: "apps",
+  instance: "instances",
+  handler: "handlers",
+  action: "actions",
+};
+
 export interface PaletteItem {
   id: string;
   kind: PaletteItemKind;
@@ -85,7 +95,11 @@ export function buildActionItems(
   ];
 }
 
-export function buildAppItems(manifests: AppManifest[], navigate: (path: string) => void, onClose: () => void): PaletteItem[] {
+export function buildAppItems(
+  manifests: AppManifest[],
+  navigate: (path: string) => void,
+  onClose: () => void,
+): PaletteItem[] {
   const items: PaletteItem[] = [];
   const sorted = [...manifests].sort((a, b) => a.app_key.localeCompare(b.app_key));
   for (const m of sorted) {

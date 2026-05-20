@@ -1,6 +1,6 @@
 import clsx from "clsx";
-
 import { useLocation } from "wouter";
+
 import styles from "../../pages/app-detail.module.css";
 
 interface Props {

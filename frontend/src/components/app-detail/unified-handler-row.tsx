@@ -86,6 +86,11 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
   const callLabel = item.kind === "listener" ? "call" : "run";
   const glyph = resolveGlyph(item);
   const label = item.humanDescription ? `${item.name}: ${item.humanDescription}` : item.name;
+  const subline = isFailing && lastErrorMessage
+    ? <span class={styles.sublineErr} title={lastErrorMessage} data-testid="handler-row-subline-err">{lastErrorMessage}</span>
+    : item.humanDescription
+      ? <span class={styles.desc} data-testid="handler-row-desc">{item.humanDescription}</span>
+      : null;
 
   return (
     <button
@@ -110,14 +115,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
             <Badge variant="danger" size="xs">failing</Badge>
           )}
         </div>
-        {/* Subline: error message (when failing) or human description (otherwise) */}
-        {isFailing && lastErrorMessage ? (
-          <span class={styles.sublineErr} title={lastErrorMessage} data-testid="handler-row-subline-err">
-            {lastErrorMessage}
-          </span>
-        ) : item.humanDescription ? (
-          <span class={styles.desc} data-testid="handler-row-desc">{item.humanDescription}</span>
-        ) : null}
+        {subline}
         {/* Next-run line for schedule jobs */}
         {nextRunLabel !== null && (
           <span class={styles.nextRun} title={nextRunTitle ?? undefined} data-testid="handler-row-next-run">{nextRunLabel}</span>

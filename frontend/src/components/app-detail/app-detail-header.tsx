@@ -55,7 +55,9 @@ export function AppDetailHeader({
         {manifest?.class_name && manifest.class_name !== appKey && (
           <> &middot; {manifest.class_name}</>
         )}
-        {manifest && manifest.instance_count > 1 && !showParentOverview && <> &middot; instance {resolvedInstanceIndex}</>}
+        {manifest && manifest.instance_count > 1 && !showParentOverview && (
+          <> &middot; instance {resolvedInstanceIndex}</>
+        )}
         {manifest?.auto_loaded && (
           <> &middot; <Chip variant="muted" data-testid="auto-loaded-badge">auto</Chip></>
         )}
