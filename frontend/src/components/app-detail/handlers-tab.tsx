@@ -7,15 +7,12 @@ import { HandlerList, type SelectedHandlerId } from "./handler-list";
 import { HandlersHealthStrip } from "./health-strip";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
+import { parseHandlerId, formatListenerId, formatJobId } from "../../utils/handler-ids";
 import { EmptyState } from "../shared/empty-state";
 import { Button } from "../shared/button";
 import { ListenerDetail } from "./listener-detail";
 import { JobDetail } from "./job-detail";
 import styles from "./handlers-tab.module.css";
-
-const LISTENER_URL_PREFIX = "h";
-const JOB_URL_PREFIX = "j";
-const HANDLER_PARAM_RE = /^([hj])-(\d+)$/;
 
 interface Props {
   listeners: ListenerData[];
@@ -24,15 +21,6 @@ interface Props {
   appKey: string;
   instanceQs: string;
   onSwitchToCode?: (line?: number) => void;
-}
-
-function parseHandlerParam(param: string): { kind: "listener" | "job"; id: number } | null {
-  const match = HANDLER_PARAM_RE.exec(param);
-  if (!match) return null;
-  const id = parseInt(match[2], 10);
-  if (match[1] === LISTENER_URL_PREFIX) return { kind: "listener", id };
-  if (match[1] === JOB_URL_PREFIX) return { kind: "job", id };
-  return null;
 }
 
 export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instanceQs, onSwitchToCode }: Props) {
@@ -57,7 +45,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
 
   const hasItems = listeners.length > 0 || jobs.length > 0;
 
-  const parsed = selectedHandler ? parseHandlerParam(selectedHandler) : null;
+  const parsed = selectedHandler ? parseHandlerId(selectedHandler) : null;
 
   const selectedListener = parsed?.kind === "listener"
     ? listeners.find((l) => l.listener_id === parsed.id) ?? null
@@ -78,8 +66,8 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
   }, [selectedHandler, parsed, hasItems, listeners, jobs, appKey, instanceQs, correctUrl]);
 
   const handleSelect = (id: SelectedHandlerId) => {
-    const kindPrefix = id.kind === "listener" ? LISTENER_URL_PREFIX : JOB_URL_PREFIX;
-    navigate(`/apps/${appKey}/handlers/${kindPrefix}-${id.id}${instanceQs}`);
+    const encoded = id.kind === "listener" ? formatListenerId(id.id) : formatJobId(id.id);
+    navigate(`/apps/${appKey}/handlers/${encoded}${instanceQs}`);
   };
 
   if (!hasItems) {

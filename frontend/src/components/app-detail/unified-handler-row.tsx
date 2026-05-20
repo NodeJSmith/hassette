@@ -21,15 +21,30 @@ interface Props {
   onSelect: () => void;
 }
 
-const KIND_GLYPHS: Record<string, string> = {
+const LISTENER_KIND_GLYPHS: Record<string, string> = {
   "state change": "◇",
   "service call": "▷",
-  "cron": "↻", "interval": "↻", "every": "↻", "daily": "↻",
-  "once": "↻", "after": "↻", "schedule": "↻",
 };
 
-function kindGlyph(label: string): string {
-  return KIND_GLYPHS[label] ?? "◆";
+const TRIGGER_TYPE_GLYPHS: Record<string, string> = {
+  cron: "↻",
+  interval: "↻",
+  every: "↻",
+  daily: "↻",
+  once: "↻",
+  after: "↻",
+};
+
+const DEFAULT_GLYPH = "◆";
+const SCHEDULE_GLYPH = "↻";
+
+function resolveGlyph(item: UnifiedItem): string {
+  if (item.kind === "listener") {
+    return LISTENER_KIND_GLYPHS[item.data.listener_kind] ?? DEFAULT_GLYPH;
+  }
+  const triggerType = item.data.trigger_type?.toLowerCase();
+  if (!triggerType) return SCHEDULE_GLYPH;
+  return TRIGGER_TYPE_GLYPHS[triggerType] ?? DEFAULT_GLYPH;
 }
 
 /**
@@ -80,7 +95,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
   }
 
   const callLabel = item.kind === "listener" ? "call" : "run";
-  const glyph = kindGlyph(chipLabel);
+  const glyph = resolveGlyph(item);
 
   return (
     <button

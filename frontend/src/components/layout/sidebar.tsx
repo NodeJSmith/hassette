@@ -6,86 +6,14 @@ import { statusToKind } from "../../utils/status";
 import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
 import { Chip } from "../shared/chip";
+import { GROUP_DEFS, getGroupKey, worstStatus, type GroupDef, type GroupKey } from "./sidebar-groups";
+import { useGroupOpen } from "./use-group-open";
 import type { components } from "../../api/generated-types";
 import styles from "./sidebar.module.css";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Status group definitions
-// ──────────────────────────────────────────────────────────────────────────────
-
-type GroupKey = "err" | "blocked" | "warn" | "ok" | "stopped" | "disabled";
-
-interface GroupDef {
-  key: GroupKey;
-  label: string;
-  tone: "err" | "warn" | "ok" | "mute";
-  defaultOpen: boolean;
-}
-
-const GROUP_DEFS: GroupDef[] = [
-  { key: "err",      label: "FAILING",  tone: "err",  defaultOpen: true  },
-  { key: "blocked",  label: "BLOCKED",  tone: "err",  defaultOpen: true  },
-  { key: "warn",     label: "SLOW",     tone: "warn", defaultOpen: true  },
-  { key: "ok",       label: "RUNNING",  tone: "ok",   defaultOpen: false },
-  { key: "stopped",  label: "STOPPED",  tone: "mute", defaultOpen: true  },
-  { key: "disabled", label: "DISABLED", tone: "mute", defaultOpen: false },
-];
-
-const DEFAULT_GROUP_OPEN: Record<GroupKey, boolean> = Object.fromEntries(
-  GROUP_DEFS.map((g) => [g.key, g.defaultOpen]),
-) as Record<GroupKey, boolean>;
-
-/** Statuses with warn tone (not ok, not err, but needs attention) */
-const WARN_STATUSES = new Set(["exhausted_cooling", "stopping", "shutting_down"]);
-
-/** STATUS_ORDER for worst-of-children resolution (lower = worse) */
-const STATUS_ORDER: Record<string, number> = {
-  failed: 0,
-  crashed: 0,
-  exhausted_dead: 0,
-  blocked: 1,
-  exhausted_cooling: 2,
-  starting: 3,
-  running: 4,
-  stopping: 5,
-  shutting_down: 5,
-  stopped: 6,
-  disabled: 7,
-  not_started: 8,
-};
-
-function statusSortKey(status: string): number {
-  return STATUS_ORDER[status] ?? 99;
-}
-
-/** Return the worst-of-children status for a multi-instance app. */
-function worstStatus(manifest: AppManifest): string {
-  const instances = manifest.instances ?? [];
-  if (instances.length === 0) return manifest.status;
-  return instances.reduce((worst, inst) => {
-    return statusSortKey(inst.status) < statusSortKey(worst) ? inst.status : worst;
-  }, manifest.status);
-}
-
-function isMultiInstance(m: AppManifest): boolean {
-  return m.instance_count > 1;
-}
-
-/** Map an app manifest to its group key. Uses worst-of-children for multi-instance. */
-function getGroupKey(manifest: AppManifest): GroupKey {
-  const status = isMultiInstance(manifest) ? worstStatus(manifest) : manifest.status;
-
-  if (status === "blocked") return "blocked";
-  if (status === "disabled") return "disabled";
-  if (status === "failed" || status === "crashed" || status === "exhausted_dead") return "err";
-  if (WARN_STATUSES.has(status)) return "warn";
-  if (status === "stopped" || status === "not_started") return "stopped";
-  return "ok";
-}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Nav items
@@ -244,8 +172,6 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   const { systemVersion, manifests, manifestsLoading } = useAppState();
   const [search, setSearch] = useState("");
 
-  const [groupOpen, setGroupOpen] = useState<Record<GroupKey, boolean>>(DEFAULT_GROUP_OPEN);
-
   const version = systemVersion.value;
 
   const allManifests = manifests.value;
@@ -278,14 +204,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
     (groups.get("warn")?.length ?? 0) === 0 &&
     (groups.get("stopped")?.length ?? 0) === 0;
 
-  function isGroupOpen(key: GroupKey): boolean {
-    if (key === "ok" && allHealthy) return true; // force open when all healthy
-    return groupOpen[key];
-  }
-
-  function toggleGroup(key: GroupKey) {
-    setGroupOpen((prev) => ({ ...prev, [key]: !prev[key] }));
-  }
+  const { isOpen: isGroupOpen, toggle: toggleGroup } = useGroupOpen(allHealthy);
 
   const totalCount = allManifests.length;
   const filteredCount = filtered.length;

@@ -1,5 +1,6 @@
 import type { AppManifest, DashboardAppGridEntry } from "../api/endpoints";
 import type { SortState } from "../components/shared/sort-header";
+import { statusPriority } from "./status-priority";
 
 export interface AppRow {
   app_key: string;
@@ -69,13 +70,6 @@ export function mergeManifestsAndGrid(
 export type AppSortKey = "name" | "status" | "error" | "runs" | "last";
 export type AppSortState = SortState<AppSortKey>;
 
-const STATUS_SORT_ORDER: Record<string, number> = {
-  failed: 0, crashed: 0, exhausted_dead: 0,
-  blocked: 1, exhausted_cooling: 1, stopping: 1, shutting_down: 1,
-  running: 2, starting: 2,
-  stopped: 3, not_started: 3,
-  disabled: 4,
-};
 
 export function compareAppRows(
   a: AppRow,
@@ -90,7 +84,7 @@ export function compareAppRows(
     case "name":
       return dir * a.app_key.localeCompare(b.app_key);
     case "status": {
-      const statusDiff = (STATUS_SORT_ORDER[aStatus] ?? 5) - (STATUS_SORT_ORDER[bStatus] ?? 5);
+      const statusDiff = statusPriority(aStatus) - statusPriority(bStatus);
       if (statusDiff !== 0) return dir * statusDiff;
       return a.app_key.localeCompare(b.app_key);
     }
