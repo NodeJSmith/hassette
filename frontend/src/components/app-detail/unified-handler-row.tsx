@@ -1,4 +1,5 @@
 import clsx from "clsx";
+
 import { StatusShape } from "../shared/status-shape";
 import type { StatusKind } from "../../utils/status";
 import { handlerKindLabel } from "../../utils/status";
@@ -21,15 +22,19 @@ interface Props {
   onSelect: () => void;
 }
 
-const KIND_GLYPHS: Record<string, string> = {
+const LISTENER_KIND_GLYPHS: Record<string, string> = {
   "state change": "◇",
   "service call": "▷",
-  "cron": "↻", "interval": "↻", "every": "↻", "daily": "↻",
-  "once": "↻", "after": "↻", "schedule": "↻",
 };
 
-function kindGlyph(label: string): string {
-  return KIND_GLYPHS[label] ?? "◆";
+const DEFAULT_GLYPH = "◆";
+const JOB_GLYPH = "↻";
+
+function resolveGlyph(item: UnifiedItem): string {
+  if (item.kind === "listener") {
+    return LISTENER_KIND_GLYPHS[item.data.listener_kind] ?? DEFAULT_GLYPH;
+  }
+  return JOB_GLYPH;
 }
 
 /**
@@ -39,8 +44,7 @@ function kindGlyph(label: string): string {
  * The kind chip visually distinguishes handlers vs jobs.
  */
 export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
-  // Extract job timestamps for hook calls — hooks must be called unconditionally at top level.
-  // For listener items these will be null, and useRelativeTime(null) returns "".
+  // Hooks must be called unconditionally — null yields "".
   const jobData = item.kind === "job" ? item.data : null;
   const nextRunRelative = useRelativeTime(jobData?.next_run ?? null);
   const fireAtRelative = useRelativeTime(jobData?.fire_at ?? null);
@@ -80,7 +84,13 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
   }
 
   const callLabel = item.kind === "listener" ? "call" : "run";
-  const glyph = kindGlyph(chipLabel);
+  const glyph = resolveGlyph(item);
+  const label = item.humanDescription ? `${item.name}: ${item.humanDescription}` : item.name;
+  const subline = isFailing && lastErrorMessage
+    ? <span class={styles.sublineErr} title={lastErrorMessage} data-testid="handler-row-subline-err">{lastErrorMessage}</span>
+    : item.humanDescription
+      ? <span class={styles.desc} data-testid="handler-row-desc">{item.humanDescription}</span>
+      : null;
 
   return (
     <button
@@ -88,7 +98,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
       class={clsx(styles.row, isSelected && styles.rowSelected)}
       data-testid={`unified-row-${item.kind}-${item.id}`}
       aria-pressed={isSelected}
-      aria-label={`${item.name}${item.humanDescription ? ": " + item.humanDescription : ""}`}
+      aria-label={label}
       onClick={onSelect}
     >
       <span class={styles.status} aria-hidden="true">
@@ -105,14 +115,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
             <Badge variant="danger" size="xs">failing</Badge>
           )}
         </div>
-        {/* Subline: error message (when failing) or human description (otherwise) */}
-        {isFailing && lastErrorMessage ? (
-          <span class={styles.sublineErr} title={lastErrorMessage} data-testid="handler-row-subline-err">
-            {lastErrorMessage}
-          </span>
-        ) : item.humanDescription ? (
-          <span class={styles.desc} data-testid="handler-row-desc">{item.humanDescription}</span>
-        ) : null}
+        {subline}
         {/* Next-run line for schedule jobs */}
         {nextRunLabel !== null && (
           <span class={styles.nextRun} title={nextRunTitle ?? undefined} data-testid="handler-row-next-run">{nextRunLabel}</span>

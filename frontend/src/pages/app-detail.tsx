@@ -1,26 +1,23 @@
 import { useEffect, useRef } from "preact/hooks";
 import { Link, useLocation } from "wouter";
 import clsx from "clsx";
+
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useCorrectUrl } from "../hooks/use-correct-url";
 import { useQueryParams } from "../hooks/use-query-params";
 import { getAppJobs, getAppListeners } from "../api/endpoints";
-import { ActionButtons } from "../components/shared/action-buttons";
 import { CodeTab } from "../components/app-detail/code-tab";
 import { ConfigTab } from "../components/app-detail/config-tab";
 import { HandlersTab } from "../components/app-detail/handlers-tab";
 import { OverviewTab } from "../components/app-detail/overview-tab";
-import { ErrorBanner } from "../components/shared/error-banner";
 import { Spinner } from "../components/shared/spinner";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { useAppState } from "../state/context";
-import { statusToKind, statusToVariant } from "../utils/status";
-import { StatusShape } from "../components/shared/status-shape";
-import { Badge } from "../components/shared/badge";
-import { Chip } from "../components/shared/chip";
 import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-filtered-signal-refetch";
 import { InstanceSwitcher, MultiInstanceOverview } from "../components/app-detail/multi-instance";
 import { AppLogsPanel } from "../components/app-detail/app-logs-panel";
+import { AppDetailBreadcrumb } from "../components/app-detail/app-detail-breadcrumb";
+import { AppDetailHeader } from "../components/app-detail/app-detail-header";
 import styles from "./app-detail.module.css";
 
 export type TabId = "overview" | "handlers" | "code" | "logs" | "config";
@@ -30,8 +27,12 @@ interface Props {
 }
 
 function Tab({ id, label, badge, appKey, instanceQs, activeTab }: {
-  id: TabId; label: string; badge?: number;
-  appKey: string; instanceQs: string; activeTab: TabId;
+  id: TabId;
+  label: string;
+  badge?: number;
+  appKey: string;
+  instanceQs: string;
+  activeTab: TabId;
 }) {
   const isActive = activeTab === id;
   const href = `/apps/${appKey}/${id}${instanceQs}`;
@@ -44,7 +45,8 @@ function Tab({ id, label, badge, appKey, instanceQs, activeTab }: {
       aria-controls={`tabpanel-${id}`}
       class={clsx(styles.tabBtn, isActive && styles.tabBtnActive)}
     >
-      {label}{badge !== undefined && <span class={styles.tabBtnBadge}>{badge}</span>}
+      {label}
+      {badge !== undefined && <span class={styles.tabBtnBadge}>{badge}</span>}
     </Link>
   );
 }
@@ -133,39 +135,13 @@ export function AppDetailPage({ params }: Props) {
 
   return (
     <div class="ht-page">
-      {/* Breadcrumb */}
-      <nav class={clsx(styles.breadcrumb, "ht-mb-3")} aria-label="Breadcrumb">
-        {isMultiInstance && !showParentOverview ? (
-          <>
-            <a href="/apps">apps</a>
-            <span class={styles.breadcrumbSeparator} aria-hidden="true">/</span>
-            <a
-              href={`/apps/${appKey}`}
-              data-testid="breadcrumb-parent"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate(`/apps/${appKey}`);
-              }}
-            >
-              {appKey}
-            </a>
-            <span class={styles.breadcrumbSeparator} aria-hidden="true">/</span>
-            <span class={styles.breadcrumbCurrent} aria-current="page">
-              {currentInstance?.instance_name ?? `Instance ${resolvedInstanceIndex}`}
-            </span>
-          </>
-        ) : (
-          <>
-            <a href="/apps">apps</a>
-            <span class={styles.breadcrumbSeparator} aria-hidden="true">/</span>
-            <span class={styles.breadcrumbCurrent} aria-current="page">
-              {appKey}
-            </span>
-          </>
-        )}
-      </nav>
+      <AppDetailBreadcrumb
+        appKey={appKey}
+        isMultiInstance={isMultiInstance}
+        showParentOverview={showParentOverview}
+        instanceName={currentInstance?.instance_name ?? `Instance ${resolvedInstanceIndex}`}
+      />
 
-      {/* Instance switcher (multi-instance detail view only) */}
       {isMultiInstance && !showParentOverview && manifest?.instances && manifest.instances.length > 0 && (
         <div class="ht-mb-3">
           <InstanceSwitcher
@@ -176,55 +152,15 @@ export function AppDetailPage({ params }: Props) {
         </div>
       )}
 
-      {/* App header */}
-      <div class="ht-level ht-mb-2">
-        <div class="ht-level-start">
-          <div class="ht-level-item">
-            <h1 class={styles.heading4} data-testid="app-title">
-              <StatusShape kind={statusToKind(liveStatus)} size={14} />
-              <span class="ht-ml-2">{appKey}</span>
-            </h1>
-          </div>
-        </div>
-        <div class="ht-level-end">
-          {liveStatus !== "running" && liveStatus !== "starting" && (
-            <Badge variant={statusToVariant(liveStatus)} size="sm" data-testid="app-status-pill">
-              <StatusShape kind={statusToKind(liveStatus)} size={8} /> {liveStatus}
-            </Badge>
-          )}
-          <ActionButtons appKey={appKey} status={liveStatus} variant="text" confirmStop />
-        </div>
-      </div>
+      <AppDetailHeader
+        appKey={appKey}
+        liveStatus={liveStatus}
+        manifest={manifest}
+        currentInstance={currentInstance}
+        resolvedInstanceIndex={resolvedInstanceIndex}
+        showParentOverview={showParentOverview}
+      />
 
-      {/* Subtitle meta line */}
-      <p class="ht-text-mono ht-text-sm ht-text-muted ht-mb-3" data-testid="app-subtitle-meta">
-        {manifest?.filename ?? appKey}
-        {manifest?.class_name && manifest.class_name !== appKey && (
-          <> &middot; {manifest.class_name}</>
-        )}
-        {manifest && manifest.instance_count > 1 && !showParentOverview && <> &middot; instance {resolvedInstanceIndex}</>}
-        {manifest?.auto_loaded && (
-          <> &middot; <Chip variant="muted" data-testid="auto-loaded-badge">auto</Chip></>
-        )}
-      </p>
-
-      {/* Error banner for failed/crashed apps */}
-      {(currentInstance?.error_message ?? manifest?.error_message) && (
-        <ErrorBanner
-          errorMessage={(currentInstance?.error_message ?? manifest?.error_message)!}
-          traceback={manifest?.error_traceback ?? null}
-          data-testid="error-display"
-        />
-      )}
-
-      {/* Block reason banner for blocked apps */}
-      {manifest?.block_reason && (
-        <div class="ht-alert ht-alert--warning ht-mb-4" role="alert" data-testid="block-reason-banner">
-          <strong>Blocked:</strong> {manifest.block_reason}
-        </div>
-      )}
-
-      {/* Tab strip */}
       <div class={clsx(styles.tabStrip, "ht-mb-4")} role="tablist" aria-label="App sections">
         <Tab id="overview" label="overview" {...tabProps} />
         {!showParentOverview && <Tab id="handlers" label="handlers" badge={handlerCount} {...tabProps} />}
@@ -233,7 +169,6 @@ export function AppDetailPage({ params }: Props) {
         <Tab id="config" label="config" {...tabProps} />
       </div>
 
-      {/* Tab content */}
       {activeTab === "overview" && (
         <div role="tabpanel" id="tabpanel-overview" aria-labelledby="tab-overview">
           {showParentOverview && manifest ? (
@@ -258,28 +193,25 @@ export function AppDetailPage({ params }: Props) {
       )}
       {activeTab === "handlers" && (
         <div role="tabpanel" id="tabpanel-handlers" aria-labelledby="tab-handlers">
-        <HandlersTab
-          listeners={displayListeners}
-          jobs={displayJobs}
-          selectedHandler={params.handler ?? null}
-          appKey={appKey}
-          instanceQs={instanceQs}
-          onSwitchToCode={(line) => {
-            const qs = new URLSearchParams();
-            if (line !== undefined) qs.set("line", String(line));
-            if (instanceParam) qs.set("instance", instanceParam);
-            const query = qs.toString();
-            navigate(`/apps/${appKey}/code${query ? `?${query}` : ""}`);
-          }}
-        />
+          <HandlersTab
+            listeners={displayListeners}
+            jobs={displayJobs}
+            selectedHandler={params.handler ?? null}
+            appKey={appKey}
+            instanceQs={instanceQs}
+            onSwitchToCode={(line) => {
+              const qs = new URLSearchParams();
+              if (line !== undefined) qs.set("line", String(line));
+              if (instanceParam) qs.set("instance", instanceParam);
+              const query = qs.toString();
+              navigate(`/apps/${appKey}/code${query ? `?${query}` : ""}`);
+            }}
+          />
         </div>
       )}
       {activeTab === "code" && (
         <div role="tabpanel" id="tabpanel-code" aria-labelledby="tab-code">
-          <CodeTab
-            appKey={appKey}
-            listeners={displayListeners}
-          />
+          <CodeTab appKey={appKey} listeners={displayListeners} />
         </div>
       )}
       {activeTab === "logs" && (

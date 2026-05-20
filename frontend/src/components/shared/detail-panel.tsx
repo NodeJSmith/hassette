@@ -1,13 +1,7 @@
 import { ExecutionLogs } from "./execution-logs";
-import { formatDuration } from "../../utils/format";
+import { ErrorDisplay } from "./error-display";
+import { TracebackViewer } from "./traceback-viewer";
 import styles from "./detail-panel.module.css";
-
-function splitTraceback(tb: string): { frames: string; errorLine: string } | null {
-  const trimmed = tb.trimEnd();
-  const lastNewline = trimmed.lastIndexOf("\n");
-  if (lastNewline <= 0) return null;
-  return { frames: trimmed.slice(0, lastNewline), errorLine: trimmed.slice(lastNewline + 1) };
-}
 
 interface Props {
   status: string;
@@ -33,9 +27,7 @@ export function DetailPanel({
   context,
   testId,
 }: Props) {
-  const isError = status === "error";
-  const isTimeout = status === "timed_out";
-  const hasTraceback = isError && errorTraceback;
+  const hasTraceback = status === "error" && !!errorTraceback;
 
   return (
     <div class={styles.panel} data-testid={testId}>
@@ -53,48 +45,20 @@ export function DetailPanel({
           <span class="ht-text-mono ht-text-xs">{executionId ?? "—"}</span>
         </div>
         {!hasTraceback && (
-          <div class={styles.metaItem}>
-            <span class={styles.label}>
-              {isTimeout ? "timeout" : "result"}
-            </span>
-            {isTimeout ? (
-              <span class="ht-text-mono ht-text-xs ht-text-warning">
-                exceeded {formatDuration(durationMs)} budget
-              </span>
-            ) : isError && errorMessage ? (
-              <span class="ht-text-mono ht-text-xs ht-text-danger">
-                {errorType ?? "Error"}: {errorMessage}
-              </span>
-            ) : (
-              <span class="ht-text-mono ht-text-xs">
-                completed in {formatDuration(durationMs)}
-              </span>
-            )}
-          </div>
+          <ErrorDisplay
+            status={status}
+            durationMs={durationMs}
+            errorType={errorType}
+            errorMessage={errorMessage}
+          />
         )}
       </div>
 
       {hasTraceback && (
-        <div class={styles.tracebackSection}>
-          <span class={styles.label}>traceback</span>
-          {(() => {
-            const split = splitTraceback(errorTraceback);
-            return split ? (
-              <>
-                <div class={styles.errorLine}>
-                  <pre class="ht-text-mono">{split.errorLine}</pre>
-                </div>
-                <pre class={styles.tracebackFrames} data-testid={`${testId.replace("-detail", "")}-traceback`}>
-                  {errorTraceback}
-                </pre>
-              </>
-            ) : (
-              <pre class="ht-text-mono ht-text-danger" data-testid={`${testId.replace("-detail", "")}-traceback`}>
-                {errorTraceback}
-              </pre>
-            );
-          })()}
-        </div>
+        <TracebackViewer
+          traceback={errorTraceback}
+          testIdPrefix={testId.replace("-detail", "")}
+        />
       )}
 
       <div class={styles.logsWrapper}>

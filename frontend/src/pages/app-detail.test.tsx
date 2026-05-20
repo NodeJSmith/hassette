@@ -16,8 +16,8 @@ const mockNavigate = vi.fn();
 vi.mock("wouter", () => ({
   useLocation: () => ["/apps/test_app", mockNavigate],
   useSearch: () => mockSearchString,
-  Link: ({ href, children, role, "aria-selected": ariaSelected, "aria-controls": ariaControls, id, class: cls, onKeyDown }: Record<string, unknown>) =>
-    <a href={href as string} role={role as import("preact").JSX.AriaRole} aria-selected={ariaSelected as boolean} aria-controls={ariaControls as string} id={id as string} class={cls as string} onKeyDown={onKeyDown as never}>{children as never}</a>,
+  Link: ({ href, children, role, "aria-selected": ariaSelected, "aria-controls": ariaControls, id, class: cls, "data-testid": testId, onKeyDown }: Record<string, unknown>) =>
+    <a href={href as string} role={role as import("preact").JSX.AriaRole} aria-selected={ariaSelected as boolean} aria-controls={ariaControls as string} id={id as string} class={cls as string} data-testid={testId as string} onKeyDown={onKeyDown as never}>{children as never}</a>,
 }));
 
 // Stub child components not under test

@@ -175,7 +175,15 @@
   margin-right: var(--sp-1);
 }
 
-/* — Responsive: 768px ————————————————————————————————— */
+.focusTrap {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+/* — Responsive (sync: BREAKPOINT_MOBILE) ——————————————— */
 @media (max-width: 768px) {
   .footer {
     display: none;

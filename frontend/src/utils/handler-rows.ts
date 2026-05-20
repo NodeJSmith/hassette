@@ -1,6 +1,7 @@
 import type { ListenerData, JobData } from "../api/endpoints";
 import type { SortState } from "../components/shared/sort-header";
-import { lastDotSegment } from "../utils/format";
+import { lastDotSegment } from "./format";
+import { formatListenerId, formatJobId } from "./handler-ids";
 
 export interface UnifiedRow {
   kind: "listener" | "job";
@@ -20,7 +21,7 @@ export interface UnifiedRow {
 export function listenerToRow(l: ListenerData): UnifiedRow {
   return {
     kind: "listener",
-    id: `h-${l.listener_id}`,
+    id: formatListenerId(l.listener_id),
     app_key: l.app_key,
     name: lastDotSegment(l.handler_method),
     handler_method: l.handler_method,
@@ -37,7 +38,7 @@ export function listenerToRow(l: ListenerData): UnifiedRow {
 export function jobToRow(j: JobData): UnifiedRow {
   return {
     kind: "job",
-    id: `j-${j.job_id}`,
+    id: formatJobId(j.job_id),
     app_key: j.app_key,
     name: j.job_name,
     handler_method: j.handler_method,
@@ -52,6 +53,8 @@ export function jobToRow(j: JobData): UnifiedRow {
 }
 
 export type HandlerSortKey = "kind" | "app" | "name" | "trigger" | "runs" | "failed" | "timed_out" | "error_rate" | "avg_duration" | "next_run";
+
+const NO_NEXT_RUN = Number.MAX_SAFE_INTEGER;
 
 export function compareHandlerRows(a: UnifiedRow, b: UnifiedRow, sort: SortState<HandlerSortKey>): number {
   const dir = sort.dir === "asc" ? 1 : -1;
@@ -78,7 +81,7 @@ export function compareHandlerRows(a: UnifiedRow, b: UnifiedRow, sort: SortState
     case "avg_duration":
       return dir * (a.avg_duration_ms - b.avg_duration_ms);
     case "next_run": {
-      const ts = (r: UnifiedRow) => r.next_run_ts ?? Infinity;
+      const ts = (r: UnifiedRow) => r.next_run_ts ?? NO_NEXT_RUN;
       return dir * (ts(a) - ts(b));
     }
     default:

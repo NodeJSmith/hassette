@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { HandlerTableRow, HandlerMobileRow } from "./handlers-rows";
-import type { UnifiedRow } from "./handlers-types";
+import type { UnifiedRow } from "../utils/handler-rows";
 import { formatRate } from "../utils/format";
 import { renderWithAppState } from "../test/render-helpers";
 
