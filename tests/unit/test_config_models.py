@@ -396,6 +396,12 @@ class TestAppsConfig:
         AppsConfig(**original)
         assert original == snapshot
 
+    @pytest.mark.parametrize("reserved_name", ["directory", "autodetect", "extend_exclude_dirs", "exclude_dirs"])
+    def test_reserved_app_name_raises(self, reserved_name: str):
+        """App names that collide with config fields produce a clear error."""
+        with pytest.raises(ValidationError, match="conflicts with a reserved config field"):
+            AppsConfig(**{reserved_name: {"filename": "f.py", "class_name": "C"}})
+
 
 # ---------------------------------------------------------------------------
 # SchedulerConfig

@@ -806,7 +806,7 @@ def wire_config(hassette) -> None:
             app_startup_timeout_seconds=20,
             app_shutdown_timeout_seconds=10,
         ),
-        app=SimpleNamespace(
+        apps=SimpleNamespace(
             autodetect=True,
             directory=Path("/srv/hassette/apps"),
         ),

@@ -301,6 +301,14 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                 setattr(group_obj, sub_field, sub_value)
 
         if self.model_extra:
+            if "app" in self.model_extra:
+                LOGGER.warning(
+                    "Detected legacy [hassette.app] section — this key is ignored. "
+                    "Rename to [hassette.apps] and move app definitions from "
+                    "[hassette.app.apps.<name>] to [hassette.apps.<name>]. "
+                    "Environment variables: HASSETTE__APP__* -> HASSETTE__APPS__*."
+                )
+
             legacy_hits = {k: LEGACY_KEY_MIGRATION[k] for k in self.model_extra if k in LEGACY_KEY_MIGRATION}
             if legacy_hits:
                 lines = [f"  {old} -> [hassette.{new}]" for old, new in legacy_hits.items()]

@@ -323,9 +323,18 @@ class AppsConfig(ExcludeExtrasMixin, BaseModel):
             return data
         data = dict(data)
         known = set(cls.model_fields)
+        reserved = known - {"apps", "manifests"}
         app_defs: dict[str, Any] = {}
         for key in list(data):
-            if key not in known and isinstance(data[key], dict):
+            if key in known:
+                if isinstance(data[key], dict) and key in reserved:
+                    raise ValueError(
+                        f"App name {key!r} conflicts with a reserved config field. "
+                        f"Reserved names: {sorted(reserved)}. "
+                        f"Rename the app in your configuration."
+                    )
+                continue
+            if isinstance(data[key], dict):
                 app_defs[key] = data.pop(key)
         if app_defs:
             existing = data.get("apps")
