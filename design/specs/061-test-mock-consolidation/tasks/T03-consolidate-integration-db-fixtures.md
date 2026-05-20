@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Consolidate initialized_db and update DB template fixture"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#4", "FR#5", "FR#7", "AC#2", "AC#7"]
 ---

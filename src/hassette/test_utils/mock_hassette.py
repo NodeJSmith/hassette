@@ -66,6 +66,8 @@ def make_mock_hassette(
         - ``._scheduler_service.deregister_removal_callback``: :class:`~unittest.mock.Mock`
         - ``._bus_service.remove_listeners_by_owner``: :class:`~unittest.mock.Mock`
         - ``._bus_service.get_listeners_by_owner``: :class:`~unittest.mock.Mock` returning ``[]``
+        - ``.app_handler.get``: :class:`~unittest.mock.Mock` returning ``None`` (no app running)
+        - ``._runtime_query_service``: ``None`` (wired at runtime by the framework)
         - ``.session_id``: ``None``
         - ``.database_service``: ``None``
         - ``.wait_for_ready``: :class:`~unittest.mock.AsyncMock` returning ``True``
@@ -117,6 +119,12 @@ def make_mock_hassette(
     # Bus service stubs
     hassette._bus_service.remove_listeners_by_owner = Mock()
     hassette._bus_service.get_listeners_by_owner = Mock(return_value=[])
+
+    # App handler stubs — get() is synchronous; return None (no app running by default)
+    hassette.app_handler.get = Mock(return_value=None)
+
+    # Runtime query service — None by default; set_runtime_query_service() wires it at runtime
+    hassette._runtime_query_service = None
 
     # Database / session (wired by initialized_db after DB setup)
     hassette.session_id = None

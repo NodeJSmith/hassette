@@ -2,10 +2,12 @@
 
 import asyncio
 import shutil
+import time
+from collections.abc import AsyncIterator
 from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -13,6 +15,7 @@ from httpx import ASGITransport, AsyncClient
 from hassette import Hassette
 from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
+from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.web_mocks import create_mock_runtime_query_service
 from hassette.web.app import create_fastapi_app
 
@@ -94,23 +97,14 @@ def _migrated_db_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
     running migrations from scratch.
     """
     tmpl_dir = tmp_path_factory.mktemp("db_template")
-    mock = MagicMock()
-    mock.config.data_dir = tmpl_dir
-    mock.config.database.path = None
-    mock.config.database.retention_days = 7
-    mock.config.logging.log_retention_days = 3
-    mock.config.database.telemetry_write_queue_max = 500
-    mock.config.database.write_queue_max = 2000
-    mock.config.logging.database_service = "INFO"
-    mock.config.logging.log_level = "INFO"
-    mock.config.logging.task_bucket = "INFO"
-    mock.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    mock.config.lifecycle.task_cancellation_timeout_seconds = 5
-    mock.config.logging.web_api = "INFO"
-    mock.config.web_api.run = True
-    mock.config.database.migration_timeout_seconds = 120
-    mock.config.database.max_size_mb = 0
-    mock.ready_event = asyncio.Event()
+    mock = make_mock_hassette(
+        data_dir=tmpl_dir,
+        set_loop=False,
+        sealed=False,
+        database={"max_size_mb": 0, "telemetry_write_queue_max": 500},
+        lifecycle={"resource_shutdown_timeout_seconds": 5},
+        web_api={"run": True},
+    )
 
     db_service = DatabaseService(mock, parent=mock)
 
@@ -130,3 +124,40 @@ def premigrated_db_path(_migrated_db_template: Path, tmp_path: Path) -> Path:
     dst = tmp_path / "hassette.db"
     shutil.copy2(_migrated_db_template, dst)
     return dst
+
+
+@pytest.fixture
+def db_hassette(premigrated_db_path: Path) -> AsyncMock:
+    """Provide a mock Hassette with real validated config pointing to a pre-migrated DB."""
+    return make_mock_hassette(
+        data_dir=premigrated_db_path.parent,
+        database={"max_size_mb": 0},
+        lifecycle={"resource_shutdown_timeout_seconds": 5},
+        scheduler={"min_delay_seconds": 0.1, "max_delay_seconds": 60.0, "default_delay_seconds": 1.0},
+        sealed=False,
+    )
+
+
+@pytest.fixture
+async def initialized_db(db_hassette: AsyncMock) -> AsyncIterator[tuple[DatabaseService, int]]:
+    """Initialize a real DatabaseService and create a session row.
+
+    Yields:
+        Tuple of (DatabaseService instance, session_id).
+    """
+    db_service = DatabaseService(db_hassette, parent=db_hassette)
+    await db_service.on_initialize()
+    try:
+        now = time.time()
+        cursor = await db_service.db.execute(
+            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
+            (now, now),
+        )
+        session_id = cursor.lastrowid
+        assert session_id is not None
+        db_hassette.session_id = session_id
+        await db_service.db.commit()
+        db_hassette.database_service = db_service
+        yield db_service, session_id
+    finally:
+        await db_service.on_shutdown()

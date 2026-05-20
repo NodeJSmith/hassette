@@ -1,10 +1,7 @@
 """Integration tests for CommandExecutor error handler invocation paths."""
 
 import asyncio
-import threading
-import time
 from collections.abc import AsyncIterator
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -23,59 +20,12 @@ from hassette.test_utils import wait_for
 
 
 @pytest.fixture
-def mock_hassette(premigrated_db_path: Path) -> MagicMock:
-    """Create a mock Hassette with database config and error handler timeout configured."""
-    hassette = MagicMock()
-    hassette.config.data_dir = premigrated_db_path.parent
-    hassette.config.database.path = None
-    hassette.config.database.retention_days = 7
-    hassette.config.database.migration_timeout_seconds = 120
-    hassette.config.database.max_size_mb = 0
-    hassette.config.logging.database_service = "INFO"
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.config.logging.command_executor = "INFO"
-    hassette.config.database.telemetry_write_queue_max = 1000
-    hassette.config.database.write_queue_max = 2000
-    hassette.config.lifecycle.error_handler_timeout_seconds = 5.0
-    hassette.config.dev_mode = False
-    hassette.ready_event = asyncio.Event()
-    # Set loop thread ID to current thread so TaskBucket.spawn() takes the fast path
-    hassette._loop_thread_id = threading.get_ident()
-    return hassette
-
-
-@pytest.fixture
-async def initialized_db(mock_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
-    """Initialize a real DatabaseService and create a session row."""
-    db_service = DatabaseService(mock_hassette, parent=mock_hassette)
-    await db_service.on_initialize()
-    try:
-        now = time.time()
-        cursor = await db_service.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-            (now, now),
-        )
-        session_id = cursor.lastrowid
-        assert session_id is not None
-        mock_hassette.session_id = session_id
-        await db_service.db.commit()
-        mock_hassette.database_service = db_service
-        yield db_service, session_id
-    finally:
-        await db_service.on_shutdown()
-
-
-@pytest.fixture
 async def executor(
-    mock_hassette: MagicMock, initialized_db: tuple[DatabaseService, int]
+    db_hassette: AsyncMock, initialized_db: tuple[DatabaseService, int]
 ) -> AsyncIterator[CommandExecutor]:
     """Create and prepare a CommandExecutor with real DB and TaskBucket wired in."""
     _db_service, _session_id = initialized_db
-    mock_hassette.wait_for_ready = AsyncMock(return_value=True)
-    exc = CommandExecutor(mock_hassette, parent=mock_hassette)
+    exc = CommandExecutor(db_hassette, parent=db_hassette)
     await exc.on_initialize()
     try:
         yield exc
