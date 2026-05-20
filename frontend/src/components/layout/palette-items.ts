@@ -2,6 +2,8 @@ import { reloadApp, stopApp } from "../../api/endpoints";
 import type { AppManifest, ListenerData } from "../../api/endpoints";
 import { formatListenerId } from "../../utils/handler-ids";
 
+const DOCS_URL = "https://hassette.readthedocs.io";
+
 export type PaletteItemKind = "page" | "app" | "instance" | "handler" | "action";
 
 export interface PaletteItem {
@@ -76,7 +78,7 @@ export function buildActionItems(
       kind: "action",
       label: "Open docs",
       action: () => {
-        window.open("https://hassette.readthedocs.io", "_blank", "noreferrer");
+        window.open(DOCS_URL, "_blank", "noreferrer");
         onClose();
       },
     },

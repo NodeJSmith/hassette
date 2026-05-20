@@ -70,7 +70,6 @@ export function mergeManifestsAndGrid(
 export type AppSortKey = "name" | "status" | "error" | "runs" | "last";
 export type AppSortState = SortState<AppSortKey>;
 
-
 export function compareAppRows(
   a: AppRow,
   b: AppRow,

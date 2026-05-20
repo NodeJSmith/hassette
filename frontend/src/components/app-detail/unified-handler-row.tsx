@@ -1,4 +1,5 @@
 import clsx from "clsx";
+
 import { StatusShape } from "../shared/status-shape";
 import type { StatusKind } from "../../utils/status";
 import { handlerKindLabel } from "../../utils/status";
@@ -26,25 +27,14 @@ const LISTENER_KIND_GLYPHS: Record<string, string> = {
   "service call": "▷",
 };
 
-const TRIGGER_TYPE_GLYPHS: Record<string, string> = {
-  cron: "↻",
-  interval: "↻",
-  every: "↻",
-  daily: "↻",
-  once: "↻",
-  after: "↻",
-};
-
 const DEFAULT_GLYPH = "◆";
-const SCHEDULE_GLYPH = "↻";
+const JOB_GLYPH = "↻";
 
 function resolveGlyph(item: UnifiedItem): string {
   if (item.kind === "listener") {
     return LISTENER_KIND_GLYPHS[item.data.listener_kind] ?? DEFAULT_GLYPH;
   }
-  const triggerType = item.data.trigger_type?.toLowerCase();
-  if (!triggerType) return SCHEDULE_GLYPH;
-  return TRIGGER_TYPE_GLYPHS[triggerType] ?? DEFAULT_GLYPH;
+  return JOB_GLYPH;
 }
 
 /**
@@ -54,8 +44,7 @@ function resolveGlyph(item: UnifiedItem): string {
  * The kind chip visually distinguishes handlers vs jobs.
  */
 export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
-  // Extract job timestamps for hook calls — hooks must be called unconditionally at top level.
-  // For listener items these will be null, and useRelativeTime(null) returns "".
+  // Hooks must be called unconditionally — null yields "".
   const jobData = item.kind === "job" ? item.data : null;
   const nextRunRelative = useRelativeTime(jobData?.next_run ?? null);
   const fireAtRelative = useRelativeTime(jobData?.fire_at ?? null);
@@ -96,6 +85,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
 
   const callLabel = item.kind === "listener" ? "call" : "run";
   const glyph = resolveGlyph(item);
+  const label = item.humanDescription ? `${item.name}: ${item.humanDescription}` : item.name;
 
   return (
     <button
@@ -103,7 +93,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
       class={clsx(styles.row, isSelected && styles.rowSelected)}
       data-testid={`unified-row-${item.kind}-${item.id}`}
       aria-pressed={isSelected}
-      aria-label={`${item.name}${item.humanDescription ? ": " + item.humanDescription : ""}`}
+      aria-label={label}
       onClick={onSelect}
     >
       <span class={styles.status} aria-hidden="true">

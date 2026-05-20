@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import { Link, useLocation, useSearch } from "wouter";
 import clsx from "clsx";
+
 import { useAppState } from "../../state/context";
 import { statusToKind } from "../../utils/status";
 import { Spinner } from "../shared/spinner";
@@ -14,10 +15,7 @@ import styles from "./sidebar.module.css";
 type AppManifest = components["schemas"]["AppManifestResponse"];
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Nav items
-// ──────────────────────────────────────────────────────────────────────────────
+const SHORTCUT_HINT = IS_MAC ? "⌘K" : "Ctrl+K";
 
 const NAV_ITEMS = [
   { path: "/apps", label: "apps", testId: "nav-apps" },
@@ -25,10 +23,6 @@ const NAV_ITEMS = [
   { path: "/logs", label: "logs", testId: "nav-logs" },
   { path: "/config", label: "config", testId: "nav-config" },
 ] as const;
-
-// ──────────────────────────────────────────────────────────────────────────────
-// AppEntry component
-// ──────────────────────────────────────────────────────────────────────────────
 
 interface AppEntryProps {
   manifest: AppManifest;
@@ -90,12 +84,8 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
         <ul class={styles.instanceList} data-testid="instance-list">
           {(manifest.instances ?? []).map((inst) => {
             const instHref = `/apps/${manifest.app_key}?instance=${inst.index}`;
-            // Active when path matches the app and the instance query param matches.
-            // location may include a query string — split before comparing.
-            const locPath = location;
-            const locSearch = searchString;
-            const pathMatches = locPath === appPath || locPath.startsWith(appPath + "/");
-            const instanceParam = new URLSearchParams(locSearch).get("instance");
+            const pathMatches = location === appPath || location.startsWith(appPath + "/");
+            const instanceParam = new URLSearchParams(searchString).get("instance");
             const instActive = pathMatches && instanceParam === String(inst.index);
             return (
               <li key={inst.index} class={styles.instanceItem}>
@@ -117,10 +107,6 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// StatusGroupHeader component
-// ──────────────────────────────────────────────────────────────────────────────
-
 interface StatusGroupHeaderProps {
   def: GroupDef;
   count: number;
@@ -132,7 +118,7 @@ function StatusGroupHeader({ def, count, isOpen, onToggle }: StatusGroupHeaderPr
   return (
     <button
       type="button"
-      class={clsx(styles.groupHeader, def.tone === "err" && styles.groupHeaderErr, def.tone === "warn" && styles.groupHeaderWarn)}
+      class={clsx(styles.groupHeader, { [styles.groupHeaderErr]: def.tone === "err", [styles.groupHeaderWarn]: def.tone === "warn" })}
       data-testid="group-header"
       aria-expanded={isOpen}
       onClick={onToggle}
@@ -157,10 +143,6 @@ function StatusGroupHeader({ def, count, isOpen, onToggle }: StatusGroupHeaderPr
     </button>
   );
 }
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Sidebar component
-// ──────────────────────────────────────────────────────────────────────────────
 
 interface SidebarProps {
   onOpenPalette?: () => void;
@@ -227,12 +209,12 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
       <button
         type="button"
         class={styles.cmdkey}
-        title={`Command palette (${IS_MAC ? "⌘K" : "Ctrl+K"})`}
+        title={`Command palette (${SHORTCUT_HINT})`}
         aria-label="Open command palette"
         onClick={onOpenPalette}
       >
         <span>jump to…</span>
-        <kbd class={styles.cmdkeyHint}>{IS_MAC ? "⌘K" : "Ctrl+K"}</kbd>
+        <kbd class={styles.cmdkeyHint}>{SHORTCUT_HINT}</kbd>
       </button>
 
       {/* Top-level navigation */}

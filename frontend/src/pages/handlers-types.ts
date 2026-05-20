@@ -54,6 +54,8 @@ export function jobToRow(j: JobData): UnifiedRow {
 
 export type HandlerSortKey = "kind" | "app" | "name" | "trigger" | "runs" | "failed" | "timed_out" | "error_rate" | "avg_duration" | "next_run";
 
+const NO_NEXT_RUN = Infinity;
+
 export function compareHandlerRows(a: UnifiedRow, b: UnifiedRow, sort: SortState<HandlerSortKey>): number {
   const dir = sort.dir === "asc" ? 1 : -1;
   switch (sort.key) {
@@ -79,7 +81,7 @@ export function compareHandlerRows(a: UnifiedRow, b: UnifiedRow, sort: SortState
     case "avg_duration":
       return dir * (a.avg_duration_ms - b.avg_duration_ms);
     case "next_run": {
-      const ts = (r: UnifiedRow) => r.next_run_ts ?? Infinity;
+      const ts = (r: UnifiedRow) => r.next_run_ts ?? NO_NEXT_RUN;
       return dir * (ts(a) - ts(b));
     }
     default:

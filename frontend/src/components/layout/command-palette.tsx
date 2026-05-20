@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "preact/hooks";
 import { useLocation } from "wouter";
 import clsx from "clsx";
+
 import { getAllListeners } from "../../api/endpoints";
 import { useApi } from "../../hooks/use-api";
 import { useSignal } from "../../hooks/use-signal";
@@ -126,15 +127,11 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         class={styles.palette}
         data-testid="cmd-palette"
       >
-        {/* Top sentinel — catches Shift+Tab from search input, wraps focus to last result */}
         <div
           tabIndex={0}
           aria-hidden="true"
-          style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0"
+          class={styles.focusTrap}
           onFocus={() => {
-            // Focus arrived here via Shift+Tab from the search input.
-            // Move to the last focusable result button inside the results list,
-            // or back to the search input itself when no results exist.
             const buttons = resultsRef.current?.querySelectorAll<HTMLElement>("button");
             const last = buttons && buttons.length > 0 ? buttons[buttons.length - 1] : null;
             (last ?? inputRef.current)?.focus();
@@ -219,14 +216,11 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           ))}
         </div>
 
-        {/* Bottom sentinel — catches Tab from last result, wraps focus back to search input */}
         <div
           tabIndex={0}
           aria-hidden="true"
-          style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0"
-          onFocus={() => {
-            inputRef.current?.focus();
-          }}
+          class={styles.focusTrap}
+          onFocus={() => inputRef.current?.focus()}
         />
 
         {/* Footer */}

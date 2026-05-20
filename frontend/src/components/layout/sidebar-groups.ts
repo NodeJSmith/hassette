@@ -13,11 +13,11 @@ export interface GroupDef {
 }
 
 export const GROUP_DEFS: GroupDef[] = [
-  { key: "err",      label: "FAILING",  tone: "err",  defaultOpen: true  },
-  { key: "blocked",  label: "BLOCKED",  tone: "err",  defaultOpen: true  },
-  { key: "warn",     label: "SLOW",     tone: "warn", defaultOpen: true  },
-  { key: "ok",       label: "RUNNING",  tone: "ok",   defaultOpen: false },
-  { key: "stopped",  label: "STOPPED",  tone: "mute", defaultOpen: true  },
+  { key: "err", label: "FAILING", tone: "err", defaultOpen: true },
+  { key: "blocked", label: "BLOCKED", tone: "err", defaultOpen: true },
+  { key: "warn", label: "SLOW", tone: "warn", defaultOpen: true },
+  { key: "ok", label: "RUNNING", tone: "ok", defaultOpen: false },
+  { key: "stopped", label: "STOPPED", tone: "mute", defaultOpen: true },
   { key: "disabled", label: "DISABLED", tone: "mute", defaultOpen: false },
 ];
 

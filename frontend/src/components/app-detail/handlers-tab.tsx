@@ -1,15 +1,16 @@
 import { useEffect, useRef } from "preact/hooks";
-import { useSignal } from "../../hooks/use-signal";
 import { useLocation } from "wouter";
 import clsx from "clsx";
-import type { ListenerData, JobData } from "../../api/endpoints";
-import { HandlerList, type SelectedHandlerId } from "./handler-list";
-import { HandlersHealthStrip } from "./health-strip";
+
+import { useSignal } from "../../hooks/use-signal";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
 import { parseHandlerId, formatListenerId, formatJobId } from "../../utils/handler-ids";
+import type { ListenerData, JobData } from "../../api/endpoints";
 import { EmptyState } from "../shared/empty-state";
 import { Button } from "../shared/button";
+import { HandlerList, type SelectedHandlerId } from "./handler-list";
+import { HandlersHealthStrip } from "./health-strip";
 import { ListenerDetail } from "./listener-detail";
 import { JobDetail } from "./job-detail";
 import styles from "./handlers-tab.module.css";
@@ -21,6 +22,16 @@ interface Props {
   appKey: string;
   instanceQs: string;
   onSwitchToCode?: (line?: number) => void;
+}
+
+function DetailContent({ listener, job, onSwitchToCode }: {
+  listener: ListenerData | null;
+  job: JobData | null;
+  onSwitchToCode?: (line?: number) => void;
+}) {
+  if (listener) return <ListenerDetail listener={listener} onSwitchToCode={onSwitchToCode} />;
+  if (job) return <JobDetail job={job} onSwitchToCode={onSwitchToCode} />;
+  return <EmptyState icon="←" title="Select a handler or job to see details." data-testid="detail-placeholder" />;
 }
 
 export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instanceQs, onSwitchToCode }: Props) {
@@ -117,13 +128,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
 
         {showDetailPane && (
           <div class={styles.masterDetailDetail}>
-            {selectedListener ? (
-              <ListenerDetail listener={selectedListener} onSwitchToCode={onSwitchToCode} />
-            ) : selectedJob ? (
-              <JobDetail job={selectedJob} onSwitchToCode={onSwitchToCode} />
-            ) : (
-              <EmptyState icon="←" title="Select a handler or job to see details." data-testid="detail-placeholder" />
-            )}
+            <DetailContent listener={selectedListener} job={selectedJob} onSwitchToCode={onSwitchToCode} />
           </div>
         )}
       </div>
