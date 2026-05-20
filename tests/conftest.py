@@ -29,7 +29,6 @@ tracemalloc.start()
 
 TEST_DATA_PATH = Path.cwd().joinpath("tests", "data")
 TEST_CONFIG_PATH = TEST_DATA_PATH / "config"
-TEST_EVENTS_PATH = TEST_DATA_PATH / "events"
 TEST_API_RESPONSES_PATH = TEST_DATA_PATH / "api_responses"
 TEST_APPS_PATH = TEST_DATA_PATH / "apps"
 
@@ -169,12 +168,6 @@ def env_file_path() -> Path:
     This is used to ensure the environment is set up correctly for tests.
     """
     return ENV_FILE
-
-
-@pytest.fixture(scope="session")
-def test_events_path() -> Path:
-    """Provide the path to the test events directory."""
-    return TEST_EVENTS_PATH
 
 
 @pytest.fixture(scope="session")

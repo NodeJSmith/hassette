@@ -15,6 +15,8 @@ from hassette.logging_ import LogPersistenceHandler
 from hassette.test_utils.config import SECONDS_PER_DAY
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
+from .conftest import LOG_RECORDS_TEST_DDL as _DDL
+
 
 @pytest.fixture
 def mock_hassette_for_db(tmp_path: Path) -> MagicMock:
@@ -25,64 +27,6 @@ def mock_hassette_for_db(tmp_path: Path) -> MagicMock:
         database={"telemetry_write_queue_max": 500},
         lifecycle={"resource_shutdown_timeout_seconds": 5},
     )
-
-
-_DDL = """
-CREATE TABLE log_records (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    seq             INTEGER NOT NULL,
-    timestamp       REAL NOT NULL,
-    level           TEXT NOT NULL,
-    logger_name     TEXT NOT NULL,
-    func_name       TEXT,
-    lineno          INTEGER,
-    message         TEXT NOT NULL,
-    exc_info        TEXT,
-    app_key         TEXT,
-    instance_name   TEXT,
-    instance_index  INTEGER,
-    execution_id    TEXT,
-    source_tier     TEXT
-);
-CREATE INDEX idx_lr_time ON log_records(timestamp);
-CREATE INDEX idx_lr_exec ON log_records(execution_id) WHERE execution_id IS NOT NULL;
-CREATE INDEX idx_lr_app_time ON log_records(app_key, timestamp);
-
-CREATE TABLE listeners (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    app_key               TEXT NOT NULL,
-    instance_index        INTEGER NOT NULL DEFAULT 0,
-    handler_method        TEXT NOT NULL DEFAULT '',
-    topic                 TEXT NOT NULL DEFAULT '',
-    source_location       TEXT NOT NULL DEFAULT '',
-    retired_at            REAL
-);
-
-CREATE TABLE scheduled_jobs (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    app_key               TEXT NOT NULL,
-    instance_index        INTEGER NOT NULL DEFAULT 0,
-    job_name              TEXT NOT NULL DEFAULT '',
-    handler_method        TEXT NOT NULL DEFAULT '',
-    source_location       TEXT NOT NULL DEFAULT '',
-    retired_at            REAL
-);
-
-CREATE TABLE handler_invocations (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    listener_id           INTEGER REFERENCES listeners(id) ON DELETE SET NULL,
-    execution_start_ts    REAL NOT NULL,
-    duration_ms           REAL NOT NULL DEFAULT 0,
-    status                TEXT NOT NULL DEFAULT 'success'
-);
-CREATE TABLE job_executions (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id                INTEGER REFERENCES scheduled_jobs(id) ON DELETE SET NULL,
-    execution_start_ts    REAL NOT NULL,
-    duration_ms           REAL NOT NULL DEFAULT 0,
-    status                TEXT NOT NULL DEFAULT 'success'
-);
-"""
 
 
 @pytest.fixture
@@ -273,14 +217,12 @@ class TestSizeFailsafePrePass:
         service._db = db  # pyright: ignore[reportPrivateUsage]
         mock_hassette_for_db.config.database.max_size_mb = 0.0001  # tiny limit
 
-        # Override _get_db_size_mb to return always-over-limit first, then under
-        call_count = [0]
+        calls = 0
 
         def mock_size() -> float:
-            call_count[0] += 1
-            # First call: over limit → triggers failsafe
-            # After first pre-pass iteration: under limit
-            if call_count[0] <= 2:  # initial check + after first pre-pass del
+            nonlocal calls
+            calls += 1
+            if calls <= 2:
                 return 10.0
             return 0.0
 
@@ -318,15 +260,12 @@ class TestSizeFailsafePrePass:
             row = await cursor.fetchone()
             return row[0] if row else 0
 
-        call_count = [0]
+        calls = 0
 
         def mock_size() -> float:
-            call_count[0] += 1
-            # Stay over limit for all pre-pass iterations AND the re-check after the pre-pass
-            # (calls 1 through N+1 where N = pre-pass iterations).
-            # Return under limit only after first execution-loop delete.
-            # We keep it simple: return over limit for calls 1-5, then 0.
-            if call_count[0] <= 5:
+            nonlocal calls
+            calls += 1
+            if calls <= 5:
                 return 10.0
             return 0.0
 
@@ -344,7 +283,7 @@ class TestRuntimeQueryServiceWiring:
         """set_database() stores the db_service reference on LogPersistenceHandler."""
         persistence_handler = LogPersistenceHandler(persistence_level=logging.INFO)
         mock_db_service = MagicMock()
-        persistence_handler.set_database(mock_db_service, asyncio.get_event_loop())
+        persistence_handler.set_database(mock_db_service, asyncio.get_running_loop())
         assert persistence_handler._db_service is mock_db_service  # pyright: ignore[reportPrivateUsage]
 
     async def test_persistence_handler_dropped_count_starts_at_zero(self) -> None:

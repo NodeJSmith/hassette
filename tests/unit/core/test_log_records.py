@@ -28,6 +28,8 @@ from hassette.config.config import HassetteConfig
 from hassette.core.telemetry_models import LogRecord
 from hassette.core.telemetry_repository import get_log_records, get_log_records_by_execution, insert_log_records
 
+from .conftest import LOG_RECORDS_TEST_DDL as _DDL
+
 _WORKTREE = Path(__file__).parent.parent.parent.parent
 
 
@@ -36,64 +38,6 @@ def _run_migrations_to_head(db_path: str) -> None:
     config.set_main_option("script_location", str(_WORKTREE / "src" / "hassette" / "migrations"))
     config.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
     alembic_command.upgrade(config, "head")
-
-
-_DDL = """
-CREATE TABLE log_records (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    seq             INTEGER NOT NULL,
-    timestamp       REAL NOT NULL,
-    level           TEXT NOT NULL,
-    logger_name     TEXT NOT NULL,
-    func_name       TEXT,
-    lineno          INTEGER,
-    message         TEXT NOT NULL,
-    exc_info        TEXT,
-    app_key         TEXT,
-    instance_name   TEXT,
-    instance_index  INTEGER,
-    execution_id    TEXT,
-    source_tier     TEXT
-);
-CREATE INDEX idx_lr_time ON log_records(timestamp);
-CREATE INDEX idx_lr_exec ON log_records(execution_id) WHERE execution_id IS NOT NULL;
-CREATE INDEX idx_lr_app_time ON log_records(app_key, timestamp);
-
-CREATE TABLE listeners (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    app_key               TEXT NOT NULL,
-    instance_index        INTEGER NOT NULL DEFAULT 0,
-    handler_method        TEXT NOT NULL DEFAULT '',
-    topic                 TEXT NOT NULL DEFAULT '',
-    source_location       TEXT NOT NULL DEFAULT '',
-    retired_at            REAL
-);
-
-CREATE TABLE scheduled_jobs (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    app_key               TEXT NOT NULL,
-    instance_index        INTEGER NOT NULL DEFAULT 0,
-    job_name              TEXT NOT NULL DEFAULT '',
-    handler_method        TEXT NOT NULL DEFAULT '',
-    source_location       TEXT NOT NULL DEFAULT '',
-    retired_at            REAL
-);
-
-CREATE TABLE handler_invocations (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    listener_id           INTEGER REFERENCES listeners(id) ON DELETE SET NULL,
-    execution_start_ts    REAL NOT NULL,
-    duration_ms           REAL NOT NULL DEFAULT 0,
-    status                TEXT NOT NULL DEFAULT 'success'
-);
-CREATE TABLE job_executions (
-    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    job_id                INTEGER REFERENCES scheduled_jobs(id) ON DELETE SET NULL,
-    execution_start_ts    REAL NOT NULL,
-    duration_ms           REAL NOT NULL DEFAULT 0,
-    status                TEXT NOT NULL DEFAULT 'success'
-);
-"""
 
 
 @pytest.fixture

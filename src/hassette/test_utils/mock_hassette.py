@@ -43,8 +43,8 @@ def make_mock_hassette(
         set_ready: If ``True`` (default), calls ``hassette.ready_event.set()`` so the mock
             appears ready immediately.
         set_loop: If ``True`` (default), sets ``hassette.loop`` to the running event loop via
-            ``asyncio.get_running_loop()``. Pass ``False`` for session-scoped fixtures that
-            run outside an event loop (e.g. ``_migrated_db_template``).
+            ``asyncio.get_running_loop()``. Pass ``False`` for session-scoped or synchronous
+            fixtures that run outside an async event loop.
         sealed: If ``True`` (default), calls :func:`unittest.mock.seal` after wiring all
             attributes. Pass ``False`` if the test needs to set additional attributes.
         **config_overrides: Any :class:`~hassette.config.config.HassetteConfig` field to

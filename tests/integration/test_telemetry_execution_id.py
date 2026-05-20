@@ -3,11 +3,7 @@
 Covers the new columns added to handler_invocations and job_executions in migration 007.
 """
 
-import asyncio
 import time
-from collections.abc import AsyncIterator
-from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -16,52 +12,20 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.core.telemetry_repository import TelemetryRepository, _inv_insert_params, _job_insert_params
 from hassette.scheduler.classes import JobExecutionRecord
-from hassette.test_utils.mock_hassette import make_mock_hassette
 
-from .telemetry_query_helpers import insert_job, insert_listener
-
-
-@pytest.fixture
-def db_hassette(premigrated_db_path: Path) -> MagicMock:
-    return make_mock_hassette(
-        data_dir=premigrated_db_path.parent,
-        set_ready=False,
-        database={"telemetry_write_queue_max": 500, "max_size_mb": 0},
-        lifecycle={"resource_shutdown_timeout_seconds": 5},
-        web_api={"run": True},
-    )
-
-
-@pytest.fixture
-async def db(db_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
-    """Initialize a DatabaseService with all migrations applied and a seeded session row."""
-    db_service = DatabaseService(db_hassette, parent=None)
-    await db_service.on_initialize()
-    cursor = await db_service.db.execute(
-        "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-        (time.time(), time.time()),
-    )
-    session_id = cursor.lastrowid
-    await db_service.db.commit()
-    db_hassette.session_id = session_id
-    db_hassette.database_service = db_service
-    yield db_service, session_id
-    await db_service.on_shutdown()
+from .telemetry_query_helpers import (
+    db,  # noqa: F401 (pytest fixture)
+    db_hassette,  # noqa: F401 (pytest fixture)
+    insert_job,
+    insert_listener,
+    svc,  # noqa: F401 (pytest fixture)
+)
 
 
 @pytest.fixture
 def repo(db: tuple[DatabaseService, int]) -> TelemetryRepository:
     db_service, _ = db
     return TelemetryRepository(db_service)
-
-
-@pytest.fixture
-def svc(db_hassette: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQueryService:  # noqa: ARG001
-    service = TelemetryQueryService.__new__(TelemetryQueryService)
-    service.hassette = db_hassette
-    service.logger = MagicMock()
-    service._snapshot_lock = asyncio.Lock()
-    return service
 
 
 def _make_inv_record(
