@@ -3,9 +3,8 @@
 from anyio import ClosedResourceError
 
 from hassette.resources.base import RestartSpec, Service
+from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
-
-from .conftest import _make_hassette_stub
 
 
 class _ClosedResourceService(Service):
@@ -22,7 +21,7 @@ class TestServeWrapperClosedResourceErrorDuringShutdown:
 
     async def test_does_not_set_failed_status(self) -> None:
         """ClosedResourceError during shutdown should not produce FAILED status."""
-        hassette = _make_hassette_stub()
+        hassette = make_mock_hassette(sealed=False)
         hassette.shutdown_event.set()
 
         svc = _ClosedResourceService(hassette, parent=hassette)
@@ -33,7 +32,7 @@ class TestServeWrapperClosedResourceErrorDuringShutdown:
 
     async def test_does_not_propagate(self) -> None:
         """ClosedResourceError during shutdown must not propagate out of _serve_wrapper."""
-        hassette = _make_hassette_stub()
+        hassette = make_mock_hassette(sealed=False)
         hassette.shutdown_event.set()
 
         svc = _ClosedResourceService(hassette, parent=hassette)
@@ -46,7 +45,7 @@ class TestServeWrapperClosedResourceErrorOutsideShutdown:
 
     async def test_sets_failed_status(self) -> None:
         """ClosedResourceError without shutdown_event set should produce FAILED status."""
-        hassette = _make_hassette_stub()
+        hassette = make_mock_hassette(sealed=False)
 
         svc = _ClosedResourceService(hassette, parent=hassette)
 

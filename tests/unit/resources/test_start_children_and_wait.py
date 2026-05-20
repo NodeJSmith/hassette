@@ -10,8 +10,7 @@ Verifies:
 import pytest
 
 from hassette.resources.base import Resource
-
-from .conftest import _make_hassette_stub
+from hassette.test_utils import make_mock_hassette
 
 
 class _Parent(Resource):
@@ -37,7 +36,7 @@ class _NeverReady(Resource):
 
 @pytest.mark.asyncio
 async def test_all_children_become_ready():
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = _Parent(hassette)
     parent.add_child(_ReadyOnInit)
     parent.add_child(_ReadyOnInit)
@@ -49,7 +48,7 @@ async def test_all_children_become_ready():
 
 @pytest.mark.asyncio
 async def test_empty_children_is_noop():
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = _Parent(hassette)
 
     await parent.start_children_and_wait(timeout=1.0)
@@ -59,7 +58,7 @@ async def test_empty_children_is_noop():
 
 @pytest.mark.asyncio
 async def test_timeout_raises_with_diagnostics():
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = _Parent(hassette)
     parent.add_child(_ReadyOnInit)
     parent.add_child(_NeverReady)
@@ -70,7 +69,7 @@ async def test_timeout_raises_with_diagnostics():
 
 @pytest.mark.asyncio
 async def test_shutdown_during_wait_raises():
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     parent = _Parent(hassette)
     parent.add_child(_NeverReady)
 

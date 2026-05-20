@@ -5,9 +5,7 @@ same ApiCall shapes as the corresponding async method on RecordingApi, and
 that the two sides share the same calls list.
 """
 
-import asyncio
 import inspect
-import threading
 import types
 from enum import StrEnum
 from unittest.mock import AsyncMock
@@ -37,6 +35,7 @@ from hassette.models.helpers import (
     UpdateTimerParams,
 )
 from hassette.models.services import ServiceResponse
+from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.helpers import make_state_dict
 from hassette.test_utils.recording_api import RecordingApi
 from hassette.test_utils.sync_facade import _STUB_MSG_GENERIC, _STUB_MSG_STATE_CONVERSION, _RecordingSyncFacade
@@ -46,28 +45,10 @@ from hassette.test_utils.sync_facade import _STUB_MSG_GENERIC, _STUB_MSG_STATE_C
 # ---------------------------------------------------------------------------
 
 
-def _make_hassette_stub() -> AsyncMock:
-    """Minimal stub satisfying Resource.__init__ and TaskBucket.spawn."""
-    hassette = AsyncMock()
-    hassette.config.logging.log_level = "DEBUG"
-    hassette.config.data_dir = "/tmp/hassette-test"
-    hassette.config.default_cache_size = 1024
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 1
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 1
-    hassette.config.logging.task_bucket = "DEBUG"
-    hassette.config.dev_mode = False
-    hassette.event_streams_closed = False
-    hassette.ready_event = asyncio.Event()
-    hassette.ready_event.set()
-    hassette._loop_thread_id = threading.get_ident()
-    hassette.loop = asyncio.get_running_loop()
-    hassette.state_registry = STATE_REGISTRY
-    return hassette
-
-
 def _make_recording_api(states: dict | None = None) -> RecordingApi:
     """Create a RecordingApi with an optional pre-seeded StateProxy."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
+    hassette.state_registry = STATE_REGISTRY
     state_proxy = AsyncMock(spec=StateProxy)
     state_proxy.states = states or {}
     state_proxy.is_ready = lambda: True

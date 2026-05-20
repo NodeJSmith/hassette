@@ -19,30 +19,14 @@ import pytest
 
 from hassette.core.bus_service import BusService
 from hassette.core.registration_tracker import RegistrationTracker
+from hassette.test_utils import make_mock_hassette
 from hassette.types.types import FRAMEWORK_APP_KEY, FRAMEWORK_APP_KEY_PREFIX
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_hassette_mock() -> MagicMock:
-    """Return a MagicMock Hassette with just enough attributes for BusService.__init__."""
-    hassette = MagicMock()
-    hassette.config.logging.bus_service = "DEBUG"
-    hassette.config.logging.log_level = "DEBUG"
-    hassette.config.logging.task_bucket = "DEBUG"
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.config.bus_excluded_domains = []
-    hassette.config.bus_excluded_entities = []
-    hassette.ready_event = asyncio.Event()
-    return hassette
 
 
 @pytest.fixture
 def bus_service() -> BusService:
     """Construct a BusService backed by mocks, ready for accessor tests."""
-    hassette = _make_hassette_mock()
+    hassette = make_mock_hassette()
     stream = MagicMock()
     executor = MagicMock()
     executor.execute = AsyncMock()

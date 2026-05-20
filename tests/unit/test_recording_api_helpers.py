@@ -11,8 +11,6 @@ Covers:
 - counter action methods record an ApiCall
 """
 
-import asyncio
-import threading
 from unittest.mock import AsyncMock
 
 import pytest
@@ -33,6 +31,7 @@ from hassette.models.helpers import (
     TimerRecord,
     UpdateInputBooleanParams,
 )
+from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.app_harness import AppTestHarness
 from hassette.test_utils.recording_api import _RECORD_TYPE_TO_DOMAIN, RecordingApi, _slugify_helper_name
 
@@ -53,28 +52,10 @@ class _HarnessApp(App[_HarnessConfig]):
 # ---------------------------------------------------------------------------
 
 
-def _make_hassette_stub() -> AsyncMock:
-    """Minimal stub satisfying Resource.__init__ and TaskBucket.spawn."""
-    hassette = AsyncMock()
-    hassette.config.logging.log_level = "DEBUG"
-    hassette.config.data_dir = "/tmp/hassette-test"
-    hassette.config.default_cache_size = 1024
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 1
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 1
-    hassette.config.logging.task_bucket = "DEBUG"
-    hassette.config.dev_mode = False
-    hassette.event_streams_closed = False
-    hassette.ready_event = asyncio.Event()
-    hassette.ready_event.set()
-    hassette._loop_thread_id = threading.get_ident()
-    hassette.loop = asyncio.get_running_loop()
-    hassette.state_registry = STATE_REGISTRY
-    return hassette
-
-
 def _make_recording_api() -> RecordingApi:
     """Create a RecordingApi with an empty StateProxy."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
+    hassette.state_registry = STATE_REGISTRY
     state_proxy = AsyncMock(spec=StateProxy)
     state_proxy.states = {}
     state_proxy.is_ready = lambda: True

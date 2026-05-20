@@ -5,7 +5,6 @@ in the serve() reconnect paths.
 """
 
 import asyncio
-import threading
 import time
 from unittest.mock import AsyncMock, Mock
 
@@ -13,51 +12,14 @@ import pytest
 
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import RetryableConnectionClosedError
+from hassette.test_utils import make_ws_hassette_stub
 from hassette.types import Topic
-
-
-def _make_ws_hassette_stub() -> AsyncMock:
-    """Minimal hassette stub sufficient for WebsocketService instantiation."""
-    hassette = AsyncMock()
-    hassette.config.logging.log_level = "DEBUG"
-    hassette.config.logging.websocket = "DEBUG"
-    hassette.config.data_dir = "/tmp/hassette-test"
-    hassette.config.default_cache_size = 1024
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 1
-    hassette.config.lifecycle.startup_timeout_seconds = 30
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 1
-    hassette.config.logging.task_bucket = "DEBUG"
-    hassette.config.dev_mode = False
-    hassette.config.websocket.response_timeout_seconds = 1
-    hassette.config.websocket.connection_timeout_seconds = 1
-    hassette.config.websocket.total_timeout_seconds = 2
-    hassette.config.websocket.heartbeat_interval_seconds = 5
-    hassette.config.websocket.authentication_timeout_seconds = 5
-    hassette.config.websocket.early_drop_max_retries = 5
-    hassette.config.websocket.early_drop_stable_window_seconds = 30.0
-    hassette.config.websocket.early_drop_backoff_initial_seconds = 0.001
-    hassette.config.websocket.early_drop_backoff_max_seconds = 0.01
-    hassette.config.websocket.max_recovery_seconds = 300.0
-    hassette.config.websocket.connect_retry_max_attempts = 3
-    hassette.config.websocket.connect_retry_initial_wait_seconds = 0.001
-    hassette.config.websocket.connect_retry_max_wait_seconds = 0.01
-    hassette.config.verify_ssl = False
-    hassette.ws_url = "ws://localhost:8123/api/websocket"
-    hassette.event_streams_closed = False
-    hassette.ready_event = asyncio.Event()
-    hassette.ready_event.set()
-    hassette.shutdown_event = asyncio.Event()
-    hassette._loop_thread_id = threading.get_ident()
-    hassette.loop = asyncio.get_running_loop()
-    hassette._scheduler_service.register_removal_callback = Mock()
-    hassette._scheduler_service.deregister_removal_callback = Mock()
-    return hassette
 
 
 @pytest.fixture
 async def websocket_service() -> WebsocketService:
     """Create a WebsocketService with a fully-mocked hassette stub."""
-    hassette = _make_ws_hassette_stub()
+    hassette = make_ws_hassette_stub(sealed=False)
     return WebsocketService(hassette=hassette)
 
 

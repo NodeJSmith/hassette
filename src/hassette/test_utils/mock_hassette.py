@@ -134,7 +134,7 @@ def make_mock_hassette(
     return hassette
 
 
-def make_ws_hassette_stub(*, strict_lifecycle: bool = False) -> AsyncMock:
+def make_ws_hassette_stub(*, strict_lifecycle: bool = False, sealed: bool = True) -> AsyncMock:
     """Create a mock hassette pre-configured for WebSocket sub-millisecond testing.
 
     Thin wrapper around :func:`make_mock_hassette` that bakes in the config overrides
@@ -149,9 +149,12 @@ def make_ws_hassette_stub(*, strict_lifecycle: bool = False) -> AsyncMock:
     Args:
         strict_lifecycle: Passed through to ``make_mock_hassette()`` as a config override.
             Set ``True`` for strict-lifecycle test scenarios.
+        sealed: If ``True`` (default), calls :func:`unittest.mock.seal` after wiring all
+            attributes. Pass ``False`` if the test needs to set additional attributes
+            (e.g. ``send_event``) after construction.
 
     Returns:
-        A sealed :class:`~unittest.mock.AsyncMock` configured for WebSocket unit tests.
+        A :class:`~unittest.mock.AsyncMock` configured for WebSocket unit tests.
     """
     hassette = make_mock_hassette(
         sealed=False,
@@ -174,5 +177,6 @@ def make_ws_hassette_stub(*, strict_lifecycle: bool = False) -> AsyncMock:
         strict_lifecycle=strict_lifecycle,
     )
     hassette.ws_url = "ws://test.invalid:8123/api/websocket"
-    seal(hassette)
+    if sealed:
+        seal(hassette)
     return hassette

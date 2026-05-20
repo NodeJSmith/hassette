@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Migrate named factory functions to shared factory"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#6", "AC#1"]
 ---

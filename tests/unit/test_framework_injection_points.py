@@ -27,6 +27,7 @@ from hassette.context import set_global_hassette
 from hassette.core.state_proxy import StateProxy
 from hassette.resources.base import Resource
 from hassette.task_bucket.task_bucket import TaskBucket
+from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.harness import TIMEOUTS, HassetteHarness
 
 # ---------------------------------------------------------------------------
@@ -34,18 +35,15 @@ from hassette.test_utils.harness import TIMEOUTS, HassetteHarness
 # ---------------------------------------------------------------------------
 
 
-def _make_mock_hassette(name: str = "mock_hassette") -> Mock:
-    """Create a minimal mock Hassette instance."""
-    m = Mock(name=name)
-    m.config = Mock()
-    m.config.logging.apps = "DEBUG"
-    m.config.logging.log_level = "DEBUG"
-    m.config.disable_state_proxy_polling = False
-    m.config.state_proxy_poll_interval_seconds = 30
-    m.config.lifecycle.app_shutdown_timeout_seconds = 5
-    m.task_bucket = Mock()
-    m.task_bucket.spawn = Mock()
-    return m
+def _build_mock_hassette():
+    hassette = make_mock_hassette(
+        sealed=False,
+        logging={"log_level": "DEBUG", "apps": "DEBUG"},
+        disable_state_proxy_polling=False,
+    )
+    hassette.task_bucket = Mock()
+    hassette.task_bucket.spawn = Mock()
+    return hassette
 
 
 class _MinimalAppConfig:
@@ -102,7 +100,7 @@ class TestSetGlobalHassetteReturnsToken:
 
     def test_returns_token_on_first_set(self, clean_hassette_context) -> None:
         """Calling set_global_hassette with a new instance returns a Token."""
-        hassette = _make_mock_hassette()
+        hassette = _build_mock_hassette()
         fresh_instance = clean_hassette_context  # the fresh ContextVar
 
         result = set_global_hassette(hassette)
@@ -115,7 +113,7 @@ class TestSetGlobalHassetteReturnsToken:
 
     def test_returned_token_can_reset_contextvar(self, clean_hassette_context) -> None:
         """The returned token restores the ContextVar to its pre-set state."""
-        hassette = _make_mock_hassette()
+        hassette = _build_mock_hassette()
         fresh_instance = clean_hassette_context
 
         token = set_global_hassette(hassette)
@@ -130,7 +128,7 @@ class TestSetGlobalHassetteReturnsToken:
 
     def test_same_instance_returns_none(self, clean_hassette_context) -> None:
         """When the same instance is already set, returns None (early-return path)."""
-        hassette = _make_mock_hassette()
+        hassette = _build_mock_hassette()
         fresh_instance = clean_hassette_context
 
         first_token = set_global_hassette(hassette)
@@ -162,7 +160,7 @@ class TestAppApiFactory:
             app_config_cls = _TestConfig
             app_manifest = Mock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        hassette = _make_mock_hassette()
+        hassette = _build_mock_hassette()
         config = _TestConfig(instance_name="test")
 
         original_add_child = Resource.add_child
@@ -194,7 +192,7 @@ class TestAppApiFactory:
             app_config_cls = _TestConfig
             app_manifest = Mock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        hassette = _make_mock_hassette()
+        hassette = _build_mock_hassette()
         config = _TestConfig(instance_name="test")
 
         original_add_child = Resource.add_child

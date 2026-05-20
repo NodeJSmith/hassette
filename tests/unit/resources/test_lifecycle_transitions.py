@@ -24,10 +24,8 @@ import pytest
 
 from hassette.exceptions import InvalidLifecycleTransitionError
 from hassette.resources.base import Resource, RestartSpec, Service
-from hassette.test_utils import wait_for
+from hassette.test_utils import make_mock_hassette, wait_for
 from hassette.types.enums import ResourceStatus
-
-from .conftest import _make_hassette_stub
 
 
 class _SimpleResource(Resource):
@@ -56,7 +54,7 @@ class _SimpleService(Service):
 @pytest.mark.asyncio
 async def test_valid_transition_sequence():
     """Walk NOT_STARTED → STARTING → RUNNING → STOPPING → STOPPED via the setter — no error raised."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     resource = _SimpleResource(hassette)
 
     resource.status = ResourceStatus.STARTING
@@ -75,7 +73,7 @@ async def test_valid_transition_sequence():
 @pytest.mark.asyncio
 async def test_invalid_transition_raises_strict():
     """In strict mode, NOT_STARTED → RUNNING raises InvalidLifecycleTransitionError with correct fields."""
-    hassette = _make_hassette_stub(strict_lifecycle=True)
+    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
     resource = _SimpleResource(hassette)
 
     assert resource.status == ResourceStatus.NOT_STARTED
@@ -92,7 +90,7 @@ async def test_invalid_transition_raises_strict():
 @pytest.mark.asyncio
 async def test_invalid_transition_warns_nonstrict():
     """Non-strict mode: invalid transition does not raise and the transition still proceeds."""
-    hassette = _make_hassette_stub(strict_lifecycle=False)
+    hassette = make_mock_hassette(strict_lifecycle=False, sealed=False)
     resource = _SimpleResource(hassette)
 
     assert resource.status == ResourceStatus.NOT_STARTED
@@ -105,7 +103,7 @@ async def test_invalid_transition_warns_nonstrict():
 @pytest.mark.asyncio
 async def test_force_terminal_bypasses_validation():
     """In strict mode, _force_terminal() on a RUNNING resource succeeds with STOPPED and no error."""
-    hassette = _make_hassette_stub(strict_lifecycle=True)
+    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
     resource = _SimpleResource(hassette)
 
     # Manually set to RUNNING bypassing the setter so we can test _force_terminal
@@ -120,7 +118,7 @@ async def test_force_terminal_bypasses_validation():
 @pytest.mark.asyncio
 async def test_restart_transitions_valid():
     """FAILED → STARTING and CRASHED → STARTING are valid restart transitions."""
-    hassette = _make_hassette_stub(strict_lifecycle=True)
+    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
 
     # FAILED → STARTING
     resource1 = _SimpleResource(hassette)
@@ -140,7 +138,7 @@ async def test_restart_transitions_valid():
 @pytest.mark.asyncio
 async def test_exhausted_transitions_valid():
     """FAILED→EXHAUSTED_COOLING, EXHAUSTED_COOLING→STARTING, EXHAUSTED_COOLING→EXHAUSTED_DEAD are valid."""
-    hassette = _make_hassette_stub(strict_lifecycle=True)
+    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
 
     # FAILED → EXHAUSTED_COOLING
     r1 = _SimpleResource(hassette)
@@ -164,7 +162,7 @@ async def test_exhausted_transitions_valid():
 @pytest.mark.asyncio
 async def test_terminal_state_rejects_transitions():
     """EXHAUSTED_DEAD → STARTING raises InvalidLifecycleTransitionError in strict mode."""
-    hassette = _make_hassette_stub(strict_lifecycle=True)
+    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
     resource = _SimpleResource(hassette)
     resource._status = ResourceStatus.EXHAUSTED_DEAD
 
@@ -196,7 +194,7 @@ async def test_hasattr_guard_no_hassette():
 @pytest.mark.asyncio
 async def test_same_state_no_transition():
     """handle_running() when already RUNNING returns early — idempotency preserved, previous_status unchanged."""
-    hassette = _make_hassette_stub(strict_lifecycle=True)
+    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
     resource = _SimpleResource(hassette)
 
     resource._status = ResourceStatus.RUNNING
@@ -246,7 +244,7 @@ async def test_is_true_identity_check_mock_safe():
 @pytest.mark.asyncio
 async def test_same_state_setter_no_raise():
     """Direct same-state assignment via setter should not raise or re-validate."""
-    hassette = _make_hassette_stub(strict_lifecycle=True)
+    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
     resource = _SimpleResource(hassette)
     resource._status = ResourceStatus.RUNNING
     resource._previous_status = ResourceStatus.STARTING
@@ -265,7 +263,7 @@ async def test_same_state_setter_no_raise():
 @pytest.mark.asyncio
 async def test_shutdown_sets_stopping_before_hooks():
     """Resource.shutdown() must set STOPPING before on_shutdown hook runs."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     resource = _SimpleResource(hassette)
 
     # Set to RUNNING so the transition RUNNING→STOPPING is valid
@@ -295,7 +293,7 @@ async def test_service_shutdown_sets_stopping_before_hooks():
     handle_stop → STOPPING→STOPPED). The observable STOPPING point is before_shutdown,
     which fires before the serve task is cancelled.
     """
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     svc = _SimpleService(hassette)
 
     await svc.initialize()
@@ -320,7 +318,7 @@ async def test_service_shutdown_sets_stopping_before_hooks():
 @pytest.mark.asyncio
 async def test_shutdown_stopping_then_stopped_sequence():
     """Full transition sequence: RUNNING → STOPPING → STOPPED via shutdown()."""
-    hassette = _make_hassette_stub()
+    hassette = make_mock_hassette(sealed=False)
     resource = _SimpleResource(hassette)
 
     resource._status = ResourceStatus.RUNNING
@@ -350,7 +348,7 @@ async def test_shutdown_stopping_then_stopped_sequence():
 @pytest.mark.asyncio
 async def test_running_to_stopped_direct_is_valid():
     """RUNNING → STOPPED is valid for natural service completion (_serve_wrapper normal return)."""
-    hassette = _make_hassette_stub(strict_lifecycle=True)
+    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
     resource = _SimpleResource(hassette)
     resource._status = ResourceStatus.RUNNING
 
