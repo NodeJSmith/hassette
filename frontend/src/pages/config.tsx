@@ -116,12 +116,17 @@ export function ConfigPage() {
               <Card variant="config">
                 <table class={`ht-table ht-table--compact ${styles.configTable}`}>
                   <tbody>
-                    {group.rows.map((row) => (
-                      <tr key={row.key}>
-                        <td class={styles.configTableKey}>{row.key}</td>
-                        <td class={row.value === "—" ? `${styles.configTableValue} ${styles.configTableValueEmpty}` : styles.configTableValue} data-testid="config-value">{row.value}</td>
-                      </tr>
-                    ))}
+                    {group.rows.map((row) => {
+                      const valueClass = row.value === "—"
+                        ? `${styles.configTableValue} ${styles.configTableValueEmpty}`
+                        : styles.configTableValue;
+                      return (
+                        <tr key={row.key}>
+                          <td class={styles.configTableKey}>{row.key}</td>
+                          <td class={valueClass} data-testid="config-value">{row.value}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </Card>

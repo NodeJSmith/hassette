@@ -114,8 +114,6 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
                 stacklevel=2,
             )
 
-    ### actual precheck code starts here ###
-
     had_errors = False
 
     for app_manifest in config.apps.manifests.values():

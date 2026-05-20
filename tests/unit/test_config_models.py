@@ -611,27 +611,8 @@ class TestEnvVarPartialUpdate:
     def test_single_env_var_sets_only_that_field(self, monkeypatch, tmp_path):
         """HASSETTE__DATABASE__RETENTION_DAYS=14 sets only retention_days."""
         monkeypatch.setenv("HASSETTE__DATABASE__RETENTION_DAYS", "14")
-        from pydantic_settings.sources import InitSettingsSource
-
         from hassette.config.config import HassetteConfig
 
-        class _EnvConfig(HassetteConfig):
-            model_config = HassetteConfig.model_config.copy() | {
-                "cli_parse_args": False,
-                "toml_file": None,
-                "env_file": None,
-            }
-
-            @classmethod
-            def settings_customise_sources(cls, settings_cls, **_kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
-                return (
-                    InitSettingsSource(settings_cls, init_kwargs={"token": TEST_TOKEN, "run_app_precheck": False}),
-                    cls.settings_customise_sources.__func__(cls, settings_cls, **_kwargs)  # pyright: ignore[reportAttributeAccessIssue]
-                    if False
-                    else __import__("pydantic_settings").EnvSettingsSource(settings_cls),
-                )
-
-        # Use a simpler subclass approach
         class _EnvConfig2(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
                 "cli_parse_args": False,

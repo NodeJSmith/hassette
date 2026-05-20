@@ -21,6 +21,8 @@ LOGGER = getLogger(__name__)
 
 LOG_ANNOTATION = Annotated[LOG_LEVEL_TYPE, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
 
+APP_REQUIRED_KEYS = frozenset({"filename", "class_name"})
+
 
 class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     """Database storage, retention, write-queue, and operational-interval settings."""
@@ -348,12 +350,11 @@ class AppsConfig(ExcludeExtrasMixin, BaseModel):
     @classmethod
     def remove_incomplete_apps(cls, value: dict[str, Any]) -> dict[str, Any]:
         """Remove any apps that are missing required fields before validation."""
-        required_keys = {"filename", "class_name"}
-        missing_required = {k: v for k, v in value.items() if isinstance(v, dict) and not required_keys.issubset(v)}
+        missing_required = {k: v for k, v in value.items() if isinstance(v, dict) and not APP_REQUIRED_KEYS.issubset(v)}
         if missing_required:
             LOGGER.warning(
                 "The following apps are missing required keys (%s) and will be ignored: %s",
-                ", ".join(required_keys),
+                ", ".join(APP_REQUIRED_KEYS),
                 list(missing_required.keys()),
             )
             for k in missing_required:
