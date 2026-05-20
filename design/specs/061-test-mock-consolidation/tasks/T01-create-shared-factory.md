@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Create make_mock_hassette() factory and thread safety"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#3", "AC#8"]
 ---

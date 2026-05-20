@@ -4,6 +4,7 @@ Exposes :func:`make_test_config` for end users who need a minimal
 ``HassetteConfig`` without TOML files or env vars.
 """
 
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,13 @@ from hassette.config.config import HassetteConfig
 # Same closure-ref pattern as _get_hermetic_subclass in app_harness.py (per-AppConfig variant).
 _HermeticHassetteConfigPair: tuple[type[HassetteConfig], list[dict[str, Any]]] | None = None
 
+# Protects both the lazy-init check-and-create in _get_hermetic_hassette_config_cls()
+# and the cell[0] = merged → cls() sequence in make_test_config() against OS-thread races.
+# Async tests run on a single thread so asyncio cooperative multitasking cannot interleave,
+# but session-scoped fixtures (e.g. _migrated_db_template) may call make_test_config() from
+# threads created by pytest-xdist workers.
+_config_lock: threading.Lock = threading.Lock()
+
 
 def _get_hermetic_hassette_config_cls() -> tuple[type[HassetteConfig], list[dict[str, Any]]]:
     """Return a cached (hermetic subclass, cell) pair for HassetteConfig.
@@ -27,6 +35,8 @@ def _get_hermetic_hassette_config_cls() -> tuple[type[HassetteConfig], list[dict
 
     The hermetic subclass uses ``extra="forbid"`` so stale flat field names
     (that should now be nested) fail loudly instead of being silently absorbed.
+
+    Callers must hold ``_config_lock`` before calling this function.
     """
     global _HermeticHassetteConfigPair
     if _HermeticHassetteConfigPair is not None:
@@ -101,8 +111,7 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
     }
     merged = {**defaults, **overrides}
 
-    cls, cell = _get_hermetic_hassette_config_cls()
-    # Update the cell before instantiation; no await between here and cls()
-    # so asyncio cooperative multitasking cannot interleave a concurrent caller.
-    cell[0] = merged
-    return cls()
+    with _config_lock:
+        cls, cell = _get_hermetic_hassette_config_cls()
+        cell[0] = merged
+        return cls()

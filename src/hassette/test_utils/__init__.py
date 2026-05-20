@@ -46,7 +46,7 @@ from ._internal import write_app_toml as write_app_toml
 from ._internal import write_test_app_with_decorator as write_test_app_with_decorator
 from .api_call import ApiCall
 from .app_harness import AppConfigurationError, AppTestHarness
-from .config import make_test_config
+from .config import make_test_config as make_test_config
 from .exceptions import DrainError, DrainFailure, DrainTimeout
 from .helpers import (
     create_call_service_event,
@@ -58,6 +58,8 @@ from .helpers import (
 )
 from .helpers import create_listener as create_listener
 from .helpers import make_task_bucket as make_task_bucket
+from .mock_hassette import make_mock_hassette as make_mock_hassette
+from .mock_hassette import make_ws_hassette_stub as make_ws_hassette_stub
 from .recording_api import RecordingApi
 
 __all__ = [
@@ -72,6 +74,7 @@ __all__ = [
     "create_call_service_event",
     "create_state_change_event",
     "make_light_state_dict",
+    "make_mock_hassette",
     "make_sensor_state_dict",
     "make_state_dict",
     "make_switch_state_dict",
