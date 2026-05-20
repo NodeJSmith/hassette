@@ -53,7 +53,7 @@ def create_fastapi_app(hassette: "Hassette") -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=list(hassette.config.web_api_cors_origins),
+        allow_origins=list(hassette.config.web_api.cors_origins),
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
@@ -72,7 +72,7 @@ def create_fastapi_app(hassette: "Hassette") -> FastAPI:
     app.include_router(scheduler_router, prefix="/api")
 
     # SPA serving (Preact)
-    if hassette.config.run_web_ui and _SPA_DIR.exists():
+    if hassette.config.web_api.run_ui and _SPA_DIR.exists():
         app.mount("/assets", StaticFiles(directory=str(_SPA_DIR / "assets")), name="spa-assets")
         if (_SPA_DIR / "fonts").exists():
             app.mount("/fonts", StaticFiles(directory=str(_SPA_DIR / "fonts")), name="spa-fonts")

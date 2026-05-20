@@ -1,35 +1,38 @@
 from contextlib import suppress
-from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import Annotated, Any, Literal
 
-from pydantic import AliasChoices, BeforeValidator, Field, field_validator, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from hassette import context as ctx
 from hassette.config.classes import AppManifest, ExcludeExtrasMixin, HassetteTomlConfigSettingsSource
 from hassette.config.defaults import (
-    AUTODETECT_EXCLUDE_DIRS_DEFAULT,
     ENV_FILE_LOCATIONS,
     TOML_FILE_LOCATIONS,
     get_defaults_dict,
 )
 from hassette.config.helpers import (
-    coerce_log_level,
-    default_app_dir,
     default_config_dir,
     default_data_dir,
     filter_paths_to_unique_existing,
     get_dev_mode,
-    log_level_default_factory,
 )
-from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, AppDict, RawAppDict, is_framework_key
+from hassette.config.legacy import LEGACY_KEY_MIGRATION
+from hassette.config.models import (
+    AppConfig,
+    DatabaseConfig,
+    FileWatcherConfig,
+    LifecycleConfig,
+    LoggingConfig,
+    SchedulerConfig,
+    WebApiConfig,
+    WebSocketConfig,
+)
+from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, AppDict, is_framework_key
 from hassette.utils.app_utils import autodetect_apps, clean_app
 
 LOGGER = getLogger(__name__)
-
-LOG_ANNOTATION = Annotated[LOG_LEVEL_TYPE, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
 
 
 class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
@@ -50,6 +53,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         cli_ignore_unknown_args=True,
         cli_parse_args=True,
         cli_kebab_case=True,
+        nested_model_default_partial_update=True,
         cli_shortcuts={
             "token": ["t"],
             "base-url": ["u", "url"],
@@ -76,6 +80,30 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         )
         return sources
 
+    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    """Database storage, retention, and operational settings."""
+
+    websocket: WebSocketConfig = Field(default_factory=WebSocketConfig)
+    """WebSocket connection, retry, and recovery timing settings."""
+
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    """Logging level, format, queue, and per-service log-level settings."""
+
+    lifecycle: LifecycleConfig = Field(default_factory=LifecycleConfig)
+    """Startup, shutdown, and per-operation timeout settings."""
+
+    web_api: WebApiConfig = Field(default_factory=WebApiConfig)
+    """Web API and UI server settings."""
+
+    app: AppConfig = Field(default_factory=AppConfig)
+    """App directory, auto-detection, and manifest settings."""
+
+    scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
+    """Scheduler delay, threshold, and job-timeout settings."""
+
+    file_watcher: FileWatcherConfig = Field(default_factory=FileWatcherConfig)
+    """File watcher debounce, step, and enable/disable settings."""
+
     # note - not actually used here, reflects the options in __main__ argparser for --help
     config_file: Path | str | None = Field(default=Path("hassette.toml"))
     """Path to the configuration file."""
@@ -87,30 +115,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     dev_mode: bool = Field(default_factory=get_dev_mode)
     """Enable developer mode, which may include additional logging and features."""
 
-    # General configuration
-    log_level: LOG_ANNOTATION = Field(default="INFO")
-    """Logging level for Hassette."""
-
-    log_format: Literal["auto", "console", "json"] = Field(default="auto")
-    """Console output format. ``"auto"`` detects TTY vs pipe automatically. ``"console"`` forces
-    colored human-readable output. ``"json"`` forces one-JSON-object-per-line output."""
-
-    log_queue_max: int = Field(default=2000, ge=1)
-    """Maximum size of the inter-thread log queue. Records are dropped when the queue is full."""
-
-    log_persistence_level: LOG_ANNOTATION = Field(default="INFO")
-    """Minimum log level for database persistence. Records below this level are not stored."""
-
-    config_dir: Path = Field(default_factory=default_config_dir)
-    """Directory to load/save configuration."""
-
-    data_dir: Path = Field(default_factory=default_data_dir)
-    """Directory to store Hassette data."""
-
-    app_dir: Path = Field(default_factory=default_app_dir)
-    """Directory to load user apps from."""
-
-    # Home Assistant configuration starts here
+    # Home Assistant connection — cross-cutting
     base_url: str = Field(default="http://127.0.0.1:8123")
     """Base URL of the Home Assistant instance"""
 
@@ -124,30 +129,11 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     )
     """Access token for Home Assistant instance"""
 
-    # has to be before apps to allow auto-detection
-    autodetect_apps: bool = Field(default=True, validation_alias=AliasChoices("autodetect_apps", "auto_detect_apps"))
-    """Whether to automatically detect apps in the app directory."""
+    config_dir: Path = Field(default_factory=default_config_dir)
+    """Directory to load/save configuration."""
 
-    extend_autodetect_exclude_dirs: tuple[str, ...] = Field(default_factory=tuple)
-    """Additional directories to exclude when auto-detecting apps in the app directory."""
-
-    autodetect_exclude_dirs: tuple[str, ...] = Field(
-        default_factory=lambda data: (
-            *data.get("extend_autodetect_exclude_dirs", ()),
-            *AUTODETECT_EXCLUDE_DIRS_DEFAULT,
-        )
-    )
-    """Directories to exclude when auto-detecting apps in the app directory. Prefer `extend_autodetect_exclude_dirs`
-    to avoid removing the defaults."""
-
-    # App configurations
-    apps: dict[str, RawAppDict] = Field(default_factory=dict)
-    """Raw configuration for Hassette apps, keyed by app name."""
-
-    app_manifests: dict[str, AppManifest] = Field(default_factory=dict)
-    """Validated app manifests, keyed by app name."""
-
-    # Service configurations
+    data_dir: Path = Field(default_factory=default_data_dir)
+    """Directory to store Hassette data."""
 
     import_dot_env_files: bool = Field(default=True)
     """Whether to import .env files specified in env_files. With this disabled, the .env file provided will only
@@ -160,157 +146,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     allow_startup_if_app_precheck_fails: bool = Field(default=False)
     """Whether to allow Hassette to start even if the app precheck fails. This is generally not recommended."""
 
-    startup_timeout_seconds: int = Field(default=30)
-    """Length of time to wait for each wave of Hassette resources to start before giving up.
-    Must be >= app_startup_timeout_seconds since AppHandler readiness waits for app bootstrap."""
-
-    app_startup_timeout_seconds: int = Field(default=20)
-    """Length of time to wait for an app to start before giving up."""
-
-    app_shutdown_timeout_seconds: int = Field(default=10)
-    """Length of time to wait for an app to shut down before giving up."""
-
-    registration_await_timeout: int = Field(default=30)
-    """Timeout in seconds to wait for all pending listener/job DB registrations to flush
-    before post-ready reconciliation. Prevents indefinite hangs if the DB write queue stalls."""
-
-    resource_shutdown_timeout_seconds: int = Field(
-        default_factory=lambda data: data.get("app_shutdown_timeout_seconds", 10)
-    )
-    """Per-phase timeout for resource shutdown. Applied independently to cleanup() and child
-    propagation within _finalize_shutdown(), so a single level may block for up to 2x this value.
-    The total_shutdown_timeout_seconds config bounds the overall wall-clock time.
-    Defaults to app_shutdown_timeout_seconds."""
-
-    total_shutdown_timeout_seconds: int = Field(default=30)
-    """Maximum wall-clock seconds for the entire Hassette shutdown (hooks + propagation).
-    Individual resource_shutdown_timeout_seconds still applies per-level for diagnostics."""
-
-    websocket_authentication_timeout_seconds: int = Field(default=10)
-    """Length of time to wait for WebSocket authentication to complete."""
-
-    websocket_response_timeout_seconds: int = Field(default=15)
-    """Length of time to wait for a response from the WebSocket."""
-
-    websocket_connection_timeout_seconds: int = Field(default=5)
-    """Length of time to wait for WebSocket connection to complete. Passed to aiohttp."""
-
-    websocket_total_timeout_seconds: int = Field(default=30)
-    """Total length of time to wait for WebSocket operations to complete. Passed to aiohttp."""
-
-    websocket_heartbeat_interval_seconds: int = Field(default=30)
-    """Interval to send ping messages to keep the WebSocket connection alive. Passed to aiohttp."""
-
-    websocket_connect_retry_max_attempts: int = Field(default=5)
-    """Maximum number of attempts to establish the initial WebSocket connection before giving up."""
-
-    websocket_connect_retry_initial_wait_seconds: float = Field(default=1.0)
-    """Initial backoff wait in seconds between WebSocket connection retry attempts."""
-
-    websocket_connect_retry_max_wait_seconds: float = Field(default=32.0)
-    """Maximum backoff wait in seconds between WebSocket connection retry attempts."""
-
-    websocket_early_drop_stable_window_seconds: float = Field(default=30.0)
-    """Seconds a connection must stay alive before it is considered stable (resets early-drop counter)."""
-
-    websocket_early_drop_max_retries: int = Field(default=5)
-    """Maximum number of early-drop reconnect attempts before treating the failure as fatal."""
-
-    websocket_early_drop_backoff_initial_seconds: float = Field(default=2.0)
-    """Initial backoff wait in seconds between early-drop reconnect attempts."""
-
-    websocket_early_drop_backoff_max_seconds: float = Field(default=60.0)
-    """Maximum backoff wait in seconds between early-drop reconnect attempts."""
-
-    websocket_max_recovery_seconds: float = Field(default=300.0)
-    """Maximum total wall-clock seconds to spend on all WebSocket recovery attempts before giving up."""
-
-    scheduler_min_delay_seconds: int = Field(default=1)
-    """Minimum delay between scheduled jobs."""
-
-    scheduler_max_delay_seconds: int = Field(default=30)
-    """Maximum delay between scheduled jobs."""
-
-    scheduler_default_delay_seconds: int = Field(default=15)
-    """Default delay between scheduled jobs."""
-
-    scheduler_behind_schedule_threshold_seconds: int = Field(default=5)
-    """Threshold in seconds before a 'behind schedule' warning is logged for a job."""
-
-    scheduler_job_timeout_seconds: float | None = Field(default=600.0)
-    """Default timeout in seconds for scheduled job execution. ``None`` disables the default timeout.
-    Individual jobs can override via ``timeout=`` or ``timeout_disabled=True``."""
-
-    event_handler_timeout_seconds: float | None = Field(default=600.0)
-    """Default timeout in seconds for event handler execution. ``None`` disables the default timeout.
-    Individual listeners can override via ``timeout=`` or ``timeout_disabled=True``."""
-
-    # FIXME(#574): this is a global setting with no per-handler override.
-    error_handler_timeout_seconds: float | None = Field(default=5.0)
-    """Default timeout in seconds for error handler execution. ``None`` disables the default timeout.
-    Applied when the framework invokes user-provided bus or scheduler error handlers.
-    Currently global — per-handler timeout overrides are not yet supported."""
-
-    @field_validator(
-        "scheduler_job_timeout_seconds", "event_handler_timeout_seconds", "error_handler_timeout_seconds", mode="before"
-    )
-    @classmethod
-    def validate_timeout_seconds(cls, value: Any) -> float | None:
-        if value is None:
-            return None
-        if isinstance(value, bool):
-            raise ValueError("timeout must be None or a positive number")
-        val = float(value)
-        if val <= 0:
-            raise ValueError("timeout must be None or a positive number")
-        return val
-
-    run_sync_timeout_seconds: int = Field(default=6)
-    """Default timeout for synchronous function calls."""
-
-    # Web API configuration
-    run_web_api: bool = Field(default=True)
-    """Whether to run the web API service (includes healthcheck and UI backend)."""
-
-    run_web_ui: bool = Field(default=True)
-    """Whether to serve the web UI dashboard. Only used when run_web_api is True."""
-
-    web_ui_hot_reload: bool = Field(default=False)
-    """Watch web UI static files and templates for changes and push live reloads to the browser via WebSocket.
-    CSS changes are hot-swapped without a page reload; template and JS changes trigger a full reload."""
-
-    web_api_host: str = Field(default="0.0.0.0")
-    """Host to bind the web API server to."""
-
-    web_api_port: int = Field(default=8126)
-    """Port to run the web API server on."""
-
-    web_api_cors_origins: tuple[str, ...] = Field(default=("http://localhost:3000", "http://localhost:5173"))
-    """Allowed CORS origins for the web API, typically the UI dev server."""
-
     hassette_event_buffer_size: int = Field(default=1000)
     """Buffer capacity of the internal anyio memory channel used to route events to the bus."""
-
-    web_api_event_buffer_size: int = Field(default=500)
-    """Maximum number of recent events to keep in the RuntimeQueryService ring buffer."""
-
-    web_api_log_buffer_size: int = Field(default=2000)
-    """Maximum number of log entries to keep in the LogCaptureHandler ring buffer."""
-
-    web_api_job_history_size: int = Field(default=1000)
-    """Maximum number of job execution records to keep."""
-
-    file_watcher_debounce_milliseconds: int = Field(default=3_000)
-    """Debounce time for file watcher events in milliseconds."""
-
-    file_watcher_step_milliseconds: int = Field(default=500)
-    """Time to wait for additional file changes before emitting event in milliseconds."""
-
-    watch_files: bool = Field(default=True)
-    """Whether to watch files for changes and reload apps automatically."""
-
-    task_cancellation_timeout_seconds: int = Field(default=5)
-    """Length of time to wait for tasks to cancel before forcing."""
 
     default_cache_size: int = Field(default=100 * 1024 * 1024)
     """Default size limit for caches in bytes. Defaults to 100 MiB."""
@@ -335,101 +172,11 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     disable_state_proxy_polling: bool = Field(default=False)
     """Whether to disable polling for the state proxy. Defaults to False."""
 
-    # Database configuration
-
-    db_path: Path | None = Field(default=None)
-    """Path to the SQLite database file. Defaults to data_dir / "hassette.db" when None."""
-
-    db_retention_days: int = Field(default=7, ge=1)
-    """Number of days to retain execution records (handler_invocations, job_executions)."""
-
-    log_retention_days: int = Field(default=3, ge=1)
-    """Number of days to retain persisted log records. Must be <= db_retention_days."""
-
-    db_max_size_mb: float = Field(default=500, ge=0)
-    """Maximum database file size in MB. When exceeded, oldest execution records are deleted. 0 disables the size
-    failsafe."""
-
-    db_migration_timeout_seconds: int = Field(default=120, ge=10)
-    """Maximum seconds to wait for Alembic migrations to complete at startup."""
-
-    telemetry_write_queue_max: int = Field(default=1000, ge=1)
-    """Maximum pending records in the CommandExecutor write queue before records are dropped."""
-
-    db_write_queue_max: int = Field(default=2000, ge=1)
-    """Maximum pending coroutines in the DatabaseService write queue. Bounds memory growth
-    under sustained I/O pressure. Fire-and-forget tasks are dropped on overflow; submit()
-    callers block until space is available."""
-
-    # Service log levels
-    #
-    # Convention (see design/config-log-level-convention.md):
-    #   - Every Hassette-registered service gets a dedicated *_log_level field here.
-    #   - Child/helper Resources cross-bind to their parent service's field via config_log_level overrides.
-    #   - No concrete non-root Resource should fall through to the global log_level default;
-    #     the Hassette root Resource is an intentional exception (see design doc).
-    #   - All config_log_level overrides must return -> LOG_LEVEL_TYPE.
-
-    database_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
-    """Logging level for the database service. Defaults to INFO or the value of log_level."""
-
-    bus_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
-    """Logging level for the event bus service. Defaults to INFO or the value of log_level."""
-
-    scheduler_service_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
-    """Logging level for the scheduler service. Defaults to INFO or the value of log_level."""
-
-    app_handler_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
-    """Logging level for the app handler service. Defaults to INFO or the value of log_level."""
-
-    web_api_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
-    """Logging level for the web API service. Defaults to INFO or the value of log_level."""
-
-    websocket_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
-    """Logging level for the WebSocket service. Defaults to INFO or the value of log_level."""
-
-    service_watcher_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
-    """Logging level for the service watcher. Defaults to INFO or the value of log_level."""
-
-    file_watcher_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
-    """Logging level for the file watcher service. Defaults to INFO or the value of log_level."""
-
-    task_bucket_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
-    """Logging level for task buckets. Defaults to INFO or the value of log_level."""
-
-    command_executor_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
-    """Logging level for the command executor service. Defaults to INFO or the value of log_level."""
-
-    apps_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
-    """Default logging level for apps, can be overridden in app initialization. Defaults to INFO or the value\
-        of log_level."""
-
-    state_proxy_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
-    """Logging level for the state proxy resource. Defaults to INFO or the value of log_level."""
-
-    api_log_level: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
-    """Logging level for the API resource (REST/WebSocket client). Defaults to INFO or the value of log_level."""
-
-    log_all_events: bool = Field(default=False)
-    """Whether to include all events in bus debug logging. Should be used sparingly. Defaults to False."""
-
-    log_all_hass_events: bool = Field(default_factory=lambda data: data.get("log_all_events", False))
-    """Whether to include all Home Assistant events in bus debug logging. Defaults to False or the\
-        value of log_all_events."""
-
-    log_all_hassette_events: bool = Field(default_factory=lambda data: data.get("log_all_events", False))
-    """Whether to include all Hassette events in bus debug logging. Defaults to False or the
-        value of log_all_events."""
-
-    # event bus filters
-
     bus_excluded_domains: tuple[str, ...] = Field(default_factory=tuple)
     """Domains whose events should be skipped by the bus; supports glob patterns (e.g. 'sensor', 'media_*')."""
 
     bus_excluded_entities: tuple[str, ...] = Field(default_factory=tuple)
     """Entity IDs whose events should be skipped by the bus; supports glob patterns."""
-
-    # production mode settings
 
     allow_reload_in_prod: bool = Field(default=False)
     """Whether to enable the file watcher for automatic app reloads in production mode.
@@ -456,13 +203,13 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         """Return a list of files to watch for changes."""
 
         files = self.env_files | self.toml_files
-        files.add(self.app_dir.resolve())
+        files.add(self.app.directory.resolve())
 
         # just add everything from here, since we'll filter it to only existing and remove duplicates later
-        for app in self.app_manifests.values():
+        for app_manifest in self.app.manifests.values():
             with suppress(FileNotFoundError):
-                files.add(app.full_path)
-                files.add(app.app_dir)
+                files.add(app_manifest.full_path)
+                files.add(app_manifest.app_dir)
 
         files = filter_paths_to_unique_existing(files)
 
@@ -489,38 +236,20 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
     @model_validator(mode="after")
     def validate_log_retention_days(self) -> "HassetteConfig":
-        """Ensure log_retention_days <= db_retention_days.
+        """Ensure logging.log_retention_days <= database.retention_days.
 
         Log records reference executions; allowing log records to outlive
         the execution records that produced them would break referential
         integrity semantics even though the FK is not enforced at the DB level.
         """
-        if self.log_retention_days > self.db_retention_days:
+        if self.logging.log_retention_days > self.database.retention_days:
             raise ValueError(
-                f"log_retention_days ({self.log_retention_days}) must be <= "
-                f"db_retention_days ({self.db_retention_days})"
+                f"logging.log_retention_days ({self.logging.log_retention_days}) must be <= "
+                f"database.retention_days ({self.database.retention_days})"
             )
         return self
 
-    @field_validator("apps", mode="before")
-    @classmethod
-    def remove_incomplete_apps(cls, value: dict[str, Any]) -> dict[str, Any]:
-        """Remove any apps that are missing required fields before validation."""
-
-        required_keys = {"filename", "class_name"}
-        missing_required = {k: v for k, v in value.items() if isinstance(v, dict) and not required_keys.issubset(v)}
-        if missing_required:
-            LOGGER.warning(
-                "The following apps are missing required keys (%s) and will be ignored: %s",
-                ", ".join(required_keys),
-                list(missing_required.keys()),
-            )
-            for k in missing_required:
-                value.pop(k)
-
-        return value
-
-    @field_validator("app_dir", "config_dir", "data_dir", mode="after")
+    @field_validator("config_dir", "data_dir", mode="after")
     @classmethod
     def resolve_paths(cls, value: Path) -> Path:
         """Ensure that paths are resolved to absolute paths."""
@@ -541,12 +270,46 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         default_str = "default (dev)" if self.dev_mode else "default (prod)"
         defaults = get_defaults_dict(dev=self.dev_mode)
 
+        # Apply root-level flat defaults (e.g. dev_mode, allow_startup_if_app_precheck_fails,
+        # state_proxy_poll_interval_seconds)
         for fname in type(self).model_fields:
             if fname in self.model_fields_set or fname not in defaults:
+                continue
+            # Skip nested group names — they are handled below
+            if fname in _NESTED_GROUPS:
                 continue
             default_value = defaults[fname]
             LOGGER.debug("Setting %s for unset field %s: %s", default_str, fname, default_value)
             setattr(self, fname, default_value)
+
+        # Apply nested group defaults (e.g. [hassette.websocket], [hassette.scheduler])
+        for group_name in _NESTED_GROUPS:
+            if group_name not in defaults or group_name in self.model_fields_set:
+                continue
+            group_defaults = defaults[group_name]
+            if not isinstance(group_defaults, dict):
+                continue
+            group_obj = getattr(self, group_name)
+            for sub_field, sub_value in group_defaults.items():
+                LOGGER.debug(
+                    "Setting %s for unset nested field %s.%s: %s",
+                    default_str,
+                    group_name,
+                    sub_field,
+                    sub_value,
+                )
+                setattr(group_obj, sub_field, sub_value)
+
+        if self.model_extra:
+            legacy_hits = {k: LEGACY_KEY_MIGRATION[k] for k in self.model_extra if k in LEGACY_KEY_MIGRATION}
+            if legacy_hits:
+                lines = [f"  {old} -> [hassette.{new}]" for old, new in legacy_hits.items()]
+                LOGGER.warning(
+                    "Detected %d legacy flat config key(s) that moved to nested groups. "
+                    "These keys are being ignored — update your configuration:\n%s",
+                    len(legacy_hits),
+                    "\n".join(lines),
+                )
 
     @classmethod
     def get_config(cls) -> "HassetteConfig":
@@ -564,17 +327,21 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         # track known paths to simplify dupe detection during auto-detect
         known_paths: set[Path] = set()
 
-        for k, v in self.apps.copy().items():
+        for k, v in self.app.apps.copy().items():
             if not isinstance(v, dict):
                 continue
-            v = clean_app(k, v, self.app_dir)
+            try:
+                v = clean_app(k, v, self.app.directory)
+            except (KeyError, TypeError):
+                LOGGER.warning("Skipping app %r: missing required keys (filename or class_name)", k)
+                continue
             cleaned_apps_dict[k] = v
 
             # track known paths
             known_paths.add(v["full_path"])
 
-        if self.autodetect_apps:
-            autodetected_apps = autodetect_apps(self.app_dir, known_paths, set(self.autodetect_exclude_dirs))
+        if self.app.autodetect:
+            autodetected_apps = autodetect_apps(self.app.directory, known_paths, set(self.app.exclude_dirs))
             for k, v in autodetected_apps.items():
                 app_dir = v["app_dir"]
                 full_path = app_dir / v["filename"]
@@ -595,4 +362,11 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                 )
             app_manifest_dict[k] = AppManifest.model_validate(v)
 
-        self.app_manifests = app_manifest_dict
+        self.app.manifests = app_manifest_dict
+
+
+_NESTED_GROUPS: dict[str, type] = {
+    name: field.annotation
+    for name, field in HassetteConfig.model_fields.items()
+    if isinstance(field.annotation, type) and issubclass(field.annotation, ExcludeExtrasMixin)
+}

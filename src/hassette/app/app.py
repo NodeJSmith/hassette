@@ -117,7 +117,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         try:
             return self.app_config.log_level
         except AttributeError:
-            return self.hassette.config.apps_log_level
+            return self.hassette.config.logging.apps
 
     @property
     def app_key(self) -> str:
@@ -145,7 +145,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         Child cleanup (Bus, Scheduler, etc.) is handled by _finalize_shutdown() propagation,
         not by this method.
         """
-        timeout = timeout or self.hassette.config.app_shutdown_timeout_seconds
+        timeout = timeout or self.hassette.config.lifecycle.app_shutdown_timeout_seconds
         await super().cleanup(timeout=timeout)
 
 

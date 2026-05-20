@@ -106,11 +106,13 @@ def _write_toml(
         textwrap.dedent(
             f"""
             [hassette]
-            app_dir = {app_dir.as_posix()!r}
-            autodetect_apps = false
             run_app_precheck = {str(run_app_precheck).lower()}
 
-            [apps.{APP_KEY}]
+            [hassette.app]
+            directory = {app_dir.as_posix()!r}
+            autodetect = false
+
+            [hassette.app.apps.{APP_KEY}]
             enabled = true
             filename = {filename!r}
             class_name = {class_name!r}

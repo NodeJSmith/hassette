@@ -8,12 +8,13 @@ components for integration tests (bus routing, scheduler, state propagation).
 import asyncio
 from collections import deque
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from hassette.core.app_registry import AppManifestInfo, AppStatusSnapshot
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.test_utils.web_helpers import make_full_snapshot
 from hassette.types.enums import ResourceStatus
+from hassette.web.app import create_fastapi_app
 
 
 def _wire_telemetry_stubs(hassette: MagicMock) -> None:
@@ -54,8 +55,6 @@ def create_hassette_stub(
     app_action_mocks: bool = False,
     # Scheduler
     scheduler_jobs: list[Any] | None = None,
-    # Config endpoint
-    config_dump: dict[str, Any] | None = None,
 ) -> MagicMock:
     """Build a fully-wired MagicMock Hassette stub for web/API test fixtures.
 
@@ -65,13 +64,40 @@ def create_hassette_stub(
     hassette = MagicMock()
 
     # --- Config ---
-    hassette.config.run_web_api = run_web_api
-    hassette.config.run_web_ui = run_web_ui
-    hassette.config.web_api_cors_origins = cors_origins
-    hassette.config.web_api_event_buffer_size = event_buffer_size
-    hassette.config.web_api_log_level = log_level
+    # Root-level fields
     hassette.config.dev_mode = dev_mode
+    hassette.config.base_url = "http://127.0.0.1:8123"
+    hassette.config.asyncio_debug_mode = False
     hassette.config.allow_reload_in_prod = allow_reload_in_prod
+    hassette.config.data_dir = "/srv/hassette/data"
+    hassette.config.config_dir = "/srv/hassette/config"
+    # web_api group
+    hassette.config.web_api.run = run_web_api
+    hassette.config.web_api.run_ui = run_web_ui
+    hassette.config.web_api.ui_hot_reload = False
+    hassette.config.web_api.host = "0.0.0.0"
+    hassette.config.web_api.port = 8126
+    hassette.config.web_api.cors_origins = cors_origins
+    hassette.config.web_api.event_buffer_size = event_buffer_size
+    hassette.config.web_api.log_buffer_size = 2000
+    hassette.config.web_api.job_history_size = 1000
+    # logging group
+    hassette.config.logging.log_level = log_level
+    hassette.config.logging.web_api = log_level
+    # lifecycle group
+    hassette.config.lifecycle.startup_timeout_seconds = 30
+    hassette.config.lifecycle.app_startup_timeout_seconds = 20
+    hassette.config.lifecycle.app_shutdown_timeout_seconds = 10
+    # app group
+    hassette.config.app.autodetect = True
+    hassette.config.app.directory = "/srv/hassette/apps"
+    # scheduler group
+    hassette.config.scheduler.min_delay_seconds = 1
+    hassette.config.scheduler.max_delay_seconds = 30
+    hassette.config.scheduler.default_delay_seconds = 15
+    # file_watcher group
+    hassette.config.file_watcher.watch_files = True
+    hassette.config.file_watcher.debounce_milliseconds = 3000
 
     # --- State proxy ---
     hassette.state_proxy = hassette._state_proxy
@@ -127,10 +153,6 @@ def create_hassette_stub(
 
     # --- Telemetry query service stubs ---
     _wire_telemetry_stubs(hassette)
-
-    # --- Config endpoint ---
-    if config_dump is not None:
-        hassette.config.model_dump.return_value = config_dump
 
     # --- Drop counters (telemetry pipeline) ---
     hassette.get_drop_counters.return_value = (0, 0, 0, 0)
@@ -191,10 +213,6 @@ def create_test_fastapi_app(
     Returns:
         The FastAPI application instance.
     """
-    from unittest.mock import patch
-
-    from hassette.web.app import create_fastapi_app
-
     if log_handler is not None:
         with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
             return create_fastapi_app(mock_hassette)

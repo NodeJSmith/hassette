@@ -10,8 +10,11 @@ from hassette.core.web_api_service import WebApiService
 
 
 @pytest.fixture
-def web_api_service(test_config) -> WebApiService:
-    hassette = Hassette(test_config)
+def web_api_service(unused_tcp_port_factory) -> WebApiService:
+    from tests.conftest import TestConfig
+
+    config = TestConfig(web_api={"port": unused_tcp_port_factory()})
+    hassette = Hassette(config)
     return WebApiService(hassette)
 
 

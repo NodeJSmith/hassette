@@ -1,20 +1,28 @@
 [hassette]
 dev_mode = false
 allow_startup_if_app_precheck_fails = false
+state_proxy_poll_interval_seconds = 30
+
+[hassette.lifecycle]
 startup_timeout_seconds = 10
 app_startup_timeout_seconds = 20
 app_shutdown_timeout_seconds = 10
 resource_shutdown_timeout_seconds = 10
 task_cancellation_timeout_seconds = 5
 run_sync_timeout_seconds = 6
-websocket_authentication_timeout_seconds = 10
-websocket_response_timeout_seconds = 15
-websocket_connection_timeout_seconds = 5
-websocket_total_timeout_seconds = 40
-websocket_heartbeat_interval_seconds = 30
-scheduler_min_delay_seconds = 1
-scheduler_max_delay_seconds = 30
-scheduler_default_delay_seconds = 15
-file_watcher_debounce_milliseconds = 3000
-file_watcher_step_milliseconds = 500
-state_proxy_poll_interval_seconds = 30
+
+[hassette.websocket]
+authentication_timeout_seconds = 10
+response_timeout_seconds = 15
+connection_timeout_seconds = 5
+total_timeout_seconds = 40
+heartbeat_interval_seconds = 30
+
+[hassette.scheduler]
+min_delay_seconds = 1
+max_delay_seconds = 30
+default_delay_seconds = 15
+
+[hassette.file_watcher]
+debounce_milliseconds = 3000
+step_milliseconds = 500

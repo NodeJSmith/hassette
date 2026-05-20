@@ -62,10 +62,10 @@ async def test_config_endpoint(ha_container: str, tmp_path) -> None:
 
         assert r.status_code == 200
         body: dict[str, Any] = r.json()
-        assert "run_web_api" in body
-        assert "web_api_port" in body
-        assert "log_level" in body
-        assert body["run_web_api"] is True
+        assert "web_api" in body
+        assert "logging" in body
+        assert body["web_api"]["run"] is True
+        assert body["web_api"]["port"] > 0
 
 
 async def test_telemetry_after_activity(ha_container: str, tmp_path) -> None:

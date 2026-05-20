@@ -14,9 +14,9 @@ def _make_scheduler_service(*, config_timeout: float | None = 600.0) -> Schedule
     """Create a SchedulerService with mocked internals, bypassing Resource.__init__."""
     svc = SchedulerService.__new__(SchedulerService)
     svc.hassette = MagicMock()
-    svc.hassette.config.scheduler_behind_schedule_threshold_seconds = 60
-    svc.hassette.config.scheduler_job_timeout_seconds = config_timeout
-    svc.hassette.config.registration_await_timeout = 30
+    svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 60
+    svc.hassette.config.scheduler.job_timeout_seconds = config_timeout
+    svc.hassette.config.lifecycle.registration_await_timeout = 30
     svc._reg_tracker = RegistrationTracker()
     svc._removal_callbacks = {}
     svc.logger = MagicMock()

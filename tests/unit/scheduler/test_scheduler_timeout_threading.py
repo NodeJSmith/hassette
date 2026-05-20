@@ -10,7 +10,7 @@ def _make_scheduler() -> Scheduler:
     """Create a Scheduler with a stubbed hassette and scheduler_service."""
 
     hassette = MagicMock()
-    hassette.config.scheduler_service_log_level = "INFO"
+    hassette.config.logging.scheduler_service = "INFO"
     scheduler = Scheduler.__new__(Scheduler)
     scheduler.hassette = hassette
     scheduler._jobs_by_name = {}

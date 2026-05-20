@@ -39,14 +39,14 @@ class WebUiWatcherService(Service):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.file_watcher_log_level
+        return self.hassette.config.logging.file_watcher
 
     async def on_initialize(self) -> None:
-        if not self.hassette.config.web_ui_hot_reload:
+        if not self.hassette.config.web_api.ui_hot_reload:
             self.mark_ready(reason="Web UI hot reload disabled")
 
     async def serve(self) -> None:
-        if not self.hassette.config.web_ui_hot_reload:
+        if not self.hassette.config.web_api.ui_hot_reload:
             await self.shutdown_event.wait()
             return
 

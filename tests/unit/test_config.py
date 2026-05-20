@@ -21,10 +21,10 @@ def test_overrides_are_used(env_file_path: Path, test_config: HassetteConfig) ->
 
     test_config.reload()
 
-    expected_value = dotenv.get_key(env_file_path, "hassette__apps_log_level")
+    expected_value = dotenv.get_key(env_file_path, "hassette__logging__apps")
 
-    assert test_config.apps_log_level == expected_value, (
-        f"Expected apps_log_level to be {expected_value}, got {test_config.apps_log_level}"
+    assert test_config.logging.apps == expected_value, (
+        f"Expected logging.apps to be {expected_value}, got {test_config.logging.apps}"
     )
 
 
@@ -32,18 +32,20 @@ def test_env_overrides_are_used(test_config_class, monkeypatch, tmp_path):
     """Environment overrides win when constructing a HassetteConfig."""
     app_dir = tmp_path / "custom/apps"
     app_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("hassette__app_dir", str(app_dir))
+    monkeypatch.setenv("hassette__app__directory", str(app_dir))
     config_with_env_override = test_config_class()
-    assert config_with_env_override.app_dir == app_dir, f"Expected {app_dir}, got {config_with_env_override.app_dir}"
+    assert config_with_env_override.app.directory == app_dir, (
+        f"Expected {app_dir}, got {config_with_env_override.app.directory}"
+    )
 
 
 def test_extended_autodetect_exclude_dirs(test_config_class):
     """Test that extended autodetect_exclude_dirs are handled correctly."""
 
-    config_with_extended_excludes = test_config_class(extend_autodetect_exclude_dirs=[".hg", ".svn", "custom_dir"])
+    config_with_extended_excludes = test_config_class(app={"extend_exclude_dirs": [".hg", ".svn", "custom_dir"]})
     expected_excludes = set(AUTODETECT_EXCLUDE_DIRS_DEFAULT) | {".hg", ".svn", "custom_dir"}
-    assert set(config_with_extended_excludes.autodetect_exclude_dirs) == expected_excludes, (
-        f"Expected {expected_excludes}, got {set(config_with_extended_excludes.autodetect_exclude_dirs)}"
+    assert set(config_with_extended_excludes.app.exclude_dirs) == expected_excludes, (
+        f"Expected {expected_excludes}, got {set(config_with_extended_excludes.app.exclude_dirs)}"
     )
 
 
@@ -83,9 +85,9 @@ def test_env_file_contributes_to_settings_without_mutating_os_environ(monkeypatc
     """The pydantic-settings dotenv source affects config values, but does not write into os.environ."""
 
     env_file = tmp_path / ".env"
-    env_file.write_text("HASSETTE__LOG_LEVEL=DEBUG\n", encoding="utf-8")
+    env_file.write_text("HASSETTE__LOGGING__LOG_LEVEL=DEBUG\n", encoding="utf-8")
 
-    monkeypatch.delenv("HASSETTE__LOG_LEVEL", raising=False)
+    monkeypatch.delenv("HASSETTE__LOGGING__LOG_LEVEL", raising=False)
 
     class DotenvOnlyConfig(HassetteConfig):
         model_config = HassetteConfig.model_config.copy() | {
@@ -100,8 +102,8 @@ def test_env_file_contributes_to_settings_without_mutating_os_environ(monkeypatc
 
     config = DotenvOnlyConfig()
 
-    assert config.log_level == "DEBUG"
-    assert os.getenv("HASSETTE__LOG_LEVEL") is None
+    assert config.logging.log_level == "DEBUG"
+    assert os.getenv("HASSETTE__LOGGING__LOG_LEVEL") is None
 
 
 async def test_import_dot_env_files_true_loads_vars_into_os_environ(monkeypatch, tmp_path):
@@ -349,11 +351,13 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(monke
         textwrap.dedent(
             f"""
             [hassette]
-            app_dir = {app_dir.as_posix()!r}
-            autodetect_apps = false
             run_app_precheck = true
 
-            [apps.env_reader]
+            [hassette.app]
+            directory = {app_dir.as_posix()!r}
+            autodetect = false
+
+            [hassette.app.apps.env_reader]
             enabled = true
             filename = "env_reader_app.py"
             class_name = "EnvReaderApp"
@@ -408,25 +412,27 @@ def _clean_log_level_env(monkeypatch):
     monkeypatch restores the original env on teardown.
     """
     for key in list(os.environ):
-        if key.lower().startswith("hassette__") and "log_level" in key.lower():
+        k = key.lower()
+        if k.startswith("hassette__") and ("log_level" in k or k.startswith("hassette__logging__")):
             monkeypatch.delenv(key, raising=False)
     return
 
 
-SERVICE_LOG_LEVEL_FIELDS = (
-    "database_service_log_level",
-    "bus_service_log_level",
-    "scheduler_service_log_level",
-    "app_handler_log_level",
-    "web_api_log_level",
-    "websocket_log_level",
-    "service_watcher_log_level",
-    "file_watcher_log_level",
-    "task_bucket_log_level",
-    "command_executor_log_level",
-    "apps_log_level",
-    "state_proxy_log_level",
-    "api_log_level",
+# Per-service log level nested attribute names under config.logging.*
+SERVICE_LOG_LEVEL_ATTRS = (
+    "database_service",
+    "bus_service",
+    "scheduler_service",
+    "app_handler",
+    "web_api",
+    "websocket",
+    "service_watcher",
+    "file_watcher",
+    "task_bucket",
+    "command_executor",
+    "apps",
+    "state_proxy",
+    "api",
 )
 
 
@@ -449,15 +455,15 @@ class _LogLevelTestConfig(HassetteConfig):
 
 @pytest.mark.usefixtures("_clean_log_level_env")
 def test_service_log_levels_inherit_global_debug(monkeypatch):
-    """Setting HASSETTE__LOG_LEVEL=DEBUG propagates to all 13 service log level fields."""
-    monkeypatch.setenv("HASSETTE__LOG_LEVEL", "DEBUG")
+    """Setting HASSETTE__LOGGING__LOG_LEVEL=DEBUG propagates to all 13 service log level fields."""
+    monkeypatch.setenv("HASSETTE__LOGGING__LOG_LEVEL", "DEBUG")
 
     config = _LogLevelTestConfig()
 
-    assert config.log_level == "DEBUG", f"Expected global log_level='DEBUG', got {config.log_level!r}"
-    for field in SERVICE_LOG_LEVEL_FIELDS:
-        actual = getattr(config, field)
-        assert actual == "DEBUG", f"Expected {field}='DEBUG', got {actual!r}"
+    assert config.logging.log_level == "DEBUG", f"Expected logging.log_level='DEBUG', got {config.logging.log_level!r}"
+    for attr in SERVICE_LOG_LEVEL_ATTRS:
+        actual = getattr(config.logging, attr)
+        assert actual == "DEBUG", f"Expected logging.{attr}='DEBUG', got {actual!r}"
 
 
 @pytest.mark.usefixtures("_clean_log_level_env")
@@ -465,29 +471,29 @@ def test_service_log_levels_default_to_info_when_global_unset():
     """With no log_level override all 13 service log level fields default to INFO."""
     config = _LogLevelTestConfig()
 
-    assert config.log_level == "INFO", f"Expected global log_level='INFO', got {config.log_level!r}"
-    for field in SERVICE_LOG_LEVEL_FIELDS:
-        actual = getattr(config, field)
-        assert actual == "INFO", f"Expected {field}='INFO', got {actual!r}"
+    assert config.logging.log_level == "INFO", f"Expected logging.log_level='INFO', got {config.logging.log_level!r}"
+    for attr in SERVICE_LOG_LEVEL_ATTRS:
+        actual = getattr(config.logging, attr)
+        assert actual == "INFO", f"Expected logging.{attr}='INFO', got {actual!r}"
 
 
 @pytest.mark.usefixtures("_clean_log_level_env")
 def test_service_specific_override_takes_precedence(monkeypatch):
     """A service-specific env var wins over the global log_level."""
-    monkeypatch.setenv("HASSETTE__LOG_LEVEL", "DEBUG")
-    monkeypatch.setenv("HASSETTE__WEBSOCKET_LOG_LEVEL", "WARNING")
+    monkeypatch.setenv("HASSETTE__LOGGING__LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("HASSETTE__LOGGING__WEBSOCKET", "WARNING")
 
     config = _LogLevelTestConfig()
 
-    assert config.websocket_log_level == "WARNING", (
-        f"Expected websocket_log_level='WARNING', got {config.websocket_log_level!r}"
+    assert config.logging.websocket == "WARNING", (
+        f"Expected logging.websocket='WARNING', got {config.logging.websocket!r}"
     )
     # All other fields should still inherit DEBUG
-    for field in SERVICE_LOG_LEVEL_FIELDS:
-        if field == "websocket_log_level":
+    for attr in SERVICE_LOG_LEVEL_ATTRS:
+        if attr == "websocket":
             continue
-        actual = getattr(config, field)
-        assert actual == "DEBUG", f"Expected {field}='DEBUG', got {actual!r}"
+        actual = getattr(config.logging, attr)
+        assert actual == "DEBUG", f"Expected logging.{attr}='DEBUG', got {actual!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -555,37 +561,37 @@ class TestAuthHeaders:
 
 
 class TestErrorHandlerTimeoutSeconds:
-    """Tests for the error_handler_timeout_seconds config field."""
+    """Tests for the error_handler_timeout_seconds config field (now in lifecycle group)."""
 
     def test_error_handler_timeout_default(self) -> None:
-        """error_handler_timeout_seconds defaults to 5.0."""
+        """lifecycle.error_handler_timeout_seconds defaults to 5.0."""
         config = _LogLevelTestConfig()
-        assert config.error_handler_timeout_seconds == 5.0
+        assert config.lifecycle.error_handler_timeout_seconds == 5.0
 
     def test_error_handler_timeout_accepts_none(self) -> None:
-        """error_handler_timeout_seconds accepts None to disable the timeout."""
-        config = _LogLevelTestConfig(error_handler_timeout_seconds=None)
-        assert config.error_handler_timeout_seconds is None
+        """lifecycle.error_handler_timeout_seconds accepts None to disable the timeout."""
+        config = _LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": None})
+        assert config.lifecycle.error_handler_timeout_seconds is None
 
     def test_error_handler_timeout_accepts_positive_float(self) -> None:
-        """error_handler_timeout_seconds accepts a positive float."""
-        config = _LogLevelTestConfig(error_handler_timeout_seconds=10.0)
-        assert config.error_handler_timeout_seconds == 10.0
+        """lifecycle.error_handler_timeout_seconds accepts a positive float."""
+        config = _LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": 10.0})
+        assert config.lifecycle.error_handler_timeout_seconds == 10.0
 
     def test_error_handler_timeout_rejects_zero(self) -> None:
-        """error_handler_timeout_seconds rejects zero (must be positive)."""
+        """lifecycle.error_handler_timeout_seconds rejects zero (must be positive)."""
         with pytest.raises(Exception, match="timeout must be"):
-            _LogLevelTestConfig(error_handler_timeout_seconds=0.0)
+            _LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": 0.0})
 
     def test_error_handler_timeout_rejects_negative(self) -> None:
-        """error_handler_timeout_seconds rejects negative values."""
+        """lifecycle.error_handler_timeout_seconds rejects negative values."""
         with pytest.raises(Exception, match="timeout must be"):
-            _LogLevelTestConfig(error_handler_timeout_seconds=-1.0)
+            _LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": -1.0})
 
     def test_error_handler_timeout_rejects_bool(self) -> None:
-        """error_handler_timeout_seconds rejects booleans (same as other timeout validators)."""
+        """lifecycle.error_handler_timeout_seconds rejects booleans."""
         with pytest.raises(Exception, match="timeout must be"):
-            _LogLevelTestConfig(error_handler_timeout_seconds=True)
+            _LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": True})
 
 
 # ---------------------------------------------------------------------------
@@ -594,40 +600,41 @@ class TestErrorHandlerTimeoutSeconds:
 
 
 def test_websocket_connect_retry_defaults() -> None:
-    """New connect-retry fields have the correct default values."""
+    """Connect-retry fields under websocket group have the correct default values."""
     config = _LogLevelTestConfig()
-    assert config.websocket_connect_retry_max_attempts == 5
-    assert isinstance(config.websocket_connect_retry_max_attempts, int)
-    assert config.websocket_connect_retry_initial_wait_seconds == 1.0
-    assert isinstance(config.websocket_connect_retry_initial_wait_seconds, float)
-    assert config.websocket_connect_retry_max_wait_seconds == 32.0
-    assert isinstance(config.websocket_connect_retry_max_wait_seconds, float)
+    assert config.websocket.connect_retry_max_attempts == 5
+    assert isinstance(config.websocket.connect_retry_max_attempts, int)
+    assert config.websocket.connect_retry_initial_wait_seconds == 1.0
+    assert isinstance(config.websocket.connect_retry_initial_wait_seconds, float)
+    assert config.websocket.connect_retry_max_wait_seconds == 32.0
+    assert isinstance(config.websocket.connect_retry_max_wait_seconds, float)
 
 
 def test_websocket_early_drop_defaults() -> None:
-    """New early-drop fields have the correct default values."""
+    """Early-drop fields under websocket group have the correct default values."""
     config = _LogLevelTestConfig()
-    assert config.websocket_early_drop_stable_window_seconds == 30.0
-    assert isinstance(config.websocket_early_drop_stable_window_seconds, float)
-    assert config.websocket_early_drop_max_retries == 5
-    assert isinstance(config.websocket_early_drop_max_retries, int)
-    assert config.websocket_early_drop_backoff_initial_seconds == 2.0
-    assert isinstance(config.websocket_early_drop_backoff_initial_seconds, float)
-    assert config.websocket_early_drop_backoff_max_seconds == 60.0
-    assert isinstance(config.websocket_early_drop_backoff_max_seconds, float)
+    assert config.websocket.early_drop_stable_window_seconds == 30.0
+    assert isinstance(config.websocket.early_drop_stable_window_seconds, float)
+    assert config.websocket.early_drop_max_retries == 5
+    assert isinstance(config.websocket.early_drop_max_retries, int)
+    assert config.websocket.early_drop_backoff_initial_seconds == 2.0
+    assert isinstance(config.websocket.early_drop_backoff_initial_seconds, float)
+    assert config.websocket.early_drop_backoff_max_seconds == 60.0
+    assert isinstance(config.websocket.early_drop_backoff_max_seconds, float)
 
 
 def test_websocket_max_recovery_default() -> None:
-    """websocket_max_recovery_seconds defaults to 300.0."""
+    """websocket.max_recovery_seconds defaults to 300.0."""
     config = _LogLevelTestConfig()
-    assert config.websocket_max_recovery_seconds == 300.0
-    assert isinstance(config.websocket_max_recovery_seconds, float)
+    assert config.websocket.max_recovery_seconds == 300.0
+    assert isinstance(config.websocket.max_recovery_seconds, float)
 
 
 def test_bundled_toml_files_have_no_log_level_entries():
     """Regression guard: bundled TOML defaults must not contain *_log_level keys.
 
     Adding them back silently re-introduces the model_post_init overwrite bug (#237).
+    Checks both the top-level [hassette] section and all nested subsections.
     """
     import tomllib
     from importlib.resources import files
@@ -637,7 +644,14 @@ def test_bundled_toml_files_have_no_log_level_entries():
         with toml_path.open("rb") as f:
             data = tomllib.load(f)
         hassette_section = data.get("hassette", {})
+        # Check top-level keys
         log_level_keys = [k for k in hassette_section if k.endswith("_log_level")]
-        assert log_level_keys == [], (
-            f"{filename} contains log_level entries that will be overwritten by model_post_init: {log_level_keys}"
-        )
+        assert log_level_keys == [], f"{filename} [hassette] contains log_level entries: {log_level_keys}"
+        # Check all nested subsections
+        for group_name, group_data in hassette_section.items():
+            if not isinstance(group_data, dict):
+                continue
+            nested_log_level_keys = [k for k in group_data if k.endswith("_log_level")]
+            assert nested_log_level_keys == [], (
+                f"{filename} [hassette.{group_name}] contains log_level entries: {nested_log_level_keys}"
+            )

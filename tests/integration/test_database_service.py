@@ -18,18 +18,18 @@ def mock_hassette(premigrated_db_path: Path) -> MagicMock:
     """Create a mock Hassette with database config pointing to a pre-migrated DB."""
     hassette = MagicMock()
     hassette.config.data_dir = premigrated_db_path.parent
-    hassette.config.db_path = None
-    hassette.config.db_retention_days = 7
-    hassette.config.log_retention_days = 3
-    hassette.config.db_max_size_mb = 500
-    hassette.config.db_migration_timeout_seconds = 120
-    hassette.config.telemetry_write_queue_max = 500
-    hassette.config.db_write_queue_max = 2000
-    hassette.config.database_service_log_level = "INFO"
-    hassette.config.log_level = "INFO"
-    hassette.config.task_bucket_log_level = "INFO"
-    hassette.config.resource_shutdown_timeout_seconds = 5
-    hassette.config.task_cancellation_timeout_seconds = 5
+    hassette.config.database.path = None
+    hassette.config.database.retention_days = 7
+    hassette.config.logging.log_retention_days = 3
+    hassette.config.database.max_size_mb = 500
+    hassette.config.database.migration_timeout_seconds = 120
+    hassette.config.database.telemetry_write_queue_max = 500
+    hassette.config.database.write_queue_max = 2000
+    hassette.config.logging.database_service = "INFO"
+    hassette.config.logging.log_level = "INFO"
+    hassette.config.logging.task_bucket = "INFO"
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
     hassette.ready_event = asyncio.Event()
     hassette._session_id = None
     return hassette
@@ -40,18 +40,18 @@ def mock_hassette_fresh(tmp_path: Path) -> MagicMock:
     """Create a mock Hassette with a fresh (empty) data_dir for migration-from-scratch tests."""
     hassette = MagicMock()
     hassette.config.data_dir = tmp_path
-    hassette.config.db_path = None
-    hassette.config.db_retention_days = 7
-    hassette.config.log_retention_days = 3
-    hassette.config.db_max_size_mb = 500
-    hassette.config.db_migration_timeout_seconds = 120
-    hassette.config.telemetry_write_queue_max = 500
-    hassette.config.db_write_queue_max = 2000
-    hassette.config.database_service_log_level = "INFO"
-    hassette.config.log_level = "INFO"
-    hassette.config.task_bucket_log_level = "INFO"
-    hassette.config.resource_shutdown_timeout_seconds = 5
-    hassette.config.task_cancellation_timeout_seconds = 5
+    hassette.config.database.path = None
+    hassette.config.database.retention_days = 7
+    hassette.config.logging.log_retention_days = 3
+    hassette.config.database.max_size_mb = 500
+    hassette.config.database.migration_timeout_seconds = 120
+    hassette.config.database.telemetry_write_queue_max = 500
+    hassette.config.database.write_queue_max = 2000
+    hassette.config.logging.database_service = "INFO"
+    hassette.config.logging.log_level = "INFO"
+    hassette.config.logging.task_bucket = "INFO"
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
     hassette.ready_event = asyncio.Event()
     hassette._session_id = None
     return hassette
@@ -746,7 +746,7 @@ async def test_size_failsafe_deletes_oldest_records(initialized_service: Databas
     await db.commit()
 
     # Set a very small max size that the DB likely already exceeds
-    initialized_service.hassette.config.db_max_size_mb = 0.0001  # ~100 bytes — guaranteed to trigger
+    initialized_service.hassette.config.database.max_size_mb = 0.0001  # ~100 bytes — guaranteed to trigger
 
     await initialized_service._check_size_failsafe()
 
@@ -814,7 +814,7 @@ async def test_size_failsafe_loop_capped_at_10_iterations(initialized_service: D
         return original_get_size() + 999.0  # always over limit
 
     with patch.object(initialized_service, "_get_db_size_mb", side_effect=always_over_limit):
-        initialized_service.hassette.config.db_max_size_mb = 1
+        initialized_service.hassette.config.database.max_size_mb = 1
         await initialized_service._check_size_failsafe()
 
     # 1 (initial) + 1 (pre-pass size check, 0 log records → immediate break) +
@@ -1025,7 +1025,7 @@ async def test_enqueue_logs_backlog_warning_at_100_multiple(initialized_service:
 
 async def test_size_failsafe_skips_when_limit_is_zero(initialized_service: DatabaseService) -> None:
     """_check_size_failsafe() returns immediately when db_max_size_mb == 0."""
-    initialized_service.hassette.config.db_max_size_mb = 0
+    initialized_service.hassette.config.database.max_size_mb = 0
 
     # Patch _get_db_size_mb to detect if it is ever called
     with patch.object(initialized_service, "_get_db_size_mb") as mock_size:
@@ -1059,7 +1059,7 @@ async def test_size_failsafe_logs_warning_on_consecutive_triggers(initialized_se
         )
     await db.commit()
 
-    initialized_service.hassette.config.db_max_size_mb = 0.0001  # guaranteed to trigger
+    initialized_service.hassette.config.database.max_size_mb = 0.0001  # guaranteed to trigger
 
     # First trigger — counter goes to 1, no warning logged
     with patch.object(initialized_service, "logger") as mock_logger:

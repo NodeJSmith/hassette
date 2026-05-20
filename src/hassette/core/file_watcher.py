@@ -21,7 +21,7 @@ class FileWatcherService(Service):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.file_watcher_log_level
+        return self.hassette.config.logging.file_watcher
 
     async def before_initialize(self) -> None:
         self.logger.debug("Waiting for Hassette ready event")
@@ -29,7 +29,7 @@ class FileWatcherService(Service):
 
     async def serve(self) -> None:
         """Watch app directories for changes and trigger reloads."""
-        if not self.hassette.config.watch_files:
+        if not self.hassette.config.file_watcher.watch_files:
             self.logger.warning("File watching is disabled due to configuration")
             return
 
@@ -41,8 +41,8 @@ class FileWatcherService(Service):
         async for changes in awatch(
             *paths,
             stop_event=self.shutdown_event,
-            step=self.hassette.config.file_watcher_step_milliseconds,
-            debounce=self.hassette.config.file_watcher_debounce_milliseconds,
+            step=self.hassette.config.file_watcher.step_milliseconds,
+            debounce=self.hassette.config.file_watcher.debounce_milliseconds,
         ):
             if self.shutdown_event.is_set():
                 break

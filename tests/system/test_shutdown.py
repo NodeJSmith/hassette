@@ -21,7 +21,7 @@ async def test_clean_shutdown(ha_container: str, tmp_path) -> None:
 
     async with startup_context(config) as hassette:
         session_id = hassette.session_id
-        db_path = hassette.config.db_path or (hassette.config.data_dir / "hassette.db")
+        db_path = hassette.config.database.path or (hassette.config.data_dir / "hassette.db")
 
     # After the context exits, assert shutdown completed
     assert hassette._shutdown_completed is True

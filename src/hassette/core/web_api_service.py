@@ -33,16 +33,16 @@ class WebApiService(Service):
 
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
-        self.host = hassette.config.web_api_host
-        self.port = hassette.config.web_api_port
+        self.host = hassette.config.web_api.host
+        self.port = hassette.config.web_api.port
         self._server = None
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        return self.hassette.config.web_api_log_level
+        return self.hassette.config.logging.web_api
 
     async def on_initialize(self) -> None:
-        if not self.hassette.config.run_web_api:
+        if not self.hassette.config.web_api.run:
             self.logger.warning("Web API service disabled by configuration")
             self.mark_ready(reason="Web API disabled")
             return
@@ -51,7 +51,7 @@ class WebApiService(Service):
         self.mark_ready(reason="Web API service initialized")
 
     async def serve(self) -> None:
-        if not self.hassette.config.run_web_api:
+        if not self.hassette.config.web_api.run:
             await self.shutdown_event.wait()  # stay alive so handle_stop() doesn't undo mark_ready
             return
 

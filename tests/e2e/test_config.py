@@ -32,8 +32,8 @@ def test_config_page_shows_connection_section(page: Page, base_url: str) -> None
     page.goto(base_url + "/config")
     body = page.locator("body")
     expect(body).to_contain_text("connection")
-    expect(body).to_contain_text("web_api_host")
-    expect(body).to_contain_text("web_api_port")
+    expect(body).to_contain_text("host")
+    expect(body).to_contain_text("port")
 
 
 def test_config_page_shows_paths_section(page: Page, base_url: str) -> None:
@@ -51,7 +51,7 @@ def test_config_page_shows_scheduler_section(page: Page, base_url: str) -> None:
     page.goto(base_url + "/config")
     body = page.locator("body")
     expect(body).to_contain_text("scheduler")
-    expect(body).to_contain_text("scheduler_min_delay_seconds")
+    expect(body).to_contain_text("min_delay_seconds")
 
 
 def test_config_page_shows_timeouts_section(page: Page, base_url: str) -> None:
@@ -67,7 +67,7 @@ def test_config_page_shows_buffers_section(page: Page, base_url: str) -> None:
     page.goto(base_url + "/config")
     body = page.locator("body")
     expect(body).to_contain_text("buffers")
-    expect(body).to_contain_text("web_api_event_buffer_size")
+    expect(body).to_contain_text("event_buffer_size")
 
 
 def test_config_values_are_non_empty(page: Page, base_url: str) -> None:

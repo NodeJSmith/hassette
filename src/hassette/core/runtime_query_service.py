@@ -75,7 +75,7 @@ class RuntimeQueryService(Resource):
     def __init__(self, hassette: "Hassette", *, parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self.bus = self.add_child(Bus)
-        self._event_buffer = deque(maxlen=hassette.config.web_api_event_buffer_size)
+        self._event_buffer = deque(maxlen=hassette.config.web_api.event_buffer_size)
         self._ws_clients: set[asyncio.Queue] = set()
         self._lock = asyncio.Lock()
         self._ws_drops: int = 0
@@ -91,10 +91,10 @@ class RuntimeQueryService(Resource):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        return self.hassette.config.web_api_log_level
+        return self.hassette.config.logging.web_api
 
     async def on_initialize(self) -> None:
-        if not self.hassette.config.run_web_api:
+        if not self.hassette.config.web_api.run:
             self.mark_ready(reason="Web API disabled")
             return
 

@@ -16,10 +16,10 @@ from hassette.types.enums import ResourceStatus
 def mock_hassette():
     """Create a mock Hassette instance with required attributes."""
     hassette = MagicMock()
-    hassette.config.run_web_api = True
-    hassette.config.web_api_event_buffer_size = 100
-    hassette.config.web_api_log_level = "INFO"
-    hassette.config.startup_timeout_seconds = 5
+    hassette.config.web_api.run = True
+    hassette.config.web_api.event_buffer_size = 100
+    hassette.config.logging.web_api = "INFO"
+    hassette.config.lifecycle.startup_timeout_seconds = 5
     hassette.wait_for_ready = AsyncMock(return_value=True)
     hassette.ready_event = asyncio.Event()
     hassette.ready_event.set()

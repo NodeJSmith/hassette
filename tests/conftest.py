@@ -2,12 +2,22 @@ import asyncio
 import tracemalloc
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import tomli_w
+from pydantic import Field
 
 from hassette import HassetteConfig
+from hassette.config.models import (
+    AppConfig,
+    FileWatcherConfig,
+    LifecycleConfig,
+    LoggingConfig,
+    SchedulerConfig,
+    WebApiConfig,
+    WebSocketConfig,
+)
 from hassette.conversion.state_registry import StateRegistry
 from hassette.conversion.type_registry import TypeRegistry
 from hassette.task_bucket import TaskBucket
@@ -36,6 +46,48 @@ assert APPS_TOML_TEMPLATE.exists(), f"Apps TOML template {APPS_TOML_TEMPLATE} do
 pytest_plugins = ["hassette.test_utils.fixtures"]
 
 
+def _test_file_watcher() -> FileWatcherConfig:
+    return FileWatcherConfig(debounce_milliseconds=1, step_milliseconds=5)
+
+
+def _test_websocket() -> WebSocketConfig:
+    return WebSocketConfig(
+        connection_timeout_seconds=1,
+        authentication_timeout_seconds=1,
+        total_timeout_seconds=2,
+        response_timeout_seconds=1,
+        heartbeat_interval_seconds=5,
+    )
+
+
+def _test_lifecycle() -> LifecycleConfig:
+    return LifecycleConfig(
+        startup_timeout_seconds=3,
+        run_sync_timeout_seconds=2,
+        task_cancellation_timeout_seconds=0.5,
+    )
+
+
+def _test_scheduler() -> SchedulerConfig:
+    return SchedulerConfig(
+        default_delay_seconds=1,
+        min_delay_seconds=0.1,
+        max_delay_seconds=3,
+    )
+
+
+def _test_logging() -> LoggingConfig:
+    return LoggingConfig(task_bucket="DEBUG")
+
+
+def _test_app() -> AppConfig:
+    return AppConfig(directory=TEST_APPS_PATH, autodetect=False)
+
+
+def _test_web_api() -> WebApiConfig:
+    return WebApiConfig(run=False)
+
+
 class TestConfig(HassetteConfig):
     """
     A test configuration class that inherits from HassetteConfig.
@@ -50,25 +102,15 @@ class TestConfig(HassetteConfig):
 
     token: str = "test-token"
 
-    file_watcher_debounce_milliseconds: int | float = 1
-    file_watcher_step_milliseconds: int | float = 5
-    websocket_connection_timeout_seconds: int | float = 1
-    websocket_authentication_timeout_seconds: int | float = 1
-    websocket_total_timeout_seconds: int | float = 2
-    websocket_response_timeout_seconds: int | float = 1
-    websocket_heartbeat_interval_seconds: int | float = 5
-    run_sync_timeout_seconds: int | float = 2
-    startup_timeout_seconds: int | float = 3
-    scheduler_default_delay_seconds: int | float = 1
-    scheduler_min_delay_seconds: int | float = 0.1
-    scheduler_max_delay_seconds: int | float = 3
-    task_cancellation_timeout_seconds: int | float = 0.5
-    task_bucket_log_level: str = "DEBUG"
-    autodetect_apps: bool = False
+    file_watcher: FileWatcherConfig = Field(default_factory=_test_file_watcher)
+    websocket: WebSocketConfig = Field(default_factory=_test_websocket)
+    lifecycle: LifecycleConfig = Field(default_factory=_test_lifecycle)
+    scheduler: SchedulerConfig = Field(default_factory=_test_scheduler)
+    logging: LoggingConfig = Field(default_factory=_test_logging)
+    app: AppConfig = Field(default_factory=_test_app)
+    web_api: WebApiConfig = Field(default_factory=_test_web_api)
 
-    app_dir: Path = TEST_APPS_PATH
-
-    def model_post_init(self, *args):
+    def model_post_init(self, *args: Any) -> None:
         # override this to avoid values being set by defaults.py
         pass
 
@@ -91,7 +133,7 @@ def test_config(unused_tcp_port_factory) -> HassetteConfig:
 
     port = unused_tcp_port_factory()
 
-    tc = TestConfig(web_api_port=port)
+    tc = TestConfig(web_api={"port": port})
 
     return tc
 
@@ -110,14 +152,14 @@ def test_config_with_temp_path(tmp_path_factory: pytest.TempPathFactory) -> Hass
     app_dir = temp_dir / "apps"
     app_dir.mkdir()
 
-    toml_dict = {"hassette": {"dev_mode": True, "app_dir": app_dir.as_posix()}}
+    toml_dict = {"hassette": {"dev_mode": True, "app": {"directory": app_dir.as_posix()}}}
 
     toml_path.write_text(tomli_w.dumps(toml_dict), encoding="utf-8")
 
     class MyTestConfig(TestConfig):
         model_config = TestConfig.model_config.copy() | {"toml_file": [toml_path], "env_file": [ENV_FILE]}
 
-    return MyTestConfig(run_web_api=False)
+    return MyTestConfig()
 
 
 @pytest.fixture
@@ -182,7 +224,7 @@ def test_config_with_apps(apps_config_file: Path) -> HassetteConfig:
             "env_file": [ENV_FILE],
         }
 
-    config = AppsTestConfig(run_web_api=False, app_dir=TEST_APPS_PATH)
+    config = AppsTestConfig()
 
     return config
 

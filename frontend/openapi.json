@@ -698,7 +698,7 @@
           "config"
         ],
         "summary": "Get Config",
-        "description": "Return sanitized hassette configuration (allowlisted fields only).",
+        "description": "Return sanitized hassette configuration organized by config group.",
         "operationId": "get_config_api_config_get",
         "responses": {
           "200": {
@@ -1598,6 +1598,25 @@
         "title": "AppConfigResponse",
         "description": "Response model for GET /apps/{app_key}/config."
       },
+      "AppGroupConfigResponse": {
+        "properties": {
+          "autodetect": {
+            "type": "boolean",
+            "title": "Autodetect"
+          },
+          "directory": {
+            "type": "string",
+            "title": "Directory"
+          }
+        },
+        "type": "object",
+        "required": [
+          "autodetect",
+          "directory"
+        ],
+        "title": "AppGroupConfigResponse",
+        "description": "Sanitized app configuration fields (config group sub-response)."
+      },
       "AppHealthResponse": {
         "properties": {
           "error_rate": {
@@ -1965,145 +1984,64 @@
         "properties": {
           "dev_mode": {
             "type": "boolean",
-            "title": "Dev Mode",
-            "default": false
-          },
-          "log_level": {
-            "type": "string",
-            "title": "Log Level",
-            "default": "INFO"
+            "title": "Dev Mode"
           },
           "base_url": {
             "type": "string",
-            "title": "Base Url",
-            "default": ""
-          },
-          "run_web_api": {
-            "type": "boolean",
-            "title": "Run Web Api",
-            "default": true
-          },
-          "run_web_ui": {
-            "type": "boolean",
-            "title": "Run Web Ui",
-            "default": true
-          },
-          "web_api_host": {
-            "type": "string",
-            "title": "Web Api Host",
-            "default": "0.0.0.0"
-          },
-          "web_api_port": {
-            "type": "integer",
-            "title": "Web Api Port",
-            "default": 8126
-          },
-          "web_api_cors_origins": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Web Api Cors Origins"
-          },
-          "web_api_event_buffer_size": {
-            "type": "integer",
-            "title": "Web Api Event Buffer Size",
-            "default": 500
-          },
-          "web_api_log_buffer_size": {
-            "type": "integer",
-            "title": "Web Api Log Buffer Size",
-            "default": 2000
-          },
-          "web_api_job_history_size": {
-            "type": "integer",
-            "title": "Web Api Job History Size",
-            "default": 1000
-          },
-          "web_api_log_level": {
-            "type": "string",
-            "title": "Web Api Log Level",
-            "default": "INFO"
-          },
-          "autodetect_apps": {
-            "type": "boolean",
-            "title": "Autodetect Apps",
-            "default": true
-          },
-          "startup_timeout_seconds": {
-            "type": "integer",
-            "title": "Startup Timeout Seconds",
-            "default": 10
-          },
-          "app_startup_timeout_seconds": {
-            "type": "integer",
-            "title": "App Startup Timeout Seconds",
-            "default": 20
-          },
-          "app_shutdown_timeout_seconds": {
-            "type": "integer",
-            "title": "App Shutdown Timeout Seconds",
-            "default": 10
-          },
-          "watch_files": {
-            "type": "boolean",
-            "title": "Watch Files",
-            "default": true
-          },
-          "file_watcher_debounce_milliseconds": {
-            "type": "integer",
-            "title": "File Watcher Debounce Milliseconds",
-            "default": 3000
-          },
-          "scheduler_min_delay_seconds": {
-            "type": "integer",
-            "title": "Scheduler Min Delay Seconds",
-            "default": 1
-          },
-          "scheduler_max_delay_seconds": {
-            "type": "integer",
-            "title": "Scheduler Max Delay Seconds",
-            "default": 30
-          },
-          "scheduler_default_delay_seconds": {
-            "type": "integer",
-            "title": "Scheduler Default Delay Seconds",
-            "default": 15
+            "title": "Base Url"
           },
           "asyncio_debug_mode": {
             "type": "boolean",
-            "title": "Asyncio Debug Mode",
-            "default": false
+            "title": "Asyncio Debug Mode"
           },
           "allow_reload_in_prod": {
             "type": "boolean",
-            "title": "Allow Reload In Prod",
-            "default": false
-          },
-          "web_ui_hot_reload": {
-            "type": "boolean",
-            "title": "Web Ui Hot Reload",
-            "default": false
-          },
-          "app_dir": {
-            "type": "string",
-            "title": "App Dir",
-            "default": ""
+            "title": "Allow Reload In Prod"
           },
           "data_dir": {
             "type": "string",
-            "title": "Data Dir",
-            "default": ""
+            "title": "Data Dir"
           },
           "config_dir": {
             "type": "string",
-            "title": "Config Dir",
-            "default": ""
+            "title": "Config Dir"
+          },
+          "web_api": {
+            "$ref": "#/components/schemas/WebApiConfigResponse"
+          },
+          "logging": {
+            "$ref": "#/components/schemas/LoggingConfigResponse"
+          },
+          "lifecycle": {
+            "$ref": "#/components/schemas/LifecycleConfigResponse"
+          },
+          "app": {
+            "$ref": "#/components/schemas/AppGroupConfigResponse"
+          },
+          "scheduler": {
+            "$ref": "#/components/schemas/SchedulerConfigResponse"
+          },
+          "file_watcher": {
+            "$ref": "#/components/schemas/FileWatcherConfigResponse"
           }
         },
         "type": "object",
+        "required": [
+          "dev_mode",
+          "base_url",
+          "asyncio_debug_mode",
+          "allow_reload_in_prod",
+          "data_dir",
+          "config_dir",
+          "web_api",
+          "logging",
+          "lifecycle",
+          "app",
+          "scheduler",
+          "file_watcher"
+        ],
         "title": "ConfigResponse",
-        "description": "Sanitized configuration response (allowlisted fields only)."
+        "description": "Sanitized configuration response organized by config group."
       },
       "DashboardAppGridEntry": {
         "properties": {
@@ -2263,6 +2201,25 @@
         ],
         "title": "DashboardAppGridResponse",
         "description": "Dashboard app grid with per-app health data."
+      },
+      "FileWatcherConfigResponse": {
+        "properties": {
+          "watch_files": {
+            "type": "boolean",
+            "title": "Watch Files"
+          },
+          "debounce_milliseconds": {
+            "type": "integer",
+            "title": "Debounce Milliseconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "watch_files",
+          "debounce_milliseconds"
+        ],
+        "title": "FileWatcherConfigResponse",
+        "description": "Sanitized file watcher configuration fields."
       },
       "HTTPValidationError": {
         "properties": {
@@ -2712,6 +2669,30 @@
         "title": "JobSummary",
         "description": "Per-job summary returned by ``get_job_summary()``.\n\n``failed`` counts only ``'error'`` status; ``timed_out`` is tracked separately.\nInvariant: ``successful + failed + timed_out == total_executions``."
       },
+      "LifecycleConfigResponse": {
+        "properties": {
+          "startup_timeout_seconds": {
+            "type": "integer",
+            "title": "Startup Timeout Seconds"
+          },
+          "app_startup_timeout_seconds": {
+            "type": "integer",
+            "title": "App Startup Timeout Seconds"
+          },
+          "app_shutdown_timeout_seconds": {
+            "type": "integer",
+            "title": "App Shutdown Timeout Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "startup_timeout_seconds",
+          "app_startup_timeout_seconds",
+          "app_shutdown_timeout_seconds"
+        ],
+        "title": "LifecycleConfigResponse",
+        "description": "Sanitized lifecycle configuration fields."
+      },
       "ListenerWithSummary": {
         "properties": {
           "listener_id": {
@@ -3115,6 +3096,25 @@
         "title": "LogLevelResponse",
         "description": "Response for PUT /api/logs/level."
       },
+      "LoggingConfigResponse": {
+        "properties": {
+          "log_level": {
+            "type": "string",
+            "title": "Log Level"
+          },
+          "web_api": {
+            "type": "string",
+            "title": "Web Api"
+          }
+        },
+        "type": "object",
+        "required": [
+          "log_level",
+          "web_api"
+        ],
+        "title": "LoggingConfigResponse",
+        "description": "Sanitized logging configuration fields."
+      },
       "LogsByExecutionResponse": {
         "properties": {
           "records": {
@@ -3141,6 +3141,51 @@
         ],
         "title": "LogsByExecutionResponse",
         "description": "Response for GET /api/logs/by-execution/{execution_id}."
+      },
+      "SchedulerConfigResponse": {
+        "properties": {
+          "min_delay_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Min Delay Seconds"
+          },
+          "max_delay_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Max Delay Seconds"
+          },
+          "default_delay_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Default Delay Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "min_delay_seconds",
+          "max_delay_seconds",
+          "default_delay_seconds"
+        ],
+        "title": "SchedulerConfigResponse",
+        "description": "Sanitized scheduler configuration fields."
       },
       "ServiceInfoResponse": {
         "properties": {
@@ -3331,6 +3376,63 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WebApiConfigResponse": {
+        "properties": {
+          "run": {
+            "type": "boolean",
+            "title": "Run"
+          },
+          "run_ui": {
+            "type": "boolean",
+            "title": "Run Ui"
+          },
+          "ui_hot_reload": {
+            "type": "boolean",
+            "title": "Ui Hot Reload"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host"
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port"
+          },
+          "cors_origins": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cors Origins"
+          },
+          "event_buffer_size": {
+            "type": "integer",
+            "title": "Event Buffer Size"
+          },
+          "log_buffer_size": {
+            "type": "integer",
+            "title": "Log Buffer Size"
+          },
+          "job_history_size": {
+            "type": "integer",
+            "title": "Job History Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run",
+          "run_ui",
+          "ui_hot_reload",
+          "host",
+          "port",
+          "cors_origins",
+          "event_buffer_size",
+          "log_buffer_size",
+          "job_history_size"
+        ],
+        "title": "WebApiConfigResponse",
+        "description": "Sanitized web API configuration fields."
       }
     }
   }

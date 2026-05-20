@@ -373,36 +373,72 @@ class ActionResponse(BaseModel):
     action: str
 
 
-class ConfigResponse(BaseModel):
-    """Sanitized configuration response (allowlisted fields only)."""
+class WebApiConfigResponse(BaseModel):
+    """Sanitized web API configuration fields."""
 
-    dev_mode: bool = False
-    log_level: str = "INFO"
-    base_url: str = ""
-    run_web_api: bool = True
-    run_web_ui: bool = True
-    web_api_host: str = "0.0.0.0"
-    web_api_port: int = 8126
-    web_api_cors_origins: list[str] = Field(default_factory=list)
-    web_api_event_buffer_size: int = 500
-    web_api_log_buffer_size: int = 2000
-    web_api_job_history_size: int = 1000
-    web_api_log_level: str = "INFO"
-    autodetect_apps: bool = True
-    startup_timeout_seconds: int = 10
-    app_startup_timeout_seconds: int = 20
-    app_shutdown_timeout_seconds: int = 10
-    watch_files: bool = True
-    file_watcher_debounce_milliseconds: int = 3000
-    scheduler_min_delay_seconds: int = 1
-    scheduler_max_delay_seconds: int = 30
-    scheduler_default_delay_seconds: int = 15
-    asyncio_debug_mode: bool = False
-    allow_reload_in_prod: bool = False
-    web_ui_hot_reload: bool = False
-    app_dir: str = ""
-    data_dir: str = ""
-    config_dir: str = ""
+    run: bool
+    run_ui: bool
+    ui_hot_reload: bool
+    host: str
+    port: int
+    cors_origins: list[str]
+    event_buffer_size: int
+    log_buffer_size: int
+    job_history_size: int
+
+
+class LoggingConfigResponse(BaseModel):
+    """Sanitized logging configuration fields."""
+
+    log_level: str
+    web_api: str
+
+
+class LifecycleConfigResponse(BaseModel):
+    """Sanitized lifecycle configuration fields."""
+
+    startup_timeout_seconds: int
+    app_startup_timeout_seconds: int
+    app_shutdown_timeout_seconds: int
+
+
+class AppGroupConfigResponse(BaseModel):
+    """Sanitized app configuration fields (config group sub-response)."""
+
+    autodetect: bool
+    directory: str
+
+
+class SchedulerConfigResponse(BaseModel):
+    """Sanitized scheduler configuration fields."""
+
+    min_delay_seconds: int | float
+    max_delay_seconds: int | float
+    default_delay_seconds: int | float
+
+
+class FileWatcherConfigResponse(BaseModel):
+    """Sanitized file watcher configuration fields."""
+
+    watch_files: bool
+    debounce_milliseconds: int
+
+
+class ConfigResponse(BaseModel):
+    """Sanitized configuration response organized by config group."""
+
+    dev_mode: bool
+    base_url: str
+    asyncio_debug_mode: bool
+    allow_reload_in_prod: bool
+    data_dir: str
+    config_dir: str
+    web_api: WebApiConfigResponse
+    logging: LoggingConfigResponse
+    lifecycle: LifecycleConfigResponse
+    app: AppGroupConfigResponse
+    scheduler: SchedulerConfigResponse
+    file_watcher: FileWatcherConfigResponse
 
 
 class AppConfigResponse(BaseModel):

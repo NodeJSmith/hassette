@@ -96,7 +96,7 @@ class DatabaseService(Service):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.database_service_log_level
+        return self.hassette.config.logging.database_service
 
     @property
     def db(self) -> aiosqlite.Connection:
@@ -132,7 +132,7 @@ class DatabaseService(Service):
         await self._handle_schema_version(self._db_path)
 
         self.logger.info("Running database migrations for %s", self._db_path)
-        timeout = self.hassette.config.db_migration_timeout_seconds
+        timeout = self.hassette.config.database.migration_timeout_seconds
         await asyncio.wait_for(asyncio.to_thread(self._run_migrations), timeout=timeout)
 
         self._db = await aiosqlite.connect(self._db_path, isolation_level=None)
@@ -151,7 +151,7 @@ class DatabaseService(Service):
         except Exception:
             self.logger.warning("Startup size failsafe check failed; continuing without cleanup", exc_info=True)
 
-        self._db_write_queue = asyncio.Queue(maxsize=self.hassette.config.db_write_queue_max)
+        self._db_write_queue = asyncio.Queue(maxsize=self.hassette.config.database.write_queue_max)
         self._db_worker_task = asyncio.create_task(self._db_write_worker())
 
     async def serve(self) -> None:
@@ -336,8 +336,8 @@ class DatabaseService(Service):
 
     def _resolve_db_path(self) -> Path:
         """Resolve the database path from config or use default."""
-        if self.hassette.config.db_path is not None:
-            return self.hassette.config.db_path.resolve()
+        if self.hassette.config.database.path is not None:
+            return self.hassette.config.database.path.resolve()
         return self.hassette.config.data_dir / "hassette.db"
 
     def _get_expected_head_revision(self) -> str:
@@ -530,11 +530,11 @@ class DatabaseService(Service):
         """Execute the retention DELETE queries; called by the write-queue worker."""
         try:
             config = self.hassette.config
-            retention_days = config.db_retention_days
+            retention_days = config.database.retention_days
             cutoff = time.time() - (retention_days * 86400)
 
             # Log records use their own shorter retention window
-            log_retention_days = config.log_retention_days
+            log_retention_days = config.logging.log_retention_days
             log_cutoff = time.time() - (log_retention_days * 86400)
             cursor_lr = await self.db.execute("DELETE FROM log_records WHERE timestamp < ?", (log_cutoff,))
 
@@ -612,7 +612,7 @@ class DatabaseService(Service):
         handler_invocations and job_executions, then running incremental_vacuum
         and wal_checkpoint to reclaim disk space.
         """
-        max_size_mb = self.hassette.config.db_max_size_mb
+        max_size_mb = self.hassette.config.database.max_size_mb
         if max_size_mb == 0:
             return
 

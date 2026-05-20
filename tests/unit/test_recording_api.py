@@ -40,12 +40,12 @@ from hassette.test_utils.recording_api import ApiProtocol, RecordingApi
 def _make_hassette_stub() -> AsyncMock:
     """Minimal stub satisfying Resource.__init__ and TaskBucket.spawn."""
     hassette = AsyncMock()
-    hassette.config.log_level = "DEBUG"
+    hassette.config.logging.log_level = "DEBUG"
     hassette.config.data_dir = "/tmp/hassette-test"
     hassette.config.default_cache_size = 1024
-    hassette.config.resource_shutdown_timeout_seconds = 1
-    hassette.config.task_cancellation_timeout_seconds = 1
-    hassette.config.task_bucket_log_level = "DEBUG"
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 1
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 1
+    hassette.config.logging.task_bucket = "DEBUG"
     hassette.config.dev_mode = False
     hassette.event_streams_closed = False
     hassette.ready_event = asyncio.Event()

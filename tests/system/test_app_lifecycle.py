@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from hassette.config.config import HassetteConfig
 from hassette.test_utils import wait_for
 from hassette.types.enums import ResourceStatus
 
@@ -14,6 +15,14 @@ pytestmark = [pytest.mark.system]
 
 _ENTITY = "light.kitchen_lights"
 _DOMAIN = "light"
+
+
+def _enable_autodetect(config: HassetteConfig, app_dir: Path) -> HassetteConfig:
+    """Return a deep copy of config with app autodetection enabled and directory set."""
+    config = config.model_copy(deep=True)
+    config.app.autodetect = True
+    config.app.directory = app_dir
+    return config
 
 
 def _find_app(hassette, class_name: str):
@@ -27,7 +36,7 @@ def _find_app(hassette, class_name: str):
 async def test_trivial_app_initializes(ha_container: str, tmp_path: Path, system_app_dir: Path) -> None:
     """An app loaded from disk appears in app_handler.apps with RUNNING status after startup."""
     config = make_system_config(ha_container, tmp_path)
-    config = config.model_copy(update={"autodetect_apps": True, "app_dir": system_app_dir})
+    config = _enable_autodetect(config, system_app_dir)
 
     async with startup_context(config) as hassette:
         trivial_key, app_instance = _find_app(hassette, "TrivialApp")
@@ -51,7 +60,7 @@ class ApiCheckApp(App):
     (apps_dir / "api_check_app.py").write_text(app_code)
 
     config = make_system_config(ha_container, tmp_path)
-    config = config.model_copy(update={"autodetect_apps": True, "app_dir": apps_dir})
+    config = _enable_autodetect(config, apps_dir)
 
     async with startup_context(config) as hassette:
         _, app_instance = _find_app(hassette, "ApiCheckApp")
@@ -64,7 +73,7 @@ class ApiCheckApp(App):
 async def test_app_bus_handler_fires(ha_container: str, tmp_path: Path, system_app_dir: Path) -> None:
     """A bus handler registered in on_initialize receives real HA state-change events."""
     config = make_system_config(ha_container, tmp_path)
-    config = config.model_copy(update={"autodetect_apps": True, "app_dir": system_app_dir})
+    config = _enable_autodetect(config, system_app_dir)
 
     async with startup_context(config) as hassette:
         _, app_instance = _find_app(hassette, "BusHandlerApp")
@@ -103,7 +112,7 @@ class SchedulerCheckApp(App):
     (apps_dir / "scheduler_check_app.py").write_text(app_code)
 
     config = make_system_config(ha_container, tmp_path)
-    config = config.model_copy(update={"autodetect_apps": True, "app_dir": apps_dir})
+    config = _enable_autodetect(config, apps_dir)
 
     async with startup_context(config) as hassette:
         _, app_instance = _find_app(hassette, "SchedulerCheckApp")
@@ -132,7 +141,7 @@ class StateCheckApp(App):
     (apps_dir / "state_check_app.py").write_text(app_code)
 
     config = make_system_config(ha_container, tmp_path)
-    config = config.model_copy(update={"autodetect_apps": True, "app_dir": apps_dir})
+    config = _enable_autodetect(config, apps_dir)
 
     async with startup_context(config) as hassette:
         _, app_instance = _find_app(hassette, "StateCheckApp")
@@ -161,7 +170,7 @@ class ShutdownCheckApp(App):
     (apps_dir / "shutdown_check_app.py").write_text(app_code)
 
     config = make_system_config(ha_container, tmp_path)
-    config = config.model_copy(update={"autodetect_apps": True, "app_dir": apps_dir})
+    config = _enable_autodetect(config, apps_dir)
 
     async with startup_context(config) as hassette:
         _, app_instance = _find_app(hassette, "ShutdownCheckApp")
@@ -201,7 +210,7 @@ class IsolationAppB(App):
     (apps_dir / "isolation_app_b.py").write_text(app_b_code)
 
     config = make_system_config(ha_container, tmp_path)
-    config = config.model_copy(update={"autodetect_apps": True, "app_dir": apps_dir})
+    config = _enable_autodetect(config, apps_dir)
 
     async with startup_context(config) as hassette:
         _, app_a = _find_app(hassette, "IsolationAppA")

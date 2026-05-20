@@ -37,8 +37,8 @@ def _make_scheduler_service() -> SchedulerService:
     """Create a SchedulerService with mocked internals, bypassing Resource.__init__."""
     svc = SchedulerService.__new__(SchedulerService)
     svc.hassette = MagicMock()
-    svc.hassette.config.registration_await_timeout = 30
-    svc.hassette.config.scheduler_behind_schedule_threshold_seconds = 60
+    svc.hassette.config.lifecycle.registration_await_timeout = 30
+    svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 60
     svc._reg_tracker = RegistrationTracker()
     svc._removal_callbacks = {}
     svc.logger = MagicMock()
@@ -263,11 +263,11 @@ class TestJitter:
         """
         svc = SchedulerService.__new__(SchedulerService)
         svc.hassette = MagicMock()
-        svc.hassette.config.registration_await_timeout = 30
-        svc.hassette.config.scheduler_behind_schedule_threshold_seconds = 60
-        svc.hassette.config.scheduler_min_delay_seconds = 0.1
-        svc.hassette.config.scheduler_max_delay_seconds = 300.0
-        svc.hassette.config.scheduler_default_delay_seconds = 10.0
+        svc.hassette.config.lifecycle.registration_await_timeout = 30
+        svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 60
+        svc.hassette.config.scheduler.min_delay_seconds = 0.1
+        svc.hassette.config.scheduler.max_delay_seconds = 300.0
+        svc.hassette.config.scheduler.default_delay_seconds = 10.0
         svc._reg_tracker = RegistrationTracker()
         svc._removal_callbacks = {}
         svc.logger = MagicMock()
@@ -398,7 +398,7 @@ class TestEnqueueThenRegisterUsesProtocol:
         """
         svc = SchedulerService.__new__(SchedulerService)
         svc.hassette = MagicMock()
-        svc.hassette.config.registration_await_timeout = 30
+        svc.hassette.config.lifecycle.registration_await_timeout = 30
         svc._reg_tracker = RegistrationTracker()
         svc._removal_callbacks = {}
         svc.logger = MagicMock()
@@ -584,7 +584,7 @@ class TestEnqueueThenRegisterDbFailure:
         """
         svc = SchedulerService.__new__(SchedulerService)
         svc.hassette = MagicMock()
-        svc.hassette.config.registration_await_timeout = 30
+        svc.hassette.config.lifecycle.registration_await_timeout = 30
         svc._reg_tracker = RegistrationTracker()
         svc._removal_callbacks = {}
         svc.logger = MagicMock()
@@ -633,7 +633,7 @@ class TestBehindScheduleWarning:
         """
         svc = _make_scheduler_service()
         # threshold is 60s (configured in _make_scheduler_service via mock)
-        svc.hassette.config.scheduler_behind_schedule_threshold_seconds = 60
+        svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 60
 
         # Create a job whose fire_at is the scheduled dispatch time.
         # next_run is earlier (unjittered), fire_at is later (jitter applied).

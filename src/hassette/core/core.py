@@ -74,11 +74,11 @@ class Hassette(Resource):
         self.config = config
 
         enable_logging(
-            self.config.log_level,
-            log_buffer_size=self.config.web_api_log_buffer_size,
-            log_format=self.config.log_format,
-            log_queue_max=self.config.log_queue_max,
-            log_persistence_level=logging.getLevelNamesMapping()[self.config.log_persistence_level],
+            self.config.logging.log_level,
+            log_buffer_size=self.config.web_api.log_buffer_size,
+            log_format=self.config.logging.log_format,
+            log_queue_max=self.config.logging.log_queue_max,
+            log_persistence_level=logging.getLevelNamesMapping()[self.config.logging.log_persistence_level],
         )
 
         super().__init__(self, task_bucket=TaskBucket(self, parent=self), parent=self)
@@ -131,10 +131,10 @@ class Hassette(Resource):
 
         self.config.set_validated_app_manifests()
 
-        active_apps = [app for app in self.config.app_manifests.values() if app.enabled]
+        active_apps = [app for app in self.config.app.manifests.values() if app.enabled]
         self.logger.info("Found %d active apps", len(active_apps), stacklevel=3)
 
-        inactive_apps = [app for app in self.config.app_manifests.values() if not app.enabled]
+        inactive_apps = [app for app in self.config.app.manifests.values() if not app.enabled]
         self.logger.info("Found %d inactive apps", len(inactive_apps), stacklevel=3)
 
         if self.config.run_app_precheck:
@@ -422,7 +422,7 @@ class Hassette(Resource):
         Returns:
             True if all resources are ready, False if shutdown is requested.
         """
-        timeout = timeout if timeout is not None else self.config.startup_timeout_seconds
+        timeout = timeout if timeout is not None else self.config.lifecycle.startup_timeout_seconds
 
         return await wait_for_ready(resources, timeout=timeout, shutdown_event=self.shutdown_event)
 
@@ -431,8 +431,12 @@ class Hassette(Resource):
 
         Called once during startup after log infrastructure is running.
         """
-        for field in ("scheduler_job_timeout_seconds", "event_handler_timeout_seconds"):
-            if getattr(self.config, field) is None:
+        timeout_checks = (
+            ("scheduler_job_timeout_seconds", self.config.scheduler.job_timeout_seconds),
+            ("event_handler_timeout_seconds", self.config.lifecycle.event_handler_timeout_seconds),
+        )
+        for field, value in timeout_checks:
+            if value is None:
                 self.logger.warning(
                     "%s is None — "
                     "execution timeout enforcement is disabled globally — "
@@ -458,7 +462,7 @@ class Hassette(Resource):
         self.database_service.start()
 
         try:
-            await self.wait_for_ready([self.database_service], timeout=self.config.startup_timeout_seconds)
+            await self.wait_for_ready([self.database_service], timeout=self.config.lifecycle.startup_timeout_seconds)
             if self._session_manager is None:
                 raise RuntimeError("wire_services() has not been called")
             await self._session_manager.mark_orphaned_sessions()
@@ -483,7 +487,7 @@ class Hassette(Resource):
                 continue
             for child in wave:
                 child.start()
-            started = await self.wait_for_ready(wave, timeout=self.config.startup_timeout_seconds)
+            started = await self.wait_for_ready(wave, timeout=self.config.lifecycle.startup_timeout_seconds)
             if not started:
                 not_ready = [r.class_name for r in wave if not r.is_ready()]
                 self.logger.error("The following resources failed to start: %s", ", ".join(not_ready))
@@ -494,12 +498,12 @@ class Hassette(Resource):
         try:
             await asyncio.wait_for(
                 self.bus_service.drain_framework_registrations(),
-                timeout=self.config.registration_await_timeout,
+                timeout=self.config.lifecycle.registration_await_timeout,
             )
         except TimeoutError:
             self.logger.warning(
                 "drain_framework_registrations timed out after %ds — proceeding with startup",
-                self.config.registration_await_timeout,
+                self.config.lifecycle.registration_await_timeout,
             )
 
         # Clean up stale once=True listeners from previous sessions. Safe to run here
@@ -535,7 +539,7 @@ class Hassette(Resource):
         Dependents (leaf services) shut down first, their dependencies last.
         Within each wave, services shut down concurrently via gather.
         """
-        timeout = self.config.resource_shutdown_timeout_seconds
+        timeout = self.config.lifecycle.resource_shutdown_timeout_seconds
         type_to_instance = {type(c): c for c in self.children}
 
         for wave_types in reversed(self._init_waves):
@@ -588,12 +592,12 @@ class Hassette(Resource):
         if not self._shutdown_completed and not self._shutting_down:
             self.logger.info("Hassette shutdown initiated", stacklevel=2)
         try:
-            async with asyncio.timeout(self.config.total_shutdown_timeout_seconds):
+            async with asyncio.timeout(self.config.lifecycle.total_shutdown_timeout_seconds):
                 await super().shutdown()
         except TimeoutError:
             self.logger.critical(
                 "Total shutdown timeout (%ss) exceeded — forcing termination",
-                self.config.total_shutdown_timeout_seconds,
+                self.config.lifecycle.total_shutdown_timeout_seconds,
             )
             for child in self.children:
                 child._force_terminal()

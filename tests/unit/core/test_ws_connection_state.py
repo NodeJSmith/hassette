@@ -19,28 +19,28 @@ from hassette.types.enums import ConnectionState
 def _make_ws_hassette_stub(*, strict_lifecycle: bool = False) -> AsyncMock:
     """Minimal hassette stub sufficient for WebsocketService instantiation."""
     hassette = AsyncMock()
-    hassette.config.log_level = "DEBUG"
-    hassette.config.websocket_log_level = "DEBUG"
+    hassette.config.logging.log_level = "DEBUG"
+    hassette.config.logging.websocket = "DEBUG"
     hassette.config.data_dir = "/tmp/hassette-test"
     hassette.config.default_cache_size = 1024
-    hassette.config.resource_shutdown_timeout_seconds = 1
-    hassette.config.startup_timeout_seconds = 30
-    hassette.config.task_cancellation_timeout_seconds = 1
-    hassette.config.task_bucket_log_level = "DEBUG"
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 1
+    hassette.config.lifecycle.startup_timeout_seconds = 30
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 1
+    hassette.config.logging.task_bucket = "DEBUG"
     hassette.config.dev_mode = False
-    hassette.config.websocket_response_timeout_seconds = 1
-    hassette.config.websocket_connection_timeout_seconds = 1
-    hassette.config.websocket_total_timeout_seconds = 2
-    hassette.config.websocket_heartbeat_interval_seconds = 5
-    hassette.config.websocket_authentication_timeout_seconds = 5
-    hassette.config.websocket_early_drop_max_retries = 5
-    hassette.config.websocket_early_drop_stable_window_seconds = 30.0
-    hassette.config.websocket_early_drop_backoff_initial_seconds = 0.001
-    hassette.config.websocket_early_drop_backoff_max_seconds = 0.01
-    hassette.config.websocket_max_recovery_seconds = 300.0
-    hassette.config.websocket_connect_retry_max_attempts = 3
-    hassette.config.websocket_connect_retry_initial_wait_seconds = 0.001
-    hassette.config.websocket_connect_retry_max_wait_seconds = 0.01
+    hassette.config.websocket.response_timeout_seconds = 1
+    hassette.config.websocket.connection_timeout_seconds = 1
+    hassette.config.websocket.total_timeout_seconds = 2
+    hassette.config.websocket.heartbeat_interval_seconds = 5
+    hassette.config.websocket.authentication_timeout_seconds = 5
+    hassette.config.websocket.early_drop_max_retries = 5
+    hassette.config.websocket.early_drop_stable_window_seconds = 30.0
+    hassette.config.websocket.early_drop_backoff_initial_seconds = 0.001
+    hassette.config.websocket.early_drop_backoff_max_seconds = 0.01
+    hassette.config.websocket.max_recovery_seconds = 300.0
+    hassette.config.websocket.connect_retry_max_attempts = 3
+    hassette.config.websocket.connect_retry_initial_wait_seconds = 0.001
+    hassette.config.websocket.connect_retry_max_wait_seconds = 0.01
     hassette.config.verify_ssl = False
     hassette.config.strict_lifecycle = strict_lifecycle
     hassette.ws_url = "ws://localhost:8123/api/websocket"
@@ -300,10 +300,10 @@ class TestMaxRetriesDisconnects:
 
         websocket_service._make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service._partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service.hassette.config.websocket_early_drop_max_retries = 1
-        websocket_service.hassette.config.websocket_early_drop_stable_window_seconds = 30.0
-        websocket_service.hassette.config.websocket_early_drop_backoff_initial_seconds = 0.001
-        websocket_service.hassette.config.websocket_early_drop_backoff_max_seconds = 0.01
+        websocket_service.hassette.config.websocket.early_drop_max_retries = 1
+        websocket_service.hassette.config.websocket.early_drop_stable_window_seconds = 30.0
+        websocket_service.hassette.config.websocket.early_drop_backoff_initial_seconds = 0.001
+        websocket_service.hassette.config.websocket.early_drop_backoff_max_seconds = 0.01
 
         with pytest.raises(RetryableConnectionClosedError):
             await websocket_service.serve()

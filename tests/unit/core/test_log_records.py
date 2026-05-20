@@ -31,7 +31,7 @@ from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_models import LogRecord
 from hassette.core.telemetry_repository import get_log_records, get_log_records_by_execution, insert_log_records
-from hassette.logging_ import LogPersistenceHandler, get_log_persistence_handler
+from hassette.logging_ import LogPersistenceHandler
 
 # ---------------------------------------------------------------------------
 # Helpers to run Alembic migrations
@@ -672,9 +672,11 @@ class TestLogRecordModel:
 
 class TestConfigValidator:
     def test_log_retention_days_field_exists(self) -> None:
-        """HassetteConfig has a log_retention_days field with default=3."""
+        """LoggingConfig has a log_retention_days field with default=3."""
 
-        fields = HassetteConfig.model_fields
+        from hassette.config.models import LoggingConfig
+
+        fields = LoggingConfig.model_fields
         assert "log_retention_days" in fields
         default = fields["log_retention_days"].default
         assert default == 3
@@ -683,7 +685,11 @@ class TestConfigValidator:
         """log_retention_days rejects values < 1."""
 
         with pytest.raises(pydantic.ValidationError):
-            HassetteConfig(token="tok", log_retention_days=0, _cli_parse_args=False)
+            HassetteConfig(
+                token="tok",
+                logging={"log_retention_days": 0},
+                _cli_parse_args=False,
+            )
 
     def test_log_retention_days_gt_db_retention_days_raises(self) -> None:
         """Validator rejects log_retention_days > db_retention_days."""
@@ -691,8 +697,8 @@ class TestConfigValidator:
         with pytest.raises(pydantic.ValidationError, match="log_retention_days"):
             HassetteConfig(
                 token="tok",
-                db_retention_days=3,
-                log_retention_days=5,
+                database={"retention_days": 3},
+                logging={"log_retention_days": 5},
                 _cli_parse_args=False,
             )
 
@@ -701,22 +707,22 @@ class TestConfigValidator:
 
         cfg = HassetteConfig(
             token="tok",
-            db_retention_days=5,
-            log_retention_days=5,
+            database={"retention_days": 5},
+            logging={"log_retention_days": 5},
             _cli_parse_args=False,
         )
-        assert cfg.log_retention_days == 5
+        assert cfg.logging.log_retention_days == 5
 
     def test_log_retention_days_less_than_db_retention_days_ok(self) -> None:
         """log_retention_days < db_retention_days is valid."""
 
         cfg = HassetteConfig(
             token="tok",
-            db_retention_days=7,
-            log_retention_days=3,
+            database={"retention_days": 7},
+            logging={"log_retention_days": 3},
             _cli_parse_args=False,
         )
-        assert cfg.log_retention_days == 3
+        assert cfg.logging.log_retention_days == 3
 
 
 # ---------------------------------------------------------------------------
@@ -729,18 +735,18 @@ def mock_hassette_for_db(tmp_path: Path) -> MagicMock:
     """Mock Hassette for DatabaseService tests."""
     hassette = MagicMock()
     hassette.config.data_dir = tmp_path
-    hassette.config.db_path = None
-    hassette.config.db_retention_days = 7
-    hassette.config.log_retention_days = 3
-    hassette.config.db_max_size_mb = 500
-    hassette.config.db_migration_timeout_seconds = 120
-    hassette.config.telemetry_write_queue_max = 500
-    hassette.config.db_write_queue_max = 2000
-    hassette.config.database_service_log_level = "INFO"
-    hassette.config.log_level = "INFO"
-    hassette.config.task_bucket_log_level = "INFO"
-    hassette.config.resource_shutdown_timeout_seconds = 5
-    hassette.config.task_cancellation_timeout_seconds = 5
+    hassette.config.database.path = None
+    hassette.config.database.retention_days = 7
+    hassette.config.logging.log_retention_days = 3
+    hassette.config.database.max_size_mb = 500
+    hassette.config.database.migration_timeout_seconds = 120
+    hassette.config.database.telemetry_write_queue_max = 500
+    hassette.config.database.write_queue_max = 2000
+    hassette.config.logging.database_service = "INFO"
+    hassette.config.logging.log_level = "INFO"
+    hassette.config.logging.task_bucket = "INFO"
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
     hassette.ready_event = asyncio.Event()
     return hassette
 
@@ -924,7 +930,7 @@ class TestSizeFailsafePrePass:
 
         service = DatabaseService(mock_hassette_for_db, parent=mock_hassette_for_db)
         service._db = db  # pyright: ignore[reportPrivateUsage]
-        mock_hassette_for_db.config.db_max_size_mb = 0.0001  # tiny limit
+        mock_hassette_for_db.config.database.max_size_mb = 0.0001  # tiny limit
 
         # Override _get_db_size_mb to return always-over-limit first, then under
         call_count = [0]
@@ -964,7 +970,7 @@ class TestSizeFailsafePrePass:
 
         service = DatabaseService(mock_hassette_for_db, parent=mock_hassette_for_db)
         service._db = db  # pyright: ignore[reportPrivateUsage]
-        mock_hassette_for_db.config.db_max_size_mb = 0.0001
+        mock_hassette_for_db.config.database.max_size_mb = 0.0001
 
         async def _log_count() -> int:
             cursor = await db.execute("SELECT COUNT(*) FROM log_records")
@@ -1000,11 +1006,7 @@ class TestSizeFailsafePrePass:
 class TestRuntimeQueryServiceWiring:
     async def test_set_database_wires_db_service_on_persistence_handler(self) -> None:
         """set_database() stores the db_service reference on LogPersistenceHandler."""
-
-        persistence_handler = get_log_persistence_handler()
-        if persistence_handler is None:
-            pytest.skip("LogPersistenceHandler not installed (enable_logging() not called)")
-
+        persistence_handler = LogPersistenceHandler(persistence_level=logging.INFO)
         mock_db_service = MagicMock()
         persistence_handler.set_database(mock_db_service, asyncio.get_event_loop())
         assert persistence_handler._db_service is mock_db_service  # pyright: ignore[reportPrivateUsage]

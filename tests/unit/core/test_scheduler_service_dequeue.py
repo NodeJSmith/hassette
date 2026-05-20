@@ -39,8 +39,8 @@ def _make_scheduler_service() -> SchedulerService:
     """Create a SchedulerService with a real _ScheduledJobQueue."""
     svc = SchedulerService.__new__(SchedulerService)
     svc.hassette = MagicMock()
-    svc.hassette.config.registration_await_timeout = 30
-    svc.hassette.config.scheduler_behind_schedule_threshold_seconds = 60
+    svc.hassette.config.lifecycle.registration_await_timeout = 30
+    svc.hassette.config.scheduler.behind_schedule_threshold_seconds = 60
     svc._reg_tracker = RegistrationTracker()
     svc._removal_callbacks = {}
     svc.logger = MagicMock()

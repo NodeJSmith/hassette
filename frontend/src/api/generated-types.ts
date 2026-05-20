@@ -268,7 +268,7 @@ export interface paths {
         };
         /**
          * Get Config
-         * @description Return sanitized hassette configuration (allowlisted fields only).
+         * @description Return sanitized hassette configuration organized by config group.
          */
         get: operations["get_config_api_config_get"];
         put?: never;
@@ -552,6 +552,16 @@ export interface components {
             } | null;
         };
         /**
+         * AppGroupConfigResponse
+         * @description Sanitized app configuration fields (config group sub-response).
+         */
+        AppGroupConfigResponse: {
+            /** Autodetect */
+            autodetect: boolean;
+            /** Directory */
+            directory: string;
+        };
+        /**
          * AppHealthResponse
          * @description Health metrics for a single app instance.
          */
@@ -688,141 +698,27 @@ export interface components {
         };
         /**
          * ConfigResponse
-         * @description Sanitized configuration response (allowlisted fields only).
+         * @description Sanitized configuration response organized by config group.
          */
         ConfigResponse: {
-            /**
-             * Dev Mode
-             * @default false
-             */
+            /** Dev Mode */
             dev_mode: boolean;
-            /**
-             * Log Level
-             * @default INFO
-             */
-            log_level: string;
-            /**
-             * Base Url
-             * @default
-             */
+            /** Base Url */
             base_url: string;
-            /**
-             * Run Web Api
-             * @default true
-             */
-            run_web_api: boolean;
-            /**
-             * Run Web Ui
-             * @default true
-             */
-            run_web_ui: boolean;
-            /**
-             * Web Api Host
-             * @default 0.0.0.0
-             */
-            web_api_host: string;
-            /**
-             * Web Api Port
-             * @default 8126
-             */
-            web_api_port: number;
-            /** Web Api Cors Origins */
-            web_api_cors_origins?: string[];
-            /**
-             * Web Api Event Buffer Size
-             * @default 500
-             */
-            web_api_event_buffer_size: number;
-            /**
-             * Web Api Log Buffer Size
-             * @default 2000
-             */
-            web_api_log_buffer_size: number;
-            /**
-             * Web Api Job History Size
-             * @default 1000
-             */
-            web_api_job_history_size: number;
-            /**
-             * Web Api Log Level
-             * @default INFO
-             */
-            web_api_log_level: string;
-            /**
-             * Autodetect Apps
-             * @default true
-             */
-            autodetect_apps: boolean;
-            /**
-             * Startup Timeout Seconds
-             * @default 10
-             */
-            startup_timeout_seconds: number;
-            /**
-             * App Startup Timeout Seconds
-             * @default 20
-             */
-            app_startup_timeout_seconds: number;
-            /**
-             * App Shutdown Timeout Seconds
-             * @default 10
-             */
-            app_shutdown_timeout_seconds: number;
-            /**
-             * Watch Files
-             * @default true
-             */
-            watch_files: boolean;
-            /**
-             * File Watcher Debounce Milliseconds
-             * @default 3000
-             */
-            file_watcher_debounce_milliseconds: number;
-            /**
-             * Scheduler Min Delay Seconds
-             * @default 1
-             */
-            scheduler_min_delay_seconds: number;
-            /**
-             * Scheduler Max Delay Seconds
-             * @default 30
-             */
-            scheduler_max_delay_seconds: number;
-            /**
-             * Scheduler Default Delay Seconds
-             * @default 15
-             */
-            scheduler_default_delay_seconds: number;
-            /**
-             * Asyncio Debug Mode
-             * @default false
-             */
+            /** Asyncio Debug Mode */
             asyncio_debug_mode: boolean;
-            /**
-             * Allow Reload In Prod
-             * @default false
-             */
+            /** Allow Reload In Prod */
             allow_reload_in_prod: boolean;
-            /**
-             * Web Ui Hot Reload
-             * @default false
-             */
-            web_ui_hot_reload: boolean;
-            /**
-             * App Dir
-             * @default
-             */
-            app_dir: string;
-            /**
-             * Data Dir
-             * @default
-             */
+            /** Data Dir */
             data_dir: string;
-            /**
-             * Config Dir
-             * @default
-             */
+            /** Config Dir */
             config_dir: string;
+            web_api: components["schemas"]["WebApiConfigResponse"];
+            logging: components["schemas"]["LoggingConfigResponse"];
+            lifecycle: components["schemas"]["LifecycleConfigResponse"];
+            app: components["schemas"]["AppGroupConfigResponse"];
+            scheduler: components["schemas"]["SchedulerConfigResponse"];
+            file_watcher: components["schemas"]["FileWatcherConfigResponse"];
         };
         /**
          * DashboardAppGridEntry
@@ -889,6 +785,16 @@ export interface components {
         DashboardAppGridResponse: {
             /** Apps */
             apps: components["schemas"]["DashboardAppGridEntry"][];
+        };
+        /**
+         * FileWatcherConfigResponse
+         * @description Sanitized file watcher configuration fields.
+         */
+        FileWatcherConfigResponse: {
+            /** Watch Files */
+            watch_files: boolean;
+            /** Debounce Milliseconds */
+            debounce_milliseconds: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1034,6 +940,18 @@ export interface components {
             min_duration_ms?: number | null;
             /** Max Duration Ms */
             max_duration_ms?: number | null;
+        };
+        /**
+         * LifecycleConfigResponse
+         * @description Sanitized lifecycle configuration fields.
+         */
+        LifecycleConfigResponse: {
+            /** Startup Timeout Seconds */
+            startup_timeout_seconds: number;
+            /** App Startup Timeout Seconds */
+            app_startup_timeout_seconds: number;
+            /** App Shutdown Timeout Seconds */
+            app_shutdown_timeout_seconds: number;
         };
         /**
          * ListenerWithSummary
@@ -1191,6 +1109,16 @@ export interface components {
             effective_level: string;
         };
         /**
+         * LoggingConfigResponse
+         * @description Sanitized logging configuration fields.
+         */
+        LoggingConfigResponse: {
+            /** Log Level */
+            log_level: string;
+            /** Web Api */
+            web_api: string;
+        };
+        /**
          * LogsByExecutionResponse
          * @description Response for GET /api/logs/by-execution/{execution_id}.
          */
@@ -1201,6 +1129,18 @@ export interface components {
             truncated: boolean;
             /** Retention Expired */
             retention_expired: boolean;
+        };
+        /**
+         * SchedulerConfigResponse
+         * @description Sanitized scheduler configuration fields.
+         */
+        SchedulerConfigResponse: {
+            /** Min Delay Seconds */
+            min_delay_seconds: number;
+            /** Max Delay Seconds */
+            max_delay_seconds: number;
+            /** Default Delay Seconds */
+            default_delay_seconds: number;
         };
         /**
          * ServiceInfoResponse
@@ -1295,6 +1235,30 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * WebApiConfigResponse
+         * @description Sanitized web API configuration fields.
+         */
+        WebApiConfigResponse: {
+            /** Run */
+            run: boolean;
+            /** Run Ui */
+            run_ui: boolean;
+            /** Ui Hot Reload */
+            ui_hot_reload: boolean;
+            /** Host */
+            host: string;
+            /** Port */
+            port: number;
+            /** Cors Origins */
+            cors_origins: string[];
+            /** Event Buffer Size */
+            event_buffer_size: number;
+            /** Log Buffer Size */
+            log_buffer_size: number;
+            /** Job History Size */
+            job_history_size: number;
         };
     };
     responses: never;

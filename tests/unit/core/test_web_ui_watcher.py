@@ -48,7 +48,7 @@ def test_watch_dirs_contains_static() -> None:
 @pytest.fixture
 def mock_hassette() -> MagicMock:
     hassette = MagicMock()
-    hassette.config.web_ui_hot_reload = False
+    hassette.config.web_api.ui_hot_reload = False
     hassette.runtime_query_service = MagicMock()
     hassette.runtime_query_service.broadcast = AsyncMock()
     return hassette
@@ -65,21 +65,21 @@ def watcher(mock_hassette: MagicMock) -> WebUiWatcherService:
 
 
 async def test_on_initialize_marks_ready_when_disabled(watcher: WebUiWatcherService) -> None:
-    watcher.hassette.config.web_ui_hot_reload = False
+    watcher.hassette.config.web_api.ui_hot_reload = False
     await watcher.on_initialize()
     watcher.mark_ready.assert_called_once()
     assert "disabled" in watcher.mark_ready.call_args.kwargs.get("reason", "").lower()
 
 
 async def test_on_initialize_does_not_mark_ready_when_enabled(watcher: WebUiWatcherService) -> None:
-    watcher.hassette.config.web_ui_hot_reload = True
+    watcher.hassette.config.web_api.ui_hot_reload = True
     await watcher.on_initialize()
     watcher.mark_ready.assert_not_called()
 
 
 async def test_serve_waits_on_shutdown_when_disabled(watcher: WebUiWatcherService) -> None:
     """When disabled, serve() blocks on shutdown_event and never broadcasts."""
-    watcher.hassette.config.web_ui_hot_reload = False
+    watcher.hassette.config.web_api.ui_hot_reload = False
     # Set shutdown immediately so serve() returns
     watcher.shutdown_event.set()
     await watcher.serve()
@@ -88,7 +88,7 @@ async def test_serve_waits_on_shutdown_when_disabled(watcher: WebUiWatcherServic
 
 async def test_serve_returns_early_when_no_watch_dirs(watcher: WebUiWatcherService) -> None:
     """When enabled but watch dirs don't exist, serve() logs warning and returns."""
-    watcher.hassette.config.web_ui_hot_reload = True
+    watcher.hassette.config.web_api.ui_hot_reload = True
     with patch(
         "hassette.core.web_ui_watcher._WATCH_DIRS",
         [Path("/nonexistent/static"), Path("/nonexistent/templates")],

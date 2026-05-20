@@ -27,19 +27,19 @@ def mock_hassette(premigrated_db_path: Path) -> MagicMock:
     """Create a mock Hassette with database config and error handler timeout configured."""
     hassette = MagicMock()
     hassette.config.data_dir = premigrated_db_path.parent
-    hassette.config.db_path = None
-    hassette.config.db_retention_days = 7
-    hassette.config.db_migration_timeout_seconds = 120
-    hassette.config.db_max_size_mb = 0
-    hassette.config.database_service_log_level = "INFO"
-    hassette.config.log_level = "INFO"
-    hassette.config.task_bucket_log_level = "INFO"
-    hassette.config.resource_shutdown_timeout_seconds = 5
-    hassette.config.task_cancellation_timeout_seconds = 5
-    hassette.config.command_executor_log_level = "INFO"
-    hassette.config.telemetry_write_queue_max = 1000
-    hassette.config.db_write_queue_max = 2000
-    hassette.config.error_handler_timeout_seconds = 5.0
+    hassette.config.database.path = None
+    hassette.config.database.retention_days = 7
+    hassette.config.database.migration_timeout_seconds = 120
+    hassette.config.database.max_size_mb = 0
+    hassette.config.logging.database_service = "INFO"
+    hassette.config.logging.log_level = "INFO"
+    hassette.config.logging.task_bucket = "INFO"
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
+    hassette.config.logging.command_executor = "INFO"
+    hassette.config.database.telemetry_write_queue_max = 1000
+    hassette.config.database.write_queue_max = 2000
+    hassette.config.lifecycle.error_handler_timeout_seconds = 5.0
     hassette.config.dev_mode = False
     hassette.ready_event = asyncio.Event()
     # Set loop thread ID to current thread so TaskBucket.spawn() takes the fast path
@@ -285,7 +285,7 @@ async def test_timeout_error_routed_to_handler(executor: CommandExecutor) -> Non
 async def test_error_handler_timeout_logs_warning(executor: CommandExecutor) -> None:
     """Error handler that sleeps > timeout logs WARNING and increments counter."""
     # Set a short timeout for testing
-    executor.hassette.config.error_handler_timeout_seconds = 0.1
+    executor.hassette.config.lifecycle.error_handler_timeout_seconds = 0.1
 
     job = _make_mock_job()
     job_ran = asyncio.Event()

@@ -24,6 +24,9 @@ def _get_hermetic_hassette_config_cls() -> tuple[type[HassetteConfig], list[dict
     The cell is a mutable single-element list captured by the subclass closure.
     Set ``cell[0] = merged`` before calling the subclass constructor to inject
     a specific config dict — no ClassVar write needed.
+
+    The hermetic subclass uses ``extra="forbid"`` so stale flat field names
+    (that should now be nested) fail loudly instead of being silently absorbed.
     """
     global _HermeticHassetteConfigPair
     if _HermeticHassetteConfigPair is not None:
@@ -37,6 +40,7 @@ def _get_hermetic_hassette_config_cls() -> tuple[type[HassetteConfig], list[dict
             "cli_parse_args": False,
             "toml_file": None,
             "env_file": None,
+            "extra": "forbid",
         }
 
         @classmethod
@@ -57,11 +61,15 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
         - ``token``: ``"test-token"``
         - ``base_url``: ``"http://test.invalid:8123"`` (unreachable by design)
         - ``disable_state_proxy_polling``: ``True``
-        - ``autodetect_apps``: ``False``
-        - ``run_web_api``: ``False``
+        - ``app``: ``{"autodetect": False}``
+        - ``web_api``: ``{"run": False}``
         - ``run_app_precheck``: ``False``
 
-    Overrides are merged on top of these defaults before validation.
+    Overrides are merged on top of these defaults before validation. Nested
+    group overrides can be passed as dicts or model instances::
+
+        make_test_config(data_dir=tmp_path, database={"retention_days": 14})
+        make_test_config(data_dir=tmp_path, database=DatabaseConfig(retention_days=14))
 
     Args:
         data_dir: Directory for Hassette data (caches, etc.). In pytest, pass
@@ -70,7 +78,8 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
                 def test_something(tmp_path):
                     config = make_test_config(data_dir=tmp_path)
 
-        **overrides: Any ``HassetteConfig`` field values to override.
+        **overrides: Any ``HassetteConfig`` field values to override. Nested
+            group fields may be passed as dicts or model instances.
 
     Returns:
         A validated :class:`~hassette.config.config.HassetteConfig` instance.
@@ -79,14 +88,15 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
 
         config = make_test_config(data_dir=tmp_path)
         config = make_test_config(data_dir=tmp_path, base_url="http://192.168.1.1:8123")
+        config = make_test_config(data_dir=tmp_path, database={"retention_days": 14})
     """
     defaults: dict[str, Any] = {
         "token": "test-token",
         "base_url": "http://test.invalid:8123",
         "data_dir": data_dir,
         "disable_state_proxy_polling": True,
-        "autodetect_apps": False,
-        "run_web_api": False,
+        "app": {"autodetect": False},
+        "web_api": {"run": False},
         "run_app_precheck": False,
     }
     merged = {**defaults, **overrides}

@@ -29,8 +29,8 @@ from unittest.mock import MagicMock
 def _create_stub_hassette() -> MagicMock:
     """Build a MagicMock that satisfies ``create_fastapi_app``."""
     stub = MagicMock()
-    stub.config.web_api_cors_origins = ()
-    stub.config.run_web_ui = False  # no SPA serving needed for schema export
+    stub.config.web_api.cors_origins = ()
+    stub.config.web_api.run_ui = False  # no SPA serving needed for schema export
     return stub
 
 

@@ -92,12 +92,12 @@ class BusService(Service):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.bus_service_log_level
+        return self.hassette.config.logging.bus_service
 
     @cached_property
     def config_log_all_events(self) -> bool:
         """Return whether to log all events."""
-        return self.hassette.config.log_all_events
+        return self.hassette.config.logging.all_events
 
     def _on_dispatch_done(self, _task: asyncio.Task[Any]) -> None:
         """Callback for dispatch task completion — decrements pending counter."""
@@ -523,7 +523,7 @@ class BusService(Service):
         Args:
             app_key: The app key whose pending registration tasks to await.
         """
-        timeout = float(self.hassette.config.registration_await_timeout)
+        timeout = float(self.hassette.config.lifecycle.registration_await_timeout)
         await self._reg_tracker.await_complete(app_key, timeout=timeout, logger=self.logger)
 
     def _should_log_event(self, event: "Event[Any]") -> bool:
@@ -534,10 +534,10 @@ class BusService(Service):
         if self.config_log_all_events:
             return True
 
-        if self.hassette.config.log_all_hass_events and event.topic.startswith(_HASS_TOPIC_PREFIX):
+        if self.hassette.config.logging.all_hass_events and event.topic.startswith(_HASS_TOPIC_PREFIX):
             return True
 
-        if self.hassette.config.log_all_hassette_events and event.topic.startswith(_HASSETTE_TOPIC_PREFIX):
+        if self.hassette.config.logging.all_hassette_events and event.topic.startswith(_HASSETTE_TOPIC_PREFIX):
             return True
 
         return False
@@ -692,7 +692,7 @@ class BusService(Service):
             elif listener.options.timeout is not None:
                 effective_timeout = listener.options.timeout
             else:
-                effective_timeout = self.hassette.config.event_handler_timeout_seconds
+                effective_timeout = self.hassette.config.lifecycle.event_handler_timeout_seconds
 
             # Resolve the app-level error handler at dispatch time from the owning Bus.
             # The resolver is a closure set by Bus.on() that reads Bus._error_handler lazily,

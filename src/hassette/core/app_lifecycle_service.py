@@ -94,7 +94,7 @@ class AppLifecycleService(Resource):
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         """Return the log level from the config for this resource."""
-        return self.hassette.config.app_handler_log_level
+        return self.hassette.config.logging.app_handler
 
     # ------------------------------------------------------------------
     # Timeout properties (from AppLifecycleManager)
@@ -103,12 +103,12 @@ class AppLifecycleService(Resource):
     @property
     def startup_timeout(self) -> int:
         """Timeout in seconds for app instance initialization."""
-        return self.hassette.config.app_startup_timeout_seconds
+        return self.hassette.config.lifecycle.app_startup_timeout_seconds
 
     @property
     def shutdown_timeout(self) -> int:
         """Timeout in seconds for app instance shutdown."""
-        return self.hassette.config.app_shutdown_timeout_seconds
+        return self.hassette.config.lifecycle.app_shutdown_timeout_seconds
 
     # ------------------------------------------------------------------
     # Lifecycle methods (from AppLifecycleManager, folded in)
@@ -447,7 +447,7 @@ class AppLifecycleService(Resource):
         except Exception as e:
             self.logger.exception("Failed to reload configuration: %s", e)
 
-        self.set_apps_configs(self.hassette.config.app_manifests)
+        self.set_apps_configs(self.hassette.config.app.manifests)
         curr_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items() if v.enabled}
 
         return original_apps_config, curr_apps_config

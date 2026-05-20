@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from contextlib import suppress
 from importlib.metadata import version
 from pathlib import Path
-from typing import cast, get_args
+from typing import Any, cast, get_args
 from warnings import warn
 
 import platformdirs
@@ -133,9 +133,13 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
 
 
 def warn_log_level_not_valid(log_level: str, fallback_value: LOG_LEVEL_TYPE) -> None:
+    kwargs: dict[str, Any] = {}
+    if sys.version_info >= (3, 12):
+        kwargs["skip_file_prefixes"] = ("hassette.config.helpers", "pydantic")
     warn(
         f"Log level {log_level!r} is not valid, defaulting to {fallback_value!r}. ",
-        skip_file_prefixes=("hassette.config.helpers", "pydantic"),  # pyright: ignore[reportCallIssue] # for stupid 3.11 bug
+        stacklevel=2,
+        **kwargs,
     )
 
 

@@ -46,20 +46,20 @@ from hassette.types.types import LOG_LEVEL_TYPE
 def _make_mock_hassette() -> MagicMock:
     """Create a minimal mock Hassette with all log level config fields set to distinct values."""
     hassette = MagicMock()
-    hassette.config.log_level = "INFO"
-    hassette.config.database_service_log_level = "DEBUG"
-    hassette.config.bus_service_log_level = "WARNING"
-    hassette.config.scheduler_service_log_level = "ERROR"
-    hassette.config.app_handler_log_level = "CRITICAL"
-    hassette.config.web_api_log_level = "DEBUG"
-    hassette.config.websocket_log_level = "WARNING"
-    hassette.config.service_watcher_log_level = "ERROR"
-    hassette.config.file_watcher_log_level = "CRITICAL"
-    hassette.config.task_bucket_log_level = "DEBUG"
-    hassette.config.command_executor_log_level = "WARNING"
-    hassette.config.apps_log_level = "ERROR"
-    hassette.config.state_proxy_log_level = "CRITICAL"
-    hassette.config.api_log_level = "DEBUG"
+    hassette.config.logging.log_level = "INFO"
+    hassette.config.logging.database_service = "DEBUG"
+    hassette.config.logging.bus_service = "WARNING"
+    hassette.config.logging.scheduler_service = "ERROR"
+    hassette.config.logging.app_handler = "CRITICAL"
+    hassette.config.logging.web_api = "DEBUG"
+    hassette.config.logging.websocket = "WARNING"
+    hassette.config.logging.service_watcher = "ERROR"
+    hassette.config.logging.file_watcher = "CRITICAL"
+    hassette.config.logging.task_bucket = "DEBUG"
+    hassette.config.logging.command_executor = "WARNING"
+    hassette.config.logging.apps = "ERROR"
+    hassette.config.logging.state_proxy = "CRITICAL"
+    hassette.config.logging.api = "DEBUG"
     return hassette
 
 
@@ -70,8 +70,8 @@ def _stub_resource(cls: type[Resource]) -> Resource:
     specific dependencies (streams, executors, registries, etc.).
     """
     hassette = _make_mock_hassette()
-    hassette.config.resource_shutdown_timeout_seconds = 5
-    hassette.config.task_cancellation_timeout_seconds = 5
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
+    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
     obj = cls.__new__(cls)
     Resource.__init__(obj, hassette, parent=hassette)
     return obj
@@ -83,44 +83,45 @@ def _stub_resource(cls: type[Resource]) -> Resource:
 
 OVERRIDE_CASES = [
     # Dedicated field overrides (Hassette-registered services)
-    (DatabaseService, "database_service_log_level"),
-    (BusService, "bus_service_log_level"),
-    (SchedulerService, "scheduler_service_log_level"),
-    (AppHandler, "app_handler_log_level"),
-    (WebApiService, "web_api_log_level"),
-    (WebsocketService, "websocket_log_level"),
-    (ServiceWatcher, "service_watcher_log_level"),
-    (FileWatcherService, "file_watcher_log_level"),
-    (TaskBucket, "task_bucket_log_level"),
-    (CommandExecutor, "command_executor_log_level"),
-    (StateProxy, "state_proxy_log_level"),
-    (Api, "api_log_level"),
-    (ApiResource, "api_log_level"),
+    # Each tuple: (ResourceClass, nested_attr_on_config_logging)
+    (DatabaseService, "database_service"),
+    (BusService, "bus_service"),
+    (SchedulerService, "scheduler_service"),
+    (AppHandler, "app_handler"),
+    (WebApiService, "web_api"),
+    (WebsocketService, "websocket"),
+    (ServiceWatcher, "service_watcher"),
+    (FileWatcherService, "file_watcher"),
+    (TaskBucket, "task_bucket"),
+    (CommandExecutor, "command_executor"),
+    (StateProxy, "state_proxy"),
+    (Api, "api"),
+    (ApiResource, "api"),
     # Cross-bound overrides (child/helper resources)
-    (AppLifecycleService, "app_handler_log_level"),
-    (RuntimeQueryService, "web_api_log_level"),
-    (TelemetryQueryService, "web_api_log_level"),
-    (SessionManager, "database_service_log_level"),
-    (EventStreamService, "bus_service_log_level"),
-    (WebUiWatcherService, "file_watcher_log_level"),
-    (StateManager, "state_proxy_log_level"),
-    (_ScheduledJobQueue, "scheduler_service_log_level"),
+    (AppLifecycleService, "app_handler"),
+    (RuntimeQueryService, "web_api"),
+    (TelemetryQueryService, "web_api"),
+    (SessionManager, "database_service"),
+    (EventStreamService, "bus_service"),
+    (WebUiWatcherService, "file_watcher"),
+    (StateManager, "state_proxy"),
+    (_ScheduledJobQueue, "scheduler_service"),
     # App-owned resources (currently cross-bind to service-level, see #462)
-    (Bus, "bus_service_log_level"),
-    (Scheduler, "scheduler_service_log_level"),
-    (ApiSyncFacade, "api_log_level"),
+    (Bus, "bus_service"),
+    (Scheduler, "scheduler_service"),
+    (ApiSyncFacade, "api"),
 ]
 
 
 @pytest.mark.parametrize(
-    ("cls", "config_field"),
+    ("cls", "logging_attr"),
     OVERRIDE_CASES,
     ids=[c.__name__ for c, _ in OVERRIDE_CASES],
 )
-def test_config_log_level_returns_expected_field(cls: type[Resource], config_field: str) -> None:
-    """Each Resource's config_log_level returns the correct config field value."""
+def test_config_log_level_returns_expected_field(cls: type[Resource], logging_attr: str) -> None:
+    """Each Resource's config_log_level returns the correct config.logging.* field value."""
     resource = _stub_resource(cls)
-    expected = getattr(resource.hassette.config, config_field)
+    expected = getattr(resource.hassette.config.logging, logging_attr)
     assert resource.config_log_level == expected
 
 
@@ -130,21 +131,21 @@ def test_config_log_level_returns_expected_field(cls: type[Resource], config_fie
 
 
 def test_api_does_not_return_global_log_level() -> None:
-    """Api.config_log_level returns api_log_level, not the global log_level."""
+    """Api.config_log_level returns logging.api, not the global logging.log_level."""
     resource = _stub_resource(Api)
-    resource.hassette.config.log_level = "INFO"
-    resource.hassette.config.api_log_level = "DEBUG"
+    resource.hassette.config.logging.log_level = "INFO"
+    resource.hassette.config.logging.api = "DEBUG"
     assert resource.config_log_level == "DEBUG"
-    assert resource.config_log_level != resource.hassette.config.log_level
+    assert resource.config_log_level != resource.hassette.config.logging.log_level
 
 
 def test_api_resource_does_not_return_global_log_level() -> None:
-    """ApiResource.config_log_level returns api_log_level, not the global log_level."""
+    """ApiResource.config_log_level returns logging.api, not the global logging.log_level."""
     resource = _stub_resource(ApiResource)
-    resource.hassette.config.log_level = "INFO"
-    resource.hassette.config.api_log_level = "DEBUG"
+    resource.hassette.config.logging.log_level = "INFO"
+    resource.hassette.config.logging.api = "DEBUG"
     assert resource.config_log_level == "DEBUG"
-    assert resource.config_log_level != resource.hassette.config.log_level
+    assert resource.config_log_level != resource.hassette.config.logging.log_level
 
 
 # ---------------------------------------------------------------------------
