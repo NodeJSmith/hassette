@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.0](https://github.com/NodeJSmith/hassette/compare/v0.30.0...v0.31.0) (2026-05-20)
+
+
+### Features
+
+* add real-time UI updates for handler activity, timestamps, and dashboard grid ([#735](https://github.com/NodeJSmith/hassette/issues/735)) ([2892c7f](https://github.com/NodeJSmith/hassette/commit/2892c7fd3286d8f9a9f9fd91a4a52bb630166376))
+* decompose Listener into sub-structs and extract Router ([#782](https://github.com/NodeJSmith/hassette/issues/782)) ([1991e66](https://github.com/NodeJSmith/hassette/commit/1991e660408d474567c38cbd83d4c5d9e6a8ad46))
+* replace handler health table with responsive card grid ([#761](https://github.com/NodeJSmith/hassette/issues/761)) ([42feded](https://github.com/NodeJSmith/hassette/commit/42feded36951a03c1306412cde252cd4a9cbc540))
+* restructure HassetteConfig into nested Pydantic models ([#789](https://github.com/NodeJSmith/hassette/issues/789)) ([054ff35](https://github.com/NodeJSmith/hassette/commit/054ff352f60c43a9c868d1ddb3db2d6ad496f2fc))
+* **scheduler:** add if_exists="replace" for job registration ([#780](https://github.com/NodeJSmith/hassette/issues/780)) ([1fee740](https://github.com/NodeJSmith/hassette/commit/1fee7404204654cd28d727799abd599bca55bd30))
+* split global.css into component-level CSS Modules ([#736](https://github.com/NodeJSmith/hassette/issues/736)) ([eb1984a](https://github.com/NodeJSmith/hassette/commit/eb1984aaae002c0ac60f982b8d1d210b1c72467b))
+* structured logging with async dispatch, DB persistence, and log UI ([#744](https://github.com/NodeJSmith/hassette/issues/744)) ([1ebb010](https://github.com/NodeJSmith/hassette/commit/1ebb010bee1ad3bcd6b44c82f51e3c133d2a0988))
+* **ui:** add reusable Button, Badge, Chip, Card components with CSS Modules ([#737](https://github.com/NodeJSmith/hassette/issues/737)) ([1b5a345](https://github.com/NodeJSmith/hassette/commit/1b5a34525c4730ed3f95e4adeb533d7eaa88372e))
+* **ui:** align table pattern across apps, handlers, and logs pages ([#767](https://github.com/NodeJSmith/hassette/issues/767)) ([5a4db02](https://github.com/NodeJSmith/hassette/commit/5a4db020f54157efea7db6a16c20c9b8b6aad1f2))
+* **ui:** redesign monitoring UI with apps-focused layout, design tokens, and mobile support ([#710](https://github.com/NodeJSmith/hassette/issues/710)) ([fcfc4d6](https://github.com/NodeJSmith/hassette/commit/fcfc4d6a8faa6b39b9c51885d00ec3807d8e2516))
+* **ui:** restore shared tabs on multi-instance app parent page ([#753](https://github.com/NodeJSmith/hassette/issues/753)) ([7fa2bd3](https://github.com/NodeJSmith/hassette/commit/7fa2bd33254a1cc80ff8ab46dc7061205a954407))
+
+
+### Bug Fixes
+
+* **ci:** inline PyPI publish into release-please to fix trusted publishing ([#729](https://github.com/NodeJSmith/hassette/issues/729)) ([2331cf5](https://github.com/NodeJSmith/hassette/commit/2331cf57895a58f19589e4b7f45d60b1a0bcc6bb))
+* include SPA frontend assets in PyPI package ([#790](https://github.com/NodeJSmith/hassette/issues/790)) ([3067068](https://github.com/NodeJSmith/hassette/commit/3067068a87fcb4663beb702863335f9dc6c73d31)), closes [#788](https://github.com/NodeJSmith/hassette/issues/788)
+* surface API errors via toast instead of swallowing silently ([#751](https://github.com/NodeJSmith/hassette/issues/751)) ([42379ef](https://github.com/NodeJSmith/hassette/commit/42379ef92d7d3fb92341f19e1a4af286e3bc7922))
+
+
+### Performance Improvements
+
+* **tests:** add pre-migrated DB template to eliminate per-test Alembic overhead ([#786](https://github.com/NodeJSmith/hassette/issues/786)) ([e24fa7e](https://github.com/NodeJSmith/hassette/commit/e24fa7e3a5dc42109a31ea1d4008a98b673ea31e))
+
+
+### Refactoring
+
+* **bus:** decompose dispatch methods and deduplicate predicate builders ([#784](https://github.com/NodeJSmith/hassette/issues/784)) ([2a74d96](https://github.com/NodeJSmith/hassette/commit/2a74d9605d095a523f544a456fdc50e98ed12b55))
+* decompose handler detail panes into focused components ([#778](https://github.com/NodeJSmith/hassette/issues/778)) ([8bd07a4](https://github.com/NodeJSmith/hassette/commit/8bd07a493e8e9bf6157bfab2d71b8aeb4125b242))
+* make Bus routing synchronous, keep only DB registration async ([#785](https://github.com/NodeJSmith/hassette/issues/785)) ([bc7ff20](https://github.com/NodeJSmith/hassette/commit/bc7ff202b33259cb22a33c615c1c0b78ce23991e))
+* **ui:** shared execution table, polish, and real-time handler updates ([#748](https://github.com/NodeJSmith/hassette/issues/748)) ([1171031](https://github.com/NodeJSmith/hassette/commit/1171031a407c92359723dd252c649dfa35a69345))
+* **ui:** split log table into modular components with filter fixes ([#755](https://github.com/NodeJSmith/hassette/issues/755)) ([3577c61](https://github.com/NodeJSmith/hassette/commit/3577c61dc8bfce87dc203ffd408255355bc4fe4e))
+
+
+### Documentation
+
+* add prior art research for event data recorder ([#757](https://github.com/NodeJSmith/hassette/issues/757)) ([0ed8cf4](https://github.com/NodeJSmith/hassette/commit/0ed8cf417711bd3a759de9a0317926d29fada5bb))
+* add prior art research for frontend state QA tooling ([#759](https://github.com/NodeJSmith/hassette/issues/759)) ([1063e6c](https://github.com/NodeJSmith/hassette/commit/1063e6cd2d8cbe4a6ec42b5a9ee10f352f0b2a5c))
+
+
+### Tests
+
+* consolidate test infrastructure and eliminate code hygiene debt ([#791](https://github.com/NodeJSmith/hassette/issues/791)) ([4a4f07d](https://github.com/NodeJSmith/hassette/commit/4a4f07d50aa84547e0ff7f5794fa352402088ca8))
+
 ## [0.30.0](https://github.com/NodeJSmith/hassette/compare/v0.29.0...v0.30.0) (2026-05-10)
 
 ### Breaking Changes
