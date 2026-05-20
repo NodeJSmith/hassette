@@ -1598,25 +1598,6 @@
         "title": "AppConfigResponse",
         "description": "Response model for GET /apps/{app_key}/config."
       },
-      "AppGroupConfigResponse": {
-        "properties": {
-          "autodetect": {
-            "type": "boolean",
-            "title": "Autodetect"
-          },
-          "directory": {
-            "type": "string",
-            "title": "Directory"
-          }
-        },
-        "type": "object",
-        "required": [
-          "autodetect",
-          "directory"
-        ],
-        "title": "AppGroupConfigResponse",
-        "description": "Sanitized app configuration fields (config group sub-response)."
-      },
       "AppHealthResponse": {
         "properties": {
           "error_rate": {
@@ -1952,6 +1933,25 @@
         ],
         "title": "AppStatusResponse"
       },
+      "AppsConfigResponse": {
+        "properties": {
+          "autodetect": {
+            "type": "boolean",
+            "title": "Autodetect"
+          },
+          "directory": {
+            "type": "string",
+            "title": "Directory"
+          }
+        },
+        "type": "object",
+        "required": [
+          "autodetect",
+          "directory"
+        ],
+        "title": "AppsConfigResponse",
+        "description": "Sanitized apps configuration fields (config group sub-response)."
+      },
       "BootIssueResponse": {
         "properties": {
           "severity": {
@@ -2015,8 +2015,8 @@
           "lifecycle": {
             "$ref": "#/components/schemas/LifecycleConfigResponse"
           },
-          "app": {
-            "$ref": "#/components/schemas/AppGroupConfigResponse"
+          "apps": {
+            "$ref": "#/components/schemas/AppsConfigResponse"
           },
           "scheduler": {
             "$ref": "#/components/schemas/SchedulerConfigResponse"
@@ -2036,7 +2036,7 @@
           "web_api",
           "logging",
           "lifecycle",
-          "app",
+          "apps",
           "scheduler",
           "file_watcher"
         ],

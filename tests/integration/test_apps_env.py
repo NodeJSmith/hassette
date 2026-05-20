@@ -109,11 +109,11 @@ def _write_toml(
             [hassette]
             run_app_precheck = {str(run_app_precheck).lower()}
 
-            [hassette.app]
+            [hassette.apps]
             directory = {app_dir.as_posix()!r}
             autodetect = false
 
-            [hassette.app.apps.{APP_KEY}]
+            [hassette.apps.{APP_KEY}]
             enabled = true
             filename = {filename!r}
             class_name = {class_name!r}

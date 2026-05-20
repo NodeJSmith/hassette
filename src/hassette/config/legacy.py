@@ -72,10 +72,10 @@ LEGACY_KEY_MIGRATION: dict[str, str] = {
     "web_api_log_buffer_size": "web_api.log_buffer_size",
     "web_api_job_history_size": "web_api.job_history_size",
     # app
-    "app_dir": "app.directory",
-    "autodetect_apps": "app.autodetect",
-    "extend_autodetect_exclude_dirs": "app.extend_exclude_dirs",
-    "autodetect_exclude_dirs": "app.exclude_dirs",
+    "app_dir": "apps.directory",
+    "autodetect_apps": "apps.autodetect",
+    "extend_autodetect_exclude_dirs": "apps.extend_exclude_dirs",
+    "autodetect_exclude_dirs": "apps.exclude_dirs",
     # scheduler
     "scheduler_min_delay_seconds": "scheduler.min_delay_seconds",
     "scheduler_max_delay_seconds": "scheduler.max_delay_seconds",

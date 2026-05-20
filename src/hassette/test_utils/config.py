@@ -77,7 +77,7 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
         - ``token``: ``"test-token"``
         - ``base_url``: ``"http://test.invalid:8123"`` (unreachable by design)
         - ``disable_state_proxy_polling``: ``True``
-        - ``app``: ``{"autodetect": False}``
+        - ``apps``: ``{"autodetect": False}``
         - ``web_api``: ``{"run": False}``
         - ``run_app_precheck``: ``False``
 
@@ -111,7 +111,7 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
         "base_url": TEST_BASE_URL,
         "data_dir": data_dir,
         "disable_state_proxy_polling": True,
-        "app": {"autodetect": False},
+        "apps": {"autodetect": False},
         "web_api": {"run": False},
         "run_app_precheck": False,
     }

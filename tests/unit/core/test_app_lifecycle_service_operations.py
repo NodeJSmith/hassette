@@ -258,7 +258,7 @@ class TestRefreshConfig:
         manifest1 = MagicMock()
         manifest1.enabled = True
         mock_registry.manifests = {"app_a": manifest1}
-        mock_hassette.config.app.manifests = {"app_a": manifest1}
+        mock_hassette.config.apps.manifests = {"app_a": manifest1}
         reload_mock = Mock()
         object.__setattr__(mock_hassette.config, "reload", reload_mock)
 

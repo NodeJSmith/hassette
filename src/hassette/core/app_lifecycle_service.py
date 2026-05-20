@@ -447,7 +447,7 @@ class AppLifecycleService(Resource):
         except Exception as e:
             self.logger.exception("Failed to reload configuration: %s", e)
 
-        self.set_apps_configs(self.hassette.config.app.manifests)
+        self.set_apps_configs(self.hassette.config.apps.manifests)
         curr_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items() if v.enabled}
 
         return original_apps_config, curr_apps_config

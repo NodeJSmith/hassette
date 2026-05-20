@@ -51,7 +51,7 @@ describe("ConfigPage", () => {
 
   it("renders path fields in a Paths group", () => {
     useApi.mockReturnValue(fakeApiResult(createSystemConfig({
-      app: { autodetect: true, directory: "/my/apps" },
+      apps: { autodetect: true, directory: "/my/apps" },
       data_dir: "/my/data",
       config_dir: "/my/config",
     })));

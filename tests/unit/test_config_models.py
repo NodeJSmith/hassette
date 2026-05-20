@@ -12,7 +12,7 @@ from pydantic_settings import BaseSettings
 
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.config.models import (
-    AppConfig,
+    AppsConfig,
     DatabaseConfig,
     FileWatcherConfig,
     LifecycleConfig,
@@ -36,7 +36,7 @@ from hassette.test_utils.config import TEST_TOKEN
         LoggingConfig,
         LifecycleConfig,
         WebApiConfig,
-        AppConfig,
+        AppsConfig,
         SchedulerConfig,
         FileWatcherConfig,
     ],
@@ -46,7 +46,7 @@ from hassette.test_utils.config import TEST_TOKEN
         "LoggingConfig",
         "LifecycleConfig",
         "WebApiConfig",
-        "AppConfig",
+        "AppsConfig",
         "SchedulerConfig",
         "FileWatcherConfig",
     ],
@@ -326,14 +326,14 @@ class TestWebApiConfig:
 
 
 # ---------------------------------------------------------------------------
-# AppConfig
+# AppsConfig
 # ---------------------------------------------------------------------------
 
 
-class TestAppConfig:
+class TestAppsConfig:
     def test_defaults(self):
-        """AppConfig constructs with all defaults."""
-        cfg = AppConfig()
+        """AppsConfig constructs with all defaults."""
+        cfg = AppsConfig()
         assert cfg.autodetect is True
         assert cfg.extend_exclude_dirs == ()
         assert cfg.manifests == {}
@@ -341,13 +341,13 @@ class TestAppConfig:
 
     def test_exclude_dirs_includes_defaults(self):
         """exclude_dirs always includes AUTODETECT_EXCLUDE_DIRS_DEFAULT."""
-        cfg = AppConfig()
+        cfg = AppsConfig()
         for d in AUTODETECT_EXCLUDE_DIRS_DEFAULT:
             assert d in cfg.exclude_dirs, f"{d!r} missing from exclude_dirs"
 
     def test_extend_exclude_dirs_prepended(self):
         """extend_exclude_dirs values are prepended to exclude_dirs."""
-        cfg = AppConfig(extend_exclude_dirs=(".hg", ".svn"))
+        cfg = AppsConfig(extend_exclude_dirs=(".hg", ".svn"))
         assert ".hg" in cfg.exclude_dirs
         assert ".svn" in cfg.exclude_dirs
         # Defaults still present
@@ -357,14 +357,50 @@ class TestAppConfig:
     def test_remove_incomplete_apps(self):
         """Apps missing required keys are removed with a warning."""
 
-        cfg = AppConfig(apps={"incomplete": {"filename": "foo.py"}})
+        cfg = AppsConfig(apps={"incomplete": {"filename": "foo.py"}})
 
         assert "incomplete" not in cfg.apps
 
     def test_directory_default_is_cwd_apps(self):
         """directory defaults to cwd/apps."""
-        cfg = AppConfig()
+        cfg = AppsConfig()
         assert cfg.directory == Path.cwd() / "apps"
+
+    def test_inline_app_defs_extracted(self):
+        """Dict-valued unknown keys are extracted as app definitions."""
+        cfg = AppsConfig(**{"my_app": {"filename": "f.py", "class_name": "C"}, "autodetect": False})
+        assert "my_app" in cfg.apps
+        assert cfg.autodetect is False
+
+    def test_inline_defs_merged_with_existing_apps_key(self):
+        """Inline app defs merge with an explicit apps dict."""
+        cfg = AppsConfig(
+            **{
+                "apps": {"existing": {"filename": "e.py", "class_name": "E"}},
+                "new_app": {"filename": "n.py", "class_name": "N"},
+            }
+        )
+        assert "existing" in cfg.apps
+        assert "new_app" in cfg.apps
+
+    def test_non_dict_unknown_key_ignored(self):
+        """Non-dict unknown keys don't blow up or get extracted."""
+        cfg = AppsConfig(**{"some_string": "value", "autodetect": False})
+        assert cfg.autodetect is False
+        assert cfg.apps == {}
+
+    def test_caller_dict_not_mutated(self):
+        """The model_validator doesn't mutate the caller's input dict."""
+        original = {"my_app": {"filename": "f.py", "class_name": "C"}}
+        snapshot = dict(original)
+        AppsConfig(**original)
+        assert original == snapshot
+
+    @pytest.mark.parametrize("reserved_name", ["directory", "autodetect", "extend_exclude_dirs", "exclude_dirs"])
+    def test_reserved_app_name_raises(self, reserved_name: str):
+        """App names that collide with config fields produce a clear error."""
+        with pytest.raises(ValidationError, match="conflicts with a reserved config field"):
+            AppsConfig(**{reserved_name: {"filename": "f.py", "class_name": "C"}})
 
 
 # ---------------------------------------------------------------------------
@@ -474,9 +510,9 @@ class TestHassetteConfigNested:
         assert config.web_api.run is True
 
     def test_app_autodetect_default(self, isolated_config_cls):
-        """config.app.autodetect returns True by default."""
+        """config.apps.autodetect returns True by default."""
         config = isolated_config_cls()
-        assert config.app.autodetect is True
+        assert config.apps.autodetect is True
 
     def test_scheduler_job_timeout_default(self, isolated_config_cls):
         """config.scheduler.job_timeout_seconds returns 600.0 by default."""
@@ -575,27 +611,8 @@ class TestEnvVarPartialUpdate:
     def test_single_env_var_sets_only_that_field(self, monkeypatch, tmp_path):
         """HASSETTE__DATABASE__RETENTION_DAYS=14 sets only retention_days."""
         monkeypatch.setenv("HASSETTE__DATABASE__RETENTION_DAYS", "14")
-        from pydantic_settings.sources import InitSettingsSource
-
         from hassette.config.config import HassetteConfig
 
-        class _EnvConfig(HassetteConfig):
-            model_config = HassetteConfig.model_config.copy() | {
-                "cli_parse_args": False,
-                "toml_file": None,
-                "env_file": None,
-            }
-
-            @classmethod
-            def settings_customise_sources(cls, settings_cls, **_kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
-                return (
-                    InitSettingsSource(settings_cls, init_kwargs={"token": TEST_TOKEN, "run_app_precheck": False}),
-                    cls.settings_customise_sources.__func__(cls, settings_cls, **_kwargs)  # pyright: ignore[reportAttributeAccessIssue]
-                    if False
-                    else __import__("pydantic_settings").EnvSettingsSource(settings_cls),
-                )
-
-        # Use a simpler subclass approach
         class _EnvConfig2(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
                 "cli_parse_args": False,

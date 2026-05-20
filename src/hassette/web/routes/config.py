@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 from hassette.web.dependencies import HassetteDep
 from hassette.web.models import (
-    AppGroupConfigResponse,
+    AppsConfigResponse,
     ConfigResponse,
     FileWatcherConfigResponse,
     LifecycleConfigResponse,
@@ -47,9 +47,9 @@ async def get_config(hassette: HassetteDep) -> ConfigResponse:
             app_startup_timeout_seconds=cfg.lifecycle.app_startup_timeout_seconds,
             app_shutdown_timeout_seconds=cfg.lifecycle.app_shutdown_timeout_seconds,
         ),
-        app=AppGroupConfigResponse(
-            autodetect=cfg.app.autodetect,
-            directory=str(cfg.app.directory),
+        apps=AppsConfigResponse(
+            autodetect=cfg.apps.autodetect,
+            directory=str(cfg.apps.directory),
         ),
         scheduler=SchedulerConfigResponse(
             min_delay_seconds=cfg.scheduler.min_delay_seconds,

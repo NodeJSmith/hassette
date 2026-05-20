@@ -47,8 +47,7 @@ class AppHandler(Resource):
         StateProxy,
     ]
 
-    # TODO: handle stopping/starting individual app instances, instead of all apps of a class/key
-    # no need to restart app index 2 if only app index 0 changed, etc.
+    # Per-instance restart instead of full app-key restart (#796)
 
     registry: AppRegistry
     """Registry for tracking app state."""
@@ -64,7 +63,7 @@ class AppHandler(Resource):
         self.bus = self.add_child(Bus)
         self.registry = AppRegistry()
         self.lifecycle = self.add_child(AppLifecycleService, registry=self.registry)
-        self.lifecycle.set_apps_configs(hassette.config.app.manifests)
+        self.lifecycle.set_apps_configs(hassette.config.apps.manifests)
 
     # --- Public API (thin delegation) ---
 

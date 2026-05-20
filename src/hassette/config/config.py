@@ -20,7 +20,7 @@ from hassette.config.helpers import (
 )
 from hassette.config.legacy import LEGACY_KEY_MIGRATION
 from hassette.config.models import (
-    AppConfig,
+    AppsConfig,
     DatabaseConfig,
     FileWatcherConfig,
     LifecycleConfig,
@@ -95,7 +95,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     web_api: WebApiConfig = Field(default_factory=WebApiConfig)
     """Web API and UI server settings."""
 
-    app: AppConfig = Field(default_factory=AppConfig)
+    apps: AppsConfig = Field(default_factory=AppsConfig)
     """App directory, auto-detection, and manifest settings."""
 
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
@@ -203,10 +203,10 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         """Return a list of files to watch for changes."""
 
         files = self.env_files | self.toml_files
-        files.add(self.app.directory.resolve())
+        files.add(self.apps.directory.resolve())
 
         # just add everything from here, since we'll filter it to only existing and remove duplicates later
-        for app_manifest in self.app.manifests.values():
+        for app_manifest in self.apps.manifests.values():
             with suppress(FileNotFoundError):
                 files.add(app_manifest.full_path)
                 files.add(app_manifest.app_dir)
@@ -301,6 +301,14 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                 setattr(group_obj, sub_field, sub_value)
 
         if self.model_extra:
+            if "app" in self.model_extra:
+                LOGGER.warning(
+                    "Detected legacy [hassette.app] section — this key is ignored. "
+                    "Rename to [hassette.apps] and move app definitions from "
+                    "[hassette.app.apps.<name>] to [hassette.apps.<name>]. "
+                    "Environment variables: HASSETTE__APP__* -> HASSETTE__APPS__*."
+                )
+
             legacy_hits = {k: LEGACY_KEY_MIGRATION[k] for k in self.model_extra if k in LEGACY_KEY_MIGRATION}
             if legacy_hits:
                 lines = [f"  {old} -> [hassette.{new}]" for old, new in legacy_hits.items()]
@@ -327,11 +335,11 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         # track known paths to simplify dupe detection during auto-detect
         known_paths: set[Path] = set()
 
-        for k, v in self.app.apps.copy().items():
+        for k, v in self.apps.apps.copy().items():
             if not isinstance(v, dict):
                 continue
             try:
-                v = clean_app(k, v, self.app.directory)
+                v = clean_app(k, v, self.apps.directory)
             except (KeyError, TypeError):
                 LOGGER.warning("Skipping app %r: missing required keys (filename or class_name)", k)
                 continue
@@ -340,8 +348,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             # track known paths
             known_paths.add(v["full_path"])
 
-        if self.app.autodetect:
-            autodetected_apps = autodetect_apps(self.app.directory, known_paths, set(self.app.exclude_dirs))
+        if self.apps.autodetect:
+            autodetected_apps = autodetect_apps(self.apps.directory, known_paths, set(self.apps.exclude_dirs))
             for k, v in autodetected_apps.items():
                 app_dir = v["app_dir"]
                 full_path = app_dir / v["filename"]
@@ -362,7 +370,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                 )
             app_manifest_dict[k] = AppManifest.model_validate(v)
 
-        self.app.manifests = app_manifest_dict
+        self.apps.manifests = app_manifest_dict
 
 
 _NESTED_GROUPS: dict[str, type] = {

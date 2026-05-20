@@ -131,10 +131,10 @@ class Hassette(Resource):
 
         self.config.set_validated_app_manifests()
 
-        active_apps = [app for app in self.config.app.manifests.values() if app.enabled]
+        active_apps = [app for app in self.config.apps.manifests.values() if app.enabled]
         self.logger.info("Found %d active apps", len(active_apps), stacklevel=3)
 
-        inactive_apps = [app for app in self.config.app.manifests.values() if not app.enabled]
+        inactive_apps = [app for app in self.config.apps.manifests.values() if not app.enabled]
         self.logger.info("Found %d inactive apps", len(inactive_apps), stacklevel=3)
 
         if self.config.run_app_precheck:

@@ -21,6 +21,8 @@ LOGGER = getLogger(__name__)
 
 LOG_ANNOTATION = Annotated[LOG_LEVEL_TYPE, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
 
+APP_REQUIRED_KEYS = frozenset({"filename", "class_name"})
+
 
 class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     """Database storage, retention, write-queue, and operational-interval settings."""
@@ -273,8 +275,23 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
     """Maximum number of job execution records to keep."""
 
 
-class AppConfig(ExcludeExtrasMixin, BaseModel):
-    """App directory, auto-detection, exclusion, manifest, and raw-app-dict settings."""
+class AppsConfig(ExcludeExtrasMixin, BaseModel):
+    """App directory, auto-detection, exclusion, manifest, and raw-app-dict settings.
+
+    In TOML, app definitions live alongside these settings under ``[hassette.apps]``:
+
+    .. code-block:: toml
+
+        [hassette.apps]
+        directory = "apps"
+
+        [hassette.apps.my_app]
+        filename = "my_app.py"
+        class_name = "MyApp"
+
+    The ``model_validator`` separates known config fields from app-definition
+    dicts so both coexist in the same TOML section.
+    """
 
     autodetect: bool = Field(default=True)
     """Whether to automatically detect apps in the app directory."""
@@ -300,16 +317,44 @@ class AppConfig(ExcludeExtrasMixin, BaseModel):
     directory: Path = Field(default_factory=lambda: Path.cwd() / "apps")
     """Directory to load user apps from."""
 
+    @model_validator(mode="before")
+    @classmethod
+    def extract_app_definitions(cls, data: Any) -> Any:
+        """Separate app-definition dicts from known config fields."""
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        known = set(cls.model_fields)
+        reserved = known - {"apps", "manifests"}
+        app_defs: dict[str, Any] = {}
+        for key in list(data):
+            if key in known:
+                if isinstance(data[key], dict) and key in reserved:
+                    raise ValueError(
+                        f"App name {key!r} conflicts with a reserved config field. "
+                        f"Reserved names: {sorted(reserved)}. "
+                        f"Rename the app in your configuration."
+                    )
+                continue
+            if isinstance(data[key], dict):
+                app_defs[key] = data.pop(key)
+        if app_defs:
+            existing = data.get("apps")
+            if isinstance(existing, dict):
+                data["apps"] = {**existing, **app_defs}
+            else:
+                data["apps"] = app_defs
+        return data
+
     @field_validator("apps", mode="before")
     @classmethod
     def remove_incomplete_apps(cls, value: dict[str, Any]) -> dict[str, Any]:
         """Remove any apps that are missing required fields before validation."""
-        required_keys = {"filename", "class_name"}
-        missing_required = {k: v for k, v in value.items() if isinstance(v, dict) and not required_keys.issubset(v)}
+        missing_required = {k: v for k, v in value.items() if isinstance(v, dict) and not APP_REQUIRED_KEYS.issubset(v)}
         if missing_required:
             LOGGER.warning(
                 "The following apps are missing required keys (%s) and will be ignored: %s",
-                ", ".join(required_keys),
+                ", ".join(APP_REQUIRED_KEYS),
                 list(missing_required.keys()),
             )
             for k in missing_required:

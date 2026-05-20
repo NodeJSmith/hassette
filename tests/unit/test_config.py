@@ -33,20 +33,20 @@ def test_env_overrides_are_used(test_config_class, monkeypatch, tmp_path):
     """Environment overrides win when constructing a HassetteConfig."""
     app_dir = tmp_path / "custom/apps"
     app_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("hassette__app__directory", str(app_dir))
+    monkeypatch.setenv("hassette__apps__directory", str(app_dir))
     config_with_env_override = test_config_class()
-    assert config_with_env_override.app.directory == app_dir, (
-        f"Expected {app_dir}, got {config_with_env_override.app.directory}"
+    assert config_with_env_override.apps.directory == app_dir, (
+        f"Expected {app_dir}, got {config_with_env_override.apps.directory}"
     )
 
 
 def test_extended_autodetect_exclude_dirs(test_config_class):
     """Test that extended autodetect_exclude_dirs are handled correctly."""
 
-    config_with_extended_excludes = test_config_class(app={"extend_exclude_dirs": [".hg", ".svn", "custom_dir"]})
+    config_with_extended_excludes = test_config_class(apps={"extend_exclude_dirs": [".hg", ".svn", "custom_dir"]})
     expected_excludes = set(AUTODETECT_EXCLUDE_DIRS_DEFAULT) | {".hg", ".svn", "custom_dir"}
-    assert set(config_with_extended_excludes.app.exclude_dirs) == expected_excludes, (
-        f"Expected {expected_excludes}, got {set(config_with_extended_excludes.app.exclude_dirs)}"
+    assert set(config_with_extended_excludes.apps.exclude_dirs) == expected_excludes, (
+        f"Expected {expected_excludes}, got {set(config_with_extended_excludes.apps.exclude_dirs)}"
     )
 
 
@@ -354,11 +354,11 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(monke
             [hassette]
             run_app_precheck = true
 
-            [hassette.app]
+            [hassette.apps]
             directory = {app_dir.as_posix()!r}
             autodetect = false
 
-            [hassette.app.apps.env_reader]
+            [hassette.apps.env_reader]
             enabled = true
             filename = "env_reader_app.py"
             class_name = "EnvReaderApp"

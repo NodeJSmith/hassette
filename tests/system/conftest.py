@@ -186,7 +186,7 @@ def make_system_config(ha_url: str, tmp_path: Path) -> HassetteConfig:
         base_url=ha_url,
         token=HA_TOKEN,
         data_dir=tmp_path / "data",
-        app={"directory": app_dir, "autodetect": False},
+        apps={"directory": app_dir, "autodetect": False},
         web_api={"run": False},
         lifecycle={"startup_timeout_seconds": 30},
     )
@@ -218,7 +218,7 @@ def make_web_system_config(ha_url: str, tmp_path: Path) -> tuple[HassetteConfig,
         base_url=ha_url,
         token=HA_TOKEN,
         data_dir=tmp_path / "data",
-        app={"directory": app_dir, "autodetect": False},
+        apps={"directory": app_dir, "autodetect": False},
         web_api={"run": True, "port": port},
         lifecycle={"startup_timeout_seconds": 30},
     )

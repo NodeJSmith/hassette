@@ -114,11 +114,9 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
                 stacklevel=2,
             )
 
-    ### actual precheck code starts here ###
-
     had_errors = False
 
-    for app_manifest in config.app.manifests.values():
+    for app_manifest in config.apps.manifests.values():
         if not app_manifest.enabled:
             continue
 
@@ -377,7 +375,7 @@ def load_app_class(
 
     # exceptions are caught below to cache failures, but are re-raised so the caller still receives them
     try:
-        pkg_name = config.app.directory.name
+        pkg_name = config.apps.directory.name
         path_str, module = import_module(app_dir, module_path, pkg_name)
     except Exception as e:
         FAILED_TO_LOAD_CLASSES[cache_key] = e
