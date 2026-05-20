@@ -25,11 +25,21 @@ jobs:
                   activate-environment: true
                   enable-cache: true
 
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "22"
+                  cache: "npm"
+                  cache-dependency-path: frontend/package-lock.json
+
             - name: Set up Python
               run: uv python install
 
             - name: Install python packages
               run: uv sync
+
+            - name: Build frontend SPA
+              run: uv run nox -s frontend
 
             - name: Verify tag matches project version
               if: inputs.tag_name != ''
@@ -41,6 +51,9 @@ jobs:
 
             - name: Build a binary wheel and a source tarball
               run: uv build
+
+            - name: Verify SPA assets in wheel
+              run: uv run ./tools/check_wheel_spa.py
 
             - name: Publish build artifacts
               uses: actions/upload-artifact@v4
