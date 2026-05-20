@@ -172,36 +172,9 @@ def env_file_path() -> Path:
 
 
 @pytest.fixture(scope="session")
-def test_data_path() -> Path:
-    """
-    Provide the path to the test data directory.
-    This is used to access any test-specific files needed during testing.
-    """
-    return TEST_DATA_PATH
-
-
-@pytest.fixture(scope="session")
-def test_config_path() -> Path:
-    """Provide the path to the test config directory."""
-    return TEST_CONFIG_PATH
-
-
-@pytest.fixture(scope="session")
 def test_events_path() -> Path:
     """Provide the path to the test events directory."""
     return TEST_EVENTS_PATH
-
-
-@pytest.fixture(scope="session")
-def test_api_responses_path() -> Path:
-    """Provide the path to the test API responses directory."""
-    return TEST_API_RESPONSES_PATH
-
-
-@pytest.fixture(scope="session")
-def test_apps_path() -> Path:
-    """Provide the path to the test apps directory."""
-    return TEST_APPS_PATH
 
 
 @pytest.fixture(scope="session")

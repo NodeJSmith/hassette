@@ -77,6 +77,36 @@ Shorthand for switch entity state dicts.
 --8<-- "pages/testing/snippets/testing_make_switch_state_dict.py"
 ```
 
+## `make_mock_hassette`
+
+`make_mock_hassette()` builds a sealed `AsyncMock` hassette with real, Pydantic-validated configuration. It is the standard pattern for unit tests that need a hassette mock with validated config — it replaces the pattern of manually setting `.config.*` fields on a raw `AsyncMock`.
+
+```python
+from hassette.test_utils import make_mock_hassette
+
+# Minimal — real config defaults, sealed against phantom attributes
+hassette = make_mock_hassette()
+
+# With config overrides — validated by HassetteConfig at construction time
+hassette = make_mock_hassette(strict_lifecycle=True)
+hassette = make_mock_hassette(database={"retention_days": 14})
+
+# Database-backed tests — pass a real tmp_path for isolation
+hassette = make_mock_hassette(data_dir=tmp_path)
+```
+
+All `HassetteConfig` fields can be passed as keyword arguments; Pydantic validates them at construction time. Passing an unrecognised field name or an out-of-range value raises `pydantic.ValidationError` immediately.
+
+Non-config attributes (`ready_event`, `shutdown_event`, `session_id`, `_scheduler_service`, `_bus_service`, `wait_for_ready`, `children`, etc.) are wired automatically. By default the mock is `seal()`-ed — accessing an attribute not set by the factory raises `AttributeError`. Pass `sealed=False` to add extra attributes after construction.
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `data_dir` | `tempfile.mkdtemp()` | Directory for Hassette data files. Pass `tmp_path` in integration tests for isolation. |
+| `set_ready` | `True` | Pre-set `ready_event` so `wait_for_ready()` resolves immediately. |
+| `set_loop` | `True` | Wire `loop` to `asyncio.get_running_loop()`. Pass `False` for session-scoped fixtures that run outside an event loop. |
+| `sealed` | `True` | Call `seal()` after wiring; accessing unlisted attributes raises `AttributeError`. |
+| `**config_overrides` | — | Any `HassetteConfig` field. Merged on top of test-appropriate defaults. |
+
 ## `make_test_config`
 
 `AppTestHarness` creates a minimal `HassetteConfig` internally. If you need a `HassetteConfig` without the full harness — for example, to test configuration parsing logic directly — use `make_test_config`:
