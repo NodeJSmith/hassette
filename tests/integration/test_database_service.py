@@ -11,62 +11,44 @@ import aiosqlite
 import pytest
 
 from hassette.core.database_service import DatabaseService
+from hassette.test_utils.mock_hassette import make_mock_hassette
 
 
 @pytest.fixture
-def mock_hassette(premigrated_db_path: Path) -> MagicMock:
+def db_hassette(premigrated_db_path: Path) -> MagicMock:
     """Create a mock Hassette with database config pointing to a pre-migrated DB."""
-    hassette = MagicMock()
-    hassette.config.data_dir = premigrated_db_path.parent
-    hassette.config.database.path = None
-    hassette.config.database.retention_days = 7
-    hassette.config.logging.log_retention_days = 3
-    hassette.config.database.max_size_mb = 500
-    hassette.config.database.migration_timeout_seconds = 120
-    hassette.config.database.telemetry_write_queue_max = 500
-    hassette.config.database.write_queue_max = 2000
-    hassette.config.logging.database_service = "INFO"
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.ready_event = asyncio.Event()
-    hassette._session_id = None
+    hassette = make_mock_hassette(
+        sealed=False,
+        data_dir=premigrated_db_path.parent,
+        set_ready=False,
+        database={"telemetry_write_queue_max": 500},
+        lifecycle={"resource_shutdown_timeout_seconds": 5},
+    )
     return hassette
 
 
 @pytest.fixture
 def mock_hassette_fresh(tmp_path: Path) -> MagicMock:
     """Create a mock Hassette with a fresh (empty) data_dir for migration-from-scratch tests."""
-    hassette = MagicMock()
-    hassette.config.data_dir = tmp_path
-    hassette.config.database.path = None
-    hassette.config.database.retention_days = 7
-    hassette.config.logging.log_retention_days = 3
-    hassette.config.database.max_size_mb = 500
-    hassette.config.database.migration_timeout_seconds = 120
-    hassette.config.database.telemetry_write_queue_max = 500
-    hassette.config.database.write_queue_max = 2000
-    hassette.config.logging.database_service = "INFO"
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.ready_event = asyncio.Event()
-    hassette._session_id = None
-    return hassette
+    return make_mock_hassette(
+        sealed=False,
+        data_dir=tmp_path,
+        set_ready=False,
+        database={"telemetry_write_queue_max": 500},
+        lifecycle={"resource_shutdown_timeout_seconds": 5},
+    )
 
 
 @pytest.fixture
-def service(mock_hassette: MagicMock) -> DatabaseService:
+def service(db_hassette: MagicMock) -> DatabaseService:
     """Create a DatabaseService instance (not yet initialized)."""
-    return DatabaseService(mock_hassette, parent=mock_hassette)
+    return DatabaseService(db_hassette, parent=None)
 
 
 @pytest.fixture
 def fresh_service(mock_hassette_fresh: MagicMock) -> DatabaseService:
     """Create a DatabaseService against a fresh (empty) data_dir — no pre-migrated DB."""
-    return DatabaseService(mock_hassette_fresh, parent=mock_hassette_fresh)
+    return DatabaseService(mock_hassette_fresh, parent=None)
 
 
 @pytest.fixture
@@ -79,7 +61,6 @@ async def initialized_fresh_service(fresh_service: DatabaseService) -> AsyncIter
             "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
             (now, now),
         )
-        fresh_service.hassette._session_id = cursor.lastrowid
         fresh_service.hassette.session_id = cursor.lastrowid
         await fresh_service.db.commit()
         yield fresh_service
@@ -98,7 +79,6 @@ async def initialized_service(service: DatabaseService) -> AsyncIterator[Databas
             "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
             (now, now),
         )
-        service.hassette._session_id = cursor.lastrowid
         service.hassette.session_id = cursor.lastrowid
         await service.db.commit()
         yield service

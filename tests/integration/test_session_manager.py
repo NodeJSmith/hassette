@@ -1,6 +1,5 @@
 """Integration tests for SessionManager."""
 
-import asyncio
 import sqlite3
 import time
 from collections.abc import AsyncIterator
@@ -14,6 +13,7 @@ from hassette.core.session_manager import SessionManager
 from hassette.events import HassetteServiceEvent
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import ServiceStatusPayload
+from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.types import ResourceRole, ResourceStatus, Topic
 
 
@@ -44,29 +44,20 @@ def _make_crashed_event(
 
 
 @pytest.fixture
-def mock_hassette(premigrated_db_path: Path) -> MagicMock:
+def db_hassette(premigrated_db_path: Path) -> MagicMock:
     """Create a mock Hassette with database config pointing to a pre-migrated DB."""
-    hassette = MagicMock()
-    hassette.config.data_dir = premigrated_db_path.parent
-    hassette.config.database.path = None
-    hassette.config.database.retention_days = 7
-    hassette.config.database.migration_timeout_seconds = 120
-    hassette.config.database.max_size_mb = 0
-    hassette.config.database.telemetry_write_queue_max = 500
-    hassette.config.database.write_queue_max = 2000
-    hassette.config.logging.database_service = "INFO"
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.ready_event = asyncio.Event()
-    return hassette
+    return make_mock_hassette(
+        data_dir=premigrated_db_path.parent,
+        set_ready=False,
+        database={"telemetry_write_queue_max": 500, "max_size_mb": 0},
+        lifecycle={"resource_shutdown_timeout_seconds": 5},
+    )
 
 
 @pytest.fixture
-async def db_service(mock_hassette: MagicMock) -> AsyncIterator[DatabaseService]:
+async def db_service(db_hassette: MagicMock) -> AsyncIterator[DatabaseService]:
     """Provide an initialized DatabaseService for session tests."""
-    service = DatabaseService(mock_hassette, parent=mock_hassette)
+    service = DatabaseService(db_hassette, parent=None)
     await service.on_initialize()
     try:
         yield service
@@ -75,9 +66,9 @@ async def db_service(mock_hassette: MagicMock) -> AsyncIterator[DatabaseService]
 
 
 @pytest.fixture
-def session_manager(mock_hassette: MagicMock, db_service: DatabaseService) -> SessionManager:
+def session_manager(db_hassette: MagicMock, db_service: DatabaseService) -> SessionManager:
     """Create a SessionManager wired to the test DatabaseService."""
-    return SessionManager(mock_hassette, database_service=db_service, parent=mock_hassette)
+    return SessionManager(db_hassette, database_service=db_service, parent=None)
 
 
 async def test_session_manager_creates_session(session_manager: SessionManager, db_service: DatabaseService) -> None:
@@ -216,12 +207,12 @@ async def test_on_service_crashed_no_session(session_manager: SessionManager, db
     assert row[0] == 0
 
 
-async def test_on_service_crashed_db_not_initialized(mock_hassette: MagicMock) -> None:
+async def test_on_service_crashed_db_not_initialized(db_hassette: MagicMock) -> None:
     """on_service_crashed returns early when database is not initialized."""
     db_service_mock = MagicMock()
     type(db_service_mock).db = property(lambda _: (_ for _ in ()).throw(RuntimeError("not initialized")))
 
-    sm = SessionManager(mock_hassette, database_service=db_service_mock, parent=mock_hassette)
+    sm = SessionManager(db_hassette, database_service=db_service_mock, parent=None)
     sm._session_id = 1  # pretend a session was created
 
     event = _make_crashed_event()
@@ -235,12 +226,12 @@ async def test_finalize_session_no_session(session_manager: SessionManager) -> N
     await session_manager.finalize_session()
 
 
-async def test_finalize_session_db_not_initialized(mock_hassette: MagicMock) -> None:
+async def test_finalize_session_db_not_initialized(db_hassette: MagicMock) -> None:
     """finalize_session returns early when database is not initialized."""
     db_service_mock = MagicMock()
     type(db_service_mock).db = property(lambda _: (_ for _ in ()).throw(RuntimeError("not initialized")))
 
-    sm = SessionManager(mock_hassette, database_service=db_service_mock, parent=mock_hassette)
+    sm = SessionManager(db_hassette, database_service=db_service_mock, parent=None)
     sm._session_id = 1  # pretend a session was created
 
     # Should not raise — logs warning and returns

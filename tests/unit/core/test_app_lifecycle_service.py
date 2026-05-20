@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 
 from hassette.core.app_lifecycle_service import AppLifecycleService
+from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.types import Topic
 from hassette.types.enums import BlockReason, ResourceStatus
 
@@ -14,18 +15,13 @@ from hassette.types.enums import BlockReason, ResourceStatus
 @pytest.fixture
 def mock_hassette() -> MagicMock:
     """Create a mock Hassette instance with config."""
-    hassette = MagicMock()
-    hassette.config = MagicMock()
-    hassette.config.lifecycle.app_startup_timeout_seconds = 30
-    hassette.config.lifecycle.app_shutdown_timeout_seconds = 10
-    hassette.config.dev_mode = True
-    hassette.config.allow_only_app_in_prod = False
-    hassette.config.allow_reload_in_prod = False
-    hassette.config.logging.app_handler = "DEBUG"
-    hassette.config.app.manifests = {}
-    hassette.config.data_dir = Path("/tmp/hassette-test")
+    hassette = make_mock_hassette(
+        sealed=False,
+        dev_mode=True,
+        logging={"app_handler": "DEBUG"},
+        lifecycle={"app_startup_timeout_seconds": 30},
+    )
     hassette.send_event = AsyncMock()
-    hassette.wait_for_ready = AsyncMock(return_value=True)
     hassette.command_executor = MagicMock()
     hassette.command_executor.reconcile_registrations = AsyncMock()
     hassette.bus_service = MagicMock()
@@ -745,11 +741,12 @@ class TestRefreshConfig:
         manifest1.enabled = True
         mock_registry.manifests = {"app_a": manifest1}
         mock_hassette.config.app.manifests = {"app_a": manifest1}
-        mock_hassette.config.reload = Mock()
+        reload_mock = Mock()
+        object.__setattr__(mock_hassette.config, "reload", reload_mock)
 
         original, current = await lifecycle_service.refresh_config()
 
-        mock_hassette.config.reload.assert_called_once()
+        reload_mock.assert_called_once()
         assert "app_a" in original
         assert "app_a" in current
 

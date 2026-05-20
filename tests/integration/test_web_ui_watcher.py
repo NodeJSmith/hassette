@@ -11,12 +11,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hassette.core.web_ui_watcher import _WEB_DIR, WebUiWatcherService
+from hassette.test_utils.mock_hassette import make_mock_hassette
 
 
 @pytest.fixture
 def mock_hassette() -> MagicMock:
-    hassette = MagicMock()
-    hassette.config.web_api.ui_hot_reload = True
+    hassette = make_mock_hassette(
+        sealed=False,
+        web_api={"ui_hot_reload": True},
+    )
     hassette.runtime_query_service = MagicMock()
     hassette.runtime_query_service.broadcast = AsyncMock()
     return hassette

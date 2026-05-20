@@ -16,6 +16,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.core.telemetry_repository import TelemetryRepository, _inv_insert_params, _job_insert_params
 from hassette.scheduler.classes import JobExecutionRecord
+from hassette.test_utils.mock_hassette import make_mock_hassette
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -23,30 +24,20 @@ from hassette.scheduler.classes import JobExecutionRecord
 
 
 @pytest.fixture
-def mock_hassette(premigrated_db_path: Path) -> MagicMock:
-    hassette = MagicMock()
-    hassette.config.data_dir = premigrated_db_path.parent
-    hassette.config.database.path = None
-    hassette.config.database.retention_days = 7
-    hassette.config.database.telemetry_write_queue_max = 500
-    hassette.config.database.write_queue_max = 2000
-    hassette.config.logging.database_service = "INFO"
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.config.logging.web_api = "INFO"
-    hassette.config.web_api.run = True
-    hassette.config.database.migration_timeout_seconds = 120
-    hassette.config.database.max_size_mb = 0
-    hassette.ready_event = asyncio.Event()
-    return hassette
+def db_hassette(premigrated_db_path: Path) -> MagicMock:
+    return make_mock_hassette(
+        data_dir=premigrated_db_path.parent,
+        set_ready=False,
+        database={"telemetry_write_queue_max": 500, "max_size_mb": 0},
+        lifecycle={"resource_shutdown_timeout_seconds": 5},
+        web_api={"run": True},
+    )
 
 
 @pytest.fixture
-async def db(mock_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
+async def db(db_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
     """Initialize a DatabaseService with all migrations applied and a seeded session row."""
-    db_service = DatabaseService(mock_hassette, parent=mock_hassette)
+    db_service = DatabaseService(db_hassette, parent=None)
     await db_service.on_initialize()
     cursor = await db_service.db.execute(
         "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
@@ -54,8 +45,8 @@ async def db(mock_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, i
     )
     session_id = cursor.lastrowid
     await db_service.db.commit()
-    mock_hassette.session_id = session_id
-    mock_hassette.database_service = db_service
+    db_hassette.session_id = session_id
+    db_hassette.database_service = db_service
     yield db_service, session_id
     await db_service.on_shutdown()
 
@@ -67,9 +58,9 @@ def repo(db: tuple[DatabaseService, int]) -> TelemetryRepository:
 
 
 @pytest.fixture
-def svc(mock_hassette: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQueryService:  # noqa: ARG001
+def svc(db_hassette: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQueryService:  # noqa: ARG001
     service = TelemetryQueryService.__new__(TelemetryQueryService)
-    service.hassette = mock_hassette
+    service.hassette = db_hassette
     service.logger = MagicMock()
     service._snapshot_lock = asyncio.Lock()
     return service

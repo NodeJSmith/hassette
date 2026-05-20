@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Migrate inline mock_hassette fixtures to shared factory"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T03"]
 implements: ["FR#6", "AC#1"]
 ---

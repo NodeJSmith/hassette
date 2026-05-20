@@ -32,6 +32,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_models import LogRecord
 from hassette.core.telemetry_repository import get_log_records, get_log_records_by_execution, insert_log_records
 from hassette.logging_ import LogPersistenceHandler
+from hassette.test_utils.mock_hassette import make_mock_hassette
 
 # ---------------------------------------------------------------------------
 # Helpers to run Alembic migrations
@@ -733,22 +734,12 @@ class TestConfigValidator:
 @pytest.fixture
 def mock_hassette_for_db(tmp_path: Path) -> MagicMock:
     """Mock Hassette for DatabaseService tests."""
-    hassette = MagicMock()
-    hassette.config.data_dir = tmp_path
-    hassette.config.database.path = None
-    hassette.config.database.retention_days = 7
-    hassette.config.logging.log_retention_days = 3
-    hassette.config.database.max_size_mb = 500
-    hassette.config.database.migration_timeout_seconds = 120
-    hassette.config.database.telemetry_write_queue_max = 500
-    hassette.config.database.write_queue_max = 2000
-    hassette.config.logging.database_service = "INFO"
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.ready_event = asyncio.Event()
-    return hassette
+    return make_mock_hassette(
+        data_dir=tmp_path,
+        set_ready=False,
+        database={"telemetry_write_queue_max": 500},
+        lifecycle={"resource_shutdown_timeout_seconds": 5},
+    )
 
 
 class TestRetentionCleanup:
@@ -798,7 +789,7 @@ class TestRetentionCleanup:
             ],
         )
 
-        service = DatabaseService(mock_hassette_for_db, parent=mock_hassette_for_db)
+        service = DatabaseService(mock_hassette_for_db, parent=None)
         service._db = db  # pyright: ignore[reportPrivateUsage]
         await service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
 
@@ -835,7 +826,7 @@ class TestRetentionCleanup:
         ]
         await insert_log_records(db, records)
 
-        service = DatabaseService(mock_hassette_for_db, parent=mock_hassette_for_db)
+        service = DatabaseService(mock_hassette_for_db, parent=None)
         service._db = db  # pyright: ignore[reportPrivateUsage]
         # log_retention_days=3: records at 0.5, 1.5, 2.5 days old are kept;
         # records at 3.5 and 4.5 days old are deleted
@@ -874,7 +865,7 @@ class TestRetentionCleanup:
             ],
         )
 
-        service = DatabaseService(mock_hassette_for_db, parent=mock_hassette_for_db)
+        service = DatabaseService(mock_hassette_for_db, parent=None)
         service._db = db  # pyright: ignore[reportPrivateUsage]
         await service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
 
@@ -928,7 +919,7 @@ class TestSizeFailsafePrePass:
 
         await self._seed_both_tables(db, log_count=10, exec_count=5)
 
-        service = DatabaseService(mock_hassette_for_db, parent=mock_hassette_for_db)
+        service = DatabaseService(mock_hassette_for_db, parent=None)
         service._db = db  # pyright: ignore[reportPrivateUsage]
         mock_hassette_for_db.config.database.max_size_mb = 0.0001  # tiny limit
 
@@ -968,7 +959,7 @@ class TestSizeFailsafePrePass:
         # Seed a small number of logs (all get deleted in pre-pass but still over limit)
         await self._seed_both_tables(db, log_count=2, exec_count=5)
 
-        service = DatabaseService(mock_hassette_for_db, parent=mock_hassette_for_db)
+        service = DatabaseService(mock_hassette_for_db, parent=None)
         service._db = db  # pyright: ignore[reportPrivateUsage]
         mock_hassette_for_db.config.database.max_size_mb = 0.0001
 

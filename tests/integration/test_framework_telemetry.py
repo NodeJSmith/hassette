@@ -5,9 +5,8 @@ including error handling, pre-DB queue drain, orphan records, reconciliation,
 and drop counter behavior.
 """
 
-import asyncio
-import threading
 import time
+from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -21,6 +20,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.test_utils.harness import HassetteHarness
+from hassette.test_utils.mock_hassette import make_mock_hassette
 
 # ============================================================================
 # Fixtures
@@ -36,26 +36,17 @@ def harness_config(tmp_path: Path) -> HassetteConfig:
 
 
 @pytest.fixture
-async def mock_hassette_with_db(premigrated_db_path: Path) -> MagicMock:
+async def mock_hassette_with_db(premigrated_db_path: Path) -> AsyncIterator[MagicMock]:
     """Create a mock Hassette with database service for direct executor tests."""
-    hassette = MagicMock()
-    hassette.config.data_dir = premigrated_db_path.parent
-    hassette.config.database.path = None
-    hassette.config.database.retention_days = 7
-    hassette.config.database.migration_timeout_seconds = 120
-    hassette.config.database.max_size_mb = 0
-    hassette.config.logging.database_service = "INFO"
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.config.logging.command_executor = "INFO"
-    hassette.config.database.telemetry_write_queue_max = 1000
-    hassette.config.database.write_queue_max = 2000
-    hassette.ready_event = asyncio.Event()
-    hassette._loop_thread_id = threading.get_ident()
+    hassette = make_mock_hassette(
+        sealed=False,
+        data_dir=premigrated_db_path.parent,
+        set_ready=False,
+        database={"max_size_mb": 0},
+        lifecycle={"resource_shutdown_timeout_seconds": 5},
+    )
 
-    db_service = DatabaseService(hassette, parent=hassette)
+    db_service = DatabaseService(hassette, parent=None)
     await db_service.on_initialize()
 
     now = time.time()
@@ -69,7 +60,6 @@ async def mock_hassette_with_db(premigrated_db_path: Path) -> MagicMock:
     await db_service.db.commit()
     hassette.session_id = session_id
     hassette.database_service = db_service
-    hassette.wait_for_ready = AsyncMock(return_value=True)
 
     yield hassette
 

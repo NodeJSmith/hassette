@@ -23,6 +23,7 @@ from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.telemetry_models import JobSummary, ListenerSummary
 from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.scheduler.triggers import Every
+from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.test_utils.web_helpers import make_real_job
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.types.enums import ResourceRole, ResourceStatus
@@ -37,28 +38,19 @@ from hassette.web.utils import gather_all_listeners
 
 @pytest.fixture
 def mock_hassette_db(premigrated_db_path: Path) -> MagicMock:
-    hassette = MagicMock()
-    hassette.config.data_dir = premigrated_db_path.parent
-    hassette.config.database.path = None
-    hassette.config.database.retention_days = 7
-    hassette.config.database.telemetry_write_queue_max = 500
-    hassette.config.database.write_queue_max = 2000
-    hassette.config.logging.database_service = "INFO"
-    hassette.config.logging.log_level = "INFO"
-    hassette.config.logging.task_bucket = "INFO"
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
-    hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
-    hassette.config.logging.web_api = "INFO"
-    hassette.config.web_api.run = True
-    hassette.config.database.migration_timeout_seconds = 120
-    hassette.config.database.max_size_mb = 0
-    hassette.ready_event = asyncio.Event()
-    return hassette
+    return make_mock_hassette(
+        data_dir=premigrated_db_path.parent,
+        set_ready=False,
+        sealed=False,
+        database={"telemetry_write_queue_max": 500, "max_size_mb": 0},
+        lifecycle={"resource_shutdown_timeout_seconds": 5},
+        web_api={"run": True},
+    )
 
 
 @pytest.fixture
 async def db(mock_hassette_db: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
-    db_service = DatabaseService(mock_hassette_db, parent=mock_hassette_db)
+    db_service = DatabaseService(mock_hassette_db, parent=None)
     await db_service.on_initialize()
     cursor = await db_service.db.execute(
         "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
