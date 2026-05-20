@@ -46,17 +46,24 @@ async def test_crash_invokes_exception_recorder(bucket_fixture: TaskBucket):
     """Task crashes are observed via the exception recorder callback."""
     task_started = asyncio.Event()
     recorded: list[tuple[asyncio.Task, BaseException]] = []
-    bucket_fixture.install_exception_recorder(lambda t, exc: recorded.append((t, exc)))
 
-    crashing_task = asyncio.create_task(boom(task_started), name="exploder")
-    await task_started.wait()
-    await asyncio.sleep(0)  # let done callbacks fire
+    def recorder(t: asyncio.Task, exc: BaseException) -> None:
+        recorded.append((t, exc))
 
-    assert crashing_task.done()
-    assert not crashing_task.cancelled()
-    assert len(recorded) == 1
-    assert recorded[0][0] is crashing_task
-    assert isinstance(recorded[0][1], RuntimeError)
+    bucket_fixture.install_exception_recorder(recorder)
+
+    try:
+        crashing_task = asyncio.create_task(boom(task_started), name="exploder")
+        await task_started.wait()
+        await asyncio.sleep(0)  # let done callbacks fire
+
+        assert crashing_task.done()
+        assert not crashing_task.cancelled()
+        assert len(recorded) == 1
+        assert recorded[0][0] is crashing_task
+        assert isinstance(recorded[0][1], RuntimeError)
+    finally:
+        bucket_fixture.uninstall_exception_recorder(recorder)
 
 
 async def stubborn(event: asyncio.Event):

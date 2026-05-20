@@ -149,7 +149,7 @@ Builds a sealed `AsyncMock` hassette with real Pydantic-validated config via `ma
 
 ### `make_ws_hassette_stub(**kwargs)` — `test_utils/mock_hassette.py`
 
-Thin wrapper around `make_mock_hassette()` with WebSocket config fields pre-set to sub-millisecond values for retry/timeout testing.
+Thin wrapper around `make_mock_hassette()` with WebSocket config fields pre-set to fast values for retry/timeout testing (sub-millisecond backoff waits, low-single-digit-second connection/heartbeat timeouts).
 
 ### `create_hassette_stub(**kwargs)` — `test_utils/web_mocks.py`
 
