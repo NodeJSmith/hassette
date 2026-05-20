@@ -3,6 +3,7 @@
 import time
 
 from hassette.core.database_service import DatabaseService
+from hassette.test_utils.config import TEST_SOURCE_LOCATION
 
 BASE_TS = 1_000_000.0
 
@@ -21,8 +22,8 @@ async def insert_listener(
                (app_key, instance_index, handler_method, topic,
                 debounce, throttle, once, priority,
                 source_location, source_tier)
-           VALUES (?, ?, ?, ?, NULL, NULL, 0, 0, 'test.py:1', ?)""",
-        (app_key, instance_index, handler_method, topic, source_tier),
+           VALUES (?, ?, ?, ?, NULL, NULL, 0, 0, ?, ?)""",
+        (app_key, instance_index, handler_method, topic, TEST_SOURCE_LOCATION, source_tier),
     )
     await db_svc.db.commit()
     assert cursor.lastrowid is not None
@@ -43,8 +44,8 @@ async def insert_job(
                (app_key, instance_index, job_name, handler_method,
                 trigger_type, repeat,
                 source_location, source_tier)
-           VALUES (?, ?, ?, ?, 'interval', 1, 'test.py:1', ?)""",
-        (app_key, instance_index, job_name, handler_method, source_tier),
+           VALUES (?, ?, ?, ?, 'interval', 1, ?, ?)""",
+        (app_key, instance_index, job_name, handler_method, TEST_SOURCE_LOCATION, source_tier),
     )
     await db_svc.db.commit()
     assert cursor.lastrowid is not None

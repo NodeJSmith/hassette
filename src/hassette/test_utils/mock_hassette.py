@@ -143,16 +143,15 @@ def make_mock_hassette(
 
 
 def make_ws_hassette_stub(*, strict_lifecycle: bool = False, sealed: bool = True) -> AsyncMock:
-    """Create a mock hassette pre-configured for WebSocket sub-millisecond testing.
+    """Create a mock hassette pre-configured for WebSocket testing with fast timeouts.
 
     Thin wrapper around :func:`make_mock_hassette` that bakes in the config overrides
     needed by ``test_ws_connection_state.py`` and ``test_websocket_readiness_events.py``.
     Both test files share an identical config shape — this wrapper eliminates duplication.
 
-    The 10 ``websocket.*`` overrides set sub-millisecond retry/timeout values so tests
-    complete in milliseconds rather than seconds. The 7 non-websocket overrides set
-    DEBUG logging, a small cache, and fast lifecycle timeouts consistent with the original
-    hand-rolled stubs.
+    The ``websocket.*`` overrides use low retry/timeout values (sub-millisecond for backoff,
+    low-single-digit seconds for connection timeouts) so tests complete quickly. The
+    non-websocket overrides set DEBUG logging, a small cache, and fast lifecycle timeouts.
 
     Args:
         strict_lifecycle: Passed through to ``make_mock_hassette()`` as a config override.
