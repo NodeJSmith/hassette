@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.0](https://github.com/NodeJSmith/hassette/compare/v0.30.0...v0.31.0) (2026-05-20)
+
+### Breaking Changes
+
+- **`HassetteConfig` restructured into nested groups** — all configuration fields moved under group prefixes. Environment variables change from `HASSETTE__LOG_LEVEL` to `HASSETTE__LOGGING__LOG_LEVEL`, `HASSETTE__DB_PATH` to `HASSETTE__DATABASE__PATH`, etc. TOML/YAML config files and programmatic `config.*` access follow the same pattern (`config.log_level` → `config.logging.log_level`). Old flat keys are detected at startup with a deprecation warning but will not take effect — update your env vars, config files, and any direct `HassetteConfig` field access to the nested format. See `src/hassette/config/legacy.py` for the full old→new mapping. (#789)
+
+### Logging
+
+- Replace `coloredlogs` with a structlog-based logging pipeline — structured, context-rich log records with console and JSON formatters. All log I/O routed through an async queue so `emit()` never blocks the event loop. (#744)
+- Log records persisted to the telemetry database with configurable retention (`log_retention_days`) and persistence level (`log_persistence_level`). (#744)
+- New log viewer page in the web UI with server-side level filtering, search, column picker, and expand-to-detail. (#744)
+
+### Scheduler
+
+- `if_exists="replace"` option on all scheduler registration methods — when a job with the same name already exists, `"replace"` cancels the old job and registers the new one in its place. Useful when job configuration changes between app reloads. (#780)
+
+### Web UI
+
+- Complete UI redesign with apps-focused layout — sidebar navigation with live status dots, collapsible status groups, multi-instance app expansion, and command palette (Ctrl+K / Cmd+K). New app detail tabs: overview, handlers, code, config, and per-app logs. Global pages: cross-app handler/job table, diagnostics, and session history. (#710)
+- Real-time updates for handler/job invocation counts, health metrics, last-fired timestamps, and dashboard stats via WebSocket — no page refresh needed. Relative timestamps ("5m ago") tick forward on a 30-second interval. (#735)
+- Handler health table replaced with responsive card grid — each card shows status, handler name, kind, run stats (count, avg duration, error rate, last active), and error details. Keyboard accessible, responsive columns, scroll after 3 rows. (#761)
+- Consistent table pattern across apps, handlers, and logs pages with shared sort headers, inline column filter popovers, and unified table shell. (#767)
+- Multi-instance app parent page now shows shared tabs (overview, code, logs, config) with an instance column in the logs tab, instead of only an instance card grid. (#753)
+- API errors surfaced via toast notifications (sonner) instead of silently swallowed — users now see a notification when data fails to load. (#751)
+- Real-time handler updates on overview tab with failing-row background tint and blended hover state. (#748)
+
+### Configuration
+
+- `HassetteConfig` organized into 8 nested groups: `DatabaseConfig`, `WebSocketConfig`, `LoggingConfig`, `LifecycleConfig`, `WebApiConfig`, `AppConfig`, `SchedulerConfig`, `FileWatcherConfig`. The `/api/config` REST endpoint and frontend config page reflect the nested structure. (#789)
+
+### Bug Fixes
+
+- Handler cancel-then-resubscribe race and replacement ordering bugs fixed — Bus routing operations now execute synchronously in deterministic order, eliminating task interleaving between cancel and re-register. (#785, #658, #781)
+- Log table REST API level filter fixed — was sending exact-match filter to the server instead of fetching all levels; column picker checkbox alignment, filter panel overflow, and mobile "reset filters" button also fixed. (#755)
+- PyPI package now includes SPA frontend assets — `pip install hassette` was missing the web UI since v0.30.0. Also backported to v0.30.1. (#790, #788)
+
 ## [0.30.0](https://github.com/NodeJSmith/hassette/compare/v0.29.0...v0.30.0) (2026-05-10)
 
 ### Breaking Changes
