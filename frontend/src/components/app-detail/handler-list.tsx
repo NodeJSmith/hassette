@@ -29,23 +29,27 @@ export function jobStatusKind(j: JobData) {
 }
 
 export function buildItems(listeners: ListenerData[], jobs: JobData[]): UnifiedItem[] {
-  const listenerItems: UnifiedItem[] = listeners.map((l) => ({
+  const listenerItems: UnifiedItem[] = listeners.map((listener) => ({
     kind: "listener" as const,
-    id: l.listener_id,
-    name: lastDotSegment(l.handler_method),
-    humanDescription: l.human_description ?? null,
-    statusKind: listenerStatusKind(l),
-    data: l,
+    id: listener.listener_id,
+    name: lastDotSegment(listener.handler_method),
+    humanDescription: listener.human_description ?? null,
+    statusKind: listenerStatusKind(listener),
+    data: listener,
   }));
 
-  const jobItems: UnifiedItem[] = jobs.map((j) => ({
-    kind: "job" as const,
-    id: j.job_id,
-    name: j.job_name,
-    humanDescription: [j.trigger_label || null, j.trigger_detail ? formatTriggerDetail(j.trigger_detail) : null].filter(Boolean).join(" ") || null,
-    statusKind: jobStatusKind(j),
-    data: j,
-  }));
+  const jobItems: UnifiedItem[] = jobs.map((job) => {
+    const parts = [job.trigger_label || null, job.trigger_detail ? formatTriggerDetail(job.trigger_detail) : null];
+    const humanDescription = parts.filter(Boolean).join(" ") || null;
+    return {
+      kind: "job" as const,
+      id: job.job_id,
+      name: job.job_name,
+      humanDescription,
+      statusKind: jobStatusKind(job),
+      data: job,
+    };
+  });
 
   // Listeners first, then jobs
   return [...listenerItems, ...jobItems];

@@ -4,9 +4,9 @@
 
 .label {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: var(--tr-label);
   color: var(--ink-4);
   display: block;
   margin-bottom: var(--sp-1);

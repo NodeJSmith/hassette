@@ -75,7 +75,7 @@
   border-radius: var(--r-sm);
   font-size: var(--fs-body);
   color: var(--ink-3);
-  transition: all var(--t-fast);
+  transition: color var(--t-fast), background-color var(--t-fast);
 }
 
 .iconBtn:hover { color: var(--ink-1); background: var(--bg-sunken); }

@@ -164,9 +164,12 @@ export function AppsPage() {
   const gridEntries = gridData.value?.apps ?? [];
   const allApps = mergeManifestsAndGrid(manifests, gridEntries);
 
-  const windowSeconds = uptimeSeconds.value !== null && uptimeSeconds.value !== undefined
-    ? (effectiveTimePreset.value === "since-restart" ? uptimeSeconds.value : PRESET_WINDOW_SECONDS[effectiveTimePreset.value])
-    : null;
+  let windowSeconds: number | null = null;
+  if (uptimeSeconds.value !== null && uptimeSeconds.value !== undefined) {
+    windowSeconds = effectiveTimePreset.value === "since-restart"
+      ? uptimeSeconds.value
+      : PRESET_WINDOW_SECONDS[effectiveTimePreset.value];
+  }
 
   const statusCounts: Record<string, number> = {};
   for (const a of allApps) {

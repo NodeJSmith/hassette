@@ -14,7 +14,7 @@
 }
 
 .xs {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   padding: 0.05em 0.4em;
   line-height: 1.4;
 }

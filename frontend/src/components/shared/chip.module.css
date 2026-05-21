@@ -48,13 +48,13 @@
 .origin {
   font-family: var(--font-mono);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: var(--tr-label);
   color: var(--ink-3);
   border: 1px solid var(--line-2);
 }
 
 /* size modifier */
 .sm {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   padding: 1px var(--sp-1);
 }

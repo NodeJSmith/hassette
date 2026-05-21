@@ -1,3 +1,4 @@
+import type { ComponentChildren } from "preact";
 import clsx from "clsx";
 
 import { StatusShape } from "../shared/status-shape";
@@ -59,38 +60,38 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
   let nextRunTitle: string | null = null;
 
   if (item.kind === "listener") {
-    const l = item.data;
-    chipLabel = handlerKindLabel("listener", l.listener_kind, null);
-    invocationsOrRuns = l.total_invocations;
-    failed = l.failed;
-    timedOut = l.timed_out;
+    const listener = item.data;
+    chipLabel = handlerKindLabel("listener", listener.listener_kind, null);
+    invocationsOrRuns = listener.total_invocations;
+    failed = listener.failed;
+    timedOut = listener.timed_out;
     isFailing = item.statusKind === "err";
-    lastErrorMessage = isFailing ? (l.last_error_message ?? null) : null;
+    lastErrorMessage = isFailing ? (listener.last_error_message ?? null) : null;
   } else {
-    const j = item.data;
-    chipLabel = handlerKindLabel("job", null, j.trigger_type);
-    invocationsOrRuns = j.total_executions;
-    failed = j.failed;
-    timedOut = j.timed_out;
+    const job = item.data;
+    chipLabel = handlerKindLabel("job", null, job.trigger_type);
+    invocationsOrRuns = job.total_executions;
+    failed = job.failed;
+    timedOut = job.timed_out;
     isFailing = item.statusKind === "err";
-    // Next-run line for schedule jobs
-    if (j.next_run) {
+    if (job.next_run) {
       nextRunLabel = `next ${nextRunRelative}`;
-      nextRunTitle = formatTimestamp(j.next_run);
-    } else if (j.fire_at) {
+      nextRunTitle = formatTimestamp(job.next_run);
+    } else if (job.fire_at) {
       nextRunLabel = `fire at ${fireAtRelative}`;
-      nextRunTitle = formatTimestamp(j.fire_at);
+      nextRunTitle = formatTimestamp(job.fire_at);
     }
   }
 
   const callLabel = item.kind === "listener" ? "call" : "run";
   const glyph = resolveGlyph(item);
   const label = item.humanDescription ? `${item.name}: ${item.humanDescription}` : item.name;
-  const subline = isFailing && lastErrorMessage
-    ? <span class={styles.sublineErr} title={lastErrorMessage} data-testid="handler-row-subline-err">{lastErrorMessage}</span>
-    : item.humanDescription
-      ? <span class={styles.desc} data-testid="handler-row-desc">{item.humanDescription}</span>
-      : null;
+  let subline: ComponentChildren = null;
+  if (isFailing && lastErrorMessage) {
+    subline = <span class={styles.sublineErr} title={lastErrorMessage} data-testid="handler-row-subline-err">{lastErrorMessage}</span>;
+  } else if (item.humanDescription) {
+    subline = <span class={styles.desc} data-testid="handler-row-desc">{item.humanDescription}</span>;
+  }
 
   return (
     <button

@@ -67,7 +67,7 @@
 .kindChip {
   flex-shrink: 0;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   background: var(--bg-sunken);
   border: 1px solid var(--line-1);
