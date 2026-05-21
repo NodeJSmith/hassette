@@ -1,41 +1,12 @@
 """Tests for BusService._make_tracked_invoke_fn() effective timeout resolution."""
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
-from hassette.core.bus_service import BusService
 from hassette.core.commands import InvokeHandler
 from hassette.events.base import Event
 from hassette.test_utils.helpers import create_listener
 
-
-def make_bus_service(*, config_timeout: float | None = 600.0) -> BusService:
-    """Create a BusService with mocked internals, bypassing Resource.__init__."""
-    svc = BusService.__new__(BusService)
-    svc.hassette = MagicMock()
-    svc.hassette.config.lifecycle.event_handler_timeout_seconds = config_timeout
-    svc.hassette.config.bus_excluded_domains = ()
-    svc.hassette.config.bus_excluded_entities = ()
-    svc.hassette.config.logging.all_events = False
-    svc.hassette.config.lifecycle.registration_await_timeout = 30
-    svc.logger = MagicMock()
-
-    # Mock the executor
-    svc._executor = MagicMock()
-    svc._executor.execute = AsyncMock()
-
-    # Mock task bucket
-    svc.task_bucket = MagicMock()
-    svc.task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-    svc.task_bucket.spawn = MagicMock(return_value=MagicMock(spec=["add_done_callback"]))
-
-    # Dispatch tracking
-    svc._dispatch_pending = 0
-    svc._dispatch_idle_event = asyncio.Event()
-    svc._dispatch_idle_event.set()
-    svc._duration_timers_active = 0
-
-    return svc
+from .conftest import make_bus_service
 
 
 def make_event() -> Event:

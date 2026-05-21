@@ -2,13 +2,14 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.web.app import create_fastapi_app
+
+from .conftest import make_manifest_mock
 
 SAMPLE_SOURCE = """\
 from hassette import App, AppConfig
@@ -18,24 +19,6 @@ class MyApp(App[AppConfig]):
     async def on_initialize(self) -> None:
         pass
 """
-
-
-def make_manifest_mock(
-    app_key: str = "my_app",
-    filename: str = "my_app.py",
-    class_name: str = "MyApp",
-    app_dir: Path | None = None,
-    full_path: Path | None = None,
-) -> MagicMock:
-    """Build a manifest mock for source endpoint tests."""
-    m = MagicMock()
-    m.app_key = app_key
-    m.filename = filename
-    m.class_name = class_name
-    m.enabled = True
-    m.app_dir = app_dir or Path("/apps")
-    m.full_path = full_path or (m.app_dir / filename)
-    return m
 
 
 @pytest.fixture

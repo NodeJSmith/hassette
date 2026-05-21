@@ -1,14 +1,14 @@
 """Tests for CommandExecutor._execute() source_tier branching."""
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.core.command_executor import CommandExecutor
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.exceptions import DependencyError, HassetteError
 from hassette.utils.execution import ExecutionResult
+
+from .conftest import make_executor
 
 
 def make_cmd_invoke_handler(source_tier: str) -> MagicMock:
@@ -35,28 +35,6 @@ def make_cmd_execute_job(source_tier: str) -> MagicMock:
     cmd.callable = AsyncMock(return_value=None)
     cmd.effective_timeout = None
     return cmd
-
-
-def make_executor() -> CommandExecutor:
-    """Build a CommandExecutor with all dependencies mocked out."""
-    hassette = MagicMock()
-    hassette.config.database.telemetry_write_queue_max = 1000
-    hassette.config.logging.command_executor = "DEBUG"
-    hassette.database_service = MagicMock()
-    hassette.session_id = 42
-    executor = CommandExecutor.__new__(CommandExecutor)
-    executor._write_queue = asyncio.Queue(maxsize=1000)
-    executor._dropped_overflow = 0
-    executor._dropped_exhausted = 0
-    executor._dropped_no_session = 0
-    executor._dropped_shutdown = 0
-    executor._error_handler_failures = 0
-    executor._last_capacity_warn_ts = 0.0
-    executor._timeout_warn_timestamps = {}
-    executor.repository = MagicMock()
-    executor.hassette = hassette
-    executor._logger = MagicMock()
-    return executor
 
 
 class TestCommandExecutorSourceTierBranching:

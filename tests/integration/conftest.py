@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -161,3 +161,47 @@ async def initialized_db(db_hassette: AsyncMock) -> AsyncIterator[tuple[Database
         yield db_service, session_id
     finally:
         await db_service.on_shutdown()
+
+
+def make_mock_listener(*, error_handler=None) -> MagicMock:
+    """Return a mock Listener whose invoke() is an awaitable coroutine."""
+    listener = MagicMock()
+    listener.invoke = AsyncMock()
+    listener.invoker.invoke = AsyncMock()
+    listener.error_handler = error_handler
+    listener.invoker.error_handler = error_handler
+    return listener
+
+
+def make_mock_job(*, error_handler=None) -> MagicMock:
+    """Return a mock ScheduledJob with optional error handler."""
+    from hassette.scheduler.classes import ScheduledJob
+
+    job = MagicMock(spec=ScheduledJob)
+    job.error_handler = error_handler
+    job.name = "test_job"
+    job.group = None
+    job.args = ()
+    job.kwargs = {}
+    return job
+
+
+def make_manifest_mock(
+    app_key: str = "my_app",
+    filename: str = "my_app.py",
+    class_name: str = "MyApp",
+    enabled: bool = True,
+    app_config: dict | list[dict] | None = None,
+    app_dir: Path | None = None,
+    full_path: Path | None = None,
+) -> MagicMock:
+    """Build a manifest mock for config/source endpoint tests."""
+    m = MagicMock()
+    m.app_key = app_key
+    m.filename = filename
+    m.class_name = class_name
+    m.enabled = enabled
+    m.app_config = app_config if app_config is not None else {"instance_name": f"{class_name}.0"}
+    m.app_dir = app_dir or Path("/apps")
+    m.full_path = full_path or (m.app_dir / filename)
+    return m

@@ -8,6 +8,8 @@ from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import Every
 from hassette.utils.date_utils import now
 
+from .conftest import noop
+
 
 def make_job(
     *,
@@ -34,10 +36,6 @@ def make_job(
         timeout_disabled=timeout_disabled,
         error_handler=error_handler,
     )
-
-
-async def noop() -> None:
-    pass
 
 
 class TestScheduledJobTimeoutFields:
