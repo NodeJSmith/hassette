@@ -65,16 +65,16 @@ All database settings are optional. The defaults work well for most installation
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `db_path` | path or null | `null` | Location of the SQLite database file. When null (default), Hassette stores the database at `{data_dir}/hassette.db`. |
-| `db_retention_days` | integer | `7` | How many days of handler invocation and job execution records to keep. Records older than this are automatically deleted. Minimum: 1 day. |
-| `db_max_size_mb` | float | `500` | Maximum total database file size in megabytes. When exceeded, Hassette deletes the oldest execution records to reclaim space. Set to `0` to disable the size limit. |
+| `path` | path or null | `null` | Location of the SQLite database file. When null (default), Hassette stores the database at `{data_dir}/hassette.db`. |
+| `retention_days` | integer | `7` | How many days of handler invocation and job execution records to keep. Records older than this are automatically deleted. Minimum: 1 day. |
+| `max_size_mb` | float | `500` | Maximum total database file size in megabytes. When exceeded, Hassette deletes the oldest execution records to reclaim space. Set to `0` to disable the size limit. |
 
 ### How Retention Works
 
 Hassette runs two automatic maintenance routines:
 
-1. **Time-based retention** — every hour, records older than `db_retention_days` are deleted from the handler invocations and job executions tables. Internal bookkeeping records (session tracking) are not affected by retention cleanup.
-2. **Size-based failsafe** — every hour, if the total database size (including WAL files) exceeds `db_max_size_mb`, the oldest execution records are deleted in batches until the database is back under the limit.
+1. **Time-based retention** — every hour, records older than `retention_days` are deleted from the handler invocations and job executions tables. Internal bookkeeping records (session tracking) are not affected by retention cleanup.
+2. **Size-based failsafe** — every hour, if the total database size (including WAL files) exceeds `max_size_mb`, the oldest execution records are deleted in batches until the database is back under the limit.
 
 Both routines run in the background and do not block normal operation.
 
