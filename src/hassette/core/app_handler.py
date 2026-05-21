@@ -5,7 +5,6 @@ AppLifecycleService (a Resource child).
 """
 
 import typing
-from logging import getLogger
 from typing import ClassVar
 
 from hassette.bus import Bus
@@ -24,8 +23,6 @@ from hassette.types.types import LOG_LEVEL_TYPE
 if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
     from hassette.app.app import App
-
-LOGGER = getLogger(__name__)
 
 
 class AppHandler(Resource):

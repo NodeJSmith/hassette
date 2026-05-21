@@ -7,7 +7,6 @@ import traceback
 import typing
 from contextlib import AsyncExitStack, suppress
 from itertools import count
-from logging import getLogger
 from typing import Any, ClassVar, cast
 
 import aiohttp
@@ -42,7 +41,6 @@ if typing.TYPE_CHECKING:
     from hassette.events.hass.raw import HassEventEnvelopeDict
     from hassette.resources.base import Resource
 
-LOGGER = getLogger(__name__)
 
 # Valid WebSocket connection state transitions.
 # DISCONNECTED → CONNECTING: serve() begins first connection attempt

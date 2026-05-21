@@ -420,7 +420,6 @@ class Comparison:
     """Operator function"""
 
     def __init__(self, op: OPS, value: Any):
-        # self.threshold = threshold
         object.__setattr__(self, "compare_to", value)
         object.__setattr__(self, "op", op)
         match op:

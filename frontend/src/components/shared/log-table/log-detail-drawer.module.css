@@ -191,16 +191,6 @@
   flex-shrink: 0;
 }
 
-.sectionLabel.withRule::after {
-  content: "";
-  display: inline-block;
-  width: 100%;
-  height: 1px;
-  background: var(--line-2);
-  vertical-align: middle;
-  margin-left: var(--sp-2);
-}
-
 /* Code blocks — the only shaded elements */
 .codeBlock {
   margin: 0;

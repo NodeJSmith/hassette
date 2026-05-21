@@ -3,7 +3,6 @@
 import asyncio
 import typing
 from copy import deepcopy
-from logging import getLogger
 from pathlib import Path
 from timeit import default_timer as timer
 
@@ -33,7 +32,6 @@ try:
 except ImportError:  # pragma: no cover
     precisedelta = None  # pyright: ignore[reportAssignmentType]
 
-LOGGER = getLogger(__name__)
 
 # Shorten enum references (from AppLifecycleManager)
 FAILED = ResourceStatus.FAILED

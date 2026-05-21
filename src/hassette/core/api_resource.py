@@ -4,7 +4,6 @@ import typing
 from asyncio import CancelledError
 from collections.abc import Callable
 from contextlib import AsyncExitStack
-from logging import getLogger
 from typing import Any, ClassVar
 
 import aiohttp
@@ -33,8 +32,6 @@ from hassette.utils.request_utils import clean_kwargs, format_time_param, orjson
 if typing.TYPE_CHECKING:
     from hassette import Hassette
 
-
-LOGGER = getLogger(__name__)
 
 NOT_RETRYABLE = (
     EntityNotFoundError,

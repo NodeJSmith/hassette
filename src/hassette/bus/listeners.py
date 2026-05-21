@@ -294,8 +294,7 @@ class Listener:
     """A listener for events with a specific topic and handler.
 
     Composes four focused sub-structs (identity, invoker, options, duration_config)
-    plus routing fields (topic, predicate) and minimal runtime state (_cancelled, db_id).
-    Total: 10 fields (AC#2).
+    plus routing fields (topic, predicate) and minimal runtime state.
     """
 
     logger: Logger

@@ -18,8 +18,6 @@ if TYPE_CHECKING:
     from hassette.config.classes import AppManifest
     from hassette.core.app_registry import AppRegistry
 
-LOGGER = getLogger(__name__)
-
 
 class AppFactory:
     """Creates app instances from manifests with config validation.

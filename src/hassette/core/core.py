@@ -16,7 +16,7 @@ from hassette.config import HassetteConfig
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry, validate_registries
 from hassette.exceptions import AppPrecheckFailedError
 from hassette.logging_ import enable_logging, get_log_persistence_handler, shutdown_logging
-from hassette.resources.base import Resource, Service
+from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
@@ -47,8 +47,6 @@ if typing.TYPE_CHECKING:
 
 P = ParamSpec("P")
 R = TypeVar("R")
-
-T = TypeVar("T", bound=Resource | Service)
 
 
 class Hassette(Resource):
