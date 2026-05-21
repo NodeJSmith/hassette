@@ -13,6 +13,7 @@ from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine
 
+from hassette.const.misc import SECONDS_PER_DAY
 from hassette.exceptions import SchemaVersionError
 from hassette.resources.base import RestartSpec, Service
 from hassette.types.enums import RestartType
@@ -531,11 +532,11 @@ class DatabaseService(Service):
         try:
             config = self.hassette.config
             retention_days = config.database.retention_days
-            cutoff = time.time() - (retention_days * 86400)
+            cutoff = time.time() - (retention_days * SECONDS_PER_DAY)
 
             # Log records use their own shorter retention window
             log_retention_days = config.logging.log_retention_days
-            log_cutoff = time.time() - (log_retention_days * 86400)
+            log_cutoff = time.time() - (log_retention_days * SECONDS_PER_DAY)
             cursor_lr = await self.db.execute("DELETE FROM log_records WHERE timestamp < ?", (log_cutoff,))
 
             cursor_hi = await self.db.execute("DELETE FROM handler_invocations WHERE execution_start_ts < ?", (cutoff,))

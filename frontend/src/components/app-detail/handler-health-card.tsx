@@ -1,3 +1,4 @@
+import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { useLocation } from "wouter";
 import clsx from "clsx";
 import type { UnifiedItem } from "./unified-handler-row";
@@ -28,7 +29,7 @@ interface HandlerHealthCardProps {
 }
 
 
-const STATUS_DOT_SIZE = 10;
+
 
 export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCardProps) {
   const [, navigate] = useLocation();

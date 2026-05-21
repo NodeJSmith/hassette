@@ -16,3 +16,6 @@ NOT_PROVIDED = FalseySentinel("NOT_PROVIDED")
 
 ANY_VALUE = FalseySentinel("ANY_VALUE")
 """Sentinel value to indicate any value is acceptable (used in predicates for presence checks)."""
+
+SECONDS_PER_DAY = 86400
+SECONDS_PER_HOUR = 3600

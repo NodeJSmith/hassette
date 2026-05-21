@@ -33,6 +33,8 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
 
 
+MAX_RETRY_ATTEMPTS = 5
+
 NOT_RETRYABLE = (
     EntityNotFoundError,
     InvalidAuthError,
@@ -121,7 +123,7 @@ class ApiResource(Resource):
         @retry(
             retry=(retry_if_not_exception_type(NOT_RETRYABLE) | retry_if_exception_type(RETRYABLE)),
             wait=wait_exponential_jitter(),
-            stop=stop_after_attempt(5),
+            stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
             reraise=True,
         )

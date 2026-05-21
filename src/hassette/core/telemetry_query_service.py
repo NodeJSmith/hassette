@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, assert_never
 
 import aiosqlite
 
+from hassette.const.misc import SECONDS_PER_HOUR
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_models import (
     ActivityFeedEntry,
@@ -755,7 +756,7 @@ class TelemetryQueryService(Resource):
         Returns:
             Count of handler invocations in the last 3600 seconds.
         """
-        one_hour_ago = time.time() - 3600.0
+        one_hour_ago = time.time() - SECONDS_PER_HOUR
         tier_clause, tier_params = _source_tier_clause(source_tier, "hi")
 
         query = f"""
@@ -780,7 +781,7 @@ class TelemetryQueryService(Resource):
         Returns:
             Dict mapping app_key to invocation count. Apps with zero invocations are omitted.
         """
-        one_hour_ago = time.time() - 3600.0
+        one_hour_ago = time.time() - SECONDS_PER_HOUR
         tier_clause, tier_params = _source_tier_clause(source_tier, "hi")
 
         query = f"""

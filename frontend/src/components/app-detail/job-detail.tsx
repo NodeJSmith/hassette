@@ -1,3 +1,4 @@
+import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import type { JobData } from "../../api/endpoints";
 import { getJobExecutions } from "../../api/endpoints";
 import { useScopedApi } from "../../hooks/use-scoped-api";
@@ -47,7 +48,7 @@ interface Props {
 
 export function JobDetail({ job, onSwitchToCode }: Props) {
   const { data: executions, loading, refetch } = useScopedApi(
-    (since) => getJobExecutions(job.job_id, 50, since),
+    (since) => getJobExecutions(job.job_id, DETAIL_FETCH_LIMIT, since),
     { deps: [job.job_id] },
   );
 

@@ -13,6 +13,11 @@ from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import LOG_LEVEL_TYPE
 
+SESSION_STATUS_RUNNING = "running"
+SESSION_STATUS_SUCCESS = "success"
+SESSION_STATUS_FAILURE = "failure"
+SESSION_STATUS_UNKNOWN = "unknown"
+
 if typing.TYPE_CHECKING:
     from hassette import Hassette
 
@@ -144,7 +149,8 @@ class SessionManager(Resource):
         """Execute the orphan-session UPDATE; called by the write-queue worker."""
         db = self._database_service.db
         cursor = await db.execute(
-            "UPDATE sessions SET status = 'unknown', stopped_at = last_heartbeat_at WHERE status = 'running'"
+            f"UPDATE sessions SET status = '{SESSION_STATUS_UNKNOWN}',"
+            f" stopped_at = last_heartbeat_at WHERE status = '{SESSION_STATUS_RUNNING}'"
         )
         if cursor.rowcount and cursor.rowcount > 0:
             self.logger.warning("Marked %d orphaned session(s) as 'unknown'", cursor.rowcount)
@@ -155,7 +161,7 @@ class SessionManager(Resource):
         db = self._database_service.db
         now = time.time()
         cursor = await db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
+            f"INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, '{SESSION_STATUS_RUNNING}')",
             (now, now),
         )
         await db.commit()
@@ -169,7 +175,7 @@ class SessionManager(Resource):
         try:
             now = time.time()
             await self._database_service.db.execute(
-                "UPDATE sessions SET status = 'failure', last_heartbeat_at = ?,"
+                f"UPDATE sessions SET status = '{SESSION_STATUS_FAILURE}', last_heartbeat_at = ?,"
                 " error_type = ?, error_message = ?, error_traceback = ? WHERE id = ?",
                 (now, data.exception_type, data.exception, data.exception_traceback, self._session_id),
             )
@@ -235,7 +241,7 @@ class SessionManager(Resource):
                     " dropped_overflow = ?, dropped_exhausted = ?,"
                     " dropped_no_session = ?, dropped_shutdown = ?"
                     " WHERE id = ?",
-                    ("success", now, now, overflow, exhausted, no_session, shutdown, self._session_id),
+                    (SESSION_STATUS_SUCCESS, now, now, overflow, exhausted, no_session, shutdown, self._session_id),
                 )
             await self._database_service.db.commit()
         except Exception:
