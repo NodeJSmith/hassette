@@ -1,59 +1,56 @@
 # Web UI
 
-Hassette ships with a mobile-responsive dashboard for monitoring and managing your automations.
+The hassette web UI gives you a real-time window into your running automations — app health at a glance, per-handler invocation history, structured logs, and full system configuration. It is served alongside the REST API by the same `WebApiService` and requires no separate process.
 
-![Dashboard](../../_static/web_ui_dashboard.png)
+![Apps page](../../_static/web_ui_apps.png)
 
-## Enabling the Web UI
+## Enabling and accessing
 
-The web UI is **enabled by default**. It is served by the `WebApiService`, which also hosts the REST API and healthcheck endpoint.
+The web UI is **enabled by default**. Once hassette starts, open your browser to:
 
-Two settings control it:
+```
+http://<host>:8126/ui/
+```
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `run_web_api` | `true` | Enables the web API service (REST API + UI backend) |
-| `run_web_ui` | `true` | Serves the dashboard (requires `run_web_api`) |
+The default bind address is `0.0.0.0:8126`. To change the host or port, set `host` and `port` under `[hassette.web_api]` in your `hassette.toml`.
+
+!!! warning "No authentication"
+    The web UI has no built-in authentication. By default, the server binds to
+    `0.0.0.0`, making it accessible to anyone on your network — including
+    endpoints that can start, stop, and reload your automations.
+
+    For local-only access, set `host = "127.0.0.1"` under `[hassette.web_api]`.
+    For remote access, place hassette behind a reverse proxy with authentication
+    (e.g., Caddy, nginx, or Traefik with basic auth or SSO).
 
 To disable the UI while keeping the REST API:
 
-```toml
+```toml title="hassette.toml"
 --8<-- "pages/web-ui/snippets/disable-ui.toml"
 ```
 
-See [Global Settings](../core-concepts/configuration/global.md#web-ui-settings) for the full list of configuration options.
+!!! note "First run"
+    A fresh installation shows empty tables and zero counts until automations
+    run and handlers fire. This is expected — telemetry accumulates as your
+    apps process events.
 
-## Accessing the UI
+??? "Configuration quick reference"
 
-Once Hassette starts, open your browser to `http://<host>:8126/ui/`.
+    | Setting | Type | Default | Description |
+    |---------|------|---------|-------------|
+    | `[hassette.web_api] run` | bool | `true` | Enables the web API service (REST API + UI backend) |
+    | `[hassette.web_api] run_ui` | bool | `true` | Serves the web UI (requires `run = true`) |
+    | `[hassette.web_api] host` | string | `"0.0.0.0"` | Bind host |
+    | `[hassette.web_api] port` | int | `8126` | Bind port |
+    | `[hassette.web_api] cors_origins` | tuple | `("http://localhost:3000", "http://localhost:5173")` | Allowed CORS origins |
+    | `[hassette.web_api] event_buffer_size` | int | `500` | Recent events ring buffer size |
+    | `[hassette.web_api] log_buffer_size` | int | `2000` | Log entries ring buffer size |
+    | `[hassette.web_api] job_history_size` | int | `1000` | Job execution records to keep |
+    | `[hassette.web_api] ui_hot_reload` | bool | `false` | Live-reload on static file changes |
 
-The default bind address is `0.0.0.0:8126`. Change it with `web_api_host` and `web_api_port`.
+    See [Global Settings](../core-concepts/configuration/global.md#web-ui-settings) for the full configuration reference.
 
-!!! warning "No authentication"
-    The web API and UI have no built-in authentication. By default, the server binds to `0.0.0.0`, making it accessible to anyone on your network. This includes endpoints that can start, stop, and reload your automations.
+## Related pages
 
-    For local-only access, set `web_api_host = "127.0.0.1"` in your `hassette.toml`. If you need remote access, place Hassette behind a reverse proxy with authentication (e.g., Caddy, nginx, or Traefik with basic auth or SSO).
-
-## Configuration Quick Reference
-
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `web_api_host` | string | `0.0.0.0` | Bind host |
-| `web_api_port` | int | `8126` | Bind port |
-| `web_api_cors_origins` | tuple | `("http://localhost:3000", "http://localhost:5173")` | Allowed CORS origins |
-| `web_api_event_buffer_size` | int | `500` | Recent events buffer size |
-| `web_api_log_buffer_size` | int | `2000` | Log entries buffer size |
-| `web_ui_hot_reload` | bool | `false` | Live-reload on static file changes (CSS hot-swap, JS full reload) |
-
-## Navigation
-
-The sidebar provides access to every section:
-
-- **[Dashboard](dashboard.md)** — KPI health cards, app grid with telemetry (invocations, errors, error rate), and recent errors feed
-- **[Apps](apps.md)** — view, start, stop, and reload your automations; drill into per-app listeners, jobs, and logs
-- **[Sessions](sessions.md)** — session history with status badges, timestamps, and session scope toggle
-- **[Logs](logs.md)** — filterable, searchable log viewer with real-time streaming, source location, and multi-column sort
-
-## Real-Time Updates
-
-A connection indicator in the status bar shows the WebSocket connection status. While connected, the UI receives live updates — new log entries stream in, event counts increment, and app statuses refresh automatically. If the connection drops, the indicator shows **Reconnecting...** or **Disconnected** until the connection is restored.
+- [Layout & Navigation](layout.md) — sidebar, status bar, command palette, and cross-cutting chrome
+- [Apps](apps.md) — monitor and manage your automations

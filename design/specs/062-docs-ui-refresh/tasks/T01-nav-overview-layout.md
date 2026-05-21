@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Update mkdocs nav, rewrite Overview, add Layout & Navigation"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#4", "AC#1"]
 ---
