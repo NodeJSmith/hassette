@@ -11,7 +11,7 @@ from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.web.app import create_fastapi_app
 
 
-def _make_manifest_mock(
+def make_manifest_mock(
     app_key: str = "my_app",
     filename: str = "my_app.py",
     class_name: str = "MyApp",
@@ -50,7 +50,7 @@ class TestAppConfigEndpoint:
     async def test_known_app_returns_config(self, client) -> None:
         """Returns 200 with AppConfigResponse for a known app key."""
         ac, mock_hassette = client
-        manifest = _make_manifest_mock(
+        manifest = make_manifest_mock(
             app_key="my_app",
             filename="my_app.py",
             class_name="MyApp",
@@ -85,7 +85,7 @@ class TestAppConfigEndpoint:
             {"instance_name": "MyApp.0", "zone": "kitchen"},
             {"instance_name": "MyApp.1", "zone": "bedroom"},
         ]
-        manifest = _make_manifest_mock(
+        manifest = make_manifest_mock(
             app_key="my_app",
             class_name="MyApp",
             app_config=list_config,
@@ -104,7 +104,7 @@ class TestAppConfigEndpoint:
     async def test_disabled_app_still_returns_config(self, client) -> None:
         """Disabled apps still expose their config."""
         ac, mock_hassette = client
-        manifest = _make_manifest_mock(app_key="disabled_app", enabled=False)
+        manifest = make_manifest_mock(app_key="disabled_app", enabled=False)
         mock_hassette._app_handler.registry.get_manifest.return_value = manifest
 
         response = await ac.get("/api/apps/disabled_app/config")

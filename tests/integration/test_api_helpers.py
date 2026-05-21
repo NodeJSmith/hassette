@@ -145,12 +145,12 @@ async def test_ws_helper_call_chains_error_with_context():
 # input_boolean CRUD
 # ---------------------------------------------------------------------------
 
-_IB_RECORD = {"id": "vacation_mode", "name": "Vacation Mode", "initial": False}
+IB_RECORD = {"id": "vacation_mode", "name": "Vacation Mode", "initial": False}
 
 
 async def test_list_input_booleans(api: Api):
     """list_input_booleans sends correct command and parses response."""
-    api.ws_send_and_wait = AsyncMock(return_value=[_IB_RECORD])
+    api.ws_send_and_wait = AsyncMock(return_value=[IB_RECORD])
 
     result = await api.list_input_booleans()
 
@@ -163,7 +163,7 @@ async def test_list_input_booleans(api: Api):
 
 async def test_create_input_boolean(api: Api):
     """create_input_boolean sends correct command with payload and parses response."""
-    api.ws_send_and_wait = AsyncMock(return_value=_IB_RECORD)
+    api.ws_send_and_wait = AsyncMock(return_value=IB_RECORD)
     params = CreateInputBooleanParams(name="Vacation Mode", initial=False)
 
     result = await api.create_input_boolean(params)
@@ -180,7 +180,7 @@ async def test_create_input_boolean(api: Api):
 
 async def test_update_input_boolean(api: Api):
     """update_input_boolean sends correct command with domain_id key."""
-    updated = {**_IB_RECORD, "name": "Holiday Mode"}
+    updated = {**IB_RECORD, "name": "Holiday Mode"}
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateInputBooleanParams(name="Holiday Mode")
 
@@ -210,11 +210,11 @@ async def test_delete_input_boolean(api: Api):
 # input_number CRUD
 # ---------------------------------------------------------------------------
 
-_IN_RECORD = {"id": "brightness", "name": "Brightness", "min": 0.0, "max": 100.0}
+IN_RECORD = {"id": "brightness", "name": "Brightness", "min": 0.0, "max": 100.0}
 
 
 async def test_list_input_numbers(api: Api):
-    api.ws_send_and_wait = AsyncMock(return_value=[_IN_RECORD])
+    api.ws_send_and_wait = AsyncMock(return_value=[IN_RECORD])
 
     result = await api.list_input_numbers()
 
@@ -224,7 +224,7 @@ async def test_list_input_numbers(api: Api):
 
 
 async def test_create_input_number(api: Api):
-    api.ws_send_and_wait = AsyncMock(return_value=_IN_RECORD)
+    api.ws_send_and_wait = AsyncMock(return_value=IN_RECORD)
     params = CreateInputNumberParams(name="Brightness", min=0.0, max=100.0)
 
     result = await api.create_input_number(params)
@@ -236,7 +236,7 @@ async def test_create_input_number(api: Api):
 
 
 async def test_update_input_number(api: Api):
-    updated = {**_IN_RECORD, "max": 200.0}
+    updated = {**IN_RECORD, "max": 200.0}
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateInputNumberParams(max=200.0)
 
@@ -263,11 +263,11 @@ async def test_delete_input_number(api: Api):
 # input_text CRUD
 # ---------------------------------------------------------------------------
 
-_IT_RECORD = {"id": "wifi_password", "name": "WiFi Password"}
+IT_RECORD = {"id": "wifi_password", "name": "WiFi Password"}
 
 
 async def test_list_input_texts(api: Api):
-    api.ws_send_and_wait = AsyncMock(return_value=[_IT_RECORD])
+    api.ws_send_and_wait = AsyncMock(return_value=[IT_RECORD])
 
     result = await api.list_input_texts()
 
@@ -277,7 +277,7 @@ async def test_list_input_texts(api: Api):
 
 
 async def test_create_input_text(api: Api):
-    api.ws_send_and_wait = AsyncMock(return_value=_IT_RECORD)
+    api.ws_send_and_wait = AsyncMock(return_value=IT_RECORD)
     params = CreateInputTextParams(name="WiFi Password")
 
     result = await api.create_input_text(params)
@@ -288,7 +288,7 @@ async def test_create_input_text(api: Api):
 
 
 async def test_update_input_text(api: Api):
-    updated = {**_IT_RECORD, "name": "Wifi Passphrase"}
+    updated = {**IT_RECORD, "name": "Wifi Passphrase"}
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateInputTextParams(name="Wifi Passphrase")
 
@@ -315,11 +315,11 @@ async def test_delete_input_text(api: Api):
 # input_select CRUD
 # ---------------------------------------------------------------------------
 
-_IS_RECORD = {"id": "theme", "name": "Theme", "options": ["light", "dark"]}
+IS_RECORD = {"id": "theme", "name": "Theme", "options": ["light", "dark"]}
 
 
 async def test_list_input_selects(api: Api):
-    api.ws_send_and_wait = AsyncMock(return_value=[_IS_RECORD])
+    api.ws_send_and_wait = AsyncMock(return_value=[IS_RECORD])
 
     result = await api.list_input_selects()
 
@@ -330,7 +330,7 @@ async def test_list_input_selects(api: Api):
 
 
 async def test_create_input_select(api: Api):
-    api.ws_send_and_wait = AsyncMock(return_value=_IS_RECORD)
+    api.ws_send_and_wait = AsyncMock(return_value=IS_RECORD)
     params = CreateInputSelectParams(name="Theme", options=["light", "dark"])
 
     result = await api.create_input_select(params)
@@ -342,7 +342,7 @@ async def test_create_input_select(api: Api):
 
 
 async def test_update_input_select(api: Api):
-    updated = {**_IS_RECORD, "options": ["light", "dark", "auto"]}
+    updated = {**IS_RECORD, "options": ["light", "dark", "auto"]}
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateInputSelectParams(options=["light", "dark", "auto"])
 
@@ -369,11 +369,11 @@ async def test_delete_input_select(api: Api):
 # input_datetime CRUD
 # ---------------------------------------------------------------------------
 
-_IDT_RECORD = {"id": "alarm_time", "name": "Alarm Time", "has_date": False, "has_time": True}
+IDT_RECORD = {"id": "alarm_time", "name": "Alarm Time", "has_date": False, "has_time": True}
 
 
 async def test_list_input_datetimes(api: Api):
-    api.ws_send_and_wait = AsyncMock(return_value=[_IDT_RECORD])
+    api.ws_send_and_wait = AsyncMock(return_value=[IDT_RECORD])
 
     result = await api.list_input_datetimes()
 
@@ -383,7 +383,7 @@ async def test_list_input_datetimes(api: Api):
 
 
 async def test_create_input_datetime(api: Api):
-    api.ws_send_and_wait = AsyncMock(return_value=_IDT_RECORD)
+    api.ws_send_and_wait = AsyncMock(return_value=IDT_RECORD)
     params = CreateInputDatetimeParams(name="Alarm Time", has_time=True)
 
     result = await api.create_input_datetime(params)
@@ -395,7 +395,7 @@ async def test_create_input_datetime(api: Api):
 
 
 async def test_update_input_datetime(api: Api):
-    updated = {**_IDT_RECORD, "name": "Wake Up Time"}
+    updated = {**IDT_RECORD, "name": "Wake Up Time"}
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateInputDatetimeParams(name="Wake Up Time")
 
@@ -422,11 +422,11 @@ async def test_delete_input_datetime(api: Api):
 # input_button CRUD
 # ---------------------------------------------------------------------------
 
-_IBT_RECORD = {"id": "restart_btn", "name": "Restart"}
+IBT_RECORD = {"id": "restart_btn", "name": "Restart"}
 
 
 async def test_list_input_buttons(api: Api):
-    api.ws_send_and_wait = AsyncMock(return_value=[_IBT_RECORD])
+    api.ws_send_and_wait = AsyncMock(return_value=[IBT_RECORD])
 
     result = await api.list_input_buttons()
 
@@ -436,7 +436,7 @@ async def test_list_input_buttons(api: Api):
 
 
 async def test_create_input_button(api: Api):
-    api.ws_send_and_wait = AsyncMock(return_value=_IBT_RECORD)
+    api.ws_send_and_wait = AsyncMock(return_value=IBT_RECORD)
     params = CreateInputButtonParams(name="Restart")
 
     result = await api.create_input_button(params)
@@ -448,7 +448,7 @@ async def test_create_input_button(api: Api):
 
 
 async def test_update_input_button(api: Api):
-    updated = {**_IBT_RECORD, "name": "Reboot Button"}
+    updated = {**IBT_RECORD, "name": "Reboot Button"}
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateInputButtonParams(name="Reboot Button")
 
@@ -475,11 +475,11 @@ async def test_delete_input_button(api: Api):
 # counter CRUD
 # ---------------------------------------------------------------------------
 
-_CTR_RECORD = {"id": "motion_count", "name": "Motion Count", "initial": 0, "step": 1}
+CTR_RECORD = {"id": "motion_count", "name": "Motion Count", "initial": 0, "step": 1}
 
 
 async def test_list_counters(api: Api):
-    api.ws_send_and_wait = AsyncMock(return_value=[_CTR_RECORD])
+    api.ws_send_and_wait = AsyncMock(return_value=[CTR_RECORD])
 
     result = await api.list_counters()
 
@@ -489,7 +489,7 @@ async def test_list_counters(api: Api):
 
 
 async def test_create_counter(api: Api):
-    api.ws_send_and_wait = AsyncMock(return_value=_CTR_RECORD)
+    api.ws_send_and_wait = AsyncMock(return_value=CTR_RECORD)
     params = CreateCounterParams(name="Motion Count", initial=0)
 
     result = await api.create_counter(params)
@@ -503,7 +503,7 @@ async def test_create_counter(api: Api):
 
 
 async def test_update_counter(api: Api):
-    updated = {**_CTR_RECORD, "maximum": 100}
+    updated = {**CTR_RECORD, "maximum": 100}
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateCounterParams(maximum=100)
 
@@ -531,11 +531,11 @@ async def test_delete_counter(api: Api):
 # timer CRUD
 # ---------------------------------------------------------------------------
 
-_TMR_RECORD = {"id": "cooldown", "name": "Cooldown Timer", "duration": "00:05:00"}
+TMR_RECORD = {"id": "cooldown", "name": "Cooldown Timer", "duration": "00:05:00"}
 
 
 async def test_list_timers(api: Api):
-    api.ws_send_and_wait = AsyncMock(return_value=[_TMR_RECORD])
+    api.ws_send_and_wait = AsyncMock(return_value=[TMR_RECORD])
 
     result = await api.list_timers()
 
@@ -545,7 +545,7 @@ async def test_list_timers(api: Api):
 
 
 async def test_create_timer(api: Api):
-    api.ws_send_and_wait = AsyncMock(return_value=_TMR_RECORD)
+    api.ws_send_and_wait = AsyncMock(return_value=TMR_RECORD)
     params = CreateTimerParams(name="Cooldown Timer", duration="00:05:00")
 
     result = await api.create_timer(params)
@@ -558,7 +558,7 @@ async def test_create_timer(api: Api):
 
 
 async def test_update_timer(api: Api):
-    updated = {**_TMR_RECORD, "duration": "00:10:00"}
+    updated = {**TMR_RECORD, "duration": "00:10:00"}
     api.ws_send_and_wait = AsyncMock(return_value=updated)
     params = UpdateTimerParams(duration="00:10:00")
 
@@ -586,12 +586,12 @@ async def test_delete_timer(api: Api):
 # Counter service-call shortcuts
 # ---------------------------------------------------------------------------
 
-_SERVICE_RESPONSE = ServiceResponse(context=Context(id="ctx-1"))
+SERVICE_RESPONSE = ServiceResponse(context=Context(id="ctx-1"))
 
 
 async def test_increment_counter_calls_service(api: Api):
     """increment_counter calls call_service with correct args and return_response=True."""
-    api.call_service = AsyncMock(return_value=_SERVICE_RESPONSE)
+    api.call_service = AsyncMock(return_value=SERVICE_RESPONSE)
 
     await api.increment_counter("counter.motion_count")
 
@@ -615,7 +615,7 @@ async def test_increment_counter_propagates_failed_message_error(api: Api):
 
 async def test_decrement_counter_calls_service(api: Api):
     """decrement_counter calls call_service with correct args and return_response=True."""
-    api.call_service = AsyncMock(return_value=_SERVICE_RESPONSE)
+    api.call_service = AsyncMock(return_value=SERVICE_RESPONSE)
 
     await api.decrement_counter("counter.motion_count")
 
@@ -638,7 +638,7 @@ async def test_decrement_counter_propagates_failed_message_error(api: Api):
 
 async def test_reset_counter_calls_service(api: Api):
     """reset_counter calls call_service with correct args and return_response=True."""
-    api.call_service = AsyncMock(return_value=_SERVICE_RESPONSE)
+    api.call_service = AsyncMock(return_value=SERVICE_RESPONSE)
 
     await api.reset_counter("counter.motion_count")
 

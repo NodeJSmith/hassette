@@ -10,7 +10,7 @@ from httpx import ASGITransport, AsyncClient
 from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.web.app import create_fastapi_app
 
-_SAMPLE_SOURCE = """\
+SAMPLE_SOURCE = """\
 from hassette import App, AppConfig
 
 
@@ -20,7 +20,7 @@ class MyApp(App[AppConfig]):
 """
 
 
-def _make_manifest_mock(
+def make_manifest_mock(
     app_key: str = "my_app",
     filename: str = "my_app.py",
     class_name: str = "MyApp",
@@ -61,9 +61,9 @@ class TestAppSourceEndpoint:
         with tempfile.TemporaryDirectory() as tmpdir:
             app_dir = Path(tmpdir)
             src_file = app_dir / "my_app.py"
-            src_file.write_text(_SAMPLE_SOURCE)
+            src_file.write_text(SAMPLE_SOURCE)
 
-            manifest = _make_manifest_mock(
+            manifest = make_manifest_mock(
                 app_key="my_app",
                 filename="my_app.py",
                 app_dir=app_dir,
@@ -78,7 +78,7 @@ class TestAppSourceEndpoint:
         assert data["app_key"] == "my_app"
         assert data["filename"] == "my_app.py"
         assert "class MyApp" in data["content"]
-        assert data["line_count"] == len(_SAMPLE_SOURCE.splitlines())
+        assert data["line_count"] == len(SAMPLE_SOURCE.splitlines())
 
     async def test_unknown_app_returns_404(self, client) -> None:
         """Returns 404 when app_key is not in the registry."""
@@ -98,7 +98,7 @@ class TestAppSourceEndpoint:
             # File deliberately not created
             src_file = app_dir / "missing_app.py"
 
-            manifest = _make_manifest_mock(
+            manifest = make_manifest_mock(
                 app_key="my_app",
                 filename="missing_app.py",
                 app_dir=app_dir,
@@ -121,7 +121,7 @@ class TestAppSourceEndpoint:
             outside_file = Path(tmpdir) / "secret.py"
             outside_file.write_text("SECRET = 'password'")
 
-            manifest = _make_manifest_mock(
+            manifest = make_manifest_mock(
                 app_key="my_app",
                 filename="secret.py",
                 app_dir=app_dir,

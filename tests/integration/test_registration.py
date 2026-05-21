@@ -26,7 +26,7 @@ async def executor(db_hassette: AsyncMock, initialized_db: tuple[DatabaseService
     return exc
 
 
-def _make_mock_listener(
+def make_mock_listener(
     *, owner_id: str = "test_owner", app_key: str = "my_app", instance_index: int = 1, topic: str = "hass.event.test"
 ) -> MagicMock:
     """Return a mock Listener with configurable app_key and instance_index."""
@@ -49,7 +49,7 @@ def _make_mock_listener(
     return listener
 
 
-def _make_mock_job(
+def make_mock_job(
     *, owner_id: str = "test_owner", app_key: str = "my_app", instance_index: int = 1, name: str = "test_job"
 ) -> MagicMock:
     """Return a mock ScheduledJob."""
@@ -66,7 +66,7 @@ def _make_mock_job(
     return job
 
 
-def _stub_task_bucket() -> MagicMock:
+def stub_task_bucket() -> MagicMock:
     """Create a task_bucket stub whose spawn() captures and closes coroutines.
 
     Coroutines passed to spawn() are closed immediately to avoid RuntimeWarning.
@@ -157,9 +157,9 @@ def test_listener_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> N
     executor_mock = MagicMock()
     stream = MagicMock()
     bus_service = BusService(db_hassette, stream=stream, executor=executor_mock, parent=db_hassette)
-    bus_service.task_bucket = _stub_task_bucket()
+    bus_service.task_bucket = stub_task_bucket()
 
-    listener = _make_mock_listener(owner_id="bus:MyApp:0", app_key="my_app", instance_index=2)
+    listener = make_mock_listener(owner_id="bus:MyApp:0", app_key="my_app", instance_index=2)
 
     bus_service.add_listener(listener)
 
@@ -173,9 +173,9 @@ def test_job_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> None:
     """add_job with app_key spawns a single _register_then_enqueue task."""
     executor_mock = MagicMock()
     scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
-    scheduler_service.task_bucket = _stub_task_bucket()
+    scheduler_service.task_bucket = stub_task_bucket()
 
-    job = _make_mock_job(owner_id="scheduler:MyApp:0", app_key="my_app", instance_index=3)
+    job = make_mock_job(owner_id="scheduler:MyApp:0", app_key="my_app", instance_index=3)
 
     scheduler_service.add_job(job)
 
@@ -191,9 +191,9 @@ def test_listener_with_empty_app_key_spawns_db_registration(db_hassette: AsyncMo
     executor_mock = MagicMock()
     stream = MagicMock()
     bus_service = BusService(db_hassette, stream=stream, executor=executor_mock, parent=db_hassette)
-    bus_service.task_bucket = _stub_task_bucket()
+    bus_service.task_bucket = stub_task_bucket()
 
-    listener = _make_mock_listener(app_key="", instance_index=0)
+    listener = make_mock_listener(app_key="", instance_index=0)
 
     bus_service.add_listener(listener)
 
@@ -211,9 +211,9 @@ def test_listener_with_app_key_triggers_registration(db_hassette: AsyncMock) -> 
     executor_mock = MagicMock()
     stream = MagicMock()
     bus_service = BusService(db_hassette, stream=stream, executor=executor_mock, parent=db_hassette)
-    bus_service.task_bucket = _stub_task_bucket()
+    bus_service.task_bucket = stub_task_bucket()
 
-    listener = _make_mock_listener(app_key="my_app", instance_index=1)
+    listener = make_mock_listener(app_key="my_app", instance_index=1)
 
     bus_service.add_listener(listener)
 
@@ -227,9 +227,9 @@ def test_job_with_empty_app_key_skips_registration(db_hassette: AsyncMock) -> No
     """Jobs with empty app_key (non-App owners) skip DB registration."""
     executor_mock = MagicMock()
     scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
-    scheduler_service.task_bucket = _stub_task_bucket()
+    scheduler_service.task_bucket = stub_task_bucket()
 
-    job = _make_mock_job(app_key="", instance_index=0)
+    job = make_mock_job(app_key="", instance_index=0)
 
     scheduler_service.add_job(job)
 
@@ -243,9 +243,9 @@ def test_job_with_app_key_triggers_registration(db_hassette: AsyncMock) -> None:
     """Jobs with non-empty app_key use a single combined register-then-enqueue task."""
     executor_mock = MagicMock()
     scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
-    scheduler_service.task_bucket = _stub_task_bucket()
+    scheduler_service.task_bucket = stub_task_bucket()
 
-    job = _make_mock_job(app_key="my_app", instance_index=1)
+    job = make_mock_job(app_key="my_app", instance_index=1)
 
     scheduler_service.add_job(job)
 

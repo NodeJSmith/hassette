@@ -43,7 +43,7 @@ def test_search_input_present(page: Page, base_url: str) -> None:
     expect(search_input).to_have_value("test query")
 
 
-def _wait_for_log_entries(page: Page) -> None:
+def wait_for_log_entries(page: Page) -> None:
     """Wait for log table component to finish loading entries."""
     # Footer shows either "N entries" / "N entry" or "showing 500 of N"
     page.locator("text=/\\d+ entr|showing \\d+/").wait_for(timeout=5000)
@@ -57,7 +57,7 @@ def test_log_entries_render_from_seed_data(page: Page, base_url: str) -> None:
     to verify both app and framework entries are present.
     """
     page.goto(base_url + "/logs?tier=all")
-    _wait_for_log_entries(page)
+    wait_for_log_entries(page)
     body = page.locator("tbody")
     expect(body).to_contain_text("Hassette started successfully")
     expect(body).to_contain_text("MyApp initialized")
@@ -66,14 +66,14 @@ def test_log_entries_render_from_seed_data(page: Page, base_url: str) -> None:
 def test_log_entries_show_error_level(page: Page, base_url: str) -> None:
     """ERROR level entries from seed data are visible."""
     page.goto(base_url + "/logs")
-    _wait_for_log_entries(page)
+    wait_for_log_entries(page)
     expect(page.locator("tbody")).to_contain_text("Failed to call service")
 
 
 def test_level_filter_to_error_hides_info(page: Page, base_url: str) -> None:
     """Selecting ERROR level hides INFO entries."""
     page.goto(base_url + "/logs")
-    _wait_for_log_entries(page)
+    wait_for_log_entries(page)
     # Level filter is behind a popover — open it first
     page.locator("[data-testid='sort-level'] [data-testid='filter-btn']").click()
     page.locator("[data-testid='filter-level']").select_option("ERROR")
@@ -89,7 +89,7 @@ def test_level_filter_to_error_hides_info(page: Page, base_url: str) -> None:
 def test_search_filter_narrows_entries(page: Page, base_url: str) -> None:
     """Typing a search term filters visible log entries."""
     page.goto(base_url + "/logs")
-    _wait_for_log_entries(page)
+    wait_for_log_entries(page)
     search_input = page.locator("input[aria-label='Search logs']")
     search_input.fill("unresponsive")
     page.wait_for_timeout(500)
@@ -106,7 +106,7 @@ def test_search_filter_narrows_entries(page: Page, base_url: str) -> None:
 def test_log_expand_button_toggles_message(page: Page, base_url: str) -> None:
     """Clicking a log row opens the detail drawer; close button dismisses it."""
     page.goto(base_url + "/logs")
-    _wait_for_log_entries(page)
+    wait_for_log_entries(page)
     # Rows have role="button" — click the first to open the detail drawer
     first_row = page.locator("[data-testid='log-table'] tbody tr").first
     expect(first_row).to_be_visible()
@@ -135,7 +135,7 @@ def test_log_filter_controls_have_aria_labels(page: Page, base_url: str) -> None
 def test_log_table_columns_do_not_visually_overlap(page: Page, base_url: str) -> None:
     """No table cell's bounding box overlaps its neighbor."""
     page.goto(base_url + "/logs")
-    _wait_for_log_entries(page)
+    wait_for_log_entries(page)
     overlaps = page.evaluate("""() => {
         const rows = document.querySelectorAll('[data-testid="log-table"] tbody tr');
         const problems = [];
@@ -161,7 +161,7 @@ def test_log_table_columns_do_not_visually_overlap(page: Page, base_url: str) ->
 def test_source_column_has_overflow_hidden(page: Page, base_url: str) -> None:
     """Function column cells have overflow:hidden to prevent text bleed."""
     page.goto(base_url + "/logs")
-    _wait_for_log_entries(page)
+    wait_for_log_entries(page)
     # Check the message cell td which has overflow:hidden via the .messageCell CSS module class
     msg_cell = page.locator("[data-testid='log-table'] tbody tr:first-child td:last-child").first
     overflow = msg_cell.evaluate("el => getComputedStyle(el).overflow")
@@ -177,7 +177,7 @@ def test_truncation_affordance_appears_on_narrow_viewport(page: Page, base_url: 
     """At narrow viewport, message text div has text-overflow: ellipsis."""
     page.set_viewport_size({"width": 800, "height": 600})
     page.goto(base_url + "/logs")
-    _wait_for_log_entries(page)
+    wait_for_log_entries(page)
     page.wait_for_timeout(500)
     # The messageText div has text-overflow: ellipsis — verify at least one exists
     msg_text_div = page.locator("[data-testid='log-table'] tbody tr:first-child td:last-child div").first
@@ -190,7 +190,7 @@ def test_truncation_affordance_disappears_on_wide_viewport(page: Page, base_url:
     """Widening viewport reduces text overflow in message cells."""
     page.set_viewport_size({"width": 800, "height": 600})
     page.goto(base_url + "/logs")
-    _wait_for_log_entries(page)
+    wait_for_log_entries(page)
     page.wait_for_timeout(500)
 
     # Measure scroll overflow on message text divs at narrow viewport
@@ -226,7 +226,7 @@ def test_truncation_affordance_disappears_on_wide_viewport(page: Page, base_url:
 def test_log_message_truncates_with_ellipsis(page: Page, base_url: str) -> None:
     """Long log messages have text-overflow: ellipsis in the messageText div."""
     page.goto(base_url + "/logs")
-    _wait_for_log_entries(page)
+    wait_for_log_entries(page)
     # The .messageText div (last td, first div) has overflow:clip, white-space:nowrap, text-overflow:ellipsis
     msg_text = page.locator("[data-testid='log-table'] tbody tr:first-child td:last-child div").first
     overflow = msg_text.evaluate("el => getComputedStyle(el).overflow")
@@ -274,7 +274,7 @@ def test_log_table_app_column_hidden_at_mobile(page: Page, base_url: str) -> Non
     """Log table at mobile hides the App and Function columns (viewport filter)."""
     page.set_viewport_size({"width": 375, "height": 812})
     page.goto(base_url + "/logs")
-    _wait_for_log_entries(page)
+    wait_for_log_entries(page)
     # At mobile (<768px), app/instance/execution/function/module columns are not rendered
     # Verify by checking that no thead th with text "App" exists
     thead = page.locator("[data-testid='log-table'] thead")

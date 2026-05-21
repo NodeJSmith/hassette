@@ -76,7 +76,7 @@ async def test_on_registers_listener_and_supports_unsubscribe(
 
         assert listener.topic == "demo.topic"
         assert listener.invoker.orig_handler is handler
-        assert asyncio.iscoroutinefunction(listener.invoker._async_handler)
+        assert asyncio.iscoroutinefunction(listener.invoker.async_handler)
         assert listener.invoker.kwargs == {"suffix": "!"}
         assert listener.options.once is once
         assert isinstance(listener.predicate, AllOf)
@@ -306,7 +306,7 @@ GLOB_CASES = [
 GLOB_ENTITIES = ["sensor.kitchen", "light.kitchen", "light.living_room", "sensor.living_room", "switch.garage"]
 
 
-async def _assert_glob_matching(
+async def assert_glob_matching(
     harness: "HassetteHarness",
     entity_id: str,
     expected: str | set[str],
@@ -347,7 +347,7 @@ async def test_state_change_handles_globs(
     hassette_with_bus: "HassetteHarness", entity_id: str, expected: str | set[str]
 ) -> None:
     """Bus matches state change with glob patterns correctly."""
-    await _assert_glob_matching(hassette_with_bus, entity_id, expected, use_attribute=False)
+    await assert_glob_matching(hassette_with_bus, entity_id, expected, use_attribute=False)
 
 
 @pytest.mark.parametrize(("entity_id", "expected"), GLOB_CASES)
@@ -355,7 +355,7 @@ async def test_attribute_change_handles_globs(
     hassette_with_bus: "HassetteHarness", entity_id: str, expected: str | set[str]
 ) -> None:
     """Bus matches attribute change topics with glob patterns correctly."""
-    await _assert_glob_matching(hassette_with_bus, entity_id, expected, use_attribute=True)
+    await assert_glob_matching(hassette_with_bus, entity_id, expected, use_attribute=True)
 
 
 async def test_listener_registration_spawns_background_task(hassette_with_bus: "HassetteHarness") -> None:
@@ -515,7 +515,7 @@ async def test_dispatch_handler_exception_routed_through_executor(hassette_with_
 async def test_debounced_dispatch_coalesces_events_through_executor(hassette_with_bus: "HassetteHarness") -> None:
     """Debounced app-owned listener coalesces rapid events and routes through CommandExecutor.
 
-    This tests the full pipeline: _dispatch -> _make_tracked_invoke_fn -> rate_limiter.call(execute_fn) ->
+    This tests the full pipeline: _dispatch -> make_tracked_invoke_fn -> rate_limiter.call(execute_fn) ->
     debounce delay -> execute_fn -> CommandExecutor.execute(InvokeHandler).
     """
     from hassette.core.commands import InvokeHandler
@@ -552,7 +552,7 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
 async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bus: "HassetteHarness") -> None:
     """Throttled app-owned listener fires once and drops subsequent events within the window.
 
-    This tests the full pipeline: _dispatch -> _make_tracked_invoke_fn -> rate_limiter.call(execute_fn) ->
+    This tests the full pipeline: _dispatch -> make_tracked_invoke_fn -> rate_limiter.call(execute_fn) ->
     throttle check -> execute_fn -> CommandExecutor.execute(InvokeHandler).
     """
     from hassette.core.commands import InvokeHandler
@@ -721,9 +721,9 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
     deadline = asyncio.get_running_loop().time() + 3.0
     while asyncio.get_running_loop().time() < deadline:
         all_listeners = hassette.bus_service.router.get_topic_listeners("custom.cancel_debounce")
-        if len(all_listeners) == 1 and all_listeners[0].invoker._rate_limiter is not None:
+        if len(all_listeners) == 1 and all_listeners[0].invoker.rate_limiter is not None:
             listener = all_listeners[0]
-            rate_limiter = listener.invoker._rate_limiter
+            rate_limiter = listener.invoker.rate_limiter
             break
         await asyncio.sleep(0.02)
     assert listener is not None, "Listener for custom.cancel_debounce was not registered in time"

@@ -77,14 +77,14 @@ class LogCaptureHandler(logging.Handler):
     _broadcast_fn: Callable[[dict], Coroutine[Any, Any, None]] | None
     _loop: asyncio.AbstractEventLoop | None
 
-    _shutting_down: bool
+    shutting_down: bool
 
     def __init__(self, buffer_size: int = 2000) -> None:
         super().__init__()
         self._buffer = deque(maxlen=buffer_size)
         self._broadcast_fn = None
         self._loop = None
-        self._shutting_down = False
+        self.shutting_down = False
 
     @property
     def buffer(self) -> deque[LogEntry]:
@@ -121,7 +121,7 @@ class LogCaptureHandler(logging.Handler):
             **attrs,
         )
         self._buffer.append(entry)
-        if self._shutting_down:
+        if self.shutting_down:
             return
         if self._broadcast_fn and self._loop and self._loop.is_running():
             fn = self._broadcast_fn
@@ -476,7 +476,7 @@ def shutdown_logging() -> None:
         return
 
     if _log_capture_handler is not None:
-        _log_capture_handler._shutting_down = True
+        _log_capture_handler.shutting_down = True
 
     # Remove the QueueHandler before stopping the listener to prevent
     # shutdown-time logs from enqueuing into an un-drained queue.

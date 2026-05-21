@@ -26,7 +26,7 @@ class CallableClass:
         pass
 
 
-def _decorator(fn):
+def decorator(fn):
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
         return fn(*args, **kwargs)
@@ -34,7 +34,7 @@ def _decorator(fn):
     return wrapper
 
 
-@_decorator
+@decorator
 def decorated_function() -> None:
     pass
 

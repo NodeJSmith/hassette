@@ -377,10 +377,10 @@ class TestBlockedApps:
 class TestAppRegistryGetFullSnapshot:
     """Unit tests for get_full_snapshot() status derivation."""
 
-    def _make_registry(self) -> AppRegistry:
+    def make_registry(self) -> AppRegistry:
         return AppRegistry()
 
-    def _make_manifest_obj(self, app_key: str, enabled: bool = True, auto_loaded: bool = False) -> SimpleNamespace:
+    def make_manifest_obj(self, app_key: str, enabled: bool = True, auto_loaded: bool = False) -> SimpleNamespace:
         """Build a minimal AppManifest-like object for the registry."""
         return SimpleNamespace(
             app_key=app_key,
@@ -391,7 +391,7 @@ class TestAppRegistryGetFullSnapshot:
             auto_loaded=auto_loaded,
         )
 
-    def _make_app_instance(self, app_key: str, index: int = 0) -> SimpleNamespace:
+    def make_app_instance(self, app_key: str, index: int = 0) -> SimpleNamespace:
         """Build a minimal App-like object for the registry."""
         class_name = app_key.title().replace("_", "")
         instance_name = f"{app_key}.{index}"
@@ -403,15 +403,15 @@ class TestAppRegistryGetFullSnapshot:
         )
 
     def test_empty_manifests(self) -> None:
-        reg = self._make_registry()
+        reg = self.make_registry()
         snap = reg.get_full_snapshot()
         assert snap.total == 0
         assert snap.manifests == []
 
     def test_running_app(self) -> None:
-        reg = self._make_registry()
-        reg.set_manifests({"my_app": self._make_manifest_obj("my_app")})
-        reg.register_app("my_app", 0, self._make_app_instance("my_app"))
+        reg = self.make_registry()
+        reg.set_manifests({"my_app": self.make_manifest_obj("my_app")})
+        reg.register_app("my_app", 0, self.make_app_instance("my_app"))
         snap = reg.get_full_snapshot()
         assert snap.total == 1
         assert snap.running == 1
@@ -419,16 +419,16 @@ class TestAppRegistryGetFullSnapshot:
         assert snap.manifests[0].instance_count == 1
 
     def test_stopped_app(self) -> None:
-        reg = self._make_registry()
-        reg.set_manifests({"my_app": self._make_manifest_obj("my_app")})
+        reg = self.make_registry()
+        reg.set_manifests({"my_app": self.make_manifest_obj("my_app")})
         # No instances registered — status is "stopped"
         snap = reg.get_full_snapshot()
         assert snap.stopped == 1
         assert snap.manifests[0].status == "stopped"
 
     def test_failed_app(self) -> None:
-        reg = self._make_registry()
-        reg.set_manifests({"my_app": self._make_manifest_obj("my_app")})
+        reg = self.make_registry()
+        reg.set_manifests({"my_app": self.make_manifest_obj("my_app")})
         reg.record_failure("my_app", 0, RuntimeError("init error"))
         snap = reg.get_full_snapshot()
         assert snap.failed == 1
@@ -436,15 +436,15 @@ class TestAppRegistryGetFullSnapshot:
         assert snap.manifests[0].error_message == "init error"
 
     def test_disabled_app(self) -> None:
-        reg = self._make_registry()
-        reg.set_manifests({"my_app": self._make_manifest_obj("my_app", enabled=False)})
+        reg = self.make_registry()
+        reg.set_manifests({"my_app": self.make_manifest_obj("my_app", enabled=False)})
         snap = reg.get_full_snapshot()
         assert snap.disabled == 1
         assert snap.manifests[0].status == "disabled"
 
     def test_blocked_app(self) -> None:
-        reg = self._make_registry()
-        reg.set_manifests({"my_app": self._make_manifest_obj("my_app")})
+        reg = self.make_registry()
+        reg.set_manifests({"my_app": self.make_manifest_obj("my_app")})
         reg.block_app("my_app", BlockReason.ONLY_APP)
         snap = reg.get_full_snapshot()
         assert snap.blocked == 1
@@ -452,17 +452,17 @@ class TestAppRegistryGetFullSnapshot:
         assert snap.manifests[0].block_reason == "only_app"
 
     def test_mixed_states(self) -> None:
-        reg = self._make_registry()
+        reg = self.make_registry()
         reg.set_manifests(
             {
-                "running_app": self._make_manifest_obj("running_app"),
-                "stopped_app": self._make_manifest_obj("stopped_app"),
-                "failed_app": self._make_manifest_obj("failed_app"),
-                "disabled_app": self._make_manifest_obj("disabled_app", enabled=False),
-                "blocked_app": self._make_manifest_obj("blocked_app"),
+                "running_app": self.make_manifest_obj("running_app"),
+                "stopped_app": self.make_manifest_obj("stopped_app"),
+                "failed_app": self.make_manifest_obj("failed_app"),
+                "disabled_app": self.make_manifest_obj("disabled_app", enabled=False),
+                "blocked_app": self.make_manifest_obj("blocked_app"),
             }
         )
-        reg.register_app("running_app", 0, self._make_app_instance("running_app"))
+        reg.register_app("running_app", 0, self.make_app_instance("running_app"))
         reg.record_failure("failed_app", 0, ValueError("bad config"))
         reg.block_app("blocked_app", BlockReason.ONLY_APP)
 
@@ -483,9 +483,9 @@ class TestAppRegistryGetFullSnapshot:
 
     def test_disabled_takes_priority_over_running(self) -> None:
         """Even if an app has running instances, disabled=False should win."""
-        reg = self._make_registry()
-        reg.set_manifests({"my_app": self._make_manifest_obj("my_app", enabled=False)})
-        reg.register_app("my_app", 0, self._make_app_instance("my_app"))
+        reg = self.make_registry()
+        reg.set_manifests({"my_app": self.make_manifest_obj("my_app", enabled=False)})
+        reg.register_app("my_app", 0, self.make_app_instance("my_app"))
         snap = reg.get_full_snapshot()
         # Disabled takes priority
         assert snap.manifests[0].status == "disabled"

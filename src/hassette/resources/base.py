@@ -131,10 +131,10 @@ class _ResourceContextFilter(_logging.Filter):
 class Resource(LifecycleMixin, metaclass=FinalMeta):
     """Base class for resources in the Hassette framework."""
 
-    _shutting_down: bool = False
+    shutting_down: bool = False
     """Flag indicating whether the instance is in the process of shutting down."""
 
-    _initializing: bool = False
+    initializing: bool = False
     """Flag indicating whether the instance is in the process of starting up."""
 
     _unique_name: str
@@ -427,12 +427,12 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         subscriptions may remain active against STOPPED resources; this is an accepted
         gap because force-terminal is nearly always followed by process exit.
         """
-        if self._shutdown_completed:
+        if self.shutdown_completed:
             return
         self.cancel()
         self.task_bucket.cancel_all_sync()
-        self._shutting_down = False
-        self._shutdown_completed = True
+        self.shutting_down = False
+        self.shutdown_completed = True
         self._status = ResourceStatus.STOPPED  # bypass setter to skip validation
         self.mark_not_ready("shutdown timed out")
         for child in self.children:
@@ -475,16 +475,16 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         children_clean = await self._shutdown_children()
 
-        self._shutdown_completed = True
+        self.shutdown_completed = True
 
-        if self._initializing:
+        if self.initializing:
             if self.shutdown_event.is_set():
                 self.logger.debug(
-                    "%s shutting down with _initializing=True (shutdown requested during init)", self.unique_name
+                    "%s shutting down with initializing=True (shutdown requested during init)", self.unique_name
                 )
             else:
-                self.logger.warning("%s shutting down with _initializing=True — this indicates a bug", self.unique_name)
-            self._initializing = False
+                self.logger.warning("%s shutting down with initializing=True — this indicates a bug", self.unique_name)
+            self.initializing = False
 
         if children_clean:
             await self._on_children_stopped()
@@ -520,12 +520,12 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         NOTE: keep flag resets and child propagation in sync with Service.initialize().
         NOTE: _auto_wait_dependencies() runs before hooks — keep in sync with Service.initialize().
         """
-        self._shutdown_completed = False
+        self.shutdown_completed = False
         self.shutdown_event.clear()
 
-        if self._initializing:
+        if self.initializing:
             return
-        self._initializing = True
+        self.initializing = True
 
         self.logger.debug("Initializing %s: %s", self.role, self.unique_name)
         await self.handle_starting()
@@ -545,7 +545,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                     await child.initialize()
             await self.handle_running()
         finally:
-            self._initializing = False
+            self.initializing = False
 
     async def before_initialize(self) -> None:
         """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc."""
@@ -565,11 +565,11 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
 
         NOTE: keep guards and flag resets in sync with Service.shutdown().
         """
-        if self._shutdown_completed:
+        if self.shutdown_completed:
             return
-        if self._shutting_down:
+        if self.shutting_down:
             return
-        self._shutting_down = True
+        self.shutting_down = True
         if self._status not in TERMINAL_STATUSES:
             self.status = ResourceStatus.STOPPING
         self.request_shutdown(f"{self.unique_name} shutdown")
@@ -581,7 +581,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
             )
         finally:
             await self._finalize_shutdown()
-            self._shutting_down = False
+            self.shutting_down = False
 
     async def before_shutdown(self) -> None:
         """Optional: stop accepting new work, signal loops to wind down, etc."""
@@ -736,12 +736,12 @@ class Service(Resource):
         Keep flag resets and child propagation in sync with Resource.initialize().
         NOTE: _auto_wait_dependencies() runs before hooks — keep in sync with Resource.initialize().
         """
-        self._shutdown_completed = False
+        self.shutdown_completed = False
         self.shutdown_event.clear()
 
-        if self._initializing:
+        if self.initializing:
             return
-        self._initializing = True
+        self.initializing = True
         self.logger.debug("Initializing %s: %s", self.role, self.unique_name)
         await self.handle_starting()
         try:
@@ -760,16 +760,16 @@ class Service(Resource):
                 if child.status not in (ResourceStatus.STARTING, ResourceStatus.RUNNING):
                     await child.initialize()
         finally:
-            self._initializing = False
+            self.initializing = False
 
     @final
     async def shutdown(self) -> None:
         """NOTE: keep guards and flag resets in sync with Resource.shutdown()."""
-        if self._shutdown_completed:
+        if self.shutdown_completed:
             return
-        if self._shutting_down:
+        if self.shutting_down:
             return
-        self._shutting_down = True
+        self.shutting_down = True
         if self._status not in TERMINAL_STATUSES:
             self.status = ResourceStatus.STOPPING
         self.request_shutdown(f"{self.unique_name} shutdown")
@@ -793,7 +793,7 @@ class Service(Resource):
             await self._run_hooks([self.on_shutdown, self.after_shutdown], continue_on_error=True)
         finally:
             await self._finalize_shutdown()
-            self._shutting_down = False
+            self.shutting_down = False
 
     async def _serve_wrapper(self) -> None:
         try:

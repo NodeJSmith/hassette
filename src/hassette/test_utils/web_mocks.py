@@ -17,7 +17,7 @@ from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 
 
-def _wire_telemetry_stubs(hassette: MagicMock) -> None:
+def wire_telemetry_stubs(hassette: MagicMock) -> None:
     """Wire empty-return async stubs for all TelemetryQueryService methods."""
     ts = hassette._telemetry_query_service
     ts.get_listener_summary = AsyncMock(return_value=[])
@@ -152,7 +152,7 @@ def create_hassette_stub(
     hassette._database_service.read_db.execute = AsyncMock(return_value=_cursor)
 
     # --- Telemetry query service stubs ---
-    _wire_telemetry_stubs(hassette)
+    wire_telemetry_stubs(hassette)
 
     # --- Drop counters (telemetry pipeline) ---
     hassette.get_drop_counters.return_value = (0, 0, 0, 0)

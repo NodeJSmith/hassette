@@ -62,12 +62,12 @@ class ExcludeExtrasMixin:
     sensitive values (e.g. tokens, secrets) during serialization.
     """
 
-    def _get_extra_keys(self) -> set[str]:
+    def get_extra_keys(self) -> set[str]:
         extras = getattr(self, "model_extra", None)
         return set(extras) if extras else set()
 
     @staticmethod
-    def _merge_exclude(exclude: Any | None, extra_keys: set[str]) -> Any:
+    def merge_exclude(exclude: Any | None, extra_keys: set[str]) -> Any:
         """Merge extra keys into an existing ``exclude`` value.
 
         Handles the three shapes Pydantic accepts for *exclude*:
@@ -83,20 +83,20 @@ class ExcludeExtrasMixin:
 
     def model_dump(self, *, exclude: Any | None = None, **kwargs: Any) -> dict[str, Any]:
         """Serialize declared fields only; extra fields are excluded for privacy."""
-        extra_keys = self._get_extra_keys()
+        extra_keys = self.get_extra_keys()
         if extra_keys and kwargs.get("include") is not None:
             pass  # caller explicitly requested specific fields — respect that
         elif extra_keys:
-            exclude = self._merge_exclude(exclude, extra_keys)
+            exclude = self.merge_exclude(exclude, extra_keys)
         return super().model_dump(exclude=exclude, **kwargs)  # pyright: ignore[reportAttributeAccessIssue]
 
     def model_dump_json(self, *, exclude: Any | None = None, **kwargs: Any) -> str:
         """Serialize declared fields only; extra fields are excluded for privacy."""
-        extra_keys = self._get_extra_keys()
+        extra_keys = self.get_extra_keys()
         if extra_keys and kwargs.get("include") is not None:
             pass  # caller explicitly requested specific fields — respect that
         elif extra_keys:
-            exclude = self._merge_exclude(exclude, extra_keys)
+            exclude = self.merge_exclude(exclude, extra_keys)
         return super().model_dump_json(exclude=exclude, **kwargs)  # pyright: ignore[reportAttributeAccessIssue]
 
 

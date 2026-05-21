@@ -32,7 +32,7 @@ def websocket_service(hassette_with_bus: "HassetteHarness") -> WebsocketService:
     return WebsocketService(hassette, parent=hassette)
 
 
-def _build_fake_ws(*, is_closed: bool = False) -> ClientWebSocketResponse:
+def build_fake_ws(*, is_closed: bool = False) -> ClientWebSocketResponse:
     """Return a lightweight websocket stub with adjustable state."""
     fake_ws = SimpleNamespace()
     fake_ws.closed = is_closed
@@ -73,7 +73,7 @@ async def test_connected_reflects_websocket_state(websocket_service: WebsocketSe
 async def test_send_json_injects_message_id_when_absent(websocket_service: WebsocketService) -> None:
     """Ensure send_json injects a message id and forwards the payload."""
 
-    fake_ws = _build_fake_ws()
+    fake_ws = build_fake_ws()
     websocket_service._ws = fake_ws
     websocket_service._connection_state = ConnectionState.CONNECTED
 
@@ -86,7 +86,7 @@ async def test_send_json_injects_message_id_when_absent(websocket_service: Webso
 async def test_send_json_preserves_message_id_when_present(websocket_service: WebsocketService) -> None:
     """Ensure send_json preserves a message id when present."""
 
-    fake_ws = _build_fake_ws()
+    fake_ws = build_fake_ws()
     websocket_service._ws = fake_ws
     websocket_service._connection_state = ConnectionState.CONNECTED
 
@@ -104,7 +104,7 @@ async def test_send_json_requires_connection(websocket_service: WebsocketService
 async def test_send_json_checks_connection_state(websocket_service: WebsocketService) -> None:
     """Raise when connection_state is not CONNECTED (CONNECTING state)."""
 
-    fake_ws = _build_fake_ws(is_closed=True)
+    fake_ws = build_fake_ws(is_closed=True)
     websocket_service._ws = fake_ws
     # State machine is CONNECTING — not yet CONNECTED, so connected returns False
     websocket_service._connection_state = ConnectionState.CONNECTING
@@ -116,7 +116,7 @@ async def test_send_json_checks_connection_state(websocket_service: WebsocketSer
 async def test_send_json_propagates_reset_error(websocket_service: WebsocketService) -> None:
     """Surface ClientConnectionResetError when the websocket resets."""
 
-    fake_ws = _build_fake_ws()
+    fake_ws = build_fake_ws()
     fake_ws.send_json.side_effect = ClientConnectionResetError("boom")  # pyright: ignore
 
     websocket_service._ws = fake_ws
@@ -129,7 +129,7 @@ async def test_send_json_propagates_reset_error(websocket_service: WebsocketServ
 async def test_send_json_wraps_generic_exceptions(websocket_service: WebsocketService) -> None:
     """Wrap unexpected errors in FailedMessageError."""
 
-    fake_ws = _build_fake_ws()
+    fake_ws = build_fake_ws()
     fake_ws.send_json.side_effect = RuntimeError("unexpected")  # pyright: ignore
 
     websocket_service._ws = fake_ws
@@ -206,7 +206,7 @@ async def test_respond_if_necessary_sets_exception(websocket_service: WebsocketS
 
 async def test_authenticate_happy_path(websocket_service: WebsocketService) -> None:
     """Authenticate when Home Assistant replies with auth_ok."""
-    fake_ws = _build_fake_ws()
+    fake_ws = build_fake_ws()
     fake_ws.receive_json = AsyncMock(side_effect=[{"type": "auth_required"}, {"type": "auth_ok"}])
     websocket_service._ws = fake_ws
 
@@ -221,7 +221,7 @@ async def test_authenticate_happy_path(websocket_service: WebsocketService) -> N
 
 async def test_authenticate_invalid_token(websocket_service: WebsocketService) -> None:
     """Raise InvalidAuthError when Home Assistant rejects the token."""
-    fake_ws = _build_fake_ws()
+    fake_ws = build_fake_ws()
     fake_ws.receive_json = AsyncMock(side_effect=[{"type": "auth_required"}, {"type": "auth_invalid"}])
     websocket_service._ws = fake_ws
 
@@ -269,7 +269,7 @@ async def test_raw_recv_dispatches_text_payload(
     monkeypatch: pytest.MonkeyPatch, websocket_service: WebsocketService
 ) -> None:
     """Decode text websocket frames and forward them to the dispatcher."""
-    fake_ws = _build_fake_ws()
+    fake_ws = build_fake_ws()
     fake_message = SimpleNamespace(type=WSMsgType.TEXT, data='{"type": "result", "id": 1}')
     fake_ws.receive = AsyncMock(return_value=fake_message)
     websocket_service._ws = fake_ws
@@ -284,7 +284,7 @@ async def test_raw_recv_dispatches_text_payload(
 
 async def test_raw_recv_raises_when_socket_closed(websocket_service: WebsocketService) -> None:
     """Raise when the websocket reports it has already closed."""
-    websocket_service._ws = _build_fake_ws(is_closed=True)
+    websocket_service._ws = build_fake_ws(is_closed=True)
 
     with pytest.raises(RetryableConnectionClosedError):
         await websocket_service._raw_recv()
@@ -292,7 +292,7 @@ async def test_raw_recv_raises_when_socket_closed(websocket_service: WebsocketSe
 
 async def test_raw_recv_raises_on_closing_frame(websocket_service: WebsocketService) -> None:
     """Raise when a closing frame is received."""
-    fake_ws = _build_fake_ws()
+    fake_ws = build_fake_ws()
     fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.CLOSING, data=None))
     websocket_service._ws = fake_ws
 
@@ -302,7 +302,7 @@ async def test_raw_recv_raises_on_closing_frame(websocket_service: WebsocketServ
 
 async def test_raw_recv_raises_on_error_frame(websocket_service: WebsocketService) -> None:
     """Raise RetryableConnectionClosedError when an ERROR frame is received."""
-    fake_ws = _build_fake_ws()
+    fake_ws = build_fake_ws()
     socket_error = RuntimeError("socket error")
     fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.ERROR, data=socket_error))
     websocket_service._ws = fake_ws
@@ -316,7 +316,7 @@ async def test_raw_recv_raises_on_error_frame(websocket_service: WebsocketServic
 # --- Disconnect handling on recv loop failure ---
 
 
-def _make_failing_recv_task(error: Exception) -> asyncio.Task:
+def make_failing_recv_task(error: Exception) -> asyncio.Task:
     """Create a task that raises the given error, simulating a failed recv loop."""
 
     async def _fail():
@@ -336,7 +336,7 @@ async def test_disconnect_event_fires_on_recv_loop_failure(websocket_service: We
         patch.object(
             websocket_service,
             "_make_connection",
-            return_value=_make_failing_recv_task(
+            return_value=make_failing_recv_task(
                 RetryableConnectionClosedError("peer gone"),
             ),
         ),
@@ -357,7 +357,7 @@ async def test_marked_not_ready_on_recv_loop_failure(websocket_service: Websocke
         patch.object(
             websocket_service,
             "_make_connection",
-            return_value=_make_failing_recv_task(
+            return_value=make_failing_recv_task(
                 RetryableConnectionClosedError("peer gone"),
             ),
         ),
@@ -376,7 +376,7 @@ async def test_disconnect_event_failure_does_not_mask_original_error(websocket_s
         patch.object(
             websocket_service,
             "_make_connection",
-            return_value=_make_failing_recv_task(
+            return_value=make_failing_recv_task(
                 RetryableConnectionClosedError("peer gone"),
             ),
         ),
@@ -390,7 +390,7 @@ async def test_disconnect_event_failure_does_not_mask_original_error(websocket_s
 
 async def test_connect_ws_sets_ws_and_authenticates(websocket_service: WebsocketService) -> None:
     """_connect_ws sets self._ws and calls authenticate."""
-    fake_ws = _build_fake_ws()
+    fake_ws = build_fake_ws()
     fake_session = MagicMock()
     fake_session.ws_connect = AsyncMock(return_value=fake_ws)
 
@@ -456,7 +456,7 @@ async def test_start_recv_and_subscribe_marks_ready(websocket_service: Websocket
 
 async def test_partial_cleanup_cancels_recv_and_closes_ws(websocket_service: WebsocketService) -> None:
     """_partial_cleanup cancels recv task, closes ws, clears futures and subscription ids."""
-    fake_ws = _build_fake_ws()
+    fake_ws = build_fake_ws()
     fake_recv_task = asyncio.ensure_future(asyncio.sleep(100))
     websocket_service._ws = fake_ws
     websocket_service._recv_task = fake_recv_task
@@ -480,7 +480,7 @@ async def test_partial_cleanup_preserves_session(websocket_service: WebsocketSer
     """_partial_cleanup must NOT clear self._session."""
     fake_session = MagicMock()
     websocket_service._session = fake_session
-    websocket_service._ws = _build_fake_ws()
+    websocket_service._ws = build_fake_ws()
     websocket_service._recv_task = asyncio.ensure_future(asyncio.sleep(0))
 
     await websocket_service._partial_cleanup()
@@ -490,7 +490,7 @@ async def test_partial_cleanup_preserves_session(websocket_service: WebsocketSer
 
 async def test_partial_cleanup_suppresses_errors(websocket_service: WebsocketService) -> None:
     """_partial_cleanup must not propagate any exceptions."""
-    fake_ws = _build_fake_ws()
+    fake_ws = build_fake_ws()
     fake_ws.close = AsyncMock(side_effect=RuntimeError("close failed"))
     websocket_service._ws = fake_ws
     websocket_service._recv_task = None
@@ -510,7 +510,7 @@ async def test_partial_cleanup_timeout_on_gather(websocket_service: WebsocketSer
 
     stuck_task = asyncio.ensure_future(_never_ends())
     websocket_service._recv_task = stuck_task
-    websocket_service._ws = _build_fake_ws()
+    websocket_service._ws = build_fake_ws()
 
     started = time.monotonic()
     try:
@@ -781,7 +781,7 @@ async def test_send_connection_lost_event_self_suppressing(websocket_service: We
 
 async def test_raw_recv_passes_close_code(websocket_service: WebsocketService) -> None:
     """_raw_recv passes close_code from _ws.close_code when raising RetryableConnectionClosedError."""
-    fake_ws = _build_fake_ws()
+    fake_ws = build_fake_ws()
     fake_ws.close_code = 1001  # pyright: ignore[reportAttributeAccessIssue]
     fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.CLOSE, data=None))
     websocket_service._ws = fake_ws

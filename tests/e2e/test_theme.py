@@ -10,7 +10,7 @@ DEFAULT_THEME = "light"
 TOGGLED_THEME = "dark"
 
 
-def _clear_theme_pref(page: Page) -> None:
+def clear_theme_pref(page: Page) -> None:
     """Clear theme localStorage so the SPA falls back to the default."""
     page.evaluate("localStorage.removeItem('hassette:theme'); localStorage.removeItem('ht-theme')")
     page.reload()
@@ -19,14 +19,14 @@ def _clear_theme_pref(page: Page) -> None:
 def test_light_mode_is_default(page: Page, base_url: str) -> None:
     """Page loads with data-theme='light' without any prior interaction."""
     page.goto(base_url + "/")
-    _clear_theme_pref(page)
+    clear_theme_pref(page)
     expect(page.locator("html")).to_have_attribute("data-theme", DEFAULT_THEME)
 
 
 def test_toggle_switches_to_dark(page: Page, base_url: str) -> None:
     """Clicking the toggle switches from light to dark mode."""
     page.goto(base_url + "/")
-    _clear_theme_pref(page)
+    clear_theme_pref(page)
     expect(page.locator("html")).to_have_attribute("data-theme", DEFAULT_THEME)
 
     page.locator('[data-testid="theme-toggle"]').click()
@@ -39,7 +39,7 @@ def test_toggle_switches_to_dark(page: Page, base_url: str) -> None:
 def test_toggle_applies_different_tokens(page: Page, base_url: str) -> None:
     """Switching theme changes CSS custom property values."""
     page.goto(base_url + "/")
-    _clear_theme_pref(page)
+    clear_theme_pref(page)
 
     # Capture the light-mode background color token
     light_bg = page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bg-page').trim()")
@@ -60,7 +60,7 @@ def test_toggle_applies_different_tokens(page: Page, base_url: str) -> None:
 def test_theme_persistence_survives_reload(page: Page, base_url: str) -> None:
     """Dark mode set via toggle persists across a full page reload."""
     page.goto(base_url + "/")
-    _clear_theme_pref(page)
+    clear_theme_pref(page)
 
     # Switch to dark
     page.locator('[data-testid="theme-toggle"]').click()
@@ -86,7 +86,7 @@ def test_both_modes_render_without_layout_breakage(page: Page, base_url: str) ->
     selectors that would hide content.
     """
     page.goto(base_url + "/apps")
-    _clear_theme_pref(page)
+    clear_theme_pref(page)
 
     structural_selectors = [
         "[data-testid='sidebar']",
@@ -111,7 +111,7 @@ def test_both_modes_render_without_layout_breakage(page: Page, base_url: str) ->
 def test_theme_toggle_icon_changes(page: Page, base_url: str) -> None:
     """Toggle button shows different icon in light vs dark mode."""
     page.goto(base_url + "/")
-    _clear_theme_pref(page)
+    clear_theme_pref(page)
 
     toggle = page.locator('[data-testid="theme-toggle"]')
     light_html = toggle.inner_html()

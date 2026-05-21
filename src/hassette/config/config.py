@@ -276,14 +276,14 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             if fname in self.model_fields_set or fname not in defaults:
                 continue
             # Skip nested group names — they are handled below
-            if fname in _NESTED_GROUPS:
+            if fname in NESTED_GROUPS:
                 continue
             default_value = defaults[fname]
             LOGGER.debug("Setting %s for unset field %s: %s", default_str, fname, default_value)
             setattr(self, fname, default_value)
 
         # Apply nested group defaults (e.g. [hassette.websocket], [hassette.scheduler])
-        for group_name in _NESTED_GROUPS:
+        for group_name in NESTED_GROUPS:
             if group_name not in defaults or group_name in self.model_fields_set:
                 continue
             group_defaults = defaults[group_name]
@@ -373,7 +373,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         self.apps.manifests = app_manifest_dict
 
 
-_NESTED_GROUPS: dict[str, type] = {
+NESTED_GROUPS: dict[str, type] = {
     name: field.annotation
     for name, field in HassetteConfig.model_fields.items()
     if isinstance(field.annotation, type) and issubclass(field.annotation, ExcludeExtrasMixin)

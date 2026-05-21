@@ -12,16 +12,16 @@ from .conftest import make_system_config, startup_context
 
 pytestmark = [pytest.mark.system]
 
-_ENTITY = "light.kitchen_lights"
-_DOMAIN = "light"
+ENTITY = "light.kitchen_lights"
+DOMAIN = "light"
 
 
 async def test_get_state_single_entity(ha_container: str, tmp_path) -> None:
     """get_state returns a state object with a matching entity_id and a bool state value."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
-        state = await hassette.api.get_state(_ENTITY)
-        assert state.entity_id == _ENTITY
+        state = await hassette.api.get_state(ENTITY)
+        assert state.entity_id == ENTITY
         assert isinstance(state.value, bool)
 
 
@@ -71,7 +71,7 @@ async def test_render_template(ha_container: str, tmp_path) -> None:
     """render_template returns the string state of the entity."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
-        result = await hassette.api.render_template(f"{{{{ states('{_ENTITY}') }}}}")
+        result = await hassette.api.render_template(f"{{{{ states('{ENTITY}') }}}}")
         assert isinstance(result, str)
         assert result in ("on", "off")
 
@@ -93,12 +93,12 @@ async def test_get_history(ha_container: str, tmp_path) -> None:
         # Record a timestamp before the toggle so the history window includes it
         start = (datetime.now(tz=UTC) - timedelta(seconds=120)).isoformat()
 
-        await hassette.api.call_service(_DOMAIN, "toggle", {"entity_id": _ENTITY})
+        await hassette.api.call_service(DOMAIN, "toggle", {"entity_id": ENTITY})
 
         async def _history_available() -> bool:
-            return bool(await hassette.api.get_history(_ENTITY, start_time=start))
+            return bool(await hassette.api.get_history(ENTITY, start_time=start))
 
         await wait_for(_history_available, timeout=15.0, interval=0.5, desc="history to appear")
-        history = await hassette.api.get_history(_ENTITY, start_time=start)
+        history = await hassette.api.get_history(ENTITY, start_time=start)
         assert isinstance(history, list)
         assert len(history) > 0

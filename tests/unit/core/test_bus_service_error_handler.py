@@ -10,7 +10,7 @@ from hassette.events.base import Event
 from hassette.test_utils.helpers import create_listener
 
 
-def _make_bus_service(*, config_timeout: float = 600.0) -> BusService:
+def make_bus_service(*, config_timeout: float = 600.0) -> BusService:
     """Create a BusService with mocked internals."""
     svc = BusService.__new__(BusService)
     svc.hassette = MagicMock()
@@ -35,7 +35,7 @@ def _make_bus_service(*, config_timeout: float = 600.0) -> BusService:
     return svc
 
 
-def _make_listener_with_resolver(
+def make_listener_with_resolver(
     *,
     resolver=None,
 ) -> Listener:
@@ -45,20 +45,20 @@ def _make_listener_with_resolver(
     return listener
 
 
-def _make_event() -> Event:
+def make_event() -> Event:
     return MagicMock(spec=Event)
 
 
 class TestDispatchCarriesAppLevelHandler:
     async def test_dispatch_carries_app_level_handler(self) -> None:
         """When the listener's resolver returns a handler, it is set on InvokeHandler."""
-        svc = _make_bus_service()
-        event = _make_event()
+        svc = make_bus_service()
+        event = make_event()
 
         async def app_handler(ctx) -> None:
             pass
 
-        listener = _make_listener_with_resolver(resolver=lambda: app_handler)
+        listener = make_listener_with_resolver(resolver=lambda: app_handler)
 
         invoke_fn = svc._make_tracked_invoke_fn("test.topic", event, listener)
         await invoke_fn()
@@ -69,11 +69,11 @@ class TestDispatchCarriesAppLevelHandler:
 
     async def test_dispatch_no_handler_when_none_set(self) -> None:
         """When the listener has no resolver, app_level_error_handler is None."""
-        svc = _make_bus_service()
-        event = _make_event()
+        svc = make_bus_service()
+        event = make_event()
 
         # Listener without resolver (simulates framework listener or test harness listener)
-        listener = _make_listener_with_resolver(resolver=None)
+        listener = make_listener_with_resolver(resolver=None)
 
         invoke_fn = svc._make_tracked_invoke_fn("test.topic", event, listener)
         await invoke_fn()
@@ -84,10 +84,10 @@ class TestDispatchCarriesAppLevelHandler:
 
     async def test_dispatch_no_handler_when_resolver_returns_none(self) -> None:
         """When resolver returns None (Bus._error_handler not set), field is None."""
-        svc = _make_bus_service()
-        event = _make_event()
+        svc = make_bus_service()
+        event = make_event()
 
-        listener = _make_listener_with_resolver(resolver=lambda: None)
+        listener = make_listener_with_resolver(resolver=lambda: None)
 
         invoke_fn = svc._make_tracked_invoke_fn("test.topic", event, listener)
         await invoke_fn()
@@ -98,8 +98,8 @@ class TestDispatchCarriesAppLevelHandler:
 
     async def test_dispatch_resolves_handler_at_dispatch_time(self) -> None:
         """Resolver is called at dispatch time: updates to Bus._error_handler are reflected."""
-        svc = _make_bus_service()
-        event = _make_event()
+        svc = make_bus_service()
+        event = make_event()
 
         # Simulate a Bus._error_handler that can change
         current_handler = [None]
@@ -107,7 +107,7 @@ class TestDispatchCarriesAppLevelHandler:
         async def handler_v2(ctx) -> None:
             pass
 
-        listener = _make_listener_with_resolver(resolver=lambda: current_handler[0])
+        listener = make_listener_with_resolver(resolver=lambda: current_handler[0])
 
         # First dispatch: no handler
         invoke_fn = svc._make_tracked_invoke_fn("test.topic", event, listener)

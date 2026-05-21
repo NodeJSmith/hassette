@@ -78,7 +78,7 @@ def client(app):
     return TestClient(app)
 
 
-def _put_to_all_queues(data_sync: RuntimeQueryService, message: dict) -> None:
+def put_to_all_queues(data_sync: RuntimeQueryService, message: dict) -> None:
     """Put a pre-serialized message into all registered WS client queues.
 
     The Starlette TestClient runs the ASGI app in a background thread
@@ -95,7 +95,7 @@ def _put_to_all_queues(data_sync: RuntimeQueryService, message: dict) -> None:
             q.put_nowait(safe)
 
 
-def _sync_via_ping(ws) -> None:
+def sync_via_ping(ws) -> None:
     """Send a ping and wait for the pong to ensure prior messages were processed.
 
     The server handles ``subscribe`` and ``ping`` sequentially in the same
@@ -128,8 +128,8 @@ class TestWebSocketConnection:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
             ws.send_json({"type": "subscribe", "data": {"logs": True}})
-            _sync_via_ping(ws)
-            _put_to_all_queues(
+            sync_via_ping(ws)
+            put_to_all_queues(
                 runtime_query_service,
                 {"type": "log", "data": {"level": "INFO", "message": "test"}},
             )
@@ -143,12 +143,12 @@ class TestWebSocketConnection:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
             # Log should be filtered (subscribe_logs is False by default)
-            _put_to_all_queues(
+            put_to_all_queues(
                 runtime_query_service,
                 {"type": "log", "data": {"level": "INFO", "message": "should not arrive"}},
             )
             # Non-log message to verify the connection is alive
-            _put_to_all_queues(
+            put_to_all_queues(
                 runtime_query_service,
                 {"type": "state_changed", "data": {"entity_id": "light.kitchen"}},
             )
@@ -160,7 +160,7 @@ class TestWebSocketConnection:
     ) -> None:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
-            _put_to_all_queues(
+            put_to_all_queues(
                 runtime_query_service,
                 {"type": "app_status_changed", "data": {"app_key": "my_app"}},
             )
@@ -173,18 +173,18 @@ class TestWebSocketConnection:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
             ws.send_json({"type": "subscribe", "data": {"logs": True, "min_log_level": "WARNING"}})
-            _sync_via_ping(ws)
+            sync_via_ping(ws)
             # DEBUG and INFO should be filtered
-            _put_to_all_queues(
+            put_to_all_queues(
                 runtime_query_service,
                 {"type": "log", "data": {"level": "DEBUG", "message": "debug"}},
             )
-            _put_to_all_queues(
+            put_to_all_queues(
                 runtime_query_service,
                 {"type": "log", "data": {"level": "INFO", "message": "info"}},
             )
             # WARNING should pass
-            _put_to_all_queues(
+            put_to_all_queues(
                 runtime_query_service,
                 {"type": "log", "data": {"level": "WARNING", "message": "warn"}},
             )
@@ -198,12 +198,12 @@ class TestWebSocketConnection:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
             ws.send_json({"type": "subscribe", "data": {"logs": True, "min_log_level": "ERROR"}})
-            _sync_via_ping(ws)
-            _put_to_all_queues(
+            sync_via_ping(ws)
+            put_to_all_queues(
                 runtime_query_service,
                 {"type": "log", "data": {"level": "WARNING", "message": "warn"}},
             )
-            _put_to_all_queues(
+            put_to_all_queues(
                 runtime_query_service,
                 {"type": "log", "data": {"level": "ERROR", "message": "err"}},
             )
@@ -221,14 +221,14 @@ class TestWebSocketConnection:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
             ws.send_json({"type": "subscribe", "data": {"logs": True, "min_log_level": "INVALID"}})
-            _sync_via_ping(ws)
+            sync_via_ping(ws)
             # DEBUG should be filtered (below INFO default)
-            _put_to_all_queues(
+            put_to_all_queues(
                 runtime_query_service,
                 {"type": "log", "data": {"level": "DEBUG", "message": "debug"}},
             )
             # INFO should pass
-            _put_to_all_queues(
+            put_to_all_queues(
                 runtime_query_service,
                 {"type": "log", "data": {"level": "INFO", "message": "info"}},
             )
@@ -265,12 +265,12 @@ class TestWebSocketConnection:
             ws.receive_json()  # connected
             # First subscribe with ERROR level
             ws.send_json({"type": "subscribe", "data": {"logs": True, "min_log_level": "ERROR"}})
-            _sync_via_ping(ws)
+            sync_via_ping(ws)
             # Update to INFO level
             ws.send_json({"type": "subscribe", "data": {"logs": True, "min_log_level": "INFO"}})
-            _sync_via_ping(ws)
+            sync_via_ping(ws)
             # INFO should now pass through
-            _put_to_all_queues(
+            put_to_all_queues(
                 runtime_query_service,
                 {"type": "log", "data": {"level": "INFO", "message": "visible"}},
             )
@@ -301,14 +301,14 @@ class TestWebSocketEdgeCases:
         with client.websocket_connect("/api/ws") as ws:
             ws.receive_json()  # connected
             ws.send_json({"type": "subscribe", "data": {}})
-            _sync_via_ping(ws)
+            sync_via_ping(ws)
             # Log messages should NOT pass through (logs=False by default)
-            _put_to_all_queues(
+            put_to_all_queues(
                 runtime_query_service,
                 {"type": "log", "data": {"level": "INFO", "message": "should not arrive"}},
             )
             # Non-log message confirms connection is alive and log was filtered
-            _put_to_all_queues(
+            put_to_all_queues(
                 runtime_query_service,
                 {"type": "state_changed", "data": {"entity_id": "light.kitchen"}},
             )
@@ -323,9 +323,9 @@ class TestWebSocketEdgeCases:
             ws.receive_json()  # connected
             # Send subscribe without 'data' key at all
             ws.send_json({"type": "subscribe"})
-            _sync_via_ping(ws)
+            sync_via_ping(ws)
             # Connection must still be open
-            _put_to_all_queues(
+            put_to_all_queues(
                 runtime_query_service,
                 {"type": "app_status_changed", "data": {"app_key": "my_app"}},
             )

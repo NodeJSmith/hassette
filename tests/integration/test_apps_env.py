@@ -26,12 +26,12 @@ ENV_IMPORT_FILENAME = "app_import.env"
 ENV_CUSTOM_FILENAME = "custom.env"
 
 
-def _cleanup_env(*keys: str) -> None:
+def cleanup_env(*keys: str) -> None:
     for key in keys:
         os.environ.pop(key, None)
 
 
-def _new_unique_app_dir(tmp_path: Path) -> tuple[str, Path]:
+def new_unique_app_dir(tmp_path: Path) -> tuple[str, Path]:
     """Create a unique apps dir for test-created app modules."""
 
     pkg_name = "testapps_" + os.urandom(6).hex()
@@ -40,7 +40,7 @@ def _new_unique_app_dir(tmp_path: Path) -> tuple[str, Path]:
     return pkg_name, app_dir
 
 
-def _clear_app_import_caches(pkg_name: str, module_name: str) -> None:
+def clear_app_import_caches(pkg_name: str, module_name: str) -> None:
     """Avoid cross-test module collisions and cached failures/successes."""
 
     sys.modules.pop(f"{pkg_name}.{module_name}", None)
@@ -52,7 +52,7 @@ def _clear_app_import_caches(pkg_name: str, module_name: str) -> None:
     app_utils.FAILED_TO_LOAD_CLASSES.clear()
 
 
-def _write_env_reader_app(app_dir: Path) -> None:
+def write_env_reader_app(app_dir: Path) -> None:
     path = app_dir / ENV_READER_FILENAME
 
     path.write_text(
@@ -72,7 +72,7 @@ def _write_env_reader_app(app_dir: Path) -> None:
     )
 
 
-def _write_env_settings_app(app_dir: Path) -> None:
+def write_env_settings_app(app_dir: Path) -> None:
     path = app_dir / ENV_SETTINGS_FILENAME
     path.write_text(
         textwrap.dedent(
@@ -91,11 +91,11 @@ def _write_env_settings_app(app_dir: Path) -> None:
     )
 
 
-def _write_env_file(path: Path, key: str, value: str) -> None:
+def write_env_file(path: Path, key: str, value: str) -> None:
     path.write_text(f"{key}={value}\n", encoding="utf-8")
 
 
-def _write_toml(
+def write_toml(
     toml_file: Path,
     *,
     app_dir: Path,
@@ -124,7 +124,7 @@ def _write_toml(
     )
 
 
-def _build_config_class(*, toml_file: Path, env_files: list[Path]):
+def build_config_class(*, toml_file: Path, env_files: list[Path]):
     class _TestConfig(HassetteConfig):
         model_config = HassetteConfig.model_config.copy() | {
             "cli_parse_args": False,
@@ -142,14 +142,14 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(
 ):
     """With import_dot_env_files=True, Hassette loads env_files before app precheck imports."""
 
-    pkg_name, app_dir = _new_unique_app_dir(tmp_path)
-    _write_env_reader_app(app_dir)
+    pkg_name, app_dir = new_unique_app_dir(tmp_path)
+    write_env_reader_app(app_dir)
 
     env_file = tmp_path / ENV_IMPORT_FILENAME
-    _write_env_file(env_file, ENV_IMPORT_KEY, "from_dotenv")
+    write_env_file(env_file, ENV_IMPORT_KEY, "from_dotenv")
 
     toml_file = tmp_path / TOML_FILENAME
-    _write_toml(
+    write_toml(
         toml_file,
         app_dir=app_dir,
         run_app_precheck=True,
@@ -158,9 +158,9 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(
     )
 
     monkeypatch.delenv(ENV_IMPORT_KEY, raising=False)
-    _clear_app_import_caches(pkg_name, "env_reader_app")
+    clear_app_import_caches(pkg_name, "env_reader_app")
 
-    app_import_config = _build_config_class(toml_file=toml_file, env_files=[env_file])
+    app_import_config = build_config_class(toml_file=toml_file, env_files=[env_file])
     config = app_import_config(import_dot_env_files=True)
     with context.use_hassette_config(config):
         run_hassette_startup_tasks(config)
@@ -168,7 +168,7 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(
     mod = sys.modules.get(f"{pkg_name}.env_reader_app")
     assert mod is not None, "Expected app module to be imported during precheck"
     assert mod.READ_AT_IMPORT == "from_dotenv"  # pyright: ignore[reportAttributeAccessIssue]
-    _cleanup_env(ENV_IMPORT_KEY)
+    cleanup_env(ENV_IMPORT_KEY)
 
 
 async def test_import_dot_env_files_disabled_not_visible_during_app_import(
@@ -176,14 +176,14 @@ async def test_import_dot_env_files_disabled_not_visible_during_app_import(
 ):
     """Without import_dot_env_files, app import-time env reads should not see custom env_files values."""
 
-    pkg_name, app_dir = _new_unique_app_dir(tmp_path)
-    _write_env_reader_app(app_dir)
+    pkg_name, app_dir = new_unique_app_dir(tmp_path)
+    write_env_reader_app(app_dir)
 
     env_file = tmp_path / ENV_IMPORT_FILENAME
-    _write_env_file(env_file, ENV_IMPORT_KEY, "from_dotenv")
+    write_env_file(env_file, ENV_IMPORT_KEY, "from_dotenv")
 
     toml_file = tmp_path / TOML_FILENAME
-    _write_toml(
+    write_toml(
         toml_file,
         app_dir=app_dir,
         run_app_precheck=True,
@@ -192,9 +192,9 @@ async def test_import_dot_env_files_disabled_not_visible_during_app_import(
     )
 
     monkeypatch.delenv(ENV_IMPORT_KEY, raising=False)
-    _clear_app_import_caches(pkg_name, "env_reader_app")
+    clear_app_import_caches(pkg_name, "env_reader_app")
 
-    app_import_config = _build_config_class(toml_file=toml_file, env_files=[env_file])
+    app_import_config = build_config_class(toml_file=toml_file, env_files=[env_file])
     config = app_import_config(import_dot_env_files=False)
     with context.use_hassette_config(config):
         run_hassette_startup_tasks(config)
@@ -202,7 +202,7 @@ async def test_import_dot_env_files_disabled_not_visible_during_app_import(
     mod = sys.modules.get(f"{pkg_name}.env_reader_app")
     assert mod is not None, "Expected app module to be imported during precheck"
     assert mod.READ_AT_IMPORT == "NOT_FOUND"
-    _cleanup_env(ENV_IMPORT_KEY)
+    cleanup_env(ENV_IMPORT_KEY)
 
 
 async def test_app_config_can_read_from_os_environ(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -210,14 +210,14 @@ async def test_app_config_can_read_from_os_environ(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.chdir(tmp_path)
 
-    _cleanup_env(ENV_SETTINGS_KEY)
+    cleanup_env(ENV_SETTINGS_KEY)
     monkeypatch.setenv(ENV_SETTINGS_KEY, "from_os_environ")
 
-    pkg_name, app_dir = _new_unique_app_dir(tmp_path)
-    _write_env_settings_app(app_dir)
+    pkg_name, app_dir = new_unique_app_dir(tmp_path)
+    write_env_settings_app(app_dir)
 
     toml_file = tmp_path / TOML_FILENAME
-    _write_toml(
+    write_toml(
         toml_file,
         app_dir=app_dir,
         run_app_precheck=False,
@@ -225,9 +225,9 @@ async def test_app_config_can_read_from_os_environ(monkeypatch: pytest.MonkeyPat
         class_name=ENV_SETTINGS_CLASS,
     )
 
-    _clear_app_import_caches(pkg_name, "env_settings_app")
+    clear_app_import_caches(pkg_name, "env_settings_app")
 
-    app_settings_config = _build_config_class(toml_file=toml_file, env_files=[])
+    app_settings_config = build_config_class(toml_file=toml_file, env_files=[])
     config = app_settings_config(import_dot_env_files=False)
 
     async with build_harness(HassetteHarness(config).with_app_handler().with_scheduler()) as harness:
@@ -243,7 +243,7 @@ async def test_app_config_can_read_from_os_environ(monkeypatch: pytest.MonkeyPat
         assert app is not None
         assert getattr(app, "seen", None) == "from_os_environ"
 
-    _cleanup_env(ENV_SETTINGS_KEY)
+    cleanup_env(ENV_SETTINGS_KEY)
 
 
 async def test_app_config_does_not_see_custom_env_file_without_import_dot_env_files(
@@ -253,16 +253,16 @@ async def test_app_config_does_not_see_custom_env_file_without_import_dot_env_fi
 
     monkeypatch.chdir(tmp_path)
 
-    _cleanup_env(ENV_SETTINGS_KEY)
+    cleanup_env(ENV_SETTINGS_KEY)
 
-    pkg_name, app_dir = _new_unique_app_dir(tmp_path)
-    _write_env_settings_app(app_dir)
+    pkg_name, app_dir = new_unique_app_dir(tmp_path)
+    write_env_settings_app(app_dir)
 
     custom_env = tmp_path / ENV_CUSTOM_FILENAME
-    _write_env_file(custom_env, ENV_SETTINGS_KEY, "from_custom_env")
+    write_env_file(custom_env, ENV_SETTINGS_KEY, "from_custom_env")
 
     toml_file = tmp_path / TOML_FILENAME
-    _write_toml(
+    write_toml(
         toml_file,
         app_dir=app_dir,
         run_app_precheck=False,
@@ -270,9 +270,9 @@ async def test_app_config_does_not_see_custom_env_file_without_import_dot_env_fi
         class_name=ENV_SETTINGS_CLASS,
     )
 
-    _clear_app_import_caches(pkg_name, "env_settings_app")
+    clear_app_import_caches(pkg_name, "env_settings_app")
 
-    custom_env_config = _build_config_class(toml_file=toml_file, env_files=[custom_env])
+    custom_env_config = build_config_class(toml_file=toml_file, env_files=[custom_env])
     config = custom_env_config(import_dot_env_files=False)
     run_hassette_startup_tasks(config)
 
@@ -292,7 +292,7 @@ async def test_app_config_does_not_see_custom_env_file_without_import_dot_env_fi
         assert harness.app_handler is not None
         assert "env_reader" in harness.app_handler.registry.get_snapshot().failed_apps
 
-    _cleanup_env(ENV_SETTINGS_KEY)
+    cleanup_env(ENV_SETTINGS_KEY)
 
 
 async def test_app_config_sees_custom_env_file_when_import_dot_env_files_true(
@@ -302,16 +302,16 @@ async def test_app_config_sees_custom_env_file_when_import_dot_env_files_true(
 
     monkeypatch.chdir(tmp_path)
 
-    _cleanup_env(ENV_SETTINGS_KEY)
+    cleanup_env(ENV_SETTINGS_KEY)
 
-    pkg_name, app_dir = _new_unique_app_dir(tmp_path)
-    _write_env_settings_app(app_dir)
+    pkg_name, app_dir = new_unique_app_dir(tmp_path)
+    write_env_settings_app(app_dir)
 
     custom_env = tmp_path / ENV_CUSTOM_FILENAME
-    _write_env_file(custom_env, ENV_SETTINGS_KEY, "from_custom_env")
+    write_env_file(custom_env, ENV_SETTINGS_KEY, "from_custom_env")
 
     toml_file = tmp_path / TOML_FILENAME
-    _write_toml(
+    write_toml(
         toml_file,
         app_dir=app_dir,
         run_app_precheck=False,
@@ -319,9 +319,9 @@ async def test_app_config_sees_custom_env_file_when_import_dot_env_files_true(
         class_name=ENV_SETTINGS_CLASS,
     )
 
-    _clear_app_import_caches(pkg_name, "env_settings_app")
+    clear_app_import_caches(pkg_name, "env_settings_app")
 
-    custom_env_config = _build_config_class(toml_file=toml_file, env_files=[custom_env])
+    custom_env_config = build_config_class(toml_file=toml_file, env_files=[custom_env])
     config = custom_env_config(import_dot_env_files=True)
     with context.use_hassette_config(config):
         run_hassette_startup_tasks(config)
@@ -339,4 +339,4 @@ async def test_app_config_sees_custom_env_file_when_import_dot_env_files_true(
         assert app is not None
         assert getattr(app, "seen", None) == "from_custom_env"
 
-    _cleanup_env(ENV_SETTINGS_KEY)
+    cleanup_env(ENV_SETTINGS_KEY)

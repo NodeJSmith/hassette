@@ -20,7 +20,7 @@ from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
 from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.types.enums import ResourceStatus
 
-_LOGS_REPO = "hassette.web.routes.logs._repo"
+LOGS_REPO = "hassette.web.routes.logs._repo"
 
 
 @pytest.fixture
@@ -255,7 +255,7 @@ class TestBusEndpoints:
         assert entry["total_invocations"] == 5
 
 
-def _make_log_record(
+def make_log_record(
     seq: int,
     level: str = "INFO",
     message: str = "test",
@@ -280,7 +280,7 @@ def _make_log_record(
     }
 
 
-def _mock_submit(return_value: object = None, side_effect: object = None) -> AsyncMock:
+def mock_submit(return_value: object = None, side_effect: object = None) -> AsyncMock:
     """Create an AsyncMock for database_service.submit that closes the passed coroutine."""
     values = list(side_effect) if side_effect is not None else None
     call_count = [0]
@@ -308,15 +308,15 @@ class TestLogsEndpoints:
     def sample_records(self) -> list[dict]:
         """Six log records matching the old buffer fixture, now as DB dicts."""
         return [
-            _make_log_record(1, "INFO", "Core started", app_key=None),
-            _make_log_record(2, "INFO", "MyApp initialized", app_key="my_app"),
-            _make_log_record(3, "WARNING", "Light unresponsive", app_key="my_app"),
-            _make_log_record(4, "DEBUG", "Heartbeat sent", app_key=None),
-            _make_log_record(5, "ERROR", "Service call failed", app_key="my_app"),
-            _make_log_record(6, "INFO", "OtherApp ready", app_key="other_app"),
+            make_log_record(1, "INFO", "Core started", app_key=None),
+            make_log_record(2, "INFO", "MyApp initialized", app_key="my_app"),
+            make_log_record(3, "WARNING", "Light unresponsive", app_key="my_app"),
+            make_log_record(4, "DEBUG", "Heartbeat sent", app_key=None),
+            make_log_record(5, "ERROR", "Service call failed", app_key="my_app"),
+            make_log_record(6, "INFO", "OtherApp ready", app_key="other_app"),
         ]
 
-    @patch(f"{_LOGS_REPO}.get_log_records", new_callable=AsyncMock)
+    @patch(f"{LOGS_REPO}.get_log_records", new_callable=AsyncMock)
     async def test_get_logs_recent_returns_list(
         self, mock_get: AsyncMock, client: "AsyncClient", sample_records: list[dict]
     ) -> None:
@@ -327,7 +327,7 @@ class TestLogsEndpoints:
         assert isinstance(data, list)
         assert len(data) == 6
 
-    @patch(f"{_LOGS_REPO}.get_log_records", new_callable=AsyncMock)
+    @patch(f"{LOGS_REPO}.get_log_records", new_callable=AsyncMock)
     async def test_get_logs_recent_new_fields_present(
         self, mock_get: AsyncMock, client: "AsyncClient", sample_records: list[dict]
     ) -> None:
@@ -341,28 +341,28 @@ class TestLogsEndpoints:
         assert "instance_index" in entry
         assert "source_tier" in entry
 
-    @patch(f"{_LOGS_REPO}.get_log_records", new_callable=AsyncMock)
+    @patch(f"{LOGS_REPO}.get_log_records", new_callable=AsyncMock)
     async def test_get_logs_recent_returns_503_on_db_error(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
         mock_get.side_effect = sqlite3.Error("db error")
         response = await client.get("/api/logs/recent")
         assert response.status_code == 503
         assert response.json() == []
 
-    @patch(f"{_LOGS_REPO}.get_log_records", new_callable=AsyncMock)
+    @patch(f"{LOGS_REPO}.get_log_records", new_callable=AsyncMock)
     async def test_get_logs_recent_accepts_execution_id_param(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
         mock_get.return_value = []
         response = await client.get("/api/logs/recent?execution_id=abc-123")
         assert response.status_code == 200
 
-    @patch(f"{_LOGS_REPO}.get_log_records", new_callable=AsyncMock)
+    @patch(f"{LOGS_REPO}.get_log_records", new_callable=AsyncMock)
     async def test_get_logs_recent_accepts_source_tier_param(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
         mock_get.return_value = []
         response = await client.get("/api/logs/recent?source_tier=app")
         assert response.status_code == 200
 
-    @patch(f"{_LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
+    @patch(f"{LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
     async def test_get_logs_by_execution_returns_records(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
-        records = [_make_log_record(1, "INFO", "started", execution_id="exec-abc")]
+        records = [make_log_record(1, "INFO", "started", execution_id="exec-abc")]
         mock_get.return_value = (records, False)
         response = await client.get("/api/logs/by-execution/exec-abc")
         assert response.status_code == 200
@@ -372,9 +372,9 @@ class TestLogsEndpoints:
         assert len(data["records"]) == 1
         assert data["records"][0]["execution_id"] == "exec-abc"
 
-    @patch(f"{_LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
+    @patch(f"{LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
     async def test_get_logs_by_execution_truncated(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
-        records = [_make_log_record(i, execution_id="exec-xyz") for i in range(500)]
+        records = [make_log_record(i, execution_id="exec-xyz") for i in range(500)]
         mock_get.return_value = (records, True)
         response = await client.get("/api/logs/by-execution/exec-xyz")
         assert response.status_code == 200
@@ -382,8 +382,8 @@ class TestLogsEndpoints:
         assert data["truncated"] is True
         assert len(data["records"]) == 500
 
-    @patch(f"{_LOGS_REPO}.check_execution_predates_retention_cutoff", new_callable=AsyncMock)
-    @patch(f"{_LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
+    @patch(f"{LOGS_REPO}.check_execution_predates_retention_cutoff", new_callable=AsyncMock)
+    @patch(f"{LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
     async def test_get_logs_by_execution_retention_expired(
         self, mock_get: AsyncMock, mock_cutoff: AsyncMock, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
@@ -397,8 +397,8 @@ class TestLogsEndpoints:
         assert data["retention_expired"] is True
         assert data["records"] == []
 
-    @patch(f"{_LOGS_REPO}.check_execution_predates_retention_cutoff", new_callable=AsyncMock)
-    @patch(f"{_LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
+    @patch(f"{LOGS_REPO}.check_execution_predates_retention_cutoff", new_callable=AsyncMock)
+    @patch(f"{LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
     async def test_get_logs_by_execution_empty_no_retention(
         self, mock_get: AsyncMock, mock_cutoff: AsyncMock, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:

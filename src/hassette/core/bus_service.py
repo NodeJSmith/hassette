@@ -636,9 +636,9 @@ class BusService(Service):
         Concurrency model:
             Multiple spawned tasks may enter this method concurrently for the same
             listener (via ``task_bucket.spawn`` in ``dispatch``).  The once-guard
-            (``_fired`` check-and-set) is owned by ``Listener.dispatch()`` — see its
+            (``fired`` check-and-set) is owned by ``Listener.dispatch()`` — see its
             docstring for the atomicity argument.  The same single-threaded scheduling
-            applies to the throttle check in ``RateLimiter._throttled_call``.
+            applies to the throttle check in ``RateLimiter.throttled_call``.
         """
         # invoke_fn captures the original triggering event. Duration timer callbacks
         # re-verify current state via hold predicates but dispatch via this invoke_fn
@@ -697,7 +697,7 @@ class BusService(Service):
             # Resolve the app-level error handler at dispatch time from the owning Bus.
             # The resolver is a closure set by Bus.on() that reads Bus._error_handler lazily,
             # so this always reflects the current handler at the moment of dispatch.
-            resolver = listener.invoker._app_error_handler_resolver
+            resolver = listener.invoker.app_error_handler_resolver
             app_level_error_handler = resolver() if resolver is not None else None
 
             cmd = InvokeHandler(

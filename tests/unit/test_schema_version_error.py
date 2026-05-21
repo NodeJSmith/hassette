@@ -40,7 +40,7 @@ class TestSchemaVersionErrorType:
 class TestDatabaseServiceRaisesSchemaVersionError:
     """Tests that _handle_schema_version raises SchemaVersionError (not RuntimeError)."""
 
-    def _make_svc(self, tmp_path: Path) -> DatabaseService:
+    def make_svc(self, tmp_path: Path) -> DatabaseService:
         """Build a DatabaseService instance without going through __init__."""
         hassette_mock = MagicMock()
         hassette_mock.config.database.path = None
@@ -64,7 +64,7 @@ class TestDatabaseServiceRaisesSchemaVersionError:
         db_path = tmp_path / "test.db"
         db_path.touch()  # file must exist for the check to run
 
-        svc = self._make_svc(tmp_path)
+        svc = self.make_svc(tmp_path)
 
         with (
             patch.object(DatabaseService, "_get_current_db_revision", return_value="002"),

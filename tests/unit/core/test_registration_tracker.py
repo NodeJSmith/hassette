@@ -18,14 +18,14 @@ from hassette.core.registration_tracker import RegistrationTracker
 from hassette.types.types import FRAMEWORK_APP_KEY, FRAMEWORK_APP_KEY_PREFIX
 
 
-def _make_tracker() -> RegistrationTracker:
+def make_tracker() -> RegistrationTracker:
     return RegistrationTracker()
 
 
 class TestPruneAndTrack:
     async def test_track_adds_task(self) -> None:
         """prune_and_track stores the task under the given app_key."""
-        tracker = _make_tracker()
+        tracker = make_tracker()
 
         async def _noop() -> None:
             pass
@@ -38,7 +38,7 @@ class TestPruneAndTrack:
 
     async def test_prune_removes_done_tasks(self) -> None:
         """Completed tasks are pruned on next prune_and_track call."""
-        tracker = _make_tracker()
+        tracker = make_tracker()
 
         async def _noop() -> None:
             pass
@@ -61,7 +61,7 @@ class TestPruneAndTrack:
 class TestAwaitComplete:
     async def test_returns_immediately_for_unknown_key(self) -> None:
         """No-op for a key with no tracked tasks."""
-        tracker = _make_tracker()
+        tracker = make_tracker()
         logger = MagicMock()
         # Should complete without raising
         await tracker.await_complete("nonexistent_app", timeout=30.0, logger=logger)
@@ -69,7 +69,7 @@ class TestAwaitComplete:
 
     async def test_awaits_pending_tasks(self) -> None:
         """Tasks complete within timeout."""
-        tracker = _make_tracker()
+        tracker = make_tracker()
         logger = MagicMock()
         completed = asyncio.Event()
 
@@ -86,7 +86,7 @@ class TestAwaitComplete:
 
     async def test_logs_warning_on_timeout(self) -> None:
         """Incomplete count is non-zero in warning message (AC #10)."""
-        tracker = _make_tracker()
+        tracker = make_tracker()
         logger = MagicMock()
 
         gate = asyncio.Event()
@@ -116,7 +116,7 @@ class TestAwaitComplete:
 
     async def test_cancels_stragglers(self) -> None:
         """Timed-out tasks are cancelled."""
-        tracker = _make_tracker()
+        tracker = make_tracker()
         logger = MagicMock()
 
         gate = asyncio.Event()
@@ -139,7 +139,7 @@ class TestAwaitComplete:
 class TestDrainFrameworkKeys:
     async def test_drain_framework_keys(self) -> None:
         """Iterates framework-prefixed keys and calls await_fn for each."""
-        tracker = _make_tracker()
+        tracker = make_tracker()
         drained: list[str] = []
 
         async def fake_await(key: str) -> None:

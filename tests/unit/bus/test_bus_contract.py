@@ -39,7 +39,7 @@ if typing.TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
-async def _handler_contract(event) -> None:
+async def handler_contract(event) -> None:
     pass
 
 
@@ -135,7 +135,7 @@ async def test_db_failure_handler_still_in_routing_table(
     """
     # Keep patch active while awaiting — background task runs after bus.on() returns
     with patch.object(bus_service._executor, "register_listener", new=AsyncMock(side_effect=Exception("DB error"))):
-        sub = bus.on(topic="test.contract.still_routed", handler=_handler_contract)
+        sub = bus.on(topic="test.contract.still_routed", handler=handler_contract)
 
         # Settle the registration_task so the exception has been caught and swallowed
         if sub.registration_task is not None:
@@ -168,7 +168,7 @@ async def test_registration_task_resolves_on_db_failure(
     task completes would allow the real stub to run and set db_id.
     """
     with patch.object(bus_service._executor, "register_listener", new=AsyncMock(side_effect=RuntimeError("DB down"))):
-        sub = bus.on(topic="test.contract.task_resolves", handler=_handler_contract)
+        sub = bus.on(topic="test.contract.task_resolves", handler=handler_contract)
 
         assert sub.registration_task is not None, "registration_task must be set"
 
@@ -192,7 +192,7 @@ async def test_registration_task_resolves_on_exception_subclass(
     """
 
     with patch.object(bus_service._executor, "register_listener", new=AsyncMock(side_effect=_CustomDbError("custom"))):
-        sub = bus.on(topic="test.contract.custom_exc", handler=_handler_contract)
+        sub = bus.on(topic="test.contract.custom_exc", handler=handler_contract)
 
         assert sub.registration_task is not None
         result = await sub.registration_task
@@ -204,7 +204,7 @@ async def test_registration_task_resolves_on_success(
     bus: "Bus",
 ) -> None:
     """AC#6 baseline: registration_task resolves with None when DB registration succeeds."""
-    sub = bus.on(topic="test.contract.task_success", handler=_handler_contract)
+    sub = bus.on(topic="test.contract.task_success", handler=handler_contract)
 
     assert sub.registration_task is not None
     result = await sub.registration_task

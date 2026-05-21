@@ -19,7 +19,7 @@ from hassette.web.models import AppManifestListResponse, AppStatusResponse, Conn
 # ---------------------------------------------------------------------------
 
 
-def _make_instance(app_key: str, index: int, status: ResourceStatus) -> AppInstanceInfo:
+def make_instance(app_key: str, index: int, status: ResourceStatus) -> AppInstanceInfo:
     return AppInstanceInfo(
         app_key=app_key,
         index=index,
@@ -32,11 +32,11 @@ def _make_instance(app_key: str, index: int, status: ResourceStatus) -> AppInsta
 def test_app_status_response_from_merges_running_and_failed():
     """Snapshot with 2 running + 1 failed produces response with 3 apps."""
     running = [
-        _make_instance("app_a", 0, ResourceStatus.RUNNING),
-        _make_instance("app_b", 0, ResourceStatus.RUNNING),
+        make_instance("app_a", 0, ResourceStatus.RUNNING),
+        make_instance("app_b", 0, ResourceStatus.RUNNING),
     ]
     failed = [
-        _make_instance("app_c", 0, ResourceStatus.FAILED),
+        make_instance("app_c", 0, ResourceStatus.FAILED),
     ]
     snapshot = AppStatusSnapshot(running=running, failed=failed)
 
@@ -75,7 +75,7 @@ def test_app_status_response_from_preserves_only_app():
 
 def test_app_status_response_from_coerces_resource_status_enum():
     """AppInstanceInfo.status (ResourceStatus enum) → string in response."""
-    running = [_make_instance("app_a", 0, ResourceStatus.RUNNING)]
+    running = [make_instance("app_a", 0, ResourceStatus.RUNNING)]
     snapshot = AppStatusSnapshot(running=running)
 
     result = app_status_response_from(snapshot)
@@ -89,7 +89,7 @@ def test_app_status_response_from_coerces_resource_status_enum():
 # ---------------------------------------------------------------------------
 
 
-def _make_manifest(app_key: str, status: str, instances: list[AppInstanceInfo] | None = None) -> AppManifestInfo:
+def make_manifest(app_key: str, status: str, instances: list[AppInstanceInfo] | None = None) -> AppManifestInfo:
     return AppManifestInfo(
         app_key=app_key,
         class_name="MyApp",
@@ -105,9 +105,9 @@ def _make_manifest(app_key: str, status: str, instances: list[AppInstanceInfo] |
 
 def test_app_manifest_list_response_from_builds_nested_instances():
     """Verify nested AppInstanceResponse objects are built correctly."""
-    inst0 = _make_instance("app_a", 0, ResourceStatus.RUNNING)
-    inst1 = _make_instance("app_a", 1, ResourceStatus.RUNNING)
-    manifest = _make_manifest("app_a", "running", instances=[inst0, inst1])
+    inst0 = make_instance("app_a", 0, ResourceStatus.RUNNING)
+    inst1 = make_instance("app_a", 1, ResourceStatus.RUNNING)
+    manifest = make_manifest("app_a", "running", instances=[inst0, inst1])
     full = AppFullSnapshot(
         manifests=[manifest],
         total=1,
@@ -132,8 +132,8 @@ def test_app_manifest_list_response_from_builds_nested_instances():
 
 def test_app_manifest_list_response_from_coerces_resource_status_enum():
     """AppInstanceInfo.status (ResourceStatus enum) → string in response."""
-    inst = _make_instance("app_a", 0, ResourceStatus.RUNNING)
-    manifest = _make_manifest("app_a", "running", instances=[inst])
+    inst = make_instance("app_a", 0, ResourceStatus.RUNNING)
+    manifest = make_manifest("app_a", "running", instances=[inst])
     full = AppFullSnapshot(manifests=[manifest], total=1, running=1)
 
     result = app_manifest_list_response_from(full)
@@ -144,7 +144,7 @@ def test_app_manifest_list_response_from_coerces_resource_status_enum():
 
 def test_app_manifest_list_response_from_manifest_status_already_str():
     """AppManifestInfo.status is already str — verify it passes through without error."""
-    manifest = _make_manifest("app_a", "stopped")
+    manifest = make_manifest("app_a", "stopped")
     full = AppFullSnapshot(manifests=[manifest], total=1, stopped=1)
 
     result = app_manifest_list_response_from(full)
@@ -155,11 +155,11 @@ def test_app_manifest_list_response_from_manifest_status_already_str():
 def test_app_manifest_list_response_from_preserves_counts():
     """Aggregate counts from AppFullSnapshot pass through."""
     manifests = [
-        _make_manifest("app_a", "running"),
-        _make_manifest("app_b", "failed"),
-        _make_manifest("app_c", "stopped"),
-        _make_manifest("app_d", "disabled"),
-        _make_manifest("app_e", "blocked"),
+        make_manifest("app_a", "running"),
+        make_manifest("app_b", "failed"),
+        make_manifest("app_c", "stopped"),
+        make_manifest("app_d", "disabled"),
+        make_manifest("app_e", "blocked"),
     ]
     full = AppFullSnapshot(
         manifests=manifests,
@@ -186,7 +186,7 @@ def test_app_manifest_list_response_from_preserves_counts():
 # ---------------------------------------------------------------------------
 
 
-def _make_system_status(**overrides) -> SystemStatus:
+def make_system_status(**overrides) -> SystemStatus:
     defaults = {
         "status": "ok",
         "websocket_connected": True,
@@ -201,7 +201,7 @@ def _make_system_status(**overrides) -> SystemStatus:
 
 def test_system_status_response_from_preserves_all_fields():
     """All 6 fields including services_running are preserved."""
-    domain = _make_system_status()
+    domain = make_system_status()
 
     result = system_status_response_from(domain)
 
@@ -216,7 +216,7 @@ def test_system_status_response_from_preserves_all_fields():
 
 def test_system_status_response_from_uptime_zero():
     """uptime_seconds=0.0 (earliest possible value) passes through."""
-    domain = _make_system_status(uptime_seconds=0.0)
+    domain = make_system_status(uptime_seconds=0.0)
 
     result = system_status_response_from(domain)
 
@@ -225,7 +225,7 @@ def test_system_status_response_from_uptime_zero():
 
 def test_system_status_response_from_degraded_status():
     """'degraded' status passes through."""
-    domain = _make_system_status(status="degraded")
+    domain = make_system_status(status="degraded")
 
     result = system_status_response_from(domain)
 
@@ -234,7 +234,7 @@ def test_system_status_response_from_degraded_status():
 
 def test_system_status_response_from_empty_services():
     """Empty services_running list passes through."""
-    domain = _make_system_status(services_running=[])
+    domain = make_system_status(services_running=[])
 
     result = system_status_response_from(domain)
 
@@ -248,7 +248,7 @@ def test_system_status_response_from_empty_services():
 
 def test_connected_payload_from_uses_system_status_fields():
     """entity_count, app_count, and uptime_seconds come from SystemStatus."""
-    domain = _make_system_status(entity_count=100, app_count=5, uptime_seconds=300.0)
+    domain = make_system_status(entity_count=100, app_count=5, uptime_seconds=300.0)
 
     result = connected_payload_from(domain)
 
@@ -260,7 +260,7 @@ def test_connected_payload_from_uses_system_status_fields():
 
 def test_connected_payload_from_uptime_seconds_from_status():
     """uptime_seconds is derived from SystemStatus, not a separate parameter."""
-    domain = _make_system_status(uptime_seconds=42.5)
+    domain = make_system_status(uptime_seconds=42.5)
 
     result = connected_payload_from(domain)
 
@@ -269,7 +269,7 @@ def test_connected_payload_from_uptime_seconds_from_status():
 
 def test_connected_payload_from_no_session_id():
     """ConnectedPayload no longer carries session_id."""
-    domain = _make_system_status()
+    domain = make_system_status()
 
     result = connected_payload_from(domain)
 
@@ -281,7 +281,7 @@ def test_connected_payload_from_no_session_id():
 # ---------------------------------------------------------------------------
 
 
-def _make_listener_summary(**overrides) -> ListenerSummary:
+def make_listener_summary(**overrides) -> ListenerSummary:
     defaults = {
         "listener_id": 1,
         "app_key": "test_app",
@@ -320,7 +320,7 @@ def test_to_listener_with_summary_passes_through_last_error_traceback():
     """last_error_traceback from ListenerSummary passes through to ListenerWithSummary."""
 
     traceback_text = "Traceback (most recent call last):\n  File test.py, line 1\nValueError: oops"
-    summary = _make_listener_summary(
+    summary = make_listener_summary(
         last_error_type="ValueError",
         last_error_message="oops",
         last_error_traceback=traceback_text,
@@ -334,7 +334,7 @@ def test_to_listener_with_summary_passes_through_last_error_traceback():
 def test_to_listener_with_summary_none_traceback_when_no_error():
     """last_error_traceback is None when ListenerSummary has no error."""
 
-    summary = _make_listener_summary()
+    summary = make_listener_summary()
 
     result = to_listener_with_summary(summary)
 
@@ -344,7 +344,7 @@ def test_to_listener_with_summary_none_traceback_when_no_error():
 def test_to_listener_with_summary_min_max_none_passthrough():
     """min_duration_ms and max_duration_ms pass through as None (no invocations)."""
 
-    summary = _make_listener_summary(min_duration_ms=None, max_duration_ms=None)
+    summary = make_listener_summary(min_duration_ms=None, max_duration_ms=None)
 
     result = to_listener_with_summary(summary)
 
@@ -355,7 +355,7 @@ def test_to_listener_with_summary_min_max_none_passthrough():
 def test_to_listener_with_summary_min_max_numeric_passthrough():
     """min_duration_ms and max_duration_ms pass through as numeric values."""
 
-    summary = _make_listener_summary(min_duration_ms=5.0, max_duration_ms=100.0, total_invocations=3)
+    summary = make_listener_summary(min_duration_ms=5.0, max_duration_ms=100.0, total_invocations=3)
 
     result = to_listener_with_summary(summary)
 

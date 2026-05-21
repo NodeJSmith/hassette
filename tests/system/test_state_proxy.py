@@ -8,8 +8,8 @@ from .conftest import make_system_config, startup_context
 
 pytestmark = [pytest.mark.system]
 
-_ENTITY = "light.kitchen_lights"
-_DOMAIN = "light"
+ENTITY = "light.kitchen_lights"
+DOMAIN = "light"
 
 
 async def test_initial_state_loaded(ha_container: str, tmp_path) -> None:
@@ -23,7 +23,7 @@ async def test_initial_state_loaded(ha_container: str, tmp_path) -> None:
             desc="state proxy ready with populated states",
         )
         assert len(state_proxy.states) > 0
-        assert _ENTITY in state_proxy
+        assert ENTITY in state_proxy
 
 
 async def test_state_change_propagates_to_proxy(ha_container: str, tmp_path) -> None:
@@ -38,21 +38,21 @@ async def test_state_change_propagates_to_proxy(ha_container: str, tmp_path) -> 
         )
 
         # Read the original state BEFORE toggling so we can detect the change
-        original = state_proxy.get_state(_ENTITY)
-        assert original is not None, f"Entity {_ENTITY!r} not found in state proxy before toggle"
+        original = state_proxy.get_state(ENTITY)
+        assert original is not None, f"Entity {ENTITY!r} not found in state proxy before toggle"
         original_value: str = original["state"]
 
         # Toggle the light
-        await hassette.api.call_service(_DOMAIN, "toggle", {"entity_id": _ENTITY})
+        await hassette.api.call_service(DOMAIN, "toggle", {"entity_id": ENTITY})
 
         # Wait until the proxy reflects a different state
         await wait_for(
-            lambda: ((current := state_proxy.get_state(_ENTITY)) is not None and current["state"] != original_value),
+            lambda: ((current := state_proxy.get_state(ENTITY)) is not None and current["state"] != original_value),
             timeout=15.0,
-            desc=f"state proxy to reflect toggled state for {_ENTITY}",
+            desc=f"state proxy to reflect toggled state for {ENTITY}",
         )
 
-        updated = state_proxy.get_state(_ENTITY)
+        updated = state_proxy.get_state(ENTITY)
         assert updated is not None
         assert updated["state"] != original_value
 

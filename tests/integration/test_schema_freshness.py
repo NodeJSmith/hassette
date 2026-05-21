@@ -16,7 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 FRONTEND_DIR = REPO_ROOT / "frontend"
 
 
-def _create_stub_hassette() -> MagicMock:
+def create_stub_hassette() -> MagicMock:
     """Minimal mock matching what ``create_fastapi_app`` needs."""
     stub = MagicMock()
     stub.config.web_api.cors_origins = ()
@@ -42,7 +42,7 @@ class TestSchemaFreshness:
     def test_openapi_schema_matches_app(self) -> None:
         from hassette.web.app import create_fastapi_app
 
-        stub = _create_stub_hassette()
+        stub = create_stub_hassette()
         app = create_fastapi_app(stub)
         generated = app.openapi()
 

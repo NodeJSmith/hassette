@@ -34,7 +34,7 @@ async def executor(db_hassette: AsyncMock, initialized_db: tuple[DatabaseService
     return exc
 
 
-def _make_mock_listener(*, listener_id: int = 1, db_id: int | None = None) -> MagicMock:
+def make_mock_listener(*, listener_id: int = 1, db_id: int | None = None) -> MagicMock:
     """Return a mock Listener with configurable db_id."""
     listener = MagicMock()
     listener.listener_id = listener_id
@@ -46,7 +46,7 @@ def _make_mock_listener(*, listener_id: int = 1, db_id: int | None = None) -> Ma
 
 async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> None:
     """All listeners produce HandlerInvocationRecord when fired, even when db_id is set."""
-    listener = _make_mock_listener(db_id=42)
+    listener = make_mock_listener(db_id=42)
     cmd = InvokeHandler(
         listener=listener,
         event=MagicMock(),
@@ -68,7 +68,7 @@ async def test_all_listeners_produce_telemetry(executor: CommandExecutor) -> Non
 
 async def test_pre_registration_listener_produces_orphan_record(executor: CommandExecutor) -> None:
     """Pre-registration listeners (db_id=None at fire time) produce records with listener_id=None."""
-    listener = _make_mock_listener(db_id=None)
+    listener = make_mock_listener(db_id=None)
     cmd = InvokeHandler(
         listener=listener,
         event=MagicMock(),
@@ -130,7 +130,7 @@ async def test_framework_listener_registration(
 
 async def test_framework_listener_produces_telemetry(executor: CommandExecutor) -> None:
     """Framework listeners produce execution records with source_tier='framework'."""
-    listener = _make_mock_listener(db_id=99)
+    listener = make_mock_listener(db_id=99)
     cmd = InvokeHandler(
         listener=listener,
         event=MagicMock(),

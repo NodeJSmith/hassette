@@ -258,9 +258,9 @@ class _OnceExhaustionApp(App[_ExhaustionConfig]):
     async def on_initialize(self) -> None:
         self.fired = False
         # Schedule a Once job at a time far in the future (we'll freeze past it)
-        self.scheduler.run_once(self._task, at=ZonedDateTime.from_system_tz(2030, 6, 15, 7, 0, 0), name="once_job")
+        self.scheduler.run_once(self.task, at=ZonedDateTime.from_system_tz(2030, 6, 15, 7, 0, 0), name="once_job")
 
-    async def _task(self) -> None:
+    async def task(self) -> None:
         self.fired = True
 
 
@@ -272,9 +272,9 @@ class _AfterExhaustionApp(App[_ExhaustionConfig]):
     async def on_initialize(self) -> None:
         self.fired = False
         # After(seconds=10) — will fire when we freeze 10+ seconds into the future
-        self.scheduler.run_in(self._task, delay=10, name="after_job")
+        self.scheduler.run_in(self.task, delay=10, name="after_job")
 
-    async def _task(self) -> None:
+    async def task(self) -> None:
         self.fired = True
 
 
@@ -295,7 +295,7 @@ class _OnceGroupApp(App[_ExhaustionConfig]):
     async def on_initialize(self) -> None:
         self.fired = False
         self.scheduler.run_once(
-            self._task,
+            self.task,
             at=ZonedDateTime.from_system_tz(2030, 6, 15, 7, 0, 0),
             name="once_in_group",
             group="morning",
@@ -303,7 +303,7 @@ class _OnceGroupApp(App[_ExhaustionConfig]):
         # Add a recurring job so the group isn't empty after exhaustion
         self.scheduler.run_every(lambda: None, hours=1, name="recurring_in_group", group="morning")
 
-    async def _task(self) -> None:
+    async def task(self) -> None:
         self.fired = True
 
 

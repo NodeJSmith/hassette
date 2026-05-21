@@ -6,16 +6,16 @@ import inspect
 from typing import Any
 
 # Path fragments that identify internal hassette frames to skip
-_INTERNAL_PATH_FRAGMENTS = ("hassette/bus/", "hassette/scheduler/", "hassette/core/")
+INTERNAL_PATH_FRAGMENTS = ("hassette/bus/", "hassette/scheduler/", "hassette/core/")
 
 
-def _is_internal_frame(filename: str) -> bool:
+def is_internal_frame(filename: str) -> bool:
     """Return True if the frame belongs to an internal hassette module."""
-    return any(fragment in filename for fragment in _INTERNAL_PATH_FRAGMENTS)
+    return any(fragment in filename for fragment in INTERNAL_PATH_FRAGMENTS)
 
 
 @functools.lru_cache(maxsize=256)
-def _get_source_and_ast(filename: str) -> tuple[str, ast.Module] | None:
+def get_source_and_ast(filename: str) -> tuple[str, ast.Module] | None:
     """Return a cached (source, AST) pair for *filename*.
 
     Uses ``functools.lru_cache`` (maxsize=256) so each file is read and parsed
@@ -32,12 +32,12 @@ def _get_source_and_ast(filename: str) -> tuple[str, ast.Module] | None:
         return None
 
 
-def _find_call_source(filename: str, lineno: int) -> str | None:
+def find_call_source(filename: str, lineno: int) -> str | None:
     """Find the source snippet of the Call node at *lineno* in *filename*.
 
     Returns the source segment string, or None if unavailable.
     """
-    cached = _get_source_and_ast(filename)
+    cached = get_source_and_ast(filename)
     if cached is None:
         return None
 
@@ -91,7 +91,7 @@ def capture_registration_source(*, frames_to_skip: int = 0) -> tuple[str, str | 
     chosen: Any = None
     for frame_info in frames:
         filename: str = getattr(frame_info, "filename", "") or ""
-        if not _is_internal_frame(filename):
+        if not is_internal_frame(filename):
             chosen = frame_info
             break
 
@@ -110,5 +110,5 @@ def capture_registration_source(*, frames_to_skip: int = 0) -> tuple[str, str | 
     if filename.startswith("<") or not filename:
         return (source_location, None)
 
-    registration_source = _find_call_source(filename, lineno)
+    registration_source = find_call_source(filename, lineno)
     return (source_location, registration_source)

@@ -17,7 +17,7 @@ from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.types import ResourceRole, ResourceStatus, Topic
 
 
-def _make_crashed_event(
+def make_crashed_event(
     resource_name: str = "TestService",
     exception_type: str = "RuntimeError",
     exception: str = "something broke",
@@ -119,7 +119,7 @@ async def test_session_manager_records_crash(session_manager: SessionManager, db
     await session_manager.create_session()
     session_id = session_manager.session_id
 
-    event = _make_crashed_event(
+    event = make_crashed_event(
         resource_name="WebSocketService",
         exception_type="ConnectionError",
         exception="lost connection",
@@ -170,7 +170,7 @@ async def test_finalize_session_preserves_failure(session_manager: SessionManage
     await session_manager.create_session()
     session_id = session_manager.session_id
 
-    event = _make_crashed_event()
+    event = make_crashed_event()
     await session_manager.on_service_crashed(event)
 
     db_path = db_service._db_path
@@ -198,7 +198,7 @@ async def test_mark_orphaned_sessions_no_orphans(session_manager: SessionManager
 
 async def test_on_service_crashed_no_session(session_manager: SessionManager, db_service: DatabaseService) -> None:
     """on_service_crashed returns early when no session has been created."""
-    event = _make_crashed_event()
+    event = make_crashed_event()
     await session_manager.on_service_crashed(event)
 
     cursor = await db_service.db.execute("SELECT count(*) FROM sessions")
@@ -215,7 +215,7 @@ async def test_on_service_crashed_db_not_initialized(db_hassette: MagicMock) -> 
     sm = SessionManager(db_hassette, database_service=db_service_mock, parent=None)
     sm._session_id = 1  # pretend a session was created
 
-    event = _make_crashed_event()
+    event = make_crashed_event()
     # Should not raise — logs warning and returns
     await sm.on_service_crashed(event)
 
@@ -245,7 +245,7 @@ async def test_on_service_crashed_db_error(session_manager: SessionManager, db_s
     # Patch execute to raise on the crash UPDATE
     db_service.db.execute = AsyncMock(side_effect=sqlite3.OperationalError("disk I/O error"))
 
-    event = _make_crashed_event()
+    event = make_crashed_event()
     # submit() awaits the result, but _do_on_service_crashed catches the exception internally
     await session_manager.on_service_crashed(event)
 

@@ -11,8 +11,8 @@ from .conftest import make_system_config, startup_context, toggle_and_capture
 
 pytestmark = [pytest.mark.system]
 
-_ENTITY = "light.kitchen_lights"
-_DOMAIN = "light"
+ENTITY = "light.kitchen_lights"
+DOMAIN = "light"
 
 
 async def test_state_change_handler_fires(ha_container: str, tmp_path) -> None:
@@ -20,7 +20,7 @@ async def test_state_change_handler_fires(ha_container: str, tmp_path) -> None:
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
-        received = await toggle_and_capture(bus, hassette.api, _ENTITY)
+        received = await toggle_and_capture(bus, hassette.api, ENTITY)
         assert len(received) >= 1
         assert all(isinstance(e, RawStateChangeEvent) for e in received)
 
@@ -38,16 +38,16 @@ async def test_attribute_change_handler_fires(ha_container: str, tmp_path) -> No
             received.append(event)
 
         # Set a known starting state BEFORE registering the handler
-        await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY}, brightness=50)
+        await api.call_service(DOMAIN, "turn_on", {"entity_id": ENTITY}, brightness=50)
         await wait_for(
-            lambda: (s := hassette.state_proxy.states.get(_ENTITY)) is not None
+            lambda: (s := hassette.state_proxy.states.get(ENTITY)) is not None
             and s.get("state") == "on"
             and s.get("attributes", {}).get("brightness") == 50,
             timeout=10.0,
             desc="brightness settled to 50",
         )
 
-        sub = bus.on_attribute_change(_ENTITY, "brightness", handler=_capture)
+        sub = bus.on_attribute_change(ENTITY, "brightness", handler=_capture)
 
         await wait_for(
             lambda: sub.listener.db_id is not None,
@@ -56,7 +56,7 @@ async def test_attribute_change_handler_fires(ha_container: str, tmp_path) -> No
         )
 
         # Change brightness to a distinctly different value — guaranteed attribute change
-        await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY}, brightness=200)
+        await api.call_service(DOMAIN, "turn_on", {"entity_id": ENTITY}, brightness=200)
 
         await wait_for(
             lambda: len(received) >= 1,
@@ -87,7 +87,7 @@ async def test_glob_pattern_matching(ha_container: str, tmp_path) -> None:
             desc="glob listener registration",
         )
 
-        await api.call_service(_DOMAIN, "toggle", {"entity_id": _ENTITY})
+        await api.call_service(DOMAIN, "toggle", {"entity_id": ENTITY})
         await wait_for(
             lambda: len(received) >= 1,
             timeout=15.0,
@@ -110,18 +110,18 @@ async def test_changed_to_predicate(ha_container: str, tmp_path) -> None:
         async def _capture(event: RawStateChangeEvent) -> None:
             received.append(event)
 
-        bus.on_state_change(_ENTITY, changed_to="on", handler=_capture)
+        bus.on_state_change(ENTITY, changed_to="on", handler=_capture)
 
         # Ensure a known starting state — light is off
-        await api.call_service(_DOMAIN, "turn_off", {"entity_id": _ENTITY})
+        await api.call_service(DOMAIN, "turn_off", {"entity_id": ENTITY})
         await wait_for(
-            lambda: (s := hassette.state_proxy.states.get(_ENTITY)) is not None and s.get("state") == "off",
+            lambda: (s := hassette.state_proxy.states.get(ENTITY)) is not None and s.get("state") == "off",
             timeout=10.0,
             desc="light turned off",
         )
 
         # Turn on — handler should fire
-        await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY})
+        await api.call_service(DOMAIN, "turn_on", {"entity_id": ENTITY})
         await wait_for(
             lambda: len(received) >= 1,
             timeout=15.0,
@@ -131,7 +131,7 @@ async def test_changed_to_predicate(ha_container: str, tmp_path) -> None:
         count_after_on = len(received)
 
         # Turn off — handler must NOT fire again
-        await api.call_service(_DOMAIN, "turn_off", {"entity_id": _ENTITY})
+        await api.call_service(DOMAIN, "turn_off", {"entity_id": ENTITY})
         await asyncio.sleep(2.0)
         assert len(received) == count_after_on, (
             f"Handler fired on turn_off — expected {count_after_on} events, got {len(received)}"
@@ -150,11 +150,11 @@ async def test_debounce(ha_container: str, tmp_path) -> None:
         async def _capture(event: RawStateChangeEvent) -> None:
             received.append(event)
 
-        bus.on_state_change(_ENTITY, handler=_capture, debounce=1.0)
+        bus.on_state_change(ENTITY, handler=_capture, debounce=1.0)
 
         # Toggle 3 times rapidly — debounce window resets each time
         for _ in range(3):
-            await api.call_service(_DOMAIN, "toggle", {"entity_id": _ENTITY})
+            await api.call_service(DOMAIN, "toggle", {"entity_id": ENTITY})
             await asyncio.sleep(0.05)
 
         # Wait for the debounced delivery to arrive
@@ -182,11 +182,11 @@ async def test_throttle(ha_container: str, tmp_path) -> None:
         async def _capture(event: RawStateChangeEvent) -> None:
             received.append(event)
 
-        bus.on_state_change(_ENTITY, handler=_capture, throttle=2.0)
+        bus.on_state_change(ENTITY, handler=_capture, throttle=2.0)
 
         # Toggle 3 times with 0.3s gaps — all within the 2s throttle window
         for _ in range(3):
-            await api.call_service(_DOMAIN, "toggle", {"entity_id": _ENTITY})
+            await api.call_service(DOMAIN, "toggle", {"entity_id": ENTITY})
             await asyncio.sleep(0.3)
 
         # Wait for the leading-edge delivery (throttle fires on the first event)
@@ -214,7 +214,7 @@ async def test_once_handler(ha_container: str, tmp_path) -> None:
         async def _capture(event: RawStateChangeEvent) -> None:
             received.append(event)
 
-        sub = bus.on_state_change(_ENTITY, handler=_capture, once=True)
+        sub = bus.on_state_change(ENTITY, handler=_capture, once=True)
 
         # once=True registration awaits DB write before adding the route —
         # wait for db_id to confirm the route is active before toggling
@@ -225,7 +225,7 @@ async def test_once_handler(ha_container: str, tmp_path) -> None:
         )
 
         # First toggle — handler fires
-        await api.call_service(_DOMAIN, "toggle", {"entity_id": _ENTITY})
+        await api.call_service(DOMAIN, "toggle", {"entity_id": ENTITY})
         await wait_for(
             lambda: len(received) >= 1,
             timeout=15.0,
@@ -236,7 +236,7 @@ async def test_once_handler(ha_container: str, tmp_path) -> None:
         await asyncio.sleep(0.3)
 
         # Second toggle — handler must not fire again (already removed after first event)
-        await api.call_service(_DOMAIN, "toggle", {"entity_id": _ENTITY})
+        await api.call_service(DOMAIN, "toggle", {"entity_id": ENTITY})
         await asyncio.sleep(2.0)
 
         assert len(received) == 1, f"once=True handler should fire exactly once, got {len(received)}"
@@ -258,10 +258,10 @@ async def test_multiple_handlers_same_entity(ha_container: str, tmp_path) -> Non
         async def _capture_b(event: RawStateChangeEvent) -> None:
             received_b.append(event)
 
-        bus.on_state_change(_ENTITY, handler=_capture_a, name="handler_a")
-        bus.on_state_change(_ENTITY, handler=_capture_b, name="handler_b")
+        bus.on_state_change(ENTITY, handler=_capture_a, name="handler_a")
+        bus.on_state_change(ENTITY, handler=_capture_b, name="handler_b")
 
-        await api.call_service(_DOMAIN, "toggle", {"entity_id": _ENTITY})
+        await api.call_service(DOMAIN, "toggle", {"entity_id": ENTITY})
 
         await wait_for(
             lambda: len(received_a) >= 1 and len(received_b) >= 1,
@@ -284,7 +284,7 @@ async def test_immediate_fires_with_current_state(ha_container: str, tmp_path) -
         async def _capture(event: RawStateChangeEvent) -> None:
             received.append(event)
 
-        bus.on_state_change(_ENTITY, handler=_capture, immediate=True)
+        bus.on_state_change(ENTITY, handler=_capture, immediate=True)
 
         await wait_for(
             lambda: len(received) >= 1,
@@ -304,9 +304,9 @@ async def test_duration_handler_fires_after_hold(ha_container: str, tmp_path) ->
         api = hassette.api
 
         # Ensure light is off before we start
-        await api.call_service(_DOMAIN, "turn_off", {"entity_id": _ENTITY})
+        await api.call_service(DOMAIN, "turn_off", {"entity_id": ENTITY})
         await wait_for(
-            lambda: (s := hassette.state_proxy.states.get(_ENTITY)) is not None and s.get("state") == "off",
+            lambda: (s := hassette.state_proxy.states.get(ENTITY)) is not None and s.get("state") == "off",
             timeout=10.0,
             desc="light off before duration test",
         )
@@ -316,10 +316,10 @@ async def test_duration_handler_fires_after_hold(ha_container: str, tmp_path) ->
         async def _capture(event: RawStateChangeEvent) -> None:
             received.append(event)
 
-        bus.on_state_change(_ENTITY, handler=_capture, duration=2.0)
+        bus.on_state_change(ENTITY, handler=_capture, duration=2.0)
 
         # Turn on — starts the duration timer
-        await api.call_service(_DOMAIN, "turn_on", {"entity_id": _ENTITY})
+        await api.call_service(DOMAIN, "turn_on", {"entity_id": ENTITY})
 
         # Handler should NOT have fired yet (duration hasn't elapsed)
         await asyncio.sleep(0.5)

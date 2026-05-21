@@ -35,7 +35,7 @@ def watcher(mock_hassette: MagicMock) -> WebUiWatcherService:
     return svc
 
 
-def _fake_awatch(*changes_batches: set[tuple[int, str]]):
+def fake_awatch(*changes_batches: set[tuple[int, str]]):
     """Return an async generator factory that yields the given change batches."""
 
     async def _awatch(*_args: object, **_kwargs: object) -> AsyncIterator[set[tuple[int, str]]]:
@@ -47,7 +47,7 @@ def _fake_awatch(*changes_batches: set[tuple[int, str]]):
 
 async def test_css_change_broadcasts_dev_reload(watcher: WebUiWatcherService) -> None:
     css_path = str(_WEB_DIR / "static/css/style.css")
-    fake = _fake_awatch({(2, css_path)})
+    fake = fake_awatch({(2, css_path)})
 
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
@@ -60,7 +60,7 @@ async def test_css_change_broadcasts_dev_reload(watcher: WebUiWatcherService) ->
 
 async def test_js_change_broadcasts_dev_reload(watcher: WebUiWatcherService) -> None:
     js_path = str(_WEB_DIR / "static/js/app.js")
-    fake = _fake_awatch({(2, js_path)})
+    fake = fake_awatch({(2, js_path)})
 
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
@@ -72,7 +72,7 @@ async def test_js_change_broadcasts_dev_reload(watcher: WebUiWatcherService) -> 
 
 async def test_template_change_broadcasts_dev_reload(watcher: WebUiWatcherService) -> None:
     tmpl_path = str(_WEB_DIR / "templates/pages/dashboard.html")
-    fake = _fake_awatch({(2, tmpl_path)})
+    fake = fake_awatch({(2, tmpl_path)})
 
     with patch("hassette.core.web_ui_watcher.awatch", side_effect=fake):
         await watcher.serve()
@@ -83,7 +83,7 @@ async def test_template_change_broadcasts_dev_reload(watcher: WebUiWatcherServic
 
 
 async def test_multiple_changes_in_single_batch(watcher: WebUiWatcherService) -> None:
-    fake = _fake_awatch(
+    fake = fake_awatch(
         {
             (2, str(_WEB_DIR / "static/css/style.css")),
             (2, str(_WEB_DIR / "static/js/app.js")),

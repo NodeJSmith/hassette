@@ -376,8 +376,8 @@ class TestListenerIntegration:
             debounce=0.1,
         )
 
-        assert listener.invoker._rate_limiter is not None
-        rl = listener.invoker._rate_limiter
+        assert listener.invoker.rate_limiter is not None
+        rl = listener.invoker.rate_limiter
 
         # Simulate dispatch: rate_limiter.call(invoke_fn) — like _dispatch does
         async def invoke_fn():
@@ -410,8 +410,8 @@ class TestListenerIntegration:
             throttle=0.1,
         )
 
-        assert listener.invoker._rate_limiter is not None
-        rl = listener.invoker._rate_limiter
+        assert listener.invoker.rate_limiter is not None
+        rl = listener.invoker.rate_limiter
 
         events = [mock_event("1"), mock_event("2"), mock_event("3"), mock_event("4")]
 
@@ -545,16 +545,16 @@ class TestListenerDispatchAndCancel:
             topic="t",
             debounce=0.5,
         )
-        assert listener.invoker._rate_limiter is not None
-        assert not listener.invoker._rate_limiter._cancelled
+        assert listener.invoker.rate_limiter is not None
+        assert not listener.invoker.rate_limiter._cancelled
 
         listener.cancel()
-        assert listener.invoker._rate_limiter._cancelled
+        assert listener.invoker.rate_limiter._cancelled
 
     async def test_cancel_without_rate_limiter_is_noop(self, bucket_fixture: TaskBucket):
         """cancel() on a listener without rate limiter does not raise."""
         listener = create_listener(lambda _e: None, task_bucket=bucket_fixture, owner_id="test", topic="t")
-        assert listener.invoker._rate_limiter is None
+        assert listener.invoker.rate_limiter is None
         listener.cancel()  # should not raise
 
     async def test_cancel_is_idempotent(self, bucket_fixture: TaskBucket):
@@ -737,7 +737,7 @@ class TestOnceWithRateLimitingProhibited:
             topic="test_topic",
             debounce=1.0,
         )
-        assert listener.invoker._rate_limiter is not None
+        assert listener.invoker.rate_limiter is not None
 
 
 class TestRateLimitValueValidation:
@@ -799,10 +799,10 @@ class TestMarkFired:
     async def test_mark_fired_sets_fired(self, bucket_fixture: TaskBucket) -> None:
         """mark_fired() sets the internal _fired flag."""
         listener = create_listener(lambda _e: None, task_bucket=bucket_fixture, owner_id="test", topic="t", once=True)
-        assert listener.invoker._fired is False
+        assert listener.invoker.fired is False
 
         listener.invoker.mark_fired()
-        assert listener.invoker._fired is True
+        assert listener.invoker.fired is True
 
 
 class TestValidateOptions:

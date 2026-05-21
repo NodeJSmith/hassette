@@ -27,7 +27,7 @@ from hassette.logging_ import (
 
 
 @pytest.fixture(autouse=True)
-def _cleanup_logging():
+def cleanup_logging():
     yield
     shutdown_logging()
 
@@ -807,17 +807,17 @@ class TestDequeueTimeoutFlush:
 
 
 class TestLogCaptureHandlerShutdownGuard:
-    """LogCaptureHandler._shutting_down prevents broadcast during shutdown."""
+    """LogCaptureHandler.shutting_down prevents broadcast during shutdown."""
 
     def test_shutting_down_skips_broadcast(self) -> None:
-        """When _shutting_down is True, emit() still captures but skips call_soon_threadsafe."""
+        """When shutting_down is True, emit() still captures but skips call_soon_threadsafe."""
         handler = LogCaptureHandler(buffer_size=100)
         loop = MagicMock()
         loop.is_running.return_value = True
         broadcast_fn = MagicMock()
         handler.set_broadcast(broadcast_fn, loop)
 
-        handler._shutting_down = True
+        handler.shutting_down = True
         record = logging.LogRecord("test", logging.INFO, "", 0, "shutdown msg", (), None)
         handler.emit(record)
 
@@ -827,7 +827,7 @@ class TestLogCaptureHandlerShutdownGuard:
         loop.call_soon_threadsafe.assert_not_called()
 
     def test_not_shutting_down_broadcasts(self) -> None:
-        """When _shutting_down is False, emit() broadcasts via call_soon_threadsafe."""
+        """When shutting_down is False, emit() broadcasts via call_soon_threadsafe."""
         handler = LogCaptureHandler(buffer_size=100)
         loop = MagicMock()
         loop.is_running.return_value = True

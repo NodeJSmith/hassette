@@ -11,7 +11,7 @@ from hassette.exceptions import DependencyError, HassetteError
 from hassette.utils.execution import ExecutionResult
 
 
-def _make_cmd_invoke_handler(source_tier: str) -> MagicMock:
+def make_cmd_invoke_handler(source_tier: str) -> MagicMock:
     """Build a minimal InvokeHandler-like mock."""
     cmd = MagicMock(spec=InvokeHandler)
     cmd.source_tier = source_tier
@@ -27,7 +27,7 @@ def _make_cmd_invoke_handler(source_tier: str) -> MagicMock:
     return cmd
 
 
-def _make_cmd_execute_job(source_tier: str) -> MagicMock:
+def make_cmd_execute_job(source_tier: str) -> MagicMock:
     """Build a minimal ExecuteJob-like mock."""
     cmd = MagicMock(spec=ExecuteJob)
     cmd.source_tier = source_tier
@@ -37,7 +37,7 @@ def _make_cmd_execute_job(source_tier: str) -> MagicMock:
     return cmd
 
 
-def _make_executor() -> CommandExecutor:
+def make_executor() -> CommandExecutor:
     """Build a CommandExecutor with all dependencies mocked out."""
     hassette = MagicMock()
     hassette.config.database.telemetry_write_queue_max = 1000
@@ -64,8 +64,8 @@ class TestCommandExecutorSourceTierBranching:
 
     async def test_app_tier_suppresses_known_error_traceback(self) -> None:
         """App-tier execution: DependencyError produces error_traceback=None."""
-        executor = _make_executor()
-        cmd = _make_cmd_invoke_handler(source_tier="app")
+        executor = make_executor()
+        cmd = make_cmd_invoke_handler(source_tier="app")
 
         async def fn() -> None:
             raise DependencyError("missing dep")
@@ -82,8 +82,8 @@ class TestCommandExecutorSourceTierBranching:
 
     async def test_app_tier_suppresses_hassette_error_traceback(self) -> None:
         """App-tier execution: HassetteError produces error_traceback=None."""
-        executor = _make_executor()
-        cmd = _make_cmd_invoke_handler(source_tier="app")
+        executor = make_executor()
+        cmd = make_cmd_invoke_handler(source_tier="app")
 
         async def fn() -> None:
             raise HassetteError("framework error")
@@ -98,8 +98,8 @@ class TestCommandExecutorSourceTierBranching:
 
     async def test_framework_tier_preserves_known_error_traceback(self) -> None:
         """Framework-tier execution: DependencyError preserves traceback."""
-        executor = _make_executor()
-        cmd = _make_cmd_invoke_handler(source_tier="framework")
+        executor = make_executor()
+        cmd = make_cmd_invoke_handler(source_tier="framework")
 
         async def fn() -> None:
             raise DependencyError("framework dep error")
@@ -117,8 +117,8 @@ class TestCommandExecutorSourceTierBranching:
 
     async def test_framework_tier_preserves_hassette_error_traceback(self) -> None:
         """Framework-tier execution: HassetteError preserves traceback."""
-        executor = _make_executor()
-        cmd = _make_cmd_invoke_handler(source_tier="framework")
+        executor = make_executor()
+        cmd = make_cmd_invoke_handler(source_tier="framework")
 
         async def fn() -> None:
             raise HassetteError("internal framework error")
@@ -133,8 +133,8 @@ class TestCommandExecutorSourceTierBranching:
 
     async def test_unexpected_source_tier_raises(self) -> None:
         """Unexpected source_tier value raises AssertionError."""
-        executor = _make_executor()
-        cmd = _make_cmd_invoke_handler(source_tier="unknown_tier")
+        executor = make_executor()
+        cmd = make_cmd_invoke_handler(source_tier="unknown_tier")
 
         async def fn() -> None:
             pass
@@ -147,8 +147,8 @@ class TestCommandExecutorSourceTierBranching:
 
     async def test_app_tier_unknown_exception_preserves_traceback(self) -> None:
         """App-tier unknown exceptions (not DependencyError/HassetteError) still get tracebacks."""
-        executor = _make_executor()
-        cmd = _make_cmd_invoke_handler(source_tier="app")
+        executor = make_executor()
+        cmd = make_cmd_invoke_handler(source_tier="app")
 
         async def fn() -> None:
             raise RuntimeError("unexpected app error")

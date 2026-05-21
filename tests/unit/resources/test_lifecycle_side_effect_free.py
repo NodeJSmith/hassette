@@ -6,7 +6,7 @@ from hassette.resources.base import Resource
 from hassette.test_utils import make_mock_hassette
 
 
-class _ConcreteResource(Resource):
+class ConcreteResource(Resource):
     """Minimal concrete Resource subclass for testing."""
 
     async def on_initialize(self) -> None:
@@ -20,7 +20,7 @@ class TestLifecycleSideEffectFree:
     async def test_mark_ready_does_not_emit(self) -> None:
         """mark_ready() must not call hassette.send_event."""
         hassette = make_mock_hassette(sealed=False)
-        resource = _ConcreteResource(hassette=hassette)
+        resource = ConcreteResource(hassette=hassette)
 
         resource.mark_ready("some reason")
 
@@ -31,7 +31,7 @@ class TestLifecycleSideEffectFree:
     async def test_mark_not_ready_does_not_emit(self) -> None:
         """mark_not_ready() must not call hassette.send_event."""
         hassette = make_mock_hassette(sealed=False)
-        resource = _ConcreteResource(hassette=hassette)
+        resource = ConcreteResource(hassette=hassette)
 
         # Set ready first, then clear
         resource.mark_ready("initial")

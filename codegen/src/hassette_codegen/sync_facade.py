@@ -22,16 +22,16 @@ from hassette_codegen.output import atomic_write, format_via_ruff, run_ruff_step
 # and generator share the same strings. The generated file re-emits these
 # verbatim so downstream imports work without sys.path tricks.
 # ---------------------------------------------------------------------------
-_STUB_MSG_STATE_CONVERSION = (
+STUB_MSG_STATE_CONVERSION = (
     "RecordingApi.sync.{name} is not implemented on the test facade. "
     "Call `harness.api_recorder.sync.get_state(entity_id)` and read the returned state directly."
 )
-_STUB_MSG_GENERIC = (
+STUB_MSG_GENERIC = (
     "RecordingApi.sync.{name} is not implemented. "
     "Seed state via AppTestHarness.set_state() for read methods, "
     "or use a full integration test for methods requiring a live HA connection."
 )
-_STATE_CONVERSION_METHODS = frozenset({"get_state_value", "get_state_value_typed", "get_attribute"})
+STATE_CONVERSION_METHODS = frozenset({"get_state_value", "get_state_value_typed", "get_attribute"})
 
 # Module-level sets for filtering body-referenced Name nodes during import derivation.
 # Use the `builtins` module directly rather than `__builtins__`, which is a dict when
@@ -133,7 +133,7 @@ class ApiSyncFacade(Resource):
 # "Class header template (pinned)" subsection.
 # ---------------------------------------------------------------------------
 _RECORDING_CLASS_HEADER = '''\
-class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
+class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
     """Synchronous recording facade for RecordingApi.
 
     Instances are created by RecordingApi.__init__ and share the parent's
@@ -153,7 +153,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
     # completes, or in a subclass that skips super().__init__), the error will be
     # AttributeError: _parent — which is by design; partial construction is an error.
     def __getattr__(self, name: str) -> Any:
-        """Raise NotImplementedError for public attributes not defined on _RecordingSyncFacade.
+        """Raise NotImplementedError for public attributes not defined on RecordingSyncFacade.
 
         Private attributes fall through to the default AttributeError so that Python
         machinery works correctly. All known public methods from ``ApiSyncFacade``
@@ -165,7 +165,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         if name.startswith("_"):
             raise AttributeError(name)
 
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name=name))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name=name))
 '''
 
 # Template for the module header of the generated recording facade file.
@@ -191,11 +191,11 @@ if typing.TYPE_CHECKING:
 # Stub message templates — imported by tests to avoid brittle substring matches.
 # Must stay byte-identical with the constants in codegen/src/hassette_codegen/sync_facade.py.
 # ---------------------------------------------------------------------------
-_STUB_MSG_STATE_CONVERSION = (
+STUB_MSG_STATE_CONVERSION = (
     "RecordingApi.sync.{{name}} is not implemented on the test facade. "
     "Call `harness.api_recorder.sync.get_state(entity_id)` and read the returned state directly."
 )
-_STUB_MSG_GENERIC = (
+STUB_MSG_GENERIC = (
     "RecordingApi.sync.{{name}} is not implemented. "
     "Seed state via AppTestHarness.set_state() for read methods, "
     "or use a full integration test for methods requiring a live HA connection."
@@ -378,7 +378,7 @@ def _atomic_write_generated(out_path: Path, content: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# AST body rewriter for RecordingApi → _RecordingSyncFacade
+# AST body rewriter for RecordingApi → RecordingSyncFacade
 # ---------------------------------------------------------------------------
 
 
@@ -766,22 +766,22 @@ def gen_recording_stub(func: ast.AsyncFunctionDef) -> str:
     # Emit a NotImplementedError using the module-level _STUB_MSG_* constant name.
     # We reference the constant by name (not value) so the generated file uses the
     # same constant that tests import, making message changes a single-location edit.
-    msg_const = "_STUB_MSG_STATE_CONVERSION" if name in _STATE_CONVERSION_METHODS else "_STUB_MSG_GENERIC"
+    msg_const = "STUB_MSG_STATE_CONVERSION" if name in STATE_CONVERSION_METHODS else "STUB_MSG_GENERIC"
 
     return f'    def {name}({sig}){returns}:\n        raise NotImplementedError({msg_const}.format(name="{name}"))\n'
 
 
 # ---------------------------------------------------------------------------
-# generate_sync_recording: full generation pass for _RecordingSyncFacade
+# generate_sync_recording: full generation pass for RecordingSyncFacade
 # ---------------------------------------------------------------------------
 
 
-def _is_not_implemented_only(func: ast.AsyncFunctionDef) -> bool:
-    """Return True if the function body only calls _not_implemented (plus optional docstring/raise).
+def is_not_implemented_only(func: ast.AsyncFunctionDef) -> bool:
+    """Return True if the function body only calls not_implemented (plus optional docstring/raise).
 
     Such methods in RecordingApi exist solely to satisfy the async protocol —
     they should be treated as stubs in the generated facade, not body-copied.
-    The rewriter would turn ``_not_implemented(name)`` into ``self._parent._not_implemented(name)``
+    The rewriter would turn ``not_implemented(name)`` into ``self._parent.not_implemented(name)``
     which doesn't exist in the generated file.
     """
     body = func.body
@@ -792,10 +792,10 @@ def _is_not_implemented_only(func: ast.AsyncFunctionDef) -> bool:
         # Skip ``raise RuntimeError("unreachable")``
         if isinstance(stmt, ast.Raise):
             continue
-        # A call to _not_implemented(name) is an ast.Expr wrapping an ast.Call
+        # A call to not_implemented(name) is an ast.Expr wrapping an ast.Call
         if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
             call = stmt.value
-            if isinstance(call.func, ast.Name) and call.func.id == "_not_implemented":
+            if isinstance(call.func, ast.Name) and call.func.id == "not_implemented":
                 continue
         # Anything else means the body is more complex
         return False
@@ -845,7 +845,7 @@ def _collect_annotation_symbols(func: ast.AsyncFunctionDef) -> tuple[set[str], s
 
 
 def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
-    """Generate the full _RecordingSyncFacade source.
+    """Generate the full RecordingSyncFacade source.
 
     Imports are derived via ``_collect_referenced_symbols`` +
     ``_build_precise_import_block`` directly. This pair is **lenient** about
@@ -930,8 +930,8 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
         rec_func = recording_async_map.get(method_name)
 
         # Determine whether to body-copy or stub.
-        # RecordingApi methods that only call _not_implemented are treated as stubs.
-        use_body_copy = rec_func is not None and not _is_not_implemented_only(rec_func)
+        # RecordingApi methods that only call not_implemented are treated as stubs.
+        use_body_copy = rec_func is not None and not is_not_implemented_only(rec_func)
 
         if use_body_copy:
             assert rec_func is not None
@@ -985,7 +985,7 @@ def generate_sync_recording(api_path: Path, recording_api_path: Path) -> str:
     for api_func in api_methods:
         if api_func.name in recording_async_map:
             rec_func_check = recording_async_map[api_func.name]
-            if _is_not_implemented_only(rec_func_check):
+            if is_not_implemented_only(rec_func_check):
                 continue
             api_defaults = [ast.unparse(d) for d in api_func.args.defaults]
             rec_defaults = [ast.unparse(d) for d in rec_func_check.args.defaults]
@@ -1123,7 +1123,7 @@ def main(argv: list[str] | None = None) -> None:
             raise SystemExit(f"recording_api.py not found at {recording_api_path}")
         recording_code = generate_sync_recording(api_path, recording_api_path)
         if args.check:
-            if not _check_drift(recording_out, recording_code, "_RecordingSyncFacade"):
+            if not _check_drift(recording_out, recording_code, "RecordingSyncFacade"):
                 any_drift = True
         else:
             _atomic_write_generated(recording_out, recording_code)

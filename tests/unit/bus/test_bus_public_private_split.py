@@ -25,7 +25,7 @@ if typing.TYPE_CHECKING:
     from hassette.bus.bus import Bus
 
 
-async def _handler(event) -> None:
+async def handler(event) -> None:
     pass
 
 
@@ -61,7 +61,7 @@ def test_bus_on_rejects_internal_keywords(bus: "Bus", forbidden_kwarg: str, valu
     with mock_add_listener(bus), pytest.raises(TypeError):
         bus.on(  # pyright: ignore[reportCallIssue]
             topic="test.topic",
-            handler=_handler,
+            handler=handler,
             **{forbidden_kwarg: value},
         )
 
@@ -82,7 +82,7 @@ async def test_subscription_registration_task_is_future(bus: "Bus") -> None:
     future = asyncio.get_running_loop().create_future()
     with mock_add_listener(bus) as add_mock:
         add_mock.return_value = future
-        sub = bus.on(topic="test.topic", handler=_handler, name="reg_task_test")
+        sub = bus.on(topic="test.topic", handler=handler, name="reg_task_test")
         assert sub.registration_task is not None
         assert isinstance(sub.registration_task, asyncio.Future)
 
@@ -96,7 +96,7 @@ async def test_subscription_registration_task_resolves_with_none(bus: "Bus") -> 
 
     with mock_add_listener(bus) as add_mock:
         add_mock.return_value = future
-        sub = bus.on(topic="test.topic", handler=_handler, name="reg_task_resolves")
+        sub = bus.on(topic="test.topic", handler=handler, name="reg_task_resolves")
         result = await sub.registration_task
         assert result is None
 
@@ -126,7 +126,7 @@ async def test_hold_preds_not_mutated_in_subscribe(bus: "Bus") -> None:
         bus._subscribe(
             method_name="test",
             topic="event.state_changed.light.test",
-            handler=_handler,
+            handler=handler,
             preds=[original_pred],
             where=P.StateDidChange(),
             hold_preds=original_hold_preds,
@@ -144,7 +144,7 @@ async def test_hold_preds_none_no_mutation(bus: "Bus") -> None:
         bus._subscribe(
             method_name="test",
             topic="event.state_changed.light.test",
-            handler=_handler,
+            handler=handler,
             preds=[P.EntityMatches("light.test")],
             where=P.StateDidChange(),
             hold_preds=None,
@@ -161,7 +161,7 @@ async def test_listener_natural_key_uses_identity_fields(bus: "Bus") -> None:
     future = asyncio.get_running_loop().create_future()
     with mock_add_listener(bus) as add_mock:
         add_mock.return_value = future
-        sub = bus.on(topic="test.topic", handler=_handler, name="key_test")
+        sub = bus.on(topic="test.topic", handler=handler, name="key_test")
         key = bus._listener_natural_key(sub.listener)
         assert key[0] == sub.listener.identity.app_key
         assert key[1] == sub.listener.identity.instance_index

@@ -18,7 +18,7 @@ from hassette.test_utils.config import TEST_SOURCE_LOCATION
 # Schema DDL (mirrors migrations through 003 final state)
 # ---------------------------------------------------------------------------
 
-_DDL = """
+DDL = """
 CREATE TABLE sessions (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at            REAL    NOT NULL,
@@ -146,7 +146,7 @@ async def db() -> AsyncIterator[aiosqlite.Connection]:
     async with aiosqlite.connect(":memory:") as conn:
         conn.row_factory = aiosqlite.Row
         await conn.execute("PRAGMA foreign_keys = ON")
-        await conn.executescript(_DDL)
+        await conn.executescript(DDL)
         await conn.commit()
         yield conn
 
@@ -172,7 +172,7 @@ async def session_id(db: aiosqlite.Connection) -> int:
     return cursor.lastrowid
 
 
-def _make_listener_registration(*, topic: str = "hass.event.state_changed") -> ListenerRegistration:
+def make_listener_registration(*, topic: str = "hass.event.state_changed") -> ListenerRegistration:
     return ListenerRegistration(
         app_key="test_app",
         instance_index=0,
@@ -189,7 +189,7 @@ def _make_listener_registration(*, topic: str = "hass.event.state_changed") -> L
     )
 
 
-def _make_job_registration(
+def make_job_registration(
     *,
     job_name: str = "test_job",
     group: str | None = None,
@@ -222,7 +222,7 @@ async def test_register_listener_inserts_and_returns_id(
     db: aiosqlite.Connection,
 ) -> None:
     """register_listener() inserts a row and returns a valid positive integer ID."""
-    reg = _make_listener_registration()
+    reg = make_listener_registration()
     listener_id = await repo.register_listener(reg)
 
     assert isinstance(listener_id, int)
@@ -245,7 +245,7 @@ async def test_register_job_inserts_and_returns_id(
     db: aiosqlite.Connection,
 ) -> None:
     """register_job() inserts a row and returns a valid positive integer ID."""
-    reg = _make_job_registration()
+    reg = make_job_registration()
     job_id = await repo.register_job(reg)
 
     assert isinstance(job_id, int)
@@ -263,7 +263,7 @@ async def test_register_job_persists_group(
     db: aiosqlite.Connection,
 ) -> None:
     """register_job() writes the group value to the database."""
-    reg = _make_job_registration(job_name="morning_job", group="morning")
+    reg = make_job_registration(job_name="morning_job", group="morning")
     job_id = await repo.register_job(reg)
 
     cursor = await db.execute('SELECT "group" FROM scheduled_jobs WHERE id = ?', (job_id,))
@@ -277,7 +277,7 @@ async def test_register_job_persists_null_group(
     db: aiosqlite.Connection,
 ) -> None:
     """register_job() persists NULL for group when group is not set."""
-    reg = _make_job_registration()
+    reg = make_job_registration()
     job_id = await repo.register_job(reg)
 
     cursor = await db.execute('SELECT "group" FROM scheduled_jobs WHERE id = ?', (job_id,))
@@ -291,7 +291,7 @@ async def test_register_job_persists_name_auto_true(
     db: aiosqlite.Connection,
 ) -> None:
     """register_job() writes name_auto=1 when the name was auto-generated."""
-    reg = _make_job_registration(job_name="run:after:5", name_auto=True)
+    reg = make_job_registration(job_name="run:after:5", name_auto=True)
     job_id = await repo.register_job(reg)
 
     cursor = await db.execute("SELECT name_auto FROM scheduled_jobs WHERE id = ?", (job_id,))
@@ -305,7 +305,7 @@ async def test_register_job_persists_name_auto_false(
     db: aiosqlite.Connection,
 ) -> None:
     """register_job() writes name_auto=0 by default."""
-    reg = _make_job_registration()
+    reg = make_job_registration()
     job_id = await repo.register_job(reg)
 
     cursor = await db.execute("SELECT name_auto FROM scheduled_jobs WHERE id = ?", (job_id,))
@@ -319,7 +319,7 @@ async def test_mark_job_cancelled_sets_cancelled_at(
     db: aiosqlite.Connection,
 ) -> None:
     """mark_job_cancelled() sets cancelled_at to the current epoch time."""
-    reg = _make_job_registration(job_name="cancellable_job")
+    reg = make_job_registration(job_name="cancellable_job")
     job_id = await repo.register_job(reg)
 
     # Verify cancelled_at is NULL before marking
@@ -350,8 +350,8 @@ async def test_reconcile_deletes_stale_without_history(
     db: aiosqlite.Connection,
 ) -> None:
     """reconcile_registrations() deletes stale non-once listeners with no invocation history."""
-    listener_id = await repo.register_listener(_make_listener_registration())
-    job_id = await repo.register_job(_make_job_registration())
+    listener_id = await repo.register_listener(make_listener_registration())
+    job_id = await repo.register_job(make_job_registration())
 
     # Reconcile with empty live IDs — the rows have no history, so they should be deleted
     await repo.reconcile_registrations("test_app", [], [])
@@ -371,8 +371,8 @@ async def test_reconcile_retires_stale_with_history(
     session_id: int,
 ) -> None:
     """reconcile_registrations() sets retired_at on stale rows that have invocation history."""
-    listener_id = await repo.register_listener(_make_listener_registration())
-    job_id = await repo.register_job(_make_job_registration())
+    listener_id = await repo.register_listener(make_listener_registration())
+    job_id = await repo.register_job(make_job_registration())
 
     # Create history for both
     await db.execute(
@@ -406,7 +406,7 @@ async def test_reconcile_preserves_live_listeners(
     db: aiosqlite.Connection,
 ) -> None:
     """reconcile_registrations() preserves listeners whose IDs are in the live set."""
-    reg_a = _make_listener_registration(topic="topic.a")
+    reg_a = make_listener_registration(topic="topic.a")
     reg_b = ListenerRegistration(
         app_key="test_app",
         instance_index=0,
@@ -529,7 +529,7 @@ async def test_reconcile_resets_retired_at_on_reupsert(
     session_id: int,
 ) -> None:
     """After a row is retired, re-upserting it (same natural key) resets retired_at to NULL."""
-    reg = _make_listener_registration()
+    reg = make_listener_registration()
     listener_id = await repo.register_listener(reg)
 
     # Create history so reconciliation retires rather than deletes
@@ -567,7 +567,7 @@ async def test_upsert_same_natural_key_returns_same_id(
     repo: TelemetryRepository,
 ) -> None:
     """register_listener() with same natural key returns the same ID (upsert)."""
-    reg = _make_listener_registration()
+    reg = make_listener_registration()
     id1 = await repo.register_listener(reg)
     id2 = await repo.register_listener(reg)
     assert id1 == id2
@@ -577,8 +577,8 @@ async def test_upsert_different_natural_key_returns_new_id(
     repo: TelemetryRepository,
 ) -> None:
     """register_listener() with different topic returns a new ID."""
-    id1 = await repo.register_listener(_make_listener_registration(topic="topic.a"))
-    id2 = await repo.register_listener(_make_listener_registration(topic="topic.b"))
+    id1 = await repo.register_listener(make_listener_registration(topic="topic.a"))
+    id2 = await repo.register_listener(make_listener_registration(topic="topic.b"))
     assert id1 != id2
 
 
@@ -587,7 +587,7 @@ async def test_upsert_updates_mutable_fields(
     db: aiosqlite.Connection,
 ) -> None:
     """Upsert updates debounce (mutable field) on conflict."""
-    reg = _make_listener_registration()
+    reg = make_listener_registration()
     listener_id = await repo.register_listener(reg)
 
     updated_reg = ListenerRegistration(
@@ -731,7 +731,7 @@ async def test_persist_batch_inserts_handler_invocations(
     session_id: int,
 ) -> None:
     """persist_batch() inserts handler invocation records into handler_invocations."""
-    listener_id = await repo.register_listener(_make_listener_registration())
+    listener_id = await repo.register_listener(make_listener_registration())
 
     now = time.time()
     records = [
@@ -775,7 +775,7 @@ async def test_persist_batch_inserts_job_executions(
     session_id: int,
 ) -> None:
     """persist_batch() inserts job execution records into job_executions."""
-    job_id = await repo.register_job(_make_job_registration())
+    job_id = await repo.register_job(make_job_registration())
 
     now = time.time()
     records = [
@@ -893,8 +893,8 @@ async def test_reconcile_deletes_stale_job_not_in_live_set(
     db: aiosqlite.Connection,
 ) -> None:
     """reconcile_registrations() deletes stale jobs NOT in live_job_ids when live_job_ids is non-empty."""
-    job_id_a = await repo.register_job(_make_job_registration(job_name="job_a"))
-    job_id_b = await repo.register_job(_make_job_registration(job_name="job_b"))
+    job_id_a = await repo.register_job(make_job_registration(job_name="job_a"))
+    job_id_b = await repo.register_job(make_job_registration(job_name="job_b"))
 
     # Keep job_a live, let job_b be stale (no history → deleted)
     await repo.reconcile_registrations("test_app", [], [job_id_a])
@@ -914,8 +914,8 @@ async def test_reconcile_retires_stale_job_with_history_non_empty_live_set(
     session_id: int,
 ) -> None:
     """reconcile_registrations() retires stale jobs with history when live_job_ids is non-empty."""
-    job_id_a = await repo.register_job(_make_job_registration(job_name="job_a"))
-    job_id_b = await repo.register_job(_make_job_registration(job_name="job_b"))
+    job_id_a = await repo.register_job(make_job_registration(job_name="job_a"))
+    job_id_b = await repo.register_job(make_job_registration(job_name="job_b"))
 
     # Give job_b some history so it gets retired rather than deleted
     await db.execute(
@@ -945,7 +945,7 @@ async def test_reconcile_once_true_delete_non_empty_live_listener_ids(
 ) -> None:
     """reconcile_registrations() deletes once=True listeners not in live IDs when live_listener_ids is non-empty."""
     # Register a regular (once=False) listener to populate live_listener_ids
-    live_reg = _make_listener_registration(topic="topic.live")
+    live_reg = make_listener_registration(topic="topic.live")
     live_id = await repo.register_listener(live_reg)
 
     # Register a once=True listener from a previous session
@@ -1025,8 +1025,8 @@ async def test_persist_batch_with_fk_fallback_success_path(
     session_id: int,
 ) -> None:
     """persist_batch_with_fk_fallback() inserts records when no FK violations occur."""
-    listener_id = await repo.register_listener(_make_listener_registration())
-    job_id = await repo.register_job(_make_job_registration())
+    listener_id = await repo.register_listener(make_listener_registration())
+    job_id = await repo.register_job(make_job_registration())
 
     now = time.time()
     invocation = HandlerInvocationRecord(
@@ -1236,7 +1236,7 @@ async def test_persist_batch_rollback_on_exception(
     session_id: int,
 ) -> None:
     """persist_batch() rolls back and re-raises on unexpected error (lines 602-604)."""
-    listener_id = await repo.register_listener(_make_listener_registration())
+    listener_id = await repo.register_listener(make_listener_registration())
     now = time.time()
     invocation = HandlerInvocationRecord(
         listener_id=listener_id,

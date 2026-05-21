@@ -110,11 +110,11 @@ class HandlerInvoker:
     orig_handler: "HandlerType"
     """Original handler function provided by the user."""
 
-    _async_handler: "AsyncHandlerType"
-    """Async-wrapped handler function. Private — not part of the public API."""
+    async_handler: "AsyncHandlerType"
+    """Async-wrapped handler function."""
 
-    _injector: ParameterInjector
-    """Parameter injector for dependency injection. Private — invoked by invoke()."""
+    injector: ParameterInjector
+    """Parameter injector for dependency injection."""
 
     kwargs: Mapping[str, Any] | None
     """Keyword arguments to pass to the handler."""
@@ -122,17 +122,17 @@ class HandlerInvoker:
     error_handler: "BusErrorHandlerType | None"
     """Optional per-listener error handler."""
 
-    _app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None"
+    app_error_handler_resolver: "Callable[[], BusErrorHandlerType | None] | None"
     """Closure that resolves the app-level error handler at dispatch time."""
 
-    _rate_limiter: RateLimiter | None
+    rate_limiter: RateLimiter | None
     """Rate limiter for debounce/throttle. None when no rate limiting is configured."""
 
     once: bool = False
     """Whether this invoker fires only once. Intentional copy of ListenerOptions.once —
     dispatch() needs this but cannot back-reference options without a circular dependency."""
 
-    _fired: bool = field(default=False, init=False)
+    fired: bool = field(default=False, init=False)
     """Guard for once=True: set before the first invocation to prevent double-fire."""
 
     @classmethod
@@ -173,22 +173,22 @@ class HandlerInvoker:
 
         return cls(
             orig_handler=handler,
-            _async_handler=async_handler,
-            _injector=injector,
+            async_handler=async_handler,
+            injector=injector,
             kwargs=kwargs,
             error_handler=error_handler,
-            _app_error_handler_resolver=app_error_handler_resolver,
-            _rate_limiter=rate_limiter,
+            app_error_handler_resolver=app_error_handler_resolver,
+            rate_limiter=rate_limiter,
             once=options.once,
         )
 
     def mark_fired(self) -> None:
         """Mark this once-invoker as having fired. Called by dispatch() and Listener.cancel()."""
-        self._fired = True
+        self.fired = True
 
     def set_app_error_handler_resolver(self, resolver: "Callable[[], BusErrorHandlerType | None]") -> None:
         """Set the closure that resolves the app-level error handler at dispatch time."""
-        self._app_error_handler_resolver = resolver
+        self.app_error_handler_resolver = resolver
 
     async def dispatch(self, invoke_fn: Callable[[], Awaitable[None]]) -> None:
         """Apply rate limiting around the given invoke function.
@@ -201,25 +201,25 @@ class HandlerInvoker:
         this method returns immediately. Safe without a lock — no ``await`` between
         check-and-set.
         """
-        if self.once and self._fired:
+        if self.once and self.fired:
             return
         if self.once:
             self.mark_fired()
 
-        if self._rate_limiter:
-            await self._rate_limiter.call(invoke_fn)
+        if self.rate_limiter:
+            await self.rate_limiter.call(invoke_fn)
         else:
             await invoke_fn()
 
     def cancel(self) -> None:
         """Cancel any pending rate-limiter tasks."""
-        if self._rate_limiter:
-            self._rate_limiter.cancel()
+        if self.rate_limiter:
+            self.rate_limiter.cancel()
 
     async def invoke(self, event: "Event[Any]") -> None:
         """Invoke the handler with dependency injection."""
-        kwargs = self._injector.inject_parameters(event, **(self.kwargs or {}))
-        await self._async_handler(**kwargs)
+        kwargs = self.injector.inject_parameters(event, **(self.kwargs or {}))
+        await self.async_handler(**kwargs)
 
 
 @dataclass(slots=True)

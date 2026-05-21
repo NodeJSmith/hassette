@@ -74,7 +74,7 @@ def make_executor(queue_max: int = 10) -> CommandExecutor:
     return CommandExecutor.__new__(CommandExecutor)
 
 
-def _init_executor(queue_max: int = 10) -> CommandExecutor:
+def init_executor(queue_max: int = 10) -> CommandExecutor:
     """Create and minimally init a CommandExecutor for pipeline tests."""
     executor = make_executor(queue_max)
     executor._write_queue = asyncio.Queue(maxsize=queue_max)
@@ -99,7 +99,7 @@ def _init_executor(queue_max: int = 10) -> CommandExecutor:
 
 async def test_bounded_queue_drops_on_full():
     """Filling a queue beyond maxsize triggers QueueFull; _dropped_overflow is incremented."""
-    executor = _init_executor(queue_max=3)
+    executor = init_executor(queue_max=3)
 
     rec = make_invocation()
 
@@ -126,7 +126,7 @@ async def test_bounded_queue_drops_on_full():
 
 async def test_retryable_batch_expanded_in_drain():
     """RetryableBatch enqueued in write_queue expands into the current batch on drain."""
-    executor = _init_executor()
+    executor = init_executor()
 
     inv = make_invocation(listener_id=5)
     job = make_job_record(job_id=7)
@@ -160,7 +160,7 @@ async def test_retryable_batch_expanded_in_drain():
 
 async def test_sentinel_guard_drops_id_zero():
     """Records with listener_id=0 are dropped with a REGRESSION log, not persisted."""
-    executor = _init_executor()
+    executor = init_executor()
 
     invocations = [make_invocation(listener_id=0, session_id=1)]
     job_executions: list[JobExecutionRecord] = []
@@ -191,7 +191,7 @@ async def test_sentinel_guard_drops_id_zero():
 
 async def test_sentinel_guard_allows_id_none():
     """Records with listener_id=None are NOT dropped — they represent pre-reg orphans."""
-    executor = _init_executor()
+    executor = init_executor()
 
     none_inv = make_invocation(listener_id=None, session_id=1)
     invocations = [none_inv]
@@ -229,7 +229,7 @@ async def test_sentinel_guard_allows_id_none():
 
 async def test_operational_error_triggers_retry():
     """OperationalError from persist_batch causes re-enqueue as RetryableBatch."""
-    executor = _init_executor()
+    executor = init_executor()
 
     inv = make_invocation(listener_id=5, session_id=1)
     invocations = [inv]
@@ -262,7 +262,7 @@ async def test_operational_error_triggers_retry():
 
 async def test_max_retries_drops_batch():
     """RetryableBatch with retry_count=3 is dropped and _dropped_exhausted is incremented."""
-    executor = _init_executor()
+    executor = init_executor()
 
     inv = make_invocation(listener_id=5, session_id=1)
     exhausted_batch = RetryableBatch(invocations=[inv], job_executions=[], retry_count=3)
@@ -298,7 +298,7 @@ async def test_max_retries_drops_batch():
 
 async def test_data_error_drops_immediately():
     """DataError from persist_batch → drop immediately + REGRESSION log, no re-enqueue."""
-    executor = _init_executor()
+    executor = init_executor()
 
     inv = make_invocation(listener_id=5, session_id=1)
 
@@ -329,7 +329,7 @@ async def test_data_error_drops_immediately():
 
 async def test_integrity_error_row_by_row_fallback():
     """IntegrityError triggers FK fallback via persist_batch_with_fk_fallback; dropped count tracked."""
-    executor = _init_executor()
+    executor = init_executor()
 
     inv_good = make_invocation(listener_id=1, session_id=1)
     inv_bad = make_invocation(listener_id=999, session_id=1)  # FK violation
@@ -364,7 +364,7 @@ async def test_integrity_error_row_by_row_fallback():
 
 def test_build_record_reads_source_tier():
     """_build_record sets source_tier from cmd.source_tier."""
-    executor = _init_executor()
+    executor = init_executor()
 
     listener = MagicMock()
     listener.invoker.invoke = AsyncMock()
@@ -395,7 +395,7 @@ def test_build_record_reads_source_tier():
 
 def test_build_record_reads_is_di_failure():
     """_build_record sets is_di_failure from result.is_di_failure."""
-    executor = _init_executor()
+    executor = init_executor()
 
     listener = MagicMock()
     listener.invoker.invoke = AsyncMock()
@@ -430,7 +430,7 @@ def test_build_record_reads_is_di_failure():
 
 async def test_flush_queue_handles_db_closed():
     """_flush_queue does not raise when DB submit raises RuntimeError (DB closed at shutdown)."""
-    executor = _init_executor()
+    executor = init_executor()
 
     inv = make_invocation(listener_id=5, session_id=1)
     executor._write_queue.put_nowait(inv)

@@ -50,7 +50,7 @@ class ListenerMetrics:
             return 0.0
         return self.total_duration_ms / self.total_invocations
 
-    def _record_timing(self, duration_ms: float) -> None:
+    def record_timing(self, duration_ms: float) -> None:
         self.total_invocations += 1
         self.total_duration_ms += duration_ms
         self.last_invoked_at = time.time()
@@ -65,23 +65,23 @@ class ListenerMetrics:
                 self.max_duration_ms = duration_ms
 
     def record_success(self, duration_ms: float) -> None:
-        self._record_timing(duration_ms)
+        self.record_timing(duration_ms)
         self.successful += 1
 
     def record_error(self, duration_ms: float, message: str, error_type: str) -> None:
-        self._record_timing(duration_ms)
+        self.record_timing(duration_ms)
         self.failed += 1
         self.last_error_message = message
         self.last_error_type = error_type
 
     def record_di_failure(self, duration_ms: float, message: str, error_type: str) -> None:
-        self._record_timing(duration_ms)
+        self.record_timing(duration_ms)
         self.di_failures += 1
         self.last_error_message = message
         self.last_error_type = error_type
 
     def record_cancelled(self, duration_ms: float) -> None:
-        self._record_timing(duration_ms)
+        self.record_timing(duration_ms)
         self.cancelled += 1
 
     def to_dict(self) -> dict[str, Any]:

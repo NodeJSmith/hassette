@@ -28,14 +28,14 @@ from hassette.config.config import HassetteConfig
 from hassette.core.telemetry_models import LogRecord
 from hassette.core.telemetry_repository import get_log_records, get_log_records_by_execution, insert_log_records
 
-from .conftest import LOG_RECORDS_TEST_DDL as _DDL
+from .conftest import LOG_RECORDS_TEST_DDL as DDL
 
-_WORKTREE = Path(__file__).parent.parent.parent.parent
+WORKTREE = Path(__file__).parent.parent.parent.parent
 
 
-def _run_migrations_to_head(db_path: str) -> None:
+def run_migrations_to_head(db_path: str) -> None:
     config = AlembicConfig()
-    config.set_main_option("script_location", str(_WORKTREE / "src" / "hassette" / "migrations"))
+    config.set_main_option("script_location", str(WORKTREE / "src" / "hassette" / "migrations"))
     config.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
     alembic_command.upgrade(config, "head")
 
@@ -45,22 +45,22 @@ async def db() -> AsyncIterator[aiosqlite.Connection]:
     """In-memory aiosqlite connection with log_records schema."""
     conn = await aiosqlite.connect(":memory:")
     conn.row_factory = aiosqlite.Row
-    await conn.executescript(_DDL)
+    await conn.executescript(DDL)
     try:
         yield conn
     finally:
         await conn.close()
 
 
-def _open_migrated_db(db_path: str) -> sqlite3.Connection:
-    _run_migrations_to_head(db_path)
+def open_migrated_db(db_path: str) -> sqlite3.Connection:
+    run_migrations_to_head(db_path)
     return sqlite3.connect(db_path)
 
 
 class TestMigration009:
     @pytest.fixture
     def migrated_db(self, tmp_path: Path) -> Iterator[sqlite3.Connection]:
-        conn = _open_migrated_db(str(tmp_path / "test.db"))
+        conn = open_migrated_db(str(tmp_path / "test.db"))
         try:
             yield conn
         finally:
@@ -115,7 +115,7 @@ class TestMigration009:
     def test_migration_version_is_009(self, tmp_path: Path) -> None:
         """After full migration, the Alembic version is 009."""
         db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
+        run_migrations_to_head(db_path)
 
         engine = create_engine(f"sqlite:///{db_path}")
         try:
@@ -135,7 +135,7 @@ class TestRestartPersistence:
         """Write records, close the connection, reopen, and confirm they're queryable."""
 
         db_path = str(tmp_path / "persistence_test.db")
-        _run_migrations_to_head(db_path)
+        run_migrations_to_head(db_path)
 
         records = [
             {
@@ -292,7 +292,7 @@ class TestInsertLogRecords:
         assert row["source_tier"] == "framework"
 
 
-async def _seed_log_records(db: aiosqlite.Connection) -> None:
+async def seed_log_records(db: aiosqlite.Connection) -> None:
     """Insert a set of log records for filter tests."""
 
     now = time.time()
@@ -365,14 +365,14 @@ class TestGetLogRecords:
     async def test_returns_all_records_no_filters(self, db: aiosqlite.Connection) -> None:
         """get_log_records() with no filters returns all records."""
 
-        await _seed_log_records(db)
+        await seed_log_records(db)
         results = await get_log_records(db, limit=100)
         assert len(results) == 4
 
     async def test_ordered_by_timestamp_desc(self, db: aiosqlite.Connection) -> None:
         """get_log_records() returns results ordered by timestamp DESC."""
 
-        await _seed_log_records(db)
+        await seed_log_records(db)
         results = await get_log_records(db, limit=100)
         timestamps = [r["timestamp"] for r in results]
         assert timestamps == sorted(timestamps, reverse=True)
@@ -380,7 +380,7 @@ class TestGetLogRecords:
     async def test_filter_by_app_key(self, db: aiosqlite.Connection) -> None:
         """get_log_records() filters by app_key."""
 
-        await _seed_log_records(db)
+        await seed_log_records(db)
         results = await get_log_records(db, limit=100, app_key="app_a")
         assert all(r["app_key"] == "app_a" for r in results)
         assert len(results) == 2
@@ -388,7 +388,7 @@ class TestGetLogRecords:
     async def test_filter_by_level(self, db: aiosqlite.Connection) -> None:
         """get_log_records() filters by level."""
 
-        await _seed_log_records(db)
+        await seed_log_records(db)
         results = await get_log_records(db, limit=100, level="ERROR")
         assert all(r["level"] == "ERROR" for r in results)
         assert len(results) == 1
@@ -396,7 +396,7 @@ class TestGetLogRecords:
     async def test_filter_by_execution_id(self, db: aiosqlite.Connection) -> None:
         """get_log_records() filters by execution_id."""
 
-        await _seed_log_records(db)
+        await seed_log_records(db)
         results = await get_log_records(db, limit=100, execution_id="exec-1")
         assert all(r["execution_id"] == "exec-1" for r in results)
         assert len(results) == 2
@@ -404,7 +404,7 @@ class TestGetLogRecords:
     async def test_filter_by_since(self, db: aiosqlite.Connection) -> None:
         """get_log_records() filters by since (timestamp >= since)."""
 
-        await _seed_log_records(db)
+        await seed_log_records(db)
         now = time.time()
         # Only records newer than now-30 (seq 3 and 4)
         results = await get_log_records(db, limit=100, since=now - 30)
@@ -413,7 +413,7 @@ class TestGetLogRecords:
     async def test_filter_by_source_tier(self, db: aiosqlite.Connection) -> None:
         """get_log_records() filters by source_tier."""
 
-        await _seed_log_records(db)
+        await seed_log_records(db)
         results = await get_log_records(db, limit=100, source_tier="framework")
         assert all(r["source_tier"] == "framework" for r in results)
         assert len(results) == 1
@@ -421,7 +421,7 @@ class TestGetLogRecords:
     async def test_limit_applied(self, db: aiosqlite.Connection) -> None:
         """get_log_records() respects the limit parameter."""
 
-        await _seed_log_records(db)
+        await seed_log_records(db)
         results = await get_log_records(db, limit=2)
         assert len(results) == 2
 
@@ -433,7 +433,7 @@ class TestGetLogRecords:
 
 
 class TestGetLogRecordsByExecution:
-    async def _seed_for_execution(self, db: aiosqlite.Connection) -> None:
+    async def seed_for_execution(self, db: aiosqlite.Connection) -> None:
         now = time.time()
         records = [
             {
@@ -476,7 +476,7 @@ class TestGetLogRecordsByExecution:
     async def test_returns_records_for_execution(self, db: aiosqlite.Connection) -> None:
         """get_log_records_by_execution() returns records only for the given execution."""
 
-        await self._seed_for_execution(db)
+        await self.seed_for_execution(db)
         records, truncated = await get_log_records_by_execution(db, "exec-exec", limit=100)
         assert len(records) == 5
         assert not truncated
@@ -484,7 +484,7 @@ class TestGetLogRecordsByExecution:
     async def test_ordered_by_seq_asc(self, db: aiosqlite.Connection) -> None:
         """get_log_records_by_execution() returns records ordered by seq ASC."""
 
-        await self._seed_for_execution(db)
+        await self.seed_for_execution(db)
         records, _ = await get_log_records_by_execution(db, "exec-exec", limit=100)
         seqs = [r["seq"] for r in records]
         assert seqs == sorted(seqs)
@@ -492,7 +492,7 @@ class TestGetLogRecordsByExecution:
     async def test_truncated_when_over_limit(self, db: aiosqlite.Connection) -> None:
         """get_log_records_by_execution() returns truncated=True when count > limit."""
 
-        await self._seed_for_execution(db)
+        await self.seed_for_execution(db)
         records, truncated = await get_log_records_by_execution(db, "exec-exec", limit=3)
         assert len(records) == 3
         assert truncated
@@ -500,7 +500,7 @@ class TestGetLogRecordsByExecution:
     async def test_not_truncated_when_at_limit(self, db: aiosqlite.Connection) -> None:
         """get_log_records_by_execution() returns truncated=False when count == limit."""
 
-        await self._seed_for_execution(db)
+        await self.seed_for_execution(db)
         records, truncated = await get_log_records_by_execution(db, "exec-exec", limit=5)
         assert len(records) == 5
         assert not truncated
@@ -508,7 +508,7 @@ class TestGetLogRecordsByExecution:
     async def test_empty_for_unknown_execution(self, db: aiosqlite.Connection) -> None:
         """get_log_records_by_execution() returns empty list for unknown execution_id."""
 
-        await self._seed_for_execution(db)
+        await self.seed_for_execution(db)
         records, truncated = await get_log_records_by_execution(db, "no-such-exec", limit=100)
         assert records == []
         assert not truncated
@@ -516,7 +516,7 @@ class TestGetLogRecordsByExecution:
     async def test_does_not_include_other_executions(self, db: aiosqlite.Connection) -> None:
         """get_log_records_by_execution() excludes records from other executions."""
 
-        await self._seed_for_execution(db)
+        await self.seed_for_execution(db)
         records, _ = await get_log_records_by_execution(db, "exec-exec", limit=100)
         assert all(r["execution_id"] == "exec-exec" for r in records)
 

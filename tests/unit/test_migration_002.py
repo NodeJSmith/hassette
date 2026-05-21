@@ -14,7 +14,7 @@ from alembic import command
 from alembic.config import Config
 
 
-def _run_migrations_to_head(db_path: str) -> None:
+def run_migrations_to_head(db_path: str) -> None:
     """Run Alembic migrations up to HEAD against the given SQLite DB path."""
     config = Config()
     config.set_main_option(
@@ -29,7 +29,7 @@ class TestMigration002:
     def test_migration_002_upgrades(self, tmp_path: Path) -> None:
         """Migration 002 runs cleanly and adds trigger_label/trigger_detail columns."""
         db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
+        run_migrations_to_head(db_path)
 
         conn = sqlite3.connect(db_path)
         try:
@@ -65,7 +65,7 @@ class TestMigration002:
     def test_migration_002_rejects_unknown_trigger_type(self, tmp_path: Path) -> None:
         """Migration 002 CHECK constraint rejects trigger_type values not in the allowed set."""
         db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
+        run_migrations_to_head(db_path)
 
         conn = sqlite3.connect(db_path)
         try:
@@ -89,7 +89,7 @@ class TestMigration002:
     def test_migration_002_trigger_label_defaults_to_empty_string(self, tmp_path: Path) -> None:
         """trigger_label defaults to empty string when not supplied explicitly."""
         db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
+        run_migrations_to_head(db_path)
 
         conn = sqlite3.connect(db_path)
         try:

@@ -7,7 +7,7 @@ from hassette.core.commands import ExecuteJob
 from hassette.core.scheduler_service import SchedulerService
 
 
-def _make_scheduler_service() -> SchedulerService:
+def make_scheduler_service() -> SchedulerService:
     """Create a SchedulerService with mocked internals."""
     svc = SchedulerService.__new__(SchedulerService)
     svc.hassette = MagicMock()
@@ -29,7 +29,7 @@ def _make_scheduler_service() -> SchedulerService:
     return svc
 
 
-def _make_job(
+def make_job(
     *,
     error_handler=None,
     scheduler=None,
@@ -54,14 +54,14 @@ def _make_job(
 
 class TestSchedulerServiceCarriesAppLevelHandler:
     async def test_dispatch_carries_app_level_handler(self) -> None:
-        """When job has an _app_error_handler_resolver, its result is set on ExecuteJob."""
-        svc = _make_scheduler_service()
+        """When job has an app_error_handler_resolver, its result is set on ExecuteJob."""
+        svc = make_scheduler_service()
 
         async def app_handler(ctx) -> None:
             pass
 
-        job = _make_job(scheduler=MagicMock())
-        job._app_error_handler_resolver = lambda: app_handler
+        job = make_job(scheduler=MagicMock())
+        job.app_error_handler_resolver = lambda: app_handler
         await svc.run_job(job)
 
         cmd = svc._executor.execute.call_args[0][0]
@@ -70,10 +70,10 @@ class TestSchedulerServiceCarriesAppLevelHandler:
 
     async def test_dispatch_no_handler_when_resolver_returns_none(self) -> None:
         """When resolver returns None, app_level_error_handler is None."""
-        svc = _make_scheduler_service()
+        svc = make_scheduler_service()
 
-        job = _make_job(scheduler=MagicMock())
-        job._app_error_handler_resolver = lambda: None
+        job = make_job(scheduler=MagicMock())
+        job.app_error_handler_resolver = lambda: None
         await svc.run_job(job)
 
         cmd = svc._executor.execute.call_args[0][0]
@@ -81,11 +81,11 @@ class TestSchedulerServiceCarriesAppLevelHandler:
         assert cmd.app_level_error_handler is None
 
     async def test_dispatch_no_handler_when_no_resolver(self) -> None:
-        """When job has no _app_error_handler_resolver, app_level_error_handler is None."""
-        svc = _make_scheduler_service()
+        """When job has no app_error_handler_resolver, app_level_error_handler is None."""
+        svc = make_scheduler_service()
 
-        job = _make_job(scheduler=None)
-        job._app_error_handler_resolver = None
+        job = make_job(scheduler=None)
+        job.app_error_handler_resolver = None
         await svc.run_job(job)
 
         cmd = svc._executor.execute.call_args[0][0]

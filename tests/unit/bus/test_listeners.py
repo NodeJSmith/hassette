@@ -137,7 +137,7 @@ class TestCreateCancelListener:
             topic="hass.event.state_changed.light.kitchen",
             handler=lambda: None,
         )
-        assert listener.invoker._rate_limiter is None
+        assert listener.invoker.rate_limiter is None
 
     def test_no_error_handler(self) -> None:
         """cancel_listener has no error handler."""

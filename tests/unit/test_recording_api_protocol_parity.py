@@ -29,7 +29,7 @@ sys.path.insert(0, str(_REPO_ROOT / "codegen" / "src"))
 from hassette_codegen.sync_facade import LIFECYCLE_METHODS  # noqa: E402
 
 
-def _public_async_methods(cls: type) -> set[str]:
+def public_async_methods(cls: type) -> set[str]:
     """Return public async method names defined directly on cls (not inherited)."""
     return {
         name for name, member in vars(cls).items() if not name.startswith("_") and inspect.iscoroutinefunction(member)
@@ -44,8 +44,8 @@ def test_api_protocol_matches_api_methods() -> None:
     ``recording_api.py`` remains structurally valid and RecordingApi callers
     get accurate Pyright coverage.
     """
-    api_methods = _public_async_methods(Api) - LIFECYCLE_METHODS
-    protocol_methods = _public_async_methods(ApiProtocol) - LIFECYCLE_METHODS
+    api_methods = public_async_methods(Api) - LIFECYCLE_METHODS
+    protocol_methods = public_async_methods(ApiProtocol) - LIFECYCLE_METHODS
 
     missing_from_protocol = api_methods - protocol_methods
     assert not missing_from_protocol, (
@@ -60,10 +60,10 @@ def test_protocol_not_vacuous() -> None:
 
     Without this guard, the main parity test could silently pass if a
     future refactor of ApiProtocol broke method inspection. A non-empty
-    method set proves ``_public_async_methods(ApiProtocol)`` is actually
+    method set proves ``public_async_methods(ApiProtocol)`` is actually
     discovering methods.
     """
-    assert len(_public_async_methods(ApiProtocol)) > 0, (
-        "_public_async_methods(ApiProtocol) returned an empty set. "
+    assert len(public_async_methods(ApiProtocol)) > 0, (
+        "public_async_methods(ApiProtocol) returned an empty set. "
         "The parity test would pass vacuously. Investigate ApiProtocol refactor."
     )

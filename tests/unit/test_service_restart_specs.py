@@ -17,7 +17,7 @@ from hassette.core.websocket_service import WebsocketService
 from hassette.resources.base import RestartSpec
 from hassette.types.enums import RestartType
 
-_ALL_SERVICES = [
+ALL_SERVICES = [
     BusService,
     SchedulerService,
     WebsocketService,
@@ -30,7 +30,7 @@ _ALL_SERVICES = [
 
 
 class TestAllServicesDeclareRestartSpec:
-    @pytest.mark.parametrize("svc_cls", _ALL_SERVICES, ids=lambda c: c.__name__)
+    @pytest.mark.parametrize("svc_cls", ALL_SERVICES, ids=lambda c: c.__name__)
     def test_all_services_declare_restart_spec(self, svc_cls: type) -> None:
         """Each service must own restart_spec — not just inherit it."""
         assert "restart_spec" in svc_cls.__dict__, (

@@ -8,7 +8,7 @@ from hassette.bus.error_context import BusErrorContext
 from hassette.events.base import Event, EventPayload
 
 
-def _make_bus_error_context(exc: BaseException | None = None) -> BusErrorContext:
+def make_bus_error_context(exc: BaseException | None = None) -> BusErrorContext:
     """Helper to construct a BusErrorContext with minimal required fields."""
     if exc is None:
         exc = ValueError("test error")
@@ -30,7 +30,7 @@ class TestBusErrorContextConstruction:
     def test_bus_error_context_construction(self) -> None:
         """BusErrorContext can be constructed and fields are accessible."""
         exc = RuntimeError("boom")
-        ctx = _make_bus_error_context(exc)
+        ctx = make_bus_error_context(exc)
 
         assert ctx.exception is exc
         assert ctx.topic == "state_changed"
@@ -39,7 +39,7 @@ class TestBusErrorContextConstruction:
 
     def test_bus_error_context_frozen(self) -> None:
         """BusErrorContext is frozen — mutation raises FrozenInstanceError."""
-        ctx = _make_bus_error_context()
+        ctx = make_bus_error_context()
 
         with pytest.raises(Exception, match="cannot assign to field"):  # FrozenInstanceError (dataclasses internal)
             ctx.topic = "other_topic"  # pyright: ignore[reportGeneralIssues]

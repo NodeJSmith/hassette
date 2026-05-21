@@ -26,15 +26,15 @@ if typing.TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
-async def _handler_alpha(event) -> None:
+async def handler_alpha(event) -> None:
     pass
 
 
-async def _handler_beta(event) -> None:
+async def handler_beta(event) -> None:
     pass
 
 
-async def _handler_gamma(event) -> None:
+async def handler_gamma(event) -> None:
     pass
 
 
@@ -82,7 +82,7 @@ async def test_cancel_then_add_routes_exactly_one_handler(bus: "Bus") -> None:
     topic = "test.ordering.cancel_replace"
 
     # Register original handler
-    sub = bus.on(topic=topic, handler=_handler_alpha, name="original")
+    sub = bus.on(topic=topic, handler=handler_alpha, name="original")
 
     # Verify it's routed
     listeners_before = bus.get_listeners()
@@ -91,7 +91,7 @@ async def test_cancel_then_add_routes_exactly_one_handler(bus: "Bus") -> None:
 
     # Cancel, then immediately register replacement — no await between them
     sub.cancel()
-    sub2 = bus.on(topic=topic, handler=_handler_beta, name="replacement")
+    sub2 = bus.on(topic=topic, handler=handler_beta, name="replacement")
 
     # Routing table must reflect exactly one handler — the replacement
     listeners_after = bus.get_listeners()
@@ -106,14 +106,14 @@ async def test_cancel_then_add_routes_exactly_one_handler(bus: "Bus") -> None:
 
 async def test_cancel_then_add_different_topics_both_routed(bus: "Bus") -> None:
     """Cancel on one topic + add on another topic — both are independent, no collision."""
-    sub_a = bus.on(topic="test.ordering.topic_a", handler=_handler_alpha)
-    sub_b = bus.on(topic="test.ordering.topic_b", handler=_handler_beta)  # noqa: F841
+    sub_a = bus.on(topic="test.ordering.topic_a", handler=handler_alpha)
+    sub_b = bus.on(topic="test.ordering.topic_b", handler=handler_beta)  # noqa: F841
 
     # Cancel topic_a handler
     sub_a.cancel()
 
     # Immediately add a new handler on topic_a
-    bus.on(topic="test.ordering.topic_a", handler=_handler_gamma, name="topic_a_replacement")
+    bus.on(topic="test.ordering.topic_a", handler=handler_gamma, name="topic_a_replacement")
 
     listeners = bus.get_listeners()
     # Should have exactly 2 listeners: the replacement on topic_a, and beta on topic_b
@@ -124,8 +124,8 @@ async def test_cancel_multiple_then_add_replacement(bus: "Bus") -> None:
     """Cancel several handlers then add a single replacement — exactly one handler routed."""
     topic = "test.ordering.multi_cancel"
 
-    sub1 = bus.on(topic=topic, handler=_handler_alpha, name="h1")
-    sub2 = bus.on(topic=topic, handler=_handler_beta, name="h2")
+    sub1 = bus.on(topic=topic, handler=handler_alpha, name="h1")
+    sub2 = bus.on(topic=topic, handler=handler_beta, name="h2")
 
     # Both present
     assert len(bus.get_listeners()) == 2
@@ -133,7 +133,7 @@ async def test_cancel_multiple_then_add_replacement(bus: "Bus") -> None:
     # Cancel both, then add one replacement — all synchronous, no yields
     sub1.cancel()
     sub2.cancel()
-    sub3 = bus.on(topic=topic, handler=_handler_gamma, name="h3")
+    sub3 = bus.on(topic=topic, handler=handler_gamma, name="h3")
 
     listeners = bus.get_listeners()
     assert len(listeners) == 1
@@ -156,7 +156,7 @@ async def test_get_listeners_immediately_visible_after_registration(bus: "Bus") 
     topic = "test.ordering.immediate_visibility"
 
     # Register, then immediately query — no await between them
-    sub = bus.on(topic=topic, handler=_handler_alpha)
+    sub = bus.on(topic=topic, handler=handler_alpha)
     listeners = bus.get_listeners()
 
     assert len(listeners) == 1, (
@@ -168,9 +168,9 @@ async def test_get_listeners_immediately_visible_after_registration(bus: "Bus") 
 
 async def test_multiple_registrations_all_immediately_visible(bus: "Bus") -> None:
     """AC#3: Multiple handlers registered sequentially are all immediately visible."""
-    bus.on(topic="test.ordering.vis_a", handler=_handler_alpha, name="va")
-    bus.on(topic="test.ordering.vis_b", handler=_handler_beta, name="vb")
-    bus.on(topic="test.ordering.vis_c", handler=_handler_gamma, name="vc")
+    bus.on(topic="test.ordering.vis_a", handler=handler_alpha, name="va")
+    bus.on(topic="test.ordering.vis_b", handler=handler_beta, name="vb")
+    bus.on(topic="test.ordering.vis_c", handler=handler_gamma, name="vc")
 
     listeners = bus.get_listeners()
     assert len(listeners) == 3
@@ -196,9 +196,9 @@ async def test_remove_all_listeners_then_query_is_empty(bus: "Bus") -> None:
     """
     topic = "test.ordering.bulk_remove"
 
-    bus.on(topic=topic, handler=_handler_alpha, name="r1")
-    bus.on(topic=topic, handler=_handler_beta, name="r2")
-    bus.on(topic="test.ordering.bulk_remove_2", handler=_handler_gamma)
+    bus.on(topic=topic, handler=handler_alpha, name="r1")
+    bus.on(topic=topic, handler=handler_beta, name="r2")
+    bus.on(topic="test.ordering.bulk_remove_2", handler=handler_gamma)
 
     # Confirm all 3 are present
     assert len(bus.get_listeners()) == 3
@@ -221,11 +221,11 @@ async def test_remove_all_listeners_idempotent(bus: "Bus") -> None:
 
 async def test_register_after_bulk_remove_works(bus: "Bus") -> None:
     """AC#4: After remove_all_listeners(), new registrations are accepted normally."""
-    bus.on(topic="test.ordering.post_remove", handler=_handler_alpha, name="first")
+    bus.on(topic="test.ordering.post_remove", handler=handler_alpha, name="first")
     bus.remove_all_listeners()
 
     # Should be able to register the same handler again (no stale collision key)
-    sub = bus.on(topic="test.ordering.post_remove", handler=_handler_alpha, name="first")
+    sub = bus.on(topic="test.ordering.post_remove", handler=handler_alpha, name="first")
     listeners = bus.get_listeners()
 
     assert len(listeners) == 1
@@ -234,10 +234,10 @@ async def test_register_after_bulk_remove_works(bus: "Bus") -> None:
 
 async def test_interleaved_add_remove_preserves_count(bus: "Bus") -> None:
     """AC#1 + AC#4: Interleaved adds and removes maintain correct count at each step."""
-    sub1 = bus.on(topic="test.ordering.interleaved", handler=_handler_alpha, name="i1")
+    sub1 = bus.on(topic="test.ordering.interleaved", handler=handler_alpha, name="i1")
     assert len(bus.get_listeners()) == 1
 
-    sub2 = bus.on(topic="test.ordering.interleaved", handler=_handler_beta, name="i2")
+    sub2 = bus.on(topic="test.ordering.interleaved", handler=handler_beta, name="i2")
     assert len(bus.get_listeners()) == 2
 
     sub1.cancel()

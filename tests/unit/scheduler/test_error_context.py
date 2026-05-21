@@ -5,7 +5,7 @@ import pytest
 from hassette.scheduler.error_context import SchedulerErrorContext
 
 
-def _make_scheduler_error_context(exc: BaseException | None = None) -> SchedulerErrorContext:
+def make_scheduler_error_context(exc: BaseException | None = None) -> SchedulerErrorContext:
     """Helper to construct a SchedulerErrorContext with minimal required fields."""
     if exc is None:
         exc = ValueError("test error")
@@ -24,7 +24,7 @@ class TestSchedulerErrorContextConstruction:
     def test_scheduler_error_context_construction(self) -> None:
         """SchedulerErrorContext can be constructed and fields are accessible."""
         exc = RuntimeError("boom")
-        ctx = _make_scheduler_error_context(exc)
+        ctx = make_scheduler_error_context(exc)
 
         assert ctx.exception is exc
         assert ctx.job_name == "my_job"
@@ -35,7 +35,7 @@ class TestSchedulerErrorContextConstruction:
 
     def test_scheduler_error_context_frozen(self) -> None:
         """SchedulerErrorContext is frozen — mutation raises FrozenInstanceError."""
-        ctx = _make_scheduler_error_context()
+        ctx = make_scheduler_error_context()
 
         with pytest.raises(Exception, match="cannot assign to field"):  # FrozenInstanceError (dataclasses internal)
             ctx.job_name = "other_job"  # pyright: ignore[reportGeneralIssues]

@@ -32,7 +32,7 @@ async def executor(
         await exc.on_shutdown()
 
 
-def _make_listener_registration(*, topic: str = "hass.event.state_changed") -> ListenerRegistration:
+def make_listener_registration(*, topic: str = "hass.event.state_changed") -> ListenerRegistration:
     return ListenerRegistration(
         app_key="test_app",
         instance_index=0,
@@ -49,7 +49,7 @@ def _make_listener_registration(*, topic: str = "hass.event.state_changed") -> L
     )
 
 
-def _make_job_registration(*, job_name: str = "test_job") -> ScheduledJobRegistration:
+def make_job_registration(*, job_name: str = "test_job") -> ScheduledJobRegistration:
     return ScheduledJobRegistration(
         app_key="test_app",
         instance_index=0,
@@ -65,7 +65,7 @@ def _make_job_registration(*, job_name: str = "test_job") -> ScheduledJobRegistr
     )
 
 
-def _make_mock_listener() -> MagicMock:
+def make_mock_listener() -> MagicMock:
     """Return a mock Listener whose invoke() is an awaitable coroutine."""
     listener = MagicMock()
     listener.invoke = AsyncMock()
@@ -75,7 +75,7 @@ def _make_mock_listener() -> MagicMock:
     return listener
 
 
-def _make_mock_job() -> MagicMock:
+def make_mock_job() -> MagicMock:
     """Return a mock ScheduledJob."""
     job = MagicMock(spec=ScheduledJob)
     job.error_handler = None
@@ -84,7 +84,7 @@ def _make_mock_job() -> MagicMock:
 
 async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
     """CancelledError must be re-raised after queueing a 'cancelled' record."""
-    listener = _make_mock_listener()
+    listener = make_mock_listener()
     listener.invoke.side_effect = asyncio.CancelledError()
     listener.invoker.invoke.side_effect = asyncio.CancelledError()
 
@@ -105,7 +105,7 @@ async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:
 
 async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
     """DependencyError must be swallowed (not re-raised) and logged as error."""
-    listener = _make_mock_listener()
+    listener = make_mock_listener()
     listener.invoke.side_effect = DependencyError("missing dep")
     listener.invoker.invoke.side_effect = DependencyError("missing dep")
 
@@ -129,7 +129,7 @@ async def test_dependency_error_swallowed(executor: CommandExecutor) -> None:
 
 async def test_hassette_error_swallowed(executor: CommandExecutor) -> None:
     """HassetteError must be swallowed and logged without traceback."""
-    listener = _make_mock_listener()
+    listener = make_mock_listener()
     listener.invoke.side_effect = HassetteError("framework error")
     listener.invoker.invoke.side_effect = HassetteError("framework error")
 
@@ -150,7 +150,7 @@ async def test_hassette_error_swallowed(executor: CommandExecutor) -> None:
 
 async def test_unexpected_error_swallowed(executor: CommandExecutor) -> None:
     """Generic Exception must be swallowed and include traceback."""
-    listener = _make_mock_listener()
+    listener = make_mock_listener()
     listener.invoke.side_effect = ValueError("oops")
     listener.invoker.invoke.side_effect = ValueError("oops")
 
@@ -173,7 +173,7 @@ async def test_unexpected_error_swallowed(executor: CommandExecutor) -> None:
 
 async def test_success_record_queued(executor: CommandExecutor) -> None:
     """Successful invocation must queue a 'success' record."""
-    listener = _make_mock_listener()
+    listener = make_mock_listener()
     listener.invoke.return_value = None
     listener.invoker.invoke.return_value = None
 
@@ -200,7 +200,7 @@ async def test_execute_timeout_fires(executor: CommandExecutor) -> None:
     async def slow_handler(_event):
         await asyncio.sleep(10)
 
-    listener = _make_mock_listener()
+    listener = make_mock_listener()
     listener.invoke = slow_handler
     listener.invoker.invoke = slow_handler
 
@@ -218,7 +218,7 @@ async def test_execute_timeout_fires(executor: CommandExecutor) -> None:
 
 async def test_execute_timeout_none_is_noop(executor: CommandExecutor) -> None:
     """effective_timeout=None does not enforce timeout."""
-    listener = _make_mock_listener()
+    listener = make_mock_listener()
     listener.invoke.return_value = None
     listener.invoker.invoke.return_value = None
 
@@ -240,7 +240,7 @@ async def test_timeout_warning_rate_limited(executor: CommandExecutor) -> None:
     async def slow_handler(_event):
         await asyncio.sleep(10)
 
-    listener = _make_mock_listener()
+    listener = make_mock_listener()
     listener.invoke = slow_handler
     listener.invoker.invoke = slow_handler
 
@@ -277,7 +277,7 @@ async def test_timeout_warning_lazy_eviction(executor: CommandExecutor) -> None:
     async def slow_handler(_event):
         await asyncio.sleep(10)
 
-    listener = _make_mock_listener()
+    listener = make_mock_listener()
     listener.invoke = slow_handler
     listener.invoker.invoke = slow_handler
 
@@ -304,7 +304,7 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
     db_service, session_id = initialized_db
 
     # First register a listener to get a valid listener_id FK
-    reg = _make_listener_registration()
+    reg = make_listener_registration()
     listener_id = await executor.register_listener(reg)
 
     # Queue a success record directly
@@ -339,7 +339,7 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
     """_flush_queue() persists remaining records before returning."""
     db_service, session_id = initialized_db
 
-    reg = _make_listener_registration()
+    reg = make_listener_registration()
     listener_id = await executor.register_listener(reg)
 
     # Put two records in the queue
@@ -371,7 +371,7 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
 
 async def test_execute_job_success_record_queued(executor: CommandExecutor) -> None:
     """Successful job execution queues a JobExecutionRecord with status='success'."""
-    job = _make_mock_job()
+    job = make_mock_job()
     callable_mock = AsyncMock(return_value=None)
 
     cmd = ExecuteJob(job=job, callable=callable_mock, job_db_id=42, source_tier="app", effective_timeout=None)
@@ -387,7 +387,7 @@ async def test_execute_job_success_record_queued(executor: CommandExecutor) -> N
 
 async def test_execute_job_error_swallowed(executor: CommandExecutor) -> None:
     """Job error is swallowed and queues a JobExecutionRecord with status='error'."""
-    job = _make_mock_job()
+    job = make_mock_job()
     callable_mock = AsyncMock(side_effect=RuntimeError("job failed"))
 
     cmd = ExecuteJob(job=job, callable=callable_mock, job_db_id=42, source_tier="app", effective_timeout=None)
@@ -412,7 +412,7 @@ def test_build_record_uses_session_id_directly(db_hassette: AsyncMock) -> None:
     exc = CommandExecutor(db_hassette, parent=db_hassette)
     db_hassette.session_id = 99
 
-    listener = _make_mock_listener()
+    listener = make_mock_listener()
 
     cmd = InvokeHandler(
         listener=listener, event=MagicMock(), topic="test", listener_id=5, source_tier="app", effective_timeout=None
@@ -438,7 +438,7 @@ async def test_persist_batch_drops_presession_records(
     pattern for the registration race.
     """
     db_service, session_id = initialized_db
-    reg = _make_listener_registration()
+    reg = make_listener_registration()
     listener_id = await executor.register_listener(reg)
 
     now = time.time()
@@ -497,7 +497,7 @@ async def test_register_listener_blocks_until_database_ready(
     db_hassette.wait_for_ready = gated_wait
     exc = CommandExecutor(db_hassette, parent=db_hassette)
 
-    task = asyncio.create_task(exc.register_listener(_make_listener_registration()))
+    task = asyncio.create_task(exc.register_listener(make_listener_registration()))
     await asyncio.sleep(0)
     assert not task.done(), "register_listener should block while DatabaseService is not ready"
 
@@ -527,7 +527,7 @@ async def test_register_job_blocks_until_database_ready(
     db_hassette.wait_for_ready = gated_wait
     exc = CommandExecutor(db_hassette, parent=db_hassette)
 
-    task = asyncio.create_task(exc.register_job(_make_job_registration()))
+    task = asyncio.create_task(exc.register_job(make_job_registration()))
     await asyncio.sleep(0)
     assert not task.done(), "register_job should block while DatabaseService is not ready"
 
@@ -557,7 +557,7 @@ async def test_concurrent_registrations_do_not_raise(
         await exc.on_initialize()
 
         batch_size = 10
-        regs = [_make_listener_registration(topic=f"test.topic.{i}") for i in range(batch_size)]
+        regs = [make_listener_registration(topic=f"test.topic.{i}") for i in range(batch_size)]
 
         ids = await asyncio.gather(*[exc.register_listener(reg) for reg in regs])
 
@@ -579,7 +579,7 @@ async def test_fk_preserved_across_restart(
     db_service, session_id = initialized_db
 
     # Register listener (first "session")
-    reg = _make_listener_registration()
+    reg = make_listener_registration()
     listener_id = await executor.register_listener(reg)
     assert listener_id > 0
 
@@ -623,7 +623,7 @@ async def test_reconciliation_ordering(
     db_service, session_id = initialized_db
 
     # Register two listeners
-    reg_a = _make_listener_registration(topic="topic.a")
+    reg_a = make_listener_registration(topic="topic.a")
     reg_b = ListenerRegistration(
         app_key="test_app",
         instance_index=0,

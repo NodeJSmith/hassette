@@ -270,7 +270,7 @@ def is_event_type(annotation: Any) -> bool:
     return isclass(base_type) and issubclass(base_type, Event)
 
 
-def _make_union(types: set[Any]) -> Any:
+def make_union(types: set[Any]) -> Any:
     """Create a PEP604 union from a set of type annotations."""
     # Flatten nested unions
     flat: set[Any] = set()
@@ -307,12 +307,12 @@ def _make_union(types: set[Any]) -> Any:
 
     # Build A | B | C
     out = None
-    for t in sorted(really_flat, key=_type_sort_key):
+    for t in sorted(really_flat, key=type_sort_key):
         out = t if out is None else (out | t)
     return out
 
 
-def _type_sort_key(tp: Any) -> tuple[int, str]:
+def type_sort_key(tp: Any) -> tuple[int, str]:
     """Stable-ish ordering: None first, then builtins, then by name."""
     if tp is NoneType:
         return (0, "None")
@@ -334,27 +334,27 @@ def get_normalized_actual_type_from_value(value: Any) -> Any:
     if isinstance(value, dict):
         if not value:
             return dict[Any, Any]
-        key_ann = _make_union({get_normalized_actual_type_from_value(k) for k in value})
-        val_ann = _make_union({get_normalized_actual_type_from_value(v) for v in value.values()})
+        key_ann = make_union({get_normalized_actual_type_from_value(k) for k in value})
+        val_ann = make_union({get_normalized_actual_type_from_value(v) for v in value.values()})
         return dict[key_ann, val_ann]
 
     # list / set / frozenset
     if isinstance(value, list):
         if not value:
             return list[Any]
-        elem_ann = _make_union({get_normalized_actual_type_from_value(v) for v in value})
+        elem_ann = make_union({get_normalized_actual_type_from_value(v) for v in value})
         return list[elem_ann]
 
     if isinstance(value, set):
         if not value:
             return set[Any]
-        elem_ann = _make_union({get_normalized_actual_type_from_value(v) for v in value})
+        elem_ann = make_union({get_normalized_actual_type_from_value(v) for v in value})
         return set[elem_ann]
 
     if isinstance(value, frozenset):
         if not value:
             return frozenset[Any]
-        elem_ann = _make_union({get_normalized_actual_type_from_value(v) for v in value})
+        elem_ann = make_union({get_normalized_actual_type_from_value(v) for v in value})
         return frozenset[elem_ann]
 
     # tuple (optional but often handy)

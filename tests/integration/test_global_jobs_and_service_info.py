@@ -238,7 +238,7 @@ async def scheduler_client(mock_hassette_scheduler):
         yield ac, mock_hassette_scheduler
 
 
-def _make_job_summary(
+def make_job_summary(
     job_id: int = 1,
     app_key: str = "my_app",
     job_name: str = "test_job",
@@ -283,8 +283,8 @@ class TestGlobalJobsEndpointMultipleApps:
         client, mock_hassette = scheduler_client
 
         db_jobs = [
-            _make_job_summary(job_id=1, app_key="app_alpha"),
-            _make_job_summary(job_id=2, app_key="app_beta"),
+            make_job_summary(job_id=1, app_key="app_alpha"),
+            make_job_summary(job_id=2, app_key="app_beta"),
         ]
         mock_hassette.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=db_jobs)
         mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
@@ -302,7 +302,7 @@ class TestGlobalJobsEndpointEnrichesWithLiveData:
         """Global jobs endpoint enriches DB rows with live next_run, fire_at, jitter."""
         client, mock_hassette = scheduler_client
 
-        db_summary = _make_job_summary(job_id=42, app_key="my_app")
+        db_summary = make_job_summary(job_id=42, app_key="my_app")
         mock_hassette.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[db_summary])
 
         trigger = Every(hours=1)
@@ -328,7 +328,7 @@ class TestGlobalJobsEndpointDegradedOnHeapFailure:
         """Returns DB-only rows (no 500) when get_all_jobs() raises."""
         client, mock_hassette = scheduler_client
 
-        db_summary = _make_job_summary(job_id=55)
+        db_summary = make_job_summary(job_id=55)
         mock_hassette.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[db_summary])
         mock_hassette.scheduler_service.get_all_jobs = AsyncMock(side_effect=RuntimeError("heap unavailable"))
 

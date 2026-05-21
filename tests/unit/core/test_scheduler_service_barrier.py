@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 from hassette.core.registration_tracker import RegistrationTracker
 
 
-def _make_scheduler_service() -> "SchedulerService":  # noqa: F821
+def make_scheduler_service() -> "SchedulerService":  # noqa: F821
     """Create a SchedulerService with mocked internals, bypassing Resource.__init__."""
     from hassette.core.scheduler_service import SchedulerService
 
@@ -32,19 +32,19 @@ def _make_scheduler_service() -> "SchedulerService":  # noqa: F821
 class TestAwaitRegistrationsComplete:
     async def test_returns_immediately_for_unknown_app_key(self) -> None:
         """No tasks for the app_key — returns without error."""
-        svc = _make_scheduler_service()
+        svc = make_scheduler_service()
         # Should complete without raising
         await svc.await_registrations_complete("nonexistent_app")
 
     async def test_returns_immediately_for_empty_task_list(self) -> None:
         """Empty task list for app_key — returns without error."""
-        svc = _make_scheduler_service()
+        svc = make_scheduler_service()
         svc._reg_tracker._tasks["my_app"] = []
         await svc.await_registrations_complete("my_app")
 
     async def test_awaits_pending_tasks(self) -> None:
         """Pending tasks are awaited and allowed to complete."""
-        svc = _make_scheduler_service()
+        svc = make_scheduler_service()
         completed = asyncio.Event()
 
         async def _work() -> None:
@@ -59,7 +59,7 @@ class TestAwaitRegistrationsComplete:
 
     async def test_clears_task_list_after_await(self) -> None:
         """Task list is cleared (popped) after await_registrations_complete."""
-        svc = _make_scheduler_service()
+        svc = make_scheduler_service()
 
         async def _noop() -> None:
             pass
@@ -73,7 +73,7 @@ class TestAwaitRegistrationsComplete:
 
     async def test_already_done_tasks_skipped_immediately(self) -> None:
         """Already-done tasks are filtered out without awaiting gather."""
-        svc = _make_scheduler_service()
+        svc = make_scheduler_service()
 
         async def _noop() -> None:
             pass
@@ -88,7 +88,7 @@ class TestAwaitRegistrationsComplete:
 
     async def test_timeout_logs_warning_does_not_raise(self) -> None:
         """Timeout triggers a warning log but does not propagate as an exception."""
-        svc = _make_scheduler_service()
+        svc = make_scheduler_service()
         svc.hassette.config.lifecycle.registration_await_timeout = 0.01  # very short timeout
 
         gate = asyncio.Event()
@@ -123,7 +123,7 @@ class TestAddJobPruning:
         Tested by directly exercising the pruning logic embedded in add_job via
         a synthetic pre-existing done task in _pending_registration_tasks.
         """
-        svc = _make_scheduler_service()
+        svc = make_scheduler_service()
 
         # Populate with already-done tasks to simulate stale entries from a previous
         # dynamic registration whose task has since completed.

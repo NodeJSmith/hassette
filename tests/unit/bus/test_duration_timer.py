@@ -24,7 +24,7 @@ from hassette.test_utils.helpers import create_listener, make_task_bucket
 # ---------------------------------------------------------------------------
 
 
-def _make_timer(
+def make_timer(
     duration: float = 0.05,
     predicates=None,
     entity_id: str = "light.kitchen",
@@ -59,7 +59,7 @@ def _make_timer(
     return timer, task_bucket_mock, cancel_sub_mock
 
 
-def _make_event() -> MagicMock:
+def make_event() -> MagicMock:
     """Make a mock event."""
     return MagicMock(name="event")
 
@@ -71,7 +71,7 @@ def _make_event() -> MagicMock:
 
 async def test_start_spawns_task_and_fires_after_delay() -> None:
     """start() with a short delay fires the on_fire callback after the delay elapses."""
-    timer, _, _ = _make_timer(duration=0.05)
+    timer, _, _ = make_timer(duration=0.05)
     fired = asyncio.Event()
 
     async def on_fire() -> None:
@@ -89,7 +89,7 @@ async def test_start_spawns_task_and_fires_after_delay() -> None:
 
 async def test_cancel_prevents_fire() -> None:
     """cancel() called before the delay elapses prevents on_fire from running."""
-    timer, _, _cancel_sub = _make_timer(duration=0.5)
+    timer, _, _cancel_sub = make_timer(duration=0.5)
     fired = asyncio.Event()
 
     async def on_fire() -> None:
@@ -108,7 +108,7 @@ async def test_cancel_prevents_fire() -> None:
 
 async def test_cancel_is_idempotent() -> None:
     """Calling cancel() twice does not raise an exception."""
-    timer, _, _ = _make_timer(duration=0.5)
+    timer, _, _ = make_timer(duration=0.5)
 
     async def on_fire() -> None:
         pass
@@ -122,7 +122,7 @@ async def test_cancel_is_idempotent() -> None:
 
 async def test_start_cancels_previous_task() -> None:
     """Calling start() a second time cancels the first pending task."""
-    timer, _, _ = _make_timer(duration=0.5)
+    timer, _, _ = make_timer(duration=0.5)
     fire_count = 0
 
     async def on_fire() -> None:
@@ -188,7 +188,7 @@ async def test_start_recreates_cancel_subscription() -> None:
 
 async def test_is_active_reflects_pending_task() -> None:
     """is_active returns True after start(), False after cancel() or after firing."""
-    timer, _, _ = _make_timer(duration=0.05)
+    timer, _, _ = make_timer(duration=0.05)
     fired = asyncio.Event()
 
     async def on_fire() -> None:
@@ -209,7 +209,7 @@ async def test_is_active_reflects_pending_task() -> None:
 
 async def test_is_active_false_after_cancel() -> None:
     """is_active returns False after cancel()."""
-    timer, _, _ = _make_timer(duration=0.5)
+    timer, _, _ = make_timer(duration=0.5)
 
     async def on_fire() -> None:
         pass
@@ -229,7 +229,7 @@ async def test_is_active_false_after_cancel() -> None:
 async def test_evaluate_cancel_event_matching_does_not_cancel() -> None:
     """Event that still matches predicates does not cancel the timer."""
     predicate = MagicMock(return_value=True)  # always matches
-    timer, _, _ = _make_timer(duration=0.5, predicates=predicate)
+    timer, _, _ = make_timer(duration=0.5, predicates=predicate)
 
     async def on_fire() -> None:
         pass
@@ -238,7 +238,7 @@ async def test_evaluate_cancel_event_matching_does_not_cancel() -> None:
     assert timer.is_active
 
     # Trigger the cancellation handler with a matching event
-    timer.evaluate_cancel_event(_make_event())
+    timer.evaluate_cancel_event(make_event())
 
     # Timer should still be active — predicate matched, no cancel
     assert timer.is_active
@@ -251,7 +251,7 @@ async def test_evaluate_cancel_event_matching_does_not_cancel() -> None:
 async def test_evaluate_cancel_event_non_matching_cancels() -> None:
     """Event that fails predicates cancels the timer."""
     predicate = MagicMock(return_value=False)  # never matches
-    timer, _, _cancel_sub = _make_timer(duration=0.5, predicates=predicate)
+    timer, _, _cancel_sub = make_timer(duration=0.5, predicates=predicate)
 
     async def on_fire() -> None:
         pass
@@ -260,7 +260,7 @@ async def test_evaluate_cancel_event_non_matching_cancels() -> None:
     assert timer.is_active
 
     # Trigger the cancellation handler with a non-matching event
-    timer.evaluate_cancel_event(_make_event())
+    timer.evaluate_cancel_event(make_event())
 
     # Timer should be cancelled
     assert timer._cancelled
@@ -269,7 +269,7 @@ async def test_evaluate_cancel_event_non_matching_cancels() -> None:
 
 async def test_evaluate_cancel_event_none_predicate_does_not_cancel() -> None:
     """When predicates is None, cancellation events are ignored (no predicate = always match)."""
-    timer, _, _ = _make_timer(duration=0.5, predicates=None)
+    timer, _, _ = make_timer(duration=0.5, predicates=None)
 
     async def on_fire() -> None:
         pass
@@ -278,7 +278,7 @@ async def test_evaluate_cancel_event_none_predicate_does_not_cancel() -> None:
     assert timer.is_active
 
     # evaluate_cancel_event with None predicates should not cancel
-    timer.evaluate_cancel_event(_make_event())
+    timer.evaluate_cancel_event(make_event())
 
     assert timer.is_active
     assert not timer._cancelled
@@ -294,7 +294,7 @@ async def test_evaluate_cancel_event_none_predicate_does_not_cancel() -> None:
 
 async def test_cancel_removes_cancellation_listener_synchronously() -> None:
     """cancel() calls cancel_sub.cancel() directly, not via task_bucket.spawn()."""
-    timer, task_bucket_mock, cancel_sub = _make_timer(duration=0.5)
+    timer, task_bucket_mock, cancel_sub = make_timer(duration=0.5)
 
     async def on_fire() -> None:
         pass
@@ -317,7 +317,7 @@ async def test_cancel_sets_cancelled_flag_first() -> None:
     """The _cancelled flag is set as the FIRST operation in cancel() (idempotency guard)."""
     # We verify by checking that _cancelled is True before any other cleanup runs.
     # Since cancel() is sync, we inspect state after the call.
-    timer, _, cancel_sub = _make_timer(duration=0.5)
+    timer, _, cancel_sub = make_timer(duration=0.5)
 
     async def on_fire() -> None:
         pass

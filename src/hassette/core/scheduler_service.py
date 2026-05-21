@@ -379,7 +379,7 @@ class SchedulerService(Service):
         # Resolve the app-level error handler at dispatch time via the closure set by
         # Scheduler.add_job(). This avoids coupling the dispatch path to Scheduler internals.
         app_level_error_handler = (
-            job._app_error_handler_resolver() if job._app_error_handler_resolver is not None else None
+            job.app_error_handler_resolver() if job.app_error_handler_resolver is not None else None
         )
 
         cmd = ExecuteJob(

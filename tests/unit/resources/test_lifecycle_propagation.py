@@ -101,16 +101,16 @@ async def test_shutdown_event_cleared_by_initialize():
 
 
 async def test_start_resets_shutdown_completed():
-    """start() resets _shutdown_completed so the init task is spawned."""
+    """start() resets shutdown_completed so the init task is spawned."""
     hassette = make_mock_hassette(sealed=False)
     resource = ShutdownCounter(hassette)
 
     await resource.initialize()
     await resource.shutdown()
-    assert resource._shutdown_completed is True
+    assert resource.shutdown_completed is True
 
     resource.start()
-    assert resource._shutdown_completed is False
+    assert resource.shutdown_completed is False
     assert resource._init_task is not None, "start() should have spawned an init task"
 
     # Cleanup: await the spawned init task, then shut down
@@ -211,7 +211,7 @@ async def test_shutdown_propagation_completes_despite_child_exception():
 
     This tests the gather(return_exceptions=True) safety net: even if shutdown()
     itself raises (not just on_shutdown hooks), the parent still sets
-    _shutdown_completed and processes remaining children.
+    shutdown_completed and processes remaining children.
     """
     hassette = make_mock_hassette(sealed=False)
     parent = SimpleParent(hassette)
@@ -233,7 +233,7 @@ async def test_shutdown_propagation_completes_despite_child_exception():
     await parent.shutdown()
 
     # Parent must still complete shutdown
-    assert parent._shutdown_completed is True
+    assert parent.shutdown_completed is True
     # The working child should have been shut down (it's in reverse order, so child_ok runs second)
     assert child_ok.shutdown_count == 1
 
@@ -253,7 +253,7 @@ async def test_shutdown_propagation_skips_completed_children():
     assert child.shutdown_count == 1
 
     # Now shutdown the parent — propagation calls child.shutdown() again,
-    # but _shutdown_completed makes it a no-op
+    # but shutdown_completed makes it a no-op
     await parent.shutdown()
     assert child.shutdown_count == 1, f"Expected 1, got {child.shutdown_count}"
 
@@ -267,7 +267,7 @@ async def test_shutdown_propagation_with_no_children():
     await leaf.shutdown()
 
     assert leaf.shutdown_count == 1
-    assert leaf._shutdown_completed is True
+    assert leaf.shutdown_completed is True
 
 
 async def test_shutdown_propagation_timeout_forces_terminal_state():
@@ -286,12 +286,12 @@ async def test_shutdown_propagation_timeout_forces_terminal_state():
     await parent.shutdown()
 
     # Parent should complete despite the hanging child
-    assert parent._shutdown_completed is True
+    assert parent.shutdown_completed is True
     # Hanging child should be forced to terminal state
-    assert hanging._shutdown_completed is True
-    assert hanging._shutting_down is False
+    assert hanging.shutdown_completed is True
+    assert hanging.shutting_down is False
     # Normal child should also be shut down (gather runs concurrently)
-    assert normal._shutdown_completed is True
+    assert normal.shutdown_completed is True
 
 
 class SimpleService(Service):
@@ -522,7 +522,7 @@ async def test_service_status_is_starting_after_initialize():
     await svc.shutdown()
 
 
-def _make_leaf(hassette, leaf_type: str) -> Resource:
+def make_leaf(hassette, leaf_type: str) -> Resource:
     """Create a leaf resource by type name, returning the resource to check readiness on."""
     if leaf_type == "Bus":
         return Bus(hassette, parent=hassette)
@@ -538,14 +538,14 @@ def _make_leaf(hassette, leaf_type: str) -> Resource:
     raise ValueError(f"Unknown leaf type: {leaf_type}")
 
 
-_LEAF_TYPES = ["Bus", "Scheduler", "Api", "ApiSyncFacade", "_ScheduledJobQueue"]
+LEAF_TYPES = ["Bus", "Scheduler", "Api", "ApiSyncFacade", "_ScheduledJobQueue"]
 
 
-@pytest.mark.parametrize("leaf_type", _LEAF_TYPES)
+@pytest.mark.parametrize("leaf_type", LEAF_TYPES)
 async def test_leaf_ready_after_initialize_not_after_init(leaf_type: str):
     """Leaf resources should NOT be ready after construction — only after initialize()."""
     hassette = make_mock_hassette(sealed=False)
-    resource = _make_leaf(hassette, leaf_type)
+    resource = make_leaf(hassette, leaf_type)
 
     assert not resource.is_ready(), f"{leaf_type} should not be ready after construction"
 
@@ -558,11 +558,11 @@ async def test_leaf_ready_after_initialize_not_after_init(leaf_type: str):
     assert resource.is_ready(), f"{leaf_type} should be ready after initialize()"
 
 
-@pytest.mark.parametrize("leaf_type", _LEAF_TYPES)
+@pytest.mark.parametrize("leaf_type", LEAF_TYPES)
 async def test_leaf_ready_after_restart(leaf_type: str):
     """After shutdown + re-initialize, leaf resources restore readiness."""
     hassette = make_mock_hassette(sealed=False)
-    resource = _make_leaf(hassette, leaf_type)
+    resource = make_leaf(hassette, leaf_type)
     init_target = resource.parent if leaf_type == "ApiSyncFacade" else resource
 
     await init_target.initialize()
@@ -575,7 +575,7 @@ async def test_leaf_ready_after_restart(leaf_type: str):
     assert resource.is_ready(), f"{leaf_type} should be ready after re-initialize"
 
 
-def _make_dummy_job(owner_id: str, name: str = "test_job") -> ScheduledJob:
+def make_dummy_job(owner_id: str, name: str = "test_job") -> ScheduledJob:
     """Create a minimal ScheduledJob for testing."""
 
     async def _noop() -> None:
@@ -595,7 +595,7 @@ async def test_scheduler_on_shutdown_dequeues_all_jobs():
 
     # Add a job so we know there's something to remove
     scheduler.add_job(
-        _make_dummy_job(owner_id=scheduler.owner_id, name="test_job"),
+        make_dummy_job(owner_id=scheduler.owner_id, name="test_job"),
     )
 
     await scheduler.shutdown()
@@ -645,7 +645,7 @@ class StubService(Service):
 
 
 async def test_force_terminal_recurses_to_grandchildren():
-    """_force_terminal() recursively sets all descendants to STOPPED with _shutdown_completed=True."""
+    """_force_terminal() recursively sets all descendants to STOPPED with shutdown_completed=True."""
     hassette = make_mock_hassette(sealed=False)
     root = StubResource(hassette)
 
@@ -662,11 +662,11 @@ async def test_force_terminal_recurses_to_grandchildren():
     root._force_terminal()
 
     assert root.status == ResourceStatus.STOPPED
-    assert root._shutdown_completed is True
+    assert root.shutdown_completed is True
     assert child.status == ResourceStatus.STOPPED
-    assert child._shutdown_completed is True
+    assert child.shutdown_completed is True
     assert grandchild.status == ResourceStatus.STOPPED
-    assert grandchild._shutdown_completed is True
+    assert grandchild.shutdown_completed is True
 
 
 async def test_force_terminal_cancels_task_bucket():
@@ -688,7 +688,7 @@ async def test_force_terminal_cancels_task_bucket():
 
 
 async def test_force_terminal_skips_completed_children():
-    """_force_terminal() returns early for resources with _shutdown_completed=True."""
+    """_force_terminal() returns early for resources with shutdown_completed=True."""
     hassette = make_mock_hassette(sealed=False)
     root = StubResource(hassette)
     child = root.add_child(StubResource)
@@ -697,7 +697,7 @@ async def test_force_terminal_skips_completed_children():
 
     # Pre-complete the child's shutdown
     await child.shutdown()
-    assert child._shutdown_completed is True
+    assert child.shutdown_completed is True
     assert child.status == ResourceStatus.STOPPED
 
     # Track whether cancel() is called on the already-completed child
@@ -706,7 +706,7 @@ async def test_force_terminal_skips_completed_children():
     root._force_terminal()
 
     # Root should be force-terminated
-    assert root._shutdown_completed is True
+    assert root.shutdown_completed is True
     assert root.status == ResourceStatus.STOPPED
     # Child was already completed — cancel() should NOT have been called
     child.cancel.assert_not_called()
@@ -729,7 +729,7 @@ async def test_service_force_terminal_cancels_serve_task():
     # an event loop tick to actually finish. Verify cancelling() is True.
     assert svc._serve_task.cancelling() > 0, "serve task should be marked for cancellation"
     assert svc.status == ResourceStatus.STOPPED
-    assert svc._shutdown_completed is True
+    assert svc.shutdown_completed is True
 
     # Let the event loop process the cancellation
     await asyncio.sleep(0)
@@ -758,7 +758,7 @@ async def test_on_children_stopped_called_on_clean_shutdown():
     await parent.shutdown()
 
     assert parent.hook_called is True, "_on_children_stopped should have been called"
-    assert child._shutdown_completed is True
+    assert child.shutdown_completed is True
 
 
 async def test_on_children_stopped_skipped_on_timeout():
@@ -791,31 +791,31 @@ async def test_cleanup_timeout_fires_on_hung_cleanup():
     # Should complete without hanging — the timeout wrapping cleanup() should fire
     await resource.shutdown()
 
-    assert resource._shutdown_completed is True
+    assert resource.shutdown_completed is True
 
 
 async def test_finalize_shutdown_resets_initializing_flag():
-    """_finalize_shutdown() clears _initializing regardless of how shutdown was triggered."""
+    """_finalize_shutdown() clears initializing regardless of how shutdown was triggered."""
     hassette = make_mock_hassette(sealed=False)
 
     resource1 = StubResource(hassette)
-    resource1._initializing = True
+    resource1.initializing = True
     resource1.shutdown_event.set()
     await resource1._finalize_shutdown()
-    assert resource1._initializing is False
+    assert resource1.initializing is False
 
     resource2 = StubResource(hassette)
-    resource2._initializing = True
+    resource2.initializing = True
     resource2.shutdown_event.clear()
     await resource2._finalize_shutdown()
-    assert resource2._initializing is False
+    assert resource2.initializing is False
 
 
 # Pre-register so FinalMeta allows the shutdown() override on this test helper
-FinalMeta.LOADED_CLASSES.add("tests.unit.resources.test_lifecycle_propagation._TotalTimeoutRoot")
+FinalMeta.LOADED_CLASSES.add("tests.unit.resources.test_lifecycle_propagation.TotalTimeoutRoot")
 
 
-class _TotalTimeoutRoot(Resource):
+class TotalTimeoutRoot(Resource):
     """Mimics Hassette's shutdown() override with total timeout wrapping.
 
     Uses the same pattern as the real Hassette.shutdown() to test the
@@ -853,7 +853,7 @@ class _TotalTimeoutRoot(Resource):
         finally:
             self._order_counter += 1
             self._shutdown_completed_order = self._order_counter
-            self._shutdown_completed = True
+            self.shutdown_completed = True
             if not self.event_streams_closed:
                 with suppress(Exception):
                     self._order_counter += 1
@@ -872,7 +872,7 @@ async def test_total_shutdown_timeout_caps_wall_clock():
     hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.2
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5  # per-level timeout is much larger
 
-    root = _TotalTimeoutRoot(hassette)
+    root = TotalTimeoutRoot(hassette)
     hanging = root.add_child(HangingChild)
     normal = root.add_child(ShutdownCounter)
 
@@ -886,8 +886,8 @@ async def test_total_shutdown_timeout_caps_wall_clock():
 
     # Should complete in roughly total_shutdown_timeout_seconds, not resource_shutdown_timeout_seconds
     assert elapsed < 1.0, f"Shutdown took {elapsed:.2f}s — total timeout should have capped it"
-    assert root._shutdown_completed is True
-    assert hanging._shutdown_completed is True
+    assert root.shutdown_completed is True
+    assert hanging.shutdown_completed is True
 
 
 async def test_total_timeout_force_patches_all_descendants():
@@ -896,7 +896,7 @@ async def test_total_timeout_force_patches_all_descendants():
     hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.1
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
 
-    root = _TotalTimeoutRoot(hassette)
+    root = TotalTimeoutRoot(hassette)
     hanging = root.add_child(HangingChild)
     grandchild = hanging.add_child(StubResource)
 
@@ -907,9 +907,9 @@ async def test_total_timeout_force_patches_all_descendants():
     await root.shutdown()
 
     # All descendants should be force-terminated
-    assert hanging._shutdown_completed is True
+    assert hanging.shutdown_completed is True
     assert hanging.status == ResourceStatus.STOPPED
-    assert grandchild._shutdown_completed is True
+    assert grandchild.shutdown_completed is True
     assert grandchild.status == ResourceStatus.STOPPED
 
 
@@ -919,7 +919,7 @@ async def test_total_timeout_finally_always_closes_streams():
     hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.1
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
 
-    root = _TotalTimeoutRoot(hassette)
+    root = TotalTimeoutRoot(hassette)
     root.add_child(HangingChild)
 
     await root.initialize()
@@ -930,12 +930,12 @@ async def test_total_timeout_finally_always_closes_streams():
 
 
 async def test_total_timeout_sets_shutdown_completed_first():
-    """_shutdown_completed=True is set before handle_stop() and close_streams() in the finally block."""
+    """shutdown_completed=True is set before handle_stop() and close_streams() in the finally block."""
     hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.total_shutdown_timeout_seconds = 0.1
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5
 
-    root = _TotalTimeoutRoot(hassette)
+    root = TotalTimeoutRoot(hassette)
     root.add_child(HangingChild)
 
     await root.initialize()
@@ -944,10 +944,10 @@ async def test_total_timeout_sets_shutdown_completed_first():
 
     # _shutdown_completed_order should be less than handle_stop and close_streams
     assert root._shutdown_completed_order < root._handle_stop_order, (
-        f"_shutdown_completed (order={root._shutdown_completed_order}) must be set before "
+        f"shutdown_completed (order={root._shutdown_completed_order}) must be set before "
         f"handle_stop (order={root._handle_stop_order})"
     )
     assert root._shutdown_completed_order < root._close_streams_order, (
-        f"_shutdown_completed (order={root._shutdown_completed_order}) must be set before "
+        f"shutdown_completed (order={root._shutdown_completed_order}) must be set before "
         f"close_streams (order={root._close_streams_order})"
     )

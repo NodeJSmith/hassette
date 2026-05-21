@@ -18,9 +18,9 @@ if TYPE_CHECKING:
 
 from hassette.test_utils.exceptions import DrainError, DrainTimeout
 from hassette.test_utils.helpers import (
-    _create_component_loaded_event,
-    _create_service_registered_event,
     create_call_service_event,
+    create_component_loaded_event,
+    create_service_registered_event,
     create_state_change_event,
 )
 
@@ -214,7 +214,7 @@ class SimulationMixin:
         """
         harness = self._require_harness()
 
-        event = _create_component_loaded_event(component)
+        event = create_component_loaded_event(component)
         await harness.hassette.send_event(event.topic, event)
         await self._drain_task_bucket(timeout=timeout)
 
@@ -237,7 +237,7 @@ class SimulationMixin:
         """
         harness = self._require_harness()
 
-        event = _create_service_registered_event(domain, service)
+        event = create_service_registered_event(domain, service)
         await harness.hassette.send_event(event.topic, event)
         await self._drain_task_bucket(timeout=timeout)
 

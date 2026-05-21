@@ -28,10 +28,10 @@ from hassette.core.state_proxy import StateProxy
 from hassette.resources.base import Resource
 from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.test_utils import make_mock_hassette
-from hassette.test_utils.harness import TIMEOUTS, HassetteHarness
+from hassette.test_utils.harness import HassetteHarness, Timeouts
 
 
-def _build_mock_hassette():
+def build_mock_hassette():
     hassette = make_mock_hassette(
         sealed=False,
         logging={"log_level": "DEBUG", "apps": "DEBUG"},
@@ -86,7 +86,7 @@ class TestSetGlobalHassetteReturnsToken:
 
     def test_returns_token_on_first_set(self, clean_hassette_context) -> None:
         """Calling set_global_hassette with a new instance returns a Token."""
-        hassette = _build_mock_hassette()
+        hassette = build_mock_hassette()
         fresh_instance = clean_hassette_context  # the fresh ContextVar
 
         result = set_global_hassette(hassette)
@@ -99,7 +99,7 @@ class TestSetGlobalHassetteReturnsToken:
 
     def test_returned_token_can_reset_contextvar(self, clean_hassette_context) -> None:
         """The returned token restores the ContextVar to its pre-set state."""
-        hassette = _build_mock_hassette()
+        hassette = build_mock_hassette()
         fresh_instance = clean_hassette_context
 
         token = set_global_hassette(hassette)
@@ -114,7 +114,7 @@ class TestSetGlobalHassetteReturnsToken:
 
     def test_same_instance_returns_none(self, clean_hassette_context) -> None:
         """When the same instance is already set, returns None (early-return path)."""
-        hassette = _build_mock_hassette()
+        hassette = build_mock_hassette()
         fresh_instance = clean_hassette_context
 
         first_token = set_global_hassette(hassette)
@@ -141,7 +141,7 @@ class TestAppApiFactory:
             app_config_cls = _TestConfig
             app_manifest = Mock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        hassette = _build_mock_hassette()
+        hassette = build_mock_hassette()
         config = _TestConfig(instance_name="test")
 
         original_add_child = Resource.add_child
@@ -173,7 +173,7 @@ class TestAppApiFactory:
             app_config_cls = _TestConfig
             app_manifest = Mock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        hassette = _build_mock_hassette()
+        hassette = build_mock_hassette()
         config = _TestConfig(instance_name="test")
 
         original_add_child = Resource.add_child
@@ -194,7 +194,7 @@ class TestAppApiFactory:
 class TestHarnessSeedState:
     """HassetteHarness.seed_state() writes to the StateProxy cache under the lock."""
 
-    def _make_harness_with_proxy(self, tmp_path: Path) -> tuple[HassetteHarness, StateProxy]:
+    def make_harness_with_proxy(self, tmp_path: Path) -> tuple[HassetteHarness, StateProxy]:
         """Build a HassetteHarness with a minimal StateProxy (no full lifecycle)."""
         from hassette.test_utils.config import make_test_config
 
@@ -212,7 +212,7 @@ class TestHarnessSeedState:
 
     async def test_harness_seed_state_writes_to_proxy(self, tmp_path: Path) -> None:
         """seed_state inserts the state dict into StateProxy.states."""
-        harness, proxy = self._make_harness_with_proxy(tmp_path)
+        harness, proxy = self.make_harness_with_proxy(tmp_path)
 
         state_dict = {
             "entity_id": "light.kitchen",
@@ -230,7 +230,7 @@ class TestHarnessSeedState:
 
     async def test_harness_seed_state_overwrites_existing(self, tmp_path: Path) -> None:
         """seed_state replaces any existing entry for the entity."""
-        harness, proxy = self._make_harness_with_proxy(tmp_path)
+        harness, proxy = self.make_harness_with_proxy(tmp_path)
 
         old_dict = {"entity_id": "light.kitchen", "state": "off", "attributes": {}}
         new_dict = {"entity_id": "light.kitchen", "state": "on", "attributes": {}}
@@ -242,7 +242,7 @@ class TestHarnessSeedState:
 
     async def test_harness_seed_state_acquires_lock(self, tmp_path: Path) -> None:
         """seed_state acquires the write lock before writing."""
-        harness, proxy = self._make_harness_with_proxy(tmp_path)
+        harness, proxy = self.make_harness_with_proxy(tmp_path)
 
         lock_acquired = False
         original_lock = proxy.lock  # pyright: ignore[reportAttributeAccessIssue]
@@ -267,7 +267,7 @@ class TestHarnessSeedState:
 
     async def test_harness_seed_state_timeout_on_locked_proxy(self, tmp_path: Path) -> None:
         """seed_state raises TimeoutError when lock cannot be acquired within timeout."""
-        harness, proxy = self._make_harness_with_proxy(tmp_path)
+        harness, proxy = self.make_harness_with_proxy(tmp_path)
 
         lock_held = asyncio.Event()
         release_gate = asyncio.Event()
@@ -285,7 +285,7 @@ class TestHarnessSeedState:
 
         try:
             with (
-                patch.object(TIMEOUTS, "STATE_SEED_LOCK", 0.05),
+                patch.object(Timeouts, "STATE_SEED_LOCK", 0.05),
                 pytest.raises(TimeoutError, match="seed_state"),
             ):
                 await harness.seed_state("sensor.temp", state_dict)
@@ -297,7 +297,7 @@ class TestHarnessSeedState:
 
     async def test_harness_seed_state_does_not_call_mark_ready(self, tmp_path: Path) -> None:
         """seed_state must NOT call mark_ready() — lifecycle is separate from seeding."""
-        harness, proxy = self._make_harness_with_proxy(tmp_path)
+        harness, proxy = self.make_harness_with_proxy(tmp_path)
 
         mark_ready_called = False
 
@@ -314,12 +314,12 @@ class TestHarnessSeedState:
 
 
 class TestHermeticConfigClosure:
-    """_make_hermetic_config() closure-based approach — race-free, cache-retained."""
+    """make_hermetic_config() closure-based approach — race-free, cache-retained."""
 
     def test_hermetic_config_produces_validated_instance(self) -> None:
-        """_make_hermetic_config returns a validated AppConfig instance for valid input."""
+        """make_hermetic_config returns a validated AppConfig instance for valid input."""
         from hassette.app.app_config import AppConfig
-        from hassette.test_utils.app_harness import _make_hermetic_config
+        from hassette.test_utils.app_harness import make_hermetic_config
 
         class _Cfg(AppConfig):
             pass
@@ -327,14 +327,14 @@ class TestHermeticConfigClosure:
         class _App:
             pass
 
-        result = _make_hermetic_config(_App, _Cfg, {"instance_name": "test"})
+        result = make_hermetic_config(_App, _Cfg, {"instance_name": "test"})
         assert isinstance(result, _Cfg)
         assert result.instance_name == "test"
 
     def test_hermetic_config_raises_for_invalid(self) -> None:
-        """_make_hermetic_config raises AppConfigurationError when validation fails."""
+        """make_hermetic_config raises AppConfigurationError when validation fails."""
         from hassette.app.app_config import AppConfig
-        from hassette.test_utils.app_harness import AppConfigurationError, _make_hermetic_config
+        from hassette.test_utils.app_harness import AppConfigurationError, make_hermetic_config
 
         class _RequiredCfg(AppConfig):
             must_be_present: str
@@ -343,14 +343,14 @@ class TestHermeticConfigClosure:
             pass
 
         with pytest.raises(AppConfigurationError) as exc_info:
-            _make_hermetic_config(_App, _RequiredCfg, {"instance_name": "test"})
+            make_hermetic_config(_App, _RequiredCfg, {"instance_name": "test"})
 
         assert exc_info.value.original_error is not None
 
     def test_hermetic_cache_is_retained(self) -> None:
-        """_HERMETIC_CONFIG_CACHE returns the same subclass on repeated calls for the same config cls."""
+        """HERMETIC_CONFIG_CACHE returns the same subclass on repeated calls for the same config cls."""
         from hassette.app.app_config import AppConfig
-        from hassette.test_utils.app_harness import _HERMETIC_CONFIG_CACHE, _make_hermetic_config
+        from hassette.test_utils.app_harness import HERMETIC_CONFIG_CACHE, make_hermetic_config
 
         class _CacheCfg(AppConfig):
             pass
@@ -359,16 +359,16 @@ class TestHermeticConfigClosure:
             pass
 
         # Clear cache entry for this class to start fresh
-        _HERMETIC_CONFIG_CACHE.pop(_CacheCfg, None)
+        HERMETIC_CONFIG_CACHE.pop(_CacheCfg, None)
 
-        _make_hermetic_config(_App, _CacheCfg, {"instance_name": "a"})
-        first_entry = _HERMETIC_CONFIG_CACHE.get(_CacheCfg)
+        make_hermetic_config(_App, _CacheCfg, {"instance_name": "a"})
+        first_entry = HERMETIC_CONFIG_CACHE.get(_CacheCfg)
         assert first_entry is not None, "Cache must contain an entry after first call"
 
         first_subclass = first_entry[0]
 
-        _make_hermetic_config(_App, _CacheCfg, {"instance_name": "b"})
-        second_entry = _HERMETIC_CONFIG_CACHE.get(_CacheCfg)
+        make_hermetic_config(_App, _CacheCfg, {"instance_name": "b"})
+        second_entry = HERMETIC_CONFIG_CACHE.get(_CacheCfg)
         assert second_entry is not None
 
         second_subclass = second_entry[0]
@@ -380,7 +380,7 @@ class TestHermeticConfigClosure:
     def test_hermetic_config_different_dicts_per_call(self) -> None:
         """Repeated calls with different config dicts each produce the correct validated instance."""
         from hassette.app.app_config import AppConfig
-        from hassette.test_utils.app_harness import _make_hermetic_config
+        from hassette.test_utils.app_harness import make_hermetic_config
 
         class _MultiCfg(AppConfig):
             instance_name: str = "default"
@@ -388,14 +388,14 @@ class TestHermeticConfigClosure:
         class _App:
             pass
 
-        r1 = _make_hermetic_config(_App, _MultiCfg, {"instance_name": "first"})
-        r2 = _make_hermetic_config(_App, _MultiCfg, {"instance_name": "second"})
+        r1 = make_hermetic_config(_App, _MultiCfg, {"instance_name": "first"})
+        r2 = make_hermetic_config(_App, _MultiCfg, {"instance_name": "second"})
 
         assert r1.instance_name == "first"
         assert r2.instance_name == "second"
 
 
-def _make_task_bucket() -> TaskBucket:
+def make_task_bucket() -> TaskBucket:
     """Build a TaskBucket with a minimal Hassette mock — bypasses __init__ to avoid Resource wiring."""
     hassette = Mock()
     hassette.config.lifecycle.task_cancellation_timeout_seconds = 5
@@ -419,7 +419,7 @@ class TestTaskBucketExceptionRecorderList:
 
     def test_install_single_recorder(self) -> None:
         """Installing one recorder results in it being in the list."""
-        bucket = _make_task_bucket()
+        bucket = make_task_bucket()
         recorder = Mock()
 
         bucket.install_exception_recorder(recorder)
@@ -428,7 +428,7 @@ class TestTaskBucketExceptionRecorderList:
 
     def test_install_multiple_recorders(self) -> None:
         """Multiple recorders can be installed; all appear in the list."""
-        bucket = _make_task_bucket()
+        bucket = make_task_bucket()
         r1 = Mock()
         r2 = Mock()
 
@@ -440,7 +440,7 @@ class TestTaskBucketExceptionRecorderList:
 
     def test_uninstall_removes_recorder(self) -> None:
         """uninstall_exception_recorder removes the specified recorder."""
-        bucket = _make_task_bucket()
+        bucket = make_task_bucket()
         r1 = Mock()
 
         bucket.install_exception_recorder(r1)
@@ -450,7 +450,7 @@ class TestTaskBucketExceptionRecorderList:
 
     def test_uninstall_missing_recorder_noop(self) -> None:
         """Uninstalling a recorder that was never installed is a no-op, not an error."""
-        bucket = _make_task_bucket()
+        bucket = make_task_bucket()
         r1 = Mock()  # never installed
 
         # Should not raise
@@ -460,7 +460,7 @@ class TestTaskBucketExceptionRecorderList:
 
     def test_multiple_exception_recorders_independent_removal(self) -> None:
         """Recorders can be removed independently in any order."""
-        bucket = _make_task_bucket()
+        bucket = make_task_bucket()
         r1 = Mock()
         r2 = Mock()
 
@@ -477,7 +477,7 @@ class TestTaskBucketExceptionRecorderList:
 
     def test_uninstall_idempotent_after_already_uninstalled(self) -> None:
         """Calling uninstall twice for the same recorder is idempotent."""
-        bucket = _make_task_bucket()
+        bucket = make_task_bucket()
         r1 = Mock()
 
         bucket.install_exception_recorder(r1)
@@ -498,7 +498,7 @@ class TestTaskBucketExceptionRecorderList:
         def r2(task, exc):
             calls_r2.append((task, exc))
 
-        bucket = _make_task_bucket()
+        bucket = make_task_bucket()
         bucket.install_exception_recorder(r1)
         bucket.install_exception_recorder(r2)
 

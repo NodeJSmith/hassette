@@ -30,14 +30,14 @@ class SimTestApp(App[SimConfig]):
     async def on_initialize(self) -> None:
         self.handler_call_count = 0
         self.service_calls = []
-        self.bus.on_state_change("sensor.temp", handler=self._on_temp)
-        self.scheduler.run_daily(self._daily_task, at="07:00", name="daily")
+        self.bus.on_state_change("sensor.temp", handler=self.on_temp)
+        self.scheduler.run_daily(self.daily_task, at="07:00", name="daily")
 
-    async def _on_temp(self, event: RawStateChangeEvent) -> None:
+    async def on_temp(self, event: RawStateChangeEvent) -> None:
         await self.api.turn_on("light.alert")
         self.handler_call_count += 1
 
-    async def _daily_task(self) -> None:
+    async def daily_task(self) -> None:
         await self.api.call_service("cover", "open_cover", entity_id="cover.blinds")
         self.service_calls.append(("cover", "open_cover", {"entity_id": "cover.blinds"}))
 
