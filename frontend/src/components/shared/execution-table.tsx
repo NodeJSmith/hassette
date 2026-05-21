@@ -1,3 +1,4 @@
+import { STATUS_DOT_SIZE } from "../../utils/constants";
 import clsx from "clsx";
 import { useSignal } from "../../hooks/use-signal";
 import { ShowMoreButton } from "./show-more-button";
@@ -10,7 +11,7 @@ import styles from "./execution-table.module.css";
 
 const INITIAL_ROWS = 5;
 const COL_COUNT = 5;
-const STATUS_DOT_SIZE = 10;
+
 
 export interface ExecutionRecord {
   execution_start_ts: number;

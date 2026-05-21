@@ -129,6 +129,12 @@ class DemoStimulator(App[DemoStimulatorConfig]):
         msg = "Timed out waiting for sensor.outside_temperature after 10s"
         raise TimeoutError(msg)
 
+    def validate_readings(self, readings: dict[str, float]) -> None:
+        """Validate that all sensor readings are within expected ranges."""
+        for key, value in readings.items():
+            if value < -50 or value > 100:
+                raise ValueError(f"Sensor '{key}' reading {value} is out of range [-50, 100]")
+
     def parse_sensor_response(self, response: dict[str, object]) -> dict[str, float]:
         """Parse raw sensor response into validated readings."""
         readings: dict[str, float] = {}

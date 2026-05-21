@@ -1,3 +1,4 @@
+import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import type { ListenerData } from "../../api/endpoints";
 import { getHandlerInvocations } from "../../api/endpoints";
 import { useScopedApi } from "../../hooks/use-scoped-api";
@@ -57,7 +58,7 @@ interface Props {
 
 export function ListenerDetail({ listener, onSwitchToCode }: Props) {
   const { data: invocations, loading, refetch } = useScopedApi(
-    (since) => getHandlerInvocations(listener.listener_id, 50, since),
+    (since) => getHandlerInvocations(listener.listener_id, DETAIL_FETCH_LIMIT, since),
     { deps: [listener.listener_id] },
   );
 

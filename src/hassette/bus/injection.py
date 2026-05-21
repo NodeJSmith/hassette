@@ -11,7 +11,7 @@ from hassette.exceptions import DependencyError, DependencyInjectionError, Depen
 from hassette.utils.func_utils import callable_short_name
 from hassette.utils.type_utils import get_pretty_actual_type_from_value, is_optional, normalize_annotation
 
-from .extraction import extract_from_signature, validate_di_signature
+from .extraction import extract_from_signature
 
 if typing.TYPE_CHECKING:
     from hassette.events import Event
@@ -39,9 +39,7 @@ class ParameterInjector:
         self.handler_name = handler_name
         self.signature = signature
 
-        # Validate signature once during initialization
         try:
-            validate_di_signature(signature)
             self.param_details = extract_from_signature(signature)
         except Exception as e:
             raise DependencyInjectionError(

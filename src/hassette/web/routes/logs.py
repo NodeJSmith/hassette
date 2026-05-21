@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query, Response
 
+from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core import telemetry_repository as _repo
 from hassette.web.dependencies import HassetteDep
 from hassette.web.models import LogEntryResponse, LogLevelRequest, LogLevelResponse, LogsByExecutionResponse
@@ -20,7 +21,6 @@ LOGGER = logging.getLogger(__name__)
 
 _VALID_LEVELS = frozenset({"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"})
 _VALID_SOURCE_TIERS = frozenset({"app", "framework"})
-_SECONDS_PER_DAY = 86400
 
 
 @router.get("/logs/recent", response_model=list[LogEntryResponse])
@@ -99,7 +99,7 @@ async def _check_retention_expired(hassette: "Hassette", execution_id: str) -> b
     execution's timestamp is older than log_retention_days, its logs have been expired.
     """
     try:
-        cutoff = time.time() - hassette.config.logging.log_retention_days * _SECONDS_PER_DAY
+        cutoff = time.time() - hassette.config.logging.log_retention_days * SECONDS_PER_DAY
         return await _repo.check_execution_predates_retention_cutoff(
             hassette.database_service.read_db, execution_id, cutoff
         )

@@ -189,22 +189,22 @@ class Bus(Resource):
         Raises:
             ValueError: If the listener's natural key is already registered on this bus instance.
         """
-        # Collision detection is synchronous so ValueError propagates to user code in on_initialize().
-        # (Running this check inside the background _register_in_db() task would swallow the ValueError.)
-        # once=True listeners are excluded from collision detection: the partial unique index
-        # (WHERE once = 0) explicitly allows unlimited fresh inserts for the same natural key,
-        # so two once=True registrations for the same (handler, topic) are valid and expected.
-        if not listener.options.once:
-            natural_key = self._listener_natural_key(listener)
-            if natural_key in self._registered_keys:
-                key_str = natural_key[-1] or listener.identity.handler_name
-                raise ValueError(
-                    f"Duplicate listener registration detected for handler '{listener.identity.handler_name}' "
-                    f"on topic '{listener.topic}' (key={key_str!r}). "
-                    f"Add name= to disambiguate if intentional."
-                )
-            self._registered_keys.add(natural_key)
+        self.check_listener_collision(listener)
         self.bus_service.add_listener(listener)
+
+    def check_listener_collision(self, listener: "Listener") -> None:
+        """Raise ValueError if a non-once listener's natural key is already registered."""
+        if listener.options.once:
+            return
+        natural_key = self._listener_natural_key(listener)
+        if natural_key in self._registered_keys:
+            key_str = natural_key[-1] or listener.identity.handler_name
+            raise ValueError(
+                f"Duplicate listener registration detected for handler '{listener.identity.handler_name}' "
+                f"on topic '{listener.topic}' (key={key_str!r}). "
+                f"Add name= to disambiguate if intentional."
+            )
+        self._registered_keys.add(natural_key)
 
     def _listener_natural_key(self, listener: "Listener") -> tuple[str, int, str, str, str]:
         """Compute the natural key tuple for a listener (for collision tracking)."""
@@ -367,18 +367,7 @@ class Bus(Resource):
             logger=self.logger,
         )
 
-        # Collision check — same guard as add_listener, required because _on_internal
-        # bypasses add_listener to capture the DB registration task directly.
-        if not listener.options.once:
-            natural_key = self._listener_natural_key(listener)
-            if natural_key in self._registered_keys:
-                key_str = natural_key[-1] or listener.identity.handler_name
-                raise ValueError(
-                    f"Duplicate listener registration detected for handler '{listener.identity.handler_name}' "
-                    f"on topic '{listener.topic}' (key={key_str!r}). "
-                    f"Add name= to disambiguate if intentional."
-                )
-            self._registered_keys.add(natural_key)
+        self.check_listener_collision(listener)
 
         def unsubscribe() -> None:
             self.remove_listener(listener)

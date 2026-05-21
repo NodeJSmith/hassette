@@ -203,9 +203,9 @@ class TestStateProxyStateChanged:
         """on_state_changed updates entity when both states present."""
         proxy = hassette_with_state_proxy.state_proxy
 
-        wait_for = asyncio.Event()
+        event_gate = asyncio.Event()
 
-        proxy.bus.on_state_change(entity_id="light.*", handler=lambda: wait_for.set(), changed=False)
+        proxy.bus.on_state_change(entity_id="light.*", handler=lambda: event_gate.set(), changed=False)
 
         # Add initial state
         old_dict = make_light_state_dict("light.test", "on", brightness=100)
@@ -219,7 +219,7 @@ class TestStateProxyStateChanged:
         )
 
         await hassette_with_state_proxy.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        await asyncio.wait_for(wait_for.wait(), timeout=1.0)
+        await asyncio.wait_for(event_gate.wait(), timeout=1.0)
 
         # Verify entity was updated
         state = proxy.states["light.test"]
@@ -230,9 +230,9 @@ class TestStateProxyStateChanged:
         hassette = hassette_with_state_proxy
         proxy = hassette.state_proxy
 
-        wait_for = asyncio.Event()
+        event_gate = asyncio.Event()
 
-        proxy.bus.on_state_change(entity_id="light.*", handler=lambda: wait_for.set(), changed=False)
+        proxy.bus.on_state_change(entity_id="light.*", handler=lambda: event_gate.set(), changed=False)
 
         # Add initial state
         old_dict = make_light_state_dict("light.test", "on")
@@ -243,7 +243,7 @@ class TestStateProxyStateChanged:
         event = make_full_state_change_event("light.test", old_dict, None)
 
         await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
-        await asyncio.wait_for(wait_for.wait(), timeout=1.0)
+        await asyncio.wait_for(event_gate.wait(), timeout=1.0)
 
         # Verify entity was removed
         assert "light.test" not in proxy.states
@@ -253,9 +253,9 @@ class TestStateProxyStateChanged:
         hassette = hassette_with_state_proxy
         proxy = hassette.state_proxy
 
-        wait_for = asyncio.Event()
+        event_gate = asyncio.Event()
 
-        proxy.bus.on_state_change(entity_id="*", handler=lambda: wait_for.set(), changed=False, debounce=0.1)
+        proxy.bus.on_state_change(entity_id="*", handler=lambda: event_gate.set(), changed=False, debounce=0.1)
 
         # Add entities of different types
         light_dict = make_light_state_dict("light.test", "on")
@@ -270,7 +270,7 @@ class TestStateProxyStateChanged:
             event = make_full_state_change_event(entity_id, None, state_dict)
             await hassette.send_event(Topic.HASS_EVENT_STATE_CHANGED, event)
 
-        await asyncio.wait_for(wait_for.wait(), timeout=1.0)
+        await asyncio.wait_for(event_gate.wait(), timeout=1.0)
 
         # Verify all were added with correct types
         assert isinstance(proxy.states["light.test"], dict)
@@ -282,10 +282,10 @@ class TestStateProxyStateChanged:
         hassette = hassette_with_state_proxy
         proxy = hassette.state_proxy
 
-        wait_for = asyncio.Event()
+        event_gate = asyncio.Event()
 
         # debounce to avoid firing until all events sent
-        proxy.bus.on_state_change(entity_id="light.*", handler=lambda: wait_for.set(), changed=False, debounce=0.1)
+        proxy.bus.on_state_change(entity_id="light.*", handler=lambda: event_gate.set(), changed=False, debounce=0.1)
 
         # Send multiple events rapidly
         events = []
@@ -296,7 +296,7 @@ class TestStateProxyStateChanged:
 
         # Send all events
         await asyncio.gather(*[hassette.send_event(topic, event) for topic, event in events])
-        await asyncio.wait_for(wait_for.wait(), timeout=1.0)
+        await asyncio.wait_for(event_gate.wait(), timeout=1.0)
 
         # All should be processed correctly
         for i in range(10):
@@ -634,9 +634,9 @@ class TestStateProxyConcurrency:
         def handler(event: RawStateChangeEvent):
             new_brightness = event.payload.data.new_state["attributes"]["brightness"]
             if new_brightness == max_brightness:
-                wait_for.set()
+                event_gate.set()
 
-        wait_for = asyncio.Event()
+        event_gate = asyncio.Event()
         proxy.bus.on_state_change(entity_id="light.*", handler=handler, changed=False)
         # Send many concurrent state change events
         events = []
@@ -648,7 +648,7 @@ class TestStateProxyConcurrency:
             events.append((Topic.HASS_EVENT_STATE_CHANGED, event))
 
         await asyncio.gather(*[hassette.send_event(topic, event) for topic, event in events])
-        await asyncio.wait_for(wait_for.wait(), timeout=1.0)
+        await asyncio.wait_for(event_gate.wait(), timeout=1.0)
 
         # Final state should be consistent (last update wins)
         state = proxy.states.get("light.test")

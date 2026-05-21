@@ -11,6 +11,7 @@ from logging import getLogger
 
 from fastapi import APIRouter, Path, Query, Response
 
+from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.telemetry_models import (
     ActivityFeedEntry,
     AppHealthSummary,
@@ -209,7 +210,7 @@ async def app_activity(
 ) -> list[ActivityFeedEntry]:
     """Recent handler invocations and job executions for a single app, merged and sorted by time."""
     effective_tier = source_tier if source_tier is not None else "app"
-    effective_since = since if since is not None else time.time() - 86400
+    effective_since = since if since is not None else time.time() - SECONDS_PER_DAY
     try:
         return await telemetry.get_app_recent_activity(
             app_key=app_key,

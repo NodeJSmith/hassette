@@ -17,6 +17,8 @@ from hassette.types import Topic
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import extract_domain
 
+MAX_RETRY_ATTEMPTS = 5
+
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Subscription
@@ -119,7 +121,7 @@ class StateProxy(Resource):
 
     @retry(
         retry=retry_if_exception_type(ResourceNotReadyError),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
         wait=wait_exponential_jitter(),
         reraise=True,
     )
@@ -164,7 +166,7 @@ class StateProxy(Resource):
 
     @retry(
         retry=retry_if_exception_type(ResourceNotReadyError),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
         wait=wait_exponential_jitter(),
         reraise=True,
     )
@@ -195,7 +197,7 @@ class StateProxy(Resource):
 
     @retry(
         retry=retry_if_exception_type(ResourceNotReadyError),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
         wait=wait_exponential_jitter(),
         reraise=True,
     )
