@@ -294,17 +294,19 @@ def main() -> None:
         **os.environ,
         "HASSETTE__BASE_URL": f"http://localhost:{ha_port}",
         "HASSETTE__TOKEN": HA_TOKEN,
-        "HASSETTE__WEB_API_PORT": str(hassette_port),
-        "HASSETTE__APP_DIR": str(repo_root / "examples"),
+        "HASSETTE__WEB_API__PORT": str(hassette_port),
+        "HASSETTE__APPS__DIRECTORY": str(repo_root / "examples"),
         "HASSETTE__DATA_DIR": str(repo_root / ".demo-data"),
     }
+    hassette_log = Path(_tmp_dir) / "hassette.log"
+    _hassette_log_fh = hassette_log.open("w")
     _hassette_proc = subprocess.Popen(
         ["uv", "run", "python", "-m", "hassette", "--config-file", str(repo_root / "examples" / "hassette.toml")],
         env=hassette_env,
         cwd=str(repo_root),
         start_new_session=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=_hassette_log_fh,
+        stderr=subprocess.STDOUT,
     )
 
     # ------------------------------------------------------------------
@@ -316,7 +318,13 @@ def main() -> None:
         poll_interval=2.0,
     )
     if not hassette_ready:
-        print("DEMO_ERROR=Hassette failed to start within 30s", flush=True)
+        _hassette_log_fh.flush()
+        log_lines = hassette_log.read_text().strip().splitlines()
+        print(
+            f"DEMO_ERROR=Hassette failed to start within 30s (log: {hassette_log}, {len(log_lines)} lines)", flush=True
+        )
+        for line in log_lines:
+            print(f"DEMO_LOG={line}", flush=True)
         teardown()
         sys.exit(1)
 
@@ -343,13 +351,15 @@ def main() -> None:
         **os.environ,
         "VITE_PROXY_TARGET": f"http://localhost:{hassette_port}",
     }
+    vite_log = Path(_tmp_dir) / "vite.log"
+    _vite_log_fh = vite_log.open("w")
     _vite_proc = subprocess.Popen(
         ["npm", "run", "dev", "--prefix", str(repo_root / "frontend"), "--", "--port", str(vite_port)],
         env=vite_env,
         cwd=str(repo_root),
         start_new_session=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=_vite_log_fh,
+        stderr=subprocess.STDOUT,
     )
 
     # Poll Vite readiness
@@ -359,7 +369,7 @@ def main() -> None:
         poll_interval=2.0,
     )
     if not vite_ready:
-        print("DEMO_ERROR=Vite failed to start within 15s", flush=True)
+        print(f"DEMO_ERROR=Vite failed to start within 15s (log: {vite_log})", flush=True)
         teardown()
         sys.exit(1)
 
@@ -369,6 +379,8 @@ def main() -> None:
     print(f"DEMO_HA_URL=http://localhost:{ha_port}", flush=True)
     print(f"DEMO_HASSETTE_URL=http://localhost:{hassette_port}", flush=True)
     print(f"DEMO_FRONTEND_URL=http://localhost:{vite_port}", flush=True)
+    print(f"DEMO_HASSETTE_LOG={hassette_log}", flush=True)
+    print(f"DEMO_VITE_LOG={vite_log}", flush=True)
     print("DEMO_READY=true", flush=True)
     sys.stdout.flush()
 

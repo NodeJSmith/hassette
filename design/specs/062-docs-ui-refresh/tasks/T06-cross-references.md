@@ -18,19 +18,24 @@ Update each file below. For each change, the old text and replacement are specif
 - **Line ~114**: "see the dashboard" → "see the web UI" (or "see the apps page" depending on context). Read the surrounding paragraph to determine the best replacement.
 
 ### 2. `docs/pages/getting-started/docker/index.md`
-- **Line ~142**: "sessions marked as unknown" — if this refers to the sessions concept being retired, reframe to describe the behavior without "sessions" terminology.
+- **Line ~142**: "leaving sessions marked as `unknown`" — **DO NOT CHANGE.** This describes real database behavior during Docker shutdown (the telemetry session row's exit status), not the retired UI sessions page. The "sessions" concept being retired is about the user-facing Sessions page, not the internal database session records.
 - **Line ~157**: "live dashboard, app management, log streaming, and session history" → update feature list to match current UI: "app monitoring, handler detail, log streaming, and system configuration"
 
 ### 3. `docs/pages/core-concepts/database-telemetry.md` (most complex — TWO passes)
 
 **Pass 1 — Session cleanup** (sessions are being retired as a user-facing concept):
-- **Line ~3**: "session history in the web UI" → reframe without session language. E.g., "handler invocations, job executions, and app health metrics in the web UI"
+- **Line ~3**: "session history in the web UI" → reframe without session language. E.g., "handler invocations, job executions, and app health metrics in the web UI". NOTE: this line ALSO contains "Dashboard KPIs" — update that in the same edit (see Pass 2 line ~3).
 - **Line ~11**: `[Sessions](../web-ui/sessions.md)` — this link will 404. Remove the link or replace with descriptive text about what the data represents.
-- **Line ~110**: session-concept reference — reframe to describe telemetry scoping without using "session" as a user-facing term.
-- **Line ~137**: "Sessions — session history" — reframe as execution history or telemetry data.
+- **Line ~110**: session-concept reference — reframe to describe telemetry scoping without using "session" as a user-facing term. "current session" → "current startup" or "since the last restart"; "prior sessions" → "prior startups".
+- **Line ~137**: "Sessions — session history" — reframe as execution history or telemetry data. Remove the `[Sessions](../web-ui/sessions.md)` link (will 404).
 
-**Pass 2 — Dashboard references**:
-- **Line ~17**: "Dashboard KPI counts" → "Apps page stats strip"
+**Pass 2 — Dashboard and stale UI term references**:
+- **Line ~3**: "Dashboard KPIs" → "Apps page stats strip" (same line as the session history fix in Pass 1)
+- **Line ~17**: This paragraph has THREE stale terms — update all:
+  - "Dashboard KPI counts" → "Apps page stats strip counts"
+  - "**Recent Errors** feed" → "**Error Spotlight**" (now on the App Detail Overview tab)
+  - "**App Health** grid" → "**Handler health grid**" (now on the App Detail Overview tab)
+- **Lines ~20-21** (the `??? note` block): Also references "App Health grid" and "error feed" — update to match the new names ("Handler health grid" and "Error Spotlight")
 - **Line ~110**: "Dashboard shows accurate handler and job counts" → "Apps page stats strip shows accurate handler and job counts"
 - **Line ~117**: "Dashboard displays a degraded indicator" → "Status bar shows a degraded indicator" (the telemetry degraded banner is now in the status bar area)
 
@@ -73,6 +78,8 @@ Any remaining hits (excluding migration/ which may legitimately reference HA's d
 ## Focus
 - The `database-telemetry.md` updates are the most delicate — they involve removing session-related links and concepts while preserving the technical accuracy of what the telemetry database stores.
 - The sessions table still exists in the database — the concept is being retired from *user-facing documentation*, not from the codebase. Don't remove technical descriptions of what data is stored; just stop sending users to a deleted page.
+- **The `??? note` block below line ~17** contains the same stale terms ("App Health grid", "error feed") as the paragraph above it. Easy to miss because it's inside a collapsed admonition — read and update it too.
+- **docker/index.md line ~142** describes real database session behavior (exit status on unclean shutdown), NOT the retired UI sessions page. Do not change it.
 - Line numbers are approximate — always read the surrounding context before editing.
 - The `migration/index.md` reference to "HADashboard" likely refers to Home Assistant's dashboard tool, not hassette's — it's probably correct as-is.
 - The troubleshooting.md reference to `run_web_api` / `run_web_ui` is a legacy config key issue — update to the nested format while you're there.

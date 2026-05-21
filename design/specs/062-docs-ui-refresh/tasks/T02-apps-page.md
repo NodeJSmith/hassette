@@ -21,7 +21,7 @@ Structure:
 4. **App table** — document columns using a table:
    | Column | Description |
    | APP | App key + class name. Multi-instance apps show "N instances" with expand chevron |
-   | STATUS | Lifecycle state with color indicator. Sortable (click header). Filterable (click filter icon) |
+   | STATUS | Lifecycle state with color indicator. Sortable (click header). Filterable via popover (running, failed, stopped, disabled, blocked) |
    | LAST ERROR | Most recent error message, truncated. "—" when healthy |
    | RUNS | Sparkline + total handler/job invocations in the time window |
    | LAST FIRED | Relative timestamp of most recent handler/job execution |

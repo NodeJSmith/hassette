@@ -78,7 +78,7 @@ Create new file `docs/pages/web-ui/layout.md`. Document all cross-cutting UI chr
 
 **Command palette** (read `frontend/src/components/layout/command-palette.tsx`):
 - Shortcut: Ctrl+K (Cmd+K on macOS)
-- Sections: PAGES, APPS (with status dots), INSTANCES (for multi-instance apps), HANDLERS
+- Sections: PAGES, APPS (with status dots), INSTANCES (for multi-instance apps), HANDLERS, ACTIONS (reload all apps, stop all failing, open docs)
 - Keyboard navigation
 - Use `![Command palette](../../_static/web_ui_detail_command_palette.png)` screenshot
 

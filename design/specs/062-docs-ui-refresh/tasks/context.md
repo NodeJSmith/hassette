@@ -22,12 +22,12 @@ All screenshots are captured and ready in `docs/_static/`. Reference them direct
 - `web_ui_detail_instance_switcher.png` — Breadcrumb + instance switcher tabs (paulus / home_boy)
 - `web_ui_detail_log_drawer.png` — Side panel with full log entry metadata
 - `web_ui_detail_column_picker.png` — Column visibility checkbox popover
-- `web_ui_detail_command_palette.png` — Modal with pages, apps, instances, handlers sections
+- `web_ui_detail_command_palette.png` — Modal with pages, apps, instances, handlers, actions sections
 - `web_ui_detail_status_bar.png` — Time presets, uptime, WS indicator, theme toggle
 - `web_ui_detail_sidebar.png` — Full sidebar with nav, status groups, "auto" badge
 
 ## Key Decisions
-1. **12-page structure** replacing the current 5. Six top-level pages + App Detail split into index + 5 tab sub-pages. Diagnostics intentionally excluded (hidden from sidebar and command palette).
+1. **12-page structure** replacing the current 5. Five top-level pages (overview, apps, handlers, logs, config) + Layout & Navigation + App Detail split into index + 5 tab sub-pages. Diagnostics intentionally excluded (hidden from sidebar and command palette).
 2. **Layout & Navigation written first** to establish vocabulary (sidebar, status bar, command palette, time-preset selector) that all other pages reference.
 3. **App Detail split into sub-pages** — outline-first gate confirmed ~22 H3 headings and ~7 column tables, exceeding both thresholds. Index page covers shared elements; one sub-page per tab.
 4. **Sessions concept retired** — "sessions.md" deleted without replacement. "Since restart" preset documented using "since the last restart" language, not "current session."

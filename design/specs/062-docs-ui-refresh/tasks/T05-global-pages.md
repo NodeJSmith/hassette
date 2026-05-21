@@ -16,7 +16,7 @@ The Logs page is the most feature-rich global page. Document:
 
 - **Opening paragraph** — global filterable, searchable log viewer with real-time streaming
 - **Hero screenshot** — `![Logs page](../../_static/web_ui_logs.png)`
-- **Column picker** — icon button that opens a checkbox popover to toggle column visibility. Required columns (Level) are disabled. Some columns hidden at narrow viewports. "Reset to defaults" button. Use `![Column picker](../../_static/web_ui_detail_column_picker.png)` screenshot.
+- **Column picker** — icon button that opens a checkbox popover to toggle column visibility. Required columns (Level, Message) are always visible and cannot be toggled off. Some columns hidden at narrow viewports. "Reset to defaults" button. Use `![Column picker](../../_static/web_ui_detail_column_picker.png)` screenshot.
 - **Log table columns** — LEVEL (with filter), TIMESTAMP (sortable, default sort descending), APP (with filter), INSTANCE, EXECUTION, FUNCTION (with filter), MODULE, MESSAGE. Document with a column table.
 - **Search** — filters by message content
 - **Log detail drawer** — click any row to open a side panel with full details: level badge, timestamp, metadata grid (app with link, instance, execution ID with copy button, function, module, line, logger), message section with copy button, exception/traceback section (if present) with copy button. Keyboard navigation (arrows for prev/next, Escape to close). Use `![Log detail drawer](../../_static/web_ui_detail_log_drawer.png)` screenshot.
@@ -34,7 +34,7 @@ The cross-app handler/job table. Navigate here when managing multiple apps and n
 - **Opening paragraph** — fleet-level view of all registered handlers and jobs across all apps. "Navigate here when you need to find all handlers listening to a specific entity, or scan error rates across your entire automation fleet."
 - **Hero screenshot** — `![Handlers page](../../_static/web_ui_handlers.png)`
 - **Table columns** — TYPE (event/job chip), APP (sortable + filterable), NAME, TRIGGER, RUNS, FAILED, TIMED OUT, ERROR RATE, AVG duration, NEXT RUN. Document with a column table. Note that failing rows are highlighted in red.
-- **Search** — filters by handler name
+- **Search** — filters by handler name, app key, and trigger description
 - **Footer** — shows "N handlers · M jobs" count
 - **Mobile layout** — brief note that the table switches to card layout on narrow viewports
 - **Related pages** — link to App Detail Handlers Tab (for per-app drill-down with full detail panel)
