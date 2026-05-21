@@ -29,9 +29,9 @@ Four top-level items link to the main pages:
 
 The active page is highlighted.
 
-### APPS section
+### Apps section
 
-Below the top-level nav, the APPS section lists all loaded automations. A count badge shows the total number of apps.
+Below the top-level nav, the Apps section lists all loaded automations. A count badge shows the total number of apps.
 
 **Filter apps** — A search input at the top of the section filters apps by display name or app key as you type. When filtering is active, the count badge shows `filtered/total` (e.g., `2/7`).
 
