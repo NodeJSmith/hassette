@@ -27,6 +27,8 @@ from hassette.types import Topic
 if typing.TYPE_CHECKING:
     from hassette.bus import Bus
     from hassette.test_utils.harness import HassetteHarness
+from hassette.bus.rate_limiter import RateLimiter
+from hassette.core.commands import InvokeHandler
 
 
 @pytest.fixture
@@ -415,9 +417,6 @@ async def test_can_subscribe_to_all_state_change_events(hassette_with_bus: "Hass
 
 async def test_dispatch_calls_executor(hassette_with_bus: "HassetteHarness") -> None:
     """_dispatch() delegates to the executor for app-owned listeners (db_id set)."""
-    from hassette.core.commands import InvokeHandler
-    from hassette.events.base import Event
-
     hassette = hassette_with_bus
     event_handled = asyncio.Event()
 
@@ -454,9 +453,6 @@ async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_b
     Since the registration gate was removed (#547), all listeners are DB-registered
     regardless of app_key, so listener_id is set.
     """
-    from hassette.core.commands import InvokeHandler
-    from hassette.events.base import Event
-
     hassette = hassette_with_bus
     event_handled = asyncio.Event()
 
@@ -485,9 +481,6 @@ async def test_dispatch_handler_exception_routed_through_executor(hassette_with_
     The unified dispatch path passes all invocations through the executor regardless of
     whether the listener has been registered (db_id set or not).
     """
-    from hassette.core.commands import InvokeHandler
-    from hassette.events.base import Event
-
     hassette = hassette_with_bus
     error_raised = asyncio.Event()
 
@@ -518,9 +511,6 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
     This tests the full pipeline: _dispatch -> make_tracked_invoke_fn -> rate_limiter.call(execute_fn) ->
     debounce delay -> execute_fn -> CommandExecutor.execute(InvokeHandler).
     """
-    from hassette.core.commands import InvokeHandler
-    from hassette.events.base import Event
-
     hassette = hassette_with_bus
     event_handled = asyncio.Event()
 
@@ -555,9 +545,6 @@ async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bu
     This tests the full pipeline: _dispatch -> make_tracked_invoke_fn -> rate_limiter.call(execute_fn) ->
     throttle check -> execute_fn -> CommandExecutor.execute(InvokeHandler).
     """
-    from hassette.core.commands import InvokeHandler
-    from hassette.events.base import Event
-
     hassette = hassette_with_bus
     event_handled = asyncio.Event()
 
@@ -704,8 +691,6 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
 
     Uses the asyncio.Event gate pattern from CLAUDE.md regression test patterns.
     """
-    from hassette.bus.rate_limiter import RateLimiter
-
     hassette = hassette_with_bus
     handler_fired = False
 

@@ -1,6 +1,8 @@
 import os
 import sys
 import textwrap
+import tomllib
+from importlib.resources import files
 from pathlib import Path
 
 import dotenv
@@ -10,6 +12,7 @@ from hassette import HassetteConfig, context
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.test_utils import run_hassette_startup_tasks
 from hassette.test_utils.config import TEST_TOKEN
+from hassette.utils import app_utils
 
 
 def cleanup_env(*keys: str) -> None:
@@ -374,8 +377,6 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(monke
     # Ensure a clean import, both for our module and our namespace package.
     sys.modules.pop(f"{pkg_name}.env_reader_app", None)
     sys.modules.pop(pkg_name, None)
-    from hassette.utils import app_utils
-
     app_utils.LOADED_CLASSES.clear()
     app_utils.FAILED_TO_LOAD_CLASSES.clear()
 
@@ -637,9 +638,6 @@ def test_bundled_toml_files_have_no_log_level_entries():
     Adding them back silently re-introduces the model_post_init overwrite bug (#237).
     Checks both the top-level [hassette] section and all nested subsections.
     """
-    import tomllib
-    from importlib.resources import files
-
     for filename in ("hassette.prod.toml", "hassette.dev.toml"):
         toml_path = files("hassette.config").joinpath(filename)
         with toml_path.open("rb") as f:

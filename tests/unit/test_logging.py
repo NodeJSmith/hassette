@@ -1,6 +1,7 @@
 """Tests for structlog-based enable_logging() and LogCaptureHandler."""
 
 import asyncio
+import inspect
 import json
 import logging
 import queue
@@ -11,6 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 import structlog
 
+import hassette.logging_ as logging_module
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.logging_ import (
     CorrelationFilter,
@@ -327,14 +329,10 @@ class TestColoredlogsRemoved:
 
     def test_coloredlogs_not_imported_in_logging_module(self) -> None:
         # coloredlogs should not be importable via logging_ module
-        import hassette.logging_ as logging_module
-
         assert not hasattr(logging_module, "coloredlogs")
 
     def test_enable_logging_accepts_log_format_parameter(self) -> None:
         """enable_logging() signature includes log_format parameter."""
-        import inspect
-
         sig = inspect.signature(enable_logging)
         assert "log_format" in sig.parameters
 

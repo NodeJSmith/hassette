@@ -13,12 +13,11 @@ import contextlib
 from unittest.mock import MagicMock
 
 from hassette.core.registration_tracker import RegistrationTracker
+from hassette.core.scheduler_service import SchedulerService
 
 
-def make_scheduler_service() -> "SchedulerService":  # noqa: F821
+def make_scheduler_service() -> "SchedulerService":
     """Create a SchedulerService with mocked internals, bypassing Resource.__init__."""
-    from hassette.core.scheduler_service import SchedulerService
-
     svc = SchedulerService.__new__(SchedulerService)
     # Minimal mock for hassette with required config
     svc.hassette = MagicMock()

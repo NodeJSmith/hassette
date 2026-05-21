@@ -7,6 +7,10 @@ from typing import get_args
 from unittest.mock import MagicMock, patch
 
 import pytest
+from alembic import command
+from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
+from sqlalchemy import create_engine
 
 from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
@@ -32,9 +36,6 @@ class TestSourceTierType:
 
 def run_migrations_to_head(db_path: str) -> None:
     """Run Alembic migrations to HEAD against the given DB path."""
-    from alembic import command
-    from alembic.config import Config
-
     config = Config()
     config.set_main_option(
         "script_location",
@@ -46,9 +47,6 @@ def run_migrations_to_head(db_path: str) -> None:
 
 def get_db_version(db_path: str) -> str | None:
     """Return the current Alembic version from the DB, or None if not set."""
-    from alembic.runtime.migration import MigrationContext
-    from sqlalchemy import create_engine
-
     engine = create_engine(f"sqlite:///{db_path}")
     try:
         with engine.connect() as conn:

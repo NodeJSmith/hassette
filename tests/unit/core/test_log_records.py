@@ -25,6 +25,7 @@ from alembic.runtime.migration import MigrationContext
 from sqlalchemy import create_engine
 
 from hassette.config.config import HassetteConfig
+from hassette.config.models import LoggingConfig
 from hassette.core.telemetry_models import LogRecord
 from hassette.core.telemetry_repository import get_log_records, get_log_records_by_execution, insert_log_records
 
@@ -574,8 +575,6 @@ class TestLogRecordModel:
 class TestConfigValidator:
     def test_log_retention_days_field_exists(self) -> None:
         """LoggingConfig has a log_retention_days field with default=3."""
-
-        from hassette.config.models import LoggingConfig
 
         fields = LoggingConfig.model_fields
         assert "log_retention_days" in fields

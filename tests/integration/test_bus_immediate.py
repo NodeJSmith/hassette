@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
 import pytest
+from whenever import ZonedDateTime
 
 from hassette.events import RawStateChangeEvent
 from hassette.test_utils import make_state_dict, wait_for
@@ -20,7 +21,6 @@ from hassette.test_utils.helpers import create_state_change_event
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
-
 
 # ---------------------------------------------------------------------------
 # Per-test harness fixture
@@ -127,8 +127,6 @@ async def test_immediate_no_fire_entity_not_found(imm_harness: tuple[HassetteHar
 
 async def test_immediate_synthetic_event_structure(imm_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Synthetic event has old_state=None, new_state=current, ZonedDateTime time_fired, unique context.id."""
-    from whenever import ZonedDateTime
-
     harness, hassette, bus = imm_harness
 
     state_dict = make_state_dict("sensor.temp", "25.5")
@@ -290,8 +288,6 @@ async def test_immediate_duration_fires_when_elapsed_exceeds(
 ) -> None:
     """Entity held for 10s, duration=5 → fires immediately (elapsed >= duration)."""
 
-    from whenever import ZonedDateTime
-
     harness, hassette, bus = imm_harness
 
     # Seed state with last_changed 10 seconds ago
@@ -326,8 +322,6 @@ async def test_immediate_duration_starts_timer_for_remaining(
     imm_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Entity held for 3s, duration=5 → timer fires after remaining 2s (plus margin)."""
-    from whenever import ZonedDateTime
-
     harness, hassette, bus = imm_harness
 
     # Seed state with last_changed 3 seconds ago
@@ -392,8 +386,6 @@ async def test_immediate_duration_negative_elapsed_clamped(
     imm_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Clock skew produces last_changed in the future → elapsed clamped to 0, full timer starts."""
-    from whenever import ZonedDateTime
-
     harness, _hassette, bus = imm_harness
 
     # Seed state with last_changed 10 seconds in the FUTURE (clock skew)
@@ -425,8 +417,6 @@ async def test_immediate_duration_attribute_change_always_zero(
     imm_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """on_attribute_change + immediate + duration always starts from zero, even if last_changed is old."""
-    from whenever import ZonedDateTime
-
     harness, _hassette, bus = imm_harness
 
     # Seed state with last_changed 30 seconds ago — would normally fire immediately
@@ -460,8 +450,6 @@ async def test_immediate_duration_once_fires_exactly_once(
     imm_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """immediate + duration + once=True: immediate fire consumes the listener; no subsequent fires."""
-    from whenever import ZonedDateTime
-
     harness, hassette, bus = imm_harness
 
     # Seed state with last_changed 10s ago (duration=5 → fires immediately)
@@ -493,8 +481,6 @@ async def test_immediate_duration_once_fires_exactly_once(
     assert call_count == 1
 
     # Send a live state change — listener should be consumed (once=True)
-    from hassette.test_utils.helpers import create_state_change_event
-
     live_event = create_state_change_event(entity_id="switch.oven", old_value="on", new_value="off")
     await hassette.send_event(live_event.topic, live_event)
 

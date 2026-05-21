@@ -11,18 +11,15 @@ Verify criteria:
 
 import asyncio
 import inspect
-import typing
 from unittest.mock import MagicMock
 
 import pytest
 
+from hassette.bus.bus import Bus
 from hassette.bus.listeners import Subscription
 from hassette.event_handling import predicates as P
 
 from .conftest import mock_add_listener
-
-if typing.TYPE_CHECKING:
-    from hassette.bus.bus import Bus
 
 
 async def handler(event) -> None:
@@ -36,8 +33,6 @@ async def handler(event) -> None:
 
 def test_bus_on_signature_has_no_internal_params() -> None:
     """FR#7: Bus.on() signature contains no internal parameters."""
-    from hassette.bus.bus import Bus
-
     sig = inspect.signature(Bus.on)
     param_names = set(sig.parameters.keys())
 

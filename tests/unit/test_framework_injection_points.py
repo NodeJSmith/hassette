@@ -9,6 +9,7 @@ Tests targeted changes to core framework classes:
 
 import asyncio
 import contextlib
+import re
 from contextvars import ContextVar, Token
 from pathlib import Path
 from typing import ClassVar
@@ -18,6 +19,7 @@ import pytest
 from fair_async_rlock import FairAsyncRLock
 
 import hassette.context as ctx_module
+import tests.unit.test_framework_injection_points as _this_module
 from hassette.api import Api
 from hassette.app.app import App, AppConfig
 from hassette.context import (
@@ -28,6 +30,8 @@ from hassette.core.state_proxy import StateProxy
 from hassette.resources.base import Resource
 from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.test_utils import make_mock_hassette
+from hassette.test_utils.app_harness import HERMETIC_CONFIG_CACHE, AppConfigurationError, make_hermetic_config
+from hassette.test_utils.config import make_test_config
 from hassette.test_utils.harness import HassetteHarness, Timeouts
 
 
@@ -68,8 +72,6 @@ def clean_hassette_context():
     ctx_module.HASSETTE_SET_LOCATION = _fresh_location  # pyright: ignore[reportAttributeAccessIssue]
 
     # Also patch the name imported in the test module itself
-    import tests.unit.test_framework_injection_points as _this_module
-
     _orig_test_instance = _this_module.HASSETTE_INSTANCE
     _this_module.HASSETTE_INSTANCE = _fresh_instance  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -196,8 +198,6 @@ class TestHarnessSeedState:
 
     def make_harness_with_proxy(self, tmp_path: Path) -> tuple[HassetteHarness, StateProxy]:
         """Build a HassetteHarness with a minimal StateProxy (no full lifecycle)."""
-        from hassette.test_utils.config import make_test_config
-
         config = make_test_config(data_dir=tmp_path)
         harness = HassetteHarness(config, skip_global_set=True)
 
@@ -318,8 +318,6 @@ class TestHermeticConfigClosure:
 
     def test_hermetic_config_produces_validated_instance(self) -> None:
         """make_hermetic_config returns a validated AppConfig instance for valid input."""
-        from hassette.app.app_config import AppConfig
-        from hassette.test_utils.app_harness import make_hermetic_config
 
         class _Cfg(AppConfig):
             pass
@@ -333,8 +331,6 @@ class TestHermeticConfigClosure:
 
     def test_hermetic_config_raises_for_invalid(self) -> None:
         """make_hermetic_config raises AppConfigurationError when validation fails."""
-        from hassette.app.app_config import AppConfig
-        from hassette.test_utils.app_harness import AppConfigurationError, make_hermetic_config
 
         class _RequiredCfg(AppConfig):
             must_be_present: str
@@ -349,8 +345,6 @@ class TestHermeticConfigClosure:
 
     def test_hermetic_cache_is_retained(self) -> None:
         """HERMETIC_CONFIG_CACHE returns the same subclass on repeated calls for the same config cls."""
-        from hassette.app.app_config import AppConfig
-        from hassette.test_utils.app_harness import HERMETIC_CONFIG_CACHE, make_hermetic_config
 
         class _CacheCfg(AppConfig):
             pass
@@ -379,8 +373,6 @@ class TestHermeticConfigClosure:
 
     def test_hermetic_config_different_dicts_per_call(self) -> None:
         """Repeated calls with different config dicts each produce the correct validated instance."""
-        from hassette.app.app_config import AppConfig
-        from hassette.test_utils.app_harness import make_hermetic_config
 
         class _MultiCfg(AppConfig):
             instance_name: str = "default"
@@ -531,9 +523,6 @@ class TestNowImportInvariant:
 
     def test_no_direct_now_import(self) -> None:
         """No source file in src/hassette/ may use 'from hassette.utils.date_utils import now'."""
-        import re
-        from pathlib import Path
-
         src_root = Path(__file__).resolve().parents[2] / "src" / "hassette"
         pattern = re.compile(r"from\s+hassette\.utils\.date_utils\s+import\s+.*\bnow\b")
         violations: list[str] = []

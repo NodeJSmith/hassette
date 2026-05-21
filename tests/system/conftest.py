@@ -16,6 +16,7 @@ from pathlib import Path
 import httpx
 import pytest
 from pydantic_settings import SettingsConfigDict
+from websockets.sync.client import connect
 
 from hassette import Hassette
 from hassette.api import Api
@@ -345,8 +346,6 @@ def ws_probe(ws_url: str, hold_seconds: float = 3) -> None:
     level — before any test starts — which reduces test noise and avoids waiting
     for Hassette's backoff timers during normal CI runs.
     """
-    from websockets.sync.client import connect
-
     with connect(ws_url) as ws:
         msg = json.loads(ws.recv(timeout=5))
         assert msg["type"] == "auth_required"

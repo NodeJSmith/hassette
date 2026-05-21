@@ -1,5 +1,6 @@
 """Integration tests for the FastAPI web API using httpx AsyncClient."""
 
+import asyncio
 import logging
 import sqlite3
 from typing import TYPE_CHECKING
@@ -7,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.telemetry_models import (
     HandlerInvocation,
@@ -16,7 +18,6 @@ from hassette.core.telemetry_models import (
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
-from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
 from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.types.enums import ResourceStatus
 
@@ -286,8 +287,6 @@ def mock_submit(return_value: object = None, side_effect: object = None) -> Asyn
     call_count = [0]
 
     async def _impl(coro: object) -> object:
-        import asyncio
-
         if asyncio.iscoroutine(coro):
             coro.close()
         if values is not None:

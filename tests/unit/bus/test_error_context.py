@@ -1,5 +1,6 @@
 """Tests for BusErrorContext dataclass."""
 
+import dataclasses
 import traceback
 
 import pytest
@@ -64,8 +65,6 @@ class TestBusErrorContextConstruction:
 
     def test_bus_error_context_traceback_typed_str_not_optional(self) -> None:
         """traceback field is typed str, not str | None — must be set to a string value."""
-        import dataclasses
-
         fields = {f.name: f for f in dataclasses.fields(BusErrorContext)}
         assert "traceback" in fields
         # The field type should be str, not str | None

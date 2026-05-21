@@ -1,6 +1,9 @@
 """Tests for src/hassette/web/utils.py — resolve_trigger protocol dispatch."""
 
+from typing import Literal
 from unittest.mock import MagicMock
+
+from whenever import ZonedDateTime
 
 from hassette.scheduler.triggers import After, Daily, Every, Once
 from hassette.web.utils import resolve_trigger
@@ -38,9 +41,6 @@ class TestResolveTrigger:
 
     def test_resolve_trigger_custom(self) -> None:
         """Custom trigger implementing protocol methods — returns db_type, not label."""
-        from typing import Literal
-
-        from whenever import ZonedDateTime
 
         class _CustomTrigger:
             def first_run_time(self, current_time: ZonedDateTime) -> ZonedDateTime:

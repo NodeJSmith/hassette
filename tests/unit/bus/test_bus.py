@@ -13,13 +13,13 @@ from unittest.mock import Mock
 
 import pytest
 
+from hassette.bus.bus import Bus
 from hassette.bus.listeners import Subscription
 
 from .conftest import mock_add_listener
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
-    from hassette.bus.bus import Bus
 
 
 # ---------------------------------------------------------------------------
@@ -145,8 +145,6 @@ def test_framework_bus_inherits_framework_tier(hassette_with_bus: "Hassette") ->
 
 def test_bus_requires_parent() -> None:
     """Bus.__init__ raises AssertionError when parent is None."""
-    from hassette.bus.bus import Bus
-
     mock_hassette = Mock()
     mock_hassette._bus_service = Mock()
     with pytest.raises(AssertionError, match="Bus requires a parent"):

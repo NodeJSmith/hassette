@@ -13,6 +13,8 @@ from types import SimpleNamespace
 
 from hassette import A, P
 from hassette.const import MISSING_VALUE, NOT_PROVIDED
+from hassette.event_handling.accessors import get_state_value_new, get_state_value_old, get_state_value_old_new
+from hassette.event_handling.conditions import Comparison, Increased, IsIn
 from hassette.event_handling.predicates import (
     AllOf,
     AnyOf,
@@ -34,6 +36,7 @@ from hassette.event_handling.predicates import (
     StateFrom,
     StateTo,
     ValueIs,
+    summarize_top_level,
 )
 from hassette.test_utils import create_call_service_event, create_state_change_event
 
@@ -460,8 +463,6 @@ def test_get_path_with_real_event_structure() -> None:
 
 def test_value_is_summarize_literal_condition() -> None:
     """ValueIs.summarize() returns literal condition value and source name for non-callable conditions."""
-    from hassette.event_handling.accessors import get_state_value_new
-
     pred = ValueIs(source=get_state_value_new, condition="on")
     result = pred.summarize()
     assert "on" in result
@@ -470,8 +471,6 @@ def test_value_is_summarize_literal_condition() -> None:
 
 def test_value_is_summarize_callable_condition() -> None:
     """ValueIs.summarize() returns 'custom condition from <source>' for callable conditions."""
-    from hassette.event_handling.accessors import get_state_value_new
-
     pred = ValueIs(source=get_state_value_new, condition=lambda v: v > 50)
     result = pred.summarize()
     assert result.startswith("custom condition from")
@@ -480,8 +479,6 @@ def test_value_is_summarize_callable_condition() -> None:
 
 def test_value_is_summarize_distinguishes_sources() -> None:
     """ValueIs with same condition but different sources produces distinct summarize() strings."""
-    from hassette.event_handling.accessors import get_state_value_new, get_state_value_old
-
     pred_new = ValueIs(source=get_state_value_new, condition="on")
     pred_old = ValueIs(source=get_state_value_old, condition="on")
     assert pred_new.summarize() != pred_old.summarize()
@@ -532,41 +529,29 @@ def test_predicate_summarize_golden_attr_from() -> None:
 
 
 def test_predicate_summarize_golden_state_comparison() -> None:
-    from hassette.event_handling.conditions import Increased
-
     assert StateComparison(condition=Increased()).summarize() == "state increased"
 
 
 def test_predicate_summarize_golden_state_comparison_with_comparison() -> None:
-    from hassette.event_handling.conditions import Comparison
-
     assert StateComparison(condition=Comparison(">", 50)).summarize() == "state > 50"
 
 
 def test_predicate_summarize_golden_attr_comparison() -> None:
-    from hassette.event_handling.conditions import Increased
-
     assert AttrComparison(attr_name="brightness", condition=Increased()).summarize() == "attr brightness increased"
 
 
 def test_predicate_summarize_golden_attr_comparison_with_comparison() -> None:
-    from hassette.event_handling.conditions import Comparison
-
     pred = AttrComparison(attr_name="brightness", condition=Comparison(">=", 200))
     assert pred.summarize() == "attr brightness >= 200"
 
 
 def test_predicate_summarize_golden_value_is_literal() -> None:
     """ValueIs with literal condition — exact format: 'value is <condition> from <source>'."""
-    from hassette.event_handling.accessors import get_state_value_new
-
     assert ValueIs(source=get_state_value_new, condition="on").summarize() == "value is on from get_state_value_new"
 
 
 def test_predicate_summarize_golden_value_is_callable() -> None:
     """ValueIs with callable condition — exact format: 'custom condition from <source>'."""
-    from hassette.event_handling.accessors import get_state_value_new
-
     pred = ValueIs(source=get_state_value_new, condition=lambda v: v > 50)
     assert pred.summarize() == "custom condition from get_state_value_new"
 
@@ -600,20 +585,14 @@ def test_predicate_summarize_golden_not() -> None:
 
 
 def test_predicate_summarize_golden_is_present() -> None:
-    from hassette.event_handling.accessors import get_state_value_new
-
     assert IsPresent(source=get_state_value_new).summarize() == "is present"
 
 
 def test_predicate_summarize_golden_is_missing() -> None:
-    from hassette.event_handling.accessors import get_state_value_new
-
     assert IsMissing(source=get_state_value_new).summarize() == "is missing"
 
 
 def test_predicate_summarize_golden_did_change() -> None:
-    from hassette.event_handling.accessors import get_state_value_old_new
-
     assert DidChange(source=get_state_value_old_new).summarize() == "changed"
 
 
@@ -637,8 +616,6 @@ def test_predicate_summarize_golden_service_data_where_multi_key() -> None:
 
 
 def test_predicate_summarize_golden_service_data_where_with_condition_object() -> None:
-    from hassette.event_handling.conditions import IsIn
-
     pred = ServiceDataWhere(spec={"entity_id": IsIn(["light.kitchen", "light.living"])})
     assert pred.summarize() == "entity_id = in [light.kitchen, light.living]"
 
@@ -676,8 +653,6 @@ def test_predicate_summarize_anyof_many_predicates() -> None:
 
 
 def test_predicate_summarize_allof_with_state_comparison() -> None:
-    from hassette.event_handling.conditions import Increased
-
     pred = AllOf(
         predicates=(
             EntityMatches("zone.home"),
@@ -704,8 +679,6 @@ def test_predicate_summarize_not_wrapping_allof() -> None:
 
 
 def test_predicate_summarize_allof_with_attr_comparison_and_condition() -> None:
-    from hassette.event_handling.conditions import Comparison
-
     pred = AllOf(
         predicates=(
             EntityMatches("light.office"),
@@ -716,15 +689,11 @@ def test_predicate_summarize_allof_with_attr_comparison_and_condition() -> None:
 
 
 def test_predicate_summarize_top_level_strips_outer_parens() -> None:
-    from hassette.event_handling.predicates import summarize_top_level
-
     pred = AllOf(predicates=(EntityMatches("light.kitchen"), StateTo("on")))
     assert summarize_top_level(pred) == "entity light.kitchen and → on"
 
 
 def test_predicate_summarize_top_level_preserves_inner_parens() -> None:
-    from hassette.event_handling.predicates import summarize_top_level
-
     pred = AllOf(
         predicates=(
             EntityMatches("light.kitchen"),
@@ -735,7 +704,5 @@ def test_predicate_summarize_top_level_preserves_inner_parens() -> None:
 
 
 def test_predicate_summarize_top_level_no_parens_passthrough() -> None:
-    from hassette.event_handling.predicates import summarize_top_level
-
     pred = StateTo("on")
     assert summarize_top_level(pred) == "→ on"

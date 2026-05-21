@@ -4,6 +4,8 @@ Verifies default values, override application, env var hermiticity, and
 that the data_dir is passed through correctly.
 """
 
+import pytest
+
 from hassette.test_utils import make_test_config
 from hassette.test_utils.config import TEST_TOKEN
 
@@ -38,7 +40,5 @@ def test_data_dir_override_respected(tmp_path) -> None:
 
 def test_data_dir_is_required() -> None:
     """make_test_config() requires data_dir as a keyword argument."""
-    import pytest
-
     with pytest.raises(TypeError, match="data_dir"):
         make_test_config()  # pyright: ignore[reportCallIssue]

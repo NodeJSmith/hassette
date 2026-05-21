@@ -12,6 +12,9 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import TypeAdapter
 
+from hassette.web.app import create_fastapi_app
+from hassette.web.models import WsServerMessage
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 FRONTEND_DIR = REPO_ROOT / "frontend"
 
@@ -28,8 +31,6 @@ class TestSchemaFreshness:
     """Verify that committed schema files match what the backend generates."""
 
     def test_ws_schema_matches_models(self) -> None:
-        from hassette.web.models import WsServerMessage
-
         adapter = TypeAdapter(WsServerMessage)
         generated = adapter.json_schema()
 
@@ -40,8 +41,6 @@ class TestSchemaFreshness:
         assert generated == on_disk, "frontend/ws-schema.json is stale — run: python scripts/export_schemas.py"
 
     def test_openapi_schema_matches_app(self) -> None:
-        from hassette.web.app import create_fastapi_app
-
         stub = create_stub_hassette()
         app = create_fastapi_app(stub)
         generated = app.openapi()
@@ -67,8 +66,6 @@ class TestSchemaFreshness:
     )
     def test_all_ws_message_types_have_timestamp(self, msg_type: str) -> None:
         """Every WS message type must include 'timestamp' in its required fields."""
-        from hassette.web.models import WsServerMessage
-
         adapter = TypeAdapter(WsServerMessage)
         schema = adapter.json_schema()
 

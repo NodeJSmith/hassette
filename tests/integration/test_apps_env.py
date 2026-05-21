@@ -8,6 +8,7 @@ import pytest
 from hassette import HassetteConfig, context
 from hassette.test_utils import HassetteHarness, build_harness, run_hassette_startup_tasks, wait_for
 from hassette.test_utils.config import TEST_TOKEN
+from hassette.utils import app_utils
 
 APP_KEY = "env_reader"
 TOKEN = TEST_TOKEN
@@ -45,8 +46,6 @@ def clear_app_import_caches(pkg_name: str, module_name: str) -> None:
 
     sys.modules.pop(f"{pkg_name}.{module_name}", None)
     sys.modules.pop(pkg_name, None)
-
-    from hassette.utils import app_utils
 
     app_utils.LOADED_CLASSES.clear()
     app_utils.FAILED_TO_LOAD_CLASSES.clear()

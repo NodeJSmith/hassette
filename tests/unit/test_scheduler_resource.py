@@ -1,7 +1,8 @@
 """Unit tests for Scheduler resource: new schedule() entry point, job groups, convenience wrappers."""
 
+import asyncio
 from collections.abc import Callable
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from whenever import ZonedDateTime
@@ -157,9 +158,6 @@ class TestCancelGroup:
 
     def test_cancel_group_persists_cancelled_at_for_registered_jobs(self) -> None:
         """cancel_group spawns mark_job_cancelled for each job with a db_id set."""
-        import asyncio
-        from unittest.mock import MagicMock
-
         scheduler = make_scheduler()
         # Add a task_bucket mock. Close any coroutine passed to spawn to avoid
         # "coroutine never awaited" warnings when mark_job_cancelled returns a real coro.
@@ -190,8 +188,6 @@ class TestCancelGroup:
 
     def test_cancel_group_skips_mark_job_cancelled_when_db_id_none(self) -> None:
         """cancel_group does not spawn mark_job_cancelled for jobs without db_id."""
-        from unittest.mock import MagicMock
-
         scheduler = make_scheduler()
         scheduler.scheduler_service.task_bucket = MagicMock()
 
@@ -510,8 +506,6 @@ class TestAddJobBackReference:
 class TestCancelJob:
     def test_cancel_job_idempotent(self) -> None:
         """Second cancel_job call on the same job is a silent no-op."""
-        from unittest.mock import MagicMock
-
         scheduler = make_scheduler()
         scheduler.scheduler_service.task_bucket = MagicMock()
         scheduler.scheduler_service.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_: coro.close() or None)
@@ -548,8 +542,6 @@ class TestCancelJob:
 
     def test_cancel_group_delegates_to_cancel_job(self) -> None:
         """cancel_group calls cancel_job once per member."""
-        from unittest.mock import patch
-
         scheduler = make_scheduler()
         scheduler.schedule(noop, Every(hours=1), name="job1", group="morning")
         scheduler.schedule(noop, Every(hours=2), name="job2", group="morning")
@@ -569,8 +561,6 @@ class TestCancelJob:
 
     def test_cancel_job_dequeued_set_by_dequeue_job(self) -> None:
         """job._dequeued is False at _dequeue_job entry (set by dequeue_job internally)."""
-        from unittest.mock import MagicMock
-
         scheduler = make_scheduler()
         scheduler.scheduler_service.task_bucket = MagicMock()
 
@@ -600,8 +590,6 @@ class TestCancelJob:
 class TestJobCancelDelegation:
     def test_job_cancel_delegates_to_scheduler(self) -> None:
         """job.cancel() calls scheduler.cancel_job(self)."""
-        from unittest.mock import MagicMock, patch
-
         scheduler = make_scheduler()
         scheduler.scheduler_service.task_bucket = MagicMock()
 

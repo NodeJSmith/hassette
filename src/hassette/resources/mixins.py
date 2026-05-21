@@ -4,14 +4,12 @@ import traceback
 import typing
 from typing import Any, Protocol
 
+from hassette.events import HassetteServiceEvent
 from hassette.exceptions import InvalidLifecycleTransitionError
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import CoroLikeT
 
 LOGGER = logging.getLogger(__name__)
-
-if typing.TYPE_CHECKING:
-    from hassette.events import HassetteServiceEvent
 
 
 # Valid ResourceStatus transitions. This is the authoritative table for the entire framework.
@@ -337,8 +335,6 @@ class LifecycleMixin(_LifecycleHostStubs):
         ready: bool = False,
         ready_phase: str | None = None,
     ):
-        from hassette.events import HassetteServiceEvent
-
         return HassetteServiceEvent.from_data(
             resource_name=self.class_name,
             role=self.role,

@@ -8,6 +8,8 @@ from typing import Annotated, Any, ForwardRef, TypeVar, Union, get_args, get_ori
 
 from pydantic._internal._typing_extra import try_eval_type
 
+from hassette.events import Event
+
 NoneType = type(None)
 
 
@@ -258,8 +260,6 @@ def is_event_type(annotation: Any) -> bool:
     Returns:
         True if annotation is Event or an Event subclass.
     """
-    from hassette.events import Event
-
     if annotation is inspect.Parameter.empty:
         return False
 

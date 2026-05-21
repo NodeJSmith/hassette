@@ -4,12 +4,15 @@ Covers defaults, field constraints, computed defaults, and intra-model validator
 Also covers integration-level config loading with nested sections and env var overrides.
 """
 
+import warnings
 from pathlib import Path
 
 import pytest
 from pydantic import BaseModel, ValidationError
 from pydantic_settings import BaseSettings
+from pydantic_settings.sources import InitSettingsSource
 
+from hassette.config.config import HassetteConfig
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.config.models import (
     AppsConfig,
@@ -237,8 +240,6 @@ class TestLoggingConfig:
 
     def test_invalid_log_level_coerced_to_info(self):
         """Invalid log level string falls back to INFO."""
-        import warnings
-
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             cfg = LoggingConfig(log_level="BADLEVEL")  # pyright: ignore[reportArgumentType]
@@ -464,9 +465,6 @@ class TestHassetteConfigNested:
     @pytest.fixture
     def isolated_config_cls(self):
         """Return an isolated HassetteConfig subclass (no TOML, no env, no CLI)."""
-        from pydantic_settings.sources import InitSettingsSource
-
-        from hassette.config.config import HassetteConfig
 
         class _IsolatedConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
@@ -545,7 +543,6 @@ class TestNestedTomlLoading:
             "[hassette]\ntoken = 'test-token'\nrun_app_precheck = false\n\n[hassette.database]\nretention_days = 14\n",
             encoding="utf-8",
         )
-        from hassette.config.config import HassetteConfig
 
         class _TomlConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
@@ -567,7 +564,6 @@ class TestNestedTomlLoading:
             "[hassette.websocket]\nheartbeat_interval_seconds = 60\n",
             encoding="utf-8",
         )
-        from hassette.config.config import HassetteConfig
 
         class _TomlConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
@@ -586,7 +582,6 @@ class TestNestedTomlLoading:
             "[hassette]\ntoken = 'test-token'\nrun_app_precheck = false\n\n[hassette.database]\n",
             encoding="utf-8",
         )
-        from hassette.config.config import HassetteConfig
 
         class _TomlConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
@@ -611,7 +606,6 @@ class TestEnvVarPartialUpdate:
     def test_single_env_var_sets_only_that_field(self, monkeypatch, tmp_path):
         """HASSETTE__DATABASE__RETENTION_DAYS=14 sets only retention_days."""
         monkeypatch.setenv("HASSETTE__DATABASE__RETENTION_DAYS", "14")
-        from hassette.config.config import HassetteConfig
 
         class _EnvConfig2(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
@@ -632,7 +626,6 @@ class TestEnvVarPartialUpdate:
     def test_env_var_logging_log_level(self, monkeypatch):
         """HASSETTE__LOGGING__LOG_LEVEL=DEBUG sets only logging.log_level."""
         monkeypatch.setenv("HASSETTE__LOGGING__LOG_LEVEL", "DEBUG")
-        from hassette.config.config import HassetteConfig
 
         class _EnvConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
@@ -658,7 +651,6 @@ class TestCrossModelValidation:
 
     def test_log_retention_exceeds_db_retention_raises(self):
         """log_retention_days > retention_days raises ValidationError referencing both paths."""
-        from hassette.config.config import HassetteConfig
 
         class _ValidationConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {

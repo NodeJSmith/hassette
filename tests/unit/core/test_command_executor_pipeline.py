@@ -15,9 +15,12 @@ import sqlite3
 import time
 from unittest.mock import AsyncMock, MagicMock
 
+import aiosqlite
+
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.command_executor import CommandExecutor, RetryableBatch
 from hassette.core.commands import InvokeHandler
+from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.scheduler.classes import JobExecutionRecord
 
 # ---------------------------------------------------------------------------
@@ -461,10 +464,6 @@ async def test_flush_queue_handles_db_closed():
 
 async def test_persist_batch_includes_source_tier():
     """TelemetryRepository.persist_batch INSERT includes source_tier column."""
-    import aiosqlite
-
-    from hassette.core.telemetry_repository import TelemetryRepository
-
     schema = """
 PRAGMA foreign_keys = ON;
 

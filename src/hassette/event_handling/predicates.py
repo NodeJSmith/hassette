@@ -495,8 +495,6 @@ class ServiceDataWhere:
     _predicates: tuple["Predicate[CallServiceEvent]", ...] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        from hassette.types import ChangeType
-
         preds: list[Predicate[CallServiceEvent]] = []
 
         for k, cond in self.spec.items():

@@ -8,11 +8,15 @@ from pydantic import TypeAdapter
 from hassette.core.domain_models import AppStatusChangedData as AppStatusChangedPayload
 from hassette.core.domain_models import ServiceStatusData as WsServiceStatusPayload
 from hassette.core.domain_models import StateChangedData as StateChangedPayload
+from hassette.events.hassette import AppStateChangePayload, ServiceStatusPayload
+from hassette.types.enums import ResourceRole, ResourceStatus
 from hassette.web.models import (
     AppStatusChangedWsMessage,
     ConnectedPayload,
     ConnectedWsMessage,
     ConnectivityWsMessage,
+    ExecutionCompletedWsMessage,
+    InvocationCompletedWsMessage,
     LogWsMessage,
     ServiceStatusWsMessage,
     StateChangedWsMessage,
@@ -24,9 +28,6 @@ class TestAppStatusChangedPayloadMatchesDataclass:
     """Verify AppStatusChangedPayload mirrors events.hassette.AppStateChangePayload."""
 
     def test_all_fields_present(self) -> None:
-        from hassette.events.hassette import AppStateChangePayload
-        from hassette.types.enums import ResourceStatus
-
         dataclass_instance = AppStateChangePayload(
             app_key="my_app",
             index=0,
@@ -60,9 +61,6 @@ class TestServiceStatusPayloadMatchesDataclass:
     """Verify WsServiceStatusPayload mirrors events.hassette.ServiceStatusPayload."""
 
     def test_all_fields_present(self) -> None:
-        from hassette.events.hassette import ServiceStatusPayload
-        from hassette.types.enums import ResourceRole, ResourceStatus
-
         dataclass_instance = ServiceStatusPayload(
             resource_name="telemetry",
             role=ResourceRole.SERVICE,
@@ -186,8 +184,6 @@ class TestCompletionWsMessages:
     adapter = TypeAdapter(WsServerMessage)
 
     def test_invocation_completed_discriminates(self) -> None:
-        from hassette.web.models import InvocationCompletedWsMessage
-
         raw = {
             "type": "invocation_completed",
             "data": [
@@ -211,8 +207,6 @@ class TestCompletionWsMessages:
         assert msg.data[0].error_type is None
 
     def test_execution_completed_discriminates(self) -> None:
-        from hassette.web.models import ExecutionCompletedWsMessage
-
         raw = {
             "type": "execution_completed",
             "data": [
@@ -235,16 +229,12 @@ class TestCompletionWsMessages:
 
     def test_invocation_completed_empty_batch_valid(self) -> None:
         """An empty batch list is valid (flush with nothing to emit never happens, but schema must accept it)."""
-        from hassette.web.models import InvocationCompletedWsMessage
-
         raw = {"type": "invocation_completed", "data": [], "timestamp": 1234567890.0}
         msg = self.adapter.validate_python(raw)
         assert isinstance(msg, InvocationCompletedWsMessage)
         assert msg.data == []
 
     def test_invocation_completed_multi_record_batch(self) -> None:
-        from hassette.web.models import InvocationCompletedWsMessage
-
         raw = {
             "type": "invocation_completed",
             "data": [
@@ -323,9 +313,6 @@ class TestServiceStatusDataRetryAt:
 
     def test_service_status_payload_mirrors_event_dataclass_retry_at(self) -> None:
         """WsServiceStatusPayload mirrors ServiceStatusPayload.retry_at field."""
-        from hassette.events.hassette import ServiceStatusPayload
-        from hassette.types.enums import ResourceRole, ResourceStatus
-
         dataclass_instance = ServiceStatusPayload(
             resource_name="cooling_service",
             role=ResourceRole.SERVICE,

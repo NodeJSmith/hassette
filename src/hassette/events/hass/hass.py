@@ -214,8 +214,6 @@ class ScriptStartedEvent(Event[HassPayload[ScriptStartedPayload]]):
 def create_event_from_hass(data: HassEventEnvelopeDict):
     """Create an Event from a dictionary."""
 
-    from hassette.events import Event  # avoid circular import
-
     event = data.get("event", {})
     event_type = event.get("event_type")
     if not event_type:

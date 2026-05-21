@@ -27,7 +27,11 @@ from hassette.models.helpers import (
     CreateInputBooleanParams,
     CreateInputSelectParams,
     InputBooleanRecord,
+    InputButtonRecord,
+    InputDatetimeRecord,
+    InputNumberRecord,
     InputSelectRecord,
+    InputTextRecord,
     TimerRecord,
     UpdateInputBooleanParams,
 )
@@ -85,16 +89,6 @@ def test_seed_helper_rejects_unknown_type():
 # test the ValueError path by calling the dict directly
 async def test_seed_helper_type_map_covers_all_imports():
     """Smoke-test that RECORD_TYPE_TO_DOMAIN has all 8 expected record types."""
-    from hassette.models.helpers import (
-        InputBooleanRecord,
-        InputButtonRecord,
-        InputDatetimeRecord,
-        InputNumberRecord,
-        InputSelectRecord,
-        InputTextRecord,
-        TimerRecord,
-    )
-
     expected = {
         InputBooleanRecord,
         InputNumberRecord,
@@ -318,8 +312,6 @@ async def test_harness_seed_helper_rejects_unknown_record_type():
 
 async def test_seed_helper_isolates_caller_mutations():
     """seed_helper deep-copies the record so later caller-side mutations don't leak."""
-    from hassette.models.helpers import InputSelectRecord
-
     async with AppTestHarness(_HarnessApp, config={}) as harness:
         caller_record = InputSelectRecord(id="mode", name="Mode", options=["a", "b"])
         harness.seed_helper(caller_record)

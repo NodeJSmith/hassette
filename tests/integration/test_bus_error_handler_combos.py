@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
 import pytest
+from whenever import ZonedDateTime
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.events import RawStateChangeEvent
@@ -24,7 +25,6 @@ from tests.integration.bus_test_helpers import seed, send_state_change
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
-
 
 # ---------------------------------------------------------------------------
 # Per-test harness fixture
@@ -352,8 +352,6 @@ async def test_immediate_duration_elapsed_exceeds_error_handler(
     combo_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """immediate + duration (elapsed >= duration) + on_error: fires immediately, error handler called."""
-    from whenever import ZonedDateTime
-
     harness, hassette, bus = combo_harness
 
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=10)
@@ -392,8 +390,6 @@ async def test_immediate_duration_remaining_timer_error_handler(
     combo_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """immediate + duration (elapsed < duration) + on_error: timer fires after remaining, error handler called."""
-    from whenever import ZonedDateTime
-
     harness, hassette, bus = combo_harness
 
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=3)
@@ -436,8 +432,6 @@ async def test_immediate_duration_per_listener_error_handler(
     combo_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Three-way combo with per-listener on_error: per-listener wins over app-level."""
-    from whenever import ZonedDateTime
-
     harness, hassette, bus = combo_harness
 
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=10)

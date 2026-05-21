@@ -12,10 +12,13 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
+from unittest.mock import AsyncMock, patch
+
 from hassette import D, context
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.events import CallServiceEvent, RawStateChangeEvent
+from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent
 from hassette.models import states
 from hassette.test_utils.app_harness import AppConfigurationError, AppTestHarness
 from hassette.test_utils.recording_api import RecordingApi
@@ -286,8 +289,6 @@ async def test_simulate_attribute_change_uses_explicit_state():
     Patches simulate_state_change to capture the call args, verifying the explicit
     state= value is forwarded rather than the cached proxy value.
     """
-    from unittest.mock import AsyncMock, patch
-
     async with AppTestHarness(SensorApp, config={}) as harness:
         await harness.set_state("sensor.test", "20.0")
 
@@ -531,8 +532,6 @@ async def test_simulate_service_registered():
 
 async def test_simulate_hassette_service_status():
     """simulate_hassette_service_status fires on_hassette_service_status handler."""
-    from hassette.events.hassette import HassetteServiceEvent
-
     received: list[HassetteServiceEvent] = []
 
     class ServiceStatusApp(App[SensorConfig]):
@@ -585,8 +584,6 @@ async def test_simulate_hassette_service_crashed():
 
 async def test_simulate_hassette_service_started():
     """simulate_hassette_service_started fires on_hassette_service_started handler."""
-    from hassette.events.hassette import HassetteServiceEvent
-
     received: list[HassetteServiceEvent] = []
 
     class ServiceStartedApp(App[SensorConfig]):
@@ -605,8 +602,6 @@ async def test_simulate_hassette_service_started():
 
 async def test_simulate_hassette_service_ready():
     """simulate_hassette_service_ready fires with ready=True and RUNNING status."""
-    from hassette.events.hassette import HassetteServiceEvent
-
     received: list[HassetteServiceEvent] = []
 
     class ServiceReadyApp(App[SensorConfig]):
@@ -670,8 +665,6 @@ async def test_simulate_websocket_disconnected():
 
 async def test_simulate_app_state_changed():
     """simulate_app_state_changed fires on_app_state_changed handler."""
-    from hassette.events.hassette import HassetteAppStateEvent
-
     received: list[HassetteAppStateEvent] = []
 
     class AppStateApp(App[SensorConfig]):
@@ -690,8 +683,6 @@ async def test_simulate_app_state_changed():
 
 async def test_simulate_app_running():
     """simulate_app_running fires on_app_running handler."""
-    from hassette.events.hassette import HassetteAppStateEvent
-
     received: list[HassetteAppStateEvent] = []
 
     class AppRunningApp(App[SensorConfig]):
@@ -790,8 +781,6 @@ async def test_simulate_homeassistant_stop():
 
 async def test_simulate_hassette_service_status_typed_di():
     """Handler asserts event.payload.data.status and resource_name match expected values."""
-    from hassette.events.hassette import HassetteServiceEvent
-
     received: list[HassetteServiceEvent] = []
 
     class ServiceStatusDiApp(App[SensorConfig]):
@@ -812,8 +801,6 @@ async def test_simulate_hassette_service_status_typed_di():
 
 async def test_simulate_app_state_changed_typed_di():
     """Handler asserts event.payload.data.app_key matches harness app key."""
-    from hassette.events.hassette import HassetteAppStateEvent
-
     received: list[HassetteAppStateEvent] = []
 
     class AppStateDiApp(App[SensorConfig]):
