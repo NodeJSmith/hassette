@@ -3,8 +3,6 @@
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
-import pytest
-
 from hassette.resources.base import Resource
 from hassette.types.enums import ResourceStatus
 
@@ -13,27 +11,26 @@ if TYPE_CHECKING:
 from hassette.test_utils import make_mock_hassette
 
 
-class _ConcreteResource(Resource):
+class ConcreteResource(Resource):
     """Minimal concrete Resource subclass for testing."""
 
     async def on_initialize(self) -> None:
         pass
 
 
-async def _make_resource() -> tuple[_ConcreteResource, AsyncMock]:
+async def make_resource() -> tuple[ConcreteResource, AsyncMock]:
     """Create a Resource instance with a stubbed hassette."""
     hassette = make_mock_hassette(sealed=False)
-    resource = _ConcreteResource(hassette=hassette)
+    resource = ConcreteResource(hassette=hassette)
     return resource, hassette
 
 
 class TestEmitReadinessEvent:
     """Tests for Resource._emit_readiness_event()."""
 
-    @pytest.mark.asyncio
     async def test_emit_readiness_event_sends_service_status(self) -> None:
         """_emit_readiness_event sends a service_status event with current readiness state."""
-        resource, hassette = await _make_resource()
+        resource, hassette = await make_resource()
 
         # Set up RUNNING state + readiness
         resource._status = ResourceStatus.RUNNING
@@ -53,10 +50,9 @@ class TestEmitReadinessEvent:
         assert payload.ready_phase == "test reason"
         assert payload.status == ResourceStatus.RUNNING
 
-    @pytest.mark.asyncio
     async def test_handle_running_includes_readiness(self) -> None:
         """handle_running emits an event carrying the current readiness state."""
-        resource, hassette = await _make_resource()
+        resource, hassette = await make_resource()
 
         # Resource is not ready before handle_running
         assert resource.is_ready() is False

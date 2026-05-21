@@ -60,7 +60,7 @@ class RateLimiter:
         self._throttle_last_time = 0.0
         self._cancelled = False
 
-    def _clear_debounce_ref(self, task: "asyncio.Task[None]") -> None:
+    def clear_debounce_ref(self, task: "asyncio.Task[None]") -> None:
         """Done callback: clear _debounce_task if it's still the current task."""
         if self._debounce_task is task:
             self._debounce_task = None
@@ -88,13 +88,13 @@ class RateLimiter:
         if self._cancelled:
             return
         if self.debounce is not None:
-            await self._debounced_call(handler)
+            await self.debounced_call(handler)
         elif self.throttle is not None:
-            await self._throttled_call(handler)
+            await self.throttled_call(handler)
         else:
             await handler()
 
-    async def _debounced_call(self, handler: "Callable[[], Awaitable[None]]") -> None:
+    async def debounced_call(self, handler: "Callable[[], Awaitable[None]]") -> None:
         """Debounced version of the handler call.
 
         Expects a fresh ``handler`` callable on each call.  BusService creates a new
@@ -126,10 +126,10 @@ class RateLimiter:
             await handler()
 
         task = self.task_bucket.spawn(delayed_call(), name="handler:debounce")
-        task.add_done_callback(self._clear_debounce_ref)
+        task.add_done_callback(self.clear_debounce_ref)
         self._debounce_task = task
 
-    async def _throttled_call(self, handler: "Callable[[], Awaitable[None]]") -> None:
+    async def throttled_call(self, handler: "Callable[[], Awaitable[None]]") -> None:
         """Throttled version of the handler call.
 
         At most one attempt per window. No lock needed — the check-and-set between

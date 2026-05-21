@@ -6,10 +6,6 @@ import pytest
 
 from hassette.web.telemetry_helpers import compute_error_rate, format_handler_summary
 
-# ---------------------------------------------------------------------------
-# compute_error_rate
-# ---------------------------------------------------------------------------
-
 
 def test_compute_error_rate_zero_total_returns_zero() -> None:
     """When both totals are zero there is no activity — result must be 0.0."""
@@ -116,12 +112,7 @@ def test_compute_error_rate_clamped_to_100_when_errors_exceed_total() -> None:
     assert result == 100.0
 
 
-# ---------------------------------------------------------------------------
-# format_handler_summary
-# ---------------------------------------------------------------------------
-
-
-def _listener(
+def make_listener(
     topic: str,
     human_description: str | None = None,
     predicate_description: str | None = None,
@@ -134,7 +125,7 @@ def _listener(
 
 
 def test_format_handler_summary_entity_with_human_description() -> None:
-    listener = _listener(
+    listener = make_listener(
         topic="state_changed.binary_sensor.garage_door",
         human_description="→ open",
     )
@@ -142,7 +133,7 @@ def test_format_handler_summary_entity_with_human_description() -> None:
 
 
 def test_format_handler_summary_entity_with_predicate_description() -> None:
-    listener = _listener(
+    listener = make_listener(
         topic="state_changed.light.kitchen",
         predicate_description="EntityMatches(entity_id='light.kitchen')",
     )
@@ -150,27 +141,27 @@ def test_format_handler_summary_entity_with_predicate_description() -> None:
 
 
 def test_format_handler_summary_entity_no_condition() -> None:
-    listener = _listener(topic="state_changed.binary_sensor.garage_door")
+    listener = make_listener(topic="state_changed.binary_sensor.garage_door")
     assert format_handler_summary(listener) == "binary_sensor.garage_door"
 
 
 def test_format_handler_summary_non_entity_topic() -> None:
-    listener = _listener(topic="call_service", human_description="service turn_on")
+    listener = make_listener(topic="call_service", human_description="service turn_on")
     assert format_handler_summary(listener) == "call_service service turn_on"
 
 
 def test_format_handler_summary_non_entity_no_condition() -> None:
-    listener = _listener(topic="call_service")
+    listener = make_listener(topic="call_service")
     assert format_handler_summary(listener) == "call_service"
 
 
 def test_format_handler_summary_wildcard_topic() -> None:
-    listener = _listener(topic="state_changed.*", human_description="state changed")
+    listener = make_listener(topic="state_changed.*", human_description="state changed")
     assert format_handler_summary(listener) == "state_changed.* state changed"
 
 
 def test_format_handler_summary_human_description_takes_precedence() -> None:
-    listener = _listener(
+    listener = make_listener(
         topic="state_changed.light.kitchen",
         human_description="→ on",
         predicate_description="state == on",

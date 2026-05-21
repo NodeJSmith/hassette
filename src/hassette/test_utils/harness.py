@@ -42,16 +42,12 @@ if typing.TYPE_CHECKING:
     from hassette.config.classes import AppManifest
     from hassette.events import Event, HassStateDict
 
-
-# ---------------------------------------------------------------------------
-# Timeout constants — centralised here so rationale is documented in one place
-# ---------------------------------------------------------------------------
 #
 # Do not use raw floats in harness code — reference these constants instead so
 # any future re-tuning is a single-site edit.
 
 
-class TIMEOUTS:
+class Timeouts:
     """Centralised timeout constants for the test harness.
 
     All values are in seconds. Rationale for each value is documented below.
@@ -171,11 +167,6 @@ def preserve_config(config: HassetteConfig) -> Generator[None, None, None]:
                 setattr(config, key, value)
 
 
-# ---------------------------------------------------------------------------
-# Dependency graph and startup ordering for HassetteHarness components
-# ---------------------------------------------------------------------------
-
-
 def sort_harness_graph(graph: dict[str, set[str]]) -> list[str]:
     """Return node names from *graph* in valid initialization order (deps before dependents).
 
@@ -235,7 +226,7 @@ def sort_harness_graph(graph: dict[str, set[str]]) -> list[str]:
     return result
 
 
-_DEPENDENCIES: dict[str, set[str]] = {
+DEPENDENCIES: dict[str, set[str]] = {
     "bus": set(),
     "scheduler": set(),
     "file_watcher": set(),
@@ -245,14 +236,14 @@ _DEPENDENCIES: dict[str, set[str]] = {
     "state_registry": set(),
     # service_watcher removed: ServiceWatcher is a real framework service but has no
     # harness starter — the harness does not instantiate it.  Removing it eliminates
-    # the ghost entry that caused _STARTUP_ORDER to include a component with no starter.
+    # the ghost entry that caused STARTUP_ORDER to include a component with no starter.
 }
 
 # Startup order derived from the dependency graph — no manual maintenance required.
-_STARTUP_ORDER: list[str] = sort_harness_graph(_DEPENDENCIES)
+STARTUP_ORDER: list[str] = sort_harness_graph(DEPENDENCIES)
 
 # Maps harness component names to the corresponding real framework service class.
-# Used by the harness consistency test to verify _DEPENDENCIES stays in sync with
+# Used by the harness consistency test to verify DEPENDENCIES stays in sync with
 # real service depends_on declarations.
 #
 # Omitted entries:
@@ -265,7 +256,7 @@ _STARTUP_ORDER: list[str] = sort_harness_graph(_DEPENDENCIES)
 #   "service_watcher"— Removed: ServiceWatcher has no harness starter; including it in
 #                      this map without a matching _starters entry created a ghost entry
 #                      that made the structural test impossible to satisfy.
-_COMPONENT_CLASS_MAP: dict[str, type[Resource]] = {
+COMPONENT_CLASS_MAP: dict[str, type[Resource]] = {
     "bus": BusService,
     "scheduler": SchedulerService,
     "app_handler": AppHandler,
@@ -306,8 +297,6 @@ class HassetteHarness:
         if not skip_global_set:
             self._hassette_ctx_token = context.set_global_hassette(self.hassette)
         self.config.set_validated_app_manifests()
-
-    # --- Public accessor properties ---
 
     @property
     def state_proxy(self) -> "StateProxy":
@@ -419,8 +408,6 @@ class HassetteHarness:
         if self.api_mock is not None:
             reset_mock_api(self.api_mock)
 
-    # --- State seeding helper ---
-
     async def seed_state(self, entity_id: str, state_dict: "HassStateDict") -> None:
         """Seed an entity's state directly into the StateProxy cache.
 
@@ -439,20 +426,18 @@ class HassetteHarness:
         proxy = self.state_proxy
         lock = proxy.lock
         try:
-            async with asyncio.timeout(TIMEOUTS.STATE_SEED_LOCK):
+            async with asyncio.timeout(Timeouts.STATE_SEED_LOCK):
                 await lock.acquire()
         except TimeoutError as exc:
             msg = (
                 f"seed_state: could not acquire StateProxy lock "
-                f"within {TIMEOUTS.STATE_SEED_LOCK}s for entity {entity_id!r}"
+                f"within {Timeouts.STATE_SEED_LOCK}s for entity {entity_id!r}"
             )
             raise TimeoutError(msg) from exc
         try:
             proxy.states[entity_id] = state_dict
         finally:
             lock.release()
-
-    # --- Builder methods (return self for chaining) ---
 
     def with_bus(self) -> "HassetteHarness":
         self._components.add("bus")
@@ -486,21 +471,17 @@ class HassetteHarness:
         """Check whether a component is active (includes transitive deps after start())."""
         return component in self._components
 
-    # --- Dependency resolution ---
-
     def _resolve_dependencies(self) -> None:
         """Add implicit dependencies."""
         changed = True
         while changed:
             changed = False
             for component in list(self._components):
-                deps = _DEPENDENCIES.get(component, set())
+                deps = DEPENDENCIES.get(component, set())
                 new_deps = deps - self._components
                 if new_deps:
                     self._components |= new_deps
                     changed = True
-
-    # --- Lifecycle ---
 
     async def __aenter__(self) -> "HassetteHarness":
         await self.start()
@@ -522,7 +503,7 @@ class HassetteHarness:
         self.hassette._loop.set_task_factory(make_task_factory(self.hassette.task_bucket))  # pyright: ignore[reportArgumentType]
 
         # Start components in dependency order
-        for component in _STARTUP_ORDER:
+        for component in STARTUP_ORDER:
             if not self.has_component(component):
                 continue
             starter = self._starters.get(component)
@@ -551,7 +532,7 @@ class HassetteHarness:
             self.hassette.send_event = AsyncMock()
 
         self.hassette.ready_event.set()
-        await self.hassette.start_children_and_wait(timeout=TIMEOUTS.WAIT_FOR_READY)
+        await self.hassette.start_children_and_wait(timeout=Timeouts.WAIT_FOR_READY)
 
         if self.has_component("app_handler"):
             self._original_app_manifests = {
@@ -604,8 +585,6 @@ class HassetteHarness:
 
         if shutdown_errors:
             raise ExceptionGroup("errors during harness teardown", shutdown_errors)
-
-    # --- Component starters ---
 
     async def _start_bus(self) -> None:
         # NOTE: _stub_execute mirrors _start_scheduler's version — keep both in sync.

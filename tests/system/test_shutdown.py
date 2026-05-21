@@ -24,7 +24,7 @@ async def test_clean_shutdown(ha_container: str, tmp_path) -> None:
         db_path = hassette.config.database.path or (hassette.config.data_dir / "hassette.db")
 
     # After the context exits, assert shutdown completed
-    assert hassette._shutdown_completed is True
+    assert hassette.shutdown_completed is True
     assert hassette.status == ResourceStatus.STOPPED
     assert hassette.event_streams_closed is True
 

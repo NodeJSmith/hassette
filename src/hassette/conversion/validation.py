@@ -75,11 +75,6 @@ def validate_registries(
     return issues
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-
 def _get_base_state_class() -> type["BaseState"]:
     """Resolve BaseState at runtime, avoiding the circular import at module level.
 

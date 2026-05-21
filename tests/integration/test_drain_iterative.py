@@ -22,18 +22,9 @@ from hassette.events import RawStateChangeEvent
 from hassette.test_utils.app_harness import AppTestHarness
 from hassette.test_utils.exceptions import DrainError, DrainTimeout
 
-# ---------------------------------------------------------------------------
-# Shared minimal config
-# ---------------------------------------------------------------------------
-
 
 class DrainTestConfig(AppConfig):
     """Minimal config for drain tests."""
-
-
-# ---------------------------------------------------------------------------
-# Depth-1 chain: basic handler with immediate action
-# ---------------------------------------------------------------------------
 
 
 class Depth1App(App[DrainTestConfig]):
@@ -43,9 +34,9 @@ class Depth1App(App[DrainTestConfig]):
 
     async def on_initialize(self) -> None:
         self.turn_on_called = False
-        self.bus.on_state_change("sensor.test", handler=self._on_change)
+        self.bus.on_state_change("sensor.test", handler=self.on_change)
 
-    async def _on_change(self, event: RawStateChangeEvent) -> None:
+    async def on_change(self, event: RawStateChangeEvent) -> None:
         await self.api.turn_on("light.kitchen")
         self.turn_on_called = True
 
@@ -58,21 +49,16 @@ async def test_drain_waits_for_depth_1_task_chain() -> None:
         harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen")
 
 
-# ---------------------------------------------------------------------------
-# Depth-2 chain: handler spawns a secondary task
-# ---------------------------------------------------------------------------
-
-
 class Depth2App(App[DrainTestConfig]):
     """Handler spawns a task via task_bucket.spawn; spawned task calls api.turn_on."""
 
     async def on_initialize(self) -> None:
-        self.bus.on_state_change("sensor.test", handler=self._on_change)
+        self.bus.on_state_change("sensor.test", handler=self.on_change)
 
-    async def _on_change(self, event: RawStateChangeEvent) -> None:
-        self.task_bucket.spawn(self._secondary(), name="my_secondary_task")
+    async def on_change(self, event: RawStateChangeEvent) -> None:
+        self.task_bucket.spawn(self.secondary(), name="my_secondary_task")
 
-    async def _secondary(self) -> None:
+    async def secondary(self) -> None:
         await self.api.turn_on("light.living_room")
 
 
@@ -83,11 +69,6 @@ async def test_drain_waits_for_depth_2_task_chain() -> None:
         # Without iterative drain, this would fail because the spawned task
         # would not have run yet when the drain returned.
         harness.api_recorder.assert_called("turn_on", entity_id="light.living_room")
-
-
-# ---------------------------------------------------------------------------
-# Depth-3 chain: handler → task A → task B
-# ---------------------------------------------------------------------------
 
 
 class Depth3App(App[DrainTestConfig]):
@@ -103,15 +84,15 @@ class Depth3App(App[DrainTestConfig]):
 
     async def on_initialize(self) -> None:
         self.task_b_gate = asyncio.Event()
-        self.bus.on_state_change("sensor.test", handler=self._on_change)
+        self.bus.on_state_change("sensor.test", handler=self.on_change)
 
-    async def _on_change(self, event: RawStateChangeEvent) -> None:
-        self.task_bucket.spawn(self._task_a(), name="task_a")
+    async def on_change(self, event: RawStateChangeEvent) -> None:
+        self.task_bucket.spawn(self.task_a(), name="task_a")
 
-    async def _task_a(self) -> None:
-        self.task_bucket.spawn(self._task_b(), name="task_b")
+    async def task_a(self) -> None:
+        self.task_bucket.spawn(self.task_b(), name="task_b")
 
-    async def _task_b(self) -> None:
+    async def task_b(self) -> None:
         # Gate: wait until the test releases us, proving the drain had to block here.
         await self.task_b_gate.wait()
         await self.api.turn_on("light.bedroom")
@@ -145,11 +126,6 @@ async def test_drain_waits_for_depth_3_task_chain() -> None:
         harness.api_recorder.assert_called("turn_on", entity_id="light.bedroom")
 
 
-# ---------------------------------------------------------------------------
-# Perpetually-spawning handler — must hit timeout
-# ---------------------------------------------------------------------------
-
-
 class PerpetualSpawnApp(App[DrainTestConfig]):
     """Handler that perpetually spawns short-lived tasks, preventing drain from completing."""
 
@@ -157,17 +133,17 @@ class PerpetualSpawnApp(App[DrainTestConfig]):
 
     async def on_initialize(self) -> None:
         self._keep_spawning = True
-        self.bus.on_state_change("sensor.test", handler=self._on_change)
+        self.bus.on_state_change("sensor.test", handler=self.on_change)
 
-    async def _on_change(self, event: RawStateChangeEvent) -> None:
-        self.task_bucket.spawn(self._spawner(), name="my_handler:perpetual")
+    async def on_change(self, event: RawStateChangeEvent) -> None:
+        self.task_bucket.spawn(self.spawner(), name="my_handler:perpetual")
 
-    async def _spawner(self) -> None:
+    async def spawner(self) -> None:
         while self._keep_spawning:
-            self.task_bucket.spawn(self._short_work(), name="my_handler:perpetual_child")
+            self.task_bucket.spawn(self.short_work(), name="my_handler:perpetual_child")
             await asyncio.sleep(0.01)
 
-    async def _short_work(self) -> None:
+    async def short_work(self) -> None:
         await asyncio.sleep(0.005)
 
 
@@ -192,10 +168,6 @@ async def test_drain_timeout_message_includes_pending_task_names() -> None:
         assert "my_handler" in msg or "pending task names" in msg
 
 
-# ---------------------------------------------------------------------------
-# Handler exception via spawned task → DrainError
-# ---------------------------------------------------------------------------
-
 # Note: Direct handler exceptions are swallowed by CommandExecutor._execute
 # (which records the error to telemetry without re-raising). DrainError surfaces
 # exceptions from *secondary tasks* that handlers spawn via task_bucket.spawn().
@@ -209,9 +181,9 @@ class SingleExceptionApp(App[DrainTestConfig]):
     """
 
     async def on_initialize(self) -> None:
-        self.bus.on_state_change("sensor.test", handler=self._on_change)
+        self.bus.on_state_change("sensor.test", handler=self.on_change)
 
-    async def _on_change(self, event: RawStateChangeEvent) -> None:
+    async def on_change(self, event: RawStateChangeEvent) -> None:
         self.task_bucket.spawn(self._crashing_work(), name="my_crashing_task")
 
     async def _crashing_work(self) -> None:
@@ -241,18 +213,13 @@ async def test_drain_surfaces_handler_exception_as_drainerror() -> None:
         assert str(val_err) == "boom"
 
 
-# ---------------------------------------------------------------------------
-# Multiple spawned task exceptions → DrainError aggregates
-# ---------------------------------------------------------------------------
-
-
 class TwoSpawnedExceptionApp(App[DrainTestConfig]):
     """Handler spawns two tasks that each raise a different exception."""
 
     async def on_initialize(self) -> None:
-        self.bus.on_state_change("sensor.test", handler=self._on_change)
+        self.bus.on_state_change("sensor.test", handler=self.on_change)
 
-    async def _on_change(self, event: RawStateChangeEvent) -> None:
+    async def on_change(self, event: RawStateChangeEvent) -> None:
         self.task_bucket.spawn(self._crash_value(), name="crash_value_task")
         self.task_bucket.spawn(self._crash_runtime(), name="crash_runtime_task")
 
@@ -279,10 +246,6 @@ async def test_drain_surfaces_multiple_handler_exceptions() -> None:
         assert RuntimeError in exc_types
 
 
-# ---------------------------------------------------------------------------
-# Debounce hint in timeout message
-# ---------------------------------------------------------------------------
-
 # NOTE: Bus debounce tasks are tracked in App.bus.task_bucket (not App.task_bucket),
 # because Bus.on_state_change passes bus.task_bucket to Listener.create → RateLimiter.
 # The drain checks app.task_bucket.pending_tasks() — bus-owned debounce tasks are
@@ -302,9 +265,9 @@ class DebounceHintApp(App[DrainTestConfig]):
     """
 
     async def on_initialize(self) -> None:
-        self.bus.on_state_change("sensor.test", handler=self._on_change)
+        self.bus.on_state_change("sensor.test", handler=self.on_change)
 
-    async def _on_change(self, event: RawStateChangeEvent) -> None:
+    async def on_change(self, event: RawStateChangeEvent) -> None:
         # Spawn a long-running task named like a debounce task to trigger the hint
         self.task_bucket.spawn(self._long_running(), name="handler:debounce")
 
@@ -320,11 +283,6 @@ async def test_drain_timeout_message_has_debounce_hint_when_applicable() -> None
             await harness.simulate_state_change("sensor.test", old_value="off", new_value="on", timeout=0.15)
         msg = str(exc_info.value)
         assert "debounce" in msg
-
-
-# ---------------------------------------------------------------------------
-# DrainError message formatting
-# ---------------------------------------------------------------------------
 
 
 def test_drain_error_message_single_exception() -> None:
@@ -354,11 +312,6 @@ def test_drain_error_message_multiple_exceptions() -> None:
     # First exception details should be present
     assert "task_a" in msg
     assert "ValueError" in msg
-
-
-# ---------------------------------------------------------------------------
-# Public accessor enforcement
-# ---------------------------------------------------------------------------
 
 
 def test_drain_uses_public_accessors_not_private_attributes() -> None:

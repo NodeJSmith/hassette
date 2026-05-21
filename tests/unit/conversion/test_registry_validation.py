@@ -14,10 +14,6 @@ from hassette.conversion.validation import RegistryValidationIssue, validate_reg
 from hassette.exceptions import RegistryValidationError
 from hassette.models.states.base import BaseState
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
 
 class TestRealRegistriesPass:
     def test_real_registries_pass_validation(self) -> None:

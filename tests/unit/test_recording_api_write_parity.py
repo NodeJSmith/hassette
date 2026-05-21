@@ -28,7 +28,7 @@ from hassette_codegen.sync_facade import LIFECYCLE_METHODS  # noqa: E402
 # Identifying write vs read methods: any method that mutates HA state or fires
 # an event is a write method. The authoritative list lives in ApiProtocol, which
 # labels them with a "# Write methods" comment.
-_KNOWN_READ_METHODS: frozenset[str] = frozenset(
+KNOWN_READ_METHODS: frozenset[str] = frozenset(
     {
         "get_state",
         "get_states",
@@ -70,7 +70,7 @@ _KNOWN_READ_METHODS: frozenset[str] = frozenset(
 )
 
 
-def _public_async_methods(cls: type) -> set[str]:
+def public_async_methods(cls: type) -> set[str]:
     """Return public async method names defined directly on cls (not inherited).
 
     Uses ``vars(cls)`` (not ``inspect.getmembers``) so that ``Resource``
@@ -96,17 +96,17 @@ def test_api_write_methods_covered_by_recording_api() -> None:
     RecordingApi's conformance at import time (see the module-level cast in
     recording_api.py), so this test focuses specifically on write-method coverage.
     """
-    api_async_methods = _public_async_methods(Api)
-    recording_api_async_methods = _public_async_methods(RecordingApi)
+    api_async_methods = public_async_methods(Api)
+    recording_api_async_methods = public_async_methods(RecordingApi)
 
     # Derive write methods: Api's public async methods minus read methods and
     # lifecycle hooks. This is conservative — if Api has a new method we haven't
     # classified, it will appear here and force an explicit classification decision.
-    write_methods_on_api = api_async_methods - _KNOWN_READ_METHODS - LIFECYCLE_METHODS
+    write_methods_on_api = api_async_methods - KNOWN_READ_METHODS - LIFECYCLE_METHODS
 
     missing = write_methods_on_api - recording_api_async_methods
     assert not missing, (
         f"RecordingApi is missing write methods present in Api: {sorted(missing)}. "
         f"Add them to src/hassette/test_utils/recording_api.py and update "
-        f"_KNOWN_READ_METHODS in this file if the new method is actually a read method."
+        f"KNOWN_READ_METHODS in this file if the new method is actually a read method."
     )

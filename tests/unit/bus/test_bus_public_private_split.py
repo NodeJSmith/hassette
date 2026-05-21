@@ -11,33 +11,23 @@ Verify criteria:
 
 import asyncio
 import inspect
-import typing
 from unittest.mock import MagicMock
 
 import pytest
 
+from hassette.bus.bus import Bus
 from hassette.bus.listeners import Subscription
 from hassette.event_handling import predicates as P
 
 from .conftest import mock_add_listener
 
-if typing.TYPE_CHECKING:
-    from hassette.bus.bus import Bus
 
-
-async def _handler(event) -> None:
+async def handler(event) -> None:
     pass
-
-
-# ---------------------------------------------------------------------------
-# FR#7 / AC#6: Bus.on() must NOT accept internal parameters
-# ---------------------------------------------------------------------------
 
 
 def test_bus_on_signature_has_no_internal_params() -> None:
     """FR#7: Bus.on() signature contains no internal parameters."""
-    from hassette.bus.bus import Bus
-
     sig = inspect.signature(Bus.on)
     param_names = set(sig.parameters.keys())
 
@@ -61,14 +51,9 @@ def test_bus_on_rejects_internal_keywords(bus: "Bus", forbidden_kwarg: str, valu
     with mock_add_listener(bus), pytest.raises(TypeError):
         bus.on(  # pyright: ignore[reportCallIssue]
             topic="test.topic",
-            handler=_handler,
+            handler=handler,
             **{forbidden_kwarg: value},
         )
-
-
-# ---------------------------------------------------------------------------
-# FR#8 / AC#7: subscription.registration_task is an asyncio.Future
-# ---------------------------------------------------------------------------
 
 
 def test_subscription_has_registration_task_field() -> None:
@@ -82,12 +67,11 @@ async def test_subscription_registration_task_is_future(bus: "Bus") -> None:
     future = asyncio.get_running_loop().create_future()
     with mock_add_listener(bus) as add_mock:
         add_mock.return_value = future
-        sub = bus.on(topic="test.topic", handler=_handler, name="reg_task_test")
+        sub = bus.on(topic="test.topic", handler=handler, name="reg_task_test")
         assert sub.registration_task is not None
         assert isinstance(sub.registration_task, asyncio.Future)
 
 
-@pytest.mark.asyncio
 async def test_subscription_registration_task_resolves_with_none(bus: "Bus") -> None:
     """AC#7: await subscription.registration_task resolves with None."""
     loop = asyncio.get_running_loop()
@@ -96,7 +80,7 @@ async def test_subscription_registration_task_resolves_with_none(bus: "Bus") -> 
 
     with mock_add_listener(bus) as add_mock:
         add_mock.return_value = future
-        sub = bus.on(topic="test.topic", handler=_handler, name="reg_task_resolves")
+        sub = bus.on(topic="test.topic", handler=handler, name="reg_task_resolves")
         result = await sub.registration_task
         assert result is None
 
@@ -106,11 +90,6 @@ def test_subscription_default_none_registration_task() -> None:
     listener_mock = MagicMock()
     sub = Subscription(listener=listener_mock, unsubscribe=lambda: None)
     assert sub.registration_task is None
-
-
-# ---------------------------------------------------------------------------
-# FR#11 / AC#11: hold_preds list is not mutated
-# ---------------------------------------------------------------------------
 
 
 async def test_hold_preds_not_mutated_in_subscribe(bus: "Bus") -> None:
@@ -126,7 +105,7 @@ async def test_hold_preds_not_mutated_in_subscribe(bus: "Bus") -> None:
         bus._subscribe(
             method_name="test",
             topic="event.state_changed.light.test",
-            handler=_handler,
+            handler=handler,
             preds=[original_pred],
             where=P.StateDidChange(),
             hold_preds=original_hold_preds,
@@ -144,16 +123,11 @@ async def test_hold_preds_none_no_mutation(bus: "Bus") -> None:
         bus._subscribe(
             method_name="test",
             topic="event.state_changed.light.test",
-            handler=_handler,
+            handler=handler,
             preds=[P.EntityMatches("light.test")],
             where=P.StateDidChange(),
             hold_preds=None,
         )
-
-
-# ---------------------------------------------------------------------------
-# Bus consumer paths: _listener_natural_key uses sub-struct paths
-# ---------------------------------------------------------------------------
 
 
 async def test_listener_natural_key_uses_identity_fields(bus: "Bus") -> None:
@@ -161,7 +135,7 @@ async def test_listener_natural_key_uses_identity_fields(bus: "Bus") -> None:
     future = asyncio.get_running_loop().create_future()
     with mock_add_listener(bus) as add_mock:
         add_mock.return_value = future
-        sub = bus.on(topic="test.topic", handler=_handler, name="key_test")
+        sub = bus.on(topic="test.topic", handler=handler, name="key_test")
         key = bus._listener_natural_key(sub.listener)
         assert key[0] == sub.listener.identity.app_key
         assert key[1] == sub.listener.identity.instance_index

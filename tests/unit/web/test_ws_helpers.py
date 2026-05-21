@@ -1,5 +1,6 @@
 """Unit tests for WebSocket helper functions in hassette.web.routes.ws."""
 
+import anyio
 import pytest
 from starlette.websockets import WebSocketDisconnect
 
@@ -22,8 +23,6 @@ class TestIsDisconnect:
         assert _is_disconnect(exc) is True
 
     def test_anyio_closed_resource_error(self) -> None:
-        import anyio
-
         assert _is_disconnect(anyio.ClosedResourceError()) is True
 
     @pytest.mark.parametrize(

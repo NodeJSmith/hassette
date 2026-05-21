@@ -7,9 +7,6 @@ overview page removal (spec 051).
 
 from unittest.mock import MagicMock
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -36,11 +33,6 @@ async def client(stub, rqs):  # noqa: ARG001 — rqs wired to stub as side-effec
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac, stub
-
-
-# ---------------------------------------------------------------------------
-# /api/health endpoint tests
-# ---------------------------------------------------------------------------
 
 
 class TestVersionInHealth:

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 from hassette.core.core import Hassette
 
 
-def _make_hassette_stub(
+def make_hassette_stub(
     scheduler_job_timeout: float | None = 600.0,
     event_handler_timeout: float | None = 600.0,
 ) -> Hassette:
@@ -27,7 +27,7 @@ class TestStartupWarningWhenJobTimeoutNone:
     """WARNING logged for scheduler_job_timeout_seconds=None."""
 
     async def test_startup_warning_when_job_timeout_none(self) -> None:
-        h = _make_hassette_stub(scheduler_job_timeout=None, event_handler_timeout=600.0)
+        h = make_hassette_stub(scheduler_job_timeout=None, event_handler_timeout=600.0)
 
         await h.on_initialize()
 
@@ -41,7 +41,7 @@ class TestStartupWarningWhenHandlerTimeoutNone:
     """WARNING logged for event_handler_timeout_seconds=None."""
 
     async def test_startup_warning_when_handler_timeout_none(self) -> None:
-        h = _make_hassette_stub(scheduler_job_timeout=600.0, event_handler_timeout=None)
+        h = make_hassette_stub(scheduler_job_timeout=600.0, event_handler_timeout=None)
 
         await h.on_initialize()
 
@@ -55,7 +55,7 @@ class TestNoWarningWhenTimeoutsConfigured:
     """No WARNING when both have values."""
 
     async def test_no_warning_when_timeouts_configured(self) -> None:
-        h = _make_hassette_stub(scheduler_job_timeout=600.0, event_handler_timeout=600.0)
+        h = make_hassette_stub(scheduler_job_timeout=600.0, event_handler_timeout=600.0)
 
         await h.on_initialize()
 
@@ -67,7 +67,7 @@ class TestWarningFiresOncePerStartup:
 
     async def test_warning_fires_once_per_startup(self) -> None:
         """Verify on_initialize emits exactly one warning per disabled field."""
-        h = _make_hassette_stub(scheduler_job_timeout=None, event_handler_timeout=None)
+        h = make_hassette_stub(scheduler_job_timeout=None, event_handler_timeout=None)
 
         await h.on_initialize()
 

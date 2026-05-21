@@ -21,10 +21,10 @@ TEST_SOURCE_LOCATION = "test.py:1"
 # Cached (hermetic_subclass, init_kwargs_ref) pair — avoids creating a new class per
 # make_test_config call, which would accumulate permanently in __subclasses__()
 # and Pydantic's internal model cache.
-# Same closure-ref pattern as _get_hermetic_subclass in app_harness.py (per-AppConfig variant).
-_HermeticHassetteConfigPair: tuple[type[HassetteConfig], list[dict[str, Any]]] | None = None
+# Same closure-ref pattern as get_hermetic_subclass in app_harness.py (per-AppConfig variant).
+hermetic_hassette_config_pair: tuple[type[HassetteConfig], list[dict[str, Any]]] | None = None
 
-# Protects both the lazy-init check-and-create in _get_hermetic_hassette_config_cls()
+# Protects both the lazy-init check-and-create in get_hermetic_hassette_config_cls()
 # and the cell[0] = merged → cls() sequence in make_test_config() against OS-thread races.
 # Async tests run on a single thread so asyncio cooperative multitasking cannot interleave,
 # but session-scoped fixtures (e.g. _migrated_db_template) may call make_test_config() from
@@ -32,7 +32,7 @@ _HermeticHassetteConfigPair: tuple[type[HassetteConfig], list[dict[str, Any]]] |
 _config_lock: threading.Lock = threading.Lock()
 
 
-def _get_hermetic_hassette_config_cls() -> tuple[type[HassetteConfig], list[dict[str, Any]]]:
+def get_hermetic_hassette_config_cls() -> tuple[type[HassetteConfig], list[dict[str, Any]]]:
     """Return a cached (hermetic subclass, cell) pair for HassetteConfig.
 
     The cell is a mutable single-element list captured by the subclass closure.
@@ -44,9 +44,9 @@ def _get_hermetic_hassette_config_cls() -> tuple[type[HassetteConfig], list[dict
 
     Callers must hold ``_config_lock`` before calling this function.
     """
-    global _HermeticHassetteConfigPair
-    if _HermeticHassetteConfigPair is not None:
-        return _HermeticHassetteConfigPair
+    global hermetic_hassette_config_pair
+    if hermetic_hassette_config_pair is not None:
+        return hermetic_hassette_config_pair
 
     # Mutable single-element container that the closure reads from.
     cell: list[dict[str, Any]] = [{}]
@@ -63,8 +63,8 @@ def _get_hermetic_hassette_config_cls() -> tuple[type[HassetteConfig], list[dict
         def settings_customise_sources(cls, settings_cls, **_kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
             return (InitSettingsSource(settings_cls, init_kwargs=cell[0]),)
 
-    _HermeticHassetteConfigPair = (_Cls, cell)
-    return _HermeticHassetteConfigPair
+    hermetic_hassette_config_pair = (_Cls, cell)
+    return hermetic_hassette_config_pair
 
 
 def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfig:
@@ -118,6 +118,6 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
     merged = {**defaults, **overrides}
 
     with _config_lock:
-        cls, cell = _get_hermetic_hassette_config_cls()
+        cls, cell = get_hermetic_hassette_config_cls()
         cell[0] = merged
         return cls()

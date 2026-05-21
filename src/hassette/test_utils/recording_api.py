@@ -50,19 +50,14 @@ from hassette.models.services import ServiceResponse
 from hassette.models.states.base import BaseState, Context
 from hassette.resources.base import Resource
 from hassette.test_utils.api_call import ApiCall
-from hassette.test_utils.sync_facade import _RecordingSyncFacade
+from hassette.test_utils.sync_facade import RecordingSyncFacade
 
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.state_proxy import StateProxy
     from hassette.events import HassStateDict
 
-
-# ---------------------------------------------------------------------------
-# Helper domain constants
-# ---------------------------------------------------------------------------
-
-_SUPPORTED_HELPER_DOMAINS: frozenset[str] = frozenset(
+SUPPORTED_HELPER_DOMAINS: frozenset[str] = frozenset(
     {
         "input_boolean",
         "input_number",
@@ -85,7 +80,7 @@ _SUPPORTED_HELPER_DOMAINS: frozenset[str] = frozenset(
 # field would alias the stored record's list under a shallow copy, allowing a caller's
 # ``record.options.append(...)`` to silently corrupt harness state. All other domains
 # use scalar-only fields and are safe with shallow copies.
-_RECORD_TYPE_TO_DOMAIN: dict[type, tuple[str, bool]] = {
+RECORD_TYPE_TO_DOMAIN: dict[type, tuple[str, bool]] = {
     InputBooleanRecord: ("input_boolean", False),
     InputNumberRecord: ("input_number", False),
     InputTextRecord: ("input_text", False),
@@ -96,13 +91,11 @@ _RECORD_TYPE_TO_DOMAIN: dict[type, tuple[str, bool]] = {
     TimerRecord: ("timer", False),
 }
 
-if {domain for domain, _ in _RECORD_TYPE_TO_DOMAIN.values()} != _SUPPORTED_HELPER_DOMAINS:
-    raise ValueError(
-        "_RECORD_TYPE_TO_DOMAIN and _SUPPORTED_HELPER_DOMAINS must enumerate the same set of helper domains"
-    )
+if {domain for domain, _ in RECORD_TYPE_TO_DOMAIN.values()} != SUPPORTED_HELPER_DOMAINS:
+    raise ValueError("RECORD_TYPE_TO_DOMAIN and SUPPORTED_HELPER_DOMAINS must enumerate the same set of helper domains")
 
 
-def _slugify_helper_name(name: str | None) -> str:
+def slugify_helper_name(name: str | None) -> str:
     """Convert an HA helper name into its stored id, mirroring homeassistant.util.slugify.
 
     Three branches:
@@ -122,13 +115,13 @@ def _slugify_helper_name(name: str | None) -> str:
     return "unknown" if slug == "" else slug
 
 
-def _generate_helper_id(existing_ids: set[str], name: str) -> str:
+def generate_helper_id(existing_ids: set[str], name: str) -> str:
     """Generate a unique helper ID, mirroring HA's IDManager.generate_id behaviour.
 
-    Computes base_id = _slugify_helper_name(name). If base_id is not in
+    Computes base_id = slugify_helper_name(name). If base_id is not in
     existing_ids, returns it. Otherwise, appends _2, _3, ... until unused.
     """
-    base_id = _slugify_helper_name(name)
+    base_id = slugify_helper_name(name)
     if base_id not in existing_ids:
         return base_id
     n = 2
@@ -310,7 +303,7 @@ class ApiProtocol(Protocol):
     async def reset_counter(self, entity_id: str) -> None: ...
 
 
-def _not_implemented(method_name: str) -> Never:
+def not_implemented(method_name: str) -> Never:
     """Raise NotImplementedError with a helpful message."""
     raise NotImplementedError(
         f"RecordingApi.{method_name}() is not implemented. "
@@ -328,13 +321,13 @@ class RecordingApi(Resource):
 
     on_initialize() calls self.mark_ready() — required for the Resource lifecycle.
 
-    sync attribute is a _RecordingSyncFacade instance. Write calls via api.sync.*
+    sync attribute is a RecordingSyncFacade instance. Write calls via api.sync.*
     are recorded to the same `calls` list as the async side. Read methods delegate
     to the StateProxy. Methods not covered by the facade raise NotImplementedError.
 
     Unstubbed methods raise NotImplementedError with guidance on alternatives.
 
-    Authoring constraints (enforced by the ``_RecordingSyncFacade`` generator):
+    Authoring constraints (enforced by the ``RecordingSyncFacade`` generator):
 
     1. Methods must not call other ``async def`` methods on ``self`` directly;
        use sync helpers (``_get_raw_state``, ``_convert_state``) instead.
@@ -343,12 +336,12 @@ class RecordingApi(Resource):
 
     2. Stub methods — those that should raise ``NotImplementedError`` on the
        sync side rather than be body-copied into the facade — should use
-       ``self._not_implemented(name)`` for the canonical helpful error message
-       on the async side. The ``_RecordingSyncFacade`` generator detects
+       ``self.not_implemented(name)`` for the canonical helpful error message
+       on the async side. The ``RecordingSyncFacade`` generator detects
        stub-tier methods by recognizing any body that contains only
-       docstrings, ``raise`` statements, and/or ``_not_implemented()`` calls,
+       docstrings, ``raise`` statements, and/or ``not_implemented()`` calls,
        so ``raise NotImplementedError(...)`` works too, but
-       ``self._not_implemented(name)`` is preferred because the helper returns
+       ``self.not_implemented(name)`` is preferred because the helper returns
        an exception with the project's standard seed-state guidance.
 
     Example::
@@ -360,10 +353,8 @@ class RecordingApi(Resource):
 
     calls: list[ApiCall]
     helper_definitions: dict[str, dict[str, Any]]
-    # `_RecordingSyncFacade` is intentionally private (underscore prefix). Users should
-    # access the sync facade only via `harness.api_recorder.sync`; do not import the
-    # type directly — it is not part of the public API surface.
-    sync: "_RecordingSyncFacade"
+    # Access via `harness.api_recorder.sync`; do not import the type directly.
+    sync: "RecordingSyncFacade"
 
     # Methods whose __getattr__ message should redirect users to get_state()
     _STATE_CONVERSION_METHODS: ClassVar[frozenset[str]] = frozenset(
@@ -386,8 +377,8 @@ class RecordingApi(Resource):
         # lazily from hassette._state_proxy (when created via App.add_child()).
         self._state_proxy_override = state_proxy
         self.calls = []
-        self.helper_definitions = {d: {} for d in _SUPPORTED_HELPER_DOMAINS}
-        self.sync = _RecordingSyncFacade(self)
+        self.helper_definitions = {d: {} for d in SUPPORTED_HELPER_DOMAINS}
+        self.sync = RecordingSyncFacade(self)
 
     @property
     def _state_proxy(self) -> "StateProxy":
@@ -410,15 +401,15 @@ class RecordingApi(Resource):
 
         Private sync helper called by create_* methods. The sync facade generator
         rewrites ``self._new_helper_id(...)`` → ``self._parent._new_helper_id(...)``
-        so body-copied create methods in _RecordingSyncFacade call this correctly.
+        so body-copied create methods in RecordingSyncFacade call this correctly.
 
         Emits a DEBUG log when the returned id was auto-suffixed due to a
         collision — otherwise a test author who expected ``vacation_mode`` but
         got ``vacation_mode_2`` has no log signal explaining why.
         """
         existing_ids = set(self.helper_definitions[domain].keys())
-        generated = _generate_helper_id(existing_ids, name)
-        base_slug = _slugify_helper_name(name)
+        generated = generate_helper_id(existing_ids, name)
+        base_slug = slugify_helper_name(name)
         if generated != base_slug:
             self.logger.debug(
                 "RecordingApi %s: name %r -> id %r (base slug %r was already taken; auto-suffixed)",
@@ -429,10 +420,7 @@ class RecordingApi(Resource):
             )
         return generated
 
-    # ------------------------------------------------------------------
-    # Write methods — record ApiCall, then return a stub value.
     # Signatures must exactly match hassette.api.Api.
-    # ------------------------------------------------------------------
 
     async def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data: Any) -> None:
         """Record a turn_on call directly under its own method name."""
@@ -539,10 +527,6 @@ class RecordingApi(Resource):
         )
         return {}
 
-    # ------------------------------------------------------------------
-    # Read methods — delegate to StateProxy, convert via state registry.
-    # ------------------------------------------------------------------
-
     def _get_raw_state(self, entity_id: str) -> "HassStateDict":
         """Look up raw state dict from the proxy, raising EntityNotFoundError if absent."""
         raw = self._state_proxy.states.get(entity_id)
@@ -594,7 +578,7 @@ class RecordingApi(Resource):
 
         Inlines the logic from :meth:`get_entity` using sync helpers only — no peer
         ``async def`` calls on ``self`` — to satisfy the authoring constraint required
-        by the ``_RecordingSyncFacade`` generator. Matches the real
+        by the ``RecordingSyncFacade`` generator. Matches the real
         ``Api.get_entity_or_none`` signature; see :meth:`get_entity` for semantics.
         """
         if not issubclass(model, BaseEntity):  # runtime check — mirrors Api.get_entity
@@ -615,7 +599,7 @@ class RecordingApi(Resource):
 
         Inlines the logic from :meth:`get_state` using sync helpers only — no peer
         ``async def`` calls on ``self`` — to satisfy the authoring constraint required
-        by the ``_RecordingSyncFacade`` generator.
+        by the ``RecordingSyncFacade`` generator.
         """
         try:
             raw = self._get_raw_state(entity_id)
@@ -623,56 +607,49 @@ class RecordingApi(Resource):
             return None
         return self._convert_state(raw, entity_id)
 
-    # ------------------------------------------------------------------
-    # Unstubbed methods — raise NotImplementedError with helpful message.
-    # ------------------------------------------------------------------
-
     async def get_state_raw(self, entity_id: str) -> dict:
         """Not implemented — raises NotImplementedError."""
-        _not_implemented("get_state_raw")
+        not_implemented("get_state_raw")
 
     async def get_states_raw(self) -> list[dict]:
         """Not implemented — raises NotImplementedError."""
-        _not_implemented("get_states_raw")
+        not_implemented("get_states_raw")
 
     async def get_history(self, entity_id: str, *args: Any, **kwargs: Any) -> list:
         """Not implemented — raises NotImplementedError."""
-        _not_implemented("get_history")
+        not_implemented("get_history")
 
     async def render_template(self, template: str, variables: dict | None = None) -> str:
         """Not implemented — raises NotImplementedError."""
-        _not_implemented("render_template")
+        not_implemented("render_template")
 
     async def ws_send_and_wait(self, **data: Any) -> Any:
         """Not implemented — raises NotImplementedError."""
-        _not_implemented("ws_send_and_wait")
+        not_implemented("ws_send_and_wait")
 
     async def ws_send_json(self, **data: Any) -> None:
         """Not implemented — raises NotImplementedError."""
-        _not_implemented("ws_send_json")
+        not_implemented("ws_send_json")
 
     async def rest_request(self, method: str, url: str, **kwargs: Any) -> Any:
         """Not implemented — raises NotImplementedError."""
-        _not_implemented("rest_request")
+        not_implemented("rest_request")
 
     async def delete_entity(self, entity_id: str) -> None:
         """Not implemented — raises NotImplementedError."""
-        _not_implemented("delete_entity")
+        not_implemented("delete_entity")
 
-    # ------------------------------------------------------------------
-    # Helper CRUD — seeds/mutates helper_definitions dict and records ApiCall.
     # Signatures match hassette.api.Api exactly.
     #
     # Generic core methods (_list_helper, _create_helper, _update_helper,
     # _delete_helper) implement the shared logic dispatching via
-    # _RECORD_TYPE_TO_DOMAIN. The 32 per-domain methods below are thin typed
+    # RECORD_TYPE_TO_DOMAIN. The 32 per-domain methods below are thin typed
     # delegations that call the generic core; no logic lives in them.
-    # ------------------------------------------------------------------
 
     def _list_helper(self, record_type: type) -> list[Any]:
         """Generic list helper — returns shallow or deep copies of stored records.
 
-        Dispatches via ``_RECORD_TYPE_TO_DOMAIN`` to determine the domain and
+        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain and
         whether ``deep=True`` copies are needed.
 
         Args:
@@ -681,13 +658,13 @@ class RecordingApi(Resource):
         Returns:
             List of model copies for the domain.
         """
-        domain, deep_copy = _RECORD_TYPE_TO_DOMAIN[record_type]
+        domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
         return [r.model_copy(deep=deep_copy) for r in self.helper_definitions[domain].values()]
 
     def _create_helper(self, record_type: type, method_name: str, params: Any) -> Any:
         """Generic create helper — records an ApiCall and inserts a new record.
 
-        Dispatches via ``_RECORD_TYPE_TO_DOMAIN`` to determine the domain and
+        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain and
         copy depth.  Auto-suffixes the generated id on collision (mirrors HA's
         IDManager.generate_id).
 
@@ -699,7 +676,7 @@ class RecordingApi(Resource):
         Returns:
             A copy of the newly created record.
         """
-        domain, deep_copy = _RECORD_TYPE_TO_DOMAIN[record_type]
+        domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
         self.calls.append(
             ApiCall(
                 method=method_name,
@@ -715,7 +692,7 @@ class RecordingApi(Resource):
     def _update_helper(self, record_type: type, method_name: str, helper_id: str, params: Any) -> Any:
         """Generic update helper — records an ApiCall and mutates the stored record.
 
-        Dispatches via ``_RECORD_TYPE_TO_DOMAIN`` to determine the domain and
+        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain and
         copy depth.
 
         Args:
@@ -730,7 +707,7 @@ class RecordingApi(Resource):
         Raises:
             FailedMessageError: With code='not_found' if helper_id is not seeded.
         """
-        domain, deep_copy = _RECORD_TYPE_TO_DOMAIN[record_type]
+        domain, deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
         self.calls.append(
             ApiCall(
                 method=method_name,
@@ -751,7 +728,7 @@ class RecordingApi(Resource):
     def _delete_helper(self, record_type: type, method_name: str, helper_id: str) -> None:
         """Generic delete helper — records an ApiCall and removes the stored record.
 
-        Dispatches via ``_RECORD_TYPE_TO_DOMAIN`` to determine the domain.
+        Dispatches via ``RECORD_TYPE_TO_DOMAIN`` to determine the domain.
 
         Args:
             record_type: The Record class.
@@ -761,7 +738,7 @@ class RecordingApi(Resource):
         Raises:
             FailedMessageError: With code='not_found' if helper_id is not seeded.
         """
-        domain, _deep_copy = _RECORD_TYPE_TO_DOMAIN[record_type]
+        domain, _deep_copy = RECORD_TYPE_TO_DOMAIN[record_type]
         self.calls.append(
             ApiCall(
                 method=method_name,
@@ -775,8 +752,6 @@ class RecordingApi(Resource):
                 code="not_found",
             )
         del self.helper_definitions[domain][helper_id]
-
-    # --- input_boolean ---
 
     async def list_input_booleans(self) -> list[InputBooleanRecord]:
         """Return all seeded input_boolean helpers. Delegates to _list_helper."""
@@ -796,8 +771,6 @@ class RecordingApi(Resource):
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(InputBooleanRecord, "delete_input_boolean", helper_id)
 
-    # --- input_number ---
-
     async def list_input_numbers(self) -> list[InputNumberRecord]:
         """Return all seeded input_number helpers. Delegates to _list_helper."""
         return cast("list[InputNumberRecord]", self._list_helper(InputNumberRecord))
@@ -816,8 +789,6 @@ class RecordingApi(Resource):
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(InputNumberRecord, "delete_input_number", helper_id)
 
-    # --- input_text ---
-
     async def list_input_texts(self) -> list[InputTextRecord]:
         """Return all seeded input_text helpers. Delegates to _list_helper."""
         return cast("list[InputTextRecord]", self._list_helper(InputTextRecord))
@@ -834,14 +805,12 @@ class RecordingApi(Resource):
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(InputTextRecord, "delete_input_text", helper_id)
 
-    # --- input_select ---
-
     async def list_input_selects(self) -> list[InputSelectRecord]:
         """Return all seeded input_select helpers as deep-isolated copies.
 
         Delegates to _list_helper. Uses ``model_copy(deep=True)`` because
         ``InputSelectRecord.options`` is a ``list[str]`` — the ``deep_copy=True``
-        flag in ``_RECORD_TYPE_TO_DOMAIN`` ensures the list is not aliased.
+        flag in ``RECORD_TYPE_TO_DOMAIN`` ensures the list is not aliased.
         """
         return cast("list[InputSelectRecord]", self._list_helper(InputSelectRecord))
 
@@ -858,8 +827,6 @@ class RecordingApi(Resource):
     async def delete_input_select(self, helper_id: str) -> None:
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(InputSelectRecord, "delete_input_select", helper_id)
-
-    # --- input_datetime ---
 
     async def list_input_datetimes(self) -> list[InputDatetimeRecord]:
         """Return all seeded input_datetime helpers. Delegates to _list_helper."""
@@ -879,8 +846,6 @@ class RecordingApi(Resource):
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(InputDatetimeRecord, "delete_input_datetime", helper_id)
 
-    # --- input_button ---
-
     async def list_input_buttons(self) -> list[InputButtonRecord]:
         """Return all seeded input_button helpers. Delegates to _list_helper."""
         return cast("list[InputButtonRecord]", self._list_helper(InputButtonRecord))
@@ -899,8 +864,6 @@ class RecordingApi(Resource):
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(InputButtonRecord, "delete_input_button", helper_id)
 
-    # --- counter ---
-
     async def list_counters(self) -> list[CounterRecord]:
         """Return all seeded counter helpers. Delegates to _list_helper."""
         return cast("list[CounterRecord]", self._list_helper(CounterRecord))
@@ -917,8 +880,6 @@ class RecordingApi(Resource):
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(CounterRecord, "delete_counter", helper_id)
 
-    # --- timer ---
-
     async def list_timers(self) -> list[TimerRecord]:
         """Return all seeded timer helpers. Delegates to _list_helper."""
         return cast("list[TimerRecord]", self._list_helper(TimerRecord))
@@ -934,8 +895,6 @@ class RecordingApi(Resource):
     async def delete_timer(self, helper_id: str) -> None:
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(TimerRecord, "delete_timer", helper_id)
-
-    # --- counter action methods ---
 
     async def increment_counter(self, entity_id: str) -> None:
         """Record an increment_counter call directly (not via call_service)."""
@@ -967,10 +926,6 @@ class RecordingApi(Resource):
             )
         )
 
-    # ------------------------------------------------------------------
-    # Fallback for uncovered methods
-    # ------------------------------------------------------------------
-
     def __getattr__(self, name: str) -> Any:
         """Raise NotImplementedError for public attributes not defined on RecordingApi.
 
@@ -993,10 +948,6 @@ class RecordingApi(Resource):
             "Seed state via AppTestHarness.set_state() for read methods, "
             "or use a full integration test for methods requiring a live HA connection."
         )
-
-    # ------------------------------------------------------------------
-    # Assertion helpers
-    # ------------------------------------------------------------------
 
     def get_calls(self, method: str | None = None) -> list[ApiCall]:
         """Return all recorded calls, optionally filtered by method name.
@@ -1156,4 +1107,4 @@ class RecordingApi(Resource):
         will still see the original calls after reset, as expected.
         """
         self.calls = []
-        self.helper_definitions = {d: {} for d in _SUPPORTED_HELPER_DOMAINS}
+        self.helper_definitions = {d: {} for d in SUPPORTED_HELPER_DOMAINS}

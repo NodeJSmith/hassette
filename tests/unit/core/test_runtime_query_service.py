@@ -187,7 +187,6 @@ class TestListenerJobMetaRegistration:
 class TestCompletionBatching:
     """Per-drain batching: all completions in one tick become one WS message per type."""
 
-    @pytest.mark.asyncio
     async def test_invocation_completion_batched_into_one_message(self, runtime: RuntimeQueryService) -> None:
         """Multiple _on_invocation_completed calls in the same tick emit one broadcast."""
         runtime.register_listener_meta(1, "my_app", 0)
@@ -224,7 +223,6 @@ class TestCompletionBatching:
         assert msg["data"][1]["status"] == "failed"
         assert msg["data"][1]["error_type"] == "ValueError"
 
-    @pytest.mark.asyncio
     async def test_execution_completion_batched_into_one_message(self, runtime: RuntimeQueryService) -> None:
         """Multiple _on_execution_completed calls in the same tick emit one broadcast."""
         runtime.register_job_meta(10, "scheduler_app", 0)
@@ -251,7 +249,6 @@ class TestCompletionBatching:
         assert msg["type"] == "execution_completed"
         assert len(msg["data"]) == 2
 
-    @pytest.mark.asyncio
     async def test_flush_completions_written_to_event_buffer(self, runtime: RuntimeQueryService) -> None:
         """Batched completion messages are appended to _event_buffer for replay."""
         runtime.register_listener_meta(5, "buf_app", 0)
@@ -266,7 +263,6 @@ class TestCompletionBatching:
         assert buffered["type"] == "invocation_completed"
         assert buffered["data"][0]["listener_id"] == 5
 
-    @pytest.mark.asyncio
     async def test_flush_resets_pending_lists(self, runtime: RuntimeQueryService) -> None:
         """After flush, pending lists are empty."""
         runtime.register_listener_meta(3, "app", 0)
@@ -280,14 +276,12 @@ class TestCompletionBatching:
         assert len(runtime._pending_invocations) == 0
         assert len(runtime._pending_executions) == 0
 
-    @pytest.mark.asyncio
     async def test_flush_noop_when_no_pending(self, runtime: RuntimeQueryService) -> None:
         """Flush with empty pending lists does not call broadcast."""
         runtime.broadcast = AsyncMock()
         await runtime._flush_completions()
         runtime.broadcast.assert_not_awaited()
 
-    @pytest.mark.asyncio
     async def test_mixed_invocation_and_execution_emit_separate_messages(self, runtime: RuntimeQueryService) -> None:
         """Both types present → two separate broadcast messages (one per type)."""
         runtime.register_listener_meta(1, "my_app", 0)

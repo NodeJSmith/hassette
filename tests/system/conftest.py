@@ -16,6 +16,7 @@ from pathlib import Path
 import httpx
 import pytest
 from pydantic_settings import SettingsConfigDict
+from websockets.sync.client import connect
 
 from hassette import Hassette
 from hassette.api import Api
@@ -35,7 +36,7 @@ STARTUP_TIMEOUT = 60  # seconds
 SHUTDOWN_TIMEOUT = 15  # seconds
 
 
-class _SystemTestConfig(HassetteConfig):
+class SystemTestConfig(HassetteConfig):
     """HassetteConfig subclass that disables CLI arg parsing for system tests."""
 
     model_config = HassetteConfig.model_config.copy() | SettingsConfigDict(
@@ -113,7 +114,7 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
         )
 
 
-def _session_ready(hassette: Hassette) -> bool:
+def session_ready(hassette: Hassette) -> bool:
     """Check if Hassette is fully ready: session, WebSocket, and all apps initialized.
 
     session_id > 0 becomes true after Phase 1 (database + session creation).
@@ -146,7 +147,7 @@ async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIte
     try:
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
-        while not _session_ready(hassette):
+        while not session_ready(hassette):
             if task.done():
                 await task  # re-raises any startup exception immediately
                 raise RuntimeError("Hassette exited during startup without reaching running state")
@@ -163,7 +164,7 @@ async def startup_context(config: HassetteConfig, timeout: int = 30) -> AsyncIte
             pass  # noqa: ASYNC104
         except TimeoutError:
             logger.warning("Hassette shutdown timed out after 15s — forcing fallback")
-        if not hassette._shutdown_completed:
+        if not hassette.shutdown_completed:
             with contextlib.suppress(Exception):
                 await hassette.shutdown()
         await asyncio.sleep(0)
@@ -182,7 +183,7 @@ def make_system_config(ha_url: str, tmp_path: Path) -> HassetteConfig:
     app_dir = tmp_path / "apps"
     app_dir.mkdir(exist_ok=True)
 
-    return _SystemTestConfig(
+    return SystemTestConfig(
         base_url=ha_url,
         token=HA_TOKEN,
         data_dir=tmp_path / "data",
@@ -214,7 +215,7 @@ def make_web_system_config(ha_url: str, tmp_path: Path) -> tuple[HassetteConfig,
     app_dir = tmp_path / "apps"
     app_dir.mkdir(exist_ok=True)
 
-    config = _SystemTestConfig(
+    config = SystemTestConfig(
         base_url=ha_url,
         token=HA_TOKEN,
         data_dir=tmp_path / "data",
@@ -324,14 +325,14 @@ def wait_for_ha_ready(base_url: str = HA_URL, *, timeout: float = 60.0, stable_c
     ws_url = base_url.replace("http", "ws") + "/api/websocket"
     while time.monotonic() < deadline:
         try:
-            _ws_probe(ws_url, hold_seconds=3)
+            ws_probe(ws_url, hold_seconds=3)
             return
         except Exception:
             time.sleep(1)
     raise TimeoutError(f"HA WebSocket did not stabilize within {timeout}s")
 
 
-def _ws_probe(ws_url: str, hold_seconds: float = 3) -> None:
+def ws_probe(ws_url: str, hold_seconds: float = 3) -> None:
     """Open a WebSocket, authenticate, hold for ``hold_seconds``, then close.
 
     Raises on any failure — connection refused, auth rejected, or HA dropping
@@ -345,8 +346,6 @@ def _ws_probe(ws_url: str, hold_seconds: float = 3) -> None:
     level — before any test starts — which reduces test noise and avoids waiting
     for Hassette's backoff timers during normal CI runs.
     """
-    from websockets.sync.client import connect
-
     with connect(ws_url) as ws:
         msg = json.loads(ws.recv(timeout=5))
         assert msg["type"] == "auth_required"

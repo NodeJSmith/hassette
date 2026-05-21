@@ -1,5 +1,4 @@
 from collections.abc import Generator
-from logging import getLogger
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from fair_async_rlock import FairAsyncRLock
@@ -22,8 +21,6 @@ if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Subscription
     from hassette.events import HassStateDict
-
-LOGGER = getLogger(__name__)
 
 
 class StateProxy(Resource):

@@ -5,8 +5,6 @@ from functools import partial
 
 from hassette.utils.func_utils import callable_name, callable_short_name, callable_stable_name
 
-# --- Test helpers ---
-
 
 def plain_function() -> None:
     pass
@@ -26,7 +24,7 @@ class CallableClass:
         pass
 
 
-def _decorator(fn):
+def decorator(fn):
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
         return fn(*args, **kwargs)
@@ -34,12 +32,9 @@ def _decorator(fn):
     return wrapper
 
 
-@_decorator
+@decorator
 def decorated_function() -> None:
     pass
-
-
-# --- callable_name tests ---
 
 
 class TestCallableName:
@@ -95,9 +90,6 @@ class TestCallableName:
         assert not hasattr(callable_name, "cache_info"), "callable_name should not have lru_cache"
 
 
-# --- callable_stable_name tests ---
-
-
 class TestCallableStableName:
     """callable_stable_name returns cross-restart-stable names for identity keys."""
 
@@ -136,9 +128,6 @@ class TestCallableStableName:
             assert callable_stable_name(inner) == "<callable>"
 
         outer()
-
-
-# --- callable_short_name tests ---
 
 
 class TestCallableShortName:

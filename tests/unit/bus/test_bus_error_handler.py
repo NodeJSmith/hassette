@@ -22,18 +22,8 @@ if typing.TYPE_CHECKING:
     from hassette.bus.bus import Bus
 
 
-# ---------------------------------------------------------------------------
-# Handler used across tests
-# ---------------------------------------------------------------------------
-
-
-async def _handler(event) -> None:
+async def handler(event) -> None:
     pass
-
-
-# ---------------------------------------------------------------------------
-# Tests — Bus.on_error() method
-# ---------------------------------------------------------------------------
 
 
 def test_on_error_stores_handler(bus: "Bus") -> None:
@@ -64,16 +54,11 @@ async def test_on_error_reset_on_initialize(bus: "Bus") -> None:
     assert bus._error_handler is None
 
 
-# ---------------------------------------------------------------------------
-# Tests — per-listener on_error= stored on Listener
-# ---------------------------------------------------------------------------
-
-
 def test_per_listener_on_error_stored_on_listener(bus: "Bus") -> None:
     """on_error= passed to Bus.on() is stored on listener.error_handler."""
     mock_handler = AsyncMock()
     with mock_add_listener(bus):
-        subscription = bus.on(topic="test.topic", handler=_handler, on_error=mock_handler)
+        subscription = bus.on(topic="test.topic", handler=handler, on_error=mock_handler)
         assert isinstance(subscription, Subscription)
         assert subscription.listener.invoker.error_handler is mock_handler
 
@@ -81,7 +66,7 @@ def test_per_listener_on_error_stored_on_listener(bus: "Bus") -> None:
 def test_listener_error_handler_default_none(bus: "Bus") -> None:
     """Listeners created without on_error= have error_handler=None."""
     with mock_add_listener(bus):
-        subscription = bus.on(topic="test.topic", handler=_handler)
+        subscription = bus.on(topic="test.topic", handler=handler)
         assert subscription.listener.invoker.error_handler is None
 
 
@@ -89,32 +74,28 @@ def test_on_error_raw_callable_stored_not_normalized(bus: "Bus") -> None:
     """The raw callable is stored on listener.error_handler, not a normalized wrapper."""
     mock_handler = AsyncMock()
     with mock_add_listener(bus):
-        subscription = bus.on(topic="test.topic", handler=_handler, on_error=mock_handler)
+        subscription = bus.on(topic="test.topic", handler=handler, on_error=mock_handler)
         assert subscription.listener.invoker.error_handler is mock_handler
 
 
-# ---------------------------------------------------------------------------
-# Tests — on_error flows through all convenience wrappers
-# ---------------------------------------------------------------------------
-
 WRAPPER_ARGS: list[tuple[str, tuple, dict]] = [
-    ("on_state_change", ("light.kitchen",), {"handler": _handler}),
-    ("on_attribute_change", ("sensor.battery", "battery_level"), {"handler": _handler}),
-    ("on_call_service", (), {"handler": _handler}),
-    ("on_homeassistant_restart", (), {"handler": _handler}),
-    ("on_homeassistant_start", (), {"handler": _handler}),
-    ("on_homeassistant_stop", (), {"handler": _handler}),
-    ("on_websocket_connected", (), {"handler": _handler}),
-    ("on_websocket_disconnected", (), {"handler": _handler}),
-    ("on_app_running", (), {"handler": _handler}),
-    ("on_app_stopping", (), {"handler": _handler}),
-    ("on_component_loaded", (), {"handler": _handler}),
-    ("on_service_registered", (), {"handler": _handler}),
-    ("on_hassette_service_status", (), {"handler": _handler}),
-    ("on_hassette_service_failed", (), {"handler": _handler}),
-    ("on_hassette_service_crashed", (), {"handler": _handler}),
-    ("on_hassette_service_started", (), {"handler": _handler}),
-    ("on_app_state_changed", (), {"handler": _handler}),
+    ("on_state_change", ("light.kitchen",), {"handler": handler}),
+    ("on_attribute_change", ("sensor.battery", "battery_level"), {"handler": handler}),
+    ("on_call_service", (), {"handler": handler}),
+    ("on_homeassistant_restart", (), {"handler": handler}),
+    ("on_homeassistant_start", (), {"handler": handler}),
+    ("on_homeassistant_stop", (), {"handler": handler}),
+    ("on_websocket_connected", (), {"handler": handler}),
+    ("on_websocket_disconnected", (), {"handler": handler}),
+    ("on_app_running", (), {"handler": handler}),
+    ("on_app_stopping", (), {"handler": handler}),
+    ("on_component_loaded", (), {"handler": handler}),
+    ("on_service_registered", (), {"handler": handler}),
+    ("on_hassette_service_status", (), {"handler": handler}),
+    ("on_hassette_service_failed", (), {"handler": handler}),
+    ("on_hassette_service_crashed", (), {"handler": handler}),
+    ("on_hassette_service_started", (), {"handler": handler}),
+    ("on_app_state_changed", (), {"handler": handler}),
 ]
 
 

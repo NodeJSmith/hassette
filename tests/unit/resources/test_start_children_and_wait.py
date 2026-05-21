@@ -13,65 +13,61 @@ from hassette.resources.base import Resource
 from hassette.test_utils import make_mock_hassette
 
 
-class _Parent(Resource):
+class Parent(Resource):
     """Minimal parent resource for testing."""
 
     async def on_initialize(self) -> None:
         pass
 
 
-class _ReadyOnInit(Resource):
+class ReadyOnInit(Resource):
     """Child that becomes ready immediately on initialize."""
 
     async def on_initialize(self) -> None:
         self.mark_ready("initialized")
 
 
-class _NeverReady(Resource):
+class NeverReady(Resource):
     """Child that never signals readiness."""
 
     async def on_initialize(self) -> None:
         pass
 
 
-@pytest.mark.asyncio
 async def test_all_children_become_ready():
     hassette = make_mock_hassette(sealed=False)
-    parent = _Parent(hassette)
-    parent.add_child(_ReadyOnInit)
-    parent.add_child(_ReadyOnInit)
+    parent = Parent(hassette)
+    parent.add_child(ReadyOnInit)
+    parent.add_child(ReadyOnInit)
 
     await parent.start_children_and_wait(timeout=2.0)
 
     assert all(c.is_ready() for c in parent.children)
 
 
-@pytest.mark.asyncio
 async def test_empty_children_is_noop():
     hassette = make_mock_hassette(sealed=False)
-    parent = _Parent(hassette)
+    parent = Parent(hassette)
 
     await parent.start_children_and_wait(timeout=1.0)
 
     assert parent.children == []
 
 
-@pytest.mark.asyncio
 async def test_timeout_raises_with_diagnostics():
     hassette = make_mock_hassette(sealed=False)
-    parent = _Parent(hassette)
-    parent.add_child(_ReadyOnInit)
-    parent.add_child(_NeverReady)
+    parent = Parent(hassette)
+    parent.add_child(ReadyOnInit)
+    parent.add_child(NeverReady)
 
-    with pytest.raises(TimeoutError, match=r"timed out after 0\.1s.*_NeverReady"):
+    with pytest.raises(TimeoutError, match=r"timed out after 0\.1s.*NeverReady"):
         await parent.start_children_and_wait(timeout=0.1)
 
 
-@pytest.mark.asyncio
 async def test_shutdown_during_wait_raises():
     hassette = make_mock_hassette(sealed=False)
-    parent = _Parent(hassette)
-    parent.add_child(_NeverReady)
+    parent = Parent(hassette)
+    parent.add_child(NeverReady)
 
     hassette.shutdown_event.set()
 

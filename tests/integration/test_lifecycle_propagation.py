@@ -20,7 +20,7 @@ class TestHassetteShutdownSinglePass:
     """
 
     async def test_child_on_shutdown_called_once(self, hassette_with_bus: "HassetteHarness") -> None:
-        """Bus.on_shutdown() fires exactly once per shutdown — _shutdown_completed prevents double-call.
+        """Bus.on_shutdown() fires exactly once per shutdown — shutdown_completed prevents double-call.
 
         Tests the child directly (not via hassette.shutdown()) because the module-scoped
         hassette_with_bus fixture cannot survive a full hassette shutdown (event streams
@@ -54,31 +54,31 @@ class TestHassetteShutdownSinglePass:
         assert bus is not None
 
         await bus.shutdown()
-        assert bus._shutdown_completed is True
+        assert bus.shutdown_completed is True
 
         # Re-initialize should reset the flag
         await bus.initialize()
-        assert bus._shutdown_completed is False
+        assert bus.shutdown_completed is False
 
         # Should be able to shut down again
         await bus.shutdown()
-        assert bus._shutdown_completed is True
+        assert bus.shutdown_completed is True
 
         # Restore for other tests
         await bus.initialize()
 
     async def test_shutdown_completed_flag_blocks_repeated_hooks(self, hassette_with_bus: "HassetteHarness") -> None:
-        """The _shutdown_completed flag prevents on_shutdown from running a second time."""
+        """The shutdown_completed flag prevents on_shutdown from running a second time."""
         hassette = hassette_with_bus
         bus = hassette.bus
         assert bus is not None
 
         # Ensure we start clean
-        if bus._shutdown_completed:
+        if bus.shutdown_completed:
             await bus.initialize()
 
         await bus.shutdown()
-        assert bus._shutdown_completed is True
+        assert bus.shutdown_completed is True
         assert bus.status == ResourceStatus.STOPPED
 
         # Track any further on_shutdown calls
@@ -93,9 +93,9 @@ class TestHassetteShutdownSinglePass:
         bus.on_shutdown = tracked_on_shutdown  # pyright: ignore[reportAttributeAccessIssue]
 
         try:
-            # This should be a no-op due to _shutdown_completed
+            # This should be a no-op due to shutdown_completed
             await bus.shutdown()
-            assert extra_calls == 0, "on_shutdown should not run again when _shutdown_completed is True"
+            assert extra_calls == 0, "on_shutdown should not run again when shutdown_completed is True"
         finally:
             bus.on_shutdown = original_on_shutdown  # pyright: ignore[reportAttributeAccessIssue]
             # Restore for other tests
@@ -155,8 +155,8 @@ class TestCloseStreamsAfterChildrenStopped:
         finally:
             bus.handle_stop = original_handle_stop  # pyright: ignore[reportAttributeAccessIssue]
             # Restore for other tests
-            bus._shutdown_completed = False
-            bus._shutting_down = False
+            bus.shutdown_completed = False
+            bus.shutting_down = False
             bus.shutdown_event.clear()
             await bus.initialize()
 

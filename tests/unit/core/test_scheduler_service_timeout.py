@@ -10,7 +10,7 @@ from hassette.core.scheduler_service import SchedulerService
 from hassette.scheduler.classes import ScheduledJob
 
 
-def _make_scheduler_service(*, config_timeout: float | None = 600.0) -> SchedulerService:
+def make_scheduler_service(*, config_timeout: float | None = 600.0) -> SchedulerService:
     """Create a SchedulerService with mocked internals, bypassing Resource.__init__."""
     svc = SchedulerService.__new__(SchedulerService)
     svc.hassette = MagicMock()
@@ -40,7 +40,7 @@ def _make_scheduler_service(*, config_timeout: float | None = 600.0) -> Schedule
     return svc
 
 
-def _make_job(
+def make_job(
     *,
     timeout: float | None = None,
     timeout_disabled: bool = False,
@@ -61,8 +61,8 @@ def _make_job(
 class TestRunJobResolvesEffectiveTimeout:
     async def test_run_job_resolves_effective_timeout_from_job(self) -> None:
         """job.timeout=5 takes precedence over config default."""
-        svc = _make_scheduler_service(config_timeout=600.0)
-        job = _make_job(timeout=5.0)
+        svc = make_scheduler_service(config_timeout=600.0)
+        job = make_job(timeout=5.0)
 
         await svc.run_job(job)
 
@@ -72,8 +72,8 @@ class TestRunJobResolvesEffectiveTimeout:
 
     async def test_run_job_resolves_effective_timeout_from_config(self) -> None:
         """job.timeout=None falls through to config default."""
-        svc = _make_scheduler_service(config_timeout=600.0)
-        job = _make_job(timeout=None)
+        svc = make_scheduler_service(config_timeout=600.0)
+        job = make_job(timeout=None)
 
         await svc.run_job(job)
 
@@ -83,8 +83,8 @@ class TestRunJobResolvesEffectiveTimeout:
 
     async def test_run_job_resolves_timeout_disabled(self) -> None:
         """job.timeout_disabled=True sets effective_timeout=None."""
-        svc = _make_scheduler_service(config_timeout=600.0)
-        job = _make_job(timeout_disabled=True)
+        svc = make_scheduler_service(config_timeout=600.0)
+        job = make_job(timeout_disabled=True)
 
         await svc.run_job(job)
 
@@ -98,8 +98,8 @@ class TestRunJobResolvesEffectiveTimeout:
         In production, TimeoutError is caught inside CommandExecutor._execute()
         by track_execution. It never escapes execute().
         """
-        svc = _make_scheduler_service(config_timeout=0.001)
-        job = _make_job(timeout=0.001)
+        svc = make_scheduler_service(config_timeout=0.001)
+        job = make_job(timeout=0.001)
 
         svc._executor.execute = AsyncMock()
         await svc.run_job(job)  # must not raise

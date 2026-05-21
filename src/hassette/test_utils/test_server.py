@@ -8,8 +8,6 @@ from whenever import PlainDateTime
 
 from hassette.utils.request_utils import orjson_dump
 
-# Key = tuple[str, str, str]  # (METHOD, PATH, QUERYSTRING)
-
 
 @dataclass(eq=True, frozen=True)
 class Key:

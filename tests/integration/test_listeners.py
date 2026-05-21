@@ -1,10 +1,12 @@
 import asyncio
 from dataclasses import dataclass
+from unittest.mock import patch
 
 import pytest
 
 from hassette import D
 from hassette.bus.listeners import ListenerOptions
+from hassette.bus.rate_limiter import RateLimiter
 from hassette.events import Event
 from hassette.exceptions import DependencyResolutionError
 from hassette.models import states
@@ -81,8 +83,6 @@ class TestDebounceLogic:
 
     async def test_debounce_delays_execution(self, bucket_fixture: TaskBucket):
         """Test that debounce delays execution until quiet period."""
-        from hassette.bus.rate_limiter import RateLimiter
-
         calls: list[str] = []
 
         def make_handler(label: str):
@@ -104,8 +104,6 @@ class TestDebounceLogic:
 
     async def test_debounce_with_no_args(self, bucket_fixture: TaskBucket):
         """Test debounce with a no-arg handler."""
-        from hassette.bus.rate_limiter import RateLimiter
-
         calls: list[str] = []
 
         async def handler():
@@ -121,8 +119,6 @@ class TestDebounceLogic:
 
     async def test_debounce_cancels_previous_calls(self, bucket_fixture: TaskBucket):
         """Test that new debounce calls cancel previous pending calls."""
-        from hassette.bus.rate_limiter import RateLimiter
-
         calls: list[str] = []
 
         def make_handler(label: str):
@@ -156,7 +152,6 @@ class TestDebounceLogic:
         Debounce reset (cancel during sleep) should be silent, but handler cancellation
         (e.g., shutdown) should propagate so telemetry can record it as 'cancelled'.
         """
-        from hassette.bus.rate_limiter import RateLimiter
 
         async def handler_that_gets_cancelled():
             raise asyncio.CancelledError()
@@ -176,8 +171,6 @@ class TestDebounceLogic:
 
     async def test_debounce_reset_cancellation_is_silent(self, bucket_fixture: TaskBucket):
         """CancelledError from debounce reset (new event superseding old) should be silent."""
-        from hassette.bus.rate_limiter import RateLimiter
-
         calls: list[str] = []
 
         def make_handler(label: str):
@@ -208,8 +201,6 @@ class TestRateLimiterCancel:
 
     async def test_cancel_pending_debounce(self, bucket_fixture: TaskBucket):
         """Cancelling a pending debounce prevents the handler from firing."""
-        from hassette.bus.rate_limiter import RateLimiter
-
         calls: list[str] = []
 
         async def handler():
@@ -228,15 +219,11 @@ class TestRateLimiterCancel:
 
     async def test_cancel_when_no_task(self, bucket_fixture: TaskBucket):
         """Cancelling with no pending task should not raise."""
-        from hassette.bus.rate_limiter import RateLimiter
-
         limiter = RateLimiter(bucket_fixture, debounce=0.1)
         limiter.cancel()  # Should not raise
 
     async def test_cancel_after_task_completed(self, bucket_fixture: TaskBucket):
         """Cancelling after the task has already completed should not raise."""
-        from hassette.bus.rate_limiter import RateLimiter
-
         calls: list[str] = []
 
         async def handler():
@@ -254,8 +241,6 @@ class TestThrottleLogic:
 
     async def test_throttle_limits_execution_frequency(self, bucket_fixture: TaskBucket):
         """Test that throttle limits how often handler is called."""
-        from hassette.bus.rate_limiter import RateLimiter
-
         calls: list[str] = []
 
         def make_handler(label: str):
@@ -281,8 +266,6 @@ class TestThrottleLogic:
 
     async def test_throttle_with_no_args(self, bucket_fixture: TaskBucket):
         """Test throttle with a no-arg handler."""
-        from hassette.bus.rate_limiter import RateLimiter
-
         calls: list[str] = []
         label = "called"
 
@@ -307,10 +290,6 @@ class TestThrottleLogic:
 
     async def test_throttle_tracks_time_correctly(self, bucket_fixture: TaskBucket):
         """Test that throttle timing works correctly using mocked time."""
-        from unittest.mock import patch
-
-        from hassette.bus.rate_limiter import RateLimiter
-
         calls: list[str] = []
 
         def make_handler(label: str):
@@ -336,8 +315,6 @@ class TestThrottleLogic:
 
     async def test_throttle_does_not_block_during_handler(self, bucket_fixture: TaskBucket):
         """A second throttled call within the window must not block on the first handler."""
-        from hassette.bus.rate_limiter import RateLimiter
-
         handler_started = asyncio.Event()
         handler_release = asyncio.Event()
 
@@ -376,8 +353,8 @@ class TestListenerIntegration:
             debounce=0.1,
         )
 
-        assert listener.invoker._rate_limiter is not None
-        rl = listener.invoker._rate_limiter
+        assert listener.invoker.rate_limiter is not None
+        rl = listener.invoker.rate_limiter
 
         # Simulate dispatch: rate_limiter.call(invoke_fn) — like _dispatch does
         async def invoke_fn():
@@ -410,8 +387,8 @@ class TestListenerIntegration:
             throttle=0.1,
         )
 
-        assert listener.invoker._rate_limiter is not None
-        rl = listener.invoker._rate_limiter
+        assert listener.invoker.rate_limiter is not None
+        rl = listener.invoker.rate_limiter
 
         events = [mock_event("1"), mock_event("2"), mock_event("3"), mock_event("4")]
 
@@ -545,16 +522,16 @@ class TestListenerDispatchAndCancel:
             topic="t",
             debounce=0.5,
         )
-        assert listener.invoker._rate_limiter is not None
-        assert not listener.invoker._rate_limiter._cancelled
+        assert listener.invoker.rate_limiter is not None
+        assert not listener.invoker.rate_limiter._cancelled
 
         listener.cancel()
-        assert listener.invoker._rate_limiter._cancelled
+        assert listener.invoker.rate_limiter._cancelled
 
     async def test_cancel_without_rate_limiter_is_noop(self, bucket_fixture: TaskBucket):
         """cancel() on a listener without rate limiter does not raise."""
         listener = create_listener(lambda _e: None, task_bucket=bucket_fixture, owner_id="test", topic="t")
-        assert listener.invoker._rate_limiter is None
+        assert listener.invoker.rate_limiter is None
         listener.cancel()  # should not raise
 
     async def test_cancel_is_idempotent(self, bucket_fixture: TaskBucket):
@@ -737,7 +714,7 @@ class TestOnceWithRateLimitingProhibited:
             topic="test_topic",
             debounce=1.0,
         )
-        assert listener.invoker._rate_limiter is not None
+        assert listener.invoker.rate_limiter is not None
 
 
 class TestRateLimitValueValidation:
@@ -799,10 +776,10 @@ class TestMarkFired:
     async def test_mark_fired_sets_fired(self, bucket_fixture: TaskBucket) -> None:
         """mark_fired() sets the internal _fired flag."""
         listener = create_listener(lambda _e: None, task_bucket=bucket_fixture, owner_id="test", topic="t", once=True)
-        assert listener.invoker._fired is False
+        assert listener.invoker.fired is False
 
         listener.invoker.mark_fired()
-        assert listener.invoker._fired is True
+        assert listener.invoker.fired is True
 
 
 class TestValidateOptions:

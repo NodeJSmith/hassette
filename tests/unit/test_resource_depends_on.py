@@ -9,7 +9,7 @@ from hassette.resources.base import Resource, RestartSpec, Service
 from hassette.test_utils import make_mock_hassette
 
 
-def _build_hassette(
+def build_hassette(
     *,
     children: list[Resource] | None = None,
     wait_for_ready_return: bool = True,
@@ -86,10 +86,9 @@ class _ServiceWithDepA(Service):
         pass
 
 
-@pytest.mark.asyncio
 async def test_empty_depends_on_is_noop() -> None:
     """Resource with no depends_on completes _auto_wait_dependencies without calling wait_for_ready."""
-    hassette = _build_hassette()
+    hassette = build_hassette()
     resource = _ResourceWithNoDeps(hassette=hassette)
 
     await resource._auto_wait_dependencies()
@@ -97,10 +96,9 @@ async def test_empty_depends_on_is_noop() -> None:
     hassette.wait_for_ready.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_depends_on_waits_for_matching_instance() -> None:
     """When depends_on has a type and a matching child exists, wait_for_ready is called with it."""
-    hassette = _build_hassette()
+    hassette = build_hassette()
     dep_a = _SimpleDepA(hassette=hassette)
     hassette.children = [dep_a]
 
@@ -110,10 +108,9 @@ async def test_depends_on_waits_for_matching_instance() -> None:
     hassette.wait_for_ready.assert_called_once_with([dep_a])
 
 
-@pytest.mark.asyncio
 async def test_depends_on_missing_type_raises() -> None:
     """RuntimeError raised with actionable message when no matching child exists."""
-    hassette = _build_hassette(children=[])
+    hassette = build_hassette(children=[])
 
     resource = _ResourceWithDepA(hassette=hassette)
 
@@ -123,10 +120,9 @@ async def test_depends_on_missing_type_raises() -> None:
     assert "_SimpleDepA" in str(exc_info.value)
 
 
-@pytest.mark.asyncio
 async def test_depends_on_subclass_match() -> None:
     """depends_on=[BaseType] finds a ConcreteSubclass instance in children."""
-    hassette = _build_hassette()
+    hassette = build_hassette()
     sub = _SubclassOfA(hassette=hassette)
     hassette.children = [sub]
 
@@ -136,10 +132,9 @@ async def test_depends_on_subclass_match() -> None:
     hassette.wait_for_ready.assert_called_once_with([sub])
 
 
-@pytest.mark.asyncio
 async def test_depends_on_multiple_matches() -> None:
     """All matching instances for all declared dep types are waited on together."""
-    hassette = _build_hassette()
+    hassette = build_hassette()
     dep_a = _SimpleDepA(hassette=hassette)
     dep_b = _SimpleDepB(hassette=hassette)
     hassette.children = [dep_a, dep_b]
@@ -150,10 +145,9 @@ async def test_depends_on_multiple_matches() -> None:
     hassette.wait_for_ready.assert_called_once_with([dep_a, dep_b])
 
 
-@pytest.mark.asyncio
 async def test_depends_on_timeout_raises() -> None:
     """RuntimeError raised naming timed-out deps when wait_for_ready returns False and shutdown not set."""
-    hassette = _build_hassette(wait_for_ready_return=False, shutdown_set=False)
+    hassette = build_hassette(wait_for_ready_return=False, shutdown_set=False)
     dep_a = _SimpleDepA(hassette=hassette)
     hassette.children = [dep_a]
 
@@ -163,10 +157,9 @@ async def test_depends_on_timeout_raises() -> None:
         await resource._auto_wait_dependencies()
 
 
-@pytest.mark.asyncio
 async def test_depends_on_shutdown_marks_not_ready() -> None:
     """When wait_for_ready returns False and shutdown is set, mark_not_ready is called and method returns."""
-    hassette = _build_hassette(wait_for_ready_return=False, shutdown_set=True)
+    hassette = build_hassette(wait_for_ready_return=False, shutdown_set=True)
     dep_a = _SimpleDepA(hassette=hassette)
     hassette.children = [dep_a]
 
@@ -178,10 +171,9 @@ async def test_depends_on_shutdown_marks_not_ready() -> None:
     assert not resource.is_ready()
 
 
-@pytest.mark.asyncio
 async def test_depends_on_timeout_calls_handle_failed() -> None:
     """handle_failed is called before RuntimeError from _auto_wait_dependencies propagates."""
-    hassette = _build_hassette(wait_for_ready_return=False, shutdown_set=False)
+    hassette = build_hassette(wait_for_ready_return=False, shutdown_set=False)
     dep_a = _SimpleDepA(hassette=hassette)
     hassette.children = [dep_a]
 
@@ -203,10 +195,9 @@ async def test_depends_on_timeout_calls_handle_failed() -> None:
     assert len(handle_failed_calls) == 1
 
 
-@pytest.mark.asyncio
 async def test_skip_dependency_check_bypasses() -> None:
     """When hassette._should_skip_dependency_check() returns True, _auto_wait_dependencies returns immediately."""
-    hassette = _build_hassette(
+    hassette = build_hassette(
         children=[],  # no children — would raise if not skipped
         skip_dependency_check=True,
     )
@@ -218,10 +209,9 @@ async def test_skip_dependency_check_bypasses() -> None:
     hassette.wait_for_ready.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_service_auto_wait_dependencies() -> None:
     """Service.initialize() calls _auto_wait_dependencies with the same semantics as Resource."""
-    hassette = _build_hassette()
+    hassette = build_hassette()
     dep_a = _SimpleDepA(hassette=hassette)
     hassette.children = [dep_a]
 

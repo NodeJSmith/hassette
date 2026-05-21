@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate, SourceTier
 
 
-def _create_hass_event(event_type: str, data: dict[str, Any]) -> Any:
+def create_hass_event(event_type: str, data: dict[str, Any]) -> Any:
     """Build a HassEventEnvelopeDict envelope and delegate to create_event_from_hass.
 
     Args:
@@ -77,7 +77,7 @@ def create_state_change_event(
     """
     old_state = make_state_dict(entity_id, str(old_value), attributes=old_attrs) if old_value is not None else None
     new_state = make_state_dict(entity_id, str(new_value), attributes=new_attrs) if new_value is not None else None
-    event = _create_hass_event(
+    event = create_hass_event(
         "state_changed",
         {"entity_id": entity_id, "old_state": old_state, "new_state": new_state},
     )
@@ -92,7 +92,7 @@ def create_call_service_event(
     service_data: dict[str, Any] | None = None,
 ) -> CallServiceEvent:
     """Create a call service event for testing."""
-    event = _create_hass_event(
+    event = create_hass_event(
         "call_service",
         {"domain": domain, "service": service, "service_data": service_data or {}},
     )
@@ -100,7 +100,7 @@ def create_call_service_event(
     return event
 
 
-def _create_component_loaded_event(  # pyright: ignore[reportUnusedFunction] — imported by simulation.py
+def create_component_loaded_event(
     component: str,
 ) -> ComponentLoadedEvent:
     """Create a component_loaded event for testing.
@@ -111,12 +111,12 @@ def _create_component_loaded_event(  # pyright: ignore[reportUnusedFunction] —
     Returns:
         ComponentLoadedEvent instance.
     """
-    event = _create_hass_event("component_loaded", {"component": component})
+    event = create_hass_event("component_loaded", {"component": component})
     assert isinstance(event, ComponentLoadedEvent)
     return event
 
 
-def _create_service_registered_event(  # pyright: ignore[reportUnusedFunction] — imported by simulation.py
+def create_service_registered_event(
     domain: str,
     service: str,
 ) -> ServiceRegisteredEvent:
@@ -129,7 +129,7 @@ def _create_service_registered_event(  # pyright: ignore[reportUnusedFunction] �
     Returns:
         ServiceRegisteredEvent instance.
     """
-    event = _create_hass_event("service_registered", {"domain": domain, "service": service})
+    event = create_hass_event("service_registered", {"domain": domain, "service": service})
     assert isinstance(event, ServiceRegisteredEvent)
     return event
 
@@ -262,7 +262,7 @@ def make_full_state_change_event(
     Returns:
         RawStateChangeEvent instance
     """
-    event = _create_hass_event(
+    event = create_hass_event(
         "state_changed",
         {"entity_id": entity_id, "old_state": old_state, "new_state": new_state},
     )

@@ -232,14 +232,10 @@ class ScheduledJob:
     _scheduler: "Scheduler | None" = field(default=None, repr=False, compare=False)
     """Back-reference to the Scheduler that owns this job. Set by Scheduler.add_job()."""
 
-    _app_error_handler_resolver: "Callable[[], SchedulerErrorHandlerType | None] | None" = field(
+    app_error_handler_resolver: "Callable[[], SchedulerErrorHandlerType | None] | None" = field(
         default=None, init=False, repr=False
     )
-    """Closure that resolves the app-level error handler at dispatch time.
-
-    Set by Scheduler.add_job() to ``lambda: self._error_handler``. This avoids
-    reading ``job._scheduler._error_handler`` at dispatch time, which couples the
-    dispatch path to the Scheduler's internal state."""
+    """Closure that resolves the app-level error handler at dispatch time."""
 
     _dequeued: bool = field(default=False, repr=False, compare=False)
     """True after the job has been synchronously removed from the heap via dequeue_job()."""
@@ -342,7 +338,7 @@ class ScheduledJob:
 
     def set_app_error_handler_resolver(self, resolver: "Callable[[], SchedulerErrorHandlerType | None]") -> None:
         """Set the closure that resolves the app-level error handler at dispatch time."""
-        self._app_error_handler_resolver = resolver
+        self.app_error_handler_resolver = resolver
 
     def cancel(self) -> None:
         """Cancel the job by delegating to the owning Scheduler.

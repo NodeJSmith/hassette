@@ -70,7 +70,7 @@ class ParameterInjector:
                 )
 
             try:
-                kwargs[param_name] = self._extract_and_convert_parameter(
+                kwargs[param_name] = self.extract_and_convert_parameter(
                     event,
                     param_name,
                     param_type,
@@ -94,7 +94,7 @@ class ParameterInjector:
 
         return kwargs
 
-    def _extract_and_convert_parameter(
+    def extract_and_convert_parameter(
         self,
         event: "Event[Any]",
         param_name: str,

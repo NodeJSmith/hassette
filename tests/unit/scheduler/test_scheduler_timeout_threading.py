@@ -7,7 +7,7 @@ from hassette.scheduler.triggers import Every
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
 
 
-def _make_scheduler() -> Scheduler:
+def make_scheduler() -> Scheduler:
     """Create a Scheduler with a stubbed hassette and scheduler_service."""
 
     hassette = MagicMock()
@@ -27,39 +27,39 @@ def _make_scheduler() -> Scheduler:
     return scheduler
 
 
-async def _noop() -> None:
+async def noop() -> None:
     pass
 
 
-_PATCH_TARGET = "hassette.scheduler.scheduler.capture_registration_source"
+PATCH_TARGET = "hassette.scheduler.scheduler.capture_registration_source"
 
 
 class TestSchedulePassesTimeout:
     def test_schedule_passes_timeout_to_job(self) -> None:
         """scheduler.schedule(fn, trigger, timeout=5.0) produces job with timeout=5.0."""
-        with patch(_PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
-            scheduler = _make_scheduler()
-            job = scheduler.schedule(_noop, Every(hours=1), timeout=5.0)
+        with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "schedule(...)")):
+            scheduler = make_scheduler()
+            job = scheduler.schedule(noop, Every(hours=1), timeout=5.0)
             assert job.timeout == 5.0
             assert job.timeout_disabled is False
 
     def test_run_in_passes_timeout(self) -> None:
         """run_in() threads timeout through to the job."""
-        with patch(_PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "run_in(...)")):
-            scheduler = _make_scheduler()
-            job = scheduler.run_in(_noop, 10, timeout=3.0)
+        with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "run_in(...)")):
+            scheduler = make_scheduler()
+            job = scheduler.run_in(noop, 10, timeout=3.0)
             assert job.timeout == 3.0
 
     def test_run_every_passes_timeout(self) -> None:
         """run_every() threads timeout through to the job."""
-        with patch(_PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "run_every(...)")):
-            scheduler = _make_scheduler()
-            job = scheduler.run_every(_noop, hours=1, timeout=7.5)
+        with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "run_every(...)")):
+            scheduler = make_scheduler()
+            job = scheduler.run_every(noop, hours=1, timeout=7.5)
             assert job.timeout == 7.5
 
     def test_run_daily_passes_timeout_disabled(self) -> None:
         """run_daily() threads timeout_disabled=True through to the job."""
-        with patch(_PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "run_daily(...)")):
-            scheduler = _make_scheduler()
-            job = scheduler.run_daily(_noop, at="08:00", timeout_disabled=True)
+        with patch(PATCH_TARGET, return_value=(TEST_SOURCE_LOCATION, "run_daily(...)")):
+            scheduler = make_scheduler()
+            job = scheduler.run_daily(noop, at="08:00", timeout_disabled=True)
             assert job.timeout_disabled is True

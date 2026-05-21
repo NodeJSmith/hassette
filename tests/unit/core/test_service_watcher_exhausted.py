@@ -12,8 +12,6 @@ import logging
 from typing import ClassVar
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
-import pytest
-
 from hassette.core.service_watcher import ServiceWatcher
 from hassette.events.hassette import ServiceStatusPayload
 from hassette.resources.base import RestartSpec, Service
@@ -22,7 +20,7 @@ from hassette.types import ResourceStatus
 from hassette.types.enums import ResourceRole, RestartType
 
 
-def _build_hassette(*, strict_lifecycle: bool = False) -> AsyncMock:
+def build_hassette(*, strict_lifecycle: bool = False) -> AsyncMock:
     """Minimal Hassette stub for ServiceWatcher unit tests."""
     hassette = make_mock_hassette(
         sealed=False,
@@ -58,7 +56,7 @@ class _TempService(Service):
             raise
 
 
-def _make_failed_payload(service: Service) -> ServiceStatusPayload:
+def make_failed_payload(service: Service) -> ServiceStatusPayload:
     """Build a minimal FAILED ServiceStatusPayload."""
     return ServiceStatusPayload(
         resource_name=service.class_name,
@@ -73,7 +71,7 @@ def _make_failed_payload(service: Service) -> ServiceStatusPayload:
     )
 
 
-def _make_watcher(hassette: MagicMock) -> ServiceWatcher:
+def make_watcher(hassette: MagicMock) -> ServiceWatcher:
     """Build a ServiceWatcher that skips its Bus child (not needed for unit tests)."""
     watcher = ServiceWatcher.__new__(ServiceWatcher)
     # Initialize LifecycleMixin state
@@ -82,9 +80,9 @@ def _make_watcher(hassette: MagicMock) -> ServiceWatcher:
     watcher._ready_reason = None
     watcher._status = ResourceStatus.NOT_STARTED
     watcher._previous_status = ResourceStatus.NOT_STARTED
-    watcher._shutdown_completed = False
-    watcher._shutting_down = False
-    watcher._initializing = False
+    watcher.shutdown_completed = False
+    watcher.shutting_down = False
+    watcher.initializing = False
     watcher._init_task = None
     watcher._cache = None
     watcher.hassette = hassette
@@ -102,17 +100,16 @@ def _make_watcher(hassette: MagicMock) -> ServiceWatcher:
     return watcher
 
 
-@pytest.mark.asyncio
 async def test_exhausted_cooling_sets_status_on_instance():
     """TRANSIENT service: _handle_exhaustion sets EXHAUSTED_COOLING on the service instance."""
-    hassette = _build_hassette()
+    hassette = build_hassette()
     service = _DummyService(hassette)
     service._status = ResourceStatus.FAILED
     hassette.children = [service]
 
-    watcher = _make_watcher(hassette)
+    watcher = make_watcher(hassette)
     spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=9999)
-    payload = _make_failed_payload(service)
+    payload = make_failed_payload(service)
 
     spawned_coros: list = []
 
@@ -141,17 +138,16 @@ async def test_exhausted_cooling_sets_status_on_instance():
     )
 
 
-@pytest.mark.asyncio
 async def test_exhausted_dead_sets_status_on_instance():
     """TEMPORARY service: _handle_exhaustion sets EXHAUSTED_DEAD on the service instance."""
-    hassette = _build_hassette()
+    hassette = build_hassette()
     service = _TempService(hassette)
     service._status = ResourceStatus.FAILED
     hassette.children = [service]
 
-    watcher = _make_watcher(hassette)
+    watcher = make_watcher(hassette)
     spec = RestartSpec(restart_type=RestartType.TEMPORARY)
-    payload = _make_failed_payload(service)
+    payload = make_failed_payload(service)
 
     await watcher._handle_exhaustion(
         name=service.class_name,
@@ -166,15 +162,14 @@ async def test_exhausted_dead_sets_status_on_instance():
     )
 
 
-@pytest.mark.asyncio
 async def test_cooldown_exceeded_sets_exhausted_dead():
     """_cooldown_and_retry transitions EXHAUSTED_COOLING → EXHAUSTED_DEAD when max_cooldown_cycles exceeded."""
-    hassette = _build_hassette()
+    hassette = build_hassette()
     service = _DummyService(hassette)
     service._status = ResourceStatus.EXHAUSTED_COOLING
     hassette.children = [service]
 
-    watcher = _make_watcher(hassette)
+    watcher = make_watcher(hassette)
     spec = RestartSpec(
         restart_type=RestartType.TRANSIENT,
         cooldown_seconds=0.001,
@@ -196,13 +191,12 @@ async def test_cooldown_exceeded_sets_exhausted_dead():
     )
 
 
-@pytest.mark.asyncio
 async def test_exhausted_status_skipped_when_service_not_found():
     """When _get_service returns empty list, status set is skipped — no exception, event still emitted."""
-    hassette = _build_hassette()
+    hassette = build_hassette()
     hassette.children = []
 
-    watcher = _make_watcher(hassette)
+    watcher = make_watcher(hassette)
     spec = RestartSpec(restart_type=RestartType.TEMPORARY)
 
     payload = ServiceStatusPayload(

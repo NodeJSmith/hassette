@@ -11,7 +11,7 @@ from .conftest import HA_CONTAINER_NAME, make_system_config, startup_context, to
 
 pytestmark = [pytest.mark.system_destructive]
 
-_ENTITY = "light.kitchen_lights"
+ENTITY = "light.kitchen_lights"
 
 
 async def test_websocket_reconnects_after_ha_restart(ha_container: str, tmp_path) -> None:
@@ -50,7 +50,7 @@ async def test_websocket_reconnects_after_ha_restart(ha_container: str, tmp_path
             desc="WebSocket reconnected after HA restart",
         )
 
-        received = await toggle_and_capture(bus, hassette.api, _ENTITY, timeout=30.0)
+        received = await toggle_and_capture(bus, hassette.api, ENTITY, timeout=30.0)
 
         assert len(received) >= 1
         assert all(isinstance(e, RawStateChangeEvent) for e in received)
@@ -111,7 +111,7 @@ async def test_early_drop_retry_does_not_increment_restart_counter(ha_container:
             f"reconnection without escalating to handle_failed() (got {restart_count})"
         )
 
-        received = await toggle_and_capture(bus, hassette.api, _ENTITY, timeout=30.0)
+        received = await toggle_and_capture(bus, hassette.api, ENTITY, timeout=30.0)
         assert len(received) >= 1
 
 
@@ -136,8 +136,8 @@ async def test_state_proxy_refreshes_after_reconnect(ha_container: str, tmp_path
             desc="state proxy ready with populated states",
         )
 
-        initial = state_proxy.get_state(_ENTITY)
-        assert initial is not None, f"Entity {_ENTITY!r} not in state proxy at startup"
+        initial = state_proxy.get_state(ENTITY)
+        assert initial is not None, f"Entity {ENTITY!r} not in state proxy at startup"
 
         subprocess.run(["docker", "restart", HA_CONTAINER_NAME], check=True)
 
@@ -152,7 +152,7 @@ async def test_state_proxy_refreshes_after_reconnect(ha_container: str, tmp_path
 
         def _entity_available() -> bool:
             try:
-                return state_proxy.get_state(_ENTITY) is not None
+                return state_proxy.get_state(ENTITY) is not None
             except Exception:
                 return False
 
@@ -160,11 +160,11 @@ async def test_state_proxy_refreshes_after_reconnect(ha_container: str, tmp_path
             _entity_available,
             timeout=60.0,
             interval=0.5,
-            desc=f"{_ENTITY} available in state proxy after reconnect",
+            desc=f"{ENTITY} available in state proxy after reconnect",
         )
 
-        recovered = state_proxy.get_state(_ENTITY)
+        recovered = state_proxy.get_state(ENTITY)
         assert isinstance(recovered["state"], str)
         assert recovered["state"] in ("on", "off", "unavailable"), (
-            f"Unexpected state value for {_ENTITY!r} after reconnect: {recovered['state']!r}"
+            f"Unexpected state value for {ENTITY!r} after reconnect: {recovered['state']!r}"
         )

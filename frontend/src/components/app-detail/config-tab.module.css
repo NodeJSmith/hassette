@@ -21,10 +21,6 @@
   gap: var(--sp-2);
 }
 
-.divider {
-  display: none; /* meta already has border-bottom */
-}
-
 /* — Simple config table (no schema) — */
 
 .table {
@@ -38,18 +34,6 @@
 
 .colValue {
   width: 55%;
-}
-
-.colAction {
-  width: 15%;
-  text-align: right;
-}
-
-.redacted {
-  font-family: var(--font-mono);
-  font-size: var(--fs-small);
-  color: var(--ink-3);
-  letter-spacing: 0.1em;
 }
 
 .value code {
@@ -80,10 +64,6 @@
   margin: 0;
 }
 
-.empty {
-  padding: var(--sp-6);
-}
-
 /* — 2-column layout — */
 
 .layout {
@@ -109,63 +89,7 @@
   overflow-x: auto;
 }
 
-/* — Schema-aware config fields — */
-
-.configFields {
-  display: flex;
-  flex-direction: column;
-}
-
-.configField {
-  padding: var(--sp-2) 0;
-  border-bottom: 1px solid var(--line-1);
-}
-
-.configField:last-child {
-  border-bottom: none;
-}
-
-.configFieldHeader {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-1);
-}
-
-.configFieldName {
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-md);
-  font-weight: 600;
-}
-
-.configFieldType {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--ink-4);
-}
-
-.configFieldRequired {
-  font-size: 9px !important;
-  padding: 0 var(--sp-1) !important;
-}
-
-.configFieldValue {
-  font-family: var(--font-mono);
-  font-size: var(--fs-mono-sm);
-  color: var(--ink-2);
-}
-
-.configFieldValueMissing {
-  color: var(--err);
-}
-
-.configFieldNote {
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-  margin-top: var(--sp-0);
-}
-
-/* — Schema config table (base styles duplicated from config.module.css — CSS Modules scope prevents sharing) — */
+/* — Schema config table — */
 
 .configTable {
   table-layout: auto;

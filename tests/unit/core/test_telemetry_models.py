@@ -3,10 +3,6 @@
 from hassette.core.telemetry_models import JobSummary
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
 
-# ---------------------------------------------------------------------------
-# JobSummary model tests
-# ---------------------------------------------------------------------------
-
 
 def test_job_summary_new_fields_defaults() -> None:
     """New fields added in WP01 have correct default values."""

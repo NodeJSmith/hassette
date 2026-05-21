@@ -77,14 +77,14 @@ class LogCaptureHandler(logging.Handler):
     _broadcast_fn: Callable[[dict], Coroutine[Any, Any, None]] | None
     _loop: asyncio.AbstractEventLoop | None
 
-    _shutting_down: bool
+    shutting_down: bool
 
     def __init__(self, buffer_size: int = 2000) -> None:
         super().__init__()
         self._buffer = deque(maxlen=buffer_size)
         self._broadcast_fn = None
         self._loop = None
-        self._shutting_down = False
+        self.shutting_down = False
 
     @property
     def buffer(self) -> deque[LogEntry]:
@@ -121,7 +121,7 @@ class LogCaptureHandler(logging.Handler):
             **attrs,
         )
         self._buffer.append(entry)
-        if self._shutting_down:
+        if self.shutting_down:
             return
         if self._broadcast_fn and self._loop and self._loop.is_running():
             fn = self._broadcast_fn
@@ -377,7 +377,6 @@ def enable_logging(
     if stream is None:
         raise RuntimeError("No output stream available and sys.stdout is None")
 
-    # --- Determine renderer based on log_format ---
     if log_format == "json":
         use_json = True
     elif log_format == "console":
@@ -385,7 +384,6 @@ def enable_logging(
     else:
         use_json = not stream.isatty()
 
-    # --- Shared processors applied to all records (structlog and stdlib) ---
     shared_processors: list = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
@@ -394,7 +392,6 @@ def enable_logging(
         add_execution_id,
     ]
 
-    # --- Configure structlog global settings ---
     structlog.configure(
         processors=[
             *shared_processors,
@@ -407,7 +404,6 @@ def enable_logging(
 
     renderer = structlog.processors.JSONRenderer() if use_json else structlog.dev.ConsoleRenderer()
 
-    # --- Create ProcessorFormatter with foreign_pre_chain for stdlib records ---
     formatter = structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=shared_processors,
         processors=[
@@ -417,14 +413,12 @@ def enable_logging(
         ],
     )
 
-    # --- Set up hassette root logger ---
     logger = logging.getLogger("hassette")
     logger.setLevel(log_level)
     logger.propagate = False
     logger.handlers.clear()
     logger.filters.clear()
 
-    # --- Build handlers for the QueueListener (run in background thread) ---
     stream_handler = logging.StreamHandler(stream)
     stream_handler.setLevel(logging.NOTSET)
     stream_handler.setFormatter(formatter)
@@ -433,7 +427,6 @@ def enable_logging(
 
     _log_persistence_handler = LogPersistenceHandler(persistence_level=log_persistence_level)
 
-    # --- QueueHandler → QueueListener pipeline ---
     q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=log_queue_max)
     queue_handler = logging.handlers.QueueHandler(q)
 
@@ -476,7 +469,7 @@ def shutdown_logging() -> None:
         return
 
     if _log_capture_handler is not None:
-        _log_capture_handler._shutting_down = True
+        _log_capture_handler.shutting_down = True
 
     # Remove the QueueHandler before stopping the listener to prevent
     # shutdown-time logs from enqueuing into an un-drained queue.

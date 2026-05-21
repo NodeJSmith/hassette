@@ -117,7 +117,7 @@ EXPECTED_TABLES = {
 }
 
 
-def _make_alembic_config(db_path: Path):
+def make_alembic_config(db_path: Path):
     """Build a programmatic Alembic Config matching production (DatabaseService._run_migrations)."""
     config = Config()
     config.set_main_option("script_location", str(MIGRATIONS_PATH))
@@ -127,7 +127,7 @@ def _make_alembic_config(db_path: Path):
 
 def test_migration_chain_has_no_gaps(tmp_path: Path) -> None:
     """Walk the revision chain from base to heads and verify no gaps or dangling down_revision refs."""
-    config = _make_alembic_config(tmp_path / "unused.db")
+    config = make_alembic_config(tmp_path / "unused.db")
     script = ScriptDirectory.from_config(config)
 
     revisions = list(script.walk_revisions())
@@ -158,7 +158,7 @@ def test_migration_chain_has_no_gaps(tmp_path: Path) -> None:
 def test_fresh_db_migrates_to_head(tmp_path: Path) -> None:
     """Create an empty SQLite DB, run 'upgrade head', and verify all expected tables exist."""
     db_path = tmp_path / "test.db"
-    config = _make_alembic_config(db_path)
+    config = make_alembic_config(db_path)
     command.upgrade(config, "head")
 
     conn = sqlite3.connect(db_path)
@@ -175,7 +175,7 @@ def test_fresh_db_migrates_to_head(tmp_path: Path) -> None:
 
 def test_sequential_upgrade_from_each_revision(tmp_path: Path) -> None:
     """For each revision, stamp a fresh DB at that revision, then upgrade to head."""
-    config = _make_alembic_config(tmp_path / "script_dir.db")
+    config = make_alembic_config(tmp_path / "script_dir.db")
     script = ScriptDirectory.from_config(config)
 
     # Collect revisions in base-to-head order (walk_revisions yields head-first)
@@ -184,7 +184,7 @@ def test_sequential_upgrade_from_each_revision(tmp_path: Path) -> None:
 
     for i, rev in enumerate(revisions):
         db_path = tmp_path / f"test_{i}_{rev.revision}.db"
-        rev_config = _make_alembic_config(db_path)
+        rev_config = make_alembic_config(db_path)
 
         # Run migrations up to this revision to create the schema at that point
         command.upgrade(rev_config, rev.revision)
@@ -211,7 +211,7 @@ def test_sequential_upgrade_from_each_revision(tmp_path: Path) -> None:
 def test_migration_schema_matches_expected_columns(tmp_path: Path) -> None:
     """After running all migrations, compare the resulting columns against the expected schema."""
     db_path = tmp_path / "test.db"
-    config = _make_alembic_config(db_path)
+    config = make_alembic_config(db_path)
     command.upgrade(config, "head")
 
     conn = sqlite3.connect(db_path)
@@ -264,7 +264,7 @@ def test_auto_vacuum_migration(tmp_path: Path) -> None:
         conn.close()
 
     # Run migrations to head
-    config = _make_alembic_config(db_path)
+    config = make_alembic_config(db_path)
     command.upgrade(config, "head")
 
     # Verify auto_vacuum is INCREMENTAL (2)

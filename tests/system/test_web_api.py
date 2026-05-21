@@ -15,8 +15,8 @@ from .conftest import make_web_system_config, startup_context, toggle_and_captur
 
 pytestmark = [pytest.mark.system]
 
-_ENTITY = "light.kitchen_lights"
-_DOMAIN = "light"
+ENTITY = "light.kitchen_lights"
+DOMAIN = "light"
 
 
 async def test_health_endpoint(ha_container: str, tmp_path) -> None:
@@ -77,7 +77,7 @@ async def test_telemetry_after_activity(ha_container: str, tmp_path) -> None:
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
         app_key = hassette.app_key
         pre_toggle_ts = time.time()
-        await toggle_and_capture(bus, hassette.api, _ENTITY)
+        await toggle_and_capture(bus, hassette.api, ENTITY)
 
         async with httpx.AsyncClient() as client:
 
@@ -111,7 +111,7 @@ async def test_websocket_receives_events(ha_container: str, tmp_path) -> None:
             assert "data" in connected_msg
             assert "timestamp" in connected_msg
 
-            await hassette.api.call_service(_DOMAIN, "toggle", {"entity_id": _ENTITY})
+            await hassette.api.call_service(DOMAIN, "toggle", {"entity_id": ENTITY})
 
             event_msg: dict[str, Any] | None = None
             deadline = asyncio.get_running_loop().time() + 15.0

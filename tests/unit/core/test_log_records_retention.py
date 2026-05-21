@@ -15,7 +15,7 @@ from hassette.logging_ import LogPersistenceHandler
 from hassette.test_utils.config import SECONDS_PER_DAY
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
-from .conftest import LOG_RECORDS_TEST_DDL as _DDL
+from .conftest import LOG_RECORDS_TEST_DDL as DDL
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ async def db() -> aiosqlite.Connection:
     """In-memory aiosqlite connection with log_records schema."""
     conn = await aiosqlite.connect(":memory:")
     conn.row_factory = aiosqlite.Row
-    await conn.executescript(_DDL)
+    await conn.executescript(DDL)
     try:
         yield conn
     finally:
@@ -175,7 +175,7 @@ class TestRetentionCleanup:
 
 
 class TestSizeFailsafePrePass:
-    async def _seed_both_tables(self, db: aiosqlite.Connection, log_count: int = 10, exec_count: int = 5) -> None:
+    async def seed_both_tables(self, db: aiosqlite.Connection, log_count: int = 10, exec_count: int = 5) -> None:
         """Seed log_records and handler_invocations."""
 
         now = time.time()
@@ -211,7 +211,7 @@ class TestSizeFailsafePrePass:
     ) -> None:
         """Size failsafe pre-pass deletes from log_records before handler_invocations."""
 
-        await self._seed_both_tables(db, log_count=10, exec_count=5)
+        await self.seed_both_tables(db, log_count=10, exec_count=5)
 
         service = DatabaseService(mock_hassette_for_db, parent=None)
         service._db = db  # pyright: ignore[reportPrivateUsage]
@@ -249,7 +249,7 @@ class TestSizeFailsafePrePass:
         """
 
         # Seed a small number of logs (all get deleted in pre-pass but still over limit)
-        await self._seed_both_tables(db, log_count=2, exec_count=5)
+        await self.seed_both_tables(db, log_count=2, exec_count=5)
 
         service = DatabaseService(mock_hassette_for_db, parent=None)
         service._db = db  # pyright: ignore[reportPrivateUsage]

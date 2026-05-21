@@ -45,9 +45,9 @@ from hassette.config.classes import AppManifest
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.test_utils.config import make_test_config
-from hassette.test_utils.harness import TIMEOUTS, HassetteHarness, wait_for
+from hassette.test_utils.harness import HassetteHarness, Timeouts, wait_for
 from hassette.test_utils.helpers import make_state_dict
-from hassette.test_utils.recording_api import _RECORD_TYPE_TO_DOMAIN, RecordingApi
+from hassette.test_utils.recording_api import RECORD_TYPE_TO_DOMAIN, RecordingApi
 from hassette.test_utils.simulation import SimulationMixin
 from hassette.test_utils.time_control import TimeControlMixin
 from hassette.types.enums import ResourceStatus
@@ -55,23 +55,23 @@ from hassette.types.enums import ResourceStatus
 LOGGER = logging.getLogger(__name__)
 
 # Per-class asyncio.Lock used as a narrow critical section around the
-# _CLASS_MANIFEST_STATE read-modify-write and config validation. Held only
+# class_manifest_state read-modify-write and config validation. Held only
 # during synchronous operations — not during app startup, test body, or teardown.
-_CLASS_LOCKS: weakref.WeakKeyDictionary[type, asyncio.Lock] = weakref.WeakKeyDictionary()
+class_locks: weakref.WeakKeyDictionary[type, asyncio.Lock] = weakref.WeakKeyDictionary()
 
 # Per-class reference-counted manifest state. When concurrent harnesses share
 # an App class, the first to enter saves the original manifest and subsequent
 # ones increment the count. Only the last to exit (count drops to 0) restores.
-_CLASS_MANIFEST_STATE: weakref.WeakKeyDictionary[type, tuple[int, Any]] = weakref.WeakKeyDictionary()
+class_manifest_state: weakref.WeakKeyDictionary[type, tuple[int, Any]] = weakref.WeakKeyDictionary()
 
 
-def _get_class_lock(cls: type) -> asyncio.Lock:
+def get_class_lock(cls: type) -> asyncio.Lock:
     """Return the per-class asyncio.Lock, creating one if needed.
 
     Uses setdefault to avoid the TOCTOU race where two concurrent callers
     both see None and create separate Lock instances.
     """
-    return _CLASS_LOCKS.setdefault(cls, asyncio.Lock())
+    return class_locks.setdefault(cls, asyncio.Lock())
 
 
 class AppConfigurationError(Exception):
@@ -99,13 +99,13 @@ class AppConfigurationError(Exception):
 
 
 # Cache of (hermetic_subclass, init_kwargs_ref) pairs keyed by app_config_cls — avoids
-# creating a new subclass per _make_hermetic_config call, which would accumulate
+# creating a new subclass per make_hermetic_config call, which would accumulate
 # permanently in __subclasses__() and Pydantic's internal model cache.
 # Same closure-ref pattern as _get_hermetic_hassette_config_cls in config.py (singleton variant).
-_HERMETIC_CONFIG_CACHE: dict[type[AppConfig], tuple[type[AppConfig], list[dict[str, Any]]]] = {}
+HERMETIC_CONFIG_CACHE: dict[type[AppConfig], tuple[type[AppConfig], list[dict[str, Any]]]] = {}
 
 
-def _get_hermetic_subclass(app_config_cls: type[AppConfig]) -> tuple[type[AppConfig], list[dict[str, Any]]]:
+def get_hermetic_subclass(app_config_cls: type[AppConfig]) -> tuple[type[AppConfig], list[dict[str, Any]]]:
     """Return a cached hermetic subclass of app_config_cls and its config cell.
 
     The subclass reads init_kwargs from a mutable single-element list (the
@@ -119,7 +119,7 @@ def _get_hermetic_subclass(app_config_cls: type[AppConfig]) -> tuple[type[AppCon
         element is the current ``config_dict``. Set ``cell[0] = new_dict``
         before calling ``hermetic_subclass()`` to control what is validated.
     """
-    cached = _HERMETIC_CONFIG_CACHE.get(app_config_cls)
+    cached = HERMETIC_CONFIG_CACHE.get(app_config_cls)
     if cached is not None:
         return cached
 
@@ -132,13 +132,11 @@ def _get_hermetic_subclass(app_config_cls: type[AppConfig]) -> tuple[type[AppCon
             return (InitSettingsSource(settings_cls, init_kwargs=cell[0]),)
 
     result = (_HermeticSettings, cell)
-    _HERMETIC_CONFIG_CACHE[app_config_cls] = result
+    HERMETIC_CONFIG_CACHE[app_config_cls] = result
     return result
 
 
-def _make_hermetic_config(
-    app_cls: type[App], app_config_cls: type[AppConfig], config_dict: dict[str, Any]
-) -> AppConfig:
+def make_hermetic_config(app_cls: type[App], app_config_cls: type[AppConfig], config_dict: dict[str, Any]) -> AppConfig:
     """Validate config_dict against app_config_cls using only InitSettingsSource.
 
     Uses a cached hermetic subclass per app_config_cls to avoid accumulating
@@ -157,7 +155,7 @@ def _make_hermetic_config(
     Raises:
         AppConfigurationError: If validation fails.
     """
-    hermetic_cls, cell = _get_hermetic_subclass(app_config_cls)
+    hermetic_cls, cell = get_hermetic_subclass(app_config_cls)
     # Update the cell before instantiation; no await between here and hermetic_cls()
     # so asyncio cooperative multitasking cannot interleave a concurrent caller.
     cell[0] = config_dict
@@ -168,7 +166,7 @@ def _make_hermetic_config(
         raise AppConfigurationError(app_cls, e) from e
 
 
-def _synthesize_manifest(app_cls: type[App]) -> AppManifest:
+def synthesize_manifest(app_cls: type[App]) -> AppManifest:
     """Build a minimal AppManifest for app_cls without requiring a real file or TOML config.
 
     Derives app_key from the class name (snake_case), filename from the source file's parent
@@ -334,20 +332,20 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
 
         # Step 9: Synthesize manifest under narrow per-class lock.
         # The lock serializes both hermetic config validation and the
-        # _CLASS_MANIFEST_STATE read-modify-write so concurrent harnesses for
+        # class_manifest_state read-modify-write so concurrent harnesses for
         # the same class share one manifest lifecycle — only the last to exit
         # restores the original.
-        async with _get_class_lock(self._app_cls):
-            validated_config = _make_hermetic_config(self._app_cls, app_config_cls, self._config_dict)
-            state = _CLASS_MANIFEST_STATE.get(self._app_cls)
+        async with get_class_lock(self._app_cls):
+            validated_config = make_hermetic_config(self._app_cls, app_config_cls, self._config_dict)
+            state = class_manifest_state.get(self._app_cls)
             if state is None:
                 original_manifest = getattr(self._app_cls, "app_manifest", self._UNSET)
-                manifest = _synthesize_manifest(self._app_cls)
+                manifest = synthesize_manifest(self._app_cls)
                 self._app_cls.app_manifest = manifest
-                _CLASS_MANIFEST_STATE[self._app_cls] = (1, original_manifest)
+                class_manifest_state[self._app_cls] = (1, original_manifest)
             else:
                 count, original_manifest = state
-                _CLASS_MANIFEST_STATE[self._app_cls] = (count + 1, original_manifest)
+                class_manifest_state[self._app_cls] = (count + 1, original_manifest)
 
         exit_stack.push_async_callback(self._restore_manifest)
 
@@ -375,7 +373,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         await wait_for(
             lambda: app.status == ResourceStatus.RUNNING,
             desc=f"{app.class_name} RUNNING",
-            timeout=TIMEOUTS.WAIT_FOR_READY,
+            timeout=Timeouts.WAIT_FOR_READY,
         )
 
     @staticmethod
@@ -399,19 +397,19 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
 
     async def _restore_manifest(self) -> None:
         """Decrement the manifest reference count; restore original when count reaches 0."""
-        async with _get_class_lock(self._app_cls):
-            state = _CLASS_MANIFEST_STATE.get(self._app_cls)
+        async with get_class_lock(self._app_cls):
+            state = class_manifest_state.get(self._app_cls)
             if state is None:
                 LOGGER.warning(
-                    "_restore_manifest: _CLASS_MANIFEST_STATE entry missing for %s",
+                    "_restore_manifest: class_manifest_state entry missing for %s",
                     self._app_cls.__name__,
                 )
                 return
             count, original = state
             if count > 1:
-                _CLASS_MANIFEST_STATE[self._app_cls] = (count - 1, original)
+                class_manifest_state[self._app_cls] = (count - 1, original)
                 return
-            del _CLASS_MANIFEST_STATE[self._app_cls]
+            del class_manifest_state[self._app_cls]
             if original is self._UNSET:
                 with contextlib.suppress(AttributeError):
                     del self._app_cls.app_manifest
@@ -428,10 +426,6 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         if self._exit_stack is not None:
             await self._exit_stack.__aexit__(exc_type, exc, tb)
             self._exit_stack = None
-
-    # ------------------------------------------------------------------
-    # Convenience properties
-    # ------------------------------------------------------------------
 
     @property
     def app(self) -> App:
@@ -465,10 +459,6 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
     def states(self) -> StateManager:
         """The StateManager owned by the app."""
         return self.app.states
-
-    # ------------------------------------------------------------------
-    # State seeding helpers
-    # ------------------------------------------------------------------
 
     async def set_state(self, entity_id: str, state: str, **attributes: Any) -> None:
         """Seed an entity's state in the StateProxy.
@@ -505,7 +495,7 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
         """Seed a stored helper config for tests that read helper CRUD.
 
         Domain is derived from the record class. Passing a record of a type
-        not registered in _RECORD_TYPE_TO_DOMAIN raises ValueError immediately.
+        not registered in RECORD_TYPE_TO_DOMAIN raises ValueError immediately.
 
         The record is deep-copied before storage, so later mutations of the
         caller's `record` object will not leak into harness state — matching
@@ -519,11 +509,11 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
                 or if a record with the same id is already seeded.
         """
         try:
-            domain, _deep_copy = _RECORD_TYPE_TO_DOMAIN[type(record)]
+            domain, _deep_copy = RECORD_TYPE_TO_DOMAIN[type(record)]
         except KeyError as e:
             raise ValueError(
                 f"Unknown helper record type: {type(record).__name__}. "
-                f"Expected one of: {sorted(t.__name__ for t in _RECORD_TYPE_TO_DOMAIN)}"
+                f"Expected one of: {sorted(t.__name__ for t in RECORD_TYPE_TO_DOMAIN)}"
             ) from e
         if record.id in self.api_recorder.helper_definitions[domain]:  # pyright: ignore[reportAttributeAccessIssue]
             raise ValueError(

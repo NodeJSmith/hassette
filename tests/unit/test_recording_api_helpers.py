@@ -27,13 +27,17 @@ from hassette.models.helpers import (
     CreateInputBooleanParams,
     CreateInputSelectParams,
     InputBooleanRecord,
+    InputButtonRecord,
+    InputDatetimeRecord,
+    InputNumberRecord,
     InputSelectRecord,
+    InputTextRecord,
     TimerRecord,
     UpdateInputBooleanParams,
 )
 from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.app_harness import AppTestHarness
-from hassette.test_utils.recording_api import _RECORD_TYPE_TO_DOMAIN, RecordingApi, _slugify_helper_name
+from hassette.test_utils.recording_api import RECORD_TYPE_TO_DOMAIN, RecordingApi, slugify_helper_name
 
 
 class _HarnessConfig(AppConfig):
@@ -47,7 +51,7 @@ class _HarnessApp(App[_HarnessConfig]):
         pass
 
 
-def _make_recording_api() -> RecordingApi:
+def make_recording_api() -> RecordingApi:
     """Create a RecordingApi with an empty StateProxy."""
     hassette = make_mock_hassette(sealed=False)
     hassette.state_registry = STATE_REGISTRY
@@ -58,7 +62,7 @@ def _make_recording_api() -> RecordingApi:
 
 
 async def test_seed_helper_then_list_returns_seeded_record():
-    api = _make_recording_api()
+    api = make_recording_api()
     record = InputBooleanRecord(id="vacation_mode", name="Vacation Mode")
     api.helper_definitions["input_boolean"]["vacation_mode"] = record
 
@@ -69,7 +73,7 @@ async def test_seed_helper_then_list_returns_seeded_record():
 
 
 def test_seed_helper_rejects_unknown_type():
-    """_RECORD_TYPE_TO_DOMAIN does not contain arbitrary BaseModel subclasses."""
+    """RECORD_TYPE_TO_DOMAIN does not contain arbitrary BaseModel subclasses."""
 
     class UnknownRecord(BaseModel):
         id: str
@@ -78,23 +82,13 @@ def test_seed_helper_rejects_unknown_type():
     unknown = UnknownRecord(id="foo", name="Foo")
 
     with pytest.raises(KeyError):
-        _ = _RECORD_TYPE_TO_DOMAIN[type(unknown)]  # pyright: ignore[reportArgumentType]
+        _ = RECORD_TYPE_TO_DOMAIN[type(unknown)]  # pyright: ignore[reportArgumentType]
 
 
 # Actually test seed_helper via AppTestHarness — but to keep unit tests simple,
 # test the ValueError path by calling the dict directly
 async def test_seed_helper_type_map_covers_all_imports():
-    """Smoke-test that _RECORD_TYPE_TO_DOMAIN has all 8 expected record types."""
-    from hassette.models.helpers import (
-        InputBooleanRecord,
-        InputButtonRecord,
-        InputDatetimeRecord,
-        InputNumberRecord,
-        InputSelectRecord,
-        InputTextRecord,
-        TimerRecord,
-    )
-
+    """Smoke-test that RECORD_TYPE_TO_DOMAIN has all 8 expected record types."""
     expected = {
         InputBooleanRecord,
         InputNumberRecord,
@@ -105,11 +99,11 @@ async def test_seed_helper_type_map_covers_all_imports():
         CounterRecord,
         TimerRecord,
     }
-    assert set(_RECORD_TYPE_TO_DOMAIN.keys()) == expected
+    assert set(RECORD_TYPE_TO_DOMAIN.keys()) == expected
 
 
 async def test_create_input_boolean_adds_to_list():
-    api = _make_recording_api()
+    api = make_recording_api()
     record = await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
     result = await api.list_input_booleans()
     assert len(result) == 1
@@ -118,13 +112,13 @@ async def test_create_input_boolean_adds_to_list():
 
 
 async def test_create_input_boolean_slugifies_name():
-    api = _make_recording_api()
+    api = make_recording_api()
     record = await api.create_input_boolean(CreateInputBooleanParams(name="Vacation Mode"))
     assert record.id == "vacation_mode"
 
 
 async def test_create_input_boolean_auto_suffixes_collision():
-    api = _make_recording_api()
+    api = make_recording_api()
     first = await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
     second = await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
 
@@ -136,7 +130,7 @@ async def test_create_input_boolean_auto_suffixes_collision():
 
 
 async def test_update_input_boolean_raises_on_missing_id():
-    api = _make_recording_api()
+    api = make_recording_api()
 
     with pytest.raises(FailedMessageError) as exc_info:
         await api.update_input_boolean("nonexistent", UpdateInputBooleanParams(initial=True))
@@ -146,7 +140,7 @@ async def test_update_input_boolean_raises_on_missing_id():
 
 
 async def test_update_input_boolean_mutates_seed():
-    api = _make_recording_api()
+    api = make_recording_api()
     record = await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
     updated = await api.update_input_boolean(record.id, UpdateInputBooleanParams(initial=True))
 
@@ -159,7 +153,7 @@ async def test_update_input_boolean_mutates_seed():
 
 
 async def test_delete_input_boolean_raises_on_missing_id():
-    api = _make_recording_api()
+    api = make_recording_api()
 
     with pytest.raises(FailedMessageError) as exc_info:
         await api.delete_input_boolean("nonexistent")
@@ -168,7 +162,7 @@ async def test_delete_input_boolean_raises_on_missing_id():
 
 
 async def test_delete_input_boolean_removes_from_list():
-    api = _make_recording_api()
+    api = make_recording_api()
     record = await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
     await api.delete_input_boolean(record.id)
 
@@ -177,7 +171,7 @@ async def test_delete_input_boolean_removes_from_list():
 
 
 async def test_reset_clears_helper_definitions():
-    api = _make_recording_api()
+    api = make_recording_api()
     # Seed across multiple domains
     await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
     await api.create_counter(CreateCounterParams(name="my_counter"))
@@ -192,7 +186,7 @@ async def test_reset_clears_helper_definitions():
 
 
 async def test_create_records_api_call():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.create_input_boolean(CreateInputBooleanParams(name="vacation_mode"))
 
     assert len(api.calls) == 1
@@ -202,7 +196,7 @@ async def test_create_records_api_call():
 
 
 async def test_counter_action_records_api_call_increment():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.increment_counter("counter.foo")
 
     assert len(api.calls) == 1
@@ -212,7 +206,7 @@ async def test_counter_action_records_api_call_increment():
 
 
 async def test_counter_action_records_api_call_decrement():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.decrement_counter("counter.bar")
 
     call = api.calls[0]
@@ -221,7 +215,7 @@ async def test_counter_action_records_api_call_decrement():
 
 
 async def test_counter_action_records_api_call_reset():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.reset_counter("counter.baz")
 
     call = api.calls[0]
@@ -230,22 +224,22 @@ async def test_counter_action_records_api_call_reset():
 
 
 def test_slugify_helper_name_fallback_for_empty_slug():
-    """Cover all three branches of _slugify_helper_name.
+    """Cover all three branches of slugify_helper_name.
 
     - Non-empty inputs that slugify to "" fall back to "unknown" (matching HA).
     - ``""`` and ``None`` inputs return ``""`` directly (no fallback).
     - Otherwise the python-slugify output is returned as-is.
     """
-    assert _slugify_helper_name("%%") == "unknown"
-    assert _slugify_helper_name("!!!") == "unknown"
-    assert _slugify_helper_name("") == ""
-    assert _slugify_helper_name(None) == ""
-    assert _slugify_helper_name("Vacation Mode") == "vacation_mode"
+    assert slugify_helper_name("%%") == "unknown"
+    assert slugify_helper_name("!!!") == "unknown"
+    assert slugify_helper_name("") == ""
+    assert slugify_helper_name(None) == ""
+    assert slugify_helper_name("Vacation Mode") == "vacation_mode"
 
 
 async def test_list_returns_isolated_copies():
     """Mutating records returned by list_* must not affect the stored state."""
-    api = _make_recording_api()
+    api = make_recording_api()
     api.helper_definitions["input_boolean"]["x"] = InputBooleanRecord(id="x", name="Original")
 
     returned = (await api.list_input_booleans())[0]
@@ -264,9 +258,8 @@ async def test_list_isolation_preserves_nested_collections():
     list_* path (pre-seeded record) and the create_* path (newly-created
     record) return isolated copies.
     """
-    api = _make_recording_api()
+    api = make_recording_api()
 
-    # --- list_* path ---
     api.helper_definitions["input_select"]["mode"] = InputSelectRecord(id="mode", name="Mode", options=["a", "b"])
 
     listed = (await api.list_input_selects())[0]
@@ -275,7 +268,6 @@ async def test_list_isolation_preserves_nested_collections():
     refetched = (await api.list_input_selects())[0]
     assert refetched.options == ["a", "b"]
 
-    # --- create_* path ---
     created = await api.create_input_select(CreateInputSelectParams(name="Another", options=["x", "y"]))
     created.options.append("ALSO_MUTATED")
 
@@ -288,11 +280,11 @@ async def test_seed_helper_rejects_duplicate_id():
     async with AppTestHarness(_HarnessApp, config={}) as harness:
         harness.seed_helper(InputBooleanRecord(id="vacation_mode", name="First"))
 
-        def _seed_duplicate() -> None:
+        def seed_duplicate() -> None:
             harness.seed_helper(InputBooleanRecord(id="vacation_mode", name="Second"))
 
         with pytest.raises(ValueError, match="already seeded"):
-            _seed_duplicate()
+            seed_duplicate()
 
 
 async def test_harness_seed_helper_rejects_unknown_record_type():
@@ -305,11 +297,11 @@ async def test_harness_seed_helper_rejects_unknown_record_type():
     async with AppTestHarness(_HarnessApp, config={}) as harness:
         unknown = UnknownRecord(id="foo", name="Foo")
 
-        def _seed_unknown() -> None:
+        def seed_unknown() -> None:
             harness.seed_helper(unknown)
 
         with pytest.raises(ValueError, match="Unknown helper record type") as exc_info:
-            _seed_unknown()
+            seed_unknown()
 
     message = str(exc_info.value)
     assert "UnknownRecord" in message
@@ -318,8 +310,6 @@ async def test_harness_seed_helper_rejects_unknown_record_type():
 
 async def test_seed_helper_isolates_caller_mutations():
     """seed_helper deep-copies the record so later caller-side mutations don't leak."""
-    from hassette.models.helpers import InputSelectRecord
-
     async with AppTestHarness(_HarnessApp, config={}) as harness:
         caller_record = InputSelectRecord(id="mode", name="Mode", options=["a", "b"])
         harness.seed_helper(caller_record)

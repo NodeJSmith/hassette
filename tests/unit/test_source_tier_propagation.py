@@ -24,11 +24,6 @@ if typing.TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
 
 
-# ---------------------------------------------------------------------------
-# Resource hierarchy — ClassVar defaults
-# ---------------------------------------------------------------------------
-
-
 class TestResourceSourceTierDefaults:
     def test_resource_defaults_to_framework(self) -> None:
         assert Resource.source_tier == "framework"
@@ -49,11 +44,6 @@ class TestResourceAppKey:
         mock = Mock(spec=Resource)
         mock.class_name = "StateProxy"
         assert Resource.app_key.fget(mock) == "__hassette__.StateProxy"  # pyright: ignore[reportOptionalMemberAccess]
-
-
-# ---------------------------------------------------------------------------
-# Bus.on() propagation
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -87,33 +77,28 @@ async def app_bus(
         yield bus
 
 
-async def _handler(event: object) -> None:
+async def handler(event: object) -> None:
     pass
 
 
 class TestBusSourceTierPropagation:
     async def test_framework_bus_creates_framework_listener(self, framework_bus: "Bus") -> None:
         """Bus.on() with a framework parent passes source_tier='framework' to Listener."""
-        sub = framework_bus.on(topic="test.topic", handler=_handler)
+        sub = framework_bus.on(topic="test.topic", handler=handler)
         assert sub.listener.identity.source_tier == "framework"
 
     async def test_app_bus_creates_app_listener(self, app_bus: "Bus") -> None:
         """Bus.on() with an app parent passes source_tier='app' to Listener."""
-        sub = app_bus.on(topic="test.topic", handler=_handler)
+        sub = app_bus.on(topic="test.topic", handler=handler)
         assert sub.listener.identity.source_tier == "app"
 
     async def test_convenience_methods_propagate_tier(self, framework_bus: "Bus") -> None:
         """on_state_change and other convenience methods also propagate source_tier."""
-        sub = framework_bus.on_state_change("sensor.test", handler=_handler)
+        sub = framework_bus.on_state_change("sensor.test", handler=handler)
         assert sub.listener.identity.source_tier == "framework"
 
 
-# ---------------------------------------------------------------------------
-# Scheduler.schedule() propagation
-# ---------------------------------------------------------------------------
-
-
-def _make_scheduler_with_parent(source_tier: str) -> "Scheduler":
+def make_scheduler_with_parent(source_tier: str) -> "Scheduler":
     """Create a minimal Scheduler with a mocked parent at the given source_tier."""
     _TestScheduler = type("_TestScheduler", (Scheduler,), {})  # noqa: N806
 
@@ -136,19 +121,19 @@ def _make_scheduler_with_parent(source_tier: str) -> "Scheduler":
     return scheduler
 
 
-async def _job_fn() -> None:
+async def job_fn() -> None:
     pass
 
 
 class TestSchedulerSourceTierPropagation:
     def test_framework_scheduler_creates_framework_job(self) -> None:
         """Scheduler.schedule() with a framework parent sets source_tier='framework'."""
-        scheduler = _make_scheduler_with_parent("framework")
-        job = scheduler.schedule(_job_fn, After(seconds=10))
+        scheduler = make_scheduler_with_parent("framework")
+        job = scheduler.schedule(job_fn, After(seconds=10))
         assert job.source_tier == "framework"
 
     def test_app_scheduler_creates_app_job(self) -> None:
         """Scheduler.schedule() with an app parent sets source_tier='app'."""
-        scheduler = _make_scheduler_with_parent("app")
-        job = scheduler.schedule(_job_fn, After(seconds=10))
+        scheduler = make_scheduler_with_parent("app")
+        job = scheduler.schedule(job_fn, After(seconds=10))
         assert job.source_tier == "app"

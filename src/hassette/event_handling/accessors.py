@@ -76,11 +76,6 @@ def get_path(path: str) -> Callable[..., Any | FalseySentinel]:
     return _inner
 
 
-# --------------------------
-# Extractors for state/attributes
-# --------------------------
-
-
 def get_state_value_old(event: "RawStateChangeEvent") -> Any | FalseySentinel:
     """Get the old state value from a RawStateChangeEvent, or MISSING_VALUE if `old_state` is `None`."""
     return event.payload.data.old_state_value
@@ -212,11 +207,6 @@ def get_all_attrs_old_new(
     return (old, new)
 
 
-# ---------------------------------------------------------------------------
-# Extractors for generic events
-# ---------------------------------------------------------------------------
-
-
 def get_domain(event: "HassEvent") -> str | FalseySentinel:
     """Get the domain from the event payload."""
     result = cast("str", get_path("payload.data.domain")(event))
@@ -309,11 +299,6 @@ def _recursive_get_differences(
 
     LOGGER.debug("Returning changed dict: %r", changed_dict)
     return changed_dict
-
-
-# ---------------------------------------------------------------------------
-# Service-call accessors
-# ---------------------------------------------------------------------------
 
 
 def get_service(event: "CallServiceEvent") -> str | FalseySentinel:

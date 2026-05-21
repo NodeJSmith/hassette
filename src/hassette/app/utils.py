@@ -28,7 +28,6 @@ def _get_app_config_class(cls: type["App"]) -> type[AppConfig]:
         with a user defined Config class, without having to also set a class variable manually, which\
         would allow for mistakes. If a future user/developer has a better idea, please let me know!
     """
-    # avoid circular import
     from hassette.app import App
 
     args = ()
@@ -93,7 +92,7 @@ def _validate_init_method(cls: type["App[AppConfigT]"]) -> None:
         `AppHandler` does not expect and will not be able to handle. Unsure if this will see much usage, but it\
         is a good safeguard to have.
     """
-    from hassette.app import App  # avoid circular import
+    from hassette.app import App
 
     if cls.__module__.startswith("hassette."):
         # skipping internal classes

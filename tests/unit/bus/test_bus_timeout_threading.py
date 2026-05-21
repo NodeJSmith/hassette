@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 from hassette.bus.bus import Bus, Options
 
 
-def _make_bus() -> Bus:
+def make_bus() -> Bus:
     """Create a Bus with mocked internals, bypassing Resource.__init__."""
     bus = Bus.__new__(Bus)
     bus.hassette = MagicMock()
@@ -31,19 +31,19 @@ def _make_bus() -> Bus:
 class TestBusOnPassesTimeout:
     def test_bus_on_passes_timeout_to_listener(self) -> None:
         """bus.on(topic=..., handler=..., timeout=5.0) creates listener with timeout=5.0."""
-        bus = _make_bus()
+        bus = make_bus()
         sub = bus.on(topic="test.topic", handler=lambda: None, timeout=5.0)
         assert sub.listener.options.timeout == 5.0
 
     def test_bus_on_passes_timeout_disabled(self) -> None:
         """timeout_disabled=True threads through to listener."""
-        bus = _make_bus()
+        bus = make_bus()
         sub = bus.on(topic="test.topic", handler=lambda: None, timeout_disabled=True)
         assert sub.listener.options.timeout_disabled is True
 
     def test_bus_on_default_timeout(self) -> None:
         """Default timeout is None when not specified."""
-        bus = _make_bus()
+        bus = make_bus()
         sub = bus.on(topic="test.topic", handler=lambda: None)
         assert sub.listener.options.timeout is None
         assert sub.listener.options.timeout_disabled is False
@@ -52,13 +52,13 @@ class TestBusOnPassesTimeout:
 class TestConvenienceMethodPassesTimeout:
     def test_on_state_change_passes_timeout_via_options(self) -> None:
         """Convenience method forwards timeout through _subscribe -> on()."""
-        bus = _make_bus()
+        bus = make_bus()
         sub = bus.on_state_change("light.test", handler=lambda: None, timeout=10.0)
         assert sub.listener.options.timeout == 10.0
 
     def test_on_state_change_passes_timeout_disabled_via_options(self) -> None:
         """Convenience method forwards timeout_disabled through _subscribe -> on()."""
-        bus = _make_bus()
+        bus = make_bus()
         sub = bus.on_state_change("light.test", handler=lambda: None, timeout_disabled=True)
         assert sub.listener.options.timeout_disabled is True
 

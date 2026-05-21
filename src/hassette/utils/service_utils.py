@@ -7,7 +7,7 @@ if typing.TYPE_CHECKING:
     from hassette.resources.base import Resource
 
 
-class _Color(Enum):
+class Color(Enum):
     WHITE = auto()  # not yet visited
     GRAY = auto()  # on the current DFS path (ancestors of current node)
     BLACK = auto()  # fully processed
@@ -49,13 +49,13 @@ def topological_sort(types: "list[type[Resource]]") -> "list[type[Resource]]":
                 resolved.extend(t for t in types if issubclass(t, d))
         return resolved
 
-    color: dict[type, _Color] = {t: _Color.WHITE for t in types}
+    color: dict[type, Color] = {t: Color.WHITE for t in types}
     result: list[type] = []
 
     # Iterative DFS.  Each work item is (node, iterator_over_its_deps).
     # The ``path`` list mirrors the call stack for cycle reconstruction.
     for start in types:
-        if color[start] is not _Color.WHITE:
+        if color[start] is not Color.WHITE:
             continue
 
         # Stack entries: (node, dep_iterator, index_in_path)
@@ -63,7 +63,7 @@ def topological_sort(types: "list[type[Resource]]") -> "list[type[Resource]]":
         dep_iters: list[tuple[type, typing.Iterator[type]]] = []
         path: list[type] = []
 
-        color[start] = _Color.GRAY
+        color[start] = Color.GRAY
         path.append(start)
         dep_iters.append((start, iter(_resolve_deps(getattr(start, "depends_on", [])))))
 
@@ -76,19 +76,19 @@ def topological_sort(types: "list[type[Resource]]") -> "list[type[Resource]]":
                 # All deps of *node* are processed — finalise *node*.
                 dep_iters.pop()
                 path.pop()
-                color[node] = _Color.BLACK
+                color[node] = Color.BLACK
                 result.append(node)
                 continue
 
-            if color.get(dep, _Color.BLACK) is _Color.GRAY:
+            if color.get(dep, Color.BLACK) is Color.GRAY:
                 # Back edge → cycle.  Reconstruct path from first occurrence of dep.
                 cycle_start = path.index(dep)
                 cycle_path = [*path[cycle_start:], dep]
                 cycle_str = " → ".join(t.__name__ for t in cycle_path)
                 raise ValueError(f"Cycle detected: {cycle_str}")
 
-            if color.get(dep, _Color.BLACK) is _Color.WHITE:
-                color[dep] = _Color.GRAY
+            if color.get(dep, Color.BLACK) is Color.WHITE:
+                color[dep] = Color.GRAY
                 path.append(dep)
                 dep_iters.append((dep, iter(_resolve_deps(getattr(dep, "depends_on", [])))))
 

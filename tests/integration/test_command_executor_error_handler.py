@@ -31,7 +31,7 @@ async def executor(
         await exc.on_shutdown()
 
 
-def _make_mock_listener(*, error_handler=None) -> MagicMock:
+def make_mock_listener(*, error_handler=None) -> MagicMock:
     """Return a mock Listener whose invoke() is an awaitable coroutine."""
     listener = MagicMock()
     listener.invoke = AsyncMock()
@@ -41,7 +41,7 @@ def _make_mock_listener(*, error_handler=None) -> MagicMock:
     return listener
 
 
-def _make_mock_job(*, error_handler=None) -> MagicMock:
+def make_mock_job(*, error_handler=None) -> MagicMock:
     """Return a mock ScheduledJob with optional error handler."""
     job = MagicMock(spec=ScheduledJob)
     job.error_handler = error_handler
@@ -54,7 +54,7 @@ def _make_mock_job(*, error_handler=None) -> MagicMock:
 
 async def test_error_handler_runs_after_framework_log(executor: CommandExecutor) -> None:
     """Error handler is invoked after framework logging — not instead of it."""
-    listener = _make_mock_listener()
+    listener = make_mock_listener()
     listener.invoke.side_effect = ValueError("handler error")
     listener.invoker.invoke.side_effect = ValueError("handler error")
 
@@ -90,7 +90,7 @@ async def test_error_handler_runs_after_framework_log(executor: CommandExecutor)
 
 async def test_sync_error_handler_wraps_in_thread(executor: CommandExecutor) -> None:
     """A sync error handler is wrapped via make_async_adapter and runs without error."""
-    listener = _make_mock_listener()
+    listener = make_mock_listener()
     listener.invoke.side_effect = RuntimeError("sync handler test")
     listener.invoker.invoke.side_effect = RuntimeError("sync handler test")
 
@@ -124,7 +124,7 @@ async def test_sync_error_handler_wraps_in_thread(executor: CommandExecutor) -> 
 
 async def test_double_failure_logged_and_counted(executor: CommandExecutor) -> None:
     """When both the listener and its error handler raise, _error_handler_failures is incremented."""
-    listener = _make_mock_listener()
+    listener = make_mock_listener()
     listener.invoke.side_effect = ValueError("original error")
     listener.invoker.invoke.side_effect = ValueError("original error")
 
@@ -154,7 +154,7 @@ async def test_double_failure_logged_and_counted(executor: CommandExecutor) -> N
 
 async def test_cancelled_error_not_routed_to_handler(executor: CommandExecutor) -> None:
     """CancelledError is re-raised and never routed to the user error handler."""
-    listener = _make_mock_listener()
+    listener = make_mock_listener()
     listener.invoke.side_effect = asyncio.CancelledError()
     listener.invoker.invoke.side_effect = asyncio.CancelledError()
 
@@ -183,7 +183,7 @@ async def test_cancelled_error_not_routed_to_handler(executor: CommandExecutor) 
 
 async def test_timeout_error_routed_to_handler(executor: CommandExecutor) -> None:
     """TimeoutError is captured and routed to the user error handler."""
-    listener = _make_mock_listener()
+    listener = make_mock_listener()
 
     async def slow_handler(_event) -> None:
         await asyncio.sleep(10)
@@ -225,7 +225,7 @@ async def test_error_handler_timeout_logs_warning(executor: CommandExecutor) -> 
     # Set a short timeout for testing
     executor.hassette.config.lifecycle.error_handler_timeout_seconds = 0.1
 
-    job = _make_mock_job()
+    job = make_mock_job()
     job_ran = asyncio.Event()
 
     async def slow_error_handler(_ctx: SchedulerErrorContext) -> None:

@@ -1,6 +1,7 @@
 """Tests for structlog-based enable_logging() and LogCaptureHandler."""
 
 import asyncio
+import inspect
 import json
 import logging
 import queue
@@ -11,6 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 import structlog
 
+import hassette.logging_ as logging_module
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.logging_ import (
     CorrelationFilter,
@@ -27,7 +29,7 @@ from hassette.logging_ import (
 
 
 @pytest.fixture(autouse=True)
-def _cleanup_logging():
+def cleanup_logging():
     yield
     shutdown_logging()
 
@@ -327,14 +329,10 @@ class TestColoredlogsRemoved:
 
     def test_coloredlogs_not_imported_in_logging_module(self) -> None:
         # coloredlogs should not be importable via logging_ module
-        import hassette.logging_ as logging_module
-
         assert not hasattr(logging_module, "coloredlogs")
 
     def test_enable_logging_accepts_log_format_parameter(self) -> None:
         """enable_logging() signature includes log_format parameter."""
-        import inspect
-
         sig = inspect.signature(enable_logging)
         assert "log_format" in sig.parameters
 
@@ -807,17 +805,17 @@ class TestDequeueTimeoutFlush:
 
 
 class TestLogCaptureHandlerShutdownGuard:
-    """LogCaptureHandler._shutting_down prevents broadcast during shutdown."""
+    """LogCaptureHandler.shutting_down prevents broadcast during shutdown."""
 
     def test_shutting_down_skips_broadcast(self) -> None:
-        """When _shutting_down is True, emit() still captures but skips call_soon_threadsafe."""
+        """When shutting_down is True, emit() still captures but skips call_soon_threadsafe."""
         handler = LogCaptureHandler(buffer_size=100)
         loop = MagicMock()
         loop.is_running.return_value = True
         broadcast_fn = MagicMock()
         handler.set_broadcast(broadcast_fn, loop)
 
-        handler._shutting_down = True
+        handler.shutting_down = True
         record = logging.LogRecord("test", logging.INFO, "", 0, "shutdown msg", (), None)
         handler.emit(record)
 
@@ -827,7 +825,7 @@ class TestLogCaptureHandlerShutdownGuard:
         loop.call_soon_threadsafe.assert_not_called()
 
     def test_not_shutting_down_broadcasts(self) -> None:
-        """When _shutting_down is False, emit() broadcasts via call_soon_threadsafe."""
+        """When shutting_down is False, emit() broadcasts via call_soon_threadsafe."""
         handler = LogCaptureHandler(buffer_size=100)
         loop = MagicMock()
         loop.is_running.return_value = True

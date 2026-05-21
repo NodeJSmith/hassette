@@ -68,10 +68,6 @@ class SessionManager(Resource):
             raise RuntimeError("Session ID is not initialized")
         return self._session_id
 
-    # ------------------------------------------------------------------
-    # Public API (called by Hassette)
-    # ------------------------------------------------------------------
-
     async def mark_orphaned_sessions(self) -> None:
         """Mark any sessions left in 'running' status as 'unknown'."""
         await self._database_service.submit(self._do_mark_orphaned_sessions())
@@ -143,10 +139,6 @@ class SessionManager(Resource):
                 return
 
             await self._database_service.submit(self._do_finalize_session(drop_counters))
-
-    # ------------------------------------------------------------------
-    # DB-worker callables (executed by the single-writer queue)
-    # ------------------------------------------------------------------
 
     async def _do_mark_orphaned_sessions(self) -> None:
         """Execute the orphan-session UPDATE; called by the write-queue worker."""

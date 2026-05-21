@@ -635,7 +635,6 @@ class DatabaseService(Service):
         total_hi_deleted = 0
         total_je_deleted = 0
 
-        # --- Pre-pass: exhaust log_records first (highest volume, most recoverable) ---
         for iteration in range(_SIZE_FAILSAFE_MAX_ITERATIONS):
             cursor_lr = await db.execute(
                 "DELETE FROM log_records WHERE id IN (SELECT id FROM log_records ORDER BY timestamp ASC LIMIT ?)",

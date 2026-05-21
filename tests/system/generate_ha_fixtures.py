@@ -38,7 +38,7 @@ ADMIN_PASSWORD_HASH_B64 = "JDJiJDA0JDR6MnVBRHdVenU4bzRZbmM5M2twYS5pUXI2RHZXS3pLW
 STORAGE = Path("tests/fixtures/ha-config/.storage")
 
 
-def _b64url(data: bytes) -> str:
+def b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
 
@@ -50,14 +50,14 @@ def make_jwt(token_id: str, jwt_key_hex: str, iat: int, exp: int) -> str:
     2. Looking up the refresh_token entry with matching ``id``
     3. Re-verifying the JWT signature using that entry's ``jwt_key``
     """
-    header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
-    payload = _b64url(json.dumps({"iss": token_id, "iat": iat, "exp": exp}, separators=(",", ":")).encode())
+    header = b64url(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
+    payload = b64url(json.dumps({"iss": token_id, "iat": iat, "exp": exp}, separators=(",", ":")).encode())
     signing_input = f"{header}.{payload}".encode()
     # HA passes jwt_key directly to PyJWT as a string; PyJWT encodes it as UTF-8.
     # Use the same encoding so the signature matches.
     key = jwt_key_hex.encode()
     sig = hmac.new(key, signing_input, hashlib.sha256).digest()
-    return f"{header}.{payload}.{_b64url(sig)}"
+    return f"{header}.{payload}.{b64url(sig)}"
 
 
 def write_auth() -> None:

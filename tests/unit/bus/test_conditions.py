@@ -172,11 +172,6 @@ def test_comparison_condition() -> None:
     assert equal_to(10) is False
 
 
-# ---------------------------------------------------------------------------
-# summarize() golden tests for all condition types
-# ---------------------------------------------------------------------------
-
-
 def test_condition_summarize_glob() -> None:
     assert Glob("light.*").summarize() == "matches light.*"
 

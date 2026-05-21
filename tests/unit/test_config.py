@@ -1,6 +1,8 @@
 import os
 import sys
 import textwrap
+import tomllib
+from importlib.resources import files
 from pathlib import Path
 
 import dotenv
@@ -10,9 +12,10 @@ from hassette import HassetteConfig, context
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.test_utils import run_hassette_startup_tasks
 from hassette.test_utils.config import TEST_TOKEN
+from hassette.utils import app_utils
 
 
-def _cleanup_env(*keys: str) -> None:
+def cleanup_env(*keys: str) -> None:
     for key in keys:
         os.environ.pop(key, None)
 
@@ -127,7 +130,7 @@ async def test_import_dot_env_files_true_loads_vars_into_os_environ(monkeypatch,
     config = ImportingConfig(import_dot_env_files=True)
     run_hassette_startup_tasks(config)
     assert os.getenv("HASSETTE_TEST_IMPORTED") == "from_dotenv"
-    _cleanup_env("HASSETTE_TEST_IMPORTED")
+    cleanup_env("HASSETTE_TEST_IMPORTED")
 
 
 async def test_import_dot_env_files_false_does_not_touch_os_environ(monkeypatch, tmp_path):
@@ -150,7 +153,7 @@ async def test_import_dot_env_files_false_does_not_touch_os_environ(monkeypatch,
     config = NonImportingConfig(import_dot_env_files=False)
     run_hassette_startup_tasks(config)
     assert os.getenv("HASSETTE_TEST_IMPORTED") is None
-    _cleanup_env("HASSETTE_TEST_IMPORTED")
+    cleanup_env("HASSETTE_TEST_IMPORTED")
 
 
 async def test_import_dot_env_files_does_not_override_existing_environ(monkeypatch, tmp_path):
@@ -174,7 +177,7 @@ async def test_import_dot_env_files_does_not_override_existing_environ(monkeypat
     config = NonOverridingConfig(import_dot_env_files=True)
     run_hassette_startup_tasks(config)
     assert os.getenv("HASSETTE_TEST_EXISTING") == "preexisting"
-    _cleanup_env("HASSETTE_TEST_EXISTING")
+    cleanup_env("HASSETTE_TEST_EXISTING")
 
 
 async def test_multiple_env_files_import_non_conflicting_keys(monkeypatch, tmp_path):
@@ -202,7 +205,7 @@ async def test_multiple_env_files_import_non_conflicting_keys(monkeypatch, tmp_p
     run_hassette_startup_tasks(config)
     assert os.getenv("HASSETTE_TEST_MULTI_ONE") == "1"
     assert os.getenv("HASSETTE_TEST_MULTI_TWO") == "2"
-    _cleanup_env("HASSETTE_TEST_MULTI_ONE", "HASSETTE_TEST_MULTI_TWO")
+    cleanup_env("HASSETTE_TEST_MULTI_ONE", "HASSETTE_TEST_MULTI_TWO")
 
 
 async def test_multiple_env_files_conflicting_key_is_effectively_order_dependent(monkeypatch, tmp_path):
@@ -236,7 +239,7 @@ async def test_multiple_env_files_conflicting_key_is_effectively_order_dependent
     run_hassette_startup_tasks(config)
 
     assert os.getenv("HASSETTE_TEST_CONFLICT") in {"one", "two"}
-    _cleanup_env("HASSETTE_TEST_CONFLICT")
+    cleanup_env("HASSETTE_TEST_CONFLICT")
 
 
 @pytest.mark.xfail(reason="Spec: env_files should preserve declared ordering (currently it returns a set).")
@@ -305,7 +308,7 @@ async def test_spec_last_env_file_wins_on_conflicts(monkeypatch, tmp_path):
 
     # Spec requires later files override earlier files.
     assert os.getenv("HASSETTE_TEST_CONFLICT_SPEC") == "two"
-    _cleanup_env("HASSETTE_TEST_CONFLICT_SPEC")
+    cleanup_env("HASSETTE_TEST_CONFLICT_SPEC")
 
 
 async def test_import_dot_env_files_makes_values_visible_during_app_import(monkeypatch, tmp_path):
@@ -331,10 +334,8 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(monke
 
             READ_AT_IMPORT = os.getenv("HASSETTE_TEST_APP_IMPORT")
 
-
             class EnvReaderConfig(AppConfig):
                 pass
-
 
             class EnvReaderApp(App[EnvReaderConfig]):
                 async def on_initialize(self) -> None:
@@ -374,8 +375,6 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(monke
     # Ensure a clean import, both for our module and our namespace package.
     sys.modules.pop(f"{pkg_name}.env_reader_app", None)
     sys.modules.pop(pkg_name, None)
-    from hassette.utils import app_utils
-
     app_utils.LOADED_CLASSES.clear()
     app_utils.FAILED_TO_LOAD_CLASSES.clear()
 
@@ -395,16 +394,11 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(monke
     mod = sys.modules.get(f"{pkg_name}.env_reader_app")
     assert mod is not None, "Expected app module to be imported during precheck"
     assert mod.READ_AT_IMPORT == "from_dotenv"  # pyright: ignore[reportAttributeAccessIssue]
-    _cleanup_env("HASSETTE_TEST_APP_IMPORT")
-
-
-# ---------------------------------------------------------------------------
-# Service log level inheritance tests
-# ---------------------------------------------------------------------------
+    cleanup_env("HASSETTE_TEST_APP_IMPORT")
 
 
 @pytest.fixture
-def _clean_log_level_env(monkeypatch):
+def clean_log_level_env(monkeypatch):
     """Remove any leaked hassette log-level env vars so tests see true defaults.
 
     Under xdist, tests that call load_dotenv() (e.g. via run_hassette_startup_tasks)
@@ -454,7 +448,7 @@ class _LogLevelTestConfig(HassetteConfig):
     run_app_precheck: bool = False
 
 
-@pytest.mark.usefixtures("_clean_log_level_env")
+@pytest.mark.usefixtures("clean_log_level_env")
 def test_service_log_levels_inherit_global_debug(monkeypatch):
     """Setting HASSETTE__LOGGING__LOG_LEVEL=DEBUG propagates to all 13 service log level fields."""
     monkeypatch.setenv("HASSETTE__LOGGING__LOG_LEVEL", "DEBUG")
@@ -467,7 +461,7 @@ def test_service_log_levels_inherit_global_debug(monkeypatch):
         assert actual == "DEBUG", f"Expected logging.{attr}='DEBUG', got {actual!r}"
 
 
-@pytest.mark.usefixtures("_clean_log_level_env")
+@pytest.mark.usefixtures("clean_log_level_env")
 def test_service_log_levels_default_to_info_when_global_unset():
     """With no log_level override all 13 service log level fields default to INFO."""
     config = _LogLevelTestConfig()
@@ -478,7 +472,7 @@ def test_service_log_levels_default_to_info_when_global_unset():
         assert actual == "INFO", f"Expected logging.{attr}='INFO', got {actual!r}"
 
 
-@pytest.mark.usefixtures("_clean_log_level_env")
+@pytest.mark.usefixtures("clean_log_level_env")
 def test_service_specific_override_takes_precedence(monkeypatch):
     """A service-specific env var wins over the global log_level."""
     monkeypatch.setenv("HASSETTE__LOGGING__LOG_LEVEL", "DEBUG")
@@ -495,11 +489,6 @@ def test_service_specific_override_takes_precedence(monkeypatch):
             continue
         actual = getattr(config.logging, attr)
         assert actual == "DEBUG", f"Expected logging.{attr}='DEBUG', got {actual!r}"
-
-
-# ---------------------------------------------------------------------------
-# Security-critical config property tests (#322)
-# ---------------------------------------------------------------------------
 
 
 class TestAuthHeaders:
@@ -595,11 +584,6 @@ class TestErrorHandlerTimeoutSeconds:
             _LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": True})
 
 
-# ---------------------------------------------------------------------------
-# WebSocket retry config field tests
-# ---------------------------------------------------------------------------
-
-
 def test_websocket_connect_retry_defaults() -> None:
     """Connect-retry fields under websocket group have the correct default values."""
     config = _LogLevelTestConfig()
@@ -637,9 +621,6 @@ def test_bundled_toml_files_have_no_log_level_entries():
     Adding them back silently re-introduces the model_post_init overwrite bug (#237).
     Checks both the top-level [hassette] section and all nested subsections.
     """
-    import tomllib
-    from importlib.resources import files
-
     for filename in ("hassette.prod.toml", "hassette.dev.toml"):
         toml_path = files("hassette.config").joinpath(filename)
         with toml_path.open("rb") as f:

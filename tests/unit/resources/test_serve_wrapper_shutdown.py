@@ -7,7 +7,7 @@ from hassette.test_utils import make_mock_hassette
 from hassette.types.enums import ResourceStatus
 
 
-class _ClosedResourceService(Service):
+class ClosedResourceService(Service):
     """Service whose serve() raises ClosedResourceError (simulating stream closure)."""
 
     restart_spec = RestartSpec()
@@ -24,7 +24,7 @@ class TestServeWrapperClosedResourceErrorDuringShutdown:
         hassette = make_mock_hassette(sealed=False)
         hassette.shutdown_event.set()
 
-        svc = _ClosedResourceService(hassette, parent=hassette)
+        svc = ClosedResourceService(hassette, parent=hassette)
 
         await svc._serve_wrapper()
 
@@ -35,7 +35,7 @@ class TestServeWrapperClosedResourceErrorDuringShutdown:
         hassette = make_mock_hassette(sealed=False)
         hassette.shutdown_event.set()
 
-        svc = _ClosedResourceService(hassette, parent=hassette)
+        svc = ClosedResourceService(hassette, parent=hassette)
 
         await svc._serve_wrapper()
 
@@ -47,7 +47,7 @@ class TestServeWrapperClosedResourceErrorOutsideShutdown:
         """ClosedResourceError without shutdown_event set should produce FAILED status."""
         hassette = make_mock_hassette(sealed=False)
 
-        svc = _ClosedResourceService(hassette, parent=hassette)
+        svc = ClosedResourceService(hassette, parent=hassette)
 
         await svc._serve_wrapper()
 

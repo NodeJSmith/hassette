@@ -28,7 +28,7 @@ def repo(db: tuple[DatabaseService, int]) -> TelemetryRepository:
     return TelemetryRepository(db_service)
 
 
-def _make_inv_record(
+def make_inv_record(
     listener_id: int | None,
     session_id: int,
     *,
@@ -48,7 +48,7 @@ def _make_inv_record(
     )
 
 
-def _make_job_record(
+def make_job_record(
     job_id: int | None,
     session_id: int,
     *,
@@ -71,7 +71,7 @@ class TestHandlerInvocationExecutionId:
         """Persist a HandlerInvocationRecord with all three new fields and query them back."""
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc)
-        record = _make_inv_record(
+        record = make_inv_record(
             listener_id,
             session_id,
             execution_id="abc-123",
@@ -94,7 +94,7 @@ class TestHandlerInvocationExecutionId:
         """Persist a record with execution_id=None and confirm it comes back as None (not empty string)."""
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc)
-        record = _make_inv_record(listener_id, session_id, execution_id=None)
+        record = make_inv_record(listener_id, session_id, execution_id=None)
 
         await repo.persist_batch([record], [])
 
@@ -109,7 +109,7 @@ class TestHandlerInvocationExecutionId:
         db_svc, session_id = db
         # Use a non-existent listener_id to trigger FK violation
         nonexistent_listener_id = 99999
-        record = _make_inv_record(
+        record = make_inv_record(
             nonexistent_listener_id,
             session_id,
             execution_id="abc-123",
@@ -137,7 +137,7 @@ class TestHandlerInvocationExecutionId:
         """_inv_insert_params() keys must match the column list used in persist_batch() INSERT."""
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc)
-        record = _make_inv_record(listener_id, session_id)
+        record = make_inv_record(listener_id, session_id)
         params = _inv_insert_params(record)
 
         # Verify params has all expected keys including the new execution_id columns
@@ -176,7 +176,7 @@ class TestJobExecutionExecutionId:
         """Persist a JobExecutionRecord with execution_id and query it back."""
         db_svc, session_id = db
         job_id = await insert_job(db_svc)
-        record = _make_job_record(job_id, session_id, execution_id="def-789")
+        record = make_job_record(job_id, session_id, execution_id="def-789")
 
         await repo.persist_batch([], [record])
 
@@ -190,7 +190,7 @@ class TestJobExecutionExecutionId:
         """_job_insert_params() keys must match the column list used in persist_batch() INSERT."""
         db_svc, session_id = db
         job_id = await insert_job(db_svc)
-        record = _make_job_record(job_id, session_id)
+        record = make_job_record(job_id, session_id)
         params = _job_insert_params(record)
 
         # Verify params has all expected keys including execution_id

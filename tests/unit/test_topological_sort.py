@@ -6,13 +6,9 @@ import pytest
 
 from hassette.utils import topological_sort
 
-# ---------------------------------------------------------------------------
-# Stub Resource subclasses
-# ---------------------------------------------------------------------------
 # These are plain classes that satisfy the `getattr(node, 'depends_on', [])`
 # contract. They do NOT subclass the real Resource (which requires a live
 # Hassette instance), keeping these tests fully synchronous and dependency-free.
-# ---------------------------------------------------------------------------
 
 
 class StubBase:
@@ -33,11 +29,6 @@ class C(StubBase):
 
 class D(StubBase):
     depends_on: ClassVar[list] = [B, C]
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 def test_empty_list():

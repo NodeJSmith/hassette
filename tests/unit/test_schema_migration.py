@@ -7,15 +7,15 @@ from typing import get_args
 from unittest.mock import MagicMock, patch
 
 import pytest
+from alembic import command
+from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
+from sqlalchemy import create_engine
 
 from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
 from hassette.test_utils.config import TEST_TOKEN
 from hassette.types.types import SourceTier
-
-# ---------------------------------------------------------------------------
-# SourceTier type tests
-# ---------------------------------------------------------------------------
 
 
 class TestSourceTierType:
@@ -25,16 +25,8 @@ class TestSourceTierType:
         assert set(args) == {"app", "framework"}
 
 
-# ---------------------------------------------------------------------------
-# Helpers for running the migration against in-memory / temp DBs
-# ---------------------------------------------------------------------------
-
-
-def _run_migrations_to_head(db_path: str) -> None:
+def run_migrations_to_head(db_path: str) -> None:
     """Run Alembic migrations to HEAD against the given DB path."""
-    from alembic import command
-    from alembic.config import Config
-
     config = Config()
     config.set_main_option(
         "script_location",
@@ -44,11 +36,8 @@ def _run_migrations_to_head(db_path: str) -> None:
     command.upgrade(config, "head")
 
 
-def _get_db_version(db_path: str) -> str | None:
+def get_db_version(db_path: str) -> str | None:
     """Return the current Alembic version from the DB, or None if not set."""
-    from alembic.runtime.migration import MigrationContext
-    from sqlalchemy import create_engine
-
     engine = create_engine(f"sqlite:///{db_path}")
     try:
         with engine.connect() as conn:
@@ -58,16 +47,11 @@ def _get_db_version(db_path: str) -> str | None:
         engine.dispose()
 
 
-# ---------------------------------------------------------------------------
-# Migration schema tests
-# ---------------------------------------------------------------------------
-
-
 class TestFreshMigration:
     def test_fresh_migration_creates_all_tables(self, tmp_path: Path) -> None:
         """Running the migration creates all 5 required tables."""
         db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
+        run_migrations_to_head(db_path)
 
         conn = sqlite3.connect(db_path)
         try:
@@ -85,7 +69,7 @@ class TestFreshMigration:
         sessions does NOT have source_tier — it uses drop counter columns instead.
         """
         db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
+        run_migrations_to_head(db_path)
 
         conn = sqlite3.connect(db_path)
         try:
@@ -99,7 +83,7 @@ class TestFreshMigration:
     def test_handler_invocations_has_is_di_failure(self, tmp_path: Path) -> None:
         """handler_invocations must have is_di_failure column."""
         db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
+        run_migrations_to_head(db_path)
 
         conn = sqlite3.connect(db_path)
         try:
@@ -112,7 +96,7 @@ class TestFreshMigration:
     def test_job_executions_has_is_di_failure(self, tmp_path: Path) -> None:
         """job_executions must have is_di_failure column."""
         db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
+        run_migrations_to_head(db_path)
 
         conn = sqlite3.connect(db_path)
         try:
@@ -125,7 +109,7 @@ class TestFreshMigration:
     def test_check_constraints_reject_invalid_status_handler_invocations(self, tmp_path: Path) -> None:
         """handler_invocations with invalid status raises IntegrityError."""
         db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
+        run_migrations_to_head(db_path)
 
         conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA foreign_keys = ON")
@@ -145,7 +129,7 @@ class TestFreshMigration:
     def test_check_constraints_reject_negative_duration(self, tmp_path: Path) -> None:
         """handler_invocations with negative duration_ms raises IntegrityError."""
         db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
+        run_migrations_to_head(db_path)
 
         conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA foreign_keys = ON")
@@ -164,7 +148,7 @@ class TestFreshMigration:
     def test_check_constraints_reject_invalid_source_tier(self, tmp_path: Path) -> None:
         """handler_invocations with invalid source_tier raises IntegrityError."""
         db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
+        run_migrations_to_head(db_path)
 
         conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA foreign_keys = ON")
@@ -183,7 +167,7 @@ class TestFreshMigration:
     def test_nullable_listener_id_allows_null(self, tmp_path: Path) -> None:
         """handler_invocations must allow NULL listener_id."""
         db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
+        run_migrations_to_head(db_path)
 
         conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA foreign_keys = ON")
@@ -205,7 +189,7 @@ class TestFreshMigration:
     def test_views_filter_by_tier(self, tmp_path: Path) -> None:
         """Views active_app_listeners and active_framework_listeners filter by source_tier."""
         db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
+        run_migrations_to_head(db_path)
 
         conn = sqlite3.connect(db_path)
         try:
@@ -242,7 +226,7 @@ class TestFreshMigration:
     def test_sessions_drop_counters_default_to_zero(self, tmp_path: Path) -> None:
         """sessions table should default all drop counters to 0."""
         db_path = str(tmp_path / "test.db")
-        _run_migrations_to_head(db_path)
+        run_migrations_to_head(db_path)
 
         conn = sqlite3.connect(db_path)
         try:
@@ -256,11 +240,6 @@ class TestFreshMigration:
             assert row == (0, 0, 0, 0)
         finally:
             conn.close()
-
-
-# ---------------------------------------------------------------------------
-# DatabaseService version mismatch tests
-# ---------------------------------------------------------------------------
 
 
 class TestDbVersionMismatch:
@@ -293,11 +272,6 @@ class TestDbVersionMismatch:
             asyncio.run(svc._handle_schema_version(db_path))
             # DB file should have been deleted (on_initialize handles re-running migrations)
             assert not db_path.exists()
-
-
-# ---------------------------------------------------------------------------
-# Config field test
-# ---------------------------------------------------------------------------
 
 
 class TestHassetteConfigTelemetryQueueMax:

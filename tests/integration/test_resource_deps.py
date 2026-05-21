@@ -34,11 +34,6 @@ async def test_init_waves_respect_dependency_ordering(hassette_instance: Hassett
                 )
 
 
-# ---------------------------------------------------------------------------
-# Gate-pattern: auto-wait runtime behavior
-# ---------------------------------------------------------------------------
-
-
 async def test_service_with_depends_on_waits_for_dep(hassette_instance: Hassette) -> None:
     """A service with depends_on does not proceed to on_initialize until its dep is ready.
 

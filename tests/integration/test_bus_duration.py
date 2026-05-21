@@ -27,11 +27,6 @@ if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
 
-
-# ---------------------------------------------------------------------------
-# Per-test harness fixture
-# ---------------------------------------------------------------------------
-
 DURATION = 0.05  # 50 ms — fast enough for tests
 
 
@@ -60,11 +55,6 @@ async def dur_harness(test_config) -> AsyncIterator[tuple[HassetteHarness, "Hass
         yield harness, hassette, bus
     finally:
         await harness.stop()
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 async def test_duration_fires_after_held(dur_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:

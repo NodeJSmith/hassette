@@ -113,11 +113,6 @@ def test_failed_message_error_chain_preserves_original() -> None:
     assert cause.original_data == {"k": 1}
 
 
-# ---------------------------------------------------------------------------
-# RetryableConnectionClosedError tests
-# ---------------------------------------------------------------------------
-
-
 def test_retryable_connection_closed_error_default_close_code() -> None:
     """close_code defaults to None when not provided."""
     e = RetryableConnectionClosedError("connection dropped")

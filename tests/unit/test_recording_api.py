@@ -32,7 +32,7 @@ from hassette.test_utils.helpers import make_state_dict
 from hassette.test_utils.recording_api import ApiProtocol, RecordingApi
 
 
-def _make_recording_api(states: dict | None = None) -> RecordingApi:
+def make_recording_api(states: dict | None = None) -> RecordingApi:
     """Create a RecordingApi with an optional pre-seeded StateProxy."""
     hassette = make_mock_hassette(sealed=False)
     hassette.state_registry = STATE_REGISTRY
@@ -47,7 +47,7 @@ def _make_recording_api(states: dict | None = None) -> RecordingApi:
 
 
 async def test_turn_on_records_call():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_on("light.test", brightness=150)
     assert len(api.calls) == 1
     call = api.calls[0]
@@ -57,7 +57,7 @@ async def test_turn_on_records_call():
 
 
 async def test_call_service_records_target():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.call_service("light", "turn_on", target={"entity_id": "light.x"})
     assert len(api.calls) == 1
     call = api.calls[0]
@@ -67,20 +67,20 @@ async def test_call_service_records_target():
 
 
 async def test_call_service_return_response():
-    api = _make_recording_api()
+    api = make_recording_api()
     result = await api.call_service("light", "turn_on", target=None, return_response=True)
     assert result is not None
     assert isinstance(result, ServiceResponse)
 
 
 async def test_call_service_no_return_response_returns_none():
-    api = _make_recording_api()
+    api = make_recording_api()
     result = await api.call_service("light", "turn_on")
     assert result is None
 
 
 async def test_set_state_signature_matches_api():
-    api = _make_recording_api()
+    api = make_recording_api()
     result = await api.set_state("sensor.custom", "active", {"battery": 85})
     assert isinstance(result, dict)
     assert len(api.calls) == 1
@@ -92,7 +92,7 @@ async def test_set_state_signature_matches_api():
 
 
 async def test_fire_event_signature():
-    api = _make_recording_api()
+    api = make_recording_api()
     result = await api.fire_event("custom_event", {"key": "value"})
     assert isinstance(result, dict)
     assert len(api.calls) == 1
@@ -102,7 +102,7 @@ async def test_fire_event_signature():
 
 
 async def test_turn_off_records_call():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_off("switch.fan")
     assert len(api.calls) == 1
     call = api.calls[0]
@@ -112,7 +112,7 @@ async def test_turn_off_records_call():
 
 
 async def test_toggle_service_records_call():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.toggle_service("light.kitchen")
     assert len(api.calls) == 1
     call = api.calls[0]
@@ -127,7 +127,7 @@ async def test_get_state_delegates_to_state_proxy():
         state="on",
         attributes={"brightness": 200},
     )
-    api = _make_recording_api(states={"light.kitchen": state_dict})
+    api = make_recording_api(states={"light.kitchen": state_dict})
 
     result = await api.get_state("light.kitchen")
     assert result.entity_id == "light.kitchen"
@@ -135,28 +135,28 @@ async def test_get_state_delegates_to_state_proxy():
 
 
 async def test_get_state_raises_entity_not_found():
-    api = _make_recording_api(states={})
+    api = make_recording_api(states={})
     with pytest.raises(EntityNotFoundError):
         await api.get_state("light.nonexistent")
 
 
 async def test_entity_exists_true_and_false():
     state_dict = make_state_dict(entity_id="light.kitchen", state="on")
-    api = _make_recording_api(states={"light.kitchen": state_dict})
+    api = make_recording_api(states={"light.kitchen": state_dict})
 
     assert await api.entity_exists("light.kitchen") is True
     assert await api.entity_exists("light.missing") is False
 
 
 async def test_get_state_or_none_returns_none():
-    api = _make_recording_api(states={})
+    api = make_recording_api(states={})
     result = await api.get_state_or_none("light.nonexistent")
     assert result is None
 
 
 async def test_get_state_or_none_returns_state_when_seeded():
     state_dict = make_state_dict(entity_id="sensor.temp", state="22.5")
-    api = _make_recording_api(states={"sensor.temp": state_dict})
+    api = make_recording_api(states={"sensor.temp": state_dict})
 
     result = await api.get_state_or_none("sensor.temp")
     assert result is not None
@@ -166,7 +166,7 @@ async def test_get_state_or_none_returns_state_when_seeded():
 async def test_get_states_returns_list_of_base_states():
     state_dict_1 = make_state_dict(entity_id="light.a", state="on")
     state_dict_2 = make_state_dict(entity_id="light.b", state="off")
-    api = _make_recording_api(states={"light.a": state_dict_1, "light.b": state_dict_2})
+    api = make_recording_api(states={"light.a": state_dict_1, "light.b": state_dict_2})
 
     results = await api.get_states()
     assert len(results) == 2
@@ -183,38 +183,38 @@ async def test_get_states_returns_list_of_base_states():
 
 
 async def test_unstubbed_method_raises_not_implemented():
-    api = _make_recording_api()
+    api = make_recording_api()
     with pytest.raises(NotImplementedError) as exc_info:
         await api.render_template("{{ states('sensor.temp') }}")
     assert "AppTestHarness.set_state()" in str(exc_info.value)
 
 
 async def test_unstubbed_get_history_raises():
-    api = _make_recording_api()
+    api = make_recording_api()
     with pytest.raises(NotImplementedError):
         await api.get_history("sensor.temp", "2026-01-01")
 
 
 async def test_assert_called_matching():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_on("light.kitchen")
     api.assert_called("turn_on", entity_id="light.kitchen")
 
 
 async def test_assert_called_with_kwargs():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_on("light.kitchen", brightness=150)
     api.assert_called("turn_on", entity_id="light.kitchen", brightness=150)
 
 
 async def test_assert_called_fails_when_not_called():
-    api = _make_recording_api()
+    api = make_recording_api()
     with pytest.raises(AssertionError):
         api.assert_called("call_service")
 
 
 async def test_assert_called_fails_when_kwargs_do_not_match():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_on("light.kitchen")
     with pytest.raises(AssertionError):
         api.assert_called("turn_on", brightness=999)
@@ -227,7 +227,7 @@ async def test_assert_called_rejects_absent_key_matching_none():
     that key equals None must fail — not silently pass because dict.get()
     returns None for missing keys.
     """
-    api = _make_recording_api()
+    api = make_recording_api()
     # Manually record a call with no 'brightness' key at all
     api.calls.append(ApiCall(method="test_method", kwargs={"entity_id": "light.x"}))
     # brightness is absent from kwargs — asserting brightness=None must fail
@@ -236,33 +236,33 @@ async def test_assert_called_rejects_absent_key_matching_none():
 
 
 async def test_assert_not_called_passes_when_not_called():
-    api = _make_recording_api()
+    api = make_recording_api()
     api.assert_not_called("call_service")  # should not raise
 
 
 async def test_assert_not_called_fails_when_called():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_on("light.kitchen")
     with pytest.raises(AssertionError):
         api.assert_not_called("turn_on")
 
 
 async def test_assert_call_count():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_on("light.a")
     await api.turn_on("light.b")
     api.assert_call_count("turn_on", 2)
 
 
 async def test_assert_call_count_fails_with_wrong_count():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_on("light.a")
     with pytest.raises(AssertionError):
         api.assert_call_count("turn_on", 2)
 
 
 async def test_get_calls_all():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_on("light.a")
     await api.turn_off("light.b")
     all_calls = api.get_calls()
@@ -270,7 +270,7 @@ async def test_get_calls_all():
 
 
 async def test_get_calls_filtered():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_on("light.a")
     await api.set_state("sensor.x", "active")
     # turn_on now records directly as "turn_on"; set_state is its own method
@@ -282,7 +282,7 @@ async def test_get_calls_filtered():
 
 
 async def test_reset_clears_calls():
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_on("light.a")
     await api.turn_off("light.b")
     assert len(api.calls) == 2
@@ -292,7 +292,7 @@ async def test_reset_clears_calls():
 
 async def test_mark_ready_on_initialize():
     """RecordingApi should reach RUNNING status when started."""
-    api = _make_recording_api()
+    api = make_recording_api()
 
     # Call on_initialize directly (simulates the lifecycle hook being called)
     await api.on_initialize()
@@ -319,7 +319,7 @@ class _TestEntityId(StrEnum):
 
 async def test_turn_on_converts_strenum_to_str():
     """turn_on converts StrEnum entity_id to str, matching real Api behavior."""
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_on(_TestEntityId.KITCHEN)
     call = api.calls[0]
     entity_id = call.kwargs.get("entity_id")
@@ -329,7 +329,7 @@ async def test_turn_on_converts_strenum_to_str():
 
 async def test_turn_on_accepts_strenum():
     """turn_on stores entity_id as plain str (not StrEnum) in ApiCall.kwargs."""
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_on(_TestEntityId.KITCHEN)
     call = api.calls[0]
     assert call.method == "turn_on"
@@ -340,7 +340,7 @@ async def test_turn_on_accepts_strenum():
 
 async def test_turn_off_accepts_strenum():
     """turn_off stores entity_id as plain str (not StrEnum) in ApiCall.kwargs."""
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_off(_TestEntityId.KITCHEN)
     call = api.calls[0]
     assert call.method == "turn_off"
@@ -351,7 +351,7 @@ async def test_turn_off_accepts_strenum():
 
 async def test_toggle_service_accepts_strenum():
     """toggle_service stores entity_id as plain str (not StrEnum) in ApiCall.kwargs."""
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.toggle_service(_TestEntityId.KITCHEN)
     call = api.calls[0]
     assert call.method == "toggle_service"
@@ -362,7 +362,7 @@ async def test_toggle_service_accepts_strenum():
 
 async def test_call_service_still_records_as_call_service():
     """call_service continues to record as method='call_service' unchanged."""
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.call_service("light", "turn_on", target={"entity_id": "light.x"})
     assert len(api.calls) == 1
     call = api.calls[0]
@@ -374,7 +374,7 @@ async def test_call_service_still_records_as_call_service():
 
 async def test_getattr_tailored_message_for_state_conversion():
     """__getattr__ gives tailored message for get_state_value, get_state_value_typed, get_attribute."""
-    api = _make_recording_api()
+    api = make_recording_api()
     with pytest.raises(NotImplementedError) as exc_info:
         await api.get_state_value("sensor.temp")
     assert "Call `await self.api.get_state(entity_id)`" in str(exc_info.value)
@@ -382,7 +382,7 @@ async def test_getattr_tailored_message_for_state_conversion():
 
 async def test_getattr_default_message_for_other_methods():
     """__getattr__ gives generic seed-state guidance for non-state-conversion methods."""
-    api = _make_recording_api()
+    api = make_recording_api()
     with pytest.raises(NotImplementedError) as exc_info:
         api.__getattr__("some_unimplemented_method")
     assert "Seed state via AppTestHarness.set_state()" in str(exc_info.value)
@@ -395,7 +395,7 @@ def test_apicall_import_from_api_call_module():
 
 async def test_call_service_target_dict_is_shallow_copied():
     """call_service records a copy of target; mutating the original does not change the recording."""
-    api = _make_recording_api()
+    api = make_recording_api()
     target = {"entity_id": "light.kitchen"}
     await api.call_service("light", "turn_on", target=target)
     # Mutate the original dict after the call
@@ -408,7 +408,7 @@ async def test_call_service_target_dict_is_shallow_copied():
 
 async def test_set_state_attributes_dict_is_shallow_copied():
     """set_state records a copy of attributes; mutating the original does not change the recording."""
-    api = _make_recording_api()
+    api = make_recording_api()
     attributes = {"brightness": 200}
     await api.set_state("light.kitchen", "on", attributes)
     # Mutate the original after the call
@@ -421,7 +421,7 @@ async def test_set_state_attributes_dict_is_shallow_copied():
 
 async def test_fire_event_event_data_dict_is_shallow_copied():
     """fire_event records a copy of event_data; mutating the original does not change the recording."""
-    api = _make_recording_api()
+    api = make_recording_api()
     event_data = {"zone": "kitchen"}
     await api.fire_event("my_event", event_data)
     # Mutate the original after the call
@@ -434,7 +434,7 @@ async def test_fire_event_event_data_dict_is_shallow_copied():
 
 async def test_reset_replaces_calls_list_not_in_place():
     """reset() replaces self.calls with a new list; saved references are not cleared."""
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_on("light.a")
     saved = api.calls  # save reference to the current list
     api.reset()
@@ -454,7 +454,7 @@ async def test_get_entity_or_none_returns_base_entity_subclass():
     branch behavior that was previously delegated via await self.get_entity().
     """
     state_dict = make_state_dict(entity_id="light.kitchen", state="on", attributes={"brightness": 200})
-    api = _make_recording_api(states={"light.kitchen": state_dict})
+    api = make_recording_api(states={"light.kitchen": state_dict})
 
     result = await api.get_entity_or_none("light.kitchen", model=LightEntity)
 
@@ -466,7 +466,7 @@ async def test_get_entity_or_none_returns_base_entity_subclass():
 
 async def test_get_entity_or_none_returns_none_for_missing_entity_with_model():
     """get_entity_or_none returns None (not raises) when entity is not seeded, even with a BaseEntity model."""
-    api = _make_recording_api(states={})
+    api = make_recording_api(states={})
 
     result = await api.get_entity_or_none("sensor.unseeded", model=LightEntity)
 
@@ -475,7 +475,7 @@ async def test_get_entity_or_none_returns_none_for_missing_entity_with_model():
 
 async def test_assert_called_exact_match():
     """assert_called_exact passes when the recorded kwargs match exactly."""
-    api = _make_recording_api()
+    api = make_recording_api()
     api.calls.append(ApiCall(method="test_method", kwargs={"a": 1, "b": 2}))
 
     # Exact match — passes.
@@ -484,7 +484,7 @@ async def test_assert_called_exact_match():
 
 async def test_assert_called_exact_mismatch_extra_key():
     """assert_called_exact fails when the recorded call has extra keys beyond what was specified."""
-    api = _make_recording_api()
+    api = make_recording_api()
     # turn_off records {"entity_id": ..., "domain": ...}
     await api.turn_off("light.kitchen")
 
@@ -499,7 +499,7 @@ async def test_assert_called_exact_mismatch_extra_key():
 
 async def test_assert_called_exact_no_calls():
     """assert_called_exact raises a clear AssertionError when the method was never called."""
-    api = _make_recording_api()
+    api = make_recording_api()
 
     with pytest.raises(AssertionError, match="never called"):
         api.assert_called_exact("call_service", domain="light")
@@ -507,7 +507,7 @@ async def test_assert_called_exact_no_calls():
 
 async def test_assert_called_exact_passes_full_kwargs():
     """assert_called_exact passes when all recorded kwargs are provided exactly."""
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_off("light.x")
     # Recorded: {"entity_id": "light.x", "domain": "homeassistant"}
     # Must specify all keys to pass exact match.
@@ -516,7 +516,7 @@ async def test_assert_called_exact_passes_full_kwargs():
 
 async def test_assert_called_partial_is_alias():
     """assert_called_partial behaves identically to assert_called (partial match semantics)."""
-    api = _make_recording_api()
+    api = make_recording_api()
     await api.turn_off("light.kitchen")
 
     # Both pass — partial match, extra "domain" key is ignored.

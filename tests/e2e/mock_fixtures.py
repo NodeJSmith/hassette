@@ -714,7 +714,7 @@ def wire_global_summary(
 
     def _make_error_counts_side_effect(source_tier: str = "app", **_kwargs) -> tuple[int, int]:
         if source_tier == "framework":
-            return _FRAMEWORK_ERROR_COUNTS
+            return FRAMEWORK_ERROR_COUNTS
         return (3, 6)
 
     hassette._telemetry_query_service.get_error_counts = AsyncMock(
@@ -870,12 +870,12 @@ ERRORS_COMBINED_COUNT: int = ERRORS_APP_TIER_COUNT + ERRORS_FRAMEWORK_TIER_COUNT
 
 # Framework error counts derived from builder output — used by
 # wire_global_summary to mock get_error_counts(source_tier="framework").
-_FRAMEWORK_ERROR_COUNTS: tuple[int, int] = (
+FRAMEWORK_ERROR_COUNTS: tuple[int, int] = (
     sum(1 for e in _framework_tier_errors if isinstance(e, HandlerErrorRecord)),
     sum(1 for e in _framework_tier_errors if isinstance(e, JobErrorRecord)),
 )
-FRAMEWORK_TIER_TOTAL_HANDLER_ERRORS: int = _FRAMEWORK_ERROR_COUNTS[0]
-FRAMEWORK_TIER_TOTAL_JOB_ERRORS: int = _FRAMEWORK_ERROR_COUNTS[1]
+FRAMEWORK_TIER_TOTAL_HANDLER_ERRORS: int = FRAMEWORK_ERROR_COUNTS[0]
+FRAMEWORK_TIER_TOTAL_JOB_ERRORS: int = FRAMEWORK_ERROR_COUNTS[1]
 
 # ── Per-listener telemetry for my_app ─────────────────────────────────
 

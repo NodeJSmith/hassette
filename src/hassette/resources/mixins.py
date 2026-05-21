@@ -4,14 +4,12 @@ import traceback
 import typing
 from typing import Any, Protocol
 
+from hassette.events import HassetteServiceEvent
 from hassette.exceptions import InvalidLifecycleTransitionError
 from hassette.types.enums import ResourceStatus
 from hassette.types.types import CoroLikeT
 
 LOGGER = logging.getLogger(__name__)
-
-if typing.TYPE_CHECKING:
-    from hassette.events import HassetteServiceEvent
 
 
 # Valid ResourceStatus transitions. This is the authoritative table for the entire framework.
@@ -138,7 +136,7 @@ class LifecycleMixin(_LifecycleHostStubs):
     _status: ResourceStatus = ResourceStatus.NOT_STARTED
     """Current status of the instance."""
 
-    _shutdown_completed: bool = False
+    shutdown_completed: bool = False
     """Flag indicating that shutdown has fully completed (set in _finalize_shutdown)."""
 
     def __init__(self) -> None:
@@ -148,7 +146,7 @@ class LifecycleMixin(_LifecycleHostStubs):
         self._previous_status = ResourceStatus.NOT_STARTED
         self._status = ResourceStatus.NOT_STARTED
         self._init_task: asyncio.Task | None = None
-        self._shutdown_completed = False
+        self.shutdown_completed = False
 
     # --------- props
     @property
@@ -192,7 +190,7 @@ class LifecycleMixin(_LifecycleHostStubs):
     # --------- lifecycle ops
     def start(self) -> None:
         """Start the instance by spawning its initialize method in a task."""
-        self._shutdown_completed = False
+        self.shutdown_completed = False
 
         if self._init_task and not self._init_task.done():
             self.logger.debug("%s already started or running", self.unique_name, stacklevel=2)
@@ -337,8 +335,6 @@ class LifecycleMixin(_LifecycleHostStubs):
         ready: bool = False,
         ready_phase: str | None = None,
     ):
-        from hassette.events import HassetteServiceEvent
-
         return HassetteServiceEvent.from_data(
             resource_name=self.class_name,
             role=self.role,

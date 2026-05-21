@@ -4,7 +4,10 @@ Verifies Tier 1 symbol set in __all__, Tier 2 backward compatibility,
 and star-import behavior.
 """
 
+import types
+
 import hassette.test_utils as test_utils
+from hassette.test_utils import HassetteHarness
 
 TIER1_SYMBOLS = {
     "ApiCall",
@@ -32,8 +35,6 @@ def test_tier1_in_all() -> None:
 
 def test_tier2_importable() -> None:
     """Tier 2 symbols (e.g. HassetteHarness) are importable from hassette.test_utils."""
-    from hassette.test_utils import HassetteHarness
-
     assert HassetteHarness is not None
 
 
@@ -48,8 +49,6 @@ def test_tier2_not_in_all() -> None:
 
 def test_star_import_only_tier1() -> None:
     """from hassette.test_utils import * brings only Tier 1 symbols into namespace."""
-    import types
-
     # Create a fresh module to simulate star import
     fresh = types.ModuleType("_star_test")
     exec("from hassette.test_utils import *", fresh.__dict__)

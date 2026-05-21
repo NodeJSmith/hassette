@@ -33,7 +33,7 @@ async def enrichment_client(mock_hassette_enrichment):
         yield ac, mock_hassette_enrichment
 
 
-def _make_job_summary(
+def make_job_summary(
     job_id: int = 1,
     app_key: str = "my_app",
     job_name: str = "test_job",
@@ -69,7 +69,7 @@ class TestAppJobsEnrichmentWithLiveMatch:
         client, mock_hassette = enrichment_client
 
         # Arrange: one DB job summary
-        db_summary = _make_job_summary(job_id=42)
+        db_summary = make_job_summary(job_id=42)
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
 
         # Arrange: matching live job with db_id=42
@@ -109,7 +109,7 @@ class TestAppJobsEnrichmentNoLiveMatch:
     async def test_no_live_match_live_fields_none(self, enrichment_client) -> None:
         client, mock_hassette = enrichment_client
 
-        db_summary = _make_job_summary(job_id=99)
+        db_summary = make_job_summary(job_id=99)
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
         mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
 
@@ -132,7 +132,7 @@ class TestAppJobsEnrichmentHeapFailureDegrades:
         client, mock_hassette = enrichment_client
 
         # Arrange: DB job
-        db_summary = _make_job_summary(job_id=55)
+        db_summary = make_job_summary(job_id=55)
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
 
         # Arrange: get_all_jobs raises
@@ -156,7 +156,7 @@ class TestAppJobsEnrichmentHeapFailureDegrades:
         """Verify response is not 500 regardless of exception type."""
         client, mock_hassette = enrichment_client
 
-        mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[_make_job_summary(job_id=1)])
+        mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[make_job_summary(job_id=1)])
         mock_hassette.scheduler_service.get_all_jobs = AsyncMock(side_effect=RuntimeError("scheduler heap unavailable"))
 
         response = await client.get("/api/telemetry/app/my_app/jobs")

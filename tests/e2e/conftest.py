@@ -127,7 +127,7 @@ def runtime_query_service(mock_hassette):
 
 
 @pytest.fixture(scope="session")
-def _log_handler():
+def log_handler():
     """Create a LogCaptureHandler with seed log entries for e2e tests."""
     handler = LogCaptureHandler(buffer_size=100)
     entries = [
@@ -165,13 +165,13 @@ def _log_handler():
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_SPA_INDEX = _REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
+SPA_INDEX = _REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
 
 
 @pytest.fixture(scope="session")
-def _ensure_spa_built():
+def ensure_spa_built():
     """Build the frontend SPA if the build output is missing."""
-    if _SPA_INDEX.exists():
+    if SPA_INDEX.exists():
         return
     frontend_dir = _REPO_ROOT / "frontend"
     if not (frontend_dir / "package.json").exists():
@@ -180,11 +180,11 @@ def _ensure_spa_built():
         pytest.skip("npm not found — cannot build SPA for e2e tests")
     subprocess.run(["npm", "ci", "--prefix", str(frontend_dir)], check=True)
     subprocess.run(["npm", "run", "build", "--prefix", str(frontend_dir)], check=True)
-    if not _SPA_INDEX.exists():
+    if not SPA_INDEX.exists():
         pytest.fail("Frontend build completed but spa/index.html not found")
 
 
-def _make_log_records_from_buffer(handler: LogCaptureHandler):
+def make_log_records_from_buffer(handler: LogCaptureHandler):
     """Return an async function that serves log records from the capture handler buffer.
 
     Replaces ``telemetry_repository.get_log_records`` in E2E tests so the seeded
@@ -224,17 +224,17 @@ def _make_log_records_from_buffer(handler: LogCaptureHandler):
 
 
 @pytest.fixture(scope="session")
-def _fastapi_app(mock_hassette, runtime_query_service, _log_handler, _ensure_spa_built):  # noqa: ARG001
+def fastapi_app(mock_hassette, runtime_query_service, log_handler, ensure_spa_built):  # noqa: ARG001
     """Create the FastAPI app instance."""
 
     with (
-        patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=_log_handler),
-        patch("hassette.web.routes.logs._repo.get_log_records", _make_log_records_from_buffer(_log_handler)),
+        patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler),
+        patch("hassette.web.routes.logs._repo.get_log_records", make_log_records_from_buffer(log_handler)),
     ):
         app = create_fastapi_app(mock_hassette)
     # Patch persistently so runtime calls also find the handler
-    patcher_capture = patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=_log_handler)
-    patcher_repo = patch("hassette.web.routes.logs._repo.get_log_records", _make_log_records_from_buffer(_log_handler))
+    patcher_capture = patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler)
+    patcher_repo = patch("hassette.web.routes.logs._repo.get_log_records", make_log_records_from_buffer(log_handler))
     patcher_capture.start()
     patcher_repo.start()
     yield app
@@ -242,19 +242,19 @@ def _fastapi_app(mock_hassette, runtime_query_service, _log_handler, _ensure_spa
     patcher_capture.stop()
 
 
-def _get_free_port() -> int:
+def get_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
 
 
 @pytest.fixture(scope="session")
-def live_server(_fastapi_app):
+def live_server(fastapi_app):
     """Start a real uvicorn server in a daemon thread and yield its base URL."""
-    port = _get_free_port()
+    port = get_free_port()
     # Disable WS protocol to avoid websockets.legacy DeprecationWarning (which
     # becomes an error under pytest's filterwarnings=["error"] setting).
-    config = uvicorn.Config(app=_fastapi_app, host="127.0.0.1", port=port, log_level="warning", ws="none")
+    config = uvicorn.Config(app=fastapi_app, host="127.0.0.1", port=port, log_level="warning", ws="none")
     server = uvicorn.Server(config)
 
     thread = threading.Thread(target=server.run, daemon=True)
@@ -288,7 +288,7 @@ def base_url(live_server: str) -> str:
 
 
 @pytest.fixture(autouse=True)
-def _set_time_preset_to_1h(request: pytest.FixtureRequest, page, base_url: str) -> None:
+def set_time_preset_to_1h(request: pytest.FixtureRequest, page, base_url: str) -> None:
     """Force timePreset='1h' in localStorage before every test page load.
 
     The new UI uses useScopedApi which gates fetches on uptimeSeconds received
@@ -335,7 +335,7 @@ def _set_time_preset_to_1h(request: pytest.FixtureRequest, page, base_url: str) 
 
 
 @pytest.fixture
-def live_server_ws(_fastapi_app, runtime_query_service):
+def live_server_ws(fastapi_app, runtime_query_service):
     """Start a WebSocket-enabled uvicorn server for session-path tests.
 
     Uses ws='websockets-sansio' to avoid the websockets.legacy DeprecationWarning
@@ -352,9 +352,9 @@ def live_server_ws(_fastapi_app, runtime_query_service):
     original_lock = runtime_query_service._lock
     runtime_query_service._lock = asyncio.Lock()
 
-    port = _get_free_port()
+    port = get_free_port()
     config = uvicorn.Config(
-        app=_fastapi_app,
+        app=fastapi_app,
         host="127.0.0.1",
         port=port,
         log_level="warning",

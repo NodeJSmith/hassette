@@ -60,7 +60,7 @@ LOG_LEVEL_OVERRIDES = {
 }
 
 
-def _stub_resource(cls: type[Resource]) -> Resource:
+def stub_resource(cls: type[Resource]) -> Resource:
     """Create a Resource instance by calling Resource.__init__ only (skips subclass constructors)."""
     hassette = make_mock_hassette(
         sealed=False,
@@ -111,14 +111,14 @@ OVERRIDE_CASES = [
 )
 def test_config_log_level_returns_expected_field(cls: type[Resource], logging_attr: str) -> None:
     """Each Resource's config_log_level returns the correct config.logging.* field value."""
-    resource = _stub_resource(cls)
+    resource = stub_resource(cls)
     expected = getattr(resource.hassette.config.logging, logging_attr)
     assert resource.config_log_level == expected
 
 
 def test_api_does_not_return_global_log_level() -> None:
     """Api.config_log_level returns logging.api, not the global logging.log_level."""
-    resource = _stub_resource(Api)
+    resource = stub_resource(Api)
     resource.hassette.config.logging.log_level = "INFO"
     resource.hassette.config.logging.api = "DEBUG"
     assert resource.config_log_level == "DEBUG"
@@ -127,7 +127,7 @@ def test_api_does_not_return_global_log_level() -> None:
 
 def test_api_resource_does_not_return_global_log_level() -> None:
     """ApiResource.config_log_level returns logging.api, not the global logging.log_level."""
-    resource = _stub_resource(ApiResource)
+    resource = stub_resource(ApiResource)
     resource.hassette.config.logging.log_level = "INFO"
     resource.hassette.config.logging.api = "DEBUG"
     assert resource.config_log_level == "DEBUG"

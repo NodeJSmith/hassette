@@ -16,7 +16,7 @@ from hassette.config import HassetteConfig
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry, validate_registries
 from hassette.exceptions import AppPrecheckFailedError
 from hassette.logging_ import enable_logging, get_log_persistence_handler, shutdown_logging
-from hassette.resources.base import Resource, Service
+from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
@@ -47,8 +47,6 @@ if typing.TYPE_CHECKING:
 
 P = ParamSpec("P")
 R = TypeVar("R")
-
-T = TypeVar("T", bound=Resource | Service)
 
 
 class Hassette(Resource):
@@ -589,7 +587,7 @@ class Hassette(Resource):
         FinalMeta exempts Hassette from the @final on Resource.shutdown().
         This ensures hooks + child propagation + cleanup all share one budget.
         """
-        if not self._shutdown_completed and not self._shutting_down:
+        if not self.shutdown_completed and not self.shutting_down:
             self.logger.info("Hassette shutdown initiated", stacklevel=2)
         try:
             async with asyncio.timeout(self.config.lifecycle.total_shutdown_timeout_seconds):
@@ -602,8 +600,8 @@ class Hassette(Resource):
             for child in self.children:
                 child._force_terminal()
         finally:
-            # _shutdown_completed FIRST — prevents re-entry regardless of what follows.
-            self._shutdown_completed = True
+            # shutdown_completed FIRST — prevents re-entry regardless of what follows.
+            self.shutdown_completed = True
             # Emit Hassette's own STOPPED event while streams are still open,
             # then close streams and set terminal status.
             if not self.event_streams_closed:

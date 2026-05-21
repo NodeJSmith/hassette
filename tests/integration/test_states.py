@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
 
 
-async def _send_and_wait(
+async def send_and_wait(
     hassette: "HassetteHarness", entity_id: str, old_state: dict | None, new_state: dict | None
 ) -> None:
     """Send a state change event and wait for the proxy to process it."""
@@ -54,7 +54,7 @@ class TestStatesDomainAccessors:
             ("light.kitchen", light2_dict),
             ("sensor.temp", sensor_dict),
         ]:
-            await _send_and_wait(hassette, entity_id, None, state_dict)
+            await send_and_wait(hassette, entity_id, None, state_dict)
 
         # Create StateManager instance and access lights
         states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
@@ -87,7 +87,7 @@ class TestStatesDomainAccessors:
         sensor2 = make_sensor_state_dict("sensor.humidity", "60", unit_of_measurement="%")
 
         for entity_id, state_dict in [("sensor.temperature", sensor1), ("sensor.humidity", sensor2)]:
-            await _send_and_wait(hassette, entity_id, None, state_dict)
+            await send_and_wait(hassette, entity_id, None, state_dict)
 
         states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         sensors = states_instance.sensor
@@ -112,7 +112,7 @@ class TestStatesDomainAccessors:
         switch2 = make_switch_state_dict("switch.outlet2", "off")
 
         for entity_id, state_dict in [("switch.outlet1", switch1), ("switch.outlet2", switch2)]:
-            await _send_and_wait(hassette, entity_id, None, state_dict)
+            await send_and_wait(hassette, entity_id, None, state_dict)
 
         states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         switches = states_instance.switch
@@ -138,7 +138,7 @@ class TestStatesGenericAccess:
 
         # Add light
         light = make_light_state_dict("light.test", "on", brightness=200)
-        await _send_and_wait(hassette, "light.test", None, light)
+        await send_and_wait(hassette, "light.test", None, light)
 
         states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         lights = states_instance[states.LightState]
@@ -167,7 +167,7 @@ class TestDomainStates:
         # Add a sensor state with a decimal value
         old_sensor_dict = make_state_dict("input_number.test_value", "22.1")
         new_sensor_dict = make_state_dict("input_number.test_value", "22.5")
-        await _send_and_wait(hassette, "input_number.test_value", old_sensor_dict, new_sensor_dict)
+        await send_and_wait(hassette, "input_number.test_value", old_sensor_dict, new_sensor_dict)
 
         states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
 
@@ -183,7 +183,7 @@ class TestDomainStates:
         # Add a sensor state with a decimal value
         old_state_dict = make_state_dict("input_number.test_value", "22.1")
         new_state_dict = make_state_dict("input_number.test_value", "22.5")
-        await _send_and_wait(hassette, "input_number.test_value", old_state_dict, new_state_dict)
+        await send_and_wait(hassette, "input_number.test_value", old_state_dict, new_state_dict)
 
         states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         input_number_manager = states_instance.input_number
@@ -217,7 +217,7 @@ class TestDomainStates:
         # Add lights
         for i in range(3):
             light = make_light_state_dict(f"light.room_{i}", "on")
-            await _send_and_wait(hassette, f"light.room_{i}", None, light)
+            await send_and_wait(hassette, f"light.room_{i}", None, light)
 
         states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         lights = states_instance.light
@@ -240,7 +240,7 @@ class TestDomainStates:
         sensor2 = make_sensor_state_dict("sensor.test_2", "20")
 
         for entity_id, state_dict in [("sensor.test_1", sensor1), ("sensor.test_2", sensor2)]:
-            await _send_and_wait(hassette, entity_id, None, state_dict)
+            await send_and_wait(hassette, entity_id, None, state_dict)
 
         states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         sensors = states_instance.sensor
@@ -253,7 +253,7 @@ class TestDomainStates:
 
         # Add light
         light = make_light_state_dict("light.test", "on", brightness=100)
-        await _send_and_wait(hassette, "light.test", None, light)
+        await send_and_wait(hassette, "light.test", None, light)
 
         states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         lights = states_instance.light
@@ -272,7 +272,7 @@ class TestDomainStates:
 
         # Add sensor
         sensor = make_sensor_state_dict("sensor.test", "25")
-        await _send_and_wait(hassette, "sensor.test", None, sensor)
+        await send_and_wait(hassette, "sensor.test", None, sensor)
 
         states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
 
@@ -316,7 +316,7 @@ class TestStatesIntegration:
             ("sensor.test", sensor),
             ("switch.test", switch),
         ]:
-            await _send_and_wait(hassette, entity_id, None, state_dict)
+            await send_and_wait(hassette, entity_id, None, state_dict)
 
         # Verify proxy stores BaseState (not domain-specific types)
         light_state_raw = proxy.states.get("light.test")
@@ -357,7 +357,7 @@ class TestStatesIntegration:
 
         # Add a light via state change event
         light = make_light_state_dict("light.dynamic", "on", brightness=150)
-        await _send_and_wait(hassette, "light.dynamic", None, light)
+        await send_and_wait(hassette, "light.dynamic", None, light)
 
         # States should now show the new light
         new_light_count = len(light_manager)
@@ -387,7 +387,7 @@ class TestStatesIntegration:
         ]
 
         for entity_id, state_dict in entities:
-            await _send_and_wait(hassette, entity_id, None, state_dict)
+            await send_and_wait(hassette, entity_id, None, state_dict)
 
         # Each domain should only contain its entities with proper types
         light_ids = set()
@@ -434,7 +434,7 @@ class TestStatesIntegration:
         ]
 
         for entity_id, state_dict in entities:
-            await _send_and_wait(hassette, entity_id, None, state_dict)
+            await send_and_wait(hassette, entity_id, None, state_dict)
 
         states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
 
@@ -463,7 +463,7 @@ class TestStateManagerGenericAccess:
         hassette = hassette_with_state_proxy
 
         light_dict = make_light_state_dict("light.bedroom", "on", brightness=150)
-        await _send_and_wait(hassette, "light.bedroom", None, light_dict)
+        await send_and_wait(hassette, "light.bedroom", None, light_dict)
 
         states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         result = states_instance.get("light.bedroom")
@@ -482,7 +482,7 @@ class TestStateManagerGenericAccess:
 
         # Manually inject state for unregistered domain
         test_dict = make_state_dict("test.test_entity", "test_value")
-        await _send_and_wait(hassette, "test.test_entity", None, test_dict)
+        await send_and_wait(hassette, "test.test_entity", None, test_dict)
 
         states_instance = StateManager(hassette.hassette, parent=hassette.hassette)
         result = states_instance.get("test.test_entity")

@@ -103,13 +103,13 @@ async def reset_app_handler(app_handler: "AppHandler", original_manifests: dict[
     await app_handler.lifecycle.bootstrap_apps()
 
 
-def _reset_resource_flags(resource: "Resource") -> None:
+def reset_resource_flags(resource: "Resource") -> None:
     """Recursively reset lifecycle flags on all descendants of a resource (not the resource itself)."""
     for child in resource.children:
-        child._shutdown_completed = False
-        child._shutting_down = False
+        child.shutdown_completed = False
+        child.shutting_down = False
         child.shutdown_event.clear()
-        _reset_resource_flags(child)
+        reset_resource_flags(child)
 
 
 async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: list["Resource"] | None = None) -> None:
@@ -139,8 +139,8 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
         raise RuntimeError(msg)
 
     hassette.shutdown_event.clear()
-    hassette._shutting_down = False
-    hassette._shutdown_completed = False
+    hassette.shutting_down = False
+    hassette.shutdown_completed = False
     hassette.mark_ready(reason="reset for test")
     if original_children is not None:
         hassette.children[:] = original_children
@@ -153,4 +153,4 @@ async def reset_hassette_lifecycle(hassette: "Hassette", *, original_children: l
     if hassette._status not in ACTIVE_STATUSES:
         hassette._status = ResourceStatus.RUNNING
 
-    _reset_resource_flags(hassette)
+    reset_resource_flags(hassette)

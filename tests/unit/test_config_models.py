@@ -4,12 +4,15 @@ Covers defaults, field constraints, computed defaults, and intra-model validator
 Also covers integration-level config loading with nested sections and env var overrides.
 """
 
+import warnings
 from pathlib import Path
 
 import pytest
 from pydantic import BaseModel, ValidationError
 from pydantic_settings import BaseSettings
+from pydantic_settings.sources import InitSettingsSource
 
+from hassette.config.config import HassetteConfig
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.config.models import (
     AppsConfig,
@@ -22,10 +25,6 @@ from hassette.config.models import (
     WebSocketConfig,
 )
 from hassette.test_utils.config import TEST_TOKEN
-
-# ---------------------------------------------------------------------------
-# FR#9: All 8 nested model classes inherit BaseModel, not BaseSettings
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -55,11 +54,6 @@ def test_nested_models_are_base_model_not_base_settings(model_cls):
     """AC#9: All 8 nested model classes are BaseModel subclasses, not BaseSettings subclasses."""
     assert issubclass(model_cls, BaseModel), f"{model_cls.__name__} must inherit BaseModel"
     assert not issubclass(model_cls, BaseSettings), f"{model_cls.__name__} must NOT inherit BaseSettings"
-
-
-# ---------------------------------------------------------------------------
-# DatabaseConfig
-# ---------------------------------------------------------------------------
 
 
 class TestDatabaseConfig:
@@ -131,11 +125,6 @@ class TestDatabaseConfig:
         assert cfg.path == Path("/tmp/test.db")
 
 
-# ---------------------------------------------------------------------------
-# WebSocketConfig
-# ---------------------------------------------------------------------------
-
-
 class TestWebSocketConfig:
     def test_defaults(self):
         """WebSocketConfig constructs with all defaults."""
@@ -160,11 +149,6 @@ class TestWebSocketConfig:
         assert isinstance(cfg.connect_retry_initial_wait_seconds, float)
         assert isinstance(cfg.connect_retry_max_wait_seconds, float)
         assert isinstance(cfg.max_recovery_seconds, float)
-
-
-# ---------------------------------------------------------------------------
-# LoggingConfig
-# ---------------------------------------------------------------------------
 
 
 class TestLoggingConfig:
@@ -237,17 +221,10 @@ class TestLoggingConfig:
 
     def test_invalid_log_level_coerced_to_info(self):
         """Invalid log level string falls back to INFO."""
-        import warnings
-
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             cfg = LoggingConfig(log_level="BADLEVEL")  # pyright: ignore[reportArgumentType]
         assert cfg.log_level == "INFO"
-
-
-# ---------------------------------------------------------------------------
-# LifecycleConfig
-# ---------------------------------------------------------------------------
 
 
 class TestLifecycleConfig:
@@ -305,11 +282,6 @@ class TestLifecycleConfig:
         assert cfg.error_handler_timeout_seconds is None
 
 
-# ---------------------------------------------------------------------------
-# WebApiConfig
-# ---------------------------------------------------------------------------
-
-
 class TestWebApiConfig:
     def test_defaults(self):
         """WebApiConfig constructs with all defaults."""
@@ -323,11 +295,6 @@ class TestWebApiConfig:
         assert cfg.event_buffer_size == 500
         assert cfg.log_buffer_size == 2000
         assert cfg.job_history_size == 1000
-
-
-# ---------------------------------------------------------------------------
-# AppsConfig
-# ---------------------------------------------------------------------------
 
 
 class TestAppsConfig:
@@ -403,11 +370,6 @@ class TestAppsConfig:
             AppsConfig(**{reserved_name: {"filename": "f.py", "class_name": "C"}})
 
 
-# ---------------------------------------------------------------------------
-# SchedulerConfig
-# ---------------------------------------------------------------------------
-
-
 class TestSchedulerConfig:
     def test_defaults(self):
         """SchedulerConfig constructs with all defaults."""
@@ -439,11 +401,6 @@ class TestSchedulerConfig:
             SchedulerConfig(job_timeout_seconds=True)
 
 
-# ---------------------------------------------------------------------------
-# FileWatcherConfig
-# ---------------------------------------------------------------------------
-
-
 class TestFileWatcherConfig:
     def test_defaults(self):
         """FileWatcherConfig constructs with all defaults."""
@@ -453,20 +410,12 @@ class TestFileWatcherConfig:
         assert cfg.watch_files is True
 
 
-# ---------------------------------------------------------------------------
-# Integration: HassetteConfig nested access (FR#2)
-# ---------------------------------------------------------------------------
-
-
 class TestHassetteConfigNested:
     """Integration tests: nested model fields accessible on HassetteConfig."""
 
     @pytest.fixture
     def isolated_config_cls(self):
         """Return an isolated HassetteConfig subclass (no TOML, no env, no CLI)."""
-        from pydantic_settings.sources import InitSettingsSource
-
-        from hassette.config.config import HassetteConfig
 
         class _IsolatedConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
@@ -530,11 +479,6 @@ class TestHassetteConfigNested:
         assert config.lifecycle.event_handler_timeout_seconds == 600.0
 
 
-# ---------------------------------------------------------------------------
-# Integration: TOML nested section loading (FR#3, AC#3)
-# ---------------------------------------------------------------------------
-
-
 class TestNestedTomlLoading:
     """TOML with nested sections loads correctly."""
 
@@ -545,7 +489,6 @@ class TestNestedTomlLoading:
             "[hassette]\ntoken = 'test-token'\nrun_app_precheck = false\n\n[hassette.database]\nretention_days = 14\n",
             encoding="utf-8",
         )
-        from hassette.config.config import HassetteConfig
 
         class _TomlConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
@@ -567,7 +510,6 @@ class TestNestedTomlLoading:
             "[hassette.websocket]\nheartbeat_interval_seconds = 60\n",
             encoding="utf-8",
         )
-        from hassette.config.config import HassetteConfig
 
         class _TomlConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
@@ -586,7 +528,6 @@ class TestNestedTomlLoading:
             "[hassette]\ntoken = 'test-token'\nrun_app_precheck = false\n\n[hassette.database]\n",
             encoding="utf-8",
         )
-        from hassette.config.config import HassetteConfig
 
         class _TomlConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
@@ -600,18 +541,12 @@ class TestNestedTomlLoading:
         assert config.database.max_size_mb == 500
 
 
-# ---------------------------------------------------------------------------
-# Integration: env var partial update (FR#4, FR#5, AC#4)
-# ---------------------------------------------------------------------------
-
-
 class TestEnvVarPartialUpdate:
     """Setting a single env var for a nested field does not replace entire group defaults."""
 
     def test_single_env_var_sets_only_that_field(self, monkeypatch, tmp_path):
         """HASSETTE__DATABASE__RETENTION_DAYS=14 sets only retention_days."""
         monkeypatch.setenv("HASSETTE__DATABASE__RETENTION_DAYS", "14")
-        from hassette.config.config import HassetteConfig
 
         class _EnvConfig2(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
@@ -632,7 +567,6 @@ class TestEnvVarPartialUpdate:
     def test_env_var_logging_log_level(self, monkeypatch):
         """HASSETTE__LOGGING__LOG_LEVEL=DEBUG sets only logging.log_level."""
         monkeypatch.setenv("HASSETTE__LOGGING__LOG_LEVEL", "DEBUG")
-        from hassette.config.config import HassetteConfig
 
         class _EnvConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
@@ -648,17 +582,11 @@ class TestEnvVarPartialUpdate:
         assert config.logging.log_level == "DEBUG"
 
 
-# ---------------------------------------------------------------------------
-# Integration: cross-model validation (FR#6, AC#5)
-# ---------------------------------------------------------------------------
-
-
 class TestCrossModelValidation:
     """Cross-model validators spanning nested models."""
 
     def test_log_retention_exceeds_db_retention_raises(self):
         """log_retention_days > retention_days raises ValidationError referencing both paths."""
-        from hassette.config.config import HassetteConfig
 
         class _ValidationConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {

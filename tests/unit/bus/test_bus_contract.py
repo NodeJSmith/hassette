@@ -34,18 +34,8 @@ if typing.TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
 
 
-# ---------------------------------------------------------------------------
-# Handlers
-# ---------------------------------------------------------------------------
-
-
-async def _handler_contract(event) -> None:
+async def handler_contract(event) -> None:
     pass
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -73,11 +63,6 @@ def bus(contract_harness: "HassetteHarness") -> "Bus":
 def bus_service(contract_harness: "HassetteHarness") -> "BusService":
     """The BusService from the contract harness."""
     return contract_harness.bus_service
-
-
-# ---------------------------------------------------------------------------
-# AC#2: DB failure doesn't affect routing
-# ---------------------------------------------------------------------------
 
 
 async def test_db_failure_does_not_prevent_event_delivery(
@@ -135,7 +120,7 @@ async def test_db_failure_handler_still_in_routing_table(
     """
     # Keep patch active while awaiting — background task runs after bus.on() returns
     with patch.object(bus_service._executor, "register_listener", new=AsyncMock(side_effect=Exception("DB error"))):
-        sub = bus.on(topic="test.contract.still_routed", handler=_handler_contract)
+        sub = bus.on(topic="test.contract.still_routed", handler=handler_contract)
 
         # Settle the registration_task so the exception has been caught and swallowed
         if sub.registration_task is not None:
@@ -146,11 +131,6 @@ async def test_db_failure_handler_still_in_routing_table(
     assert len(listeners) == 1
     assert listeners[0].listener_id == sub.listener.listener_id
     assert sub.listener.db_id is None
-
-
-# ---------------------------------------------------------------------------
-# AC#6: registration_task resolves with None on DB failure
-# ---------------------------------------------------------------------------
 
 
 async def test_registration_task_resolves_on_db_failure(
@@ -168,7 +148,7 @@ async def test_registration_task_resolves_on_db_failure(
     task completes would allow the real stub to run and set db_id.
     """
     with patch.object(bus_service._executor, "register_listener", new=AsyncMock(side_effect=RuntimeError("DB down"))):
-        sub = bus.on(topic="test.contract.task_resolves", handler=_handler_contract)
+        sub = bus.on(topic="test.contract.task_resolves", handler=handler_contract)
 
         assert sub.registration_task is not None, "registration_task must be set"
 
@@ -192,7 +172,7 @@ async def test_registration_task_resolves_on_exception_subclass(
     """
 
     with patch.object(bus_service._executor, "register_listener", new=AsyncMock(side_effect=_CustomDbError("custom"))):
-        sub = bus.on(topic="test.contract.custom_exc", handler=_handler_contract)
+        sub = bus.on(topic="test.contract.custom_exc", handler=handler_contract)
 
         assert sub.registration_task is not None
         result = await sub.registration_task
@@ -204,18 +184,13 @@ async def test_registration_task_resolves_on_success(
     bus: "Bus",
 ) -> None:
     """AC#6 baseline: registration_task resolves with None when DB registration succeeds."""
-    sub = bus.on(topic="test.contract.task_success", handler=_handler_contract)
+    sub = bus.on(topic="test.contract.task_success", handler=handler_contract)
 
     assert sub.registration_task is not None
     result = await sub.registration_task
     assert result is None
     # On success, db_id must be set (the harness stub returns a sequential int)
     assert sub.listener.db_id is not None, "db_id must be set after successful registration"
-
-
-# ---------------------------------------------------------------------------
-# AC#5: Router structural contract — all methods are sync, no lock
-# ---------------------------------------------------------------------------
 
 
 class TestRouterSyncContract:

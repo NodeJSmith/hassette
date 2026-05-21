@@ -167,8 +167,6 @@ class RuntimeQueryService(Resource):
         self._ws_drops_since_last_log = 0
         self._ws_drops_last_logged = 0.0
 
-    # --- Event handlers ---
-
     async def _on_state_change(self, event: RawStateChangeEvent) -> None:
         payload = StateChangedData(
             entity_id=event.payload.data.entity_id,
@@ -304,8 +302,6 @@ class RuntimeQueryService(Resource):
             self._event_buffer.append(entry)
             await self.broadcast(entry)
 
-    # --- Listener/job meta registration ---
-
     def register_listener_meta(self, listener_db_id: int, app_key: str, instance_index: int) -> None:
         """Record the (app_key, instance_index) for a newly registered listener DB row.
 
@@ -340,8 +336,6 @@ class RuntimeQueryService(Resource):
         }
         self._job_meta = {k: v for k, v in self._job_meta.items() if v[0] != app_key or k in live_job_ids}
 
-    # --- App status ---
-
     def get_app_status_snapshot(self) -> AppStatusSnapshot:
         return self.hassette.app_handler.get_status_snapshot()
 
@@ -349,13 +343,9 @@ class RuntimeQueryService(Resource):
         """Return full manifest-based snapshot including stopped/disabled apps."""
         return self.hassette.app_handler.registry.get_full_snapshot()
 
-    # --- Event history ---
-
     def get_recent_events(self, limit: int = 50) -> list[dict]:
         events = list(self._event_buffer)
         return events[-limit:]
-
-    # --- System status ---
 
     def get_system_status(self) -> SystemStatus:
         ws_connected = self.hassette.websocket_service.is_ready()
@@ -443,8 +433,6 @@ class RuntimeQueryService(Resource):
                 )
 
         return issues
-
-    # --- WebSocket client management ---
 
     async def register_ws_client(self) -> asyncio.Queue:
         queue: asyncio.Queue = asyncio.Queue(maxsize=256)

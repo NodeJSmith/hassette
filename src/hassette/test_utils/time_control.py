@@ -27,7 +27,7 @@ LOGGER = logging.getLogger(__name__)
 # re-entrant, and is not awaitable. Callers use a non-blocking acquire in
 # synchronous code, so concurrent attempts fail immediately rather than waiting
 # for the active freeze_time scope to finish.
-_FREEZE_TIME_LOCK = threading.Lock()
+FREEZE_TIME_LOCK = threading.Lock()
 
 
 class _TestClock:
@@ -124,7 +124,7 @@ class TimeControlMixin:
         """Stop time patchers and release the process-global freeze_time lock."""
         self._stop_time_patchers()
         with contextlib.suppress(RuntimeError):
-            _FREEZE_TIME_LOCK.release()
+            FREEZE_TIME_LOCK.release()
 
     def freeze_time(self, instant: Instant | ZonedDateTime) -> None:
         """Freeze time at the given instant.
@@ -152,7 +152,7 @@ class TimeControlMixin:
 
         # Acquire the process-global lock (non-blocking). Idempotent re-freeze
         # from the same harness is allowed (we already hold the lock).
-        if self._time_patcher is None and not _FREEZE_TIME_LOCK.acquire(blocking=False):
+        if self._time_patcher is None and not FREEZE_TIME_LOCK.acquire(blocking=False):
             raise RuntimeError(
                 "freeze_time is already held by another harness — "
                 "time-controlling tests must be isolated (e.g., separate xdist workers)."

@@ -5,12 +5,8 @@ Verifies:
 - harness/_websocket_service uses _status bypass (not validated setter)
 """
 
-from hassette.resources.mixins import VALID_TRANSITIONS
+from hassette.resources.mixins import VALID_TRANSITIONS, LifecycleMixin
 from hassette.types.enums import ResourceStatus
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 def test_app_lifecycle_timeout_stop_valid():
@@ -32,8 +28,6 @@ def test_harness_status_bypass():
     This test verifies the _status bypass pattern works on a LifecycleMixin instance.
     It does NOT test behavior of the Mock — just confirms the assignment convention.
     """
-    from hassette.resources.mixins import LifecycleMixin
-
     # Construct a bare LifecycleMixin (no hassette attribute) to test the bypass
     mixin = LifecycleMixin.__new__(LifecycleMixin)
     mixin._status = ResourceStatus.NOT_STARTED

@@ -15,10 +15,6 @@ from hassette.scheduler.classes import JobExecutionRecord, ScheduledJob
 from hassette.test_utils.helpers import create_listener
 from hassette.utils.execution import ExecutionResult, track_execution
 
-# ---------------------------------------------------------------------------
-# Listener.create() — source_tier parameter
-# ---------------------------------------------------------------------------
-
 
 class TestListenerCreateSourceTier:
     def test_listener_create_default_source_tier(self) -> None:
@@ -36,11 +32,6 @@ class TestListenerCreateSourceTier:
         )
 
         assert listener.identity.source_tier == "framework"
-
-
-# ---------------------------------------------------------------------------
-# InvokeHandler — source_tier field
-# ---------------------------------------------------------------------------
 
 
 class TestInvokeHandlerSourceTier:
@@ -72,11 +63,6 @@ class TestInvokeHandlerSourceTier:
                 topic="test.topic",
                 listener_id=42,
             )
-
-
-# ---------------------------------------------------------------------------
-# HandlerInvocationRecord — nullable listener_id
-# ---------------------------------------------------------------------------
 
 
 class TestHandlerInvocationRecordNullable:
@@ -113,11 +99,6 @@ class TestHandlerInvocationRecordNullable:
 
         assert record.listener_id == 99
         assert record.source_tier == "app"
-
-
-# ---------------------------------------------------------------------------
-# HandlerErrorRecord — nullable fields
-# ---------------------------------------------------------------------------
 
 
 class TestHandlerErrorRecordNullableFields:
@@ -157,11 +138,6 @@ class TestHandlerErrorRecordNullableFields:
         assert record.handler_method is None
 
 
-# ---------------------------------------------------------------------------
-# ExecutionResult — is_di_failure flag
-# ---------------------------------------------------------------------------
-
-
 class TestExecutionResultIsDiFailure:
     def test_execution_result_is_di_failure_default(self) -> None:
         """ExecutionResult.is_di_failure defaults to False."""
@@ -193,11 +169,6 @@ class TestExecutionResultIsDiFailure:
         assert result.is_di_failure is True
 
 
-# ---------------------------------------------------------------------------
-# AppConfig — rejects '__hassette__' sentinel app_key
-# ---------------------------------------------------------------------------
-
-
 class TestAppConfigSentinelGuard:
     def test_app_config_rejects_hassette_sentinel(self) -> None:
         """AppConfig(app_key='__hassette__') raises ValueError."""
@@ -213,11 +184,6 @@ class TestAppConfigSentinelGuard:
         """AppConfig with no explicit app_key succeeds (default is empty string)."""
         config = AppConfig()
         assert config is not None
-
-
-# ---------------------------------------------------------------------------
-# ScheduledJob — source_tier field
-# ---------------------------------------------------------------------------
 
 
 class TestScheduledJobSourceTier:
@@ -252,11 +218,6 @@ class TestScheduledJobSourceTier:
         assert job.source_tier == "framework"
 
 
-# ---------------------------------------------------------------------------
-# JobExecutionRecord — nullable job_id and source_tier
-# ---------------------------------------------------------------------------
-
-
 class TestJobExecutionRecordNullable:
     def test_job_execution_record_nullable_job_id(self) -> None:
         """JobExecutionRecord(job_id=None, ...) is valid."""
@@ -285,11 +246,6 @@ class TestJobExecutionRecordNullable:
 
         assert record.job_id == 77
         assert record.source_tier == "app"
-
-
-# ---------------------------------------------------------------------------
-# ListenerRegistration and ScheduledJobRegistration — source_tier field
-# ---------------------------------------------------------------------------
 
 
 class TestRegistrationSourceTier:
@@ -331,11 +287,6 @@ class TestRegistrationSourceTier:
         )
 
         assert reg.source_tier == "app"
-
-
-# ---------------------------------------------------------------------------
-# ExecuteJob — source_tier field
-# ---------------------------------------------------------------------------
 
 
 class TestExecuteJobSourceTier:

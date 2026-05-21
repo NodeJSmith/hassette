@@ -56,18 +56,18 @@ if typing.TYPE_CHECKING:
 # Stub message templates — imported by tests to avoid brittle substring matches.
 # Must stay byte-identical with the constants in codegen/src/hassette_codegen/sync_facade.py.
 # ---------------------------------------------------------------------------
-_STUB_MSG_STATE_CONVERSION = (
+STUB_MSG_STATE_CONVERSION = (
     "RecordingApi.sync.{name} is not implemented on the test facade. "
     "Call `harness.api_recorder.sync.get_state(entity_id)` and read the returned state directly."
 )
-_STUB_MSG_GENERIC = (
+STUB_MSG_GENERIC = (
     "RecordingApi.sync.{name} is not implemented. "
     "Seed state via AppTestHarness.set_state() for read methods, "
     "or use a full integration test for methods requiring a live HA connection."
 )
 
 
-class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
+class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
     """Synchronous recording facade for RecordingApi.
 
     Instances are created by RecordingApi.__init__ and share the parent's
@@ -87,7 +87,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
     # completes, or in a subclass that skips super().__init__), the error will be
     # AttributeError: _parent — which is by design; partial construction is an error.
     def __getattr__(self, name: str) -> Any:
-        """Raise NotImplementedError for public attributes not defined on _RecordingSyncFacade.
+        """Raise NotImplementedError for public attributes not defined on RecordingSyncFacade.
 
         Private attributes fall through to the default AttributeError so that Python
         machinery works correctly. All known public methods from ``ApiSyncFacade``
@@ -99,13 +99,13 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         if name.startswith("_"):
             raise AttributeError(name)
 
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name=name))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name=name))
 
     def ws_send_and_wait(self, **data: Any) -> Any:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="ws_send_and_wait"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="ws_send_and_wait"))
 
     def ws_send_json(self, **data: Any) -> None:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="ws_send_json"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="ws_send_json"))
 
     def rest_request(
         self,
@@ -116,19 +116,19 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         suppress_error_message: bool = False,
         **kwargs: Any,
     ) -> aiohttp.ClientResponse:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="rest_request"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="rest_request"))
 
     def get_rest_request(self, url: str, params: dict[str, Any] | None = None, **kwargs: Any) -> aiohttp.ClientResponse:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="get_rest_request"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_rest_request"))
 
     def post_rest_request(self, url: str, data: dict[str, Any] | None = None, **kwargs: Any) -> aiohttp.ClientResponse:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="post_rest_request"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="post_rest_request"))
 
     def delete_rest_request(self, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_rest_request"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="delete_rest_request"))
 
     def get_states_raw(self) -> list["HassStateDict"]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="get_states_raw"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_states_raw"))
 
     def get_states(self) -> list[BaseState]:
         """Return typed states for all seeded entities."""
@@ -137,16 +137,16 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         return [self._parent._convert_state(raw, eid) for eid, raw in items]
 
     def get_states_iterator(self) -> Generator["BaseState[Any]", Any, None]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="get_states_iterator"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_states_iterator"))
 
     def get_config(self) -> dict[str, Any]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="get_config"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_config"))
 
     def get_services(self) -> dict[str, Any]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="get_services"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_services"))
 
     def get_panels(self) -> dict[str, Any]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="get_panels"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_panels"))
 
     def fire_event(self, event_type: str, event_data: dict[str, Any] | None = None) -> dict[str, Any]:
         """Record a fire_event call. Returns an empty dict stub."""
@@ -212,7 +212,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         )
 
     def get_state_raw(self, entity_id: str) -> "HassStateDict":
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="get_state_raw"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_state_raw"))
 
     def entity_exists(self, entity_id: str) -> bool:
         """Return True if entity_id is seeded in the StateProxy."""
@@ -241,7 +241,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
         Inlines the logic from :meth:`get_entity` using sync helpers only — no peer
         ``async def`` calls on ``self`` — to satisfy the authoring constraint required
-        by the ``_RecordingSyncFacade`` generator. Matches the real
+        by the ``RecordingSyncFacade`` generator. Matches the real
         ``Api.get_entity_or_none`` signature; see :meth:`get_entity` for semantics."""
 
         if not issubclass(model, BaseEntity):
@@ -263,7 +263,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
         Inlines the logic from :meth:`get_state` using sync helpers only — no peer
         ``async def`` calls on ``self`` — to satisfy the authoring constraint required
-        by the ``_RecordingSyncFacade`` generator."""
+        by the ``RecordingSyncFacade`` generator."""
 
         try:
             raw = self._parent._get_raw_state(entity_id)
@@ -272,13 +272,13 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         return self._parent._convert_state(raw, entity_id)
 
     def get_state_value(self, entity_id: str) -> Any:
-        raise NotImplementedError(_STUB_MSG_STATE_CONVERSION.format(name="get_state_value"))
+        raise NotImplementedError(STUB_MSG_STATE_CONVERSION.format(name="get_state_value"))
 
     def get_state_value_typed(self, entity_id: str) -> "Any":
-        raise NotImplementedError(_STUB_MSG_STATE_CONVERSION.format(name="get_state_value_typed"))
+        raise NotImplementedError(STUB_MSG_STATE_CONVERSION.format(name="get_state_value_typed"))
 
     def get_attribute(self, entity_id: str, attribute: str) -> Any | FalseySentinel:
-        raise NotImplementedError(_STUB_MSG_STATE_CONVERSION.format(name="get_attribute"))
+        raise NotImplementedError(STUB_MSG_STATE_CONVERSION.format(name="get_attribute"))
 
     def get_history(
         self,
@@ -289,7 +289,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         minimal_response: bool = False,
         no_attributes: bool = False,
     ) -> list[HistoryEntry]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="get_history"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_history"))
 
     def get_histories(
         self,
@@ -300,7 +300,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         minimal_response: bool = False,
         no_attributes: bool = False,
     ) -> dict[str, list[HistoryEntry]]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="get_histories"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_histories"))
 
     def get_logbook(
         self,
@@ -308,7 +308,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         start_time: PlainDateTime | ZonedDateTime | Date | str,
         end_time: PlainDateTime | ZonedDateTime | Date | str,
     ) -> list[dict]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="get_logbook"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_logbook"))
 
     def set_state(self, entity_id: str | StrEnum, state: Any, attributes: dict[str, Any] | None = None) -> dict:
         """Record a set_state call. Returns an empty dict stub."""
@@ -326,10 +326,10 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
     def get_camera_image(
         self, entity_id: str, timestamp: PlainDateTime | ZonedDateTime | Date | str | None = None
     ) -> bytes:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="get_camera_image"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_camera_image"))
 
     def get_calendars(self) -> list[dict]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="get_calendars"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_calendars"))
 
     def get_calendar_events(
         self,
@@ -337,13 +337,13 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         start_time: PlainDateTime | ZonedDateTime | Date | str,
         end_time: PlainDateTime | ZonedDateTime | Date | str,
     ) -> list[dict]:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="get_calendar_events"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="get_calendar_events"))
 
     def render_template(self, template: str, variables: dict | None = None) -> str:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="render_template"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="render_template"))
 
     def delete_entity(self, entity_id: str) -> None:
-        raise NotImplementedError(_STUB_MSG_GENERIC.format(name="delete_entity"))
+        raise NotImplementedError(STUB_MSG_GENERIC.format(name="delete_entity"))
 
     def list_input_booleans(self) -> list[InputBooleanRecord]:
         """Return all seeded input_boolean helpers. Delegates to _list_helper."""
@@ -420,7 +420,7 @@ class _RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
         Delegates to _list_helper. Uses ``model_copy(deep=True)`` because
         ``InputSelectRecord.options`` is a ``list[str]`` — the ``deep_copy=True``
-        flag in ``_RECORD_TYPE_TO_DOMAIN`` ensures the list is not aliased."""
+        flag in ``RECORD_TYPE_TO_DOMAIN`` ensures the list is not aliased."""
 
         return cast("list[InputSelectRecord]", self._parent._list_helper(InputSelectRecord))
 

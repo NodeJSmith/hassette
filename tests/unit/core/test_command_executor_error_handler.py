@@ -11,12 +11,8 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.scheduler.error_context import SchedulerErrorContext
 
-# ---------------------------------------------------------------------------
-# Fixtures / factories
-# ---------------------------------------------------------------------------
 
-
-def _make_executor() -> CommandExecutor:
+def make_executor() -> CommandExecutor:
     """Build a CommandExecutor with all dependencies mocked out."""
     hassette = MagicMock()
     hassette.config.database.telemetry_write_queue_max = 1000
@@ -56,7 +52,7 @@ def _make_executor() -> CommandExecutor:
     return executor
 
 
-def _make_listener(
+def make_listener(
     *,
     error_handler: Callable | None = None,
 ) -> MagicMock:
@@ -69,14 +65,14 @@ def _make_listener(
     return listener
 
 
-def _make_invoke_handler_cmd(
+def make_invoke_handler_cmd(
     *,
     listener: MagicMock | None = None,
     app_level_error_handler: Callable | None = None,
 ) -> MagicMock:
     """Build a minimal InvokeHandler-like mock."""
     if listener is None:
-        listener = _make_listener()
+        listener = make_listener()
     cmd = MagicMock(spec=InvokeHandler)
     cmd.source_tier = "app"
     cmd.listener_id = 1
@@ -88,7 +84,7 @@ def _make_invoke_handler_cmd(
     return cmd
 
 
-def _make_execute_job_cmd(
+def make_execute_job_cmd(
     *,
     job_error_handler: Callable | None = None,
     app_level_error_handler: Callable | None = None,
@@ -109,7 +105,7 @@ def _make_execute_job_cmd(
     return cmd
 
 
-async def _drain_tasks(executor: CommandExecutor) -> None:
+async def drain_tasks(executor: CommandExecutor) -> None:
     """Allow all spawned error handler tasks to complete."""
     tasks = executor._spawned_tasks
     if tasks:
@@ -117,26 +113,21 @@ async def _drain_tasks(executor: CommandExecutor) -> None:
         tasks.clear()
 
 
-# ---------------------------------------------------------------------------
-# InvokeHandler (bus) error handler tests
-# ---------------------------------------------------------------------------
-
-
 class TestBusErrorHandlerInvocation:
     async def test_error_handler_invoked_on_exception(self) -> None:
         """When handler raises, error handler is called with a BusErrorContext."""
-        executor = _make_executor()
+        executor = make_executor()
         received_ctx: list[BusErrorContext] = []
 
         async def error_handler(ctx: BusErrorContext) -> None:
             received_ctx.append(ctx)
 
-        listener = _make_listener(error_handler=error_handler)
+        listener = make_listener(error_handler=error_handler)
         listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("boom"))
-        cmd = _make_invoke_handler_cmd(listener=listener)
+        cmd = make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert len(received_ctx) == 1
         ctx = received_ctx[0]
@@ -145,22 +136,22 @@ class TestBusErrorHandlerInvocation:
 
     async def test_error_handler_receives_correct_context(self) -> None:
         """BusErrorContext fields are correctly populated from cmd and result."""
-        executor = _make_executor()
+        executor = make_executor()
         received_ctx: list[BusErrorContext] = []
 
         async def error_handler(ctx: BusErrorContext) -> None:
             received_ctx.append(ctx)
 
-        listener = _make_listener(error_handler=error_handler)
+        listener = make_listener(error_handler=error_handler)
         exc = ValueError("ctx test")
         listener.invoker.invoke = AsyncMock(side_effect=exc)
         event = MagicMock()
-        cmd = _make_invoke_handler_cmd(listener=listener)
+        cmd = make_invoke_handler_cmd(listener=listener)
         cmd.event = event
         cmd.topic = "hass.state_changed"
 
         await executor._execute_handler(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert len(received_ctx) == 1
         ctx = received_ctx[0]
@@ -173,60 +164,60 @@ class TestBusErrorHandlerInvocation:
 
     async def test_error_handler_not_invoked_on_success(self) -> None:
         """No error handler call when handler completes successfully."""
-        executor = _make_executor()
+        executor = make_executor()
         called = []
 
         async def error_handler(ctx: BusErrorContext) -> None:
             called.append(ctx)
 
-        listener = _make_listener(error_handler=error_handler)
+        listener = make_listener(error_handler=error_handler)
         listener.invoker.invoke = AsyncMock(return_value=None)
-        cmd = _make_invoke_handler_cmd(listener=listener)
+        cmd = make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert called == []
 
     async def test_error_handler_not_invoked_on_cancelled(self) -> None:
         """CancelledError does not invoke the error handler (re-raised from _execute)."""
-        executor = _make_executor()
+        executor = make_executor()
         called = []
 
         async def error_handler(ctx: BusErrorContext) -> None:
             called.append(ctx)
 
-        listener = _make_listener(error_handler=error_handler)
+        listener = make_listener(error_handler=error_handler)
         listener.invoker.invoke = AsyncMock(side_effect=asyncio.CancelledError)
-        cmd = _make_invoke_handler_cmd(listener=listener)
+        cmd = make_invoke_handler_cmd(listener=listener)
 
         with pytest.raises(asyncio.CancelledError):
             await executor._execute_handler(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert called == []
 
     async def test_error_handler_invoked_on_timeout(self) -> None:
         """TimeoutError invokes the error handler (result.exc is populated)."""
-        executor = _make_executor()
+        executor = make_executor()
         called = []
 
         async def error_handler(ctx: BusErrorContext) -> None:
             called.append(ctx)
 
-        listener = _make_listener(error_handler=error_handler)
+        listener = make_listener(error_handler=error_handler)
         listener.invoker.invoke = AsyncMock(side_effect=TimeoutError("timed out"))
-        cmd = _make_invoke_handler_cmd(listener=listener)
+        cmd = make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert len(called) == 1
         assert isinstance(called[0].exception, TimeoutError)
 
     async def test_per_registration_handler_wins_over_app_level(self) -> None:
         """Per-registration error_handler takes priority over app_level_error_handler."""
-        executor = _make_executor()
+        executor = make_executor()
         per_reg_called = []
         app_called = []
 
@@ -236,60 +227,60 @@ class TestBusErrorHandlerInvocation:
         async def app_handler(ctx: BusErrorContext) -> None:
             app_called.append(ctx)
 
-        listener = _make_listener(error_handler=per_reg_handler)
+        listener = make_listener(error_handler=per_reg_handler)
         listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("oops"))
-        cmd = _make_invoke_handler_cmd(listener=listener, app_level_error_handler=app_handler)
+        cmd = make_invoke_handler_cmd(listener=listener, app_level_error_handler=app_handler)
 
         await executor._execute_handler(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert len(per_reg_called) == 1
         assert app_called == []
 
     async def test_app_level_handler_used_when_no_per_registration(self) -> None:
         """App-level error handler is used when listener has no per-registration handler."""
-        executor = _make_executor()
+        executor = make_executor()
         app_called = []
 
         async def app_handler(ctx: BusErrorContext) -> None:
             app_called.append(ctx)
 
-        listener = _make_listener(error_handler=None)
+        listener = make_listener(error_handler=None)
         listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("app level"))
-        cmd = _make_invoke_handler_cmd(listener=listener, app_level_error_handler=app_handler)
+        cmd = make_invoke_handler_cmd(listener=listener, app_level_error_handler=app_handler)
 
         await executor._execute_handler(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert len(app_called) == 1
 
     async def test_no_handler_existing_behavior_unchanged(self) -> None:
         """When no error handler is set, execution proceeds normally without error."""
-        executor = _make_executor()
-        listener = _make_listener(error_handler=None)
+        executor = make_executor()
+        listener = make_listener(error_handler=None)
         listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("unhandled"))
-        cmd = _make_invoke_handler_cmd(listener=listener, app_level_error_handler=None)
+        cmd = make_invoke_handler_cmd(listener=listener, app_level_error_handler=None)
 
         # Should not raise
         await executor._execute_handler(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         # No tasks spawned
         assert executor._error_handler_failures == 0
 
     async def test_error_handler_failure_caught_and_logged(self) -> None:
         """When the error handler itself raises, it is caught and logged."""
-        executor = _make_executor()
+        executor = make_executor()
 
         async def bad_handler(_ctx: BusErrorContext) -> None:
             raise ValueError("handler is broken")
 
-        listener = _make_listener(error_handler=bad_handler)
+        listener = make_listener(error_handler=bad_handler)
         listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("original"))
-        cmd = _make_invoke_handler_cmd(listener=listener)
+        cmd = make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         # Should not propagate — executor._logger.error should have been called
         # (error_handler_failures incremented)
@@ -297,40 +288,40 @@ class TestBusErrorHandlerInvocation:
 
     async def test_error_handler_failure_increments_counter(self) -> None:
         """_error_handler_failures is incremented each time a handler fails."""
-        executor = _make_executor()
+        executor = make_executor()
 
         async def bad_handler(_ctx: BusErrorContext) -> None:
             raise RuntimeError("fail")
 
         for _ in range(3):
-            listener = _make_listener(error_handler=bad_handler)
+            listener = make_listener(error_handler=bad_handler)
             listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("original"))
-            cmd = _make_invoke_handler_cmd(listener=listener)
+            cmd = make_invoke_handler_cmd(listener=listener)
             await executor._execute_handler(cmd)
 
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
         assert executor._error_handler_failures == 3
 
     async def test_error_handler_timeout_logs_warning(self) -> None:
         """When error handler times out, _error_handler_failures is incremented."""
-        executor = _make_executor()
+        executor = make_executor()
         executor.hassette.config.lifecycle.error_handler_timeout_seconds = 0.01
 
         async def slow_handler(_ctx: BusErrorContext) -> None:
             await asyncio.sleep(10)  # will be cancelled by timeout
 
-        listener = _make_listener(error_handler=slow_handler)
+        listener = make_listener(error_handler=slow_handler)
         listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("original"))
-        cmd = _make_invoke_handler_cmd(listener=listener)
+        cmd = make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert executor._error_handler_failures == 1
 
     async def test_error_handler_runs_in_separate_task(self) -> None:
         """Error handler is spawned as a separate task, not inline."""
-        executor = _make_executor()
+        executor = make_executor()
 
         # Track spawn calls
         spawn_calls: list[str] = []
@@ -345,29 +336,29 @@ class TestBusErrorHandlerInvocation:
         async def error_handler(ctx: BusErrorContext) -> None:
             pass
 
-        listener = _make_listener(error_handler=error_handler)
+        listener = make_listener(error_handler=error_handler)
         listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("original"))
-        cmd = _make_invoke_handler_cmd(listener=listener)
+        cmd = make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert any("error_handler" in name for name in spawn_calls)
 
     async def test_framework_log_still_emitted_with_custom_handler(self) -> None:
         """Framework error logging happens inside _execute(); custom handler runs after, not instead."""
-        executor = _make_executor()
+        executor = make_executor()
         error_handler_called = []
 
         async def error_handler(ctx: BusErrorContext) -> None:
             error_handler_called.append(ctx)
 
-        listener = _make_listener(error_handler=error_handler)
+        listener = make_listener(error_handler=error_handler)
         listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("test"))
-        cmd = _make_invoke_handler_cmd(listener=listener)
+        cmd = make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         # Framework logging (via _log_error inside _execute) must have been called
         executor.logger.error.assert_called()
@@ -376,41 +367,36 @@ class TestBusErrorHandlerInvocation:
 
     async def test_get_error_handler_failures_api(self) -> None:
         """get_error_handler_failures() returns the counter value."""
-        executor = _make_executor()
+        executor = make_executor()
         assert executor.get_error_handler_failures() == 0
 
         async def bad_handler(_ctx: BusErrorContext) -> None:
             raise RuntimeError("oops")
 
-        listener = _make_listener(error_handler=bad_handler)
+        listener = make_listener(error_handler=bad_handler)
         listener.invoker.invoke = AsyncMock(side_effect=RuntimeError("original"))
-        cmd = _make_invoke_handler_cmd(listener=listener)
+        cmd = make_invoke_handler_cmd(listener=listener)
 
         await executor._execute_handler(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert executor.get_error_handler_failures() == 1
-
-
-# ---------------------------------------------------------------------------
-# ExecuteJob (scheduler) error handler tests
-# ---------------------------------------------------------------------------
 
 
 class TestSchedulerErrorHandlerInvocation:
     async def test_error_handler_invoked_on_exception(self) -> None:
         """When job raises, error handler is called with a SchedulerErrorContext."""
-        executor = _make_executor()
+        executor = make_executor()
         received_ctx: list[SchedulerErrorContext] = []
 
         async def error_handler(ctx: SchedulerErrorContext) -> None:
             received_ctx.append(ctx)
 
-        cmd = _make_execute_job_cmd(job_error_handler=error_handler)
+        cmd = make_execute_job_cmd(job_error_handler=error_handler)
         cmd.callable = AsyncMock(side_effect=RuntimeError("job boom"))
 
         await executor._execute_job(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert len(received_ctx) == 1
         ctx = received_ctx[0]
@@ -418,14 +404,14 @@ class TestSchedulerErrorHandlerInvocation:
 
     async def test_error_handler_receives_correct_context(self) -> None:
         """SchedulerErrorContext fields are correctly populated from cmd and result."""
-        executor = _make_executor()
+        executor = make_executor()
         received_ctx: list[SchedulerErrorContext] = []
 
         async def error_handler(ctx: SchedulerErrorContext) -> None:
             received_ctx.append(ctx)
 
         exc = ValueError("sched test")
-        cmd = _make_execute_job_cmd(job_error_handler=error_handler)
+        cmd = make_execute_job_cmd(job_error_handler=error_handler)
         cmd.job.name = "my_job"
         cmd.job.group = "group_a"
         cmd.job.args = (1, 2)
@@ -433,7 +419,7 @@ class TestSchedulerErrorHandlerInvocation:
         cmd.callable = AsyncMock(side_effect=exc)
 
         await executor._execute_job(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert len(received_ctx) == 1
         ctx = received_ctx[0]
@@ -447,23 +433,23 @@ class TestSchedulerErrorHandlerInvocation:
 
     async def test_error_handler_not_invoked_on_success(self) -> None:
         """No error handler call when job succeeds."""
-        executor = _make_executor()
+        executor = make_executor()
         called = []
 
         async def error_handler(ctx: SchedulerErrorContext) -> None:
             called.append(ctx)
 
-        cmd = _make_execute_job_cmd(job_error_handler=error_handler)
+        cmd = make_execute_job_cmd(job_error_handler=error_handler)
         cmd.callable = AsyncMock(return_value=None)
 
         await executor._execute_job(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert called == []
 
     async def test_per_registration_handler_wins_over_app_level(self) -> None:
         """Per-job error_handler takes priority over app_level_error_handler."""
-        executor = _make_executor()
+        executor = make_executor()
         per_reg_called = []
         app_called = []
 
@@ -473,69 +459,69 @@ class TestSchedulerErrorHandlerInvocation:
         async def app_handler(ctx: SchedulerErrorContext) -> None:
             app_called.append(ctx)
 
-        cmd = _make_execute_job_cmd(job_error_handler=per_reg, app_level_error_handler=app_handler)
+        cmd = make_execute_job_cmd(job_error_handler=per_reg, app_level_error_handler=app_handler)
         cmd.callable = AsyncMock(side_effect=RuntimeError("oops"))
 
         await executor._execute_job(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert len(per_reg_called) == 1
         assert app_called == []
 
     async def test_app_level_handler_used_when_no_per_registration(self) -> None:
         """App-level error handler used when job has no per-registration handler."""
-        executor = _make_executor()
+        executor = make_executor()
         app_called = []
 
         async def app_handler(ctx: SchedulerErrorContext) -> None:
             app_called.append(ctx)
 
-        cmd = _make_execute_job_cmd(job_error_handler=None, app_level_error_handler=app_handler)
+        cmd = make_execute_job_cmd(job_error_handler=None, app_level_error_handler=app_handler)
         cmd.callable = AsyncMock(side_effect=RuntimeError("fail"))
 
         await executor._execute_job(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert len(app_called) == 1
 
     async def test_no_handler_existing_behavior_unchanged(self) -> None:
         """When no error handler set, execution proceeds normally."""
-        executor = _make_executor()
-        cmd = _make_execute_job_cmd(job_error_handler=None, app_level_error_handler=None)
+        executor = make_executor()
+        cmd = make_execute_job_cmd(job_error_handler=None, app_level_error_handler=None)
         cmd.callable = AsyncMock(side_effect=RuntimeError("unhandled"))
 
         await executor._execute_job(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert executor._error_handler_failures == 0
 
     async def test_error_handler_failure_increments_counter(self) -> None:
         """_error_handler_failures incremented when scheduler handler raises."""
-        executor = _make_executor()
+        executor = make_executor()
 
         async def bad(_ctx: SchedulerErrorContext) -> None:
             raise RuntimeError("handler fail")
 
-        cmd = _make_execute_job_cmd(job_error_handler=bad)
+        cmd = make_execute_job_cmd(job_error_handler=bad)
         cmd.callable = AsyncMock(side_effect=RuntimeError("original"))
 
         await executor._execute_job(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert executor._error_handler_failures == 1
 
     async def test_error_handler_timeout_increments_counter(self) -> None:
         """_error_handler_failures incremented when scheduler handler times out."""
-        executor = _make_executor()
+        executor = make_executor()
         executor.hassette.config.lifecycle.error_handler_timeout_seconds = 0.01
 
         async def slow(_ctx: SchedulerErrorContext) -> None:
             await asyncio.sleep(10)
 
-        cmd = _make_execute_job_cmd(job_error_handler=slow)
+        cmd = make_execute_job_cmd(job_error_handler=slow)
         cmd.callable = AsyncMock(side_effect=RuntimeError("original"))
 
         await executor._execute_job(cmd)
-        await _drain_tasks(executor)
+        await drain_tasks(executor)
 
         assert executor._error_handler_failures == 1

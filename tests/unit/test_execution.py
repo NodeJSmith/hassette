@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from hassette.exceptions import DependencyError, DependencyInjectionError, HassetteError
 from hassette.utils.execution import MAX_TRACEBACK_SIZE, ExecutionResult, track_execution
 
 
@@ -83,8 +84,6 @@ class TestTrackExecution:
 
     async def test_hassette_error_subclass(self) -> None:
         """Verify that HassetteError subclasses are properly tracked."""
-        from hassette.exceptions import DependencyInjectionError
-
         with pytest.raises(DependencyInjectionError):
             async with track_execution() as result:
                 raise DependencyInjectionError("bad sig")
@@ -95,8 +94,6 @@ class TestTrackExecution:
 
     async def test_known_errors_suppresses_traceback(self) -> None:
         """known_errors=(DependencyError,) produces error_traceback=None for DependencyError."""
-        from hassette.exceptions import DependencyError
-
         with pytest.raises(DependencyError):
             async with track_execution(known_errors=(DependencyError,)) as result:
                 raise DependencyError("missing dep")
@@ -108,8 +105,6 @@ class TestTrackExecution:
 
     async def test_unknown_error_preserves_traceback(self) -> None:
         """known_errors=(DependencyError,) preserves traceback for non-matching exceptions."""
-        from hassette.exceptions import DependencyError
-
         with pytest.raises(ValueError, match="oops"):
             async with track_execution(known_errors=(DependencyError,)) as result:
                 raise ValueError("oops")
@@ -121,8 +116,6 @@ class TestTrackExecution:
 
     async def test_known_errors_subclass_also_suppressed(self) -> None:
         """Subclass of a known error type is also suppressed (isinstance semantics)."""
-        from hassette.exceptions import DependencyInjectionError, HassetteError
-
         with pytest.raises(DependencyInjectionError):
             async with track_execution(known_errors=(HassetteError,)) as result:
                 raise DependencyInjectionError("bad sig")

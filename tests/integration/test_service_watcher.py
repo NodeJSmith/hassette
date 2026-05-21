@@ -62,11 +62,6 @@ def get_dummy_service(
     return _Dummy(hassette)
 
 
-# ---------------------------------------------------------------------------
-# Migrated existing tests — updated to use RestartSpec
-# ---------------------------------------------------------------------------
-
-
 async def test_restart_service_cancels_then_starts(get_service_watcher_mock: ServiceWatcher):
     """Restarting a failed service cancels and reinitializes it."""
     call_counts = {"cancel": 0, "start": 0}
@@ -238,11 +233,6 @@ async def test_budget_reset_on_recovery(get_service_watcher_mock: ServiceWatcher
 
     budget._evict_expired()
     assert len(budget._timestamps) == 0  # budget reset
-
-
-# ---------------------------------------------------------------------------
-# New tests for WP02 behavior
-# ---------------------------------------------------------------------------
 
 
 async def test_permanent_exhaustion_triggers_shutdown(get_service_watcher_mock: ServiceWatcher):

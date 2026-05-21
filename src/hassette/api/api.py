@@ -210,11 +210,7 @@ if typing.TYPE_CHECKING:
     from hassette.models.entities import EntityT
     from hassette.models.states import BaseState
 
-
-# ---------------------------------------------------------------------------
-# Module-level helpers — placed BEFORE the Api class so the sync facade
 # generator does NOT emit them as public sync methods on ApiSyncFacade.
-# ---------------------------------------------------------------------------
 
 
 def _expect_list(val: Any, context: str) -> list:
@@ -966,15 +962,10 @@ class Api(Resource):
         if response.status != 204:
             raise RuntimeError(f"Failed to delete entity {entity_id}: {response.status} - {response.reason}")
 
-    # ---------------------------------------------------------------------------
-    # Helper CRUD methods — persistent stored-config management via HA WebSocket.
     # All 32 methods use _ws_helper_call for consistent error context.
     # Command pattern: {domain}/{list|create|update|delete}
     # ID key pattern:  {domain}_id  (uniform across all 8 domains — see design.md
     #                  § HA WebSocket Commands / Shared infrastructure)
-    # ---------------------------------------------------------------------------
-
-    # --- input_boolean ---
 
     async def list_input_booleans(self) -> list[InputBooleanRecord]:
         """List all stored input_boolean helpers.
@@ -1031,8 +1022,6 @@ class Api(Resource):
         await _ws_helper_call(self, "input_boolean", "delete", input_boolean_id=helper_id)
         self.logger.debug("Deleted input_boolean helper %r", helper_id)
 
-    # --- input_number ---
-
     async def list_input_numbers(self) -> list[InputNumberRecord]:
         """List all stored input_number helpers.
 
@@ -1087,8 +1076,6 @@ class Api(Resource):
         """
         await _ws_helper_call(self, "input_number", "delete", input_number_id=helper_id)
         self.logger.debug("Deleted input_number helper %r", helper_id)
-
-    # --- input_text ---
 
     async def list_input_texts(self) -> list[InputTextRecord]:
         """List all stored input_text helpers.
@@ -1145,8 +1132,6 @@ class Api(Resource):
         await _ws_helper_call(self, "input_text", "delete", input_text_id=helper_id)
         self.logger.debug("Deleted input_text helper %r", helper_id)
 
-    # --- input_select ---
-
     async def list_input_selects(self) -> list[InputSelectRecord]:
         """List all stored input_select helpers.
 
@@ -1201,8 +1186,6 @@ class Api(Resource):
         """
         await _ws_helper_call(self, "input_select", "delete", input_select_id=helper_id)
         self.logger.debug("Deleted input_select helper %r", helper_id)
-
-    # --- input_datetime ---
 
     async def list_input_datetimes(self) -> list[InputDatetimeRecord]:
         """List all stored input_datetime helpers.
@@ -1259,8 +1242,6 @@ class Api(Resource):
         await _ws_helper_call(self, "input_datetime", "delete", input_datetime_id=helper_id)
         self.logger.debug("Deleted input_datetime helper %r", helper_id)
 
-    # --- input_button ---
-
     async def list_input_buttons(self) -> list[InputButtonRecord]:
         """List all stored input_button helpers.
 
@@ -1315,8 +1296,6 @@ class Api(Resource):
         """
         await _ws_helper_call(self, "input_button", "delete", input_button_id=helper_id)
         self.logger.debug("Deleted input_button helper %r", helper_id)
-
-    # --- counter ---
 
     async def list_counters(self) -> list[CounterRecord]:
         """List all stored counter helpers.
@@ -1373,8 +1352,6 @@ class Api(Resource):
         await _ws_helper_call(self, "counter", "delete", counter_id=helper_id)
         self.logger.debug("Deleted counter helper %r", helper_id)
 
-    # --- timer ---
-
     async def list_timers(self) -> list[TimerRecord]:
         """List all stored timer helpers.
 
@@ -1430,7 +1407,6 @@ class Api(Resource):
         await _ws_helper_call(self, "timer", "delete", timer_id=helper_id)
         self.logger.debug("Deleted timer helper %r", helper_id)
 
-    # ---------------------------------------------------------------------------
     # Counter service-call shortcuts (operate on live entity state, not stored
     # config). Use update_counter() to change the stored initial/minimum/maximum.
     #
@@ -1438,7 +1414,6 @@ class Api(Resource):
     # service actions are one-off calls that benefit from the full call_service()
     # signature. Counter actions get wrappers because the pattern "increment on
     # every event" is common enough to warrant a two-word call site.
-    # ---------------------------------------------------------------------------
 
     async def increment_counter(self, entity_id: str) -> None:
         """Increment a counter entity's current value (live state, not stored config).

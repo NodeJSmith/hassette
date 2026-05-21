@@ -3,7 +3,6 @@
 import asyncio
 import typing
 from copy import deepcopy
-from logging import getLogger
 from pathlib import Path
 from timeit import default_timer as timer
 
@@ -33,7 +32,6 @@ try:
 except ImportError:  # pragma: no cover
     precisedelta = None  # pyright: ignore[reportAssignmentType]
 
-LOGGER = getLogger(__name__)
 
 # Shorten enum references (from AppLifecycleManager)
 FAILED = ResourceStatus.FAILED
@@ -96,10 +94,6 @@ class AppLifecycleService(Resource):
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.app_handler
 
-    # ------------------------------------------------------------------
-    # Timeout properties (from AppLifecycleManager)
-    # ------------------------------------------------------------------
-
     @property
     def startup_timeout(self) -> int:
         """Timeout in seconds for app instance initialization."""
@@ -109,10 +103,6 @@ class AppLifecycleService(Resource):
     def shutdown_timeout(self) -> int:
         """Timeout in seconds for app instance shutdown."""
         return self.hassette.config.lifecycle.app_shutdown_timeout_seconds
-
-    # ------------------------------------------------------------------
-    # Lifecycle methods (from AppLifecycleManager, folded in)
-    # ------------------------------------------------------------------
 
     async def initialize_instances(
         self,
@@ -257,10 +247,6 @@ class AppLifecycleService(Resource):
             app=app, status=status, previous_status=prev_status, exception=exception
         )
         await self.hassette.send_event(Topic.HASSETTE_EVENT_APP_STATE_CHANGED, event)
-
-    # ------------------------------------------------------------------
-    # Implementation methods
-    # ------------------------------------------------------------------
 
     async def bootstrap_apps(self) -> None:
         """Initialize all configured and enabled apps, called at AppHandler startup.
@@ -465,10 +451,6 @@ class AppLifecycleService(Resource):
         self.logger.debug(
             "Found %d apps in configuration: %s", len(self.registry.manifests), list(self.registry.manifests.keys())
         )
-
-    # ------------------------------------------------------------------
-    # Only-app resolution and blocked-app reconciliation
-    # ------------------------------------------------------------------
 
     async def resolve_only_app(self, changed_file_paths: frozenset[Path] | None = None) -> None:
         """Determine if any app is marked as only and update only app filter accordingly."""
