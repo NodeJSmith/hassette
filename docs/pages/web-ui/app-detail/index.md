@@ -70,7 +70,7 @@ The tab strip below the header provides navigation between the five tabs:
 
 | Tab | Description |
 |-----|-------------|
-| **overview** | Handler health grid, failing handlers section, recent activity, and embedded logs. The default tab when navigating to App Detail. |
+| **overview** | Handler health grid, error spotlight, recent activity, and embedded logs. The default tab when navigating to App Detail. |
 | **handlers** (with count badge) | Master-detail handler and job explorer with stats, modifier chips, source location, and invocation history. The badge shows the total number of handlers and scheduled jobs. |
 | **code** | Syntax-highlighted source file with line numbers and handler annotations. |
 | **logs** | Per-app log table scoped to this app, with the same filter and search features as the global Logs page. |
@@ -100,7 +100,7 @@ investigate.
 ## Related pages
 
 - [Apps](../apps.md) — back to the full app list
-- [Overview Tab](overview.md) — handler health at a glance, failing handlers, recent activity
+- [Overview Tab](overview.md) — handler health at a glance, error spotlight, recent activity
 - [Handlers Tab](handlers.md) — drill into individual handler and job details
 - [Code Tab](code.md) — view and navigate the app's source file
 - [Logs Tab](logs.md) — per-app log entries with search and filtering

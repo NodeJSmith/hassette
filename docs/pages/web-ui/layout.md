@@ -124,4 +124,5 @@ These banners are conditional — they do not appear when all apps are healthy a
 
 ## Related pages
 
+- [Web UI Overview](index.md) — enabling, accessing, and configuring the web UI
 - [Apps](apps.md) — monitor and manage your automations from the main app table

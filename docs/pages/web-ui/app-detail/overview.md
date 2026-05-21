@@ -7,11 +7,11 @@ healthy or locate a problem without leaving a single page.
 
 ![Overview tab](../../../_static/web_ui_app_detail_overview.png)
 
-## Failing handlers
+## Error spotlight
 
 ![Error spotlight](../../../_static/web_ui_detail_error_spotlight.png)
 
-The **failing handlers** section appears at the top of the Overview tab when one or more
+The **error spotlight** section appears at the top of the Overview tab when one or more
 handlers are currently failing. It is hidden when all handlers are healthy — you will not see
 this section on a healthy app.
 

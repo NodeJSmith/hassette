@@ -22,9 +22,9 @@ in the status bar.
 | **Invocations** | Total calls and executions across all handlers and jobs in the time window |
 | **Success Rate** | Percentage of invocations that completed without error |
 | **Failed** | Number of invocations that raised an unhandled exception |
-| **Timed Out** | Number of invocations that exceeded their timeout |
+| **Timed out** | Number of invocations that exceeded their timeout |
 
-A non-zero **Failed** count is highlighted in red. A non-zero **Timed Out** count is highlighted in amber.
+A non-zero **Failed** count is highlighted in red. A non-zero **Timed out** count is highlighted in amber.
 
 ## Handler list
 
@@ -115,7 +115,7 @@ The stats grid shows aggregated metrics for this handler:
 | **Successful** | Invocations that completed without error |
 | **Last** | Relative time of the most recent invocation |
 | **Failed** | Invocations that raised an unhandled exception (red when non-zero) |
-| **Timed Out** | Invocations that exceeded their timeout (amber when non-zero) |
+| **Timed out** | Invocations that exceeded their timeout (amber when non-zero) |
 | **Cancelled** | Invocations that were cancelled (shown only when non-zero) |
 | **Min** | Fastest recorded execution time |
 | **Avg** | Mean execution time across all invocations |

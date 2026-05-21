@@ -34,7 +34,7 @@ manual refresh is needed. The entry count in the footer updates as new messages 
 
 !!! note
     This tab shares the log table component used on the global Logs page and in the
-    **Recent logs** section of the [Overview tab](overview.md). Filters set here do not
+    **Logs** section of the [Overview tab](overview.md). Filters set here do not
     affect the global Logs page.
 
 ## Related pages

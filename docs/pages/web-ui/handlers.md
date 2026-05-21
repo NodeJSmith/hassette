@@ -21,7 +21,7 @@ view. Each row represents one handler or job.
 | **Trigger** | Yes | No | Listener kind (e.g. `state_change`) or job trigger description (e.g. `every 30s`) |
 | **Runs** | Yes | No | Total invocations or executions within the current time window |
 | **Failed** | Yes | No | Number of failed invocations; shown in red when non-zero, `—` otherwise |
-| **Timed out** | Yes | No | Number of timed-out invocations; shown in yellow when non-zero, `—` otherwise |
+| **Timed out** | Yes | No | Number of timed-out invocations; shown in amber when non-zero, `—` otherwise |
 | **Error rate** | Yes | No | Failed ÷ runs, expressed as a percentage; shown in red when non-zero |
 | **Avg** | Yes | No | Average handler duration |
 | **Next run** | Yes | No | For scheduled jobs: time until the next scheduled execution; `—` for event handlers |
