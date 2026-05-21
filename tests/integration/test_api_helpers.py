@@ -45,21 +45,12 @@ from hassette.models.helpers import (
 from hassette.models.services import ServiceResponse
 from hassette.models.states.base import Context
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture
 async def api(hassette_with_mock_api):
     """Return the Api instance from hassette_with_mock_api, ready for ws patching."""
     api_client, _ = hassette_with_mock_api
     return api_client
-
-
-# ---------------------------------------------------------------------------
-# Module-level helpers: _expect_list
-# ---------------------------------------------------------------------------
 
 
 def test_expect_list_passes_through_list():
@@ -78,11 +69,6 @@ def test_expect_list_raises_on_non_list():
     assert "dict" in str(exc_info.value)
 
 
-# ---------------------------------------------------------------------------
-# Module-level helpers: _expect_dict
-# ---------------------------------------------------------------------------
-
-
 def test_expect_dict_passes_through_dict():
     """_expect_dict returns the dict unchanged when val is a dict."""
     val = {"id": "x", "name": "Test"}
@@ -97,11 +83,6 @@ def test_expect_dict_raises_on_non_dict():
         _expect_dict([1, 2], "input_number/create")
     assert "input_number/create" in str(exc_info.value)
     assert "list" in str(exc_info.value)
-
-
-# ---------------------------------------------------------------------------
-# Module-level helpers: _ws_helper_call
-# ---------------------------------------------------------------------------
 
 
 async def test_ws_helper_call_propagates_success():
@@ -140,10 +121,6 @@ async def test_ws_helper_call_chains_error_with_context():
     assert e.original_data == {"a": 1}
     assert e.__cause__ is original
 
-
-# ---------------------------------------------------------------------------
-# input_boolean CRUD
-# ---------------------------------------------------------------------------
 
 IB_RECORD = {"id": "vacation_mode", "name": "Vacation Mode", "initial": False}
 
@@ -206,10 +183,6 @@ async def test_delete_input_boolean(api: Api):
     assert result is None
 
 
-# ---------------------------------------------------------------------------
-# input_number CRUD
-# ---------------------------------------------------------------------------
-
 IN_RECORD = {"id": "brightness", "name": "Brightness", "min": 0.0, "max": 100.0}
 
 
@@ -259,10 +232,6 @@ async def test_delete_input_number(api: Api):
     assert result is None
 
 
-# ---------------------------------------------------------------------------
-# input_text CRUD
-# ---------------------------------------------------------------------------
-
 IT_RECORD = {"id": "wifi_password", "name": "WiFi Password"}
 
 
@@ -310,10 +279,6 @@ async def test_delete_input_text(api: Api):
     assert call_kwargs["input_text_id"] == "wifi_password"
     assert result is None
 
-
-# ---------------------------------------------------------------------------
-# input_select CRUD
-# ---------------------------------------------------------------------------
 
 IS_RECORD = {"id": "theme", "name": "Theme", "options": ["light", "dark"]}
 
@@ -365,10 +330,6 @@ async def test_delete_input_select(api: Api):
     assert result is None
 
 
-# ---------------------------------------------------------------------------
-# input_datetime CRUD
-# ---------------------------------------------------------------------------
-
 IDT_RECORD = {"id": "alarm_time", "name": "Alarm Time", "has_date": False, "has_time": True}
 
 
@@ -418,10 +379,6 @@ async def test_delete_input_datetime(api: Api):
     assert result is None
 
 
-# ---------------------------------------------------------------------------
-# input_button CRUD
-# ---------------------------------------------------------------------------
-
 IBT_RECORD = {"id": "restart_btn", "name": "Restart"}
 
 
@@ -470,10 +427,6 @@ async def test_delete_input_button(api: Api):
     assert call_kwargs["input_button_id"] == "restart_btn"
     assert result is None
 
-
-# ---------------------------------------------------------------------------
-# counter CRUD
-# ---------------------------------------------------------------------------
 
 CTR_RECORD = {"id": "motion_count", "name": "Motion Count", "initial": 0, "step": 1}
 
@@ -527,10 +480,6 @@ async def test_delete_counter(api: Api):
     assert result is None
 
 
-# ---------------------------------------------------------------------------
-# timer CRUD
-# ---------------------------------------------------------------------------
-
 TMR_RECORD = {"id": "cooldown", "name": "Cooldown Timer", "duration": "00:05:00"}
 
 
@@ -581,10 +530,6 @@ async def test_delete_timer(api: Api):
     assert call_kwargs["timer_id"] == "cooldown"
     assert result is None
 
-
-# ---------------------------------------------------------------------------
-# Counter service-call shortcuts
-# ---------------------------------------------------------------------------
 
 SERVICE_RESPONSE = ServiceResponse(context=Context(id="ctx-1"))
 

@@ -117,8 +117,6 @@ class AppRegistry:
         self._only_app: str | None = None
         self.logger = getLogger(f"{__name__}.AppRegistry")
 
-    # --- State mutation methods ---
-
     def register_app(self, app_key: str, index: int, app: "App[AppConfig]") -> None:
         """Register a running app instance."""
         if app_key in self._failed_apps and index in [idx for idx, _ in self._failed_apps[app_key]]:
@@ -192,8 +190,6 @@ class AppRegistry:
     def set_only_app(self, app_key: str | None) -> None:
         """Set the only_app filter."""
         self._only_app = app_key
-
-    # --- Query methods ---
 
     def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":
         """Get a specific app instance."""
@@ -336,8 +332,6 @@ class AppRegistry:
             total=len(manifests),
             **counts,
         )
-
-    # --- Properties for backwards compatibility ---
 
     @property
     def apps(self) -> dict[str, dict[int, "App[AppConfig]"]]:

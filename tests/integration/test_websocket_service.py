@@ -313,9 +313,6 @@ async def test_raw_recv_raises_on_error_frame(websocket_service: WebsocketServic
     assert exc_info.value.__cause__ is socket_error
 
 
-# --- Disconnect handling on recv loop failure ---
-
-
 def make_failing_recv_task(error: Exception) -> asyncio.Task:
     """Create a task that raises the given error, simulating a failed recv loop."""
 
@@ -383,9 +380,6 @@ async def test_disconnect_event_failure_does_not_mask_original_error(websocket_s
         pytest.raises(RetryableConnectionClosedError),
     ):
         await websocket_service.serve()
-
-
-# --- Decomposed method tests ---
 
 
 async def test_connect_ws_sets_ws_and_authenticates(websocket_service: WebsocketService) -> None:
@@ -520,9 +514,6 @@ async def test_partial_cleanup_timeout_on_gather(websocket_service: WebsocketSer
     finally:
         stuck_task.cancel()
         await asyncio.gather(stuck_task, return_exceptions=True)
-
-
-# --- Early-drop retry loop tests ---
 
 
 async def test_early_drop_retries_and_succeeds(

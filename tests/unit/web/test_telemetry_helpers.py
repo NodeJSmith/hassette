@@ -6,10 +6,6 @@ import pytest
 
 from hassette.web.telemetry_helpers import compute_error_rate, format_handler_summary
 
-# ---------------------------------------------------------------------------
-# compute_error_rate
-# ---------------------------------------------------------------------------
-
 
 def test_compute_error_rate_zero_total_returns_zero() -> None:
     """When both totals are zero there is no activity — result must be 0.0."""
@@ -114,11 +110,6 @@ def test_compute_error_rate_clamped_to_100_when_errors_exceed_total() -> None:
         job_errors=7,
     )
     assert result == 100.0
-
-
-# ---------------------------------------------------------------------------
-# format_handler_summary
-# ---------------------------------------------------------------------------
 
 
 def make_listener(

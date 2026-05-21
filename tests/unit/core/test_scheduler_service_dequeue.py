@@ -20,10 +20,6 @@ from hassette.core.registration_tracker import RegistrationTracker
 from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
 from hassette.scheduler.classes import ScheduledJob
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_job(owner_id: str = "test_owner") -> ScheduledJob:
     """Create a minimal ScheduledJob for testing."""
@@ -54,11 +50,6 @@ def make_scheduler_service() -> SchedulerService:
     svc._job_queue = queue
 
     return svc
-
-
-# ---------------------------------------------------------------------------
-# _ScheduledJobQueue.remove_item_sync
-# ---------------------------------------------------------------------------
 
 
 class TestRemoveItemSync:
@@ -106,11 +97,6 @@ class TestRemoveItemSync:
         # Verify the source does not contain 'async with self._lock'
         src = inspect.getsource(queue.remove_item_sync)
         assert "async with" not in src, "remove_item_sync must not use async with"
-
-
-# ---------------------------------------------------------------------------
-# SchedulerService.dequeue_job
-# ---------------------------------------------------------------------------
 
 
 class TestDequeueJobRemovesFromHeap:

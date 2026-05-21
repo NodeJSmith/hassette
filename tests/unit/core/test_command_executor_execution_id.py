@@ -13,10 +13,6 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
 
-# ---------------------------------------------------------------------------
-# Factories
-# ---------------------------------------------------------------------------
-
 
 def make_executor() -> CommandExecutor:
     """Build a CommandExecutor with all dependencies mocked out."""
@@ -150,11 +146,6 @@ def is_valid_uuid4(value: str) -> bool:
         return str(parsed) == value
     except (ValueError, AttributeError):
         return False
-
-
-# ---------------------------------------------------------------------------
-# ContextVar lifecycle tests
-# ---------------------------------------------------------------------------
 
 
 class TestExecutionIdContextVar:
@@ -300,11 +291,6 @@ class TestExecutionIdContextVar:
         assert captured[0] != captured[1]
 
 
-# ---------------------------------------------------------------------------
-# HandlerInvocationRecord trigger field tests
-# ---------------------------------------------------------------------------
-
-
 class TestHandlerRecordTriggerFields:
     async def test_handler_record_has_trigger_context_id(self) -> None:
         """trigger_context_id on the enqueued record matches the HassPayload's event_id."""
@@ -388,11 +374,6 @@ class TestHandlerRecordTriggerFields:
         assert record.trigger_origin == SYNTHETIC_ORIGIN
 
 
-# ---------------------------------------------------------------------------
-# JobExecutionRecord trigger field tests
-# ---------------------------------------------------------------------------
-
-
 class TestJobRecordFields:
     async def test_job_record_has_execution_id_no_trigger(self) -> None:
         """Job execution record has execution_id and no trigger fields."""
@@ -406,11 +387,6 @@ class TestJobRecordFields:
         assert is_valid_uuid4(record.execution_id)
         assert not hasattr(record, "trigger_context_id")
         assert not hasattr(record, "trigger_origin")
-
-
-# ---------------------------------------------------------------------------
-# Error handler context inheritance test
-# ---------------------------------------------------------------------------
 
 
 class TestErrorHandlerExecutionIdInheritance:

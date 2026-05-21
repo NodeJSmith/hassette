@@ -111,8 +111,6 @@ class TestAppChangeDetector:
 
         return _make
 
-    # --- Basic detection tests ---
-
     def test_no_changes(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test detecting no changes."""
         config = {"app1": make_manifest("app1")}
@@ -176,8 +174,6 @@ class TestAppChangeDetector:
         assert not changes.new_apps
         assert not changes.reimport_apps
 
-    # --- Priority tests ---
-
     def test_new_app_not_in_reload(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test that new apps are not also in reload_apps."""
         original: dict = {}
@@ -199,8 +195,6 @@ class TestAppChangeDetector:
 
         assert "app1" in changes.reimport_apps
         assert "app1" not in changes.reload_apps
-
-    # --- Only app filter tests ---
 
     def test_only_app_filter_excludes_other_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test that only_app filter excludes other apps from current."""
@@ -241,8 +235,6 @@ class TestAppChangeDetector:
         detector = AppChangeDetector(only_app_filter="my_app")
         assert detector.only_app_filter == "my_app"
 
-    # --- Batch path edge cases ---
-
     def test_new_app_with_file_change_not_in_reimport(
         self, detector: AppChangeDetector, make_manifest: Callable
     ) -> None:
@@ -281,8 +273,6 @@ class TestAppChangeDetector:
         assert "app1" in changes.reimport_apps
         assert "app2" not in changes.reimport_apps
         assert "app2" in changes.orphans
-
-    # --- Complex scenarios ---
 
     def test_multiple_changes(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Test detecting multiple types of changes at once."""

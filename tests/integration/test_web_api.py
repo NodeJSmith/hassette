@@ -517,11 +517,6 @@ class TestOpenApiDocs:
         assert data["info"]["title"] == "Hassette Web API"
 
 
-# ---------------------------------------------------------------------------
-# Telemetry endpoints (WP02)
-# ---------------------------------------------------------------------------
-
-
 class TestTelemetryAppHealth:
     async def test_returns_metrics_with_classification(self, client: "AsyncClient", mock_hassette) -> None:
         mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
@@ -780,11 +775,6 @@ class TestBusListenersSinceParam:
         assert call_kwargs["since"] is None
 
 
-# ---------------------------------------------------------------------------
-# WP06: source_tier parameter, DB_ERRORS guards, status counters
-# ---------------------------------------------------------------------------
-
-
 class TestSourceTierParameter:
     """Verify source_tier query parameter is accepted and forwarded correctly."""
 
@@ -949,11 +939,6 @@ class TestHassetteAppKey:
         assert call_kwargs["app_key"] == "__hassette__"
 
 
-# ---------------------------------------------------------------------------
-# Additional coverage for lines 87-88, 114-119, 124-128, 330-332, 347-349.
-# ---------------------------------------------------------------------------
-
-
 class TestTelemetryStatusDropCounterFallback:
     """Cover lines 87-88: AttributeError/RuntimeError fallback for get_drop_counters."""
 
@@ -1092,11 +1077,6 @@ class TestDashboardAppGridDbErrorFallback:
             assert entry["health_status"] == "unknown"
 
 
-# ---------------------------------------------------------------------------
-# WP08: Input validation, edge cases
-# ---------------------------------------------------------------------------
-
-
 class TestAppKeyValidation:
     """Verify that invalid app_key values are rejected with 400 on management routes.
 
@@ -1179,8 +1159,6 @@ class TestAppKeyValidation:
 class TestLimitParameterValidation:
     """Verify out-of-range limit parameters return 422 across all relevant endpoints."""
 
-    # --- /api/events/recent: ge=1, le=500 ---
-
     async def test_events_limit_zero_returns_422(self, client: "AsyncClient") -> None:
         response = await client.get("/api/events/recent?limit=0")
         assert response.status_code == 422
@@ -1197,8 +1175,6 @@ class TestLimitParameterValidation:
         response = await client.get("/api/events/recent?limit=500")
         assert response.status_code == 200
 
-    # --- /api/logs/recent: ge=1, le=2000 ---
-
     async def test_logs_limit_zero_returns_422(self, client: "AsyncClient") -> None:
         response = await client.get("/api/logs/recent?limit=0")
         assert response.status_code == 422
@@ -1211,10 +1187,7 @@ class TestLimitParameterValidation:
         response = await client.get("/api/logs/recent?limit=2000")
         assert response.status_code == 200
 
-    # --- /api/telemetry/sessions: ge=1, le=200 (already tested in TestTelemetrySessionsEndpoint) ---
     # Skipped — covered by TestTelemetrySessionsEndpoint.test_sessions_endpoint_limit_parameter
-
-    # --- /api/telemetry/handler/{id}/invocations: ge=1, le=500 ---
 
     async def test_handler_invocations_limit_zero_returns_422(self, client: "AsyncClient") -> None:
         response = await client.get("/api/telemetry/handler/1/invocations?limit=0")
@@ -1230,8 +1203,6 @@ class TestLimitParameterValidation:
         mock_hassette.telemetry_query_service.get_handler_invocations = AsyncMock(return_value=[])
         response = await client.get("/api/telemetry/handler/1/invocations?limit=500")
         assert response.status_code == 200
-
-    # --- /api/telemetry/job/{id}/executions: ge=1, le=500 ---
 
     async def test_job_executions_limit_zero_returns_422(self, client: "AsyncClient") -> None:
         response = await client.get("/api/telemetry/job/1/executions?limit=0")

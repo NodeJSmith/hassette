@@ -17,21 +17,12 @@ from hassette.core.database_service import DatabaseService
 from hassette.test_utils.config import TEST_TOKEN
 from hassette.types.types import SourceTier
 
-# ---------------------------------------------------------------------------
-# SourceTier type tests
-# ---------------------------------------------------------------------------
-
 
 class TestSourceTierType:
     def test_source_tier_type_is_literal(self) -> None:
         """SourceTier must be Literal['app', 'framework']."""
         args = get_args(SourceTier)
         assert set(args) == {"app", "framework"}
-
-
-# ---------------------------------------------------------------------------
-# Helpers for running the migration against in-memory / temp DBs
-# ---------------------------------------------------------------------------
 
 
 def run_migrations_to_head(db_path: str) -> None:
@@ -54,11 +45,6 @@ def get_db_version(db_path: str) -> str | None:
             return ctx.get_current_revision()
     finally:
         engine.dispose()
-
-
-# ---------------------------------------------------------------------------
-# Migration schema tests
-# ---------------------------------------------------------------------------
 
 
 class TestFreshMigration:
@@ -256,11 +242,6 @@ class TestFreshMigration:
             conn.close()
 
 
-# ---------------------------------------------------------------------------
-# DatabaseService version mismatch tests
-# ---------------------------------------------------------------------------
-
-
 class TestDbVersionMismatch:
     def test_db_version_mismatch_recreates(self, tmp_path: Path) -> None:
         """When DB version != expected head, DatabaseService deletes and recreates the DB."""
@@ -291,11 +272,6 @@ class TestDbVersionMismatch:
             asyncio.run(svc._handle_schema_version(db_path))
             # DB file should have been deleted (on_initialize handles re-running migrations)
             assert not db_path.exists()
-
-
-# ---------------------------------------------------------------------------
-# Config field test
-# ---------------------------------------------------------------------------
 
 
 class TestHassetteConfigTelemetryQueueMax:

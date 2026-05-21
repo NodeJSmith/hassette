@@ -22,18 +22,9 @@ from hassette.events import RawStateChangeEvent
 from hassette.test_utils.app_harness import AppTestHarness
 from hassette.test_utils.exceptions import DrainError, DrainTimeout
 
-# ---------------------------------------------------------------------------
-# Shared minimal config
-# ---------------------------------------------------------------------------
-
 
 class DrainTestConfig(AppConfig):
     """Minimal config for drain tests."""
-
-
-# ---------------------------------------------------------------------------
-# Depth-1 chain: basic handler with immediate action
-# ---------------------------------------------------------------------------
 
 
 class Depth1App(App[DrainTestConfig]):
@@ -58,11 +49,6 @@ async def test_drain_waits_for_depth_1_task_chain() -> None:
         harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen")
 
 
-# ---------------------------------------------------------------------------
-# Depth-2 chain: handler spawns a secondary task
-# ---------------------------------------------------------------------------
-
-
 class Depth2App(App[DrainTestConfig]):
     """Handler spawns a task via task_bucket.spawn; spawned task calls api.turn_on."""
 
@@ -83,11 +69,6 @@ async def test_drain_waits_for_depth_2_task_chain() -> None:
         # Without iterative drain, this would fail because the spawned task
         # would not have run yet when the drain returned.
         harness.api_recorder.assert_called("turn_on", entity_id="light.living_room")
-
-
-# ---------------------------------------------------------------------------
-# Depth-3 chain: handler → task A → task B
-# ---------------------------------------------------------------------------
 
 
 class Depth3App(App[DrainTestConfig]):
@@ -145,11 +126,6 @@ async def test_drain_waits_for_depth_3_task_chain() -> None:
         harness.api_recorder.assert_called("turn_on", entity_id="light.bedroom")
 
 
-# ---------------------------------------------------------------------------
-# Perpetually-spawning handler — must hit timeout
-# ---------------------------------------------------------------------------
-
-
 class PerpetualSpawnApp(App[DrainTestConfig]):
     """Handler that perpetually spawns short-lived tasks, preventing drain from completing."""
 
@@ -191,10 +167,6 @@ async def test_drain_timeout_message_includes_pending_task_names() -> None:
         # The task names should appear in the diagnostic message
         assert "my_handler" in msg or "pending task names" in msg
 
-
-# ---------------------------------------------------------------------------
-# Handler exception via spawned task → DrainError
-# ---------------------------------------------------------------------------
 
 # Note: Direct handler exceptions are swallowed by CommandExecutor._execute
 # (which records the error to telemetry without re-raising). DrainError surfaces
@@ -241,11 +213,6 @@ async def test_drain_surfaces_handler_exception_as_drainerror() -> None:
         assert str(val_err) == "boom"
 
 
-# ---------------------------------------------------------------------------
-# Multiple spawned task exceptions → DrainError aggregates
-# ---------------------------------------------------------------------------
-
-
 class TwoSpawnedExceptionApp(App[DrainTestConfig]):
     """Handler spawns two tasks that each raise a different exception."""
 
@@ -278,10 +245,6 @@ async def test_drain_surfaces_multiple_handler_exceptions() -> None:
         assert ValueError in exc_types
         assert RuntimeError in exc_types
 
-
-# ---------------------------------------------------------------------------
-# Debounce hint in timeout message
-# ---------------------------------------------------------------------------
 
 # NOTE: Bus debounce tasks are tracked in App.bus.task_bucket (not App.task_bucket),
 # because Bus.on_state_change passes bus.task_bucket to Listener.create → RateLimiter.
@@ -322,11 +285,6 @@ async def test_drain_timeout_message_has_debounce_hint_when_applicable() -> None
         assert "debounce" in msg
 
 
-# ---------------------------------------------------------------------------
-# DrainError message formatting
-# ---------------------------------------------------------------------------
-
-
 def test_drain_error_message_single_exception() -> None:
     """DrainError message for a single exception includes count, name, type, and message."""
     err = DrainError([("my_task", ValueError("x"))])
@@ -354,11 +312,6 @@ def test_drain_error_message_multiple_exceptions() -> None:
     # First exception details should be present
     assert "task_a" in msg
     assert "ValueError" in msg
-
-
-# ---------------------------------------------------------------------------
-# Public accessor enforcement
-# ---------------------------------------------------------------------------
 
 
 def test_drain_uses_public_accessors_not_private_attributes() -> None:

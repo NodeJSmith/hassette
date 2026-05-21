@@ -65,8 +65,6 @@ class AppHandler(Resource):
         self.lifecycle = self.add_child(AppLifecycleService, registry=self.registry)
         self.lifecycle.set_apps_configs(hassette.config.apps.manifests)
 
-    # --- Public API (thin delegation) ---
-
     @property
     def apps(self) -> dict[str, dict[int, "App[AppConfig]"]]:
         """Running apps - delegates to registry."""
@@ -88,8 +86,6 @@ class AppHandler(Resource):
     def all(self) -> list["App[AppConfig]"]:
         """All running app instances."""
         return self.registry.all_apps()
-
-    # --- Lifecycle hooks ---
 
     async def on_initialize(self) -> None:
         """Set up file-watcher subscription.
@@ -126,8 +122,6 @@ class AppHandler(Resource):
         self.logger.debug("Stopping '%s' %s", self.class_name, self.role)
         self.mark_not_ready(reason="shutting-down")
         await self.lifecycle.shutdown_all()
-
-    # --- Delegated operations ---
 
     async def start_app(self, app_key: str, force_reload: bool = False) -> None:
         """Start an app by key — delegates to lifecycle service."""

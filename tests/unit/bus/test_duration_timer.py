@@ -19,10 +19,6 @@ from hassette.bus.duration_timer import DurationTimer
 from hassette.test_utils import wait_for
 from hassette.test_utils.helpers import create_listener, make_task_bucket
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_timer(
     duration: float = 0.05,
@@ -62,11 +58,6 @@ def make_timer(
 def make_event() -> MagicMock:
     """Make a mock event."""
     return MagicMock(name="event")
-
-
-# ---------------------------------------------------------------------------
-# Tests — basic timer lifecycle
-# ---------------------------------------------------------------------------
 
 
 async def test_start_spawns_task_and_fires_after_delay() -> None:
@@ -221,11 +212,6 @@ async def test_is_active_false_after_cancel() -> None:
     assert not timer.is_active
 
 
-# ---------------------------------------------------------------------------
-# Tests — cancellation event handling
-# ---------------------------------------------------------------------------
-
-
 async def test_evaluate_cancel_event_matching_does_not_cancel() -> None:
     """Event that still matches predicates does not cancel the timer."""
     predicate = MagicMock(return_value=True)  # always matches
@@ -287,11 +273,6 @@ async def test_evaluate_cancel_event_none_predicate_does_not_cancel() -> None:
     timer.cancel()
 
 
-# ---------------------------------------------------------------------------
-# Tests — synchronous cancellation subscription removal
-# ---------------------------------------------------------------------------
-
-
 async def test_cancel_removes_cancellation_listener_synchronously() -> None:
     """cancel() calls cancel_sub.cancel() directly, not via task_bucket.spawn()."""
     timer, task_bucket_mock, cancel_sub = make_timer(duration=0.5)
@@ -337,11 +318,6 @@ async def test_cancel_sets_cancelled_flag_first() -> None:
     # _cancelled must have been True when cancel_sub.cancel() was called
     assert len(cancelled_when_sub_cancelled) == 1
     assert cancelled_when_sub_cancelled[0] is True
-
-
-# ---------------------------------------------------------------------------
-# Tests — listener wiring via Listener.create()
-# ---------------------------------------------------------------------------
 
 
 def test_listener_create_does_not_build_duration_timer() -> None:

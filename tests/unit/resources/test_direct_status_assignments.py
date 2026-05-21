@@ -8,10 +8,6 @@ Verifies:
 from hassette.resources.mixins import VALID_TRANSITIONS, LifecycleMixin
 from hassette.types.enums import ResourceStatus
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
 
 def test_app_lifecycle_timeout_stop_valid():
     """STARTING → STOPPED is in the valid transition table.

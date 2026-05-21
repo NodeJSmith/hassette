@@ -57,11 +57,6 @@ if TYPE_CHECKING:
     from hassette.core.state_proxy import StateProxy
     from hassette.events import HassStateDict
 
-
-# ---------------------------------------------------------------------------
-# Helper domain constants
-# ---------------------------------------------------------------------------
-
 SUPPORTED_HELPER_DOMAINS: frozenset[str] = frozenset(
     {
         "input_boolean",
@@ -425,10 +420,7 @@ class RecordingApi(Resource):
             )
         return generated
 
-    # ------------------------------------------------------------------
-    # Write methods — record ApiCall, then return a stub value.
     # Signatures must exactly match hassette.api.Api.
-    # ------------------------------------------------------------------
 
     async def turn_on(self, entity_id: str | StrEnum, domain: str = "homeassistant", **data: Any) -> None:
         """Record a turn_on call directly under its own method name."""
@@ -535,10 +527,6 @@ class RecordingApi(Resource):
         )
         return {}
 
-    # ------------------------------------------------------------------
-    # Read methods — delegate to StateProxy, convert via state registry.
-    # ------------------------------------------------------------------
-
     def _get_raw_state(self, entity_id: str) -> "HassStateDict":
         """Look up raw state dict from the proxy, raising EntityNotFoundError if absent."""
         raw = self._state_proxy.states.get(entity_id)
@@ -619,10 +607,6 @@ class RecordingApi(Resource):
             return None
         return self._convert_state(raw, entity_id)
 
-    # ------------------------------------------------------------------
-    # Unstubbed methods — raise NotImplementedError with helpful message.
-    # ------------------------------------------------------------------
-
     async def get_state_raw(self, entity_id: str) -> dict:
         """Not implemented — raises NotImplementedError."""
         not_implemented("get_state_raw")
@@ -655,15 +639,12 @@ class RecordingApi(Resource):
         """Not implemented — raises NotImplementedError."""
         not_implemented("delete_entity")
 
-    # ------------------------------------------------------------------
-    # Helper CRUD — seeds/mutates helper_definitions dict and records ApiCall.
     # Signatures match hassette.api.Api exactly.
     #
     # Generic core methods (_list_helper, _create_helper, _update_helper,
     # _delete_helper) implement the shared logic dispatching via
     # RECORD_TYPE_TO_DOMAIN. The 32 per-domain methods below are thin typed
     # delegations that call the generic core; no logic lives in them.
-    # ------------------------------------------------------------------
 
     def _list_helper(self, record_type: type) -> list[Any]:
         """Generic list helper — returns shallow or deep copies of stored records.
@@ -772,8 +753,6 @@ class RecordingApi(Resource):
             )
         del self.helper_definitions[domain][helper_id]
 
-    # --- input_boolean ---
-
     async def list_input_booleans(self) -> list[InputBooleanRecord]:
         """Return all seeded input_boolean helpers. Delegates to _list_helper."""
         return cast("list[InputBooleanRecord]", self._list_helper(InputBooleanRecord))
@@ -791,8 +770,6 @@ class RecordingApi(Resource):
     async def delete_input_boolean(self, helper_id: str) -> None:
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(InputBooleanRecord, "delete_input_boolean", helper_id)
-
-    # --- input_number ---
 
     async def list_input_numbers(self) -> list[InputNumberRecord]:
         """Return all seeded input_number helpers. Delegates to _list_helper."""
@@ -812,8 +789,6 @@ class RecordingApi(Resource):
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(InputNumberRecord, "delete_input_number", helper_id)
 
-    # --- input_text ---
-
     async def list_input_texts(self) -> list[InputTextRecord]:
         """Return all seeded input_text helpers. Delegates to _list_helper."""
         return cast("list[InputTextRecord]", self._list_helper(InputTextRecord))
@@ -829,8 +804,6 @@ class RecordingApi(Resource):
     async def delete_input_text(self, helper_id: str) -> None:
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(InputTextRecord, "delete_input_text", helper_id)
-
-    # --- input_select ---
 
     async def list_input_selects(self) -> list[InputSelectRecord]:
         """Return all seeded input_select helpers as deep-isolated copies.
@@ -855,8 +828,6 @@ class RecordingApi(Resource):
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(InputSelectRecord, "delete_input_select", helper_id)
 
-    # --- input_datetime ---
-
     async def list_input_datetimes(self) -> list[InputDatetimeRecord]:
         """Return all seeded input_datetime helpers. Delegates to _list_helper."""
         return cast("list[InputDatetimeRecord]", self._list_helper(InputDatetimeRecord))
@@ -874,8 +845,6 @@ class RecordingApi(Resource):
     async def delete_input_datetime(self, helper_id: str) -> None:
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(InputDatetimeRecord, "delete_input_datetime", helper_id)
-
-    # --- input_button ---
 
     async def list_input_buttons(self) -> list[InputButtonRecord]:
         """Return all seeded input_button helpers. Delegates to _list_helper."""
@@ -895,8 +864,6 @@ class RecordingApi(Resource):
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(InputButtonRecord, "delete_input_button", helper_id)
 
-    # --- counter ---
-
     async def list_counters(self) -> list[CounterRecord]:
         """Return all seeded counter helpers. Delegates to _list_helper."""
         return cast("list[CounterRecord]", self._list_helper(CounterRecord))
@@ -913,8 +880,6 @@ class RecordingApi(Resource):
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(CounterRecord, "delete_counter", helper_id)
 
-    # --- timer ---
-
     async def list_timers(self) -> list[TimerRecord]:
         """Return all seeded timer helpers. Delegates to _list_helper."""
         return cast("list[TimerRecord]", self._list_helper(TimerRecord))
@@ -930,8 +895,6 @@ class RecordingApi(Resource):
     async def delete_timer(self, helper_id: str) -> None:
         """Record the call and remove the seeded record. Delegates to _delete_helper."""
         self._delete_helper(TimerRecord, "delete_timer", helper_id)
-
-    # --- counter action methods ---
 
     async def increment_counter(self, entity_id: str) -> None:
         """Record an increment_counter call directly (not via call_service)."""
@@ -963,10 +926,6 @@ class RecordingApi(Resource):
             )
         )
 
-    # ------------------------------------------------------------------
-    # Fallback for uncovered methods
-    # ------------------------------------------------------------------
-
     def __getattr__(self, name: str) -> Any:
         """Raise NotImplementedError for public attributes not defined on RecordingApi.
 
@@ -989,10 +948,6 @@ class RecordingApi(Resource):
             "Seed state via AppTestHarness.set_state() for read methods, "
             "or use a full integration test for methods requiring a live HA connection."
         )
-
-    # ------------------------------------------------------------------
-    # Assertion helpers
-    # ------------------------------------------------------------------
 
     def get_calls(self, method: str | None = None) -> list[ApiCall]:
         """Return all recorded calls, optionally filtered by method name.

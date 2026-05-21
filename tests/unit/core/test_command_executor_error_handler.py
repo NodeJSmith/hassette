@@ -11,10 +11,6 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.scheduler.error_context import SchedulerErrorContext
 
-# ---------------------------------------------------------------------------
-# Fixtures / factories
-# ---------------------------------------------------------------------------
-
 
 def make_executor() -> CommandExecutor:
     """Build a CommandExecutor with all dependencies mocked out."""
@@ -115,11 +111,6 @@ async def drain_tasks(executor: CommandExecutor) -> None:
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
         tasks.clear()
-
-
-# ---------------------------------------------------------------------------
-# InvokeHandler (bus) error handler tests
-# ---------------------------------------------------------------------------
 
 
 class TestBusErrorHandlerInvocation:
@@ -390,11 +381,6 @@ class TestBusErrorHandlerInvocation:
         await drain_tasks(executor)
 
         assert executor.get_error_handler_failures() == 1
-
-
-# ---------------------------------------------------------------------------
-# ExecuteJob (scheduler) error handler tests
-# ---------------------------------------------------------------------------
 
 
 class TestSchedulerErrorHandlerInvocation:

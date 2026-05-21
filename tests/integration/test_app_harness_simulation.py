@@ -12,10 +12,6 @@ from hassette.app.app_config import AppConfig
 from hassette.events import RawStateChangeEvent
 from hassette.test_utils.app_harness import AppTestHarness
 
-# ---------------------------------------------------------------------------
-# Test app with both state change handlers and scheduler jobs
-# ---------------------------------------------------------------------------
-
 
 class SimConfig(AppConfig):
     """Minimal AppConfig for simulation tests."""
@@ -40,11 +36,6 @@ class SimTestApp(App[SimConfig]):
     async def daily_task(self) -> None:
         await self.api.call_service("cover", "open_cover", entity_id="cover.blinds")
         self.service_calls.append(("cover", "open_cover", {"entity_id": "cover.blinds"}))
-
-
-# ---------------------------------------------------------------------------
-# freeze_time / advance_time / trigger_due_jobs tests
-# ---------------------------------------------------------------------------
 
 
 async def test_freeze_time_patches_now():

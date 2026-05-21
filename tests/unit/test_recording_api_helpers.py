@@ -260,7 +260,6 @@ async def test_list_isolation_preserves_nested_collections():
     """
     api = make_recording_api()
 
-    # --- list_* path ---
     api.helper_definitions["input_select"]["mode"] = InputSelectRecord(id="mode", name="Mode", options=["a", "b"])
 
     listed = (await api.list_input_selects())[0]
@@ -269,7 +268,6 @@ async def test_list_isolation_preserves_nested_collections():
     refetched = (await api.list_input_selects())[0]
     assert refetched.options == ["a", "b"]
 
-    # --- create_* path ---
     created = await api.create_input_select(CreateInputSelectParams(name="Another", options=["x", "y"]))
     created.options.append("ALSO_MUTATED")
 

@@ -506,7 +506,6 @@ class TelemetryRepository:
             # persist_batch_with_fk_fallback().
             await db.execute("BEGIN")
 
-            # --- Non-once listeners without history: delete ---
             sql, params = _build_delete_query(
                 "listeners",
                 app_key,
@@ -517,7 +516,6 @@ class TelemetryRepository:
             )
             await db.execute(sql, params)
 
-            # --- Non-once listeners with history: retire ---
             sql, params = _build_retire_query(
                 "listeners",
                 app_key,
@@ -529,7 +527,6 @@ class TelemetryRepository:
             )
             await db.execute(sql, params)
 
-            # --- once=True listeners: delete from previous sessions ---
             if session_id is not None:
                 params_once: dict = {"app_key": app_key, "source_tier": "app", "session_id": session_id}
                 if live_listener_ids:
@@ -562,7 +559,6 @@ class TelemetryRepository:
                     app_key,
                 )
 
-            # --- Non-once jobs without history: delete ---
             sql, params = _build_delete_query(
                 "scheduled_jobs",
                 app_key,
@@ -572,7 +568,6 @@ class TelemetryRepository:
             )
             await db.execute(sql, params)
 
-            # --- Non-once jobs with history: retire ---
             sql, params = _build_retire_query(
                 "scheduled_jobs",
                 app_key,
@@ -690,10 +685,6 @@ class TelemetryRepository:
             await db.rollback()
             raise
 
-
-# ---------------------------------------------------------------------------
-# Log record repository functions (module-level, called via DatabaseService.enqueue/submit)
-# ---------------------------------------------------------------------------
 
 _LOG_COLUMNS = (
     "seq",

@@ -157,11 +157,6 @@ class LogLevelResponse(BaseModel):
     effective_level: str
 
 
-# ---------------------------------------------------------------------------
-# Typed WebSocket message models
-# ---------------------------------------------------------------------------
-
-
 class ConnectedPayload(BaseModel):
     uptime_seconds: float
     entity_count: int
@@ -252,11 +247,6 @@ WsServerMessage = Annotated[
     | ExecutionCompletedWsMessage,
     Field(discriminator="type"),
 ]
-
-
-# ---------------------------------------------------------------------------
-# Telemetry endpoint response models
-# ---------------------------------------------------------------------------
 
 
 class AppHealthResponse(BaseModel):

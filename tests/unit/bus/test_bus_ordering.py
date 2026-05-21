@@ -21,11 +21,6 @@ if typing.TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
 
 
-# ---------------------------------------------------------------------------
-# Handlers — module-level named functions required by collision detection
-# ---------------------------------------------------------------------------
-
-
 async def handler_alpha(event) -> None:
     pass
 
@@ -36,11 +31,6 @@ async def handler_beta(event) -> None:
 
 async def handler_gamma(event) -> None:
     pass
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -62,11 +52,6 @@ async def ordering_harness(
 def bus(ordering_harness: "HassetteHarness") -> "Bus":
     """The Bus from the ordering harness."""
     return ordering_harness.bus
-
-
-# ---------------------------------------------------------------------------
-# AC#1: Cancel-then-add ordering
-# ---------------------------------------------------------------------------
 
 
 async def test_cancel_then_add_routes_exactly_one_handler(bus: "Bus") -> None:
@@ -140,11 +125,6 @@ async def test_cancel_multiple_then_add_replacement(bus: "Bus") -> None:
     assert listeners[0].listener_id == sub3.listener.listener_id
 
 
-# ---------------------------------------------------------------------------
-# AC#3: Query after registration — synchronous visibility
-# ---------------------------------------------------------------------------
-
-
 async def test_get_listeners_immediately_visible_after_registration(bus: "Bus") -> None:
     """AC#3: A handler registered via bus.on() is immediately visible in get_listeners()
     without yielding to the event loop.
@@ -179,11 +159,6 @@ async def test_multiple_registrations_all_immediately_visible(bus: "Bus") -> Non
 async def test_get_listeners_empty_before_any_registration(bus: "Bus") -> None:
     """AC#3 baseline: No handlers registered → get_listeners() returns empty list immediately."""
     assert bus.get_listeners() == []
-
-
-# ---------------------------------------------------------------------------
-# AC#4: Bulk remove then query — synchronous completion
-# ---------------------------------------------------------------------------
 
 
 async def test_remove_all_listeners_then_query_is_empty(bus: "Bus") -> None:

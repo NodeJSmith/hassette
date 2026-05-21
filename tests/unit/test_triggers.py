@@ -34,14 +34,6 @@ async def test_run_cron_accepts_valid(hassette_with_scheduler: "HassetteHarness"
     scheduled_job.cancel()
 
 
-# ---------------------------------------------------------------------------
-# Trigger types: After, Once, Every, Daily, Cron
-# ---------------------------------------------------------------------------
-
-
-# --- After ---
-
-
 def test_after_first_run_time() -> None:
     """After(seconds=30).first_run_time(t) returns t + 30s."""
     t = zdt(2025, 8, 18, 7, 0, 0)
@@ -62,9 +54,6 @@ def test_after_next_run_time_returns_none() -> None:
 def test_after_trigger_id() -> None:
     """After(seconds=30).trigger_id() == 'after:30'."""
     assert After(seconds=30).trigger_id() == "after:30"
-
-
-# --- Once ---
 
 
 def test_once_today(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -122,9 +111,6 @@ def test_once_trigger_id(monkeypatch: pytest.MonkeyPatch) -> None:
     assert tid.startswith("once:")
     assert "07:00" in tid
     assert "2025-08-18" in tid
-
-
-# --- Every ---
 
 
 def test_every_first_run_no_start() -> None:
@@ -188,9 +174,6 @@ def test_every_trigger_id() -> None:
     assert Every(hours=1).trigger_id() == "every:3600"
 
 
-# --- Daily ---
-
-
 def test_daily_fires_at_wall_clock_time() -> None:
     """Daily(at='07:00').next_run_time uses cron grid, not 24h elapsed."""
     prev = zdt(2025, 8, 18, 7, 0, 0)
@@ -212,9 +195,6 @@ def test_daily_trigger_id() -> None:
     assert Daily(at="07:00").trigger_id() == "cron:0 7 * * *"
 
 
-# --- Cron ---
-
-
 def test_cron_5field() -> None:
     """Cron('0 9 * * 1-5') valid construction, correct trigger_id."""
     trigger = Cron("0 9 * * 1-5")
@@ -231,9 +211,6 @@ def test_cron_invalid_raises() -> None:
     """Malformed cron expression raises ValueError at construction."""
     with pytest.raises(ValueError, match="not a cron expression"):
         Cron("not a cron expression at all")
-
-
-# --- DST disambiguation ---
 
 
 def test_cron_trigger_dst_spring_forward_no_raise() -> None:
@@ -283,9 +260,6 @@ def test_cron_trigger_dst_fall_back_prefers_post_transition() -> None:
     )
 
 
-# --- TriggerProtocol conformance ---
-
-
 def test_trigger_protocol_conformance(monkeypatch: pytest.MonkeyPatch) -> None:
     """All five built-in trigger classes satisfy isinstance(t, TriggerProtocol)."""
     fake_now = zdt(2025, 8, 18, 6, 0, 0)
@@ -300,12 +274,6 @@ def test_trigger_protocol_conformance(monkeypatch: pytest.MonkeyPatch) -> None:
     ]
     for trigger in triggers:
         assert isinstance(trigger, TriggerProtocol), f"{type(trigger).__name__} does not satisfy TriggerProtocol"
-
-
-# --- Once trigger_id day-specificity ---
-
-
-# --- Once ZonedDateTime if_past asymmetry ---
 
 
 def test_once_zoned_datetime_past_ignores_if_past(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -348,9 +316,6 @@ def test_once_string_trigger_id_day_specific(monkeypatch: pytest.MonkeyPatch) ->
     )
 
 
-# --- F1: DST fall-back INFO log ---
-
-
 def test_cron_trigger_dst_fall_back_logs_info() -> None:
     """CronTrigger._next_after logs a single INFO summary when traversing ambiguous fall-back ticks.
 
@@ -366,9 +331,6 @@ def test_cron_trigger_dst_fall_back_logs_info() -> None:
 
     mock_info.assert_called_once()
     assert "DST fall-back" in mock_info.call_args.args[0]
-
-
-# --- F4: Once ZonedDateTime if_past="error" ---
 
 
 def test_once_zoned_datetime_past_if_past_error_raises() -> None:

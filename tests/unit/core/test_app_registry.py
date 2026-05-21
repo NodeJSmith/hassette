@@ -62,8 +62,6 @@ class TestAppRegistry:
         manifest.class_name = "TestApp"
         return manifest
 
-    # --- Registration tests ---
-
     def test_register_app(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test registering an app."""
         registry.register_app("my_app", 0, mock_app)
@@ -82,8 +80,6 @@ class TestAppRegistry:
         assert len(registry.apps["my_app"]) == 2
         assert registry.apps["my_app"][0] is app1
         assert registry.apps["my_app"][1] is app2
-
-    # --- Unregistration tests ---
 
     def test_unregister_app_all_instances(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test unregistering all instances of an app."""
@@ -121,8 +117,6 @@ class TestAppRegistry:
         removed = registry.unregister_app("my_app", index=99)
 
         assert removed is None
-
-    # --- Failure tracking tests ---
 
     def test_record_failure(self, registry: AppRegistry) -> None:
         """Test recording a failure."""
@@ -166,8 +160,6 @@ class TestAppRegistry:
         registry.clear_failures()
 
         assert registry.get_snapshot().failed_count == 0
-
-    # --- Query tests ---
 
     def test_get_existing_app(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test getting an existing app."""
@@ -220,8 +212,6 @@ class TestAppRegistry:
         # Verify it's a copy
         result[99] = MagicMock()
         assert 99 not in registry.apps["my_app"]
-
-    # --- Snapshot tests ---
 
     def test_get_snapshot_empty(self, registry: AppRegistry) -> None:
         """Test snapshot with no apps."""
@@ -282,8 +272,6 @@ class TestAppRegistry:
 
         assert snapshot.running[0].status == ResourceStatus.STARTING
 
-    # --- Clear all tests ---
-
     def test_clear_all(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test clearing all apps and failures."""
         registry.register_app("app1", 0, mock_app)
@@ -293,8 +281,6 @@ class TestAppRegistry:
 
         assert len(registry.apps) == 0
         assert registry.get_snapshot().failed_count == 0
-
-    # --- Manifest and only_app tests ---
 
     def test_set_manifests(self, registry: AppRegistry, mock_manifest: MagicMock) -> None:
         """Test setting manifests."""
@@ -313,8 +299,6 @@ class TestAppRegistry:
 
         registry.set_only_app(None)
         assert registry.only_app is None
-
-    # --- Enabled manifests tests ---
 
     def test_enabled_manifests(self, registry: AppRegistry) -> None:
         """Test enabled_manifests returns only enabled apps."""

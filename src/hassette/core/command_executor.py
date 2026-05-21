@@ -130,10 +130,6 @@ class CommandExecutor(Service):
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.command_executor
 
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
-
     async def serve(self) -> None:
         """Drain the write queue in batches until shutdown, then flush remaining records."""
         self.mark_ready(reason="CommandExecutor started")
@@ -199,10 +195,6 @@ class CommandExecutor(Service):
             The cumulative error handler failure count for this session.
         """
         return self._error_handler_failures
-
-    # ------------------------------------------------------------------
-    # Execution
-    # ------------------------------------------------------------------
 
     async def execute(self, cmd: InvokeHandler | ExecuteJob) -> None:
         """Execute a command (handler invocation or scheduled job).
@@ -573,10 +565,6 @@ class CommandExecutor(Service):
             self._error_handler_failures += 1
             self.logger.exception("Error handler raised an exception (%s)", label)
 
-    # ------------------------------------------------------------------
-    # Registration
-    # ------------------------------------------------------------------
-
     async def register_listener(self, registration: ListenerRegistration) -> int:
         """Insert a listener registration into the listeners table.
 
@@ -651,10 +639,6 @@ class CommandExecutor(Service):
         rqs = self.hassette._runtime_query_service
         if rqs is not None:
             rqs.prune_meta(app_key, set(live_listener_ids), set(live_job_ids))
-
-    # ------------------------------------------------------------------
-    # Queue persistence
-    # ------------------------------------------------------------------
 
     async def _drain_and_persist(
         self,

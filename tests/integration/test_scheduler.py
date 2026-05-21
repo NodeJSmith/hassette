@@ -241,11 +241,6 @@ def test_scheduled_job_mark_registered_keeps_original_on_double_call() -> None:
     assert job.db_id == 42
 
 
-# ---------------------------------------------------------------------------
-# Test apps for AppTestHarness-based tests
-# ---------------------------------------------------------------------------
-
-
 class _ExhaustionConfig(AppConfig):
     """Minimal config for exhaustion tests."""
 
@@ -307,11 +302,6 @@ class _OnceGroupApp(App[_ExhaustionConfig]):
         self.fired = True
 
 
-# ---------------------------------------------------------------------------
-# Subtask 4: Once job exhaustion
-# ---------------------------------------------------------------------------
-
-
 async def test_once_job_exhausts_after_firing() -> None:
     """A Once job is removed from the scheduler after it fires."""
     async with AppTestHarness(_OnceExhaustionApp, config={}) as harness:
@@ -334,11 +324,6 @@ async def test_once_job_exhausts_after_firing() -> None:
         assert not any(j.name == "once_job" for j in remaining), "Once job should be removed after exhaustion"
 
 
-# ---------------------------------------------------------------------------
-# Subtask 5: After job exhaustion
-# ---------------------------------------------------------------------------
-
-
 async def test_after_job_exhausts_after_firing() -> None:
     """An After job is removed from the scheduler after it fires."""
     async with AppTestHarness(_AfterExhaustionApp, config={}) as harness:
@@ -359,11 +344,6 @@ async def test_after_job_exhausts_after_firing() -> None:
         # Job should be exhausted and removed
         remaining = scheduler.list_jobs()
         assert not any(j.name == "after_job" for j in remaining), "After job should be removed after exhaustion"
-
-
-# ---------------------------------------------------------------------------
-# Subtask 6: Jitter offset applied to sort_index
-# ---------------------------------------------------------------------------
 
 
 async def test_jitter_offset_applied_to_sort_index() -> None:
@@ -392,11 +372,6 @@ async def test_jitter_offset_applied_to_sort_index() -> None:
         assert offset_seconds <= 60, f"sort_index offset ({offset_seconds:.2f}s) exceeds jitter bound (60s)"
 
 
-# ---------------------------------------------------------------------------
-# Subtask 7: Group cancel removes all members
-# ---------------------------------------------------------------------------
-
-
 async def test_group_cancel_removes_all_members() -> None:
     """cancel_group marks all group members as cancelled and removes from list_jobs."""
     async with AppTestHarness(_GroupApp, config={}) as harness:
@@ -416,11 +391,6 @@ async def test_group_cancel_removes_all_members() -> None:
         all_jobs = scheduler.list_jobs()
         for job in group_jobs:
             assert job not in all_jobs, f"Job {job.name} should not be in list_jobs() after cancel_group"
-
-
-# ---------------------------------------------------------------------------
-# Subtask 8: Once job removed from group after exhaustion
-# ---------------------------------------------------------------------------
 
 
 async def test_once_job_removed_from_group_after_exhaustion() -> None:
@@ -451,11 +421,6 @@ async def test_once_job_removed_from_group_after_exhaustion() -> None:
         assert any(j.name == "recurring_in_group" for j in group_after), "Recurring job should remain in group"
 
 
-# ---------------------------------------------------------------------------
-# Subtask 10: resolve_trigger with trigger=None
-# ---------------------------------------------------------------------------
-
-
 def test_resolve_trigger_none_job() -> None:
     """resolve_trigger returns ('one-shot', None) for a job with trigger=None.
 
@@ -464,11 +429,6 @@ def test_resolve_trigger_none_job() -> None:
     job = SimpleNamespace(trigger=None)
     result = resolve_trigger(job)  # pyright: ignore[reportArgumentType]
     assert result == ("one-shot", None), f"Expected ('one-shot', None), got {result}"
-
-
-# ---------------------------------------------------------------------------
-# Subtask 5a: job.cancel() back-reference path persists cancelled_at
-# ---------------------------------------------------------------------------
 
 
 async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with_scheduler: HassetteHarness) -> None:
@@ -508,11 +468,6 @@ async def test_job_cancel_via_back_reference_persists_cancelled_at(hassette_with
     # Verify the job is dequeued (no longer in the scheduler)
     remaining = hassette_with_scheduler.scheduler.list_jobs()
     assert not any(j is scheduled_job for j in remaining), "Cancelled job should be removed from scheduler"
-
-
-# ---------------------------------------------------------------------------
-# Subtask 5b: cancel before db_id set does not raise
-# ---------------------------------------------------------------------------
 
 
 async def test_cancel_before_db_id_set_does_not_raise(hassette_with_scheduler: HassetteHarness) -> None:

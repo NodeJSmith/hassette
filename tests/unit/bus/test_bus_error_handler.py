@@ -22,18 +22,8 @@ if typing.TYPE_CHECKING:
     from hassette.bus.bus import Bus
 
 
-# ---------------------------------------------------------------------------
-# Handler used across tests
-# ---------------------------------------------------------------------------
-
-
 async def handler(event) -> None:
     pass
-
-
-# ---------------------------------------------------------------------------
-# Tests — Bus.on_error() method
-# ---------------------------------------------------------------------------
 
 
 def test_on_error_stores_handler(bus: "Bus") -> None:
@@ -64,11 +54,6 @@ async def test_on_error_reset_on_initialize(bus: "Bus") -> None:
     assert bus._error_handler is None
 
 
-# ---------------------------------------------------------------------------
-# Tests — per-listener on_error= stored on Listener
-# ---------------------------------------------------------------------------
-
-
 def test_per_listener_on_error_stored_on_listener(bus: "Bus") -> None:
     """on_error= passed to Bus.on() is stored on listener.error_handler."""
     mock_handler = AsyncMock()
@@ -92,10 +77,6 @@ def test_on_error_raw_callable_stored_not_normalized(bus: "Bus") -> None:
         subscription = bus.on(topic="test.topic", handler=handler, on_error=mock_handler)
         assert subscription.listener.invoker.error_handler is mock_handler
 
-
-# ---------------------------------------------------------------------------
-# Tests — on_error flows through all convenience wrappers
-# ---------------------------------------------------------------------------
 
 WRAPPER_ARGS: list[tuple[str, tuple, dict]] = [
     ("on_state_change", ("light.kitchen",), {"handler": handler}),

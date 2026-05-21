@@ -13,10 +13,6 @@ from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import After, Cron, Daily, Every, Once
 from hassette.utils.date_utils import now
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_mock_parent(*, app_key: str = "test_app", index: int = 0, source_tier: str = "app") -> Mock:
     """Create a mock parent Resource with telemetry identity fields."""
@@ -75,11 +71,6 @@ async def noop() -> None:
     pass
 
 
-# ---------------------------------------------------------------------------
-# schedule() entry point
-# ---------------------------------------------------------------------------
-
-
 class TestScheduleEntryPoint:
     def test_schedule_creates_job_with_trigger(self) -> None:
         """schedule(cb, Every(hours=1)) returns a ScheduledJob with the correct trigger."""
@@ -112,11 +103,6 @@ class TestScheduleEntryPoint:
         scheduler = make_scheduler()
         scheduler.schedule(noop, Every(seconds=30))
         assert scheduler._jobs_by_group == {}
-
-
-# ---------------------------------------------------------------------------
-# cancel_group()
-# ---------------------------------------------------------------------------
 
 
 class TestCancelGroup:
@@ -201,11 +187,6 @@ class TestCancelGroup:
         scheduler.scheduler_service.task_bucket.spawn.assert_not_called()
 
 
-# ---------------------------------------------------------------------------
-# list_jobs()
-# ---------------------------------------------------------------------------
-
-
 class TestListJobs:
     def test_list_jobs_no_filter(self) -> None:
         """list_jobs() returns all 3 jobs across 2 groups."""
@@ -229,11 +210,6 @@ class TestListJobs:
         scheduler = make_scheduler()
         scheduler.schedule(noop, Every(hours=1), name="a", group="g1")
         assert scheduler.list_jobs(group="ghost") == []
-
-
-# ---------------------------------------------------------------------------
-# _jobs_by_group maintenance
-# ---------------------------------------------------------------------------
 
 
 class TestJobsByGroupMaintenance:
@@ -274,11 +250,6 @@ class TestJobsByGroupMaintenance:
 
         assert "once_group" not in scheduler._jobs_by_group
         assert job.name not in scheduler._jobs_by_name
-
-
-# ---------------------------------------------------------------------------
-# Convenience wrappers
-# ---------------------------------------------------------------------------
 
 
 class TestConvenienceWrappers:
@@ -417,16 +388,6 @@ class TestConvenienceWrappers:
         assert job in scheduler._jobs_by_group["once"]
 
 
-# ---------------------------------------------------------------------------
-# Callback registration
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# F3: TypeError fail-fast for non-protocol triggers
-# ---------------------------------------------------------------------------
-
-
 class TestScheduleTypeError:
     def test_schedule_raises_typeerror_for_non_protocol_trigger(self) -> None:
         """schedule() with a non-TriggerProtocol trigger raises TypeError immediately."""
@@ -480,11 +441,6 @@ class TestCallbackRegistration:
         assert callable(call_args.args[1])
 
 
-# ---------------------------------------------------------------------------
-# add_job() back-reference
-# ---------------------------------------------------------------------------
-
-
 class TestAddJobBackReference:
     def test_add_job_sets_scheduler_back_reference(self) -> None:
         """add_job() sets job._scheduler = self before delegating to scheduler_service."""
@@ -496,11 +452,6 @@ class TestAddJobBackReference:
         assert job._scheduler is scheduler, (
             f"Expected job._scheduler to be the Scheduler instance, got {job._scheduler!r}"
         )
-
-
-# ---------------------------------------------------------------------------
-# cancel_job() semantics
-# ---------------------------------------------------------------------------
 
 
 class TestCancelJob:
@@ -582,11 +533,6 @@ class TestCancelJob:
         )
 
 
-# ---------------------------------------------------------------------------
-# job.cancel() delegation
-# ---------------------------------------------------------------------------
-
-
 class TestJobCancelDelegation:
     def test_job_cancel_delegates_to_scheduler(self) -> None:
         """job.cancel() calls scheduler.cancel_job(self)."""
@@ -607,11 +553,6 @@ class TestJobCancelDelegation:
 
         with pytest.raises(RuntimeError, match="not registered with a Scheduler"):
             job.cancel()
-
-
-# ---------------------------------------------------------------------------
-# Identity pass-through (Scheduler uses parent's telemetry identity)
-# ---------------------------------------------------------------------------
 
 
 class TestIdentityPassThrough:

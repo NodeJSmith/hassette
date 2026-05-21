@@ -24,10 +24,7 @@ from hassette.test_utils.app_harness import AppConfigurationError, AppTestHarnes
 from hassette.test_utils.recording_api import RecordingApi
 from hassette.types.enums import ResourceStatus
 
-# ---------------------------------------------------------------------------
-# Minimal test app defined inline.
 # Class names don't start with "Test" to avoid pytest collection warnings.
-# ---------------------------------------------------------------------------
 
 
 class SensorConfig(AppConfig):
@@ -60,11 +57,6 @@ class RequiredFieldApp(App[RequiredFieldConfig]):
 
     async def on_initialize(self) -> None:
         pass
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 async def test_basic_lifecycle():
@@ -207,11 +199,6 @@ async def test_api_recorder_records_calls():
         harness.api_recorder.assert_called("turn_on", entity_id="light.kitchen")
 
 
-# ---------------------------------------------------------------------------
-# State seeding tests
-# ---------------------------------------------------------------------------
-
-
 async def test_set_state_seeds_proxy():
     """set_state populates the StateProxy so states.get() returns the value."""
     async with AppTestHarness(SensorApp, config={}) as harness:
@@ -247,11 +234,6 @@ async def test_set_states_multiple():
         assert harness.app.states.get("switch.fan") is not None
 
 
-# ---------------------------------------------------------------------------
-# Additional event simulation tests
-# ---------------------------------------------------------------------------
-
-
 async def test_simulate_state_change_drains_handlers():
     """simulate_state_change returns only after the handler has fully completed."""
 
@@ -278,11 +260,6 @@ async def test_simulate_call_service():
         await harness.simulate_call_service("light", "turn_on")
 
 
-# ---------------------------------------------------------------------------
-# simulate_attribute_change with explicit state= argument
-# ---------------------------------------------------------------------------
-
-
 async def test_simulate_attribute_change_uses_explicit_state():
     """When state= is passed, simulate_attribute_change uses it instead of proxy lookup.
 
@@ -307,11 +284,6 @@ async def test_simulate_attribute_change_uses_explicit_state():
             # The state values should be "25.0" (explicit), not "20.0" (cached)
             assert call_kwargs.kwargs["old_value"] == "25.0"
             assert call_kwargs.kwargs["new_value"] == "25.0"
-
-
-# ---------------------------------------------------------------------------
-# Typed DI handler tests (WP01 — fix existing event factories)
-# ---------------------------------------------------------------------------
 
 
 async def test_simulate_state_change_typed_di_state_new():
@@ -486,11 +458,6 @@ async def test_simulate_attribute_change_without_set_state():
     assert received_old[0].value is None
 
 
-# ---------------------------------------------------------------------------
-# simulate_component_loaded / simulate_service_registered
-# ---------------------------------------------------------------------------
-
-
 async def test_simulate_component_loaded():
     """simulate_component_loaded fires on_component_loaded handler."""
     calls: list[Any] = []
@@ -523,11 +490,6 @@ async def test_simulate_service_registered():
         await harness.simulate_service_registered("light", "turn_on")
 
     assert len(calls) == 1
-
-
-# ---------------------------------------------------------------------------
-# simulate_hassette_service_status / failed / crashed / started
-# ---------------------------------------------------------------------------
 
 
 async def test_simulate_hassette_service_status():
@@ -619,11 +581,6 @@ async def test_simulate_hassette_service_ready():
         assert my_events[0].payload.data.status == ResourceStatus.RUNNING
 
 
-# ---------------------------------------------------------------------------
-# simulate_websocket_connected / disconnected
-# ---------------------------------------------------------------------------
-
-
 async def test_simulate_websocket_connected():
     """simulate_websocket_connected fires on_websocket_connected handler."""
     calls: list[Any] = []
@@ -656,11 +613,6 @@ async def test_simulate_websocket_disconnected():
         await harness.simulate_websocket_disconnected()
 
     assert len(calls) == 1
-
-
-# ---------------------------------------------------------------------------
-# simulate_app_state_changed / running / stopping
-# ---------------------------------------------------------------------------
 
 
 async def test_simulate_app_state_changed():
@@ -718,11 +670,6 @@ async def test_simulate_app_stopping():
     assert len(calls) == 1
 
 
-# ---------------------------------------------------------------------------
-# simulate_homeassistant_restart / start / stop
-# ---------------------------------------------------------------------------
-
-
 async def test_simulate_homeassistant_restart():
     """simulate_homeassistant_restart fires on_homeassistant_restart handler."""
     calls: list[Any] = []
@@ -772,11 +719,6 @@ async def test_simulate_homeassistant_stop():
         await harness.simulate_homeassistant_stop()
 
     assert len(calls) == 1
-
-
-# ---------------------------------------------------------------------------
-# Typed DI handler tests for new simulate methods
-# ---------------------------------------------------------------------------
 
 
 async def test_simulate_hassette_service_status_typed_di():

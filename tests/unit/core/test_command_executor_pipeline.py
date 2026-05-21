@@ -23,10 +23,6 @@ from hassette.core.commands import InvokeHandler
 from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.scheduler.classes import JobExecutionRecord
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_invocation(
     listener_id: int | None = 1,
@@ -95,11 +91,6 @@ def init_executor(queue_max: int = 10) -> CommandExecutor:
     return executor
 
 
-# ---------------------------------------------------------------------------
-# Bounded queue — QueueFull handling
-# ---------------------------------------------------------------------------
-
-
 async def test_bounded_queue_drops_on_full():
     """Filling a queue beyond maxsize triggers QueueFull; _dropped_overflow is incremented."""
     executor = init_executor(queue_max=3)
@@ -120,11 +111,6 @@ async def test_bounded_queue_drops_on_full():
 
     assert executor._dropped_overflow == 1
     assert executor._write_queue.qsize() == 3
-
-
-# ---------------------------------------------------------------------------
-# RetryableBatch expansion in _drain_and_persist
-# ---------------------------------------------------------------------------
 
 
 async def test_retryable_batch_expanded_in_drain():
@@ -154,11 +140,6 @@ async def test_retryable_batch_expanded_in_drain():
     assert job in captured_jobs
     # RetryableBatch should preserve its retry_count (was 1)
     assert 1 in captured_retry_counts
-
-
-# ---------------------------------------------------------------------------
-# Sentinel guard — id=0 dropped, id=None allowed
-# ---------------------------------------------------------------------------
 
 
 async def test_sentinel_guard_drops_id_zero():
@@ -225,11 +206,6 @@ async def test_sentinel_guard_allows_id_none():
     assert none_inv in persisted_invocations
 
 
-# ---------------------------------------------------------------------------
-# Error classification — OperationalError → retry
-# ---------------------------------------------------------------------------
-
-
 async def test_operational_error_triggers_retry():
     """OperationalError from persist_batch causes re-enqueue as RetryableBatch."""
     executor = init_executor()
@@ -256,11 +232,6 @@ async def test_operational_error_triggers_retry():
     assert isinstance(queued, RetryableBatch)
     assert queued.retry_count == 1
     assert inv in queued.invocations
-
-
-# ---------------------------------------------------------------------------
-# Max retries — drops batch, increments _dropped_exhausted
-# ---------------------------------------------------------------------------
 
 
 async def test_max_retries_drops_batch():
@@ -294,11 +265,6 @@ async def test_max_retries_drops_batch():
     assert executor._dropped_exhausted == 1
 
 
-# ---------------------------------------------------------------------------
-# DataError → drop immediately + REGRESSION log
-# ---------------------------------------------------------------------------
-
-
 async def test_data_error_drops_immediately():
     """DataError from persist_batch → drop immediately + REGRESSION log, no re-enqueue."""
     executor = init_executor()
@@ -323,11 +289,6 @@ async def test_data_error_drops_immediately():
     # REGRESSION log
     error_calls = [str(c) for c in executor.logger.error.call_args_list]
     assert any("REGRESSION" in c or "DataError" in c or "non-retryable" in c.lower() for c in error_calls)
-
-
-# ---------------------------------------------------------------------------
-# FK violation → row-by-row fallback
-# ---------------------------------------------------------------------------
 
 
 async def test_integrity_error_row_by_row_fallback():
@@ -358,11 +319,6 @@ async def test_integrity_error_row_by_row_fallback():
 
     # Should have incremented dropped_exhausted for the 1 record that failed even with null FK
     assert executor._dropped_exhausted == 1
-
-
-# ---------------------------------------------------------------------------
-# _build_record reads source_tier and is_di_failure
-# ---------------------------------------------------------------------------
 
 
 def test_build_record_reads_source_tier():
@@ -426,11 +382,6 @@ def test_build_record_reads_is_di_failure():
     assert record.is_di_failure is True
 
 
-# ---------------------------------------------------------------------------
-# _flush_queue handles RuntimeError from submit gracefully
-# ---------------------------------------------------------------------------
-
-
 async def test_flush_queue_handles_db_closed():
     """_flush_queue does not raise when DB submit raises RuntimeError (DB closed at shutdown)."""
     executor = init_executor()
@@ -455,11 +406,6 @@ async def test_flush_queue_handles_db_closed():
 
     # Should have logged something (error/warning about dropped records)
     assert executor.logger.error.called or executor.logger.warning.called
-
-
-# ---------------------------------------------------------------------------
-# persist_batch INSERT includes source_tier
-# ---------------------------------------------------------------------------
 
 
 async def test_persist_batch_includes_source_tier():

@@ -6,10 +6,6 @@ from unittest.mock import patch
 
 from generate_constraints import generate_lines
 
-# ---------------------------------------------------------------------------
-# Fixtures: fake pyproject.toml content
-# ---------------------------------------------------------------------------
-
 SIMPLE_PYPROJECT = textwrap.dedent(
     """\
     [project]
@@ -38,11 +34,6 @@ PYPROJECT_WITH_EXTRAS = textwrap.dedent(
 )
 
 
-# ---------------------------------------------------------------------------
-# Helper: run generate_lines with a fake pyproject path
-# ---------------------------------------------------------------------------
-
-
 def run_generate(tmp_path: Path, pyproject_content: str, hassette_version: str = "0.24.0") -> list[str]:
     """Call generate_lines() with a fake pyproject.toml and mocked importlib.metadata."""
     toml_file = tmp_path / "pyproject.toml"
@@ -50,11 +41,6 @@ def run_generate(tmp_path: Path, pyproject_content: str, hassette_version: str =
 
     with patch("generate_constraints.importlib.metadata.version", return_value=hassette_version):
         return generate_lines(toml_file)
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 def test_output_starts_with_comment(tmp_path: Path) -> None:

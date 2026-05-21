@@ -427,10 +427,6 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
             await self._exit_stack.__aexit__(exc_type, exc, tb)
             self._exit_stack = None
 
-    # ------------------------------------------------------------------
-    # Convenience properties
-    # ------------------------------------------------------------------
-
     @property
     def app(self) -> App:
         """The fully initialized App instance."""
@@ -463,10 +459,6 @@ class AppTestHarness(SimulationMixin, TimeControlMixin):
     def states(self) -> StateManager:
         """The StateManager owned by the app."""
         return self.app.states
-
-    # ------------------------------------------------------------------
-    # State seeding helpers
-    # ------------------------------------------------------------------
 
     async def set_state(self, entity_id: str, state: str, **attributes: Any) -> None:
         """Seed an entity's state in the StateProxy.

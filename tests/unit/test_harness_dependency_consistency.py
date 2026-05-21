@@ -20,11 +20,6 @@ _starters = HassetteHarness._starters
 REVERSE_CLASS_MAP: dict[type, str] = {v: k for k, v in COMPONENT_CLASS_MAP.items()}
 
 
-# ---------------------------------------------------------------------------
-# Topological sort unit tests
-# ---------------------------------------------------------------------------
-
-
 def test_sort_harness_graph_empty() -> None:
     """Empty graph returns empty list."""
     assert sort_harness_graph({}) == []
@@ -64,11 +59,6 @@ def test_sort_harness_graph_cycle_raises() -> None:
     }
     with pytest.raises(ValueError, match=r"[Cc]ycle"):
         sort_harness_graph(graph)
-
-
-# ---------------------------------------------------------------------------
-# Bidirectional dependency consistency tests
-# ---------------------------------------------------------------------------
 
 
 def test_harness_dependencies_subset_of_real() -> None:
@@ -112,11 +102,6 @@ def test_real_dependencies_subset_of_harness() -> None:
                 f"(harness name: {dep_name!r}), but DEPENDENCIES[{component_name!r}] "
                 f"= {harness_deps} does not include it. Update DEPENDENCIES in harness.py."
             )
-
-
-# ---------------------------------------------------------------------------
-# Structural test: _starters keys match COMPONENT_CLASS_MAP + harness-only
-# ---------------------------------------------------------------------------
 
 
 def test_starters_match_component_map() -> None:

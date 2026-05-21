@@ -14,10 +14,6 @@ from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.scheduler.classes import JobExecutionRecord
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
 
-# ---------------------------------------------------------------------------
-# Schema DDL (mirrors migrations through 003 final state)
-# ---------------------------------------------------------------------------
-
 DDL = """
 CREATE TABLE sessions (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,7 +103,6 @@ CREATE INDEX idx_hi_status_time ON handler_invocations(status, execution_start_t
 CREATE INDEX idx_hi_time ON handler_invocations(execution_start_ts);
 CREATE INDEX idx_hi_session ON handler_invocations(session_id);
 
-
 CREATE TABLE job_executions (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     job_id                INTEGER REFERENCES scheduled_jobs(id) ON DELETE SET NULL,
@@ -134,10 +129,6 @@ CREATE VIEW active_listeners AS
 CREATE VIEW active_scheduled_jobs AS
     SELECT * FROM scheduled_jobs WHERE retired_at IS NULL;
 """
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -212,11 +203,6 @@ def make_job_registration(
     )
 
 
-# ---------------------------------------------------------------------------
-# register_listener tests
-# ---------------------------------------------------------------------------
-
-
 async def test_register_listener_inserts_and_returns_id(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -233,11 +219,6 @@ async def test_register_listener_inserts_and_returns_id(
     assert row is not None
     assert row["app_key"] == "test_app"
     assert row["topic"] == "hass.event.state_changed"
-
-
-# ---------------------------------------------------------------------------
-# register_job tests
-# ---------------------------------------------------------------------------
 
 
 async def test_register_job_inserts_and_returns_id(
@@ -338,11 +319,6 @@ async def test_mark_job_cancelled_sets_cancelled_at(
     assert row is not None
     assert row[0] is not None, "cancelled_at should be set after mark_job_cancelled()"
     assert before_ts <= row[0] <= after_ts, f"cancelled_at={row[0]} should be between {before_ts} and {after_ts}"
-
-
-# ---------------------------------------------------------------------------
-# reconcile_registrations tests
-# ---------------------------------------------------------------------------
 
 
 async def test_reconcile_deletes_stale_without_history(
@@ -558,11 +534,6 @@ async def test_reconcile_resets_retired_at_on_reupsert(
     assert row[0] is None, "retired_at should be reset to NULL after re-upsert"
 
 
-# ---------------------------------------------------------------------------
-# Upsert contract tests (WP04)
-# ---------------------------------------------------------------------------
-
-
 async def test_upsert_same_natural_key_returns_same_id(
     repo: TelemetryRepository,
 ) -> None:
@@ -720,11 +691,6 @@ async def test_upsert_with_name_overrides_key(
     assert id_a != id_b
 
 
-# ---------------------------------------------------------------------------
-# persist_batch tests
-# ---------------------------------------------------------------------------
-
-
 async def test_persist_batch_inserts_handler_invocations(
     repo: TelemetryRepository,
     db: aiosqlite.Connection,
@@ -816,11 +782,6 @@ async def test_persist_batch_handles_empty_lists(
     assert row[0] == 0
 
 
-# ---------------------------------------------------------------------------
-# Migration 006 schema tests
-# ---------------------------------------------------------------------------
-
-
 async def test_schema_has_name_column(db: aiosqlite.Connection) -> None:
     """Migration 006: listeners table includes the name column."""
     cursor = await db.execute("PRAGMA table_info(listeners)")
@@ -881,11 +842,6 @@ async def test_active_views_exist(db: aiosqlite.Connection) -> None:
     cursor = await db.execute("SELECT * FROM active_scheduled_jobs")
     rows = await cursor.fetchall()
     assert rows == []  # empty DB
-
-
-# ---------------------------------------------------------------------------
-# reconcile_registrations — live_job_ids non-empty paths (lines 337-338, 362-363)
-# ---------------------------------------------------------------------------
 
 
 async def test_reconcile_deletes_stale_job_not_in_live_set(
@@ -1012,11 +968,6 @@ async def test_reconcile_rollback_on_exception(
         pytest.raises(RuntimeError, match="simulated DB error"),
     ):
         await repo.reconcile_registrations("test_app", [], [])
-
-
-# ---------------------------------------------------------------------------
-# persist_batch_with_fk_fallback tests (lines 405-525)
-# ---------------------------------------------------------------------------
 
 
 async def test_persist_batch_with_fk_fallback_success_path(
@@ -1223,11 +1174,6 @@ async def test_persist_batch_with_fk_fallback_rollback_on_exception(
         pytest.raises(RuntimeError, match="simulated connection failure"),
     ):
         await repo.persist_batch_with_fk_fallback([invocation], [])
-
-
-# ---------------------------------------------------------------------------
-# persist_batch exception path (lines 602-604)
-# ---------------------------------------------------------------------------
 
 
 async def test_persist_batch_rollback_on_exception(

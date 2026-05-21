@@ -34,18 +34,8 @@ if typing.TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
 
 
-# ---------------------------------------------------------------------------
-# Handlers
-# ---------------------------------------------------------------------------
-
-
 async def handler_contract(event) -> None:
     pass
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -73,11 +63,6 @@ def bus(contract_harness: "HassetteHarness") -> "Bus":
 def bus_service(contract_harness: "HassetteHarness") -> "BusService":
     """The BusService from the contract harness."""
     return contract_harness.bus_service
-
-
-# ---------------------------------------------------------------------------
-# AC#2: DB failure doesn't affect routing
-# ---------------------------------------------------------------------------
 
 
 async def test_db_failure_does_not_prevent_event_delivery(
@@ -148,11 +133,6 @@ async def test_db_failure_handler_still_in_routing_table(
     assert sub.listener.db_id is None
 
 
-# ---------------------------------------------------------------------------
-# AC#6: registration_task resolves with None on DB failure
-# ---------------------------------------------------------------------------
-
-
 async def test_registration_task_resolves_on_db_failure(
     bus: "Bus",
     bus_service: "BusService",
@@ -211,11 +191,6 @@ async def test_registration_task_resolves_on_success(
     assert result is None
     # On success, db_id must be set (the harness stub returns a sequential int)
     assert sub.listener.db_id is not None, "db_id must be set after successful registration"
-
-
-# ---------------------------------------------------------------------------
-# AC#5: Router structural contract — all methods are sync, no lock
-# ---------------------------------------------------------------------------
 
 
 class TestRouterSyncContract:

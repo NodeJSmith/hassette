@@ -22,10 +22,6 @@ if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
 
-# ---------------------------------------------------------------------------
-# Per-test harness fixture
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture
 async def imm_harness(test_config) -> AsyncIterator[tuple[HassetteHarness, "Hassette", "Bus"]]:
@@ -54,11 +50,6 @@ async def imm_harness(test_config) -> AsyncIterator[tuple[HassetteHarness, "Hass
         yield harness, hassette, bus
     finally:
         await harness.stop()
-
-
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
 
 
 async def test_immediate_fires_when_state_matches(imm_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
@@ -276,11 +267,6 @@ async def test_immediate_changed_false_fires_for_any_existing_entity(
     # Handler fired with state="unavailable" — no state restriction
     assert received[0].payload.data.new_state is not None
     assert received[0].payload.data.new_state["state"] == "unavailable"
-
-
-# ---------------------------------------------------------------------------
-# immediate + duration combo tests (WP05)
-# ---------------------------------------------------------------------------
 
 
 async def test_immediate_duration_fires_when_elapsed_exceeds(

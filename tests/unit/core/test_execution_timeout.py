@@ -7,10 +7,6 @@ import pytest
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.utils.execution import ExecutionResult, track_execution
 
-# ---------------------------------------------------------------------------
-# Subtask 1: effective_timeout field on command dataclasses
-# ---------------------------------------------------------------------------
-
 
 class TestEffectiveTimeoutField:
     """effective_timeout is required on InvokeHandler and ExecuteJob (no default)."""
@@ -70,11 +66,6 @@ class TestEffectiveTimeoutField:
             effective_timeout=None,
         )
         assert cmd.effective_timeout is None
-
-
-# ---------------------------------------------------------------------------
-# Subtask 2: track_execution TimeoutError handling and is_timed_out property
-# ---------------------------------------------------------------------------
 
 
 class TestTrackExecutionTimeout:

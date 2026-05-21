@@ -130,9 +130,6 @@ def identity(x: Any) -> Any:
     return x
 
 
-# ======================================================================================
-# Typed State Change Event
-# ======================================================================================
 # This annotation converts a RawStateChangeEvent into a TypedStateChangeEvent
 # with typed state objects using the StateRegistry.
 
@@ -150,10 +147,6 @@ async def handler(event: D.TypedStateChangeEvent[states.LightState]):
 ```
 """
 
-
-# ======================================================================================
-# State Object Extractors
-# ======================================================================================
 # These annotations extract full state objects (dicts) from events and convert them
 # to typed Pydantic models using the StateRegistry.
 
@@ -220,10 +213,6 @@ async def handler(old_state: D.MaybeStateOld[states.LightState]):
 ```
 """
 
-
-# ======================================================================================
-# Identity & Metadata Extractors
-# ======================================================================================
 # These annotations extract simple identity and metadata fields from events.
 
 # Extractor: get_entity_id() -> str

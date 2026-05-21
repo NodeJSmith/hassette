@@ -28,10 +28,6 @@ from hassette.core.scheduler_service import HeapQueue, SchedulerService, _Schedu
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import Every
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def make_scheduler_service() -> SchedulerService:
     """Create a SchedulerService with mocked internals, bypassing Resource.__init__."""
@@ -89,11 +85,6 @@ def frozen_now() -> ZonedDateTime:
     return ZonedDateTime(2025, 1, 15, 12, 0, 0, tz="UTC")
 
 
-# ---------------------------------------------------------------------------
-# reschedule_job() — None exhaustion
-# ---------------------------------------------------------------------------
-
-
 class TestRescheduleNoneRemovesJob:
     async def test_reschedule_none_removes_job(self) -> None:
         """next_run_time() returning None removes the job; job not re-enqueued."""
@@ -119,11 +110,6 @@ class TestRescheduleNoneRemovesJob:
 
         svc._job_queue.remove_job.assert_called_once_with(job)
         trig.next_run_time.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# reschedule_job() — exception handling
-# ---------------------------------------------------------------------------
 
 
 class TestRescheduleExceptionRemovesJob:
@@ -153,11 +139,6 @@ class TestRescheduleExceptionRemovesJob:
 
         # Should not raise
         await svc.reschedule_job(job)
-
-
-# ---------------------------------------------------------------------------
-# reschedule_job() — recurring job
-# ---------------------------------------------------------------------------
 
 
 class TestRescheduleRecurring:
@@ -190,11 +171,6 @@ class TestRescheduleRecurring:
 
         # reschedule must succeed without referencing it
         await svc.reschedule_job(job)
-
-
-# ---------------------------------------------------------------------------
-# Jitter
-# ---------------------------------------------------------------------------
 
 
 class TestJitter:
@@ -296,11 +272,6 @@ class TestJitter:
         assert next_run_time == job.fire_at
 
 
-# ---------------------------------------------------------------------------
-# Removal callbacks
-# ---------------------------------------------------------------------------
-
-
 class TestRemovalCallbacks:
     async def test_removal_callback_called_on_none_exhaustion(self) -> None:
         """Registered callback invoked when next_run_time() returns None."""
@@ -384,11 +355,6 @@ class TestRemovalCallbacks:
         callback.assert_called_once_with(job)
 
 
-# ---------------------------------------------------------------------------
-# _enqueue_then_register — protocol dispatch
-# ---------------------------------------------------------------------------
-
-
 class TestEnqueueThenRegisterUsesProtocol:
     async def test_enqueue_then_register_uses_protocol(self) -> None:
         """_enqueue_then_register uses trigger_db_type(); no isinstance dispatch.
@@ -448,11 +414,6 @@ class TestEnqueueThenRegisterUsesProtocol:
         )
 
 
-# ---------------------------------------------------------------------------
-# _remove_jobs_by_owner — removal callbacks
-# ---------------------------------------------------------------------------
-
-
 class TestRemoveJobsByOwnerCallbacks:
     async def test_remove_jobs_by_owner_fires_callback_for_each_job(self) -> None:
         """_remove_jobs_by_owner invokes registered callback for each removed job."""
@@ -495,11 +456,6 @@ class TestRemoveJobsByOwnerCallbacks:
         callback_a.assert_not_called()
 
 
-# ---------------------------------------------------------------------------
-# register_removal_callback() — duplicate registration
-# ---------------------------------------------------------------------------
-
-
 class TestDuplicateRemovalCallback:
     def test_re_registration_overwrites_previous_callback(self) -> None:
         """Registering a second callback for the same owner_id replaces the first.
@@ -536,11 +492,6 @@ class TestDuplicateRemovalCallback:
         svc.deregister_removal_callback("nonexistent")  # must not raise
 
 
-# ---------------------------------------------------------------------------
-# reschedule_job() — non-future guard compares against now()
-# ---------------------------------------------------------------------------
-
-
 class TestNonFutureGuard:
     async def test_non_future_guard_compares_against_now(self) -> None:
         """Non-future guard advances job when trigger returns a past time.
@@ -568,11 +519,6 @@ class TestNonFutureGuard:
         )
         # A warning must have been logged
         svc.logger.warning.assert_called_once()
-
-
-# ---------------------------------------------------------------------------
-# F2: _enqueue_then_register — DB failure logged, not re-raised
-# ---------------------------------------------------------------------------
 
 
 class TestEnqueueThenRegisterDbFailure:
@@ -616,11 +562,6 @@ class TestEnqueueThenRegisterDbFailure:
         call_args = svc.logger.exception.call_args
         log_msg = call_args[0][0]
         assert "owner_id" in log_msg or "Failed to register" in log_msg
-
-
-# ---------------------------------------------------------------------------
-# F9: run_job() behind-schedule warning uses fire_at not next_run
-# ---------------------------------------------------------------------------
 
 
 class TestBehindScheduleWarning:

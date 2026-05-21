@@ -26,10 +26,6 @@ from hassette.config.models import (
 )
 from hassette.test_utils.config import TEST_TOKEN
 
-# ---------------------------------------------------------------------------
-# FR#9: All 8 nested model classes inherit BaseModel, not BaseSettings
-# ---------------------------------------------------------------------------
-
 
 @pytest.mark.parametrize(
     "model_cls",
@@ -58,11 +54,6 @@ def test_nested_models_are_base_model_not_base_settings(model_cls):
     """AC#9: All 8 nested model classes are BaseModel subclasses, not BaseSettings subclasses."""
     assert issubclass(model_cls, BaseModel), f"{model_cls.__name__} must inherit BaseModel"
     assert not issubclass(model_cls, BaseSettings), f"{model_cls.__name__} must NOT inherit BaseSettings"
-
-
-# ---------------------------------------------------------------------------
-# DatabaseConfig
-# ---------------------------------------------------------------------------
 
 
 class TestDatabaseConfig:
@@ -134,11 +125,6 @@ class TestDatabaseConfig:
         assert cfg.path == Path("/tmp/test.db")
 
 
-# ---------------------------------------------------------------------------
-# WebSocketConfig
-# ---------------------------------------------------------------------------
-
-
 class TestWebSocketConfig:
     def test_defaults(self):
         """WebSocketConfig constructs with all defaults."""
@@ -163,11 +149,6 @@ class TestWebSocketConfig:
         assert isinstance(cfg.connect_retry_initial_wait_seconds, float)
         assert isinstance(cfg.connect_retry_max_wait_seconds, float)
         assert isinstance(cfg.max_recovery_seconds, float)
-
-
-# ---------------------------------------------------------------------------
-# LoggingConfig
-# ---------------------------------------------------------------------------
 
 
 class TestLoggingConfig:
@@ -246,11 +227,6 @@ class TestLoggingConfig:
         assert cfg.log_level == "INFO"
 
 
-# ---------------------------------------------------------------------------
-# LifecycleConfig
-# ---------------------------------------------------------------------------
-
-
 class TestLifecycleConfig:
     def test_defaults(self):
         """LifecycleConfig constructs with all defaults."""
@@ -306,11 +282,6 @@ class TestLifecycleConfig:
         assert cfg.error_handler_timeout_seconds is None
 
 
-# ---------------------------------------------------------------------------
-# WebApiConfig
-# ---------------------------------------------------------------------------
-
-
 class TestWebApiConfig:
     def test_defaults(self):
         """WebApiConfig constructs with all defaults."""
@@ -324,11 +295,6 @@ class TestWebApiConfig:
         assert cfg.event_buffer_size == 500
         assert cfg.log_buffer_size == 2000
         assert cfg.job_history_size == 1000
-
-
-# ---------------------------------------------------------------------------
-# AppsConfig
-# ---------------------------------------------------------------------------
 
 
 class TestAppsConfig:
@@ -404,11 +370,6 @@ class TestAppsConfig:
             AppsConfig(**{reserved_name: {"filename": "f.py", "class_name": "C"}})
 
 
-# ---------------------------------------------------------------------------
-# SchedulerConfig
-# ---------------------------------------------------------------------------
-
-
 class TestSchedulerConfig:
     def test_defaults(self):
         """SchedulerConfig constructs with all defaults."""
@@ -440,11 +401,6 @@ class TestSchedulerConfig:
             SchedulerConfig(job_timeout_seconds=True)
 
 
-# ---------------------------------------------------------------------------
-# FileWatcherConfig
-# ---------------------------------------------------------------------------
-
-
 class TestFileWatcherConfig:
     def test_defaults(self):
         """FileWatcherConfig constructs with all defaults."""
@@ -452,11 +408,6 @@ class TestFileWatcherConfig:
         assert cfg.debounce_milliseconds == 3000
         assert cfg.step_milliseconds == 500
         assert cfg.watch_files is True
-
-
-# ---------------------------------------------------------------------------
-# Integration: HassetteConfig nested access (FR#2)
-# ---------------------------------------------------------------------------
 
 
 class TestHassetteConfigNested:
@@ -528,11 +479,6 @@ class TestHassetteConfigNested:
         assert config.lifecycle.event_handler_timeout_seconds == 600.0
 
 
-# ---------------------------------------------------------------------------
-# Integration: TOML nested section loading (FR#3, AC#3)
-# ---------------------------------------------------------------------------
-
-
 class TestNestedTomlLoading:
     """TOML with nested sections loads correctly."""
 
@@ -595,11 +541,6 @@ class TestNestedTomlLoading:
         assert config.database.max_size_mb == 500
 
 
-# ---------------------------------------------------------------------------
-# Integration: env var partial update (FR#4, FR#5, AC#4)
-# ---------------------------------------------------------------------------
-
-
 class TestEnvVarPartialUpdate:
     """Setting a single env var for a nested field does not replace entire group defaults."""
 
@@ -639,11 +580,6 @@ class TestEnvVarPartialUpdate:
 
         config = _EnvConfig()
         assert config.logging.log_level == "DEBUG"
-
-
-# ---------------------------------------------------------------------------
-# Integration: cross-model validation (FR#6, AC#5)
-# ---------------------------------------------------------------------------
 
 
 class TestCrossModelValidation:

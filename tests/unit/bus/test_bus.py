@@ -22,22 +22,12 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
 
 
-# ---------------------------------------------------------------------------
-# Handlers used across tests (must be named module-level functions)
-# ---------------------------------------------------------------------------
-
-
 async def handler_a(event) -> None:
     pass
 
 
 async def handler_b(event) -> None:
     pass
-
-
-# ---------------------------------------------------------------------------
-# Tests — name= parameter propagation
-# ---------------------------------------------------------------------------
 
 
 def test_name_parameter_propagates_to_listener(bus: "Bus") -> None:
@@ -53,11 +43,6 @@ def test_name_none_by_default(bus: "Bus") -> None:
     with mock_add_listener(bus):
         subscription = bus.on(topic="test.topic", handler=handler_a)
         assert subscription.listener.identity.name is None
-
-
-# ---------------------------------------------------------------------------
-# Tests — collision detection
-# ---------------------------------------------------------------------------
 
 
 def test_duplicate_natural_key_raises_value_error(bus: "Bus") -> None:
@@ -102,11 +87,6 @@ def test_collision_detection_is_synchronous(bus: "Bus") -> None:
             bus.on(topic="test.topic", handler=handler_a)
 
         assert add_mock.call_count == call_count_after_first
-
-
-# ---------------------------------------------------------------------------
-# Tests — identity pass-through (Bus uses parent's telemetry identity)
-# ---------------------------------------------------------------------------
 
 
 def test_listener_inherits_parent_app_key(bus: "Bus") -> None:

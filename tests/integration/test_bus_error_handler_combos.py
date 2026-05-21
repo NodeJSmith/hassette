@@ -26,10 +26,6 @@ if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
 
-# ---------------------------------------------------------------------------
-# Per-test harness fixture
-# ---------------------------------------------------------------------------
-
 DURATION = 0.05  # 50 ms — fast enough for tests
 
 
@@ -55,11 +51,6 @@ async def combo_harness(test_config) -> AsyncIterator[tuple[HassetteHarness, "Ha
         yield harness, hassette, bus
     finally:
         await harness.stop()
-
-
-# ---------------------------------------------------------------------------
-# duration + error_handler
-# ---------------------------------------------------------------------------
 
 
 async def test_duration_app_level_error_handler(combo_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
@@ -204,11 +195,6 @@ async def test_duration_once_error_handler_and_removal(
     assert len(error_contexts) == 1
 
 
-# ---------------------------------------------------------------------------
-# immediate + error_handler
-# ---------------------------------------------------------------------------
-
-
 async def test_immediate_app_level_error_handler(combo_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Immediate fire handler raises → app-level on_error receives the error context."""
     harness, hassette, bus = combo_harness
@@ -341,11 +327,6 @@ async def test_immediate_error_handler_receives_synthetic_event(
     assert ctx.event.payload.data.old_state is None
     assert ctx.event.payload.data.new_state is not None
     assert ctx.event.payload.data.new_state["state"] == "25.5"
-
-
-# ---------------------------------------------------------------------------
-# immediate + duration + error_handler (three-way combo)
-# ---------------------------------------------------------------------------
 
 
 async def test_immediate_duration_elapsed_exceeds_error_handler(

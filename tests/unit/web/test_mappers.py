@@ -14,10 +14,6 @@ from hassette.web.mappers import (
 )
 from hassette.web.models import AppManifestListResponse, AppStatusResponse, ConnectedPayload, SystemStatusResponse
 
-# ---------------------------------------------------------------------------
-# app_status_response_from
-# ---------------------------------------------------------------------------
-
 
 def make_instance(app_key: str, index: int, status: ResourceStatus) -> AppInstanceInfo:
     return AppInstanceInfo(
@@ -82,11 +78,6 @@ def test_app_status_response_from_coerces_resource_status_enum():
 
     assert result.apps[0].status == "running"
     assert isinstance(result.apps[0].status, str)
-
-
-# ---------------------------------------------------------------------------
-# app_manifest_list_response_from
-# ---------------------------------------------------------------------------
 
 
 def make_manifest(app_key: str, status: str, instances: list[AppInstanceInfo] | None = None) -> AppManifestInfo:
@@ -181,11 +172,6 @@ def test_app_manifest_list_response_from_preserves_counts():
     assert result.blocked == 1
 
 
-# ---------------------------------------------------------------------------
-# system_status_response_from
-# ---------------------------------------------------------------------------
-
-
 def make_system_status(**overrides) -> SystemStatus:
     defaults = {
         "status": "ok",
@@ -241,11 +227,6 @@ def test_system_status_response_from_empty_services():
     assert result.services_running == []
 
 
-# ---------------------------------------------------------------------------
-# connected_payload_from
-# ---------------------------------------------------------------------------
-
-
 def test_connected_payload_from_uses_system_status_fields():
     """entity_count, app_count, and uptime_seconds come from SystemStatus."""
     domain = make_system_status(entity_count=100, app_count=5, uptime_seconds=300.0)
@@ -274,11 +255,6 @@ def test_connected_payload_from_no_session_id():
     result = connected_payload_from(domain)
 
     assert not hasattr(result, "session_id")
-
-
-# ---------------------------------------------------------------------------
-# to_listener_with_summary — last_error_traceback passthrough
-# ---------------------------------------------------------------------------
 
 
 def make_listener_summary(**overrides) -> ListenerSummary:

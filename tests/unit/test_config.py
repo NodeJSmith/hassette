@@ -334,10 +334,8 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(monke
 
             READ_AT_IMPORT = os.getenv("HASSETTE_TEST_APP_IMPORT")
 
-
             class EnvReaderConfig(AppConfig):
                 pass
-
 
             class EnvReaderApp(App[EnvReaderConfig]):
                 async def on_initialize(self) -> None:
@@ -397,11 +395,6 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(monke
     assert mod is not None, "Expected app module to be imported during precheck"
     assert mod.READ_AT_IMPORT == "from_dotenv"  # pyright: ignore[reportAttributeAccessIssue]
     cleanup_env("HASSETTE_TEST_APP_IMPORT")
-
-
-# ---------------------------------------------------------------------------
-# Service log level inheritance tests
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -498,11 +491,6 @@ def test_service_specific_override_takes_precedence(monkeypatch):
         assert actual == "DEBUG", f"Expected logging.{attr}='DEBUG', got {actual!r}"
 
 
-# ---------------------------------------------------------------------------
-# Security-critical config property tests (#322)
-# ---------------------------------------------------------------------------
-
-
 class TestAuthHeaders:
     """Test authentication header construction."""
 
@@ -594,11 +582,6 @@ class TestErrorHandlerTimeoutSeconds:
         """lifecycle.error_handler_timeout_seconds rejects booleans."""
         with pytest.raises(Exception, match="timeout must be"):
             _LogLevelTestConfig(lifecycle={"error_handler_timeout_seconds": True})
-
-
-# ---------------------------------------------------------------------------
-# WebSocket retry config field tests
-# ---------------------------------------------------------------------------
 
 
 def test_websocket_connect_retry_defaults() -> None:

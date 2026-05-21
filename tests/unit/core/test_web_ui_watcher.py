@@ -9,8 +9,6 @@ import pytest
 from hassette.core.web_ui_watcher import _WATCH_DIRS, _WEB_DIR, WebUiWatcherService, _change_kind
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
-# --- _change_kind classification ---
-
 
 @pytest.mark.parametrize(
     ("path", "expected"),
@@ -31,9 +29,6 @@ def test_change_kind(path: str, expected: str) -> None:
     assert _change_kind(path) == expected
 
 
-# --- Module-level constants ---
-
-
 def test_web_dir_points_to_web_package() -> None:
     assert _WEB_DIR.name == "web"
     assert (_WEB_DIR / "static").exists()
@@ -41,9 +36,6 @@ def test_web_dir_points_to_web_package() -> None:
 
 def test_watch_dirs_contains_static() -> None:
     assert _WEB_DIR / "static" in _WATCH_DIRS
-
-
-# --- Service lifecycle ---
 
 
 @pytest.fixture

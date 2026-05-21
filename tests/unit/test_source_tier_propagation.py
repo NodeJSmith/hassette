@@ -24,11 +24,6 @@ if typing.TYPE_CHECKING:
     from hassette.test_utils.harness import HassetteHarness
 
 
-# ---------------------------------------------------------------------------
-# Resource hierarchy — ClassVar defaults
-# ---------------------------------------------------------------------------
-
-
 class TestResourceSourceTierDefaults:
     def test_resource_defaults_to_framework(self) -> None:
         assert Resource.source_tier == "framework"
@@ -49,11 +44,6 @@ class TestResourceAppKey:
         mock = Mock(spec=Resource)
         mock.class_name = "StateProxy"
         assert Resource.app_key.fget(mock) == "__hassette__.StateProxy"  # pyright: ignore[reportOptionalMemberAccess]
-
-
-# ---------------------------------------------------------------------------
-# Bus.on() propagation
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -106,11 +96,6 @@ class TestBusSourceTierPropagation:
         """on_state_change and other convenience methods also propagate source_tier."""
         sub = framework_bus.on_state_change("sensor.test", handler=handler)
         assert sub.listener.identity.source_tier == "framework"
-
-
-# ---------------------------------------------------------------------------
-# Scheduler.schedule() propagation
-# ---------------------------------------------------------------------------
 
 
 def make_scheduler_with_parent(source_tier: str) -> "Scheduler":

@@ -1,6 +1,5 @@
 # pyright: reportInvalidTypeArguments=none, reportArgumentType=none
 
-
 import asyncio
 import contextlib
 import typing
@@ -572,11 +571,6 @@ async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bu
     assert cmd.listener_id is not None
 
 
-# ---------------------------------------------------------------------------
-# Internal dispatch (db_id=None) with rate limiting
-# ---------------------------------------------------------------------------
-
-
 async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bus: "HassetteHarness") -> None:
     """Non-app listener (db_id=None) with debounce coalesces rapid events.
 
@@ -681,11 +675,6 @@ async def test_internal_dispatch_with_debounce_routes_through_executor(
     executor.execute.assert_called_once()
 
 
-# ---------------------------------------------------------------------------
-# Cancel-during-debounce regression test
-# ---------------------------------------------------------------------------
-
-
 async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "HassetteHarness") -> None:
     """Cancelling a rate limiter during the debounce sleep window prevents the handler from firing.
 
@@ -733,11 +722,6 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
 
 # test_cancel_before_add_task_completes_* tests deleted — the add-before-cancel race they
 # guarded is eliminated by sync routing. See test_bus_ordering.py AC#1 for the replacement.
-
-
-# ---------------------------------------------------------------------------
-# immediate/duration/entity_id parameter tests (WP01)
-# ---------------------------------------------------------------------------
 
 
 async def test_on_state_change_accepts_immediate_param(bus: "Bus") -> None:

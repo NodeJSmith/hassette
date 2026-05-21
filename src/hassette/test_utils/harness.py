@@ -42,10 +42,6 @@ if typing.TYPE_CHECKING:
     from hassette.config.classes import AppManifest
     from hassette.events import Event, HassStateDict
 
-
-# ---------------------------------------------------------------------------
-# Timeout constants — centralised here so rationale is documented in one place
-# ---------------------------------------------------------------------------
 #
 # Do not use raw floats in harness code — reference these constants instead so
 # any future re-tuning is a single-site edit.
@@ -169,11 +165,6 @@ def preserve_config(config: HassetteConfig) -> Generator[None, None, None]:
                 setattr(config, key, field_info.annotation.model_validate(value))
             else:
                 setattr(config, key, value)
-
-
-# ---------------------------------------------------------------------------
-# Dependency graph and startup ordering for HassetteHarness components
-# ---------------------------------------------------------------------------
 
 
 def sort_harness_graph(graph: dict[str, set[str]]) -> list[str]:
@@ -307,8 +298,6 @@ class HassetteHarness:
             self._hassette_ctx_token = context.set_global_hassette(self.hassette)
         self.config.set_validated_app_manifests()
 
-    # --- Public accessor properties ---
-
     @property
     def state_proxy(self) -> "StateProxy":
         """The StateProxy instance managed by this harness."""
@@ -419,8 +408,6 @@ class HassetteHarness:
         if self.api_mock is not None:
             reset_mock_api(self.api_mock)
 
-    # --- State seeding helper ---
-
     async def seed_state(self, entity_id: str, state_dict: "HassStateDict") -> None:
         """Seed an entity's state directly into the StateProxy cache.
 
@@ -451,8 +438,6 @@ class HassetteHarness:
             proxy.states[entity_id] = state_dict
         finally:
             lock.release()
-
-    # --- Builder methods (return self for chaining) ---
 
     def with_bus(self) -> "HassetteHarness":
         self._components.add("bus")
@@ -486,8 +471,6 @@ class HassetteHarness:
         """Check whether a component is active (includes transitive deps after start())."""
         return component in self._components
 
-    # --- Dependency resolution ---
-
     def _resolve_dependencies(self) -> None:
         """Add implicit dependencies."""
         changed = True
@@ -499,8 +482,6 @@ class HassetteHarness:
                 if new_deps:
                     self._components |= new_deps
                     changed = True
-
-    # --- Lifecycle ---
 
     async def __aenter__(self) -> "HassetteHarness":
         await self.start()
@@ -604,8 +585,6 @@ class HassetteHarness:
 
         if shutdown_errors:
             raise ExceptionGroup("errors during harness teardown", shutdown_errors)
-
-    # --- Component starters ---
 
     async def _start_bus(self) -> None:
         # NOTE: _stub_execute mirrors _start_scheduler's version — keep both in sync.

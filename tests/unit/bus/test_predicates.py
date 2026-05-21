@@ -456,11 +456,6 @@ def test_get_path_with_real_event_structure() -> None:
     assert accessor(event) is MISSING_VALUE
 
 
-# ---------------------------------------------------------------------------
-# ValueIs.summarize() tests (RED → GREEN phase)
-# ---------------------------------------------------------------------------
-
-
 def test_value_is_summarize_literal_condition() -> None:
     """ValueIs.summarize() returns literal condition value and source name for non-callable conditions."""
     pred = ValueIs(source=get_state_value_new, condition="on")
@@ -484,9 +479,6 @@ def test_value_is_summarize_distinguishes_sources() -> None:
     assert pred_new.summarize() != pred_old.summarize()
 
 
-# ---------------------------------------------------------------------------
-# Golden/snapshot tests — exact summarize() output for all predicate types
-# ---------------------------------------------------------------------------
 # These are stability contract tests. When summarize() output changes, these
 # tests fail loudly, signalling a migration may be needed to avoid orphaning
 # historical rows that rely on human_description for natural key matching.
@@ -623,11 +615,6 @@ def test_predicate_summarize_golden_service_data_where_with_condition_object() -
 def test_predicate_summarize_golden_service_data_where_with_glob() -> None:
     pred = ServiceDataWhere(spec={"entity_id": "light.*"})
     assert pred.summarize() == "entity_id = light.*"
-
-
-# ---------------------------------------------------------------------------
-# Composed / nested summarize() tests
-# ---------------------------------------------------------------------------
 
 
 def test_predicate_summarize_allof_realistic_combo() -> None:

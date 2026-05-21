@@ -63,7 +63,6 @@ def create_hassette_stub(
     """
     hassette = MagicMock()
 
-    # --- Config ---
     # Root-level fields
     hassette.config.dev_mode = dev_mode
     hassette.config.base_url = "http://127.0.0.1:8123"
@@ -99,7 +98,6 @@ def create_hassette_stub(
     hassette.config.file_watcher.watch_files = True
     hassette.config.file_watcher.debounce_milliseconds = 3000
 
-    # --- State proxy ---
     hassette.state_proxy = hassette._state_proxy
     hassette._state_proxy.states = states if states is not None else {}
     hassette._state_proxy.get_state.side_effect = lambda eid: hassette._state_proxy.states.get(eid)
@@ -108,12 +106,10 @@ def create_hassette_stub(
     }
     hassette._state_proxy.is_ready.return_value = is_ready
 
-    # --- WebSocket service ---
     hassette.websocket_service = hassette._websocket_service
     hassette._websocket_service._status = ResourceStatus.RUNNING
     hassette._websocket_service.is_ready.return_value = is_ready
 
-    # --- App handler ---
     hassette.app_handler = hassette._app_handler
 
     # New-style manifest snapshot
@@ -130,17 +126,13 @@ def create_hassette_stub(
         hassette._app_handler.stop_app = AsyncMock()
         hassette._app_handler.reload_app = AsyncMock()
 
-    # --- Bus service ---
     hassette.bus_service = hassette._bus_service
 
-    # --- Scheduler service ---
     hassette.scheduler_service = hassette._scheduler_service
     hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=scheduler_jobs or [])
 
-    # --- Runtime query service placeholder ---
     hassette.runtime_query_service = hassette._runtime_query_service
 
-    # --- Database service stubs (log endpoints use HassetteDep → database_service) ---
     hassette.database_service = hassette._database_service
     hassette._database_service.submit = AsyncMock(return_value=[])
     # read_db: a MagicMock whose execute() returns an async cursor with empty results.
@@ -151,13 +143,10 @@ def create_hassette_stub(
     hassette._database_service.read_db = MagicMock()
     hassette._database_service.read_db.execute = AsyncMock(return_value=_cursor)
 
-    # --- Telemetry query service stubs ---
     wire_telemetry_stubs(hassette)
 
-    # --- Drop counters (telemetry pipeline) ---
     hassette.get_drop_counters.return_value = (0, 0, 0, 0)
 
-    # --- Children for system status ---
     hassette.children = []
 
     return hassette

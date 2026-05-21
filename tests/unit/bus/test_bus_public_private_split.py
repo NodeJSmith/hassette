@@ -26,11 +26,6 @@ async def handler(event) -> None:
     pass
 
 
-# ---------------------------------------------------------------------------
-# FR#7 / AC#6: Bus.on() must NOT accept internal parameters
-# ---------------------------------------------------------------------------
-
-
 def test_bus_on_signature_has_no_internal_params() -> None:
     """FR#7: Bus.on() signature contains no internal parameters."""
     sig = inspect.signature(Bus.on)
@@ -59,11 +54,6 @@ def test_bus_on_rejects_internal_keywords(bus: "Bus", forbidden_kwarg: str, valu
             handler=handler,
             **{forbidden_kwarg: value},
         )
-
-
-# ---------------------------------------------------------------------------
-# FR#8 / AC#7: subscription.registration_task is an asyncio.Future
-# ---------------------------------------------------------------------------
 
 
 def test_subscription_has_registration_task_field() -> None:
@@ -103,11 +93,6 @@ def test_subscription_default_none_registration_task() -> None:
     assert sub.registration_task is None
 
 
-# ---------------------------------------------------------------------------
-# FR#11 / AC#11: hold_preds list is not mutated
-# ---------------------------------------------------------------------------
-
-
 async def test_hold_preds_not_mutated_in_subscribe(bus: "Bus") -> None:
     """FR#11 / AC#11: The hold_preds list passed to _subscribe() is not modified in place."""
     original_pred = P.EntityMatches("light.test")
@@ -144,11 +129,6 @@ async def test_hold_preds_none_no_mutation(bus: "Bus") -> None:
             where=P.StateDidChange(),
             hold_preds=None,
         )
-
-
-# ---------------------------------------------------------------------------
-# Bus consumer paths: _listener_natural_key uses sub-struct paths
-# ---------------------------------------------------------------------------
 
 
 async def test_listener_natural_key_uses_identity_fields(bus: "Bus") -> None:

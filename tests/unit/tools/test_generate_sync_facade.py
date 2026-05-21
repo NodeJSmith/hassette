@@ -14,7 +14,6 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "codegen" / "src"))
 
-
 from hassette_codegen.sync_facade import (  # noqa: E402
     _build_precise_import_block,
     _collect_module_level_import_map,
@@ -26,10 +25,6 @@ from hassette_codegen.sync_facade import (  # noqa: E402
     generate_sync_recording,
     is_not_implemented_only,
 )
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 RECORDING_API_PATH = _REPO_ROOT / "src" / "hassette" / "test_utils" / "recording_api.py"
 API_PATH = _REPO_ROOT / "src" / "hassette" / "api" / "api.py"
@@ -60,11 +55,6 @@ def body_as_source(stmts: list[ast.stmt]) -> str:
     return "\n".join(ast.unparse(s) for s in stmts)
 
 
-# ---------------------------------------------------------------------------
-# Test 1: self → self._parent rewrite at outermost position only
-# ---------------------------------------------------------------------------
-
-
 def test_rewriter_rewrites_self_to_self_parent_at_outermost_only() -> None:
     source = """\
 async def foo(self):
@@ -80,11 +70,6 @@ async def foo(self):
     assert "self.hassette." not in result
     # Exactly one _parent insertion at the leftmost position
     assert result.count("self._parent") == 1
-
-
-# ---------------------------------------------------------------------------
-# Test 2: await stripping
-# ---------------------------------------------------------------------------
 
 
 def test_rewriter_strips_await() -> None:
@@ -103,11 +88,6 @@ async def foo(self):
     result = body_as_source(rewritten)
     # self._get_raw_state should become self._parent._get_raw_state
     assert "self._parent._get_raw_state('x')" in result
-
-
-# ---------------------------------------------------------------------------
-# Test 3: default arguments untouched (Finding 9 regression test)
-# ---------------------------------------------------------------------------
 
 
 def test_rewriter_leaves_default_arguments_untouched() -> None:
@@ -151,11 +131,6 @@ async def foo(self, x=self.CONST):
     assert "self._parent.CONST" not in default_src_after
 
 
-# ---------------------------------------------------------------------------
-# Test 4: lambda body self references are rewritten
-# ---------------------------------------------------------------------------
-
-
 def test_rewriter_rewrites_lambda_body_self_references() -> None:
     source = """\
 async def foo(self, items):
@@ -169,11 +144,6 @@ async def foo(self, items):
     assert "self._parent.predicate" in result
     # No bare self.predicate should remain
     assert "self.predicate" not in result.replace("self._parent.predicate", "")
-
-
-# ---------------------------------------------------------------------------
-# Test 5: static check raises on async peer call
-# ---------------------------------------------------------------------------
 
 
 def test_static_check_raises_on_async_peer_call() -> None:
@@ -196,11 +166,6 @@ async def foo(self):
     assert "bar" in msg
 
 
-# ---------------------------------------------------------------------------
-# Test 6: static check allows sync helper calls
-# ---------------------------------------------------------------------------
-
-
 def test_static_check_allows_sync_helper_call() -> None:
     """gen_recording_method does NOT raise when the body calls a sync helper."""
     source = """\
@@ -215,11 +180,6 @@ async def get_state(self, entity_id: str):
     # Should not raise
     method_src, _ = gen_recording_method(func, async_method_names)
     assert "def get_state" in method_src
-
-
-# ---------------------------------------------------------------------------
-# Test 7: derive imports from body references
-# ---------------------------------------------------------------------------
 
 
 def test_derive_imports_from_body_references() -> None:
@@ -255,11 +215,6 @@ async def foo(self, entity_id: str, model):
     assert "BaseState" in import_block
 
 
-# ---------------------------------------------------------------------------
-# Test 8: derive imports raises on unknown symbol
-# ---------------------------------------------------------------------------
-
-
 def test_derive_imports_raises_on_unknown_symbol() -> None:
     """_derive_recording_imports_strict raises SystemExit for unresolvable type-like symbols.
 
@@ -287,11 +242,6 @@ async def foo(self):
     assert "no known import path" in msg
 
 
-# ---------------------------------------------------------------------------
-# Test 9: _format_via_ruff normalizes whitespace-differing inputs identically
-# ---------------------------------------------------------------------------
-
-
 def test_check_mode_normalizes_through_ruff() -> None:
     """_format_via_ruff produces byte-identical output for code differing only in whitespace."""
     # One version with extra blank lines and trailing whitespace
@@ -316,11 +266,6 @@ def test_check_mode_normalizes_through_ruff() -> None:
     )
 
 
-# ---------------------------------------------------------------------------
-# Test 10: end-to-end generate_sync_recording produces valid Python
-# ---------------------------------------------------------------------------
-
-
 def test_generate_recording_produces_valid_python() -> None:
     """Full generator run produces syntactically valid Python that py_compile accepts."""
     code = generate_sync_recording(API_PATH, RECORDING_API_PATH)
@@ -340,11 +285,6 @@ def test_generate_recording_produces_valid_python() -> None:
         py_compile.compile(tmp_path, doraise=True)
     finally:
         Path(tmp_path).unlink(missing_ok=True)
-
-
-# ---------------------------------------------------------------------------
-# Test 11: is_not_implemented_only authoring contract
-# ---------------------------------------------------------------------------
 
 
 def test_is_not_implemented_only_recognizes_canonical_stub_idiom() -> None:

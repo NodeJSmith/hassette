@@ -412,7 +412,6 @@ class TelemetryQueryService(Resource):
 
         Returns an empty dict when no matching listeners or jobs exist.
         """
-        # --- Select view based on source_tier ---
         match source_tier:
             case "app":
                 listener_view = "active_app_listeners"
@@ -433,7 +432,6 @@ class TelemetryQueryService(Resource):
         since_hi_clause, since_params = _since_clause(since, "hi.execution_start_ts")
         since_je_clause, _ = _since_clause(since, "je.execution_start_ts")
 
-        # --- Build registration queries (instance 0, via views) ---
         listener_reg_query = f"""
             SELECT l.app_key, COUNT(DISTINCT l.id) AS handler_count
             FROM {listener_view} l
@@ -447,7 +445,6 @@ class TelemetryQueryService(Resource):
             GROUP BY sj.app_key
         """
 
-        # --- Build activity queries (all instances) ---
         listener_act_query = f"""
             SELECT
                 l.app_key,
