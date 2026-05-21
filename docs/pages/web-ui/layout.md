@@ -39,9 +39,9 @@ Below the top-level nav, the APPS section lists all loaded automations. A count 
 
 **App entries** — Each app shows a colored status dot and its display name. Clicking an entry navigates to that app's detail page.
 
-**"auto" badge** — Apps that hassette detected automatically from the app directory (not explicitly configured in `hassette.toml`) show a small `auto` chip next to their name.
+**"auto" chip** — Apps that hassette detected automatically from the app directory (not explicitly configured in `hassette.toml`) show a small `auto` chip next to their name.
 
-**Multi-instance apps** — Apps with more than one instance show an expand chevron (▾) next to the app entry. Clicking it reveals the individual instance sub-items, each with its own status dot and instance name.
+**Multi-instance apps** — Apps with more than one instance show a collapse/expand chevron next to the app entry. Clicking it reveals the individual instance sub-items, each with its own status dot and instance name.
 
 ## Status bar
 

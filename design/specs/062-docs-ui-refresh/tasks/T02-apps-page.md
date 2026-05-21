@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Rewrite Apps page"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#3", "FR#7", "AC#2", "AC#4"]
 ---
