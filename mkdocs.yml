@@ -77,10 +77,18 @@ nav:
       - System Internals: pages/core-concepts/internals.md
   - Web UI:
       - Overview: pages/web-ui/index.md
-      - Dashboard: pages/web-ui/dashboard.md
+      - Layout & Navigation: pages/web-ui/layout.md
       - Apps: pages/web-ui/apps.md
-      - Sessions: pages/web-ui/sessions.md
+      - App Detail:
+          - Overview: pages/web-ui/app-detail/index.md
+          - Overview Tab: pages/web-ui/app-detail/overview.md
+          - Handlers Tab: pages/web-ui/app-detail/handlers.md
+          - Code Tab: pages/web-ui/app-detail/code.md
+          - Logs Tab: pages/web-ui/app-detail/logs.md
+          - Config Tab: pages/web-ui/app-detail/config.md
+      - Handlers: pages/web-ui/handlers.md
       - Logs: pages/web-ui/logs.md
+      - Config: pages/web-ui/config.md
   - Testing:
       - Testing Your Apps: pages/testing/index.md
       - Time Control: pages/testing/time-control.md

@@ -111,7 +111,7 @@ If you need explicit paths:
 ## Next steps
 
 - [Your First Automation](first-automation.md) — step-by-step tutorial explaining how the app pattern works
-- [Web UI](../web-ui/index.md) — open `http://localhost:8126/ui/` to see the dashboard
+- [Web UI](../web-ui/index.md) — open `http://localhost:8126/ui/` to see the web UI
 - [Apps Overview](../core-concepts/apps/index.md) — writing your first automation
 - [Configuration Overview](../core-concepts/configuration/index.md) — config precedence, file locations, and options
 - [Application Configuration](../core-concepts/configuration/applications.md) — registering and configuring apps

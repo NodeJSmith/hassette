@@ -67,7 +67,7 @@ After a few seconds, check the logs:
 You should see `"Connected to Home Assistant"` in the output.
 
 !!! warning "Web UI Security"
-    The Docker Compose file exposes port 8126, which serves the web UI and REST API with **no authentication**. Anyone on your network can view, start, stop, and reload your automations. For remote servers, bind to `127.0.0.1` via `web_api_host` or place Hassette behind a reverse proxy with authentication. See [Web UI — Accessing the UI](../../web-ui/index.md#accessing-the-ui) for details.
+    The Docker Compose file exposes port 8126, which serves the web UI and REST API with **no authentication**. Anyone on your network can view, start, stop, and reload your automations. For remote servers, bind to `127.0.0.1` via `host` under `[hassette.web_api]` or place Hassette behind a reverse proxy with authentication. See [Web UI — Enabling and accessing](../../web-ui/index.md#enabling-and-accessing) for details.
 
 ## Directory Structure
 
@@ -154,7 +154,7 @@ The compose examples include `stop_grace_period: 45s` to give Hassette enough ti
 
 ### Web UI
 
-Hassette includes a web UI at `http://<host>:8126/ui/` with a live dashboard, app management, log streaming, and session history. No extra setup needed. See the [Web UI documentation](../../web-ui/index.md) for a full tour.
+Hassette includes a web UI at `http://<host>:8126/ui/` with app monitoring, handler detail, log streaming, and system configuration. No extra setup needed. See the [Web UI documentation](../../web-ui/index.md) for a full tour.
 
 ## Next Steps
 

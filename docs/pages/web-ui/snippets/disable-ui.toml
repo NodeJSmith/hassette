@@ -1,2 +1,2 @@
-[hassette]
-run_web_ui = false
+[hassette.web_api]
+run_ui = false

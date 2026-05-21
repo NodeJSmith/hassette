@@ -15,7 +15,7 @@ If something isn't working as expected, narrow the noise before enabling global 
 | HA connection drops, WebSocket errors | `websocket_log_level` |
 | High API call latency, HTTP errors | `api_log_level` |
 | Noisy file-change messages in development | `file_watcher_log_level` |
-| Web UI not responding, dashboard errors | `web_api_log_level` |
+| Web UI not responding, errors visible in the web UI | `web_api_log_level` |
 
 ## How It Works
 
@@ -35,7 +35,7 @@ Hassette provides 13 per-service log level fields:
 | `bus_service_log_level` | Event bus service (event dispatch, listener management) |
 | `scheduler_service_log_level` | Scheduler service (job scheduling, trigger evaluation) |
 | `app_handler_log_level` | App handler (app lifecycle, loading, starting, stopping) |
-| `web_api_log_level` | Web API service (HTTP endpoints, dashboard) |
+| `web_api_log_level` | Web API service (HTTP endpoints, web UI) |
 | `websocket_log_level` | WebSocket service (Home Assistant connection) |
 | `service_watcher_log_level` | Service watcher (monitors service health, restarts) |
 | `file_watcher_log_level` | File watcher (detects code changes for hot reload) |
