@@ -4,11 +4,10 @@ Hassette stores operational telemetry in a local SQLite database. This data powe
 
 ## What Is Collected
 
-Hassette records three types of telemetry:
+Hassette records two types of telemetry:
 
 - **Handler invocations** — every time an event bus listener fires, the database records the start time, duration, success/failure, and any error details.
 - **Job executions** — every time a scheduled job runs, the same metrics are recorded.
-- **Sessions** — each Hassette startup creates a session row that tracks uptime, heartbeats, and exit status.
 
 Telemetry is collected automatically. You do not need to enable it or write any code — it works out of the box.
 
@@ -74,7 +73,7 @@ All database settings are optional. The defaults work well for most installation
 
 Hassette runs two automatic maintenance routines:
 
-1. **Time-based retention** — every hour, records older than `db_retention_days` are deleted from the handler invocations and job executions tables. Session records are not affected by retention cleanup.
+1. **Time-based retention** — every hour, records older than `db_retention_days` are deleted from the handler invocations and job executions tables. Internal bookkeeping records (session tracking) are not affected by retention cleanup.
 2. **Size-based failsafe** — every hour, if the total database size (including WAL files) exceeds `db_max_size_mb`, the oldest execution records are deleted in batches until the database is back under the limit.
 
 Both routines run in the background and do not block normal operation.

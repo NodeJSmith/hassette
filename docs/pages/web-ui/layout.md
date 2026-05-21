@@ -35,7 +35,7 @@ Below the top-level nav, the APPS section lists all loaded automations. A count 
 
 **Filter apps** — A search input at the top of the section filters apps by display name or app key as you type. When filtering is active, the count badge shows `filtered/total` (e.g., `2/7`).
 
-**Status groups** — Apps are grouped by lifecycle status (RUNNING, FAILED, STOPPED, etc.). Each group is collapsible and shows a count. When all apps are healthy, the RUNNING group is expanded by default; other groups expand when they contain apps.
+**Status groups** — Apps are grouped by lifecycle status: FAILING (handlers currently erroring), BLOCKED (waiting for a dependency), SLOW (execution timing out or cooling down), RUNNING, STOPPED, and DISABLED. Each group is collapsible and shows a count. When all apps are healthy, the RUNNING group is expanded by default; other groups expand when they contain apps.
 
 **App entries** — Each app shows a colored status dot and its display name. Clicking an entry navigates to that app's detail page.
 
@@ -72,6 +72,15 @@ Next to the preset buttons, the uptime counter shows how long hassette has been 
 
 A small dot on the right side of the status bar shows the WebSocket connection status. A steady green dot means the UI is receiving live updates. If the connection drops, the dot changes color and a text label appears ("Reconnecting..." or "Disconnected") until the connection is restored.
 
+### Status indicators
+
+The status bar's right section can show additional inline indicators when the system is degraded:
+
+- **"N dropped"** — Appears when telemetry events are dropped due to buffer overflow, write failures, no active session, or during shutdown. The count shows total dropped events since the last restart.
+- **"N handler errors"** — Appears when user-supplied error handlers raise exceptions or time out. Indicates your custom error-handling code is itself failing.
+
+These are distinct from the amber "Telemetry degraded" [alert banner](#alert-banners), which covers database backpressure at the page level. The inline indicators provide at-a-glance counts without leaving the current page.
+
 ### Theme toggle
 
 A sun/moon button toggles between light and dark mode. Your preference is saved across page reloads.
@@ -92,11 +101,11 @@ The palette organizes results into sections that only appear when they have matc
 
 | Section | Contents |
 |---------|----------|
-| PAGES | The four top-level pages (apps, handlers, logs, config) |
-| APPS | All loaded apps, each with a status dot and app key |
-| INSTANCES | Individual instances of multi-instance apps |
-| HANDLERS | All registered handlers across all apps |
-| ACTIONS | Bulk operations: Reload all apps, Stop all failing, Open docs |
+| pages | The four top-level pages (apps, handlers, logs, config) |
+| apps | All loaded apps, each with a status dot and app key |
+| instances | Individual instances of multi-instance apps |
+| handlers | All registered handlers across all apps |
+| actions | Bulk operations: Reload all apps, Stop all failing, Open docs |
 
 Typing in the search box filters all sections simultaneously.
 

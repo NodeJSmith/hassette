@@ -74,13 +74,11 @@ Up to 20 of the most recent entries are shown. The table updates in real time as
 ## Logs
 
 The **logs** section at the bottom of the Overview tab shows recent log entries scoped to this
-app. It includes a search field and a level filter.
+app. It includes a search field — type in "Search logs…" to filter by message content. The table
+updates in real time.
 
-Use the "Search logs…" field to filter by message content. The level filter controls the
-minimum log level displayed. The table updates in real time.
-
-For more filtering options — column picker, detail drawer, and execution ID filtering — use the
-dedicated [Logs tab](logs.md).
+For level filtering, column picker, detail drawer, and execution ID filtering, use the dedicated
+[Logs tab](logs.md).
 
 ## Related pages
 

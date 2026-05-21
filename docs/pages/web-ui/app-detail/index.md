@@ -31,7 +31,7 @@ The header shows the app's identity and primary actions:
 | Button | Available when | Effect |
 |--------|---------------|--------|
 | **Reload** | running | Reloads the app, picking up code and config changes |
-| **Stop** | running | Stops the app |
+| **Stop** | running | Stops the app (shows a confirmation dialog) |
 | **Start** | stopped, failed, or disabled | Starts (or restarts) the app |
 
 Below the app key, a metadata line shows:

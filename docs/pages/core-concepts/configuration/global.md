@@ -63,35 +63,38 @@ Global settings control how Hassette runs and connects to Home Assistant. These 
 
 ## Web UI Settings
 
-These settings control the [web UI](../../web-ui/index.md) and the underlying web API service.
+These settings live under `[hassette.web_api]` and control the [web UI](../../web-ui/index.md) and the underlying web API service.
 
-- **`run_web_api`** (boolean): Whether to run the web API service (REST API, healthcheck, and UI backend).
+- **`run`** (boolean): Whether to run the web API service (REST API, healthcheck, and UI backend).
     - Default: `true`
 
-- **`run_web_ui`** (boolean): Whether to serve the web UI. Only used when `run_web_api` is `true`.
+- **`run_ui`** (boolean): Whether to serve the web UI. Only used when `run` is `true`.
     - Default: `true`
 
-- **`web_api_host`** (string): Host to bind the web API server to.
+- **`host`** (string): Host to bind the web API server to.
     - Default: `0.0.0.0`
 
-- **`web_api_port`** (integer): Port to run the web API server on.
+- **`port`** (integer): Port to run the web API server on.
     - Default: `8126`
     - The UI is accessible at `http://<host>:<port>/ui/`
 
-- **`web_api_cors_origins`** (tuple): Allowed CORS origins for the web API.
+- **`cors_origins`** (tuple): Allowed CORS origins for the web API.
     - Default: `("http://localhost:3000", "http://localhost:5173")`
 
-- **`web_api_event_buffer_size`** (integer): Maximum number of recent events to keep in the ring buffer.
+- **`event_buffer_size`** (integer): Maximum number of recent events to keep in the ring buffer.
     - Default: `500`
 
-- **`web_api_log_buffer_size`** (integer): Maximum number of log entries to keep in the ring buffer.
+- **`log_buffer_size`** (integer): Maximum number of log entries to keep in the ring buffer.
     - Default: `2000`
 
-- **`web_api_job_history_size`** (integer): Maximum number of job execution records to keep in memory.
+- **`job_history_size`** (integer): Maximum number of job execution records to keep in memory.
     - Default: `1000`
 
-- **`web_ui_hot_reload`** (boolean): Watch web UI static files for changes and push live reloads to the browser via WebSocket. CSS changes are hot-swapped without a page reload; JS changes trigger a full reload.
+- **`ui_hot_reload`** (boolean): Watch web UI static files for changes and push live reloads to the browser via WebSocket. CSS changes are hot-swapped without a page reload; JS changes trigger a full reload.
     - Default: `false`
+
+!!! note "Legacy aliases"
+    Older configs may use flat key names under `[hassette]` (e.g., `run_web_api`, `web_api_host`, `web_ui_hot_reload`). These are still accepted for backward compatibility but are deprecated. Use the `[hassette.web_api]` nested form shown here.
 
 **Example:**
 
