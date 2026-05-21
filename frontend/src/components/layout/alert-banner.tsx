@@ -1,4 +1,5 @@
 import clsx from "clsx";
+
 import { useAppState } from "../../state/context";
 import { AppLink } from "../shared/app-link";
 import { IconWarning } from "../shared/icons";
@@ -20,14 +21,14 @@ export function AlertBanner({ failedApps }: AlertBannerProps) {
 
   return (
     <div class={clsx(styles.alert, styles.alertDanger)} role="alert" data-testid="alert-banner">
-      <strong>{failedApps.length} app{failedApps.length > 1 ? "s" : ""} failed</strong>
+      <strong>
+        {failedApps.length} app{failedApps.length > 1 ? "s" : ""} failed
+      </strong>
       <ul class={styles.alertList}>
         {failedApps.map((app) => (
           <li key={app.app_key}>
             <AppLink appKey={app.app_key} />
-            {app.error_message && (
-              <span class="ht-text-secondary"> — {app.error_message}</span>
-            )}
+            {app.error_message && <span class="ht-text-secondary"> — {app.error_message}</span>}
           </li>
         ))}
       </ul>
@@ -58,8 +59,7 @@ export function TelemetryDegradedBanner() {
       <IconWarning />
       <span class={styles.degradedBannerText}>
         Telemetry is degraded
-        {totalDropped > 0 ? ` — ${totalDropped} events dropped` : ""}
-        . Some data may be missing.
+        {totalDropped > 0 ? ` — ${totalDropped} events dropped` : ""}. Some data may be missing.
       </span>
     </div>
   );

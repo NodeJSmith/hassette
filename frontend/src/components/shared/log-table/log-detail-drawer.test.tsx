@@ -1,5 +1,6 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, fireEvent, act } from "@testing-library/preact";
+import { act, fireEvent, render } from "@testing-library/preact";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import type { LogEntry } from "../../../api/endpoints";
 import { LogDetailDrawer } from "./log-detail-drawer";
 import { rowKey } from "./types";
@@ -11,8 +12,11 @@ vi.mock("../../../hooks/use-media-query", () => ({
 }));
 
 vi.mock("wouter", () => ({
-  Link: ({ href, children, class: cls }: Record<string, unknown>) =>
-    <a href={href as string} class={cls as string}>{children as never}</a>,
+  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
+    <a href={href as string} class={cls as string}>
+      {children as never}
+    </a>
+  ),
 }));
 
 function makeEntry(overrides: Partial<LogEntry> = {}): LogEntry {
@@ -34,7 +38,9 @@ function makeEntry(overrides: Partial<LogEntry> = {}): LogEntry {
   } as LogEntry;
 }
 
-function renderDrawer(overrides: { entries?: LogEntry[]; selectedKey?: string | null; onClose?: () => void; onNavigate?: () => void } = {}) {
+function renderDrawer(
+  overrides: { entries?: LogEntry[]; selectedKey?: string | null; onClose?: () => void; onNavigate?: () => void } = {},
+) {
   const entry = makeEntry();
   const entries = overrides.entries ?? [entry];
   const key = overrides.selectedKey !== undefined ? overrides.selectedKey : rowKey(entries[0]);
@@ -46,7 +52,13 @@ function renderDrawer(overrides: { entries?: LogEntry[]; selectedKey?: string | 
     ...render(
       <div>
         <div data-testid="outside-area">
-          <table><tbody><tr data-testid="table-row"><td>row</td></tr></tbody></table>
+          <table>
+            <tbody>
+              <tr data-testid="table-row">
+                <td>row</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
         <LogDetailDrawer selectedKey={key} entries={entries} onClose={onClose} onNavigate={onNavigate} />
       </div>,
@@ -150,10 +162,7 @@ describe("LogDetailDrawer", () => {
     });
 
     it("navigatePrev does nothing when at the first entry (index 0)", () => {
-      const entries = [
-        makeEntry({ seq: 1, message: "first" }),
-        makeEntry({ seq: 2, message: "second" }),
-      ];
+      const entries = [makeEntry({ seq: 1, message: "first" }), makeEntry({ seq: 2, message: "second" })];
       const onNavigate = vi.fn();
       const { getByLabelText } = renderDrawer({
         entries,
@@ -166,10 +175,7 @@ describe("LogDetailDrawer", () => {
     });
 
     it("navigateNext does nothing when at the last entry", () => {
-      const entries = [
-        makeEntry({ seq: 1, message: "first" }),
-        makeEntry({ seq: 2, message: "second" }),
-      ];
+      const entries = [makeEntry({ seq: 1, message: "first" }), makeEntry({ seq: 2, message: "second" })];
       const onNavigate = vi.fn();
       const { getByLabelText } = renderDrawer({
         entries,
@@ -184,10 +190,7 @@ describe("LogDetailDrawer", () => {
 
   describe("keyboard navigation", () => {
     it("ArrowLeft navigates to the previous entry", () => {
-      const entries = [
-        makeEntry({ seq: 1, message: "first" }),
-        makeEntry({ seq: 2, message: "second" }),
-      ];
+      const entries = [makeEntry({ seq: 1, message: "first" }), makeEntry({ seq: 2, message: "second" })];
       const onNavigate = vi.fn();
       renderDrawer({
         entries,
@@ -200,10 +203,7 @@ describe("LogDetailDrawer", () => {
     });
 
     it("ArrowUp navigates to the previous entry", () => {
-      const entries = [
-        makeEntry({ seq: 1, message: "first" }),
-        makeEntry({ seq: 2, message: "second" }),
-      ];
+      const entries = [makeEntry({ seq: 1, message: "first" }), makeEntry({ seq: 2, message: "second" })];
       const onNavigate = vi.fn();
       renderDrawer({
         entries,
@@ -216,10 +216,7 @@ describe("LogDetailDrawer", () => {
     });
 
     it("ArrowRight navigates to the next entry", () => {
-      const entries = [
-        makeEntry({ seq: 1, message: "first" }),
-        makeEntry({ seq: 2, message: "second" }),
-      ];
+      const entries = [makeEntry({ seq: 1, message: "first" }), makeEntry({ seq: 2, message: "second" })];
       const onNavigate = vi.fn();
       renderDrawer({
         entries,
@@ -232,10 +229,7 @@ describe("LogDetailDrawer", () => {
     });
 
     it("ArrowDown navigates to the next entry", () => {
-      const entries = [
-        makeEntry({ seq: 1, message: "first" }),
-        makeEntry({ seq: 2, message: "second" }),
-      ];
+      const entries = [makeEntry({ seq: 1, message: "first" }), makeEntry({ seq: 2, message: "second" })];
       const onNavigate = vi.fn();
       renderDrawer({
         entries,

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { statusToVariant, errorRateToVariant, INACTIVE_STATUSES, readinessVariant } from "./status";
+
+import { errorRateToVariant, INACTIVE_STATUSES, readinessVariant, statusToVariant } from "./status";
 
 describe("statusToVariant", () => {
   it("maps known app statuses to correct variants", () => {

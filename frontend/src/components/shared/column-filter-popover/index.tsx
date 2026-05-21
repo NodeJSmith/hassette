@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "preact/hooks";
 import { autoUpdate, computePosition, flip, offset, shift } from "@floating-ui/dom";
 import type { ComponentChildren } from "preact";
+import { useEffect, useRef } from "preact/hooks";
+
 import styles from "./index.module.css";
 
 const FOCUSABLE_SELECTORS = [
@@ -111,8 +112,10 @@ export function ColumnFilterPopover({ open, onClose, triggerRef, label, children
         return;
       }
       if (
-        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
-        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+        popoverRef.current &&
+        !popoverRef.current.contains(e.target as Node) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(e.target as Node)
       ) {
         onClose();
       }
@@ -135,7 +138,9 @@ export function ColumnFilterPopover({ open, onClose, triggerRef, label, children
       role="dialog"
       aria-label={label ?? "Column filter"}
       tabIndex={-1}
-      onPointerDown={() => { ignoreNextClick.current = true; }}
+      onPointerDown={() => {
+        ignoreNextClick.current = true;
+      }}
     >
       {children}
     </div>

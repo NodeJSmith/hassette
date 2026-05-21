@@ -19,7 +19,9 @@
   border: none;
   border-right: 1px solid var(--line-2);
   cursor: pointer;
-  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
   white-space: nowrap;
 }
 

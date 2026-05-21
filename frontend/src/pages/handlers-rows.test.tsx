@@ -1,12 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import { HandlerTableRow, HandlerMobileRow } from "./handlers-rows";
-import type { UnifiedRow } from "../utils/handler-rows";
-import { formatRate } from "../utils/format";
+
 import { renderWithAppState } from "../test/render-helpers";
+import { formatRate } from "../utils/format";
+import type { UnifiedRow } from "../utils/handler-rows";
+import { HandlerMobileRow, HandlerTableRow } from "./handlers-rows";
 
 vi.mock("wouter", () => ({
-  Link: ({ href, children, class: cls }: Record<string, unknown>) =>
-    <a href={href as string} class={cls as string}>{children as never}</a>,
+  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
+    <a href={href as string} class={cls as string}>
+      {children as never}
+    </a>
+  ),
 }));
 
 function createRow(overrides: Partial<UnifiedRow> = {}): UnifiedRow {
@@ -96,7 +100,7 @@ describe("HandlerTableRow", () => {
     const dangerCells = container.querySelectorAll("td.ht-text-danger");
     // The failed count cell and the error rate cell both get danger class
     expect(dangerCells.length).toBeGreaterThan(0);
-    const failedCell = Array.from(dangerCells).find(el => el.textContent === "2");
+    const failedCell = Array.from(dangerCells).find((el) => el.textContent === "2");
     expect(failedCell).toBeDefined();
   });
 
@@ -215,8 +219,8 @@ describe("HandlerMobileRow", () => {
     const row = createRow({ kind: "listener", next_run_ts: futureTs });
     const { container } = renderMobileRow(row);
     // The mobileCardFooter div should not be present
-    const classes = Array.from(container.querySelectorAll("div")).map(el => el.className);
-    const hasFooter = classes.some(c => c.match(/mobileCardFooter/));
+    const classes = Array.from(container.querySelectorAll("div")).map((el) => el.className);
+    const hasFooter = classes.some((c) => c.match(/mobileCardFooter/));
     expect(hasFooter).toBe(false);
   });
 
@@ -224,7 +228,7 @@ describe("HandlerMobileRow", () => {
     const row = createRow({ kind: "job", next_run_ts: null });
     const { container } = renderMobileRow(row);
     const divs = Array.from(container.querySelectorAll("div"));
-    const hasFooter = divs.some(el => el.className.match(/mobileCardFooter/));
+    const hasFooter = divs.some((el) => el.className.match(/mobileCardFooter/));
     expect(hasFooter).toBe(false);
   });
 

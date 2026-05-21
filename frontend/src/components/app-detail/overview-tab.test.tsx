@@ -1,17 +1,32 @@
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, waitFor } from "@testing-library/preact";
 import { signal } from "@preact/signals";
+import { fireEvent, waitFor } from "@testing-library/preact";
 import { http, HttpResponse } from "msw";
-import { OverviewTab } from "./overview-tab";
-import { createListener, createJob, createLogEntry } from "../../test/factories";
+import { describe, expect, it, vi } from "vitest";
+
+import type { components } from "../../api/generated-types";
+import { WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-filtered-signal-refetch";
+import { createJob, createListener, createLogEntry } from "../../test/factories";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
-import { WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-filtered-signal-refetch";
-import type { components } from "../../api/generated-types";
+import { OverviewTab } from "./overview-tab";
 
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
-type InvocationEvent = { listener_id: number; app_key: string; instance_index: number; status: string; duration_ms: number; error_type: string | null };
-type ExecutionEvent = { job_id: number; app_key: string; instance_index: number; status: string; duration_ms: number; error_type: string | null };
+type InvocationEvent = {
+  listener_id: number;
+  app_key: string;
+  instance_index: number;
+  status: string;
+  duration_ms: number;
+  error_type: string | null;
+};
+type ExecutionEvent = {
+  job_id: number;
+  app_key: string;
+  instance_index: number;
+  status: string;
+  duration_ms: number;
+  error_type: string | null;
+};
 
 // Overview tab tests are split into two groups:
 //  1. Props-only tests (error spotlight, health grid) — no context needed
@@ -22,7 +37,9 @@ const mockNavigate = vi.fn();
 
 vi.mock("wouter", () => ({
   Link: ({ href, children, ...rest }: { href: string; children: preact.ComponentChildren; [k: string]: unknown }) => (
-    <a href={href} {...rest}>{children}</a>
+    <a href={href} {...rest}>
+      {children}
+    </a>
   ),
   useSearch: () => "",
   useLocation: () => ["/", mockNavigate],
@@ -62,7 +79,9 @@ describe("OverviewTab — Error Spotlight", () => {
 
   it("renders when a listener has failures", () => {
     const { getByTestId } = renderOverviewTab({
-      listeners: [createListener({ listener_id: 1, failed: 2, last_error_type: "KeyError", last_error_message: "missing key" })],
+      listeners: [
+        createListener({ listener_id: 1, failed: 2, last_error_type: "KeyError", last_error_message: "missing key" }),
+      ],
       jobs: [],
     });
     expect(getByTestId("overview-error-spotlight")).toBeDefined();
@@ -216,10 +235,7 @@ describe("OverviewTab — Handler Health Grid", () => {
 
   it("renders a card for each listener", () => {
     const { getByTestId } = renderOverviewTab({
-      listeners: [
-        createListener({ listener_id: 1 }),
-        createListener({ listener_id: 2 }),
-      ],
+      listeners: [createListener({ listener_id: 1 }), createListener({ listener_id: 2 })],
       jobs: [],
     });
     expect(getByTestId("overview-health-card-listener-1")).toBeDefined();
@@ -229,10 +245,7 @@ describe("OverviewTab — Handler Health Grid", () => {
   it("renders a card for each job", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [],
-      jobs: [
-        createJob({ job_id: 10 }),
-        createJob({ job_id: 11 }),
-      ],
+      jobs: [createJob({ job_id: 10 }), createJob({ job_id: 11 })],
     });
     expect(getByTestId("overview-health-card-job-10")).toBeDefined();
     expect(getByTestId("overview-health-card-job-11")).toBeDefined();
@@ -249,13 +262,8 @@ describe("OverviewTab — Handler Health Grid", () => {
 
   it("renders the correct total number of cards", () => {
     const { container } = renderOverviewTab({
-      listeners: [
-        createListener({ listener_id: 1 }),
-        createListener({ listener_id: 2 }),
-      ],
-      jobs: [
-        createJob({ job_id: 10 }),
-      ],
+      listeners: [createListener({ listener_id: 1 }), createListener({ listener_id: 2 })],
+      jobs: [createJob({ job_id: 10 })],
     });
     const cards = container.querySelectorAll("[data-testid^='overview-health-card-']");
     expect(cards.length).toBe(3);
@@ -366,11 +374,7 @@ describe("OverviewTab — Recent Activity", () => {
         kind: "handler",
       },
     ];
-    server.use(
-      http.get("/api/telemetry/app/:app_key/activity", () =>
-        HttpResponse.json<ActivityFeedEntry[]>(entries),
-      ),
-    );
+    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json<ActivityFeedEntry[]>(entries)));
 
     const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
     await waitFor(() => {
@@ -383,11 +387,7 @@ describe("OverviewTab — Recent Activity", () => {
   });
 
   it("renders empty state when activity endpoint returns no entries", async () => {
-    server.use(
-      http.get("/api/telemetry/app/:app_key/activity", () =>
-        HttpResponse.json<ActivityFeedEntry[]>([]),
-      ),
-    );
+    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json<ActivityFeedEntry[]>([])));
 
     const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
     await waitFor(() => {
@@ -408,11 +408,7 @@ describe("OverviewTab — Recent Activity", () => {
         kind: "handler",
       },
     ];
-    server.use(
-      http.get("/api/telemetry/app/:app_key/activity", () =>
-        HttpResponse.json<ActivityFeedEntry[]>(entries),
-      ),
-    );
+    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json<ActivityFeedEntry[]>(entries)));
 
     const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
     await waitFor(() => {
@@ -424,17 +420,58 @@ describe("OverviewTab — Recent Activity", () => {
 
   it("groups consecutive same-handler same-status entries", async () => {
     const entries: ActivityFeedEntry[] = [
-      { row_id: "r1", status: "success", timestamp: 1700000300, app_key: "test_app", handler_name: "check", duration_ms: 10, error_type: null, kind: "job" },
-      { row_id: "r2", status: "success", timestamp: 1700000200, app_key: "test_app", handler_name: "check", duration_ms: 20, error_type: null, kind: "job" },
-      { row_id: "r3", status: "success", timestamp: 1700000100, app_key: "test_app", handler_name: "check", duration_ms: 30, error_type: null, kind: "job" },
-      { row_id: "r4", status: "error", timestamp: 1700000050, app_key: "test_app", handler_name: "on_event", duration_ms: 5, error_type: "ValueError", kind: "handler" },
-      { row_id: "r5", status: "success", timestamp: 1700000000, app_key: "test_app", handler_name: "check", duration_ms: 15, error_type: null, kind: "job" },
+      {
+        row_id: "r1",
+        status: "success",
+        timestamp: 1700000300,
+        app_key: "test_app",
+        handler_name: "check",
+        duration_ms: 10,
+        error_type: null,
+        kind: "job",
+      },
+      {
+        row_id: "r2",
+        status: "success",
+        timestamp: 1700000200,
+        app_key: "test_app",
+        handler_name: "check",
+        duration_ms: 20,
+        error_type: null,
+        kind: "job",
+      },
+      {
+        row_id: "r3",
+        status: "success",
+        timestamp: 1700000100,
+        app_key: "test_app",
+        handler_name: "check",
+        duration_ms: 30,
+        error_type: null,
+        kind: "job",
+      },
+      {
+        row_id: "r4",
+        status: "error",
+        timestamp: 1700000050,
+        app_key: "test_app",
+        handler_name: "on_event",
+        duration_ms: 5,
+        error_type: "ValueError",
+        kind: "handler",
+      },
+      {
+        row_id: "r5",
+        status: "success",
+        timestamp: 1700000000,
+        app_key: "test_app",
+        handler_name: "check",
+        duration_ms: 15,
+        error_type: null,
+        kind: "job",
+      },
     ];
-    server.use(
-      http.get("/api/telemetry/app/:app_key/activity", () =>
-        HttpResponse.json<ActivityFeedEntry[]>(entries),
-      ),
-    );
+    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json<ActivityFeedEntry[]>(entries)));
 
     const { getByTestId, getAllByTestId } = renderOverviewTab({ appKey: "test_app" });
     await waitFor(() => {
@@ -457,9 +494,7 @@ describe("OverviewTab — Recent Logs", () => {
       createLogEntry({ seq: 10, app_key: "test_app", level: "INFO", message: "handler fired" }),
       createLogEntry({ seq: 11, app_key: "test_app", level: "ERROR", message: "something went wrong" }),
     ];
-    server.use(
-      http.get("/api/logs/recent", () => HttpResponse.json(logs)),
-    );
+    server.use(http.get("/api/logs/recent", () => HttpResponse.json(logs)));
 
     const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
     await waitFor(() => {
@@ -472,9 +507,7 @@ describe("OverviewTab — Recent Logs", () => {
   });
 
   it("renders empty state when logs endpoint returns no entries", async () => {
-    server.use(
-      http.get("/api/logs/recent", () => HttpResponse.json([])),
-    );
+    server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
     const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
     await waitFor(() => {
@@ -502,17 +535,13 @@ describe("OverviewTab — Real-time refetch", () => {
 
   function renderWithSignalOverrides(overrides: Record<string, unknown>) {
     renderWithAppState(
-      <OverviewTab
-        listeners={[]}
-        jobs={[]}
-        appKey="test_app"
-        instanceQs=""
-        resolvedInstanceIndex={0}
-      />,
-      { stateOverrides: {
-        uptimeSeconds: signal<number | null>(120),
-        ...overrides,
-      }},
+      <OverviewTab listeners={[]} jobs={[]} appKey="test_app" instanceQs="" resolvedInstanceIndex={0} />,
+      {
+        stateOverrides: {
+          uptimeSeconds: signal<number | null>(120),
+          ...overrides,
+        },
+      },
     );
   }
 
@@ -524,7 +553,9 @@ describe("OverviewTab — Real-time refetch", () => {
     await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
     const countAfterMount = getFetchCount();
 
-    invocationCompleted.value = [{ listener_id: 1, app_key: "test_app", instance_index: 0, status: "success", duration_ms: 10, error_type: null }];
+    invocationCompleted.value = [
+      { listener_id: 1, app_key: "test_app", instance_index: 0, status: "success", duration_ms: 10, error_type: null },
+    ];
 
     await waitFor(() => expect(getFetchCount()).toBeGreaterThan(countAfterMount), { timeout: WS_DEBOUNCE_MAX_WAIT_MS });
   });
@@ -537,7 +568,9 @@ describe("OverviewTab — Real-time refetch", () => {
     await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
     const countAfterMount = getFetchCount();
 
-    invocationCompleted.value = [{ listener_id: 99, app_key: "other_app", instance_index: 0, status: "success", duration_ms: 5, error_type: null }];
+    invocationCompleted.value = [
+      { listener_id: 99, app_key: "other_app", instance_index: 0, status: "success", duration_ms: 5, error_type: null },
+    ];
 
     await new Promise((r) => setTimeout(r, 700));
     expect(getFetchCount()).toBe(countAfterMount);
@@ -551,7 +584,9 @@ describe("OverviewTab — Real-time refetch", () => {
     await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
     const countAfterMount = getFetchCount();
 
-    executionCompleted.value = [{ job_id: 5, app_key: "test_app", instance_index: 0, status: "success", duration_ms: 20, error_type: null }];
+    executionCompleted.value = [
+      { job_id: 5, app_key: "test_app", instance_index: 0, status: "success", duration_ms: 20, error_type: null },
+    ];
 
     await waitFor(() => expect(getFetchCount()).toBeGreaterThan(countAfterMount), { timeout: WS_DEBOUNCE_MAX_WAIT_MS });
   });

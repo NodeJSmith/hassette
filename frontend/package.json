@@ -12,7 +12,9 @@
     "test:watch": "vitest",
     "types": "openapi-typescript openapi.json -o src/api/generated-types.ts",
     "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix"
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write 'src/**/*.{ts,tsx,css}'",
+    "format:check": "prettier --check 'src/**/*.{ts,tsx,css}'"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.7.6",
@@ -29,9 +31,12 @@
     "@testing-library/preact": "^3.2.4",
     "@vitest/coverage-v8": "^4.1.5",
     "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-simple-import-sort": "^13.0.0",
     "jsdom": "^29.0.1",
     "msw": "^2.13.6",
     "openapi-typescript": "^7.13.0",
+    "prettier": "^3.8.3",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.57.1",
     "vite": "^8.0.1",

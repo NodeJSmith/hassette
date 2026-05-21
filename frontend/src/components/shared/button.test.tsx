@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/preact";
 import { fireEvent } from "@testing-library/preact";
+import { describe, expect, it, vi } from "vitest";
+
 import { Button } from "./button";
 
 describe("Button", () => {
@@ -104,7 +105,11 @@ describe("Button", () => {
     });
 
     it("merges custom class alongside variant class", () => {
-      const { getByRole } = render(<Button variant="primary" class="extra">btn</Button>);
+      const { getByRole } = render(
+        <Button variant="primary" class="extra">
+          btn
+        </Button>,
+      );
       const className = getByRole("button").className;
       expect(className).toMatch(/primary/);
       expect(className).toMatch(/extra/);

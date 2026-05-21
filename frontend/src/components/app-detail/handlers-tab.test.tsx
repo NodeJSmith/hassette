@@ -1,9 +1,10 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, waitFor } from "@testing-library/preact";
 import { signal } from "@preact/signals";
+import { fireEvent, waitFor } from "@testing-library/preact";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { createJob, createListener } from "../../test/factories";
 import { renderWithAppState } from "../../test/render-helpers";
 import { HandlersTab } from "./handlers-tab";
-import { createListener, createJob } from "../../test/factories";
 
 // Mock child components that make API calls
 vi.mock("../shared/execution-table", () => ({
@@ -31,13 +32,7 @@ function renderHandlersTab(
   selectedHandler: string | null = null,
 ) {
   return renderWithAppState(
-    <HandlersTab
-      listeners={listeners}
-      jobs={jobs}
-      selectedHandler={selectedHandler}
-      appKey="test_app"
-      instanceQs=""
-    />,
+    <HandlersTab listeners={listeners} jobs={jobs} selectedHandler={selectedHandler} appKey="test_app" instanceQs="" />,
     { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
   );
 }
@@ -66,20 +61,12 @@ describe("HandlersTab", () => {
   });
 
   it("shows listener detail pane when selectedHandler='h-5'", () => {
-    const { getByTestId } = renderHandlersTab(
-      [createListener({ listener_id: 5 })],
-      [],
-      "h-5",
-    );
+    const { getByTestId } = renderHandlersTab([createListener({ listener_id: 5 })], [], "h-5");
     expect(getByTestId("listener-detail-5")).toBeDefined();
   });
 
   it("shows job detail pane when selectedHandler='j-20'", () => {
-    const { getByTestId } = renderHandlersTab(
-      [],
-      [createJob({ job_id: 20 })],
-      "j-20",
-    );
+    const { getByTestId } = renderHandlersTab([], [createJob({ job_id: 20 })], "j-20");
     expect(getByTestId("job-detail-20")).toBeDefined();
   });
 
@@ -355,28 +342,20 @@ describe("HandlersTab", () => {
   });
 
   it("shows detail placeholder when selectedHandler is null", () => {
-    const { getByTestId } = renderHandlersTab(
-      [createListener({ listener_id: 1 })],
-      [],
-      null,
-    );
+    const { getByTestId } = renderHandlersTab([createListener({ listener_id: 1 })], [], null);
     expect(getByTestId("detail-placeholder")).toBeDefined();
   });
 
   it("calls correctUrl when selectedHandler references a non-existent listener", () => {
     const listeners = [createListener({ listener_id: 1 })];
     renderHandlersTab(listeners, [], "h-999");
-    expect(mockCorrectUrl).toHaveBeenCalledWith(
-      "/apps/test_app/handlers",
-    );
+    expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers");
   });
 
   it("calls correctUrl when selectedHandler references a non-existent job", () => {
     const jobs = [createJob({ job_id: 1 })];
     renderHandlersTab([], jobs, "j-999");
-    expect(mockCorrectUrl).toHaveBeenCalledWith(
-      "/apps/test_app/handlers",
-    );
+    expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers");
   });
 
   it("does not call correctUrl when data is empty (loading guard)", () => {
@@ -403,13 +382,7 @@ describe("HandlersTab", () => {
   it("clicking a listener row includes instanceQs in deep-link URL", () => {
     const listeners = [createListener({ listener_id: 3 })];
     const { getByTestId } = renderWithAppState(
-      <HandlersTab
-        listeners={listeners}
-        jobs={[]}
-        selectedHandler={null}
-        appKey="test_app"
-        instanceQs="?instance=1"
-      />,
+      <HandlersTab listeners={listeners} jobs={[]} selectedHandler={null} appKey="test_app" instanceQs="?instance=1" />,
       { stateOverrides: { uptimeSeconds: signal<number | null>(120) } },
     );
     fireEvent.click(getByTestId("unified-row-listener-3"));

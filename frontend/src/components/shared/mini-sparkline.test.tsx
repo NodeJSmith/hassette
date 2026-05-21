@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/preact";
+import { describe, expect, it } from "vitest";
+
 import { MiniSparkline } from "./mini-sparkline";
 
 describe("MiniSparkline", () => {
@@ -15,7 +16,12 @@ describe("MiniSparkline", () => {
 
   it("renders an SVG polyline for two or more buckets", () => {
     const { container } = render(
-      <MiniSparkline buckets={[{ ok: 10, err: 0 }, { ok: 5, err: 0 }]} />,
+      <MiniSparkline
+        buckets={[
+          { ok: 10, err: 0 },
+          { ok: 5, err: 0 },
+        ]}
+      />,
     );
     const svg = container.querySelector("svg");
     expect(svg).toBeTruthy();
@@ -24,7 +30,12 @@ describe("MiniSparkline", () => {
 
   it("renders error dots for buckets with errors", () => {
     const { container } = render(
-      <MiniSparkline buckets={[{ ok: 10, err: 0 }, { ok: 5, err: 3 }]} />,
+      <MiniSparkline
+        buckets={[
+          { ok: 10, err: 0 },
+          { ok: 5, err: 3 },
+        ]}
+      />,
     );
     const circles = container.querySelectorAll("circle");
     expect(circles.length).toBe(1);
@@ -32,7 +43,12 @@ describe("MiniSparkline", () => {
 
   it("does not render error dots when no errors", () => {
     const { container } = render(
-      <MiniSparkline buckets={[{ ok: 10, err: 0 }, { ok: 5, err: 0 }]} />,
+      <MiniSparkline
+        buckets={[
+          { ok: 10, err: 0 },
+          { ok: 5, err: 0 },
+        ]}
+      />,
     );
     const circles = container.querySelectorAll("circle");
     expect(circles.length).toBe(0);
@@ -40,7 +56,14 @@ describe("MiniSparkline", () => {
 
   it("respects custom width and height", () => {
     const { container } = render(
-      <MiniSparkline buckets={[{ ok: 1, err: 0 }, { ok: 2, err: 0 }]} width={100} height={30} />,
+      <MiniSparkline
+        buckets={[
+          { ok: 1, err: 0 },
+          { ok: 2, err: 0 },
+        ]}
+        width={100}
+        height={30}
+      />,
     );
     const svg = container.querySelector("svg");
     expect(svg!.getAttribute("width")).toBe("100");

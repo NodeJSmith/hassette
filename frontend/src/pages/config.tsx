@@ -1,8 +1,8 @@
 import { getConfig } from "../api/endpoints";
+import { Card } from "../components/shared/card";
 import { Spinner } from "../components/shared/spinner";
 import { useApi } from "../hooks/use-api";
 import { useDocumentTitle } from "../hooks/use-document-title";
-import { Card } from "../components/shared/card";
 import styles from "./config.module.css";
 
 type ConfigRow = { key: string; value: string };
@@ -117,13 +117,16 @@ export function ConfigPage() {
                 <table class={`ht-table ht-table--compact ${styles.configTable}`}>
                   <tbody>
                     {group.rows.map((row) => {
-                      const valueClass = row.value === "—"
-                        ? `${styles.configTableValue} ${styles.configTableValueEmpty}`
-                        : styles.configTableValue;
+                      const valueClass =
+                        row.value === "—"
+                          ? `${styles.configTableValue} ${styles.configTableValueEmpty}`
+                          : styles.configTableValue;
                       return (
                         <tr key={row.key}>
                           <td class={styles.configTableKey}>{row.key}</td>
-                          <td class={valueClass} data-testid="config-value">{row.value}</td>
+                          <td class={valueClass} data-testid="config-value">
+                            {row.value}
+                          </td>
                         </tr>
                       );
                     })}

@@ -40,13 +40,21 @@
 }
 
 @keyframes slideInRight {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
 }
 
 @keyframes slideInUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
 /* Header bar */
@@ -75,13 +83,26 @@
   border-radius: var(--r-sm);
   font-size: var(--fs-body);
   color: var(--ink-3);
-  transition: color var(--t-fast), background-color var(--t-fast);
+  transition:
+    color var(--t-fast),
+    background-color var(--t-fast);
 }
 
-.iconBtn:hover { color: var(--ink-1); background: var(--bg-sunken); }
-.iconBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.iconBtn:disabled { color: var(--ink-4); cursor: default; }
-.iconBtn:disabled:hover { background: none; }
+.iconBtn:hover {
+  color: var(--ink-1);
+  background: var(--bg-sunken);
+}
+.iconBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.iconBtn:disabled {
+  color: var(--ink-4);
+  cursor: default;
+}
+.iconBtn:disabled:hover {
+  background: none;
+}
 
 /* Scrollable content area */
 .content {
@@ -98,11 +119,21 @@
   padding: var(--sp-3);
 }
 
-.levelDEBUG { background: var(--mute-bg); }
-.levelINFO { background: var(--ok-bg); }
-.levelWARNING { background: var(--warn-bg); }
-.levelERROR { background: var(--err-bg); }
-.levelCRITICAL { background: var(--err-bg); }
+.levelDEBUG {
+  background: var(--mute-bg);
+}
+.levelINFO {
+  background: var(--ok-bg);
+}
+.levelWARNING {
+  background: var(--warn-bg);
+}
+.levelERROR {
+  background: var(--err-bg);
+}
+.levelCRITICAL {
+  background: var(--err-bg);
+}
 
 .levelLabel {
   font-family: var(--font-mono);
@@ -110,11 +141,19 @@
   font-weight: 600;
 }
 
-.levelDEBUG .levelLabel { color: var(--mute); }
-.levelINFO .levelLabel { color: var(--ok); }
-.levelWARNING .levelLabel { color: var(--warn); }
+.levelDEBUG .levelLabel {
+  color: var(--mute);
+}
+.levelINFO .levelLabel {
+  color: var(--ok);
+}
+.levelWARNING .levelLabel {
+  color: var(--warn);
+}
 .levelERROR .levelLabel,
-.levelCRITICAL .levelLabel { color: var(--err); }
+.levelCRITICAL .levelLabel {
+  color: var(--err);
+}
 
 .timestamp {
   font-family: var(--font-mono);
@@ -224,8 +263,13 @@
   flex-shrink: 0;
 }
 
-.copyBtn:hover { color: var(--ink-2); }
-.copyBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.copyBtn:hover {
+  color: var(--ink-2);
+}
+.copyBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* Filtered out state */
 .filteredOut {
@@ -246,4 +290,6 @@
   text-underline-offset: var(--sp-0);
 }
 
-.clearFilterBtn:hover { color: var(--ink-1); }
+.clearFilterBtn:hover {
+  color: var(--ink-1);
+}

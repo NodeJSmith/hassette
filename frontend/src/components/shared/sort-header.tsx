@@ -1,10 +1,11 @@
-import { useRef } from "preact/hooks";
 import clsx from "clsx";
 import type { ComponentChildren } from "preact";
+import { useRef } from "preact/hooks";
+
 import { useSignal } from "../../hooks/use-signal";
 import { useSubscribe } from "../../hooks/use-subscribe";
-import { FilterIcon } from "./filter-icon";
 import { ColumnFilterPopover } from "./column-filter-popover/index";
+import { FilterIcon } from "./filter-icon";
 import styles from "./sort-header.module.css";
 
 export interface SortState<K extends string = string> {
@@ -109,7 +110,8 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
       aria-label={ariaLabel ? `Sort by ${ariaLabel}` : undefined}
       onClick={sortClickHandler}
     >
-      {children}<span aria-hidden="true">{arrow}</span>
+      {children}
+      <span aria-hidden="true">{arrow}</span>
     </button>
   ) : hasFilter ? (
     // filter-only: plain label span (no sort button)
@@ -126,7 +128,13 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
   }
 
   return (
-    <th scope="col" class={className} aria-sort={hasSortProps ? ariaSortValue : undefined} aria-label={ariaLabel} data-testid={testId}>
+    <th
+      scope="col"
+      class={className}
+      aria-sort={hasSortProps ? ariaSortValue : undefined}
+      aria-label={ariaLabel}
+      data-testid={testId}
+    >
       {hasFilter ? (
         <div class={styles.headerInner}>
           {sortElement}
@@ -136,13 +144,17 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
             class={clsx(styles.filterBtn, props.hasActiveFilter && styles.filterActive)}
             data-testid="filter-btn"
             aria-label={ariaLabel ? `Filter ${ariaLabel}` : undefined}
-            onClick={() => { filterOpen.value = !filterOpen.value; }}
+            onClick={() => {
+              filterOpen.value = !filterOpen.value;
+            }}
           >
             <FilterIcon active={props.hasActiveFilter} />
           </button>
           <ColumnFilterPopover
             open={filterOpen.value}
-            onClose={() => { filterOpen.value = false; }}
+            onClose={() => {
+              filterOpen.value = false;
+            }}
             triggerRef={filterTriggerRef}
           >
             {props.filterContent}

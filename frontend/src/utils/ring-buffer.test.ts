@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { RingBuffer } from "./ring-buffer";
 
 describe("RingBuffer", () => {

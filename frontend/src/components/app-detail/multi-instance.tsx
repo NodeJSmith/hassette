@@ -1,9 +1,10 @@
 import clsx from "clsx";
+
 import type { AppInstance } from "../../api/endpoints";
-import { statusToKind, statusToVariant } from "../../utils/status";
-import { StatusShape } from "../shared/status-shape";
-import { Badge } from "../shared/badge";
 import styles from "../../pages/app-detail.module.css";
+import { statusToKind, statusToVariant } from "../../utils/status";
+import { Badge } from "../shared/badge";
+import { StatusShape } from "../shared/status-shape";
 
 export function InstanceSwitcher({
   instances,
@@ -26,7 +27,9 @@ export function InstanceSwitcher({
             aria-selected={isActive}
             class={clsx(styles.instanceSwitcherBtn, isActive && styles.instanceSwitcherBtnActive)}
             data-testid={`switcher-instance-${inst.index}`}
-            onClick={() => { if (!isActive) onNavigate(inst.index); }}
+            onClick={() => {
+              if (!isActive) onNavigate(inst.index);
+            }}
           >
             <StatusShape kind={statusToKind(inst.status)} size={8} />
             <span class={styles.instanceSwitcherLabel}>{inst.instance_name}</span>
@@ -37,19 +40,15 @@ export function InstanceSwitcher({
   );
 }
 
-function InstanceCard({
-  instance,
-  onNavigate,
-}: {
-  instance: AppInstance;
-  onNavigate: (index: number) => void;
-}) {
+function InstanceCard({ instance, onNavigate }: { instance: AppInstance; onNavigate: (index: number) => void }) {
   return (
     <button
       type="button"
       class={styles.instanceCard}
       data-testid={`instance-card-${instance.index}`}
-      onClick={() => { onNavigate(instance.index); }}
+      onClick={() => {
+        onNavigate(instance.index);
+      }}
       aria-label={`View ${instance.instance_name}`}
     >
       <div class={styles.instanceCardHeader}>
@@ -59,9 +58,7 @@ function InstanceCard({
           {instance.status}
         </Badge>
       </div>
-      {instance.error_message && (
-        <p class={styles.instanceCardErrorPreview}>{instance.error_message}</p>
-      )}
+      {instance.error_message && <p class={styles.instanceCardErrorPreview}>{instance.error_message}</p>}
     </button>
   );
 }
@@ -92,11 +89,7 @@ export function MultiInstanceOverview({
       <code class="ht-text-mono ht-text-sm ht-mb-4 ht-block">{appKey}</code>
       <div class={styles.instanceGrid} data-testid="instance-grid">
         {instances.map((inst) => (
-          <InstanceCard
-            key={inst.index}
-            instance={inst}
-            onNavigate={onNavigate}
-          />
+          <InstanceCard key={inst.index} instance={inst} onNavigate={onNavigate} />
         ))}
       </div>
     </div>

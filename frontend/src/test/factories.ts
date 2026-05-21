@@ -10,7 +10,7 @@
  */
 
 import type { components } from "../api/generated-types";
-import type { WsInvocationCompletedPayload, WsExecutionCompletedPayload } from "../api/ws-types";
+import type { WsExecutionCompletedPayload, WsInvocationCompletedPayload } from "../api/ws-types";
 
 type AppManifestResponse = components["schemas"]["AppManifestResponse"];
 type ConfigResponse = components["schemas"]["ConfigResponse"];

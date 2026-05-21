@@ -1,7 +1,7 @@
-import type { ListenerData, JobData } from "../api/endpoints";
+import type { JobData, ListenerData } from "../api/endpoints";
 import type { SortState } from "../components/shared/sort-header";
 import { lastDotSegment } from "./format";
-import { formatListenerId, formatJobId } from "./handler-ids";
+import { formatJobId, formatListenerId } from "./handler-ids";
 
 export interface UnifiedRow {
   kind: "listener" | "job";
@@ -52,7 +52,17 @@ export function jobToRow(j: JobData): UnifiedRow {
   };
 }
 
-export type HandlerSortKey = "kind" | "app" | "name" | "trigger" | "runs" | "failed" | "timed_out" | "error_rate" | "avg_duration" | "next_run";
+export type HandlerSortKey =
+  | "kind"
+  | "app"
+  | "name"
+  | "trigger"
+  | "runs"
+  | "failed"
+  | "timed_out"
+  | "error_rate"
+  | "avg_duration"
+  | "next_run";
 
 const NO_NEXT_RUN = Number.MAX_SAFE_INTEGER;
 

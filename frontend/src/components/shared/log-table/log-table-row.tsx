@@ -1,12 +1,13 @@
 import clsx from "clsx";
+
 import type { LogEntry } from "../../../api/endpoints";
-import { useMediaQuery, BREAKPOINT_MOBILE } from "../../../hooks/use-media-query";
+import { BREAKPOINT_MOBILE, useMediaQuery } from "../../../hooks/use-media-query";
 import { useRelativeTime } from "../../../hooks/use-relative-time";
 import { formatTimestamp } from "../../../utils/format";
 import { AppLink } from "../app-link";
-import type { ColumnId, RowKey } from "./types";
 import { LEVEL_ABBREV, levelClass } from "./constants";
 import styles from "./log-table-row.module.css";
+import type { ColumnId, RowKey } from "./types";
 
 interface Props {
   entry: LogEntry;
@@ -28,7 +29,12 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
       class={clsx(styles.row, isSelected && styles.selected)}
       data-level={entry.level}
       onClick={onClick}
-      onKeyDown={(e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+      onKeyDown={(e: KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       tabIndex={0}
       role="button"
       aria-current={isSelected ? "true" : undefined}
@@ -41,9 +47,7 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
         </td>
       )}
       {isColumnVisible("timestamp") && (
-        <td class={styles.mono}>
-          {isMobile ? relativeTime : formatTimestamp(entry.timestamp)}
-        </td>
+        <td class={styles.mono}>{isMobile ? relativeTime : formatTimestamp(entry.timestamp)}</td>
       )}
       {isColumnVisible("app") && (
         <td>
@@ -64,7 +68,9 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
       {isColumnVisible("execution") && (
         <td class={styles.mono}>
           {entry.execution_id ? (
-            <span class={styles.muted} title={entry.execution_id}>{entry.execution_id.slice(0, 8)}&hellip;</span>
+            <span class={styles.muted} title={entry.execution_id}>
+              {entry.execution_id.slice(0, 8)}&hellip;
+            </span>
           ) : (
             <span class={styles.muted}>&mdash;</span>
           )}
@@ -86,7 +92,8 @@ export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick
         <td class={styles.messageCell}>
           {isMobile && !isColumnVisible("app") && entry.func_name && (
             <div class={styles.sourceInline}>
-              {entry.app_key ? `${entry.app_key}.` : ""}{entry.func_name}()
+              {entry.app_key ? `${entry.app_key}.` : ""}
+              {entry.func_name}()
             </div>
           )}
           <div class={styles.messageText}>{entry.message}</div>

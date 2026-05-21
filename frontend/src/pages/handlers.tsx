@@ -1,10 +1,4 @@
-import { useDocumentTitle } from "../hooks/use-document-title";
-import { useQueryParams } from "../hooks/use-query-params";
-import { useScopedApi } from "../hooks/use-scoped-api";
-import { useAppState } from "../state/context";
-import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-filtered-signal-refetch";
-import { getAllListeners, getAllJobs } from "../api/endpoints";
-import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
+import { getAllJobs, getAllListeners } from "../api/endpoints";
 import { Button } from "../components/shared/button";
 import { EmptyState } from "../components/shared/empty-state";
 import { SortHeader, type SortState } from "../components/shared/sort-header";
@@ -12,10 +6,20 @@ import { Spinner } from "../components/shared/spinner";
 import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
 import { type ColumnFilters } from "../components/shared/table-types";
+import { useDocumentTitle } from "../hooks/use-document-title";
+import {
+  useFilteredSignalRefetch,
+  WS_DEBOUNCE_DELAY_MS,
+  WS_DEBOUNCE_MAX_WAIT_MS,
+} from "../hooks/use-filtered-signal-refetch";
+import { BREAKPOINT_MOBILE, useMediaQuery } from "../hooks/use-media-query";
+import { useQueryParams } from "../hooks/use-query-params";
+import { useScopedApi } from "../hooks/use-scoped-api";
+import { useAppState } from "../state/context";
 import { pluralize } from "../utils/format";
-import { type HandlerSortKey, listenerToRow, jobToRow, compareHandlerRows } from "../utils/handler-rows";
-import { HandlerTableRow, HandlerMobileRow } from "./handlers-rows";
+import { compareHandlerRows, type HandlerSortKey, jobToRow, listenerToRow } from "../utils/handler-rows";
 import styles from "./handlers.module.css";
+import { HandlerMobileRow, HandlerTableRow } from "./handlers-rows";
 
 export function HandlersPage() {
   useDocumentTitle("Handlers");
@@ -55,22 +59,17 @@ export function HandlersPage() {
   const allListeners = listenersApi.data.value ?? [];
   const allJobs = jobsApi.data.value ?? [];
 
-  const isLoading = (listenersApi.loading.value && allListeners.length === 0)
-    || (jobsApi.loading.value && allJobs.length === 0);
+  const isLoading =
+    (listenersApi.loading.value && allListeners.length === 0) || (jobsApi.loading.value && allJobs.length === 0);
 
   if (isLoading) return <Spinner />;
 
-  const allRows = [
-    ...allListeners.map(listenerToRow),
-    ...allJobs.map(jobToRow),
-  ];
+  const allRows = [...allListeners.map(listenerToRow), ...allJobs.map(jobToRow)];
 
   const appRows = allRows.filter((r) => r.source_tier === "app");
   const appKeys = [...new Set(appRows.map((r) => r.app_key))].sort();
 
-  const appFiltered = selectedApp
-    ? appRows.filter((r) => r.app_key === selectedApp)
-    : appRows;
+  const appFiltered = selectedApp ? appRows.filter((r) => r.app_key === selectedApp) : appRows;
 
   const searchLower = search.toLowerCase();
   const filtered = searchLower
@@ -97,12 +96,16 @@ export function HandlersPage() {
     <select
       aria-label="Filter by app"
       value={selectedApp}
-      onChange={(e) => { qp.set({ app: (e.target as HTMLSelectElement).value || null }); }}
+      onChange={(e) => {
+        qp.set({ app: (e.target as HTMLSelectElement).value || null });
+      }}
       data-testid="handlers-app-filter"
     >
       <option value="">all apps</option>
       {appKeys.map((key) => (
-        <option key={key} value={key}>{key}</option>
+        <option key={key} value={key}>
+          {key}
+        </option>
       ))}
     </select>
   );
@@ -125,14 +128,22 @@ export function HandlersPage() {
       aria-label="Search"
       placeholder="Search..."
       value={search}
-      onInput={(e) => { qp.set({ search: (e.target as HTMLInputElement).value || null }); }}
+      onInput={(e) => {
+        qp.set({ search: (e.target as HTMLInputElement).value || null });
+      }}
       data-testid="handlers-search"
     />
   );
 
   const footer = (
     <TableFooter
-      count={<>{pluralize(handlerCount, "handler")}{" · "}{pluralize(jobCount, "job")}</>}
+      count={
+        <>
+          {pluralize(handlerCount, "handler")}
+          {" · "}
+          {pluralize(jobCount, "job")}
+        </>
+      }
       columnFilters={columnFilters}
       onResetFilters={clearFilters}
     />
@@ -155,7 +166,9 @@ export function HandlersPage() {
         {sorted.length === 0 ? (
           <EmptyState title={emptyStateTitle} data-testid="handlers-empty">
             {(selectedApp || search) && (
-              <Button ghost size="sm" onClick={clearFilters}>clear filters</Button>
+              <Button ghost size="sm" onClick={clearFilters}>
+                clear filters
+              </Button>
             )}
           </EmptyState>
         ) : isMobile ? (
@@ -194,14 +207,30 @@ export function HandlersPage() {
                   >
                     app
                   </SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="name">name</SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="trigger">trigger</SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="runs">runs</SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="failed">failed</SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="timed_out">timed out</SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="error_rate">error rate</SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="avg_duration">avg</SortHeader>
-                  <SortHeader sort={sort} onSort={onSort} sortKey="next_run">next run</SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="name">
+                    name
+                  </SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="trigger">
+                    trigger
+                  </SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="runs">
+                    runs
+                  </SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="failed">
+                    failed
+                  </SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="timed_out">
+                    timed out
+                  </SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="error_rate">
+                    error rate
+                  </SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="avg_duration">
+                    avg
+                  </SortHeader>
+                  <SortHeader sort={sort} onSort={onSort} sortKey="next_run">
+                    next run
+                  </SortHeader>
                 </tr>
               </thead>
               <tbody>

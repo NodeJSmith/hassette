@@ -1,20 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef } from "preact/hooks";
 import { useSignalEffect } from "@preact/signals";
 import clsx from "clsx";
+import { useCallback, useEffect, useMemo, useRef } from "preact/hooks";
+
+import type { LogEntry } from "../../../api/endpoints";
+import { BREAKPOINT_MOBILE, useMediaQuery } from "../../../hooks/use-media-query";
 import { useSignal } from "../../../hooks/use-signal";
 import { useSubscribe } from "../../../hooks/use-subscribe";
-import { useMediaQuery, BREAKPOINT_MOBILE } from "../../../hooks/use-media-query";
 import { useAppState } from "../../../state/context";
-import type { LogEntry } from "../../../api/endpoints";
-import type { RowKey, ViewContext, ColumnId, SortColumn, SortConfig, LevelFilter } from "./types";
-import { rowKey } from "./types";
-import { RENDER_CAP, DEFAULT_LEVEL, LEVEL_OPTIONS, TIER_OPTIONS } from "./constants";
-import { useLogData } from "./use-log-data";
-import { useLogFilters } from "./use-log-filters";
-import { useColumnVisibility } from "./use-column-visibility";
-import type { ColumnFilters } from "../table-types";
 import { pluralize } from "../../../utils/format";
 import filterStyles from "../column-filter-popover/index.module.css";
+import type { ColumnFilters } from "../table-types";
+import { DEFAULT_LEVEL, LEVEL_OPTIONS, RENDER_CAP, TIER_OPTIONS } from "./constants";
+import type { ColumnId, LevelFilter, RowKey, SortColumn, SortConfig, ViewContext } from "./types";
+import { rowKey } from "./types";
+import { useColumnVisibility } from "./use-column-visibility";
+import { useLogData } from "./use-log-data";
+import { useLogFilters } from "./use-log-filters";
 
 export interface UseLogTableParams {
   context?: ViewContext;
@@ -86,8 +87,18 @@ export function useLogTable({
   });
 
   const {
-    filtered, filterState, livePaused, defaultTier,
-    setLevel, setTier, setApp, setSearch, setFunc, setSort, resetSort, resetFilters,
+    filtered,
+    filterState,
+    livePaused,
+    defaultTier,
+    setLevel,
+    setTier,
+    setApp,
+    setSearch,
+    setFunc,
+    setSort,
+    resetSort,
+    resetFilters,
   } = useLogFilters({
     allEntries,
     restEntries,
@@ -126,8 +137,12 @@ export function useLogTable({
     selectedKey.value = key;
   }, []);
 
-  const hasActiveFilter = state.level !== DEFAULT_LEVEL
-    || state.tier !== defaultTier || state.app !== "" || state.func !== "" || state.search !== "";
+  const hasActiveFilter =
+    state.level !== DEFAULT_LEVEL ||
+    state.tier !== defaultTier ||
+    state.app !== "" ||
+    state.func !== "" ||
+    state.search !== "";
 
   const isTruncated = entries.length > RENDER_CAP;
   const countLabel = isTruncated
@@ -148,7 +163,9 @@ export function useLogTable({
               data-testid="filter-level"
             >
               {LEVEL_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
               ))}
             </select>
           </div>
@@ -200,7 +217,9 @@ export function useLogTable({
                 >
                   <option value="">All apps</option>
                   {appKeys.map((key) => (
-                    <option key={key} value={key}>{key}</option>
+                    <option key={key} value={key}>
+                      {key}
+                    </option>
                   ))}
                 </select>
               </>
@@ -211,7 +230,19 @@ export function useLogTable({
     }
 
     return filters;
-  }, [state.level, state.tier, state.app, state.func, defaultTier, appKey, appKeys, setLevel, setTier, setApp, setFunc]);
+  }, [
+    state.level,
+    state.tier,
+    state.app,
+    state.func,
+    defaultTier,
+    appKey,
+    appKeys,
+    setLevel,
+    setTier,
+    setApp,
+    setFunc,
+  ]);
 
   const cappedEntries = entries.slice(0, RENDER_CAP);
 

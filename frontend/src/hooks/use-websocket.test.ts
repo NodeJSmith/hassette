@@ -1,7 +1,8 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/preact";
-import { useWebSocket } from "./use-websocket";
+import { act, renderHook } from "@testing-library/preact";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { createAppState } from "../state/create-app-state";
+import { useWebSocket } from "./use-websocket";
 
 /** Minimal mock WebSocket that tracks construction and allows simulating messages. */
 class MockWebSocket {
@@ -472,9 +473,19 @@ describe("useWebSocket", () => {
 
     // Push some entries into the log store before connecting
     state.logs.push({
-      seq: 1, timestamp: 1000, level: "INFO", logger_name: "test",
-      func_name: "f", lineno: 1, message: "stale", exc_info: null, app_key: null,
-      execution_id: null, instance_name: null, instance_index: null, source_tier: null,
+      seq: 1,
+      timestamp: 1000,
+      level: "INFO",
+      logger_name: "test",
+      func_name: "f",
+      lineno: 1,
+      message: "stale",
+      exc_info: null,
+      app_key: null,
+      execution_id: null,
+      instance_name: null,
+      instance_index: null,
+      source_tier: null,
     });
 
     renderHook(() => useWebSocket(state));
@@ -522,7 +533,14 @@ describe("useWebSocket", () => {
 
     const batch = [
       { listener_id: 1, app_key: "my_app", instance_index: 0, status: "success", duration_ms: 42, error_type: null },
-      { listener_id: 2, app_key: "my_app", instance_index: 0, status: "failed", duration_ms: 10, error_type: "ValueError" },
+      {
+        listener_id: 2,
+        app_key: "my_app",
+        instance_index: 0,
+        status: "failed",
+        duration_ms: 10,
+        error_type: "ValueError",
+      },
     ];
 
     act(() => {

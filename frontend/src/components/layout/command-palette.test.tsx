@@ -1,13 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/preact";
-import { h } from "preact";
 import { signal } from "@preact/signals";
-import { server } from "../../test/server";
+import { fireEvent, render, screen } from "@testing-library/preact";
 import { http, HttpResponse } from "msw";
-import { createManifest, createInstance, createListener } from "../../test/factories";
+import { h } from "preact";
+import { describe, expect, it, vi } from "vitest";
+
 import type { components } from "../../api/generated-types";
 import { AppStateContext } from "../../state/context";
-import { createAppState, type AppState } from "../../state/create-app-state";
+import { type AppState, createAppState } from "../../state/create-app-state";
+import { createInstance, createListener, createManifest } from "../../test/factories";
+import { server } from "../../test/server";
 
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 
@@ -99,8 +100,8 @@ describe("CommandPalette — static items (pages and actions)", () => {
   it("shows section headers for pages and actions", async () => {
     const { container } = renderPalette();
     await screen.findByText("apps");
-    const headers = Array.from(container.querySelectorAll("[data-testid^='cmd-section-']")).map(
-      (el) => el.getAttribute("data-testid")?.replace("cmd-section-", ""),
+    const headers = Array.from(container.querySelectorAll("[data-testid^='cmd-section-']")).map((el) =>
+      el.getAttribute("data-testid")?.replace("cmd-section-", ""),
     );
     expect(headers).toContain("page");
     expect(headers).toContain("action");
@@ -109,9 +110,7 @@ describe("CommandPalette — static items (pages and actions)", () => {
 
 describe("CommandPalette — app items", () => {
   const garageOverrides = {
-    manifests: signal([
-      createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" }),
-    ]),
+    manifests: signal([createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" })]),
     manifestsLoading: signal(false),
   };
 
@@ -123,8 +122,8 @@ describe("CommandPalette — app items", () => {
   it("shows section header for apps", async () => {
     const { container } = renderPalette({ stateOverrides: garageOverrides });
     await screen.findByText("Garage App");
-    const headers = Array.from(container.querySelectorAll("[data-testid^='cmd-section-']")).map(
-      (el) => el.getAttribute("data-testid")?.replace("cmd-section-", ""),
+    const headers = Array.from(container.querySelectorAll("[data-testid^='cmd-section-']")).map((el) =>
+      el.getAttribute("data-testid")?.replace("cmd-section-", ""),
     );
     expect(headers).toContain("app");
   });
@@ -206,8 +205,8 @@ describe("CommandPalette — filtering", () => {
     const { container } = renderPalette({ stateOverrides: twoAppsOverrides });
     // Re-render after input is typed in first render
     fireEvent.input(container.querySelector("input")!, { target: { value: "garage" } });
-    const sections = Array.from(container.querySelectorAll("[data-testid^='cmd-section-']")).map(
-      (el) => el.getAttribute("data-testid")?.replace("cmd-section-", ""),
+    const sections = Array.from(container.querySelectorAll("[data-testid^='cmd-section-']")).map((el) =>
+      el.getAttribute("data-testid")?.replace("cmd-section-", ""),
     );
     // Pages section should not appear (no page matches "garage")
     expect(sections).not.toContain("page");
@@ -262,9 +261,7 @@ describe("CommandPalette — selection actions", () => {
   it("pressing Enter on an app item navigates to app detail page", async () => {
     const { container } = renderPalette({
       stateOverrides: {
-        manifests: signal([
-          createManifest({ app_key: "my_app", display_name: "My App", status: "running" }),
-        ]),
+        manifests: signal([createManifest({ app_key: "my_app", display_name: "My App", status: "running" })]),
         manifestsLoading: signal(false),
       },
     });
@@ -347,16 +344,14 @@ describe("CommandPalette — handlers", () => {
     );
     const { container } = renderPalette();
     await screen.findByText("on_state_change");
-    const sections = Array.from(container.querySelectorAll("[data-testid^='cmd-section-']")).map(
-      (el) => el.getAttribute("data-testid")?.replace("cmd-section-", ""),
+    const sections = Array.from(container.querySelectorAll("[data-testid^='cmd-section-']")).map((el) =>
+      el.getAttribute("data-testid")?.replace("cmd-section-", ""),
     );
     expect(sections).toContain("handler");
   });
 
   it("degrades gracefully when handler fetch fails", async () => {
-    server.use(
-      http.get("/api/bus/listeners", () => HttpResponse.error()),
-    );
+    server.use(http.get("/api/bus/listeners", () => HttpResponse.error()));
     renderPalette();
     // Should still show pages and apps
     expect(await screen.findByText("apps")).toBeDefined();

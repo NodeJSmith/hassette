@@ -1,13 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { sortEntries } from "./use-log-filters";
-import { resolveSortColumn, levelClass } from "./constants";
-import { rowKey } from "./types";
+
 import type { LogEntry } from "../../../api/endpoints";
+import { levelClass, resolveSortColumn } from "./constants";
+import { rowKey } from "./types";
+import { sortEntries } from "./use-log-filters";
 
 function entry(overrides: Partial<LogEntry>): LogEntry {
   return {
-    seq: 1, timestamp: 1000, level: "INFO", logger_name: "test",
-    func_name: "fn", lineno: 1, message: "msg", exc_info: null, app_key: "app",
+    seq: 1,
+    timestamp: 1000,
+    level: "INFO",
+    logger_name: "test",
+    func_name: "fn",
+    lineno: 1,
+    message: "msg",
+    exc_info: null,
+    app_key: "app",
     ...overrides,
   } as LogEntry;
 }
@@ -24,10 +32,7 @@ describe("sortEntries", () => {
   });
 
   it("sorts by timestamp ascending", () => {
-    const entries = [
-      entry({ timestamp: 3000, message: "new" }),
-      entry({ timestamp: 1000, message: "old" }),
-    ];
+    const entries = [entry({ timestamp: 3000, message: "new" }), entry({ timestamp: 1000, message: "old" })];
     const result = sortEntries(entries, "timestamp", true);
     expect(result.map((e) => e.message)).toEqual(["old", "new"]);
   });
@@ -62,10 +67,7 @@ describe("sortEntries", () => {
   });
 
   it("handles null app_key by sorting nulls last", () => {
-    const entries = [
-      entry({ app_key: null, message: "null" }),
-      entry({ app_key: "alpha", message: "alpha" }),
-    ];
+    const entries = [entry({ app_key: null, message: "null" }), entry({ app_key: "alpha", message: "alpha" })];
     const result = sortEntries(entries, "app", true);
     expect(result.map((e) => e.message)).toEqual(["alpha", "null"]);
   });
@@ -104,13 +106,13 @@ describe("rowKey", () => {
 
 describe("levelClass", () => {
   it("returns the matching class for a known level", () => {
-    const mockStyles: Record<string, string> = { "levelINFO": "abc123", "levelERROR": "def456" };
+    const mockStyles: Record<string, string> = { levelINFO: "abc123", levelERROR: "def456" };
     expect(levelClass(mockStyles, "level", "INFO")).toBe("abc123");
     expect(levelClass(mockStyles, "level", "ERROR")).toBe("def456");
   });
 
   it("returns undefined for unknown level", () => {
-    const mockStyles: Record<string, string> = { "levelINFO": "abc123" };
+    const mockStyles: Record<string, string> = { levelINFO: "abc123" };
     expect(levelClass(mockStyles, "level", "TRACE")).toBeUndefined();
   });
 });

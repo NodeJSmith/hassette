@@ -1,8 +1,9 @@
 import clsx from "clsx";
+
 import { useAppState } from "../../state/context";
 import { setStoredValue } from "../../utils/local-storage";
-import { TimePresetSelector } from "./time-preset-selector";
 import styles from "./status-bar.module.css";
+import { TimePresetSelector } from "./time-preset-selector";
 
 export function StatusBar() {
   const {
@@ -78,7 +79,9 @@ export function StatusBar() {
             data-testid="error-handler-failures-indicator"
           >
             <span class={clsx(styles.pulseDot, "degraded")} />
-            <span class="ht-text-xs">{ehFailures} handler error{ehFailures !== 1 ? "s" : ""}</span>
+            <span class="ht-text-xs">
+              {ehFailures} handler error{ehFailures !== 1 ? "s" : ""}
+            </span>
           </span>
         )}
         <button

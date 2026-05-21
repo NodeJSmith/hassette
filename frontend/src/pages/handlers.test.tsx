@@ -1,9 +1,10 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent } from "@testing-library/preact";
 import { signal } from "@preact/signals";
-import { HandlersPage } from "./handlers";
+import { fireEvent } from "@testing-library/preact";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { createJob, createListener } from "../test/factories";
 import { renderWithAppState } from "../test/render-helpers";
-import { createListener, createJob } from "../test/factories";
+import { HandlersPage } from "./handlers";
 
 // Mutable search string for tests that need to control query params
 let mockSearch = "";
@@ -12,8 +13,11 @@ const mockNavigate = vi.fn();
 vi.mock("wouter", () => ({
   useSearch: () => mockSearch,
   useLocation: () => ["/handlers", mockNavigate],
-  Link: ({ href, children, class: cls }: Record<string, unknown>) =>
-    <a href={href as string} class={cls as string}>{children as never}</a>,
+  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
+    <a href={href as string} class={cls as string}>
+      {children as never}
+    </a>
+  ),
 }));
 
 vi.mock("../components/shared/spinner", () => ({
@@ -69,12 +73,8 @@ describe("HandlersPage", () => {
 
   it("renders both handler and job rows in a single table", () => {
     setupApi({
-      listeners: [
-        createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" }),
-      ],
-      jobs: [
-        createJob({ job_id: 10, app_key: "app_a", job_name: "my_job", source_tier: "app" }),
-      ],
+      listeners: [createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" })],
+      jobs: [createJob({ job_id: 10, app_key: "app_a", job_name: "my_job", source_tier: "app" })],
     });
     const { getAllByTestId } = renderWithAppState(<HandlersPage />);
     expect(getAllByTestId(/listener-row-/).length).toBe(1);
@@ -104,9 +104,7 @@ describe("HandlersPage", () => {
         createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" }),
         createListener({ listener_id: 2, app_key: "app_b", handler_method: "on_change", source_tier: "app" }),
       ],
-      jobs: [
-        createJob({ job_id: 10, app_key: "app_a", job_name: "my_job", source_tier: "app" }),
-      ],
+      jobs: [createJob({ job_id: 10, app_key: "app_a", job_name: "my_job", source_tier: "app" })],
     });
     const { getAllByTestId, queryAllByTestId } = renderWithAppState(<HandlersPage />);
     expect(getAllByTestId(/listener-row-/).length).toBe(1);
@@ -128,7 +126,12 @@ describe("HandlersPage", () => {
     setupApi({
       listeners: [
         createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_motion_detected", source_tier: "app" }),
-        createListener({ listener_id: 2, app_key: "app_b", handler_method: "on_temperature_change", source_tier: "app" }),
+        createListener({
+          listener_id: 2,
+          app_key: "app_b",
+          handler_method: "on_temperature_change",
+          source_tier: "app",
+        }),
       ],
     });
     const { getAllByTestId } = renderWithAppState(<HandlersPage />);
@@ -174,9 +177,7 @@ describe("HandlersPage", () => {
   it("search filters across both handlers and jobs simultaneously when ?search= is in URL", () => {
     mockSearch = "search=app_a";
     setupApi({
-      listeners: [
-        createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" }),
-      ],
+      listeners: [createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" })],
       jobs: [
         createJob({ job_id: 10, app_key: "app_a", job_name: "daily_backup", source_tier: "app" }),
         createJob({ job_id: 11, app_key: "app_b", job_name: "hourly_ping", source_tier: "app" }),
@@ -194,9 +195,7 @@ describe("HandlersPage", () => {
         createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" }),
         createListener({ listener_id: 2, app_key: "app_a", handler_method: "on_change", source_tier: "app" }),
       ],
-      jobs: [
-        createJob({ job_id: 10, app_key: "app_a", job_name: "my_job", source_tier: "app" }),
-      ],
+      jobs: [createJob({ job_id: 10, app_key: "app_a", job_name: "my_job", source_tier: "app" })],
     });
     const { getByText } = renderWithAppState(<HandlersPage />);
     expect(getByText(/2 handlers/i)).toBeDefined();
@@ -205,9 +204,7 @@ describe("HandlersPage", () => {
 
   it("renders an app column filter button (funnel icon) on the app column header", () => {
     setupApi({
-      listeners: [
-        createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" }),
-      ],
+      listeners: [createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" })],
     });
     const { getAllByTestId } = renderWithAppState(<HandlersPage />);
     const filterBtns = getAllByTestId("filter-btn");
@@ -224,9 +221,7 @@ describe("HandlersPage — query param state (FR#5, AC#6)", () => {
         createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" }),
         createListener({ listener_id: 2, app_key: "fw_app", handler_method: "fw_handler", source_tier: "framework" }),
       ],
-      jobs: [
-        createJob({ job_id: 10, app_key: "app_b", job_name: "my_job", source_tier: "app" }),
-      ],
+      jobs: [createJob({ job_id: 10, app_key: "app_b", job_name: "my_job", source_tier: "app" })],
     });
   });
 
@@ -247,17 +242,12 @@ describe("HandlersPage — query param state (FR#5, AC#6)", () => {
 
   it("changing sort calls qp.set with replace (no new history entry — AC#6)", () => {
     setupApi({
-      listeners: [
-        createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" }),
-      ],
+      listeners: [createListener({ listener_id: 1, app_key: "app_a", handler_method: "on_event", source_tier: "app" })],
     });
     const { getByRole } = renderWithAppState(<HandlersPage />);
     // SortHeader renders a <th><button> — click the button, not the th
     fireEvent.click(getByRole("button", { name: /^name/i }));
-    expect(mockNavigate).toHaveBeenCalledWith(
-      expect.stringContaining("sort=name"),
-      { replace: true },
-    );
+    expect(mockNavigate).toHaveBeenCalledWith(expect.stringContaining("sort=name"), { replace: true });
   });
 
   it("handler deep-links use /apps/:key/handlers/:id format in desktop table", () => {

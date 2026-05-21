@@ -1,9 +1,10 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/preact";
 import { signal } from "@preact/signals";
-import { useLogFilters } from "./use-log-filters";
+import { act, renderHook } from "@testing-library/preact";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import type { LogEntry } from "../../../api/endpoints";
 import type { LevelFilter } from "./types";
+import { useLogFilters } from "./use-log-filters";
 
 // --- wouter mock (same pattern as use-query-params.test.ts) ---
 let mockSearch = "";
@@ -38,9 +39,7 @@ function entry(overrides: Partial<LogEntry> = {}): LogEntry {
 function renderLocal(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string) {
   const allEntries = signal<LogEntry[]>(entries);
   const restEntries = signal<LogEntry[]>(rest);
-  const hook = renderHook(() =>
-    useLogFilters({ allEntries, restEntries, useLocalState: true, appKey }),
-  );
+  const hook = renderHook(() => useLogFilters({ allEntries, restEntries, useLocalState: true, appKey }));
   return { hook, allEntries, restEntries };
 }
 
@@ -48,9 +47,7 @@ function renderLocal(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: s
 function renderUrl(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string) {
   const allEntries = signal<LogEntry[]>(entries);
   const restEntries = signal<LogEntry[]>(rest);
-  const hook = renderHook(() =>
-    useLogFilters({ allEntries, restEntries, useLocalState: false, appKey }),
-  );
+  const hook = renderHook(() => useLogFilters({ allEntries, restEntries, useLocalState: false, appKey }));
   return { hook, allEntries, restEntries };
 }
 
@@ -80,7 +77,7 @@ describe("defaultTier", () => {
 // ---------------------------------------------------------------------------
 
 describe("level filtering", () => {
-  it('defaults to INFO level and filters out DEBUG entries', () => {
+  it("defaults to INFO level and filters out DEBUG entries", () => {
     const entries = [
       entry({ level: "DEBUG", message: "debug" }),
       entry({ level: "INFO", message: "info" }),
@@ -94,10 +91,7 @@ describe("level filtering", () => {
   });
 
   it('shows all levels when set to empty string ("all levels")', () => {
-    const entries = [
-      entry({ level: "DEBUG", message: "debug" }),
-      entry({ level: "INFO", message: "info" }),
-    ];
+    const entries = [entry({ level: "DEBUG", message: "debug" }), entry({ level: "INFO", message: "info" })];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setLevel("" as LevelFilter));
     const messages = hook.result.current.filtered.value.map((e) => e.message);
@@ -124,10 +118,7 @@ describe("level filtering", () => {
   });
 
   it("CRITICAL only shows CRITICAL entries", () => {
-    const entries = [
-      entry({ level: "ERROR", message: "error" }),
-      entry({ level: "CRITICAL", message: "crit" }),
-    ];
+    const entries = [entry({ level: "ERROR", message: "error" }), entry({ level: "CRITICAL", message: "crit" })];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setLevel("CRITICAL"));
     const messages = hook.result.current.filtered.value.map((e) => e.message);
@@ -176,9 +167,7 @@ describe("tier filtering", () => {
   });
 
   it('defaults to "all" when appKey is provided', () => {
-    const entries = [
-      entry({ source_tier: "framework", message: "from framework" }),
-    ];
+    const entries = [entry({ source_tier: "framework", message: "from framework" })];
     const { hook } = renderLocal(entries, [], "my_app");
     // "all" tier means framework entries pass through
     const messages = hook.result.current.filtered.value.map((e) => e.message);
@@ -289,10 +278,7 @@ describe("sort", () => {
   });
 
   it("toggles timestamp to ascending on second click", () => {
-    const entries = [
-      entry({ timestamp: 1000, message: "old" }),
-      entry({ timestamp: 3000, message: "new" }),
-    ];
+    const entries = [entry({ timestamp: 1000, message: "old" }), entry({ timestamp: 3000, message: "new" })];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setSort("timestamp"));
     const messages = hook.result.current.filtered.value.map((e) => e.message);
@@ -300,10 +286,7 @@ describe("sort", () => {
   });
 
   it("switches to new column descending on first click of that column", () => {
-    const entries = [
-      entry({ level: "DEBUG", message: "debug" }),
-      entry({ level: "CRITICAL", message: "crit" }),
-    ];
+    const entries = [entry({ level: "DEBUG", message: "debug" }), entry({ level: "CRITICAL", message: "crit" })];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setLevel(""));
     act(() => hook.result.current.setSort("level"));
@@ -401,10 +384,7 @@ describe("resetFilters", () => {
   });
 
   it("resets search after debounce clears", async () => {
-    const entries = [
-      entry({ message: "hello" }),
-      entry({ message: "world" }),
-    ];
+    const entries = [entry({ message: "hello" }), entry({ message: "world" })];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setSearch("hello"));
     await new Promise((r) => setTimeout(r, 200));
@@ -423,10 +403,7 @@ describe("resetFilters", () => {
 describe("URL state mode", () => {
   it("reads level from URL param", () => {
     mockSearch = "level=WARNING";
-    const entries = [
-      entry({ level: "DEBUG", message: "debug" }),
-      entry({ level: "WARNING", message: "warn" }),
-    ];
+    const entries = [entry({ level: "DEBUG", message: "debug" }), entry({ level: "WARNING", message: "warn" })];
     const { hook } = renderUrl(entries);
     const messages = hook.result.current.filtered.value.map((e) => e.message);
     expect(messages).not.toContain("debug");
@@ -435,10 +412,7 @@ describe("URL state mode", () => {
 
   it('reads level "all" from URL as empty string filter', () => {
     mockSearch = "level=all";
-    const entries = [
-      entry({ level: "DEBUG", message: "debug" }),
-      entry({ level: "INFO", message: "info" }),
-    ];
+    const entries = [entry({ level: "DEBUG", message: "debug" }), entry({ level: "INFO", message: "info" })];
     const { hook } = renderUrl(entries);
     const { level } = hook.result.current.filterState.value;
     expect(level).toBe("");

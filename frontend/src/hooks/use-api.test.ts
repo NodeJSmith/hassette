@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
-import { renderHook, act } from "@testing-library/preact";
-import { h } from "preact";
+import { act, renderHook } from "@testing-library/preact";
 import type { ComponentChildren } from "preact";
-import { useApi } from "./use-api";
+import { h } from "preact";
+import { describe, expect, it, vi } from "vitest";
+
 import { AppStateContext } from "../state/context";
-import { createAppState, type AppState } from "../state/create-app-state";
+import { type AppState, createAppState } from "../state/create-app-state";
+import { useApi } from "./use-api";
 
 function createWrapper(state: AppState) {
   return function Wrapper({ children }: { children: ComponentChildren }) {
@@ -179,10 +180,7 @@ describe("useApi enabled option", () => {
     const fetcher = vi.fn().mockResolvedValue("data");
     let enabled = false;
 
-    const { result, rerender } = renderHook(
-      () => useApi(fetcher, [], { enabled }),
-      { wrapper: createWrapper(state) },
-    );
+    const { result, rerender } = renderHook(() => useApi(fetcher, [], { enabled }), { wrapper: createWrapper(state) });
 
     await new Promise((r) => setTimeout(r, 50));
     expect(fetcher).toHaveBeenCalledTimes(0);

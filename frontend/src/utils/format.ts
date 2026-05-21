@@ -46,11 +46,20 @@ export function formatTriggerDetail(detail: string): string {
   if (secs < SECONDS_PER_MINUTE) return `${secs}s`;
   const parts: string[] = [];
   const days = Math.floor(secs / SECONDS_PER_DAY);
-  if (days > 0) { parts.push(`${days}d`); secs %= SECONDS_PER_DAY; }
+  if (days > 0) {
+    parts.push(`${days}d`);
+    secs %= SECONDS_PER_DAY;
+  }
   const hours = Math.floor(secs / SECONDS_PER_HOUR);
-  if (hours > 0) { parts.push(`${hours}h`); secs %= SECONDS_PER_HOUR; }
+  if (hours > 0) {
+    parts.push(`${hours}h`);
+    secs %= SECONDS_PER_HOUR;
+  }
   const mins = Math.floor(secs / SECONDS_PER_MINUTE);
-  if (mins > 0) { parts.push(`${mins}m`); secs %= SECONDS_PER_MINUTE; }
+  if (mins > 0) {
+    parts.push(`${mins}m`);
+    secs %= SECONDS_PER_MINUTE;
+  }
   if (secs > 0) parts.push(`${secs}s`);
   return parts.join(" ");
 }
@@ -120,6 +129,7 @@ export function formatRate(failed: number, total: number): string {
 export function formatUptime(seconds: number): string {
   if (seconds < SECONDS_PER_MINUTE) return `${Math.floor(seconds)}s`;
   if (seconds < SECONDS_PER_HOUR) return `${Math.floor(seconds / SECONDS_PER_MINUTE)}m`;
-  if (seconds < SECONDS_PER_DAY) return `${Math.floor(seconds / SECONDS_PER_HOUR)}h ${Math.floor((seconds % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE)}m`;
+  if (seconds < SECONDS_PER_DAY)
+    return `${Math.floor(seconds / SECONDS_PER_HOUR)}h ${Math.floor((seconds % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE)}m`;
   return `${Math.floor(seconds / SECONDS_PER_DAY)}d ${Math.floor((seconds % SECONDS_PER_DAY) / SECONDS_PER_HOUR)}h`;
 }

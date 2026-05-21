@@ -1,9 +1,10 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent } from "@testing-library/preact";
 import { signal } from "@preact/signals";
-import { AppsPage } from "./apps";
-import { renderWithAppState } from "../test/render-helpers";
+import { fireEvent } from "@testing-library/preact";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import { createManifest } from "../test/factories";
+import { renderWithAppState } from "../test/render-helpers";
+import { AppsPage } from "./apps";
 
 // Mutable search string for tests that need to control query params
 let mockSearch = "";
@@ -12,8 +13,11 @@ const mockNavigate = vi.fn();
 vi.mock("wouter", () => ({
   useSearch: () => mockSearch,
   useLocation: () => ["/apps", mockNavigate],
-  Link: ({ href, children, class: cls }: Record<string, unknown>) =>
-    <a href={href as string} class={cls as string}>{children as never}</a>,
+  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
+    <a href={href as string} class={cls as string}>
+      {children as never}
+    </a>
+  ),
 }));
 
 vi.mock("../components/shared/spinner", () => ({
@@ -210,9 +214,7 @@ describe("AppsPage", () => {
       mockSearch = "filter=failed";
       const { getByText } = renderWithAppState(<AppsPage />, {
         stateOverrides: {
-          manifests: signal([
-            createManifest({ app_key: "running_app", status: "running" }),
-          ]),
+          manifests: signal([createManifest({ app_key: "running_app", status: "running" })]),
           manifestsLoading: signal(false),
         },
       });
@@ -223,9 +225,7 @@ describe("AppsPage", () => {
       mockSearch = "filter=failed";
       const { getByRole } = renderWithAppState(<AppsPage />, {
         stateOverrides: {
-          manifests: signal([
-            createManifest({ app_key: "running_app", status: "running" }),
-          ]),
+          manifests: signal([createManifest({ app_key: "running_app", status: "running" })]),
           manifestsLoading: signal(false),
         },
       });
@@ -236,9 +236,7 @@ describe("AppsPage", () => {
       mockSearch = "filter=failed";
       const { getByRole } = renderWithAppState(<AppsPage />, {
         stateOverrides: {
-          manifests: signal([
-            createManifest({ app_key: "running_app", status: "running" }),
-          ]),
+          manifests: signal([createManifest({ app_key: "running_app", status: "running" })]),
           manifestsLoading: signal(false),
         },
       });

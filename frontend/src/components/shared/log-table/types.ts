@@ -1,14 +1,6 @@
 import type { LogEntry } from "../../../api/endpoints";
 
-export type ColumnId =
-  | "level"
-  | "timestamp"
-  | "app"
-  | "instance"
-  | "execution"
-  | "function"
-  | "module"
-  | "message";
+export type ColumnId = "level" | "timestamp" | "app" | "instance" | "execution" | "function" | "module" | "message";
 
 export type SortColumn = "timestamp" | "level" | "app" | "function" | "message";
 
@@ -47,7 +39,5 @@ export interface ColumnDef {
 export type RowKey = string;
 
 export function rowKey(entry: LogEntry): RowKey {
-  return entry.seq
-    ? `${entry.timestamp}-${entry.seq}`
-    : `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`;
+  return entry.seq ? `${entry.timestamp}-${entry.seq}` : `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`;
 }

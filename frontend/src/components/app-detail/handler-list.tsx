@@ -1,8 +1,8 @@
-import type { ListenerData, JobData } from "../../api/endpoints";
-import { UnifiedHandlerRow, type UnifiedItem, type UnifiedItemKind } from "./unified-handler-row";
-import { statusToKind } from "../../utils/status";
+import type { JobData, ListenerData } from "../../api/endpoints";
 import { formatTriggerDetail, lastDotSegment } from "../../utils/format";
+import { statusToKind } from "../../utils/status";
 import styles from "./handler-list.module.css";
+import { UnifiedHandlerRow, type UnifiedItem, type UnifiedItemKind } from "./unified-handler-row";
 
 export interface SelectedHandlerId {
   kind: UnifiedItemKind;
@@ -67,11 +67,7 @@ export function HandlerList({ listeners, jobs, selectedId, onSelect }: Props) {
           <UnifiedHandlerRow
             key={`${item.kind}-${item.id}`}
             item={item}
-            isSelected={
-              selectedId !== null &&
-              selectedId.kind === item.kind &&
-              selectedId.id === item.id
-            }
+            isSelected={selectedId !== null && selectedId.kind === item.kind && selectedId.id === item.id}
             onSelect={() => onSelect({ kind: item.kind, id: item.id })}
           />
         ))}

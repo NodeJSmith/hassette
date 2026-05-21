@@ -1,13 +1,13 @@
-import { useSignal } from "../hooks/use-signal";
-import { useSubscribe } from "../hooks/use-subscribe";
-import { useLogTable, LogTableView, LogTableWithDrawer } from "../components/shared/log-table";
+import { EmptyState } from "../components/shared/empty-state";
+import { LogTableView, LogTableWithDrawer, useLogTable } from "../components/shared/log-table";
 import { ColumnPicker } from "../components/shared/log-table/column-picker";
 import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
-import { EmptyState } from "../components/shared/empty-state";
 import { useDocumentTitle } from "../hooks/use-document-title";
-import { useAppState } from "../state/context";
 import { useQueryParams } from "../hooks/use-query-params";
+import { useSignal } from "../hooks/use-signal";
+import { useSubscribe } from "../hooks/use-subscribe";
+import { useAppState } from "../state/context";
 import styles from "./logs.module.css";
 
 export function LogsPage() {
@@ -34,7 +34,9 @@ export function LogsPage() {
       placeholder="Search logs…"
       aria-label="Search logs"
       value={search.value}
-      onInput={(e) => { search.value = (e.target as HTMLInputElement).value; }}
+      onInput={(e) => {
+        search.value = (e.target as HTMLInputElement).value;
+      }}
       data-testid="logs-search"
     />
   );
@@ -42,12 +44,7 @@ export function LogsPage() {
   const footerExtras = (
     <>
       {log.livePaused && (
-        <button
-          type="button"
-          class={styles.pausedBtn}
-          onClick={log.resetSort}
-          aria-label="Resume live log streaming"
-        >
+        <button type="button" class={styles.pausedBtn} onClick={log.resetSort} aria-label="Resume live log streaming">
           paused — click to resume
         </button>
       )}

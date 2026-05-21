@@ -12,7 +12,8 @@ export function SourceLocation({ sourceLocation, "data-testid": testId }: Props)
   return (
     <div class={styles.wrapper} data-testid={testId}>
       <span class="ht-text-mono ht-text-sm ht-text-muted">
-        {filename}{line ? `:${line}` : ""}
+        {filename}
+        {line ? `:${line}` : ""}
       </span>
     </div>
   );

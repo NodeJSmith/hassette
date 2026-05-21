@@ -41,9 +41,16 @@
   transition: color var(--t-fast);
 }
 
-.filterBtn:hover { color: var(--ink-1); }
-.filterBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.filterBtnActive { color: var(--ink-1); }
+.filterBtn:hover {
+  color: var(--ink-1);
+}
+.filterBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.filterBtnActive {
+  color: var(--ink-1);
+}
 
 /* Mobile filter panel content */
 .mobileFilters {
@@ -77,5 +84,10 @@
   transition: color var(--t-fast);
 }
 
-.resetFiltersBtn:hover { color: var(--ink-1); }
-.resetFiltersBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.resetFiltersBtn:hover {
+  color: var(--ink-1);
+}
+.resetFiltersBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

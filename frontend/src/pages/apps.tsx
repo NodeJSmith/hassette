@@ -1,28 +1,33 @@
 import { signal } from "@preact/signals";
-import { useRef } from "preact/hooks";
 import clsx from "clsx";
-import { useDocumentTitle } from "../hooks/use-document-title";
-import { useQueryParams } from "../hooks/use-query-params";
+import { useRef } from "preact/hooks";
+
 import { getDashboardAppGrid } from "../api/endpoints";
-import { useScopedApi, PRESET_WINDOW_SECONDS } from "../hooks/use-scoped-api";
-import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-filtered-signal-refetch";
-import { useAppState } from "../state/context";
-import { type StatusKind } from "../utils/status";
-import { useMediaQuery, BREAKPOINT_MOBILE } from "../hooks/use-media-query";
-import { pluralize } from "../utils/format";
-import { type AppRow, type AppSortState, mergeManifestsAndGrid, compareAppRows } from "../utils/app-data";
-import { EmptyState } from "../components/shared/empty-state";
-import { StatusShape } from "../components/shared/status-shape";
 import { Button } from "../components/shared/button";
+import popoverStyles from "../components/shared/column-filter-popover/index.module.css";
+import { EmptyState } from "../components/shared/empty-state";
 import { SortHeader } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { StatsStrip, type StatsStripCell } from "../components/shared/stats-strip";
+import { StatusShape } from "../components/shared/status-shape";
 import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
 import { type ColumnFilters } from "../components/shared/table-types";
-import { AppTableRow } from "./apps-table-row";
-import popoverStyles from "../components/shared/column-filter-popover/index.module.css";
+import { useDocumentTitle } from "../hooks/use-document-title";
+import {
+  useFilteredSignalRefetch,
+  WS_DEBOUNCE_DELAY_MS,
+  WS_DEBOUNCE_MAX_WAIT_MS,
+} from "../hooks/use-filtered-signal-refetch";
+import { BREAKPOINT_MOBILE, useMediaQuery } from "../hooks/use-media-query";
+import { useQueryParams } from "../hooks/use-query-params";
+import { PRESET_WINDOW_SECONDS, useScopedApi } from "../hooks/use-scoped-api";
+import { useAppState } from "../state/context";
+import { type AppRow, type AppSortState, compareAppRows, mergeManifestsAndGrid } from "../utils/app-data";
+import { pluralize } from "../utils/format";
+import { type StatusKind } from "../utils/status";
 import styles from "./apps.module.css";
+import { AppTableRow } from "./apps-table-row";
 
 // ---- Filter types ----
 
@@ -73,7 +78,11 @@ function buildAppsCells(apps: AppRow[], windowSeconds: number | null, isMobile: 
 
 // ---- Status filter popover content ----
 
-function StatusFilterContent({ counts, active, onChange }: {
+function StatusFilterContent({
+  counts,
+  active,
+  onChange,
+}: {
   counts: Record<string, number>;
   active: FilterId;
   onChange: (f: FilterId) => void;
@@ -112,10 +121,16 @@ function StatusFilterContent({ counts, active, onChange }: {
 export function AppsPage() {
   useDocumentTitle("Apps");
 
-  const { appStatus, effectiveTimePreset, uptimeSeconds, manifests: manifestsState, manifestsLoading, invocationCompleted, executionCompleted } = useAppState();
-  const { data: gridData, refetch: gridRefetch } = useScopedApi(
-    (since) => getDashboardAppGrid(since),
-  );
+  const {
+    appStatus,
+    effectiveTimePreset,
+    uptimeSeconds,
+    manifests: manifestsState,
+    manifestsLoading,
+    invocationCompleted,
+    executionCompleted,
+  } = useAppState();
+  const { data: gridData, refetch: gridRefetch } = useScopedApi((since) => getDashboardAppGrid(since));
 
   useFilteredSignalRefetch(
     invocationCompleted,
@@ -136,13 +151,13 @@ export function AppsPage() {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const qp = useQueryParams();
   const rawFilter = qp.get("filter");
-  const filter: FilterId = rawFilter !== null && (FILTER_OPTIONS as readonly string[]).includes(rawFilter)
-    ? rawFilter as FilterId : "all";
+  const filter: FilterId =
+    rawFilter !== null && (FILTER_OPTIONS as readonly string[]).includes(rawFilter) ? (rawFilter as FilterId) : "all";
   const rawSort = qp.get("sort");
   const rawDir = qp.get("dir");
   const isValidSortKey = rawSort !== null && (VALID_SORT_KEYS as readonly string[]).includes(rawSort);
   const sort: AppSortState = {
-    key: isValidSortKey ? rawSort as AppSortState["key"] : "status",
+    key: isValidSortKey ? (rawSort as AppSortState["key"]) : "status",
     dir: rawDir === "desc" ? "desc" : "asc",
   };
   const search = qp.get("search") ?? "";
@@ -166,9 +181,10 @@ export function AppsPage() {
 
   let windowSeconds: number | null = null;
   if (uptimeSeconds.value !== null && uptimeSeconds.value !== undefined) {
-    windowSeconds = effectiveTimePreset.value === "since-restart"
-      ? uptimeSeconds.value
-      : PRESET_WINDOW_SECONDS[effectiveTimePreset.value];
+    windowSeconds =
+      effectiveTimePreset.value === "since-restart"
+        ? uptimeSeconds.value
+        : PRESET_WINDOW_SECONDS[effectiveTimePreset.value];
   }
 
   const statusCounts: Record<string, number> = {};
@@ -198,7 +214,13 @@ export function AppsPage() {
     .filter((a) => {
       const s = appStatus.value[a.app_key]?.status ?? a.status;
       if (filter !== "all" && s !== filter) return false;
-      if (q && !a.app_key.toLowerCase().includes(q) && !a.class_name.toLowerCase().includes(q) && !a.display_name.toLowerCase().includes(q)) return false;
+      if (
+        q &&
+        !a.app_key.toLowerCase().includes(q) &&
+        !a.class_name.toLowerCase().includes(q) &&
+        !a.display_name.toLowerCase().includes(q)
+      )
+        return false;
       return true;
     })
     .sort((a, b) => compareAppRows(a, b, sort, appStatus.value));
@@ -243,7 +265,9 @@ export function AppsPage() {
         {filtered.length === 0 ? (
           <EmptyState title={emptyStateTitle}>
             {(filter !== "all" || q) && (
-              <Button ghost size="sm" onClick={clearFilters}>clear filters</Button>
+              <Button ghost size="sm" onClick={clearFilters}>
+                clear filters
+              </Button>
             )}
           </EmptyState>
         ) : (
@@ -258,7 +282,9 @@ export function AppsPage() {
             </colgroup>
             <thead>
               <tr>
-                <SortHeader sort={sort} onSort={handleSort} sortKey="name">app</SortHeader>
+                <SortHeader sort={sort} onSort={handleSort} sortKey="name">
+                  app
+                </SortHeader>
                 <SortHeader
                   sort={sort}
                   onSort={handleSort}
@@ -269,9 +295,15 @@ export function AppsPage() {
                 >
                   status
                 </SortHeader>
-                <SortHeader sort={sort} onSort={handleSort} sortKey="error">last error</SortHeader>
-                <SortHeader sort={sort} onSort={handleSort} sortKey="runs">runs</SortHeader>
-                <SortHeader sort={sort} onSort={handleSort} sortKey="last">last fired</SortHeader>
+                <SortHeader sort={sort} onSort={handleSort} sortKey="error">
+                  last error
+                </SortHeader>
+                <SortHeader sort={sort} onSort={handleSort} sortKey="runs">
+                  runs
+                </SortHeader>
+                <SortHeader sort={sort} onSort={handleSort} sortKey="last">
+                  last fired
+                </SortHeader>
                 <th scope="col">actions</th>
               </tr>
             </thead>

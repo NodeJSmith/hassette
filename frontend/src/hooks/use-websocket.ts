@@ -1,7 +1,8 @@
 import { batch } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
-import type { AppState } from "../state/create-app-state";
+
 import type { WsServerMessage } from "../api/ws-types";
+import type { AppState } from "../state/create-app-state";
 
 const MAX_BACKOFF_MS = 30_000;
 const INITIAL_BACKOFF_MS = 1_000;

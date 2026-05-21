@@ -1,11 +1,12 @@
-import { useEffect } from "preact/hooks";
 import clsx from "clsx";
+import { useEffect } from "preact/hooks";
+
+import { useQueryParams } from "../../hooks/use-query-params";
 import { useAppState } from "../../state/context";
 import type { TimePreset } from "../../state/create-app-state";
 import { isTimePreset } from "../../state/create-app-state";
-import { setStoredValue } from "../../utils/local-storage";
 import { formatUptime } from "../../utils/format";
-import { useQueryParams } from "../../hooks/use-query-params";
+import { setStoredValue } from "../../utils/local-storage";
 import styles from "./time-preset-selector.module.css";
 
 const PRESETS: { value: TimePreset; label: string }[] = [
@@ -57,11 +58,7 @@ export function TimePresetSelector() {
           {label}
         </button>
       ))}
-      {Number.isFinite(uptime) && (
-        <span class={styles.uptime}>
-          up {formatUptime(uptime!)}
-        </span>
-      )}
+      {Number.isFinite(uptime) && <span class={styles.uptime}>up {formatUptime(uptime!)}</span>}
     </div>
   );
 }

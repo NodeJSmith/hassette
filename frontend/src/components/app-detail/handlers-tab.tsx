@@ -1,19 +1,19 @@
+import clsx from "clsx";
 import { useEffect, useRef } from "preact/hooks";
 import { useLocation } from "wouter";
-import clsx from "clsx";
 
-import { useSignal } from "../../hooks/use-signal";
+import type { JobData, ListenerData } from "../../api/endpoints";
 import { useCorrectUrl } from "../../hooks/use-correct-url";
 import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
-import { parseHandlerId, formatListenerId, formatJobId } from "../../utils/handler-ids";
-import type { ListenerData, JobData } from "../../api/endpoints";
-import { EmptyState } from "../shared/empty-state";
+import { useSignal } from "../../hooks/use-signal";
+import { formatJobId, formatListenerId, parseHandlerId } from "../../utils/handler-ids";
 import { Button } from "../shared/button";
+import { EmptyState } from "../shared/empty-state";
 import { HandlerList, type SelectedHandlerId } from "./handler-list";
-import { HandlersHealthStrip } from "./health-strip";
-import { ListenerDetail } from "./listener-detail";
-import { JobDetail } from "./job-detail";
 import styles from "./handlers-tab.module.css";
+import { HandlersHealthStrip } from "./health-strip";
+import { JobDetail } from "./job-detail";
+import { ListenerDetail } from "./listener-detail";
 
 interface Props {
   listeners: ListenerData[];
@@ -24,7 +24,11 @@ interface Props {
   onSwitchToCode?: (line?: number) => void;
 }
 
-function DetailContent({ listener, job, onSwitchToCode }: {
+function DetailContent({
+  listener,
+  job,
+  onSwitchToCode,
+}: {
   listener: ListenerData | null;
   job: JobData | null;
   onSwitchToCode?: (line?: number) => void;
@@ -58,19 +62,17 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
 
   const parsed = selectedHandler ? parseHandlerId(selectedHandler) : null;
 
-  const selectedListener = parsed?.kind === "listener"
-    ? listeners.find((l) => l.listener_id === parsed.id) ?? null
-    : null;
-  const selectedJob = parsed?.kind === "job"
-    ? jobs.find((j) => j.job_id === parsed.id) ?? null
-    : null;
+  const selectedListener =
+    parsed?.kind === "listener" ? (listeners.find((l) => l.listener_id === parsed.id) ?? null) : null;
+  const selectedJob = parsed?.kind === "job" ? (jobs.find((j) => j.job_id === parsed.id) ?? null) : null;
 
   useEffect(() => {
     if (!selectedHandler || !parsed) return;
     if (!hasItems) return;
-    const found = parsed.kind === "listener"
-      ? listeners.some((l) => l.listener_id === parsed.id)
-      : jobs.some((j) => j.job_id === parsed.id);
+    const found =
+      parsed.kind === "listener"
+        ? listeners.some((l) => l.listener_id === parsed.id)
+        : jobs.some((j) => j.job_id === parsed.id);
     if (!found) {
       correctUrl(`/apps/${appKey}/handlers${instanceQs}`);
     }
@@ -93,9 +95,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
   const showMasterList = !isMobile.value || selectedHandler === null;
   const showDetailPane = !isMobile.value || selectedHandler !== null;
 
-  const selectedId: SelectedHandlerId | null = parsed
-    ? { kind: parsed.kind, id: parsed.id }
-    : null;
+  const selectedId: SelectedHandlerId | null = parsed ? { kind: parsed.kind, id: parsed.id } : null;
 
   return (
     <div ref={containerRef}>
@@ -117,12 +117,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
       <div class={clsx(styles.masterDetail, isMobile.value && styles.masterDetailMobile)}>
         {showMasterList && (
           <div class={styles.masterDetailList}>
-            <HandlerList
-              listeners={listeners}
-              jobs={jobs}
-              selectedId={selectedId}
-              onSelect={handleSelect}
-            />
+            <HandlerList listeners={listeners} jobs={jobs} selectedId={selectedId} onSelect={handleSelect} />
           </div>
         )}
 

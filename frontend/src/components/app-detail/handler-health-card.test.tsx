@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
 import { fireEvent } from "@testing-library/preact";
-import { HandlerHealthCard } from "./handler-health-card";
-import { createListener, createJob } from "../../test/factories";
-import { buildItems } from "./handler-list";
+import { describe, expect, it, vi } from "vitest";
+
+import { createJob, createListener } from "../../test/factories";
 import { renderWithAppState } from "../../test/render-helpers";
+import { HandlerHealthCard } from "./handler-health-card";
+import { buildItems } from "./handler-list";
 
 // Mock wouter for navigation assertions
 const mockNavigate = vi.fn();
@@ -22,13 +23,8 @@ function makeJobItem(overrides: Parameters<typeof createJob>[0] = {}) {
   return buildItems([], [job])[0];
 }
 
-function renderCard(
-  item: ReturnType<typeof buildItems>[number],
-  { appKey = "test_app", instanceQs = "" } = {},
-) {
-  return renderWithAppState(
-    <HandlerHealthCard item={item} appKey={appKey} instanceQs={instanceQs} />,
-  );
+function renderCard(item: ReturnType<typeof buildItems>[number], { appKey = "test_app", instanceQs = "" } = {}) {
+  return renderWithAppState(<HandlerHealthCard item={item} appKey={appKey} instanceQs={instanceQs} />);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

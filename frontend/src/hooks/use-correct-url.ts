@@ -20,7 +20,10 @@ import { useLocation } from "wouter";
 export function useCorrectUrl(): (correctedUrl: string) => void {
   const [, navigate] = useLocation();
 
-  return useCallback((correctedUrl: string): void => {
-    navigate(correctedUrl, { replace: true });
-  }, [navigate]);
+  return useCallback(
+    (correctedUrl: string): void => {
+      navigate(correctedUrl, { replace: true });
+    },
+    [navigate],
+  );
 }

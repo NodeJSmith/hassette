@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/preact";
+import { describe, expect, it } from "vitest";
+
 import { EmptyState } from "./empty-state";
 
 describe("EmptyState", () => {
@@ -20,7 +21,11 @@ describe("EmptyState", () => {
   });
 
   it("renders children", () => {
-    render(<EmptyState title="Empty"><button type="button">Reset</button></EmptyState>);
+    render(
+      <EmptyState title="Empty">
+        <button type="button">Reset</button>
+      </EmptyState>,
+    );
     expect(screen.getByRole("button", { name: "Reset" })).toBeTruthy();
   });
 

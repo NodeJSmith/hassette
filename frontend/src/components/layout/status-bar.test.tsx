@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent } from "@testing-library/preact";
 import { signal } from "@preact/signals";
-import { StatusBar } from "./status-bar";
+import { fireEvent } from "@testing-library/preact";
+import { describe, expect, it, vi } from "vitest";
+
 import { renderWithAppState } from "../../test/render-helpers";
+import { StatusBar } from "./status-bar";
 
 // Mock setStoredValue so theme changes don't hit localStorage
 vi.mock("../../utils/local-storage", () => ({

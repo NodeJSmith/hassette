@@ -33,17 +33,25 @@
   color: var(--ink-1);
 }
 
-.valueErr { color: var(--err); }
-.valueWarn { color: var(--warn); }
-.valueOk { color: var(--ok); }
-.valueMute { color: var(--ink-3); }
+.valueErr {
+  color: var(--err);
+}
+.valueWarn {
+  color: var(--warn);
+}
+.valueOk {
+  color: var(--ok);
+}
+.valueMute {
+  color: var(--ink-3);
+}
 
 @media screen and (max-width: 768px) {
   .strip {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .cell:nth-child(n+4) {
+  .cell:nth-child(n + 4) {
     border-top: 1px solid var(--line-2);
   }
 }

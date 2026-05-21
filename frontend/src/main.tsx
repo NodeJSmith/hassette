@@ -1,9 +1,11 @@
+import "./tokens.css";
+import "./global.css";
+
 import { render } from "preact";
+
 import { App } from "./app";
 import { getStoredValue, migrateKey } from "./utils/local-storage";
 import { isTheme } from "./utils/theme";
-import "./tokens.css";
-import "./global.css";
 
 // Run all localStorage migrations before any reads.
 // This is the canonical location for migrations — add new ones here.

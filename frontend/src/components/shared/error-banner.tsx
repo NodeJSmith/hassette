@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+
 import styles from "./error-banner.module.css";
 
 interface Props {
@@ -9,17 +10,22 @@ interface Props {
   "data-testid"?: string;
 }
 
-export function ErrorBanner({ heading = "Last Error", errorType, errorMessage, traceback, "data-testid": testId }: Props) {
+export function ErrorBanner({
+  heading = "Last Error",
+  errorType,
+  errorMessage,
+  traceback,
+  "data-testid": testId,
+}: Props) {
   const [traceExpanded, setTraceExpanded] = useState(false);
 
   return (
     <div class={styles.banner} data-testid={testId}>
       <span class={styles.heading}>
-        {heading}{errorType ? ` — ${errorType}` : ""}
+        {heading}
+        {errorType ? ` — ${errorType}` : ""}
       </span>
-      {errorMessage && (
-        <p class={styles.message}>{errorMessage}</p>
-      )}
+      {errorMessage && <p class={styles.message}>{errorMessage}</p>}
       {traceback && (
         <div data-testid="traceback-content">
           <button
@@ -31,9 +37,7 @@ export function ErrorBanner({ heading = "Last Error", errorType, errorMessage, t
           >
             {traceExpanded ? "hide traceback" : "show traceback"}
           </button>
-          {traceExpanded && (
-            <pre class="ht-traceback">{traceback}</pre>
-          )}
+          {traceExpanded && <pre class="ht-traceback">{traceback}</pre>}
         </div>
       )}
     </div>

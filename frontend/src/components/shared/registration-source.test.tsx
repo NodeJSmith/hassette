@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/preact";
+import { describe, expect, it } from "vitest";
+
 import { RegistrationSource } from "./registration-source";
 
 describe("RegistrationSource", () => {
@@ -20,9 +21,7 @@ describe("RegistrationSource", () => {
     self._on_tick,
     seconds=300,
 )`;
-    const { getByTestId } = render(
-      <RegistrationSource source={source} data-testid="reg-src" />,
-    );
+    const { getByTestId } = render(<RegistrationSource source={source} data-testid="reg-src" />);
     const code = getByTestId("reg-src").querySelector("code");
     expect(code?.textContent).toContain("seconds=300");
   });

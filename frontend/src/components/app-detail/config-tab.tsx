@@ -1,12 +1,13 @@
-import { useEffect, useState } from "preact/hooks";
 import clsx from "clsx";
+import { useEffect, useState } from "preact/hooks";
+
+import type { AppConfigData } from "../../api/endpoints";
 import { getAppConfig } from "../../api/endpoints";
 import { useSignal } from "../../hooks/use-signal";
-import { EmptyState } from "../shared/empty-state";
-import { Spinner } from "../shared/spinner";
-import type { AppConfigData } from "../../api/endpoints";
 import { Badge } from "../shared/badge";
 import { Card } from "../shared/card";
+import { EmptyState } from "../shared/empty-state";
+import { Spinner } from "../shared/spinner";
 import styles from "./config-tab.module.css";
 
 interface Props {
@@ -48,13 +49,16 @@ function ConfigValue({ val }: { val: unknown }) {
         aria-expanded={expanded}
       >
         <svg class={styles.configTableExpandIcon} viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-          <polyline points={expanded ? "2,4 6,8 10,4" : "4,2 8,6 4,10"} fill="none" stroke="currentColor" stroke-width="1.5" />
+          <polyline
+            points={expanded ? "2,4 6,8 10,4" : "4,2 8,6 4,10"}
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
         </svg>
         {formatConfigValue(val)}
       </button>
-      {expanded && (
-        <pre class={styles.configTableExpandedValue}>{JSON.stringify(val, null, 2)}</pre>
-      )}
+      {expanded && <pre class={styles.configTableExpandedValue}>{JSON.stringify(val, null, 2)}</pre>}
     </span>
   );
 }
@@ -68,13 +72,7 @@ function resolveType(prop: SchemaProperty): string {
   return "any";
 }
 
-function SchemaConfigTable({
-  config,
-  schema,
-}: {
-  config: ConfigRecord;
-  schema: ConfigSchema;
-}) {
+function SchemaConfigTable({ config, schema }: { config: ConfigRecord; schema: ConfigSchema }) {
   const properties = schema.properties ?? {};
   const propKeys = Object.keys(properties);
   const extraKeys = Object.keys(config).filter((k) => !propKeys.includes(k));
@@ -90,9 +88,15 @@ function SchemaConfigTable({
     <table class={clsx("ht-table ht-table--compact", styles.configTable)} data-testid="config-values-table">
       <thead>
         <tr>
-          <th class={styles.configTableKey} scope="col">Key</th>
-          <th class={styles.configTableColType} scope="col">Type</th>
-          <th class={styles.configTableColValue} scope="col">Value</th>
+          <th class={styles.configTableKey} scope="col">
+            Key
+          </th>
+          <th class={styles.configTableColType} scope="col">
+            Type
+          </th>
+          <th class={styles.configTableColValue} scope="col">
+            Value
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -122,25 +126,31 @@ function SchemaConfigTable({
 function SimpleConfigTable({ config }: { config: ConfigRecord }) {
   const entries = Object.entries(config);
   if (entries.length === 0) {
-    return (
-      <EmptyState title="no configuration values" />
-    );
+    return <EmptyState title="no configuration values" />;
   }
 
   return (
     <table class={clsx("ht-table", styles.table)} data-testid="config-values-table">
       <thead>
         <tr>
-          <th class={styles.colKey} scope="col">Key</th>
-          <th class={styles.colValue} scope="col">Value</th>
+          <th class={styles.colKey} scope="col">
+            Key
+          </th>
+          <th class={styles.colValue} scope="col">
+            Value
+          </th>
         </tr>
       </thead>
       <tbody>
         {entries.map(([key, val]) => (
           <tr key={key}>
-            <td><code class="ht-text-mono ht-text-sm">{key}</code></td>
+            <td>
+              <code class="ht-text-mono ht-text-sm">{key}</code>
+            </td>
             <td class={styles.value} data-testid={`config-value-${key}`}>
-              <code class="ht-text-mono ht-text-sm"><ConfigValue val={val} /></code>
+              <code class="ht-text-mono ht-text-sm">
+                <ConfigValue val={val} />
+              </code>
             </td>
           </tr>
         ))}
@@ -174,13 +184,13 @@ export function ConfigTab({ appKey }: Props) {
     }
 
     void load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [appKey]);
 
   if (loading.value) {
-    return (
-      <Spinner />
-    );
+    return <Spinner />;
   }
 
   if (error.value) {
@@ -212,9 +222,7 @@ export function ConfigTab({ appKey }: Props) {
         </div>
         <div class={styles.metaRow}>
           <span class="ht-detail-label">Enabled</span>
-          <Badge variant={cfg.enabled ? "success" : "neutral"}>
-            {cfg.enabled ? "yes" : "no"}
-          </Badge>
+          <Badge variant={cfg.enabled ? "success" : "neutral"}>{cfg.enabled ? "yes" : "no"}</Badge>
         </div>
       </div>
 
@@ -223,28 +231,32 @@ export function ConfigTab({ appKey }: Props) {
         <div class={styles.fieldsCard}>
           <h3 class="ht-section-label">configuration</h3>
           <Card variant="config">
-          {isListConfig ? (
-            <div class={styles.instances}>
-              {(appConfig as unknown[]).map((instanceCfg, idx) => (
-                <div key={idx} class={styles.instanceBlock} data-testid={`config-instance-${idx}`}>
-                  <h4 class={styles.instanceHeading}>Instance {idx}</h4>
-                  {instanceCfg && typeof instanceCfg === "object" && !Array.isArray(instanceCfg) ? (
-                    schema
-                      ? <SchemaConfigTable config={instanceCfg as ConfigRecord} schema={schema} />
-                      : <SimpleConfigTable config={instanceCfg as ConfigRecord} />
-                  ) : (
-                    <p class="ht-text-muted ht-text-sm">{String(instanceCfg)}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : appConfig && typeof appConfig === "object" && !Array.isArray(appConfig) ? (
-            schema
-              ? <SchemaConfigTable config={appConfig as ConfigRecord} schema={schema} />
-              : <SimpleConfigTable config={appConfig as ConfigRecord} />
-          ) : (
-            <EmptyState title="no configuration values" />
-          )}
+            {isListConfig ? (
+              <div class={styles.instances}>
+                {(appConfig as unknown[]).map((instanceCfg, idx) => (
+                  <div key={idx} class={styles.instanceBlock} data-testid={`config-instance-${idx}`}>
+                    <h4 class={styles.instanceHeading}>Instance {idx}</h4>
+                    {instanceCfg && typeof instanceCfg === "object" && !Array.isArray(instanceCfg) ? (
+                      schema ? (
+                        <SchemaConfigTable config={instanceCfg as ConfigRecord} schema={schema} />
+                      ) : (
+                        <SimpleConfigTable config={instanceCfg as ConfigRecord} />
+                      )
+                    ) : (
+                      <p class="ht-text-muted ht-text-sm">{String(instanceCfg)}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : appConfig && typeof appConfig === "object" && !Array.isArray(appConfig) ? (
+              schema ? (
+                <SchemaConfigTable config={appConfig as ConfigRecord} schema={schema} />
+              ) : (
+                <SimpleConfigTable config={appConfig as ConfigRecord} />
+              )
+            ) : (
+              <EmptyState title="no configuration values" />
+            )}
           </Card>
         </div>
 
@@ -252,8 +264,8 @@ export function ConfigTab({ appKey }: Props) {
         <div class={styles.rawCard}>
           <h3 class="ht-section-label">raw config</h3>
           <Card variant="config">
-          <span class="ht-text-mono ht-text-xs ht-text-muted">hassette.toml → apps.{appKey}.config</span>
-          <pre class={styles.rawCode}>{JSON.stringify(appConfig, null, 2)}</pre>
+            <span class="ht-text-mono ht-text-xs ht-text-muted">hassette.toml → apps.{appKey}.config</span>
+            <pre class={styles.rawCode}>{JSON.stringify(appConfig, null, 2)}</pre>
           </Card>
         </div>
       </div>

@@ -30,6 +30,13 @@ repos:
 
   - repo: local
     hooks:
+      - id: prettier
+        name: prettier (frontend)
+        language: system
+        entry: npx --prefix frontend prettier --write
+        types_or: [ts, tsx, css]
+        files: ^frontend/src/
+
       - id: eslint
         name: eslint (frontend)
         language: system
@@ -59,9 +66,9 @@ repos:
         stages:
           - pre-push
 
-      # regenerate _RecordingSyncFacade in sync_facade.py
+      # regenerate RecordingSyncFacade in sync_facade.py
       - id: generate_recording_sync_facade
-        name: Generate _RecordingSyncFacade
+        name: Generate RecordingSyncFacade
         language: system
         entry: uv run python codegen/src/hassette_codegen/sync_facade.py --target recording
         pass_filenames: false

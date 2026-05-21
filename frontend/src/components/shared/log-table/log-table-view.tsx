@@ -1,7 +1,7 @@
 import { COLUMN_MAP } from "./constants";
-import { rowKey } from "./types";
 import { LogTableHeader } from "./log-table-header";
 import { LogTableRow } from "./log-table-row";
+import { rowKey } from "./types";
 import type { LogTableViewProps } from "./use-log-table";
 
 export function LogTableView({

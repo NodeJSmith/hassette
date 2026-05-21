@@ -1,17 +1,17 @@
-import { STATUS_DOT_SIZE } from "../../utils/constants";
 import clsx from "clsx";
+
 import { useSignal } from "../../hooks/use-signal";
-import { ShowMoreButton } from "./show-more-button";
-import { DetailPanel } from "./detail-panel";
+import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
 import { executionStatusKind } from "../../utils/status";
+import { DetailPanel } from "./detail-panel";
 import { EmptyState } from "./empty-state";
-import { StatusShape } from "./status-shape";
 import styles from "./execution-table.module.css";
+import { ShowMoreButton } from "./show-more-button";
+import { StatusShape } from "./status-shape";
 
 const INITIAL_ROWS = 5;
 const COL_COUNT = 5;
-
 
 export interface ExecutionRecord {
   execution_start_ts: number;
@@ -36,9 +36,15 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
   const openRow = useSignal<number | null>(null);
 
   if (records.length === 0) {
-    return kind === "handler"
-      ? <EmptyState icon="◌" title="no invocations recorded" body="this handler hasn't been called yet in the current time window." />
-      : <EmptyState title="no executions recorded." />;
+    return kind === "handler" ? (
+      <EmptyState
+        icon="◌"
+        title="no invocations recorded"
+        body="this handler hasn't been called yet in the current time window."
+      />
+    ) : (
+      <EmptyState title="no executions recorded." />
+    );
   }
 
   const visible = showAll.value ? records : records.slice(0, INITIAL_ROWS);
@@ -49,11 +55,21 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
       <table class="ht-table ht-table--compact" data-testid={tableId}>
         <thead>
           <tr>
-            <th class="ht-col-status" scope="col">Status</th>
-            <th class="ht-col-time" scope="col">Timestamp</th>
-            <th class="ht-col-duration" scope="col">Duration</th>
-            <th class="ht-col-trace" scope="col">Execution ID</th>
-            <th class={styles.colArrow} scope="col"><span class="ht-visually-hidden">Details</span></th>
+            <th class="ht-col-status" scope="col">
+              Status
+            </th>
+            <th class="ht-col-time" scope="col">
+              Timestamp
+            </th>
+            <th class="ht-col-duration" scope="col">
+              Duration
+            </th>
+            <th class="ht-col-trace" scope="col">
+              Execution ID
+            </th>
+            <th class={styles.colArrow} scope="col">
+              <span class="ht-visually-hidden">Details</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -71,7 +87,7 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
                 tabIndex={0}
                 role="row"
                 aria-expanded={isOpen}
-                onClick={() => openRow.value = isOpen ? null : i}
+                onClick={() => (openRow.value = isOpen ? null : i)}
                 onKeyDown={(e: KeyboardEvent) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
@@ -82,12 +98,8 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
                 <td class={styles.statusCell}>
                   <div class={styles.statusCellInner}>
                     <StatusShape kind={executionStatusKind(record.status)} size={STATUS_DOT_SIZE} />
-                    {isError && record.error_type && (
-                      <span class={styles.errorType}>{record.error_type}</span>
-                    )}
-                    {isTimeout && (
-                      <span class={styles.timeoutType}>timed out</span>
-                    )}
+                    {isError && record.error_type && <span class={styles.errorType}>{record.error_type}</span>}
+                    {isTimeout && <span class={styles.timeoutType}>timed out</span>}
                   </div>
                 </td>
                 <td class="ht-text-mono ht-text-xs">{formatTimestamp(record.execution_start_ts)}</td>
@@ -95,7 +107,12 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
                 <td class="ht-col-trace ht-text-mono ht-text-xs">{truncateId(record.execution_id)}</td>
                 <td class="ht-text-muted">
                   <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
-                    <polyline points={isOpen ? "2,4 6,8 10,4" : "4,2 8,6 4,10"} fill="none" stroke="currentColor" stroke-width="1.5" />
+                    <polyline
+                      points={isOpen ? "2,4 6,8 10,4" : "4,2 8,6 4,10"}
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                    />
                   </svg>
                 </td>
               </tr>,
@@ -109,10 +126,14 @@ export function ExecutionTable({ records, kind, tableId }: Props) {
                       errorType={record.error_type}
                       errorMessage={record.error_message}
                       errorTraceback={record.error_traceback}
-                      context={record.trigger_context_id ? {
-                        triggerContextId: record.trigger_context_id,
-                        triggerOrigin: record.trigger_origin,
-                      } : undefined}
+                      context={
+                        record.trigger_context_id
+                          ? {
+                              triggerContextId: record.trigger_context_id,
+                              triggerOrigin: record.trigger_origin,
+                            }
+                          : undefined
+                      }
                       testId={kind === "handler" ? "invocation-detail" : "execution-detail"}
                     />
                   </td>

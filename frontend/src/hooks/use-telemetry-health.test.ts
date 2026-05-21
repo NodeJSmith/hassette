@@ -1,5 +1,6 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/preact";
+import { act, renderHook } from "@testing-library/preact";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { createAppState } from "../state/create-app-state";
 
 // Track the mock location and its setter so tests can simulate navigation
@@ -24,7 +25,14 @@ describe("useTelemetryHealth", () => {
     vi.useFakeTimers();
     mockLocation = "/";
     mockedGetTelemetryStatus.mockReset();
-    mockedGetTelemetryStatus.mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0, error_handler_failures: 0 });
+    mockedGetTelemetryStatus.mockResolvedValue({
+      degraded: false,
+      dropped_overflow: 0,
+      dropped_exhausted: 0,
+      dropped_no_session: 0,
+      dropped_shutdown: 0,
+      error_handler_failures: 0,
+    });
   });
 
   afterEach(() => {
@@ -88,7 +96,14 @@ describe("useTelemetryHealth", () => {
 
   it("sets degraded true when endpoint reports degradation", async () => {
     const state = createAppState();
-    mockedGetTelemetryStatus.mockResolvedValue({ degraded: true, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0, error_handler_failures: 0 });
+    mockedGetTelemetryStatus.mockResolvedValue({
+      degraded: true,
+      dropped_overflow: 0,
+      dropped_exhausted: 0,
+      dropped_no_session: 0,
+      dropped_shutdown: 0,
+      error_handler_failures: 0,
+    });
 
     renderHook(() => useTelemetryHealth(state));
 
@@ -150,8 +165,22 @@ describe("useTelemetryHealth", () => {
     // First call fails, second succeeds, third succeeds
     mockedGetTelemetryStatus
       .mockRejectedValueOnce(new Error("fail"))
-      .mockResolvedValueOnce({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0, error_handler_failures: 0 })
-      .mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0, error_handler_failures: 0 });
+      .mockResolvedValueOnce({
+        degraded: false,
+        dropped_overflow: 0,
+        dropped_exhausted: 0,
+        dropped_no_session: 0,
+        dropped_shutdown: 0,
+        error_handler_failures: 0,
+      })
+      .mockResolvedValue({
+        degraded: false,
+        dropped_overflow: 0,
+        dropped_exhausted: 0,
+        dropped_no_session: 0,
+        dropped_shutdown: 0,
+        error_handler_failures: 0,
+      });
 
     renderHook(() => useTelemetryHealth(state));
 
@@ -182,9 +211,14 @@ describe("useTelemetryHealth", () => {
   it("resets backoff and polls immediately on navigation", async () => {
     const state = createAppState();
     // Fail initially to trigger backoff
-    mockedGetTelemetryStatus
-      .mockRejectedValueOnce(new Error("fail"))
-      .mockResolvedValue({ degraded: false, dropped_overflow: 0, dropped_exhausted: 0, dropped_no_session: 0, dropped_shutdown: 0, error_handler_failures: 0 });
+    mockedGetTelemetryStatus.mockRejectedValueOnce(new Error("fail")).mockResolvedValue({
+      degraded: false,
+      dropped_overflow: 0,
+      dropped_exhausted: 0,
+      dropped_no_session: 0,
+      dropped_shutdown: 0,
+      error_handler_failures: 0,
+    });
 
     const { rerender } = renderHook(() => useTelemetryHealth(state));
 
@@ -215,9 +249,7 @@ describe("useTelemetryHealth", () => {
 
   it("does not set degraded on AbortError (navigation cancellation)", async () => {
     const state = createAppState();
-    mockedGetTelemetryStatus.mockRejectedValue(
-      new DOMException("The operation was aborted", "AbortError"),
-    );
+    mockedGetTelemetryStatus.mockRejectedValue(new DOMException("The operation was aborted", "AbortError"));
 
     renderHook(() => useTelemetryHealth(state));
 

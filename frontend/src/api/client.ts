@@ -29,7 +29,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       const body: Record<string, unknown> = await response.json();
       const raw = body.detail ?? body.message;
       detail = typeof raw === "string" ? raw : undefined;
-    } catch { /* non-JSON error body */ }
+    } catch {
+      /* non-JSON error body */
+    }
     throw new ApiError(response.status, response.statusText, detail);
   }
 

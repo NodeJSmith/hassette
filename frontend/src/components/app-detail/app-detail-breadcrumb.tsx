@@ -14,13 +14,17 @@ export function AppDetailBreadcrumb({ appKey, isMultiInstance, showParentOvervie
   return (
     <nav class={clsx(styles.breadcrumb, "ht-mb-3")} aria-label="Breadcrumb">
       <Link href="/apps">apps</Link>
-      <span class={styles.breadcrumbSeparator} aria-hidden="true">/</span>
+      <span class={styles.breadcrumbSeparator} aria-hidden="true">
+        /
+      </span>
       {isMultiInstance && !showParentOverview ? (
         <>
           <Link href={`/apps/${appKey}`} data-testid="breadcrumb-parent">
             {appKey}
           </Link>
-          <span class={styles.breadcrumbSeparator} aria-hidden="true">/</span>
+          <span class={styles.breadcrumbSeparator} aria-hidden="true">
+            /
+          </span>
           <span class={styles.breadcrumbCurrent} aria-current="page">
             {instanceName}
           </span>

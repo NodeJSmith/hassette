@@ -1,6 +1,7 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, fireEvent, act } from "@testing-library/preact";
+import { act, fireEvent, render } from "@testing-library/preact";
 import type * as preact from "preact";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { App } from "./app";
 
 // Mock wouter so we control routing without a real browser history
@@ -15,8 +16,11 @@ vi.mock("wouter", () => ({
   },
   Redirect: () => null,
   Switch: ({ children }: { children: unknown }) => children,
-  Link: ({ href, children, class: cls, ...rest }: Record<string, unknown>) =>
-    <a href={href as string} class={cls as string} {...rest}>{children as never}</a>,
+  Link: ({ href, children, class: cls, ...rest }: Record<string, unknown>) => (
+    <a href={href as string} class={cls as string} {...rest}>
+      {children as never}
+    </a>
+  ),
   useLocation: vi.fn().mockReturnValue(["/", vi.fn()]),
   useSearch: vi.fn().mockReturnValue(""),
 }));

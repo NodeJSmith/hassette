@@ -32,10 +32,22 @@
 }
 
 /* kind variant: per-color overrides */
-.kindOk   { border-color: var(--ok);    color: var(--ok); }
-.kindWarn { border-color: var(--warn);  color: var(--warn); }
-.kindErr  { border-color: var(--err);   color: var(--err); }
-.kindMute { border-color: var(--ink-4); color: var(--ink-4); }
+.kindOk {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.kindWarn {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.kindErr {
+  border-color: var(--err);
+  color: var(--err);
+}
+.kindMute {
+  border-color: var(--ink-4);
+  color: var(--ink-4);
+}
 
 /* muted merges the formerly-duplicate --auto and --muted variants */
 .muted {

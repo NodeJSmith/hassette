@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/preact";
+import { describe, expect, it } from "vitest";
+
 import { NotFoundPage } from "./not-found";
 
 describe("NotFoundPage", () => {

@@ -15,10 +15,11 @@
  */
 
 import { useRef } from "preact/hooks";
-import { useApi, type UseApiOptions, type UseApiResult } from "./use-api";
+
 import { useAppState } from "../state/context";
-import { MS_PER_SECOND } from "../utils/format";
 import type { TimePreset } from "../state/create-app-state";
+import { MS_PER_SECOND } from "../utils/format";
+import { useApi, type UseApiOptions, type UseApiResult } from "./use-api";
 
 export interface UseScopedApiOptions extends UseApiOptions {
   /** Extra deps beyond scope signals (e.g., route params). */
@@ -73,9 +74,8 @@ export function useScopedApi<T>(
   // Include scope signals in deps so useApi detects changes and triggers refetches.
   const allDeps = [preset, uptime, ...extraDeps];
 
-  return useApi(
-    () => fetcherRef.current(resolveSince(preset, uptime) as number),
-    allDeps,
-    { ...apiOptions, enabled: !waitingForUptime },
-  );
+  return useApi(() => fetcherRef.current(resolveSince(preset, uptime) as number), allDeps, {
+    ...apiOptions,
+    enabled: !waitingForUptime,
+  });
 }

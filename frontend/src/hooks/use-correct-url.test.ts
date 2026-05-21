@@ -1,5 +1,6 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/preact";
+import { act, renderHook } from "@testing-library/preact";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import { useCorrectUrl } from "./use-correct-url";
 
 const mockNavigate = vi.fn();

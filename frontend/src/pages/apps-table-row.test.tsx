@@ -1,13 +1,17 @@
-import { describe, expect, it, vi } from "vitest";
 import { fireEvent } from "@testing-library/preact";
-import { AppTableRow } from "./apps-table-row";
+import { describe, expect, it, vi } from "vitest";
+
+import { renderWithAppState } from "../test/render-helpers";
 import type { AppRow } from "../utils/app-data";
 import { INACTIVE_STATUSES } from "../utils/status";
-import { renderWithAppState } from "../test/render-helpers";
+import { AppTableRow } from "./apps-table-row";
 
 vi.mock("wouter", () => ({
-  Link: ({ href, children, class: cls }: Record<string, unknown>) =>
-    <a href={href as string} class={cls as string}>{children as never}</a>,
+  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
+    <a href={href as string} class={cls as string}>
+      {children as never}
+    </a>
+  ),
 }));
 
 vi.mock("../components/shared/action-buttons", () => ({
@@ -52,7 +56,11 @@ function createAppRow(overrides: Partial<AppRow> = {}): AppRow {
 function renderRow(props: Partial<Parameters<typeof AppTableRow>[0]> = {}) {
   const defaults = { app: createAppRow(), isExpanded: false, onToggle: vi.fn() };
   return renderWithAppState(
-    <table><tbody><AppTableRow {...defaults} {...props} /></tbody></table>,
+    <table>
+      <tbody>
+        <AppTableRow {...defaults} {...props} />
+      </tbody>
+    </table>,
   );
 }
 
@@ -114,9 +122,7 @@ describe("AppTableRow", () => {
       app: createAppRow({ error_message: "Boom" }),
     });
     const buttons = getAllByRole("button");
-    const errorCell = buttons.find((el) =>
-      el.getAttribute("aria-label")?.includes("error"),
-    );
+    const errorCell = buttons.find((el) => el.getAttribute("aria-label")?.includes("error"));
     expect(errorCell).toBeDefined();
   });
 
@@ -177,8 +183,22 @@ describe("AppTableRow", () => {
     const app = createAppRow({
       instance_count: 2,
       instances: [
-        { app_key: "my_app", class_name: "MyApp", index: 0, instance_name: "my_app[0]", status: "running", error_message: null },
-        { app_key: "my_app", class_name: "MyApp", index: 1, instance_name: "my_app[1]", status: "stopped", error_message: null },
+        {
+          app_key: "my_app",
+          class_name: "MyApp",
+          index: 0,
+          instance_name: "my_app[0]",
+          status: "running",
+          error_message: null,
+        },
+        {
+          app_key: "my_app",
+          class_name: "MyApp",
+          index: 1,
+          instance_name: "my_app[1]",
+          status: "stopped",
+          error_message: null,
+        },
       ],
     });
     const { getByTestId } = renderRow({ app, isExpanded: true });
@@ -190,7 +210,14 @@ describe("AppTableRow", () => {
     const app = createAppRow({
       instance_count: 2,
       instances: [
-        { app_key: "my_app", class_name: "MyApp", index: 0, instance_name: "my_app[0]", status: "running", error_message: null },
+        {
+          app_key: "my_app",
+          class_name: "MyApp",
+          index: 0,
+          instance_name: "my_app[0]",
+          status: "running",
+          error_message: null,
+        },
       ],
     });
     const { queryByTestId } = renderRow({ app, isExpanded: false });

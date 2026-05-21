@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import type { JSX } from "preact";
+
 import styles from "./chip.module.css";
 
 export type ChipVariant = "modifier" | "schedule" | "kind" | "origin" | "muted";
@@ -22,14 +23,7 @@ type ChipProps =
   | (ChipBaseProps & { variant: "kind"; kind: ChipKind })
   | (ChipBaseProps & { variant: Exclude<ChipVariant, "kind">; kind?: never });
 
-export function Chip({
-  variant,
-  kind,
-  size = "default",
-  class: className,
-  children,
-  ...rest
-}: ChipProps) {
+export function Chip({ variant, kind, size = "default", class: className, children, ...rest }: ChipProps) {
   return (
     <span
       data-variant={variant}

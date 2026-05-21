@@ -12,13 +12,13 @@ const APP_STATUS_MAP: ReadonlyMap<string, StatusVariant> = new Map<string, Statu
   ["crashed", "danger"],
   ["stopped", "warning"],
   ["disabled", "neutral"],
-  ["blocked", "warning"],  // Intentional: blocked = needs attention (matches small badge behavior)
+  ["blocked", "warning"], // Intentional: blocked = needs attention (matches small badge behavior)
   ["not_started", "neutral"],
   ["starting", "neutral"],
   ["stopping", "neutral"],
   ["shutting_down", "neutral"],
   // Service exhaustion statuses
-  ["exhausted_dead", "danger"],     // Permanent failure — budget exhausted, no further restarts
+  ["exhausted_dead", "danger"], // Permanent failure — budget exhausted, no further restarts
   ["exhausted_cooling", "warning"], // Long cooldown in progress — will retry after cooldown period
   ["success", "success"],
   ["failure", "danger"],

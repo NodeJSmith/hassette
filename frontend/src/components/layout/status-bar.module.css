@@ -9,8 +9,13 @@
 }
 
 @keyframes breathe {
-  0%, 100% { opacity: 0.4; }
-  50%      { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .pulseDot:global(.connecting) {
@@ -40,7 +45,9 @@
   background: transparent;
   color: var(--ink-3);
   cursor: pointer;
-  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
     border-color var(--t-fast) var(--ease);
   flex-shrink: 0;
 }

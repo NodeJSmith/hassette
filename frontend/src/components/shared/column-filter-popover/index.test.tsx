@@ -1,16 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, act, fireEvent } from "@testing-library/preact";
+import { act, fireEvent, render, screen } from "@testing-library/preact";
 import { useRef } from "preact/hooks";
+import { describe, expect, it, vi } from "vitest";
+
 import { ColumnFilterPopover } from "./index";
 
 // Wrapper that exposes a trigger button and the popover under test
-function PopoverHarness({
-  open,
-  onClose,
-}: {
-  open: boolean;
-  onClose: () => void;
-}) {
+function PopoverHarness({ open, onClose }: { open: boolean; onClose: () => void }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   return (
     <div>
@@ -18,8 +13,12 @@ function PopoverHarness({
         Open
       </button>
       <ColumnFilterPopover open={open} onClose={onClose} triggerRef={triggerRef}>
-        <button type="button" data-testid="first-focusable">First</button>
-        <button type="button" data-testid="second-focusable">Second</button>
+        <button type="button" data-testid="first-focusable">
+          First
+        </button>
+        <button type="button" data-testid="second-focusable">
+          Second
+        </button>
       </ColumnFilterPopover>
     </div>
   );

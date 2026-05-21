@@ -1,14 +1,19 @@
-import { useMemo } from "preact/hooks";
 import clsx from "clsx";
+import { useMemo } from "preact/hooks";
+
 import type { ActivityFeedEntryData } from "../../api/endpoints";
 import { getAppActivity } from "../../api/endpoints";
+import {
+  useFilteredSignalRefetch,
+  WS_DEBOUNCE_DELAY_MS,
+  WS_DEBOUNCE_MAX_WAIT_MS,
+} from "../../hooks/use-filtered-signal-refetch";
 import { useScopedApi } from "../../hooks/use-scoped-api";
-import { useAppState } from "../../state/context";
 import { useSubscribe } from "../../hooks/use-subscribe";
-import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-filtered-signal-refetch";
-import { StatusShape } from "../shared/status-shape";
-import { executionStatusKind } from "../../utils/status";
+import { useAppState } from "../../state/context";
 import { formatDurationOrDash, formatRelativeTime, lastDotSegment } from "../../utils/format";
+import { executionStatusKind } from "../../utils/status";
+import { StatusShape } from "../shared/status-shape";
 import styles from "./overview-tab.module.css";
 
 const ACTIVITY_LIMIT = 20;
@@ -56,12 +61,14 @@ function groupConsecutiveActivity(entries: ActivityFeedEntryData[]): ActivityGro
 function ActivityGroupRow({ group }: { group: ActivityGroup }) {
   const kind = executionStatusKind(group.status);
   const isGrouped = group.count > 1;
-  const durationLabel = isGrouped && group.avgDurationMs !== null
-    ? `avg ${formatDurationOrDash(group.avgDurationMs)}`
-    : formatDurationOrDash(group.avgDurationMs);
-  const timeLabel = isGrouped && group.firstTs !== group.lastTs
-    ? `${formatRelativeTime(group.firstTs)}–${formatRelativeTime(group.lastTs)}`
-    : formatRelativeTime(group.firstTs);
+  const durationLabel =
+    isGrouped && group.avgDurationMs !== null
+      ? `avg ${formatDurationOrDash(group.avgDurationMs)}`
+      : formatDurationOrDash(group.avgDurationMs);
+  const timeLabel =
+    isGrouped && group.firstTs !== group.lastTs
+      ? `${formatRelativeTime(group.firstTs)}–${formatRelativeTime(group.lastTs)}`
+      : formatRelativeTime(group.firstTs);
 
   return (
     <tr data-testid="overview-activity-row">
@@ -72,9 +79,7 @@ function ActivityGroupRow({ group }: { group: ActivityGroup }) {
       </td>
       <td class={styles.activityName} title={group.handlerName}>
         {lastDotSegment(group.handlerName)}
-        {isGrouped && (
-          <span class={styles.activityCount}> × {group.count}</span>
-        )}
+        {isGrouped && <span class={styles.activityCount}> × {group.count}</span>}
       </td>
       <td class={styles.activityDuration}>{durationLabel}</td>
       <td class={styles.activityTime}>{timeLabel}</td>
@@ -82,14 +87,21 @@ function ActivityGroupRow({ group }: { group: ActivityGroup }) {
   );
 }
 
-export function RecentActivitySection({ appKey, resolvedInstanceIndex }: {
+export function RecentActivitySection({
+  appKey,
+  resolvedInstanceIndex,
+}: {
   appKey: string;
   resolvedInstanceIndex: number;
 }) {
-  const { data: activity, loading, error: activityError, refetch } = useScopedApi(
-    (since) => getAppActivity(appKey, resolvedInstanceIndex, ACTIVITY_LIMIT, since),
-    { deps: [appKey, resolvedInstanceIndex] },
-  );
+  const {
+    data: activity,
+    loading,
+    error: activityError,
+    refetch,
+  } = useScopedApi((since) => getAppActivity(appKey, resolvedInstanceIndex, ACTIVITY_LIMIT, since), {
+    deps: [appKey, resolvedInstanceIndex],
+  });
 
   const { invocationCompleted, executionCompleted, tick } = useAppState();
   useSubscribe(tick);
@@ -130,8 +142,12 @@ export function RecentActivitySection({ appKey, resolvedInstanceIndex }: {
             <tr>
               <th class={styles.colDot} scope="col"></th>
               <th scope="col">Handler</th>
-              <th class={styles.activityDuration} scope="col">Duration</th>
-              <th class={styles.activityTime} scope="col">Time</th>
+              <th class={styles.activityDuration} scope="col">
+                Duration
+              </th>
+              <th class={styles.activityTime} scope="col">
+                Time
+              </th>
             </tr>
           </thead>
           <tbody aria-live="polite" aria-atomic="false">

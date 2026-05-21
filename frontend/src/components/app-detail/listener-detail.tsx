@@ -1,17 +1,21 @@
-import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import type { ListenerData } from "../../api/endpoints";
 import { getHandlerInvocations } from "../../api/endpoints";
+import {
+  useFilteredSignalRefetch,
+  WS_DEBOUNCE_DELAY_MS,
+  WS_DEBOUNCE_MAX_WAIT_MS,
+} from "../../hooks/use-filtered-signal-refetch";
+import { useRelativeTime } from "../../hooks/use-relative-time";
 import { useScopedApi } from "../../hooks/use-scoped-api";
 import { useAppState } from "../../state/context";
-import { useRelativeTime } from "../../hooks/use-relative-time";
-import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-filtered-signal-refetch";
-import { formatOptionalDuration, formatDurationOrDash, lastDotSegment, MS_PER_SECOND } from "../../utils/format";
+import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
+import { formatDurationOrDash, formatOptionalDuration, lastDotSegment, MS_PER_SECOND } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
-import { listenerStatusKind } from "./handler-list";
 import { Chip } from "../shared/chip";
-import { HandlerDetailLayout } from "./handler-detail-layout";
 import type { DetailStatsCell } from "../shared/detail-stats";
 import chipStyles from "./handler-chips.module.css";
+import { HandlerDetailLayout } from "./handler-detail-layout";
+import { listenerStatusKind } from "./handler-list";
 
 function ModifierChips({ listener }: { listener: ListenerData }) {
   const chips: Array<{ label: string; value?: string }> = [];
@@ -27,7 +31,8 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
     <div class={chipStyles.chipRow} data-testid="modifier-chips">
       {chips.map((chip) => (
         <Chip key={chip.label} variant="modifier">
-          {chip.label}{chip.value ? ` ${chip.value}` : ""}
+          {chip.label}
+          {chip.value ? ` ${chip.value}` : ""}
         </Chip>
       ))}
     </div>
@@ -39,8 +44,16 @@ function buildListenerStatsCells(listener: ListenerData, lastInvokedLabel: strin
     { label: "Calls", value: listener.total_invocations },
     { label: "Successful", value: listener.successful },
     { label: "Last", value: listener.last_invoked_at ? lastInvokedLabel || "—" : "—" },
-    { label: "Failed", value: listener.failed > 0 ? listener.failed : "—", tone: listener.failed > 0 ? "err" : undefined },
-    { label: "Timed Out", value: listener.timed_out > 0 ? listener.timed_out : "—", tone: listener.timed_out > 0 ? "warn" : undefined },
+    {
+      label: "Failed",
+      value: listener.failed > 0 ? listener.failed : "—",
+      tone: listener.failed > 0 ? "err" : undefined,
+    },
+    {
+      label: "Timed Out",
+      value: listener.timed_out > 0 ? listener.timed_out : "—",
+      tone: listener.timed_out > 0 ? "warn" : undefined,
+    },
   ];
   if (listener.cancelled > 0) cells.push({ label: "Cancelled", value: listener.cancelled });
   cells.push(
@@ -57,10 +70,13 @@ interface Props {
 }
 
 export function ListenerDetail({ listener, onSwitchToCode }: Props) {
-  const { data: invocations, loading, refetch } = useScopedApi(
-    (since) => getHandlerInvocations(listener.listener_id, DETAIL_FETCH_LIMIT, since),
-    { deps: [listener.listener_id] },
-  );
+  const {
+    data: invocations,
+    loading,
+    refetch,
+  } = useScopedApi((since) => getHandlerInvocations(listener.listener_id, DETAIL_FETCH_LIMIT, since), {
+    deps: [listener.listener_id],
+  });
 
   const { invocationCompleted } = useAppState();
   const lastInvokedLabel = useRelativeTime(listener.last_invoked_at ?? null);
@@ -88,11 +104,15 @@ export function ListenerDetail({ listener, onSwitchToCode }: Props) {
       chips={<ModifierChips listener={listener} />}
       sourceLocation={listener.source_location}
       onViewCode={onSwitchToCode}
-      error={listenerKind === "err" ? {
-        type: listener.last_error_type ?? null,
-        message: listener.last_error_message ?? null,
-        traceback: listener.last_error_traceback ?? null,
-      } : null}
+      error={
+        listenerKind === "err"
+          ? {
+              type: listener.last_error_type ?? null,
+              message: listener.last_error_message ?? null,
+              traceback: listener.last_error_traceback ?? null,
+            }
+          : null
+      }
       statsCells={buildListenerStatsCells(listener, lastInvokedLabel)}
       statsTestId="handler-stats-row"
       executionHeading="invocations"

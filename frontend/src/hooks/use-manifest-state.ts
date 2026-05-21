@@ -1,9 +1,10 @@
-import { useSignalEffect } from "@preact/signals";
 import type { Signal } from "@preact/signals";
+import { useSignalEffect } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
-import { useSignal } from "./use-signal";
+
 import type { AppManifest } from "../api/endpoints";
 import { getStoredSet, setStoredSet } from "../utils/local-storage";
+import { useSignal } from "./use-signal";
 
 export const EXPANDED_KEY = "expanded-apps";
 

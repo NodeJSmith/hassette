@@ -2,7 +2,9 @@
 
 /* — Config tab container — */
 
-.configTab { padding: var(--sp-4) 0; }
+.configTab {
+  padding: var(--sp-4) 0;
+}
 
 /* — Metadata header — */
 
@@ -114,8 +116,10 @@
   min-width: 200px;
 }
 
-.configTableColType {}
-.configTableColValue {}
+.configTableColType {
+}
+.configTableColValue {
+}
 
 .configTableValue {
   font-family: var(--font-mono);

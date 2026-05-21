@@ -1,20 +1,21 @@
-import { useMemo } from "preact/hooks";
 import clsx from "clsx";
-import { useLogTable, LogTableView, LogTableWithDrawer } from "../shared/log-table";
-import { TableCard } from "../shared/table-card";
-import { TableFooter } from "../shared/table-footer";
-import { EmptyState } from "../shared/empty-state";
-import { buildItems } from "./handler-list";
-import { INACTIVE_STATUSES } from "../../utils/status";
+import { useMemo } from "preact/hooks";
+
+import type { JobData, ListenerData } from "../../api/endpoints";
 import { useSignal } from "../../hooks/use-signal";
 import { useSubscribe } from "../../hooks/use-subscribe";
 import { useAppState } from "../../state/context";
-import type { ListenerData, JobData } from "../../api/endpoints";
-import { isFailing } from "./overview-tab-helpers";
+import { INACTIVE_STATUSES } from "../../utils/status";
+import { EmptyState } from "../shared/empty-state";
+import { LogTableView, LogTableWithDrawer, useLogTable } from "../shared/log-table";
+import { TableCard } from "../shared/table-card";
+import { TableFooter } from "../shared/table-footer";
 import { ErrorSpotlight } from "./error-spotlight";
 import { HandlerHealthGrid } from "./handler-health-grid";
-import { RecentActivitySection } from "./recent-activity-section";
+import { buildItems } from "./handler-list";
 import styles from "./overview-tab.module.css";
+import { isFailing } from "./overview-tab-helpers";
+import { RecentActivitySection } from "./recent-activity-section";
 
 interface Props {
   listeners: ListenerData[];
@@ -43,7 +44,9 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
       placeholder="Search logs…"
       aria-label="Search app logs"
       value={search.value}
-      onInput={(e) => { search.value = (e.target as HTMLInputElement).value; }}
+      onInput={(e) => {
+        search.value = (e.target as HTMLInputElement).value;
+      }}
       data-testid="overview-logs-search"
     />
   );
@@ -61,11 +64,7 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
       <h3 class="ht-section-label">logs</h3>
       <TableCard search={searchInput} footer={footer} scrollHeight="400px">
         <LogTableWithDrawer drawerProps={log.drawerProps}>
-          {log.isEmpty ? (
-            <EmptyState title={emptyTitle} body={emptyBody} />
-          ) : (
-            <LogTableView {...log.tableProps} />
-          )}
+          {log.isEmpty ? <EmptyState title={emptyTitle} body={emptyBody} /> : <LogTableView {...log.tableProps} />}
         </LogTableWithDrawer>
       </TableCard>
     </section>
@@ -81,18 +80,10 @@ export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInsta
   return (
     <div class={clsx(styles.overviewTab, !wsConnected && styles.overviewTabStale)} data-testid="overview-tab">
       {failingItems.length > 0 && (
-        <ErrorSpotlight
-          failingItems={failingItems}
-          appKey={appKey}
-          instanceQs={instanceQs}
-        />
+        <ErrorSpotlight failingItems={failingItems} appKey={appKey} instanceQs={instanceQs} />
       )}
 
-      <HandlerHealthGrid
-        items={allItems}
-        appKey={appKey}
-        instanceQs={instanceQs}
-      />
+      <HandlerHealthGrid items={allItems} appKey={appKey} instanceQs={instanceQs} />
 
       <RecentActivitySection appKey={appKey} resolvedInstanceIndex={resolvedInstanceIndex} />
 

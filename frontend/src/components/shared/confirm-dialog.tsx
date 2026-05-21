@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "preact/hooks";
-import styles from "./confirm-dialog.module.css";
+
 import { Button } from "./button";
+import styles from "./confirm-dialog.module.css";
 
 interface Props {
   title: string;
@@ -19,14 +20,7 @@ interface Props {
  * - Escape key calls onCancel.
  * - Uses semantic ARIA roles for screen reader accessibility.
  */
-export function ConfirmDialog({
-  title,
-  body,
-  confirmLabel,
-  onConfirm,
-  onCancel,
-  tone = "default",
-}: Props) {
+export function ConfirmDialog({ title, body, confirmLabel, onConfirm, onCancel, tone = "default" }: Props) {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -51,9 +45,7 @@ export function ConfirmDialog({
       }
 
       if (e.key === "Tab") {
-        const focusable = [cancelRef.current, confirmRef.current].filter(
-          (el): el is HTMLButtonElement => el !== null,
-        );
+        const focusable = [cancelRef.current, confirmRef.current].filter((el): el is HTMLButtonElement => el !== null);
         if (focusable.length === 0) return;
 
         const first = focusable[0];
@@ -84,13 +76,7 @@ export function ConfirmDialog({
   return (
     <>
       <div class={styles.backdrop} data-testid="confirm-dialog-backdrop" onClick={onCancel} aria-hidden="true" />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={bodyId}
-        class={styles.dialog}
-      >
+      <div role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={bodyId} class={styles.dialog}>
         <h2 id={titleId} class={styles.title}>
           {title}
         </h2>
@@ -99,14 +85,18 @@ export function ConfirmDialog({
         </p>
         <div class={styles.actions}>
           <Button
-            buttonRef={(el) => { cancelRef.current = el; }}
+            buttonRef={(el) => {
+              cancelRef.current = el;
+            }}
             onClick={onCancel}
           >
             Cancel
           </Button>
           <Button
             variant={tone === "danger" ? "danger" : "primary"}
-            buttonRef={(el) => { confirmRef.current = el; }}
+            buttonRef={(el) => {
+              confirmRef.current = el;
+            }}
             data-testid={tone === "danger" ? "confirm-btn-danger" : "confirm-btn"}
             onClick={onConfirm}
           >

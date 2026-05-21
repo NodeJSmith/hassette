@@ -1,8 +1,9 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/preact";
-import { h } from "preact";
-import type { ComponentChildren } from "preact";
 import { signal } from "@preact/signals";
+import { act, renderHook } from "@testing-library/preact";
+import type { ComponentChildren } from "preact";
+import { h } from "preact";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import type { LogEntry } from "../../../api/endpoints";
 import { AppStateContext } from "../../../state/context";
 import { createAppState } from "../../../state/create-app-state";
@@ -23,24 +24,46 @@ vi.mock("./use-log-data", () => ({
   useLogData: () => ({
     allEntries: signal([]),
     restEntries: signal([]),
-    get loading() { return mockLoading; },
+    get loading() {
+      return mockLoading;
+    },
   }),
 }));
 
 vi.mock("./use-log-filters", () => ({
   useLogFilters: () => ({
-    get filtered() { return mockFiltered; },
-    get filterState() { return mockFilterState; },
+    get filtered() {
+      return mockFiltered;
+    },
+    get filterState() {
+      return mockFilterState;
+    },
     livePaused: signal(false),
     defaultTier: "all",
-    get setLevel() { return mockSetLevel; },
-    get setTier() { return mockSetTier; },
-    get setApp() { return mockSetApp; },
-    get setSearch() { return mockSetSearch; },
-    get setFunc() { return mockSetFunc; },
-    get setSort() { return mockSetSort; },
-    get resetSort() { return mockResetSort; },
-    get resetFilters() { return mockResetFilters; },
+    get setLevel() {
+      return mockSetLevel;
+    },
+    get setTier() {
+      return mockSetTier;
+    },
+    get setApp() {
+      return mockSetApp;
+    },
+    get setSearch() {
+      return mockSetSearch;
+    },
+    get setFunc() {
+      return mockSetFunc;
+    },
+    get setSort() {
+      return mockSetSort;
+    },
+    get resetSort() {
+      return mockResetSort;
+    },
+    get resetFilters() {
+      return mockResetFilters;
+    },
   }),
 }));
 
@@ -291,8 +314,12 @@ describe("useLogTable — handleRowClick / selectedKey", () => {
   it("toggles selectedKey to null when the same row is clicked again", () => {
     const { result } = renderUseLogTable();
     const entry = makeEntry(5);
-    act(() => { result.current.tableProps.onRowClick(entry); });
-    act(() => { result.current.tableProps.onRowClick(entry); });
+    act(() => {
+      result.current.tableProps.onRowClick(entry);
+    });
+    act(() => {
+      result.current.tableProps.onRowClick(entry);
+    });
     expect(result.current.tableProps.selectedKey).toBeNull();
   });
 });
@@ -300,10 +327,14 @@ describe("useLogTable — handleRowClick / selectedKey", () => {
 describe("useLogTable — handleDrawerClose", () => {
   it("sets selectedKey to null when drawer is closed", () => {
     const { result } = renderUseLogTable();
-    act(() => { result.current.tableProps.onRowClick(makeEntry(7)); });
+    act(() => {
+      result.current.tableProps.onRowClick(makeEntry(7));
+    });
     expect(result.current.tableProps.selectedKey).not.toBeNull();
 
-    act(() => { result.current.drawerProps.onClose(); });
+    act(() => {
+      result.current.drawerProps.onClose();
+    });
     expect(result.current.tableProps.selectedKey).toBeNull();
   });
 });

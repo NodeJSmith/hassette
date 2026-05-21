@@ -1,11 +1,11 @@
-import { ActionButtons } from "../shared/action-buttons";
-import { ErrorBanner } from "../shared/error-banner";
-import { StatusShape } from "../shared/status-shape";
-import { Badge } from "../shared/badge";
-import { Chip } from "../shared/chip";
-import { statusToKind, statusToVariant } from "../../utils/status";
 import type { components } from "../../api/generated-types";
 import styles from "../../pages/app-detail.module.css";
+import { statusToKind, statusToVariant } from "../../utils/status";
+import { ActionButtons } from "../shared/action-buttons";
+import { Badge } from "../shared/badge";
+import { Chip } from "../shared/chip";
+import { ErrorBanner } from "../shared/error-banner";
+import { StatusShape } from "../shared/status-shape";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
 type InstanceInfo = NonNullable<AppManifest["instances"]>[number];
@@ -53,14 +53,18 @@ export function AppDetailHeader({
 
       <p class="ht-text-mono ht-text-sm ht-text-muted ht-mb-3" data-testid="app-subtitle-meta">
         {manifest?.filename ?? appKey}
-        {manifest?.class_name && manifest.class_name !== appKey && (
-          <> &middot; {manifest.class_name}</>
-        )}
+        {manifest?.class_name && manifest.class_name !== appKey && <> &middot; {manifest.class_name}</>}
         {manifest && manifest.instance_count > 1 && !showParentOverview && (
           <> &middot; instance {resolvedInstanceIndex}</>
         )}
         {manifest?.auto_loaded && (
-          <> &middot; <Chip variant="muted" data-testid="auto-loaded-badge">auto</Chip></>
+          <>
+            {" "}
+            &middot;{" "}
+            <Chip variant="muted" data-testid="auto-loaded-badge">
+              auto
+            </Chip>
+          </>
         )}
       </p>
 

@@ -1,5 +1,6 @@
+import { fireEvent, render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/preact";
+
 import { ColumnPicker } from "./column-picker";
 import { COLUMNS, REQUIRED_COLUMNS } from "./constants";
 import type { ColumnId } from "./types";
@@ -8,18 +9,11 @@ import type { ColumnId } from "./types";
 // jsdom. We stub it to a simple pass-through so tests focus on ColumnPicker
 // behaviour rather than floating-ui internals.
 vi.mock("../column-filter-popover/index", () => ({
-  ColumnFilterPopover: ({
-    open,
-    children,
-  }: {
-    open: boolean;
-    children: unknown;
-  }) => (open ? <div role="dialog">{children as never}</div> : null),
+  ColumnFilterPopover: ({ open, children }: { open: boolean; children: unknown }) =>
+    open ? <div role="dialog">{children as never}</div> : null,
 }));
 
-function renderPicker(
-  overrides: Partial<Parameters<typeof ColumnPicker>[0]> = {},
-) {
+function renderPicker(overrides: Partial<Parameters<typeof ColumnPicker>[0]> = {}) {
   const defaults = {
     selectedColumns: ["level", "timestamp", "app", "message"] as ColumnId[],
     viewportHidden: new Set<ColumnId>(),
@@ -69,9 +63,7 @@ describe("ColumnPicker", () => {
       fireEvent.click(getByTestId("column-picker"));
 
       const checkboxes = getAllByRole("checkbox") as HTMLInputElement[];
-      const checkedLabels = checkboxes
-        .filter((cb) => cb.checked)
-        .map((cb) => cb.closest("label")?.textContent?.trim());
+      const checkedLabels = checkboxes.filter((cb) => cb.checked).map((cb) => cb.closest("label")?.textContent?.trim());
 
       for (const col of COLUMNS.filter((c) => selectedColumns.includes(c.id))) {
         expect(checkedLabels).toContain(col.label);
@@ -88,9 +80,7 @@ describe("ColumnPicker", () => {
         .filter((cb) => !cb.checked)
         .map((cb) => cb.closest("label")?.textContent?.trim());
 
-      for (const col of COLUMNS.filter(
-        (c) => !selectedColumns.includes(c.id),
-      )) {
+      for (const col of COLUMNS.filter((c) => !selectedColumns.includes(c.id))) {
         expect(uncheckedLabels).toContain(col.label);
       }
     });

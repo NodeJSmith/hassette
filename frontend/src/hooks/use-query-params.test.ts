@@ -1,5 +1,6 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/preact";
+import { act, renderHook } from "@testing-library/preact";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import { useQueryParams } from "./use-query-params";
 
 // Mutable state for the wouter mock

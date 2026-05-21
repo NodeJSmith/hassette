@@ -1,12 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
-import { render } from "@testing-library/preact";
 import { signal } from "@preact/signals";
-import { AlertBanner, TelemetryDegradedBanner } from "./alert-banner";
+import { render } from "@testing-library/preact";
+import { describe, expect, it, vi } from "vitest";
+
 import { renderWithAppState } from "../../test/render-helpers";
+import { AlertBanner, TelemetryDegradedBanner } from "./alert-banner";
 
 vi.mock("wouter", () => ({
-  Link: ({ href, children, class: cls }: Record<string, unknown>) =>
-    <a href={href as string} class={cls as string}>{children as never}</a>,
+  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
+    <a href={href as string} class={cls as string}>
+      {children as never}
+    </a>
+  ),
 }));
 
 describe("AlertBanner", () => {
@@ -36,9 +40,7 @@ describe("AlertBanner", () => {
   });
 
   it("renders app_key as link", () => {
-    const { container } = render(
-      <AlertBanner failedApps={[{ app_key: "my_app", error_message: null }]} />,
-    );
+    const { container } = render(<AlertBanner failedApps={[{ app_key: "my_app", error_message: null }]} />);
     const link = container.querySelector("a[href='/apps/my_app']");
     expect(link).not.toBeNull();
     expect(link!.textContent).toBe("my_app");
@@ -52,9 +54,7 @@ describe("AlertBanner", () => {
   });
 
   it("does not render error span when error_message is null", () => {
-    const { container } = render(
-      <AlertBanner failedApps={[{ app_key: "my_app", error_message: null }]} />,
-    );
+    const { container } = render(<AlertBanner failedApps={[{ app_key: "my_app", error_message: null }]} />);
     // ht-text-secondary wraps the error message; should not exist when null
     expect(container.querySelector(".ht-text-secondary")).toBeNull();
   });

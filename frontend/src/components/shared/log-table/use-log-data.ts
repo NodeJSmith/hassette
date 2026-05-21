@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "preact/hooks";
 import { computed, type ReadonlySignal } from "@preact/signals";
+import { useEffect, useRef } from "preact/hooks";
 import { toast } from "sonner";
+
 import { getRecentLogs, type LogEntry } from "../../../api/endpoints";
-import { useAppState } from "../../../state/context";
-import { useSubscribe } from "../../../hooks/use-subscribe";
 import { useSignal } from "../../../hooks/use-signal";
+import { useSubscribe } from "../../../hooks/use-subscribe";
+import { useAppState } from "../../../state/context";
 import { REST_FETCH_LIMIT } from "./constants";
 
 interface UseLogDataParams {
@@ -52,7 +53,9 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
         loading.value = false;
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [appKey, rv, executionId]);
 
   const restEntries = computed<LogEntry[]>(() => [...initialEntries.value]);

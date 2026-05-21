@@ -1,20 +1,27 @@
-import type { ComponentChildren } from "preact";
 import clsx from "clsx";
+import type { ComponentChildren } from "preact";
 
-import { StatusShape } from "../shared/status-shape";
+import type { JobData, ListenerData } from "../../api/endpoints";
+import { useRelativeTime } from "../../hooks/use-relative-time";
+import { formatTimestamp, pluralize } from "../../utils/format";
 import type { StatusKind } from "../../utils/status";
 import { handlerKindLabel } from "../../utils/status";
 import { Badge } from "../shared/badge";
-import type { ListenerData, JobData } from "../../api/endpoints";
-import { pluralize, formatTimestamp } from "../../utils/format";
-import { useRelativeTime } from "../../hooks/use-relative-time";
+import { StatusShape } from "../shared/status-shape";
 import styles from "./unified-handler-row.module.css";
 
 export type UnifiedItemKind = "listener" | "job";
 
 /** Discriminated union for items that can appear in the unified list. */
 export type UnifiedItem =
-  | { kind: "listener"; id: number; name: string; humanDescription: string | null; statusKind: StatusKind; data: ListenerData }
+  | {
+      kind: "listener";
+      id: number;
+      name: string;
+      humanDescription: string | null;
+      statusKind: StatusKind;
+      data: ListenerData;
+    }
   | { kind: "job"; id: number; name: string; humanDescription: string | null; statusKind: StatusKind; data: JobData };
 
 interface Props {
@@ -88,9 +95,17 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
   const label = item.humanDescription ? `${item.name}: ${item.humanDescription}` : item.name;
   let subline: ComponentChildren = null;
   if (isFailing && lastErrorMessage) {
-    subline = <span class={styles.sublineErr} title={lastErrorMessage} data-testid="handler-row-subline-err">{lastErrorMessage}</span>;
+    subline = (
+      <span class={styles.sublineErr} title={lastErrorMessage} data-testid="handler-row-subline-err">
+        {lastErrorMessage}
+      </span>
+    );
   } else if (item.humanDescription) {
-    subline = <span class={styles.desc} data-testid="handler-row-desc">{item.humanDescription}</span>;
+    subline = (
+      <span class={styles.desc} data-testid="handler-row-desc">
+        {item.humanDescription}
+      </span>
+    );
   }
 
   return (
@@ -105,7 +120,9 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
       <span class={styles.status} aria-hidden="true">
         <StatusShape kind={item.statusKind} size={10} />
       </span>
-      <span class={styles.kindGlyph} aria-hidden="true" data-testid="handler-row-glyph">{glyph}</span>
+      <span class={styles.kindGlyph} aria-hidden="true" data-testid="handler-row-glyph">
+        {glyph}
+      </span>
       <div class={styles.body}>
         <div class={styles.header}>
           <span class={styles.kindChip} aria-label={`kind: ${chipLabel}`}>
@@ -113,22 +130,22 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
           </span>
           <span class={styles.name}>{item.name}</span>
           {isFailing && (
-            <Badge variant="danger" size="xs">failing</Badge>
+            <Badge variant="danger" size="xs">
+              failing
+            </Badge>
           )}
         </div>
         {subline}
         {/* Next-run line for schedule jobs */}
         {nextRunLabel !== null && (
-          <span class={styles.nextRun} title={nextRunTitle ?? undefined} data-testid="handler-row-next-run">{nextRunLabel}</span>
+          <span class={styles.nextRun} title={nextRunTitle ?? undefined} data-testid="handler-row-next-run">
+            {nextRunLabel}
+          </span>
         )}
         <div class={styles.stats}>
           <span title={`Total ${callLabel}s`}>{pluralize(invocationsOrRuns, callLabel)}</span>
-          {failed > 0 && (
-            <span class={styles.statsErr}>{failed} failed</span>
-          )}
-          {timedOut > 0 && (
-            <span class={styles.statsWarn}>{timedOut} timed out</span>
-          )}
+          {failed > 0 && <span class={styles.statsErr}>{failed} failed</span>}
+          {timedOut > 0 && <span class={styles.statsWarn}>{timedOut} timed out</span>}
         </div>
       </div>
     </button>

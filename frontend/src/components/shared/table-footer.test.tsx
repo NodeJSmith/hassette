@@ -1,5 +1,6 @@
-import { afterEach, describe, it, expect, vi } from "vitest";
-import { render, screen, act, fireEvent } from "@testing-library/preact";
+import { act, fireEvent, render, screen } from "@testing-library/preact";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
 import { TableFooter } from "./table-footer";
 import type { ColumnFilters } from "./table-types";
 
@@ -19,7 +20,9 @@ function mockMobile(isMobile: boolean) {
 }
 
 describe("TableFooter", () => {
-  afterEach(() => { vi.restoreAllMocks(); });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   describe("count display", () => {
     it("renders the count prop", () => {
@@ -28,9 +31,7 @@ describe("TableFooter", () => {
     });
 
     it("renders complex count children", () => {
-      render(
-        <TableFooter count={<span data-testid="count-node">19 handlers</span>} />,
-      );
+      render(<TableFooter count={<span data-testid="count-node">19 handlers</span>} />);
       expect(screen.getByTestId("count-node")).toBeTruthy();
     });
   });
@@ -40,7 +41,11 @@ describe("TableFooter", () => {
       render(
         <TableFooter
           count="5 items"
-          extras={<button type="button" data-testid="extra-btn">Extra</button>}
+          extras={
+            <button type="button" data-testid="extra-btn">
+              Extra
+            </button>
+          }
         />,
       );
       expect(screen.getByTestId("extra-btn")).toBeTruthy();
@@ -130,13 +135,7 @@ describe("TableFooter", () => {
       const filters: ColumnFilters = {
         status: { active: true, label: "Status", content: <div>opts</div> },
       };
-      render(
-        <TableFooter
-          count="5 apps"
-          columnFilters={filters}
-          onResetFilters={onReset}
-        />,
-      );
+      render(<TableFooter count="5 apps" columnFilters={filters} onResetFilters={onReset} />);
       await act(async () => {
         fireEvent.click(screen.getByRole("button", { name: /open filters/i }));
       });

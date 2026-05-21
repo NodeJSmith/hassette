@@ -1,15 +1,16 @@
-import { useEffect, useCallback, useRef } from "preact/hooks";
 import clsx from "clsx";
+import { useCallback, useEffect, useRef } from "preact/hooks";
 import { Link } from "wouter";
+
 import type { LogEntry } from "../../../api/endpoints";
-import { useMediaQuery, BREAKPOINT_MOBILE, BREAKPOINT_TABLET } from "../../../hooks/use-media-query";
-import { formatTimestamp } from "../../../utils/format";
+import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "../../../hooks/use-media-query";
 import { useSignal } from "../../../hooks/use-signal";
 import { useSubscribe } from "../../../hooks/use-subscribe";
-import type { RowKey } from "./types";
-import { rowKey } from "./types";
+import { formatTimestamp } from "../../../utils/format";
 import { COPY_CONFIRM_MS, levelClass } from "./constants";
 import styles from "./log-detail-drawer.module.css";
+import type { RowKey } from "./types";
+import { rowKey } from "./types";
 
 interface Props {
   selectedKey: RowKey | null;
@@ -22,14 +23,21 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   const copied = useSignal(false);
   useSubscribe(copied);
 
-  const handleCopy = useCallback(async (e: MouseEvent) => {
-    e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(text);
-      copied.value = true;
-      setTimeout(() => { copied.value = false; }, COPY_CONFIRM_MS);
-    } catch { /* clipboard unavailable */ }
-  }, [text]);
+  const handleCopy = useCallback(
+    async (e: MouseEvent) => {
+      e.stopPropagation();
+      try {
+        await navigator.clipboard.writeText(text);
+        copied.value = true;
+        setTimeout(() => {
+          copied.value = false;
+        }, COPY_CONFIRM_MS);
+      } catch {
+        /* clipboard unavailable */
+      }
+    },
+    [text],
+  );
 
   return (
     <button
@@ -49,7 +57,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
   const isTablet = useMediaQuery(BREAKPOINT_TABLET);
   const drawerRef = useRef<HTMLElement>(null);
 
-  const entry = selectedKey ? entries.find((e) => rowKey(e) === selectedKey) ?? null : null;
+  const entry = selectedKey ? (entries.find((e) => rowKey(e) === selectedKey) ?? null) : null;
   const currentIndex = entry ? entries.findIndex((e) => rowKey(e) === selectedKey) : -1;
   const isFilteredOut = selectedKey !== null && entry === null;
 
@@ -70,9 +78,18 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
       const target = e.target as HTMLElement;
       if (target.closest && target.closest("[data-log-scrollable]")) return;
 
-      if (e.key === "Escape") { onClose(); return; }
-      if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); navigatePrev(); }
-      if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); navigateNext(); }
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        navigatePrev();
+      }
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        navigateNext();
+      }
     }
 
     document.addEventListener("keydown", handleKeyDown);
@@ -99,9 +116,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
 
   return (
     <>
-      {useOverlay && (
-        <div class={styles.backdrop} onClick={onClose} aria-hidden="true" />
-      )}
+      {useOverlay && <div class={styles.backdrop} onClick={onClose} aria-hidden="true" />}
       <aside
         ref={drawerRef}
         class={clsx(styles.drawer, isMobile ? styles.bottomSheet : styles.sidePanel)}
@@ -111,16 +126,36 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
         {/* Header bar */}
         <div class={styles.headerBar}>
           <div class={styles.navButtons}>
-            <button type="button" class={styles.iconBtn} onClick={navigatePrev} disabled={currentIndex <= 0} aria-label="Previous entry">←</button>
-            <button type="button" class={styles.iconBtn} onClick={navigateNext} disabled={currentIndex >= entries.length - 1} aria-label="Next entry">→</button>
+            <button
+              type="button"
+              class={styles.iconBtn}
+              onClick={navigatePrev}
+              disabled={currentIndex <= 0}
+              aria-label="Previous entry"
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              class={styles.iconBtn}
+              onClick={navigateNext}
+              disabled={currentIndex >= entries.length - 1}
+              aria-label="Next entry"
+            >
+              →
+            </button>
           </div>
-          <button type="button" class={styles.iconBtn} onClick={onClose} aria-label="Close detail panel">✕</button>
+          <button type="button" class={styles.iconBtn} onClick={onClose} aria-label="Close detail panel">
+            ✕
+          </button>
         </div>
 
         {isFilteredOut ? (
           <div class={styles.filteredOut}>
             <p>This entry is no longer visible with the current filters.</p>
-            <button type="button" class={styles.clearFilterBtn} onClick={onClose}>Close</button>
+            <button type="button" class={styles.clearFilterBtn} onClick={onClose}>
+              Close
+            </button>
           </div>
         ) : entry ? (
           <div class={styles.content}>
@@ -135,7 +170,11 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
               {entry.app_key && (
                 <>
                   <dt>App</dt>
-                  <dd><Link href={`/apps/${entry.app_key}`} class={styles.appLink}>{entry.app_key} ↗</Link></dd>
+                  <dd>
+                    <Link href={`/apps/${entry.app_key}`} class={styles.appLink}>
+                      {entry.app_key} ↗
+                    </Link>
+                  </dd>
                 </>
               )}
               {entry.instance_name && (
@@ -169,7 +208,9 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
                 <span class={styles.sectionLabel}>message</span>
                 <CopyButton text={entry.message} label="Copy message" />
               </div>
-              <pre class={styles.codeBlock} data-log-scrollable>{entry.message}</pre>
+              <pre class={styles.codeBlock} data-log-scrollable>
+                {entry.message}
+              </pre>
             </div>
 
             {/* Exception section */}
@@ -179,7 +220,9 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
                   <span class={styles.sectionLabel}>exception</span>
                   <CopyButton text={entry.exc_info} label="Copy exception" />
                 </div>
-                <pre class={clsx(styles.codeBlock, styles.exceptionBlock)} data-log-scrollable>{entry.exc_info}</pre>
+                <pre class={clsx(styles.codeBlock, styles.exceptionBlock)} data-log-scrollable>
+                  {entry.exc_info}
+                </pre>
               </div>
             )}
           </div>

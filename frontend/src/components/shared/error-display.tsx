@@ -16,9 +16,7 @@ export function ErrorDisplay({ status, durationMs, errorType, errorMessage }: Pr
     return (
       <div class={styles.metaItem}>
         <span class={styles.label}>timeout</span>
-        <span class="ht-text-mono ht-text-xs ht-text-warning">
-          exceeded {formatDuration(durationMs)} budget
-        </span>
+        <span class="ht-text-mono ht-text-xs ht-text-warning">exceeded {formatDuration(durationMs)} budget</span>
       </div>
     );
   }
@@ -37,9 +35,7 @@ export function ErrorDisplay({ status, durationMs, errorType, errorMessage }: Pr
   return (
     <div class={styles.metaItem}>
       <span class={styles.label}>result</span>
-      <span class="ht-text-mono ht-text-xs">
-        completed in {formatDuration(durationMs)}
-      </span>
+      <span class="ht-text-mono ht-text-xs">completed in {formatDuration(durationMs)}</span>
     </div>
   );
 }

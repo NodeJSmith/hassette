@@ -1,23 +1,27 @@
+import clsx from "clsx";
 import { useEffect, useRef } from "preact/hooks";
 import { Link, useLocation } from "wouter";
-import clsx from "clsx";
 
-import { useDocumentTitle } from "../hooks/use-document-title";
-import { useCorrectUrl } from "../hooks/use-correct-url";
-import { useQueryParams } from "../hooks/use-query-params";
 import { getAppJobs, getAppListeners } from "../api/endpoints";
+import { AppDetailBreadcrumb } from "../components/app-detail/app-detail-breadcrumb";
+import { AppDetailHeader } from "../components/app-detail/app-detail-header";
+import { AppLogsPanel } from "../components/app-detail/app-logs-panel";
 import { CodeTab } from "../components/app-detail/code-tab";
 import { ConfigTab } from "../components/app-detail/config-tab";
 import { HandlersTab } from "../components/app-detail/handlers-tab";
+import { InstanceSwitcher, MultiInstanceOverview } from "../components/app-detail/multi-instance";
 import { OverviewTab } from "../components/app-detail/overview-tab";
 import { Spinner } from "../components/shared/spinner";
+import { useCorrectUrl } from "../hooks/use-correct-url";
+import { useDocumentTitle } from "../hooks/use-document-title";
+import {
+  useFilteredSignalRefetch,
+  WS_DEBOUNCE_DELAY_MS,
+  WS_DEBOUNCE_MAX_WAIT_MS,
+} from "../hooks/use-filtered-signal-refetch";
+import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { useAppState } from "../state/context";
-import { useFilteredSignalRefetch, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-filtered-signal-refetch";
-import { InstanceSwitcher, MultiInstanceOverview } from "../components/app-detail/multi-instance";
-import { AppLogsPanel } from "../components/app-detail/app-logs-panel";
-import { AppDetailBreadcrumb } from "../components/app-detail/app-detail-breadcrumb";
-import { AppDetailHeader } from "../components/app-detail/app-detail-header";
 import styles from "./app-detail.module.css";
 
 export type TabId = "overview" | "handlers" | "code" | "logs" | "config";
@@ -26,7 +30,14 @@ interface Props {
   params: { key: string; tab?: TabId; handler?: string };
 }
 
-function Tab({ id, label, badge, appKey, instanceQs, activeTab }: {
+function Tab({
+  id,
+  label,
+  badge,
+  appKey,
+  instanceQs,
+  activeTab,
+}: {
   id: TabId;
   label: string;
   badge?: number;
@@ -64,26 +75,30 @@ export function AppDetailPage({ params }: Props) {
   const instanceIndex = parsedInstance !== undefined && Number.isFinite(parsedInstance) ? parsedInstance : undefined;
 
   const resolvedInstanceIndex = instanceIndex ?? 0;
-  const listeners = useScopedApi(
-    (since) => getAppListeners(appKey, resolvedInstanceIndex, since),
-    { deps: [appKey, resolvedInstanceIndex] },
-  );
-  const jobs = useScopedApi(
-    (since) => getAppJobs(appKey, resolvedInstanceIndex, since),
-    { deps: [appKey, resolvedInstanceIndex] },
-  );
+  const listeners = useScopedApi((since) => getAppListeners(appKey, resolvedInstanceIndex, since), {
+    deps: [appKey, resolvedInstanceIndex],
+  });
+  const jobs = useScopedApi((since) => getAppJobs(appKey, resolvedInstanceIndex, since), {
+    deps: [appKey, resolvedInstanceIndex],
+  });
 
   useFilteredSignalRefetch(
     invocationCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
-    () => { void listeners.refetch(); void jobs.refetch(); },
+    () => {
+      void listeners.refetch();
+      void jobs.refetch();
+    },
     WS_DEBOUNCE_DELAY_MS,
     WS_DEBOUNCE_MAX_WAIT_MS,
   );
   useFilteredSignalRefetch(
     executionCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
-    () => { void listeners.refetch(); void jobs.refetch(); },
+    () => {
+      void listeners.refetch();
+      void jobs.refetch();
+    },
     WS_DEBOUNCE_DELAY_MS,
     WS_DEBOUNCE_MAX_WAIT_MS,
   );
@@ -106,13 +121,11 @@ export function AppDetailPage({ params }: Props) {
     : undefined;
   const wsStatus = appStatus.value[appKey]?.status;
   const liveStatus = showParentOverview
-    ? manifest?.status ?? "unknown"
-    : wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown";
+    ? (manifest?.status ?? "unknown")
+    : (wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown");
 
-  const hasData = !manifestsLoading.value
-    && listeners.data.value !== null && jobs.data.value !== null;
-  const initialLoading = !hasData && (listeners.loading.value
-    || jobs.loading.value || manifestsLoading.value);
+  const hasData = !manifestsLoading.value && listeners.data.value !== null && jobs.data.value !== null;
+  const initialLoading = !hasData && (listeners.loading.value || jobs.loading.value || manifestsLoading.value);
 
   useEffect(() => {
     if (initialLoading) return;
@@ -147,7 +160,9 @@ export function AppDetailPage({ params }: Props) {
           <InstanceSwitcher
             instances={manifest.instances}
             currentIndex={resolvedInstanceIndex}
-            onNavigate={(idx) => { navigate(`/apps/${appKey}/${activeTab}?instance=${idx}`); }}
+            onNavigate={(idx) => {
+              navigate(`/apps/${appKey}/${activeTab}?instance=${idx}`);
+            }}
           />
         </div>
       )}
@@ -177,7 +192,9 @@ export function AppDetailPage({ params }: Props) {
               displayName={manifest.display_name ?? appKey}
               instances={manifest.instances ?? []}
               instanceCount={manifest.instance_count}
-              onNavigate={(idx) => { navigate(`/apps/${appKey}/overview?instance=${idx}`); }}
+              onNavigate={(idx) => {
+                navigate(`/apps/${appKey}/overview?instance=${idx}`);
+              }}
             />
           ) : (
             <OverviewTab
