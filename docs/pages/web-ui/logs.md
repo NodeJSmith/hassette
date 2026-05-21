@@ -1,7 +1,7 @@
 # Logs
 
 The Logs page provides a global, filterable, searchable view of all log entries
-across your hassette apps and framework internals, with real-time streaming via
+across your Hassette apps and framework internals, with real-time streaming via
 WebSocket.
 
 ![Logs page](../../_static/web_ui_logs.png)
@@ -103,7 +103,7 @@ resume live updates.
 ## Execution ID filtering
 
 Append `?execution_id=<id>` to the URL to filter the log table to entries from
-a single handler execution. hassette uses this URL parameter when you navigate
+a single handler execution. Hassette uses this URL parameter when you navigate
 from the Handlers tab's execution history to the associated logs — you can also
 construct the URL manually if you have an execution ID from elsewhere.
 

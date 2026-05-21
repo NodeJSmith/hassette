@@ -1,6 +1,6 @@
 # Layout & Navigation
 
-Every page in the hassette web UI shares the same chrome: a sidebar for navigation, a status bar at the top, and a command palette for keyboard-driven navigation.
+Every page in the Hassette web UI shares the same chrome: a sidebar for navigation, a status bar at the top, and a command palette for keyboard-driven navigation.
 
 ## Sidebar
 
@@ -49,12 +49,12 @@ Four buttons control the time window used for all telemetry counts and tables ac
 
 | Preset | What it shows |
 |--------|---------------|
-| Since restart | All data since the most recent hassette startup |
+| Since restart | All data since the most recent Hassette startup |
 | 1h | Data from the past 1 hour |
 | 24h | Data from the past 24 hours |
 | 7d | Data from the past 7 days |
 
-**Since restart** shows data from the last hassette startup to now, regardless of how long the process has been running. The other presets use wall-clock windows. Hassette persists your last-used preset across page reloads.
+**Since restart** shows data from the last Hassette startup to now, regardless of how long the process has been running. The other presets use wall-clock windows. Hassette persists your last-used preset across page reloads.
 
 ### Status indicators
 

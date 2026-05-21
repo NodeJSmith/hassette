@@ -11,7 +11,7 @@ here from the [Handlers tab](handlers.md) to see the source in context.
 
 The header bar above the source viewer shows:
 
-- **Source** label with the filename (monospaced) — the path as loaded by hassette
+- **Source** label with the filename (monospaced) — the path as loaded by Hassette
 - **Line count** — total number of lines in the file
 - **read-only** badge — the source viewer is display-only; edits are made in your editor
 - **copy path** button — copies the full filename to the clipboard

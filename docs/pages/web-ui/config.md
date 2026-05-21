@@ -1,6 +1,6 @@
 # Config
 
-The Config page shows the active hassette configuration as a read-only view.
+The Config page shows the active Hassette configuration as a read-only view.
 Use it to confirm what settings the running instance loaded — useful when
 verifying that a config file change took effect after a reload.
 
@@ -15,7 +15,7 @@ corresponding `hassette.toml` setting names.
 
 Values reflect the configuration as loaded at the most recent startup or
 reload. The page does not stream live updates — refresh your browser after
-a hassette reload to see updated values.
+a Hassette reload to see updated values.
 
 - **general** — `dev_mode`, `log_level`, `autodetect`, `asyncio_debug_mode`,
   `allow_reload_in_prod`

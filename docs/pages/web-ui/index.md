@@ -6,7 +6,7 @@ The hassette web UI gives you a real-time window into your running automations â
 
 ## Enabling and accessing
 
-The web UI is **enabled by default**. Once hassette starts, open your browser to:
+The web UI is **enabled by default**. Once Hassette starts, open your browser to:
 
 ```
 http://<host>:8126/ui/
@@ -20,7 +20,7 @@ The default bind address is `0.0.0.0:8126`. To change the host or port, set `hos
     endpoints that can start, stop, and reload your automations.
 
     For local-only access, set `host = "127.0.0.1"` under `[hassette.web_api]`.
-    For remote access, place hassette behind a reverse proxy with authentication
+    For remote access, place Hassette behind a reverse proxy with authentication
     (e.g., Caddy, nginx, or Traefik with basic auth or SSO).
 
 To disable the UI while keeping the REST API:
