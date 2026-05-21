@@ -191,7 +191,7 @@ def make_manifest_mock(
     filename: str = "my_app.py",
     class_name: str = "MyApp",
     enabled: bool = True,
-    app_config: object | None = None,
+    app_config: dict | list[dict] | None = None,
     app_dir: Path | None = None,
     full_path: Path | None = None,
 ) -> MagicMock:
@@ -201,8 +201,7 @@ def make_manifest_mock(
     m.filename = filename
     m.class_name = class_name
     m.enabled = enabled
-    if app_config is not None:
-        m.app_config = app_config
+    m.app_config = app_config if app_config is not None else {"instance_name": f"{class_name}.0"}
     m.app_dir = app_dir or Path("/apps")
     m.full_path = full_path or (m.app_dir / filename)
     return m
