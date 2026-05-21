@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.32.0](https://github.com/NodeJSmith/hassette/compare/v0.31.0...v0.32.0) (2026-05-20)
+
+
+### Breaking Changes
+
+- TOML app configuration path changed from `[hassette.app.apps.<name>]` to `[hassette.apps.<name>]`. The app settings section changed from `[hassette.app]` to `[hassette.apps]`. Environment variables changed from `HASSETTE__APP__*` to `HASSETTE__APPS__*`. Python access changed from `config.app.*` to `config.apps.*`. The API response field changed from `app` to `apps`. Update your hassette.toml, environment variables, and any code that accesses the config object.
+
+### Refactoring
+
+- flatten app config path from [hassette.app.apps] to [hassette.apps] ([#792](https://github.com/NodeJSmith/hassette/issues/792)) ([a4251f1](https://github.com/NodeJSmith/hassette/commit/a4251f1640fe6350c90e14e7f9804f50172435f7))
+
 ## [0.31.0](https://github.com/NodeJSmith/hassette/compare/v0.30.0...v0.31.0) (2026-05-20)
 
 ### Breaking Changes
