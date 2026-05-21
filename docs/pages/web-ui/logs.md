@@ -1,48 +1,119 @@
 # Logs
 
-Navigate here when you want to diagnose an automation that isn't behaving as expected, or when you need to search through recent log output without tailing a file.
+The Logs page provides a global, filterable, searchable view of all log entries
+across your hassette apps and framework internals, with real-time streaming via
+WebSocket.
 
-The Log Viewer provides a filterable, searchable view of Hassette's log output with real-time streaming.
+![Logs page](../../_static/web_ui_logs.png)
 
-![Logs](../../_static/web_ui_logs.png)
+## Log table
 
-## Filters
+The log table displays entries from all apps, sorted by timestamp descending by
+default. Each row represents a single log entry.
 
-Three controls at the top let you narrow the log entries:
+| Column | Sortable | Filterable | Description |
+|--------|----------|------------|-------------|
+| **Level** | Yes | Yes (dropdown) | Severity badge: DEBUG, INFO, WARNING, ERROR, or CRITICAL |
+| **Timestamp** | Yes (default, descending) | No | Time the entry was recorded |
+| **App** | No | Yes (dropdown) | App key for app-generated entries, or `—` for framework logs |
+| **Instance** | No | No | Instance name for multi-instance apps. To view logs from a specific instance, use the [App Detail Logs tab](app-detail/logs.md) for that instance. |
+| **Execution** | No | No | Execution ID linking the entry to a specific handler invocation |
+| **Function** | Yes | Yes (text input) | Name of the Python function that emitted the log entry |
+| **Module** | No | No | Module and logger name |
+| **Message** | Yes | No | Log message text |
 
-- **Level filter** dropdown — defaults to `INFO`. Choose `All Levels`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL` to set the minimum log level shown.
-- **App filter** dropdown — `All Apps` or a specific app.
-- **Search** input — free-text search across log messages and logger names.
+Click any row to open the [log detail drawer](#log-detail-drawer) with the
+complete entry metadata.
 
-An **entry count** indicator (e.g. "69 entries") shows how many entries match the current filters.
+## Filtering and search
 
-## Log Table
+Use the column filter controls in the table header to narrow results:
 
-| Column | Description |
-|--------|-------------|
-| **Level** | Colored badge — green for `INFO`, grey for `DEBUG`, yellow for `WARNING`, red for `ERROR`/`CRITICAL` |
-| **Timestamp** | Time the log entry was recorded |
-| **App** | Originating app (links to app detail), or `—` for system-level messages |
-| **Source** | Source location displayed as `func_name:lineno`. Hover over the cell to see the full `logger_name:func_name:lineno`. |
-| **Message** | Log message text. Long messages are truncated — click the row to expand. |
+- **Level** — sets the minimum level shown. Defaults to INFO. Options: All
+  levels, DEBUG+, INFO+, WARNING+, ERROR+, CRITICAL only.
+- **App** — filter by source. Toggle between All, Apps only, Framework only,
+  then optionally select a specific app key.
+- **Function** — free-text filter on the function name column.
 
-Columns are **sortable** — click a header to toggle the sort direction. You can sort by Level, Timestamp, App, or Message.
+The **search box** above the table filters by message content and logger name.
+
+The footer shows a count of matching entries (e.g. "42 entries"). If the
+filtered result exceeds 500 entries, the footer shows "showing 500 of N" — narrow
+your filters to see specific entries.
+
+## Column picker
+
+The column picker lets you control which columns are visible.
+
+![Column picker](../../_static/web_ui_detail_column_picker.png)
+
+Click the grid icon button in the table footer to open the column visibility
+popover. Check or uncheck columns to toggle their visibility. **Level** and
+**Message** are required columns and cannot be hidden.
+
+Some columns are automatically hidden at narrow viewport widths. Columns hidden
+by the viewport are shown as disabled in the popover with a "Hidden at this
+screen size" tooltip — they cannot be toggled while the viewport is too narrow.
+
+Click **Reset to defaults** to restore the default column set for the global
+logs view (Level, Timestamp, App, Execution, Function, Module, Message).
 
 !!! note
-    The Source column is hidden on tablet-sized viewports (max-width: 1024px) to conserve space.
+    The column picker is not shown on mobile viewports, where the table
+    automatically uses a compact layout.
 
-## Real-Time Streaming
+## Log detail drawer
 
-New log entries arrive via WebSocket and appear at the top of the list automatically — no manual refresh needed. The entry count updates as new messages stream in.
+Click any log row to open the detail drawer — a side panel showing the complete
+entry.
 
-### Auto-Pause on Sort
+![Log detail drawer](../../_static/web_ui_detail_log_drawer.png)
 
-When you sort by any column other than Timestamp, live streaming is automatically paused to keep the sort order stable. A **"Live updates paused"** indicator appears with a **Resume** button. Click Resume (or sort by Timestamp again) to restore live streaming.
+The drawer contains:
 
-## Display Limit
+- **Severity and timestamp** — level badge with color coding, full timestamp
+- **Metadata grid** — app (link to app detail), instance, execution ID (with
+  copy button), function name, module, line number, logger name
+- **Message** — full message text with a copy button
+- **Exception / traceback** — if the entry includes exception info, a scrollable
+  code block appears with its own copy button
 
-The log viewer renders up to **500** entries at a time after applying filters. If your filtered result exceeds 500 entries, narrow your filters to see specific entries.
+Use the arrow buttons in the drawer header, or press the **arrow keys** on your
+keyboard, to navigate to the previous or next log entry without closing the
+drawer. Press **Escape** to close.
 
-## Buffer Size
+On mobile and tablet, the drawer appears as a bottom sheet over the table. On
+desktop, it opens as a side panel to the right of the table.
 
-The log viewer fetches entries from an in-memory ring buffer on the server. By default, the last **2000** entries are retained. Adjust this with the `web_api_log_buffer_size` setting in [Global Settings](../core-concepts/configuration/global.md#web-ui-settings).
+## Live streaming
+
+New log entries appear in real-time as your automations run. No manual refresh
+is needed.
+
+### Auto-pause on sort
+
+Live streaming is active only when the table is sorted by **Timestamp** (the
+default). When you sort by any other column, streaming pauses so the sort order
+is not disrupted by incoming entries.
+
+When streaming is paused, a **"paused — click to resume"** button appears in
+the table footer. Click it to reset the sort back to timestamp-descending and
+resume live updates.
+
+## Execution ID filtering
+
+Append `?execution_id=<id>` to the URL to filter the log table to entries from
+a single handler execution. hassette uses this URL parameter when you navigate
+from the Handlers tab's execution history to the associated logs — you can also
+construct the URL manually if you have an execution ID from elsewhere.
+
+When an execution ID filter is active, the log table uses local state instead
+of URL query parameters for other filters, so you can refine the results without
+clobbering the execution ID in the URL.
+
+## Related pages
+
+- [App Detail — Logs Tab](app-detail/logs.md) — the same log table filtered to a
+  single app; useful when you want to see all logs from one automation
+- [App Detail — Handlers Tab](app-detail/handlers.md) — execution history for
+  individual handlers, with links to filtered logs for each execution

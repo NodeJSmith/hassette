@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Add Handlers, rewrite Logs, and add Config global pages"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#2", "FR#3", "FR#4", "FR#5", "AC#3"]
 ---
