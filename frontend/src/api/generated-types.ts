@@ -4,2017 +4,2015 @@
  */
 
 export interface paths {
-  "/api/health": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Health */
+        get: operations["get_health_api_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** Get Health */
-    get: operations["get_health_api_health_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/apps": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Apps */
+        get: operations["get_apps_api_apps_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** Get Apps */
-    get: operations["get_apps_api_apps_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/apps/manifests": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/apps/manifests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get App Manifests */
+        get: operations["get_app_manifests_api_apps_manifests_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** Get App Manifests */
-    get: operations["get_app_manifests_api_apps_manifests_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/apps/{app_key}/start": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/apps/{app_key}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start App */
+        post: operations["start_app_api_apps__app_key__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /** Start App */
-    post: operations["start_app_api_apps__app_key__start_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/apps/{app_key}/stop": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/apps/{app_key}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop App */
+        post: operations["stop_app_api_apps__app_key__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /** Stop App */
-    post: operations["stop_app_api_apps__app_key__stop_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/apps/{app_key}/reload": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/apps/{app_key}/reload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reload App */
+        post: operations["reload_app_api_apps__app_key__reload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    /** Reload App */
-    post: operations["reload_app_api_apps__app_key__reload_post"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/apps/{app_key}/config": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/apps/{app_key}/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get App Config
+         * @description Return the raw app configuration for the given app key.
+         */
+        get: operations["get_app_config_api_apps__app_key__config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get App Config
-     * @description Return the raw app configuration for the given app key.
-     */
-    get: operations["get_app_config_api_apps__app_key__config_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/apps/{app_key}/source": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/apps/{app_key}/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get App Source
+         * @description Return the source code of the app file for the given app key.
+         */
+        get: operations["get_app_source_api_apps__app_key__source_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get App Source
-     * @description Return the source code of the app file for the given app key.
-     */
-    get: operations["get_app_source_api_apps__app_key__source_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/services": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Services */
+        get: operations["get_services_api_services_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** Get Services */
-    get: operations["get_services_api_services_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/events/recent": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/events/recent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Recent Events */
+        get: operations["get_recent_events_api_events_recent_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** Get Recent Events */
-    get: operations["get_recent_events_api_events_recent_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/logs/recent": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/logs/recent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Logs
+         * @description Return recent log records from the database with optional filtering.
+         */
+        get: operations["get_logs_api_logs_recent_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Logs
-     * @description Return recent log records from the database with optional filtering.
-     */
-    get: operations["get_logs_api_logs_recent_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/logs/by-execution/{execution_id}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/logs/by-execution/{execution_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Logs By Execution
+         * @description Return all log records for a single execution, with retention-expired detection.
+         */
+        get: operations["get_logs_by_execution_api_logs_by_execution__execution_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Logs By Execution
-     * @description Return all log records for a single execution, with retention-expired detection.
-     */
-    get: operations["get_logs_by_execution_api_logs_by_execution__execution_id__get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/logs/level": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/logs/level": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Log Level
+         * @description Change a logger's effective level at runtime without restarting.
+         *
+         *     The change takes effect immediately for both structlog and stdlib callers on that logger.
+         */
+        put: operations["set_log_level_api_logs_level_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    /**
-     * Set Log Level
-     * @description Change a logger's effective level at runtime without restarting.
-     *
-     *     The change takes effect immediately for both structlog and stdlib callers on that logger.
-     */
-    put: operations["set_log_level_api_logs_level_put"];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/bus/listeners": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/bus/listeners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Listener Metrics */
+        get: operations["get_listener_metrics_api_bus_listeners_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** Get Listener Metrics */
-    get: operations["get_listener_metrics_api_bus_listeners_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/config": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Config
+         * @description Return sanitized hassette configuration organized by config group.
+         */
+        get: operations["get_config_api_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Get Config
-     * @description Return sanitized hassette configuration organized by config group.
-     */
-    get: operations["get_config_api_config_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/telemetry/status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/telemetry/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Telemetry Status
+         * @description Health check for the telemetry database.
+         *
+         *     Runs a representative query exercising the listeners -> handler_invocations
+         *     join path. Returns 503 with ``degraded: true`` when the database is
+         *     unavailable; 200 with ``degraded: false`` when healthy.
+         */
+        get: operations["telemetry_status_api_telemetry_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Telemetry Status
-     * @description Health check for the telemetry database.
-     *
-     *     Runs a representative query exercising the listeners -> handler_invocations
-     *     join path. Returns 503 with ``degraded: true`` when the database is
-     *     unavailable; 200 with ``degraded: false`` when healthy.
-     */
-    get: operations["telemetry_status_api_telemetry_status_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/telemetry/app/{app_key}/health": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/telemetry/app/{app_key}/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * App Health
+         * @description Health strip metrics for a single app instance.
+         */
+        get: operations["app_health_api_telemetry_app__app_key__health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * App Health
-     * @description Health strip metrics for a single app instance.
-     */
-    get: operations["app_health_api_telemetry_app__app_key__health_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/telemetry/app/{app_key}/listeners": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/telemetry/app/{app_key}/listeners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * App Listeners
+         * @description Listener metrics with human-readable handler summaries.
+         */
+        get: operations["app_listeners_api_telemetry_app__app_key__listeners_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * App Listeners
-     * @description Listener metrics with human-readable handler summaries.
-     */
-    get: operations["app_listeners_api_telemetry_app__app_key__listeners_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/telemetry/app/{app_key}/activity": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/telemetry/app/{app_key}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * App Activity
+         * @description Recent handler invocations and job executions for a single app, merged and sorted by time.
+         */
+        get: operations["app_activity_api_telemetry_app__app_key__activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * App Activity
-     * @description Recent handler invocations and job executions for a single app, merged and sorted by time.
-     */
-    get: operations["app_activity_api_telemetry_app__app_key__activity_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/telemetry/app/{app_key}/jobs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/telemetry/app/{app_key}/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * App Jobs
+         * @description Job summaries for a single app instance, enriched with live heap data.
+         *
+         *     Live fields (``next_run``, ``fire_at``, ``jitter``) are joined
+         *     from the live scheduler heap by ``db_id``. On heap failure the DB rows are
+         *     returned without enrichment (degraded but functional; logged warning, no 500).
+         */
+        get: operations["app_jobs_api_telemetry_app__app_key__jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * App Jobs
-     * @description Job summaries for a single app instance, enriched with live heap data.
-     *
-     *     Live fields (``next_run``, ``fire_at``, ``jitter``) are joined
-     *     from the live scheduler heap by ``db_id``. On heap failure the DB rows are
-     *     returned without enrichment (degraded but functional; logged warning, no 500).
-     */
-    get: operations["app_jobs_api_telemetry_app__app_key__jobs_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/telemetry/handler/{listener_id}/invocations": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/telemetry/handler/{listener_id}/invocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler Invocations
+         * @description Invocation history for a specific handler.
+         */
+        get: operations["handler_invocations_api_telemetry_handler__listener_id__invocations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Handler Invocations
-     * @description Invocation history for a specific handler.
-     */
-    get: operations["handler_invocations_api_telemetry_handler__listener_id__invocations_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/telemetry/job/{job_id}/executions": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/telemetry/job/{job_id}/executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Job Executions
+         * @description Execution history for a specific job.
+         */
+        get: operations["job_executions_api_telemetry_job__job_id__executions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Job Executions
-     * @description Execution history for a specific job.
-     */
-    get: operations["job_executions_api_telemetry_job__job_id__executions_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/telemetry/dashboard/app-grid": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/telemetry/dashboard/app-grid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dashboard App Grid
+         * @description Per-app health data for the dashboard grid.
+         *
+         *     Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
+         *     not the manifest-driven app grid.
+         */
+        get: operations["dashboard_app_grid_api_telemetry_dashboard_app_grid_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * Dashboard App Grid
-     * @description Per-app health data for the dashboard grid.
-     *
-     *     Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
-     *     not the manifest-driven app grid.
-     */
-    get: operations["dashboard_app_grid_api_telemetry_dashboard_app_grid_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/scheduler/jobs": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/scheduler/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * All Jobs
+         * @description All scheduled jobs across all apps, enriched with live heap data.
+         *
+         *     Live fields (``next_run``, ``fire_at``, ``jitter``) are joined
+         *     from the live scheduler heap by ``db_id``.  On heap failure the DB rows are
+         *     returned without enrichment (degraded but functional; logged warning, no 500).
+         *
+         *     The heap snapshot is taken once — not per app — to avoid fan-out overhead.
+         */
+        get: operations["all_jobs_api_scheduler_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /**
-     * All Jobs
-     * @description All scheduled jobs across all apps, enriched with live heap data.
-     *
-     *     Live fields (``next_run``, ``fire_at``, ``jitter``) are joined
-     *     from the live scheduler heap by ``db_id``.  On heap failure the DB rows are
-     *     returned without enrichment (degraded but functional; logged warning, no 500).
-     *
-     *     The heap snapshot is taken once — not per app — to avoid fan-out overhead.
-     */
-    get: operations["all_jobs_api_scheduler_jobs_get"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-  schemas: {
-    /**
-     * ActionResponse
-     * @description Response for app mutation endpoints (start/stop/reload).
-     */
-    ActionResponse: {
-      /** Status */
-      status: string;
-      /** App Key */
-      app_key: string;
-      /** Action */
-      action: string;
+    schemas: {
+        /**
+         * ActionResponse
+         * @description Response for app mutation endpoints (start/stop/reload).
+         */
+        ActionResponse: {
+            /** Status */
+            status: string;
+            /** App Key */
+            app_key: string;
+            /** Action */
+            action: string;
+        };
+        /**
+         * ActivityBucket
+         * @description A single time-window bucket for the sparkline chart.
+         */
+        ActivityBucket: {
+            /** Ok */
+            ok: number;
+            /** Err */
+            err: number;
+        };
+        /**
+         * ActivityFeedEntry
+         * @description A single activity entry for the cross-app recent activity feed.
+         */
+        ActivityFeedEntry: {
+            /** Row Id */
+            row_id: string;
+            /** Status */
+            status: string;
+            /** Timestamp */
+            timestamp: number;
+            /** App Key */
+            app_key: string;
+            /** Handler Name */
+            handler_name: string;
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /** Error Type */
+            error_type?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "handler" | "job";
+        };
+        /**
+         * AppConfigResponse
+         * @description Response model for GET /apps/{app_key}/config.
+         */
+        AppConfigResponse: {
+            /** App Key */
+            app_key: string;
+            /** Filename */
+            filename: string;
+            /** Class Name */
+            class_name: string;
+            /** Enabled */
+            enabled: boolean;
+            /** App Config */
+            app_config: {
+                [key: string]: unknown;
+            } | {
+                [key: string]: unknown;
+            }[];
+            /** Config Schema */
+            config_schema?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
+         * AppHealthResponse
+         * @description Health metrics for a single app instance.
+         */
+        AppHealthResponse: {
+            /** Error Rate */
+            error_rate: number;
+            /** Error Rate Class */
+            error_rate_class: string;
+            /** Handler Avg Duration */
+            handler_avg_duration: number;
+            /** Job Avg Duration */
+            job_avg_duration: number;
+            /** Last Activity Ts */
+            last_activity_ts: number | null;
+            /** Health Status */
+            health_status: string;
+        };
+        /** AppInstanceResponse */
+        AppInstanceResponse: {
+            /** App Key */
+            app_key: string;
+            /** Index */
+            index: number;
+            /** Instance Name */
+            instance_name: string;
+            /** Class Name */
+            class_name: string;
+            /** Status */
+            status: string;
+            /** Error Message */
+            error_message?: string | null;
+            /** Error Traceback */
+            error_traceback?: string | null;
+            /** Owner Id */
+            owner_id?: string | null;
+        };
+        /** AppManifestListResponse */
+        AppManifestListResponse: {
+            /** Total */
+            total: number;
+            /** Running */
+            running: number;
+            /** Failed */
+            failed: number;
+            /** Stopped */
+            stopped: number;
+            /** Disabled */
+            disabled: number;
+            /** Blocked */
+            blocked: number;
+            /** Manifests */
+            manifests: components["schemas"]["AppManifestResponse"][];
+            /** Only App */
+            only_app?: string | null;
+        };
+        /** AppManifestResponse */
+        AppManifestResponse: {
+            /** App Key */
+            app_key: string;
+            /** Class Name */
+            class_name: string;
+            /** Display Name */
+            display_name: string;
+            /** Filename */
+            filename: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Auto Loaded */
+            auto_loaded: boolean;
+            /** Status */
+            status: string;
+            /** Block Reason */
+            block_reason?: string | null;
+            /**
+             * Instance Count
+             * @description Tracked instances (running/failed). 0 = none tracked (stopped/disabled).
+             * @default 0
+             */
+            instance_count: number;
+            /** Instances */
+            instances?: components["schemas"]["AppInstanceResponse"][];
+            /** Error Message */
+            error_message?: string | null;
+            /** Error Traceback */
+            error_traceback?: string | null;
+            /**
+             * Recent Invocations 1H
+             * @description Total handler invocations in the last hour across all instances.
+             * @default 0
+             */
+            recent_invocations_1h: number;
+        };
+        /**
+         * AppSourceResponse
+         * @description Response model for GET /apps/{app_key}/source.
+         */
+        AppSourceResponse: {
+            /** App Key */
+            app_key: string;
+            /** Filename */
+            filename: string;
+            /** Content */
+            content: string;
+            /** Line Count */
+            line_count: number;
+        };
+        /** AppStatusResponse */
+        AppStatusResponse: {
+            /** Total */
+            total: number;
+            /** Running */
+            running: number;
+            /** Failed */
+            failed: number;
+            /** Apps */
+            apps: components["schemas"]["AppInstanceResponse"][];
+            /** Only App */
+            only_app?: string | null;
+        };
+        /**
+         * AppsConfigResponse
+         * @description Sanitized apps configuration fields (config group sub-response).
+         */
+        AppsConfigResponse: {
+            /** Autodetect */
+            autodetect: boolean;
+            /** Directory */
+            directory: string;
+        };
+        /**
+         * BootIssueResponse
+         * @description A boot-time issue entry in the system status response.
+         */
+        BootIssueResponse: {
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "err" | "warn";
+            /** Label */
+            label: string;
+            /** Detail */
+            detail: string;
+        };
+        /**
+         * ConfigResponse
+         * @description Sanitized configuration response organized by config group.
+         */
+        ConfigResponse: {
+            /** Dev Mode */
+            dev_mode: boolean;
+            /** Base Url */
+            base_url: string;
+            /** Asyncio Debug Mode */
+            asyncio_debug_mode: boolean;
+            /** Allow Reload In Prod */
+            allow_reload_in_prod: boolean;
+            /** Data Dir */
+            data_dir: string;
+            /** Config Dir */
+            config_dir: string;
+            web_api: components["schemas"]["WebApiConfigResponse"];
+            logging: components["schemas"]["LoggingConfigResponse"];
+            lifecycle: components["schemas"]["LifecycleConfigResponse"];
+            apps: components["schemas"]["AppsConfigResponse"];
+            scheduler: components["schemas"]["SchedulerConfigResponse"];
+            file_watcher: components["schemas"]["FileWatcherConfigResponse"];
+        };
+        /**
+         * DashboardAppGridEntry
+         * @description Per-app health entry for the dashboard grid.
+         */
+        DashboardAppGridEntry: {
+            /** App Key */
+            app_key: string;
+            /** Status */
+            status: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Instance Count
+             * @description Tracked instances (running/failed). 0 = none tracked (stopped/disabled).
+             * @default 0
+             */
+            instance_count: number;
+            /** Handler Count */
+            handler_count: number;
+            /** Job Count */
+            job_count: number;
+            /** Total Invocations */
+            total_invocations: number;
+            /** Total Errors */
+            total_errors: number;
+            /**
+             * Total Timed Out
+             * @default 0
+             */
+            total_timed_out: number;
+            /** Total Executions */
+            total_executions: number;
+            /** Total Job Errors */
+            total_job_errors: number;
+            /**
+             * Total Job Timed Out
+             * @default 0
+             */
+            total_job_timed_out: number;
+            /** Avg Duration Ms */
+            avg_duration_ms: number;
+            /** Last Activity Ts */
+            last_activity_ts: number | null;
+            /** Health Status */
+            health_status: string;
+            /** Error Rate */
+            error_rate: number;
+            /** Error Rate Class */
+            error_rate_class: string;
+            /** Activity Buckets */
+            activity_buckets?: components["schemas"]["ActivityBucket"][];
+            /** Last Error Message */
+            last_error_message?: string | null;
+            /** Last Error Type */
+            last_error_type?: string | null;
+            /** Last Error Ts */
+            last_error_ts?: number | null;
+        };
+        /**
+         * DashboardAppGridResponse
+         * @description Dashboard app grid with per-app health data.
+         */
+        DashboardAppGridResponse: {
+            /** Apps */
+            apps: components["schemas"]["DashboardAppGridEntry"][];
+        };
+        /**
+         * FileWatcherConfigResponse
+         * @description Sanitized file watcher configuration fields.
+         */
+        FileWatcherConfigResponse: {
+            /** Watch Files */
+            watch_files: boolean;
+            /** Debounce Milliseconds */
+            debounce_milliseconds: number;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HandlerInvocation
+         * @description Single invocation record returned by ``get_handler_invocations()``.
+         */
+        HandlerInvocation: {
+            /** Execution Start Ts */
+            execution_start_ts: number;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Status */
+            status: string;
+            /**
+             * Source Tier
+             * @default app
+             * @enum {string}
+             */
+            source_tier: "app" | "framework";
+            /** Error Type */
+            error_type: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Error Traceback */
+            error_traceback?: string | null;
+            /** Execution Id */
+            execution_id?: string | null;
+            /** Trigger Context Id */
+            trigger_context_id?: string | null;
+            /** Trigger Origin */
+            trigger_origin?: string | null;
+        };
+        /**
+         * JobExecution
+         * @description Single execution record returned by ``get_job_executions()``.
+         */
+        JobExecution: {
+            /** Execution Start Ts */
+            execution_start_ts: number;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Status */
+            status: string;
+            /**
+             * Source Tier
+             * @default app
+             * @enum {string}
+             */
+            source_tier: "app" | "framework";
+            /** Error Type */
+            error_type: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Error Traceback */
+            error_traceback?: string | null;
+            /** Execution Id */
+            execution_id?: string | null;
+        };
+        /**
+         * JobSummary
+         * @description Per-job summary returned by ``get_job_summary()``.
+         *
+         *     ``failed`` counts only ``'error'`` status; ``timed_out`` is tracked separately.
+         *     Invariant: ``successful + failed + timed_out == total_executions``.
+         */
+        JobSummary: {
+            /** Job Id */
+            job_id: number;
+            /** App Key */
+            app_key: string;
+            /** Instance Index */
+            instance_index: number;
+            /** Job Name */
+            job_name: string;
+            /** Handler Method */
+            handler_method: string;
+            /** Trigger Type */
+            trigger_type: string | null;
+            /**
+             * Trigger Label
+             * @default
+             */
+            trigger_label: string;
+            /** Trigger Detail */
+            trigger_detail?: string | null;
+            /** Args Json */
+            args_json: string;
+            /** Kwargs Json */
+            kwargs_json: string;
+            /** Source Location */
+            source_location: string;
+            /** Registration Source */
+            registration_source: string | null;
+            /**
+             * Source Tier
+             * @default app
+             * @enum {string}
+             */
+            source_tier: "app" | "framework";
+            /** Total Executions */
+            total_executions: number;
+            /** Successful */
+            successful: number;
+            /** Failed */
+            failed: number;
+            /**
+             * Timed Out
+             * @default 0
+             */
+            timed_out: number;
+            /** Last Executed At */
+            last_executed_at: number | null;
+            /** Total Duration Ms */
+            total_duration_ms: number;
+            /** Avg Duration Ms */
+            avg_duration_ms: number;
+            /** Group */
+            group?: string | null;
+            /** Next Run */
+            next_run?: number | null;
+            /** Fire At */
+            fire_at?: number | null;
+            /** Jitter */
+            jitter?: number | null;
+            /**
+             * Name Auto
+             * @default false
+             */
+            name_auto: boolean;
+            /** Last Error Message */
+            last_error_message?: string | null;
+            /** Last Error Type */
+            last_error_type?: string | null;
+            /** Last Error Ts */
+            last_error_ts?: number | null;
+            /** Last Error Traceback */
+            last_error_traceback?: string | null;
+            /** Min Duration Ms */
+            min_duration_ms?: number | null;
+            /** Max Duration Ms */
+            max_duration_ms?: number | null;
+        };
+        /**
+         * LifecycleConfigResponse
+         * @description Sanitized lifecycle configuration fields.
+         */
+        LifecycleConfigResponse: {
+            /** Startup Timeout Seconds */
+            startup_timeout_seconds: number;
+            /** App Startup Timeout Seconds */
+            app_startup_timeout_seconds: number;
+            /** App Shutdown Timeout Seconds */
+            app_shutdown_timeout_seconds: number;
+        };
+        /**
+         * ListenerWithSummary
+         * @description Listener metrics enriched with human-readable handler summary.
+         */
+        ListenerWithSummary: {
+            /** Listener Id */
+            listener_id: number;
+            /** App Key */
+            app_key: string;
+            /**
+             * Instance Index
+             * @default 0
+             */
+            instance_index: number;
+            /** Topic */
+            topic: string;
+            /**
+             * Listener Kind
+             * @default event
+             */
+            listener_kind: string;
+            /** Handler Method */
+            handler_method: string;
+            /** Total Invocations */
+            total_invocations: number;
+            /** Successful */
+            successful: number;
+            /** Failed */
+            failed: number;
+            /** Di Failures */
+            di_failures: number;
+            /** Cancelled */
+            cancelled: number;
+            /**
+             * Avg Duration Ms
+             * @default 0
+             */
+            avg_duration_ms: number;
+            /** Min Duration Ms */
+            min_duration_ms?: number | null;
+            /** Max Duration Ms */
+            max_duration_ms?: number | null;
+            /**
+             * Total Duration Ms
+             * @default 0
+             */
+            total_duration_ms: number;
+            /** Predicate Description */
+            predicate_description?: string | null;
+            /** Human Description */
+            human_description?: string | null;
+            /** Debounce */
+            debounce?: number | null;
+            /** Throttle */
+            throttle?: number | null;
+            /**
+             * Once
+             * @default 0
+             */
+            once: number;
+            /**
+             * Priority
+             * @default 0
+             */
+            priority: number;
+            /** Last Invoked At */
+            last_invoked_at?: number | null;
+            /** Last Error Message */
+            last_error_message?: string | null;
+            /** Last Error Type */
+            last_error_type?: string | null;
+            /** Last Error Traceback */
+            last_error_traceback?: string | null;
+            /**
+             * Timed Out
+             * @default 0
+             */
+            timed_out: number;
+            /**
+             * Source Location
+             * @default
+             */
+            source_location: string;
+            /** Registration Source */
+            registration_source?: string | null;
+            /**
+             * Handler Summary
+             * @default
+             */
+            handler_summary: string;
+            /**
+             * Source Tier
+             * @default app
+             * @enum {string}
+             */
+            source_tier: "app" | "framework";
+            /**
+             * Immediate
+             * @default 0
+             */
+            immediate: number;
+            /** Duration */
+            duration?: number | null;
+            /** Entity Id */
+            entity_id?: string | null;
+        };
+        /** LogEntryResponse */
+        LogEntryResponse: {
+            /** Seq */
+            seq: number;
+            /** Timestamp */
+            timestamp: number;
+            /** Level */
+            level: string;
+            /** Logger Name */
+            logger_name: string;
+            /** Func Name */
+            func_name: string;
+            /** Lineno */
+            lineno: number;
+            /** Message */
+            message: string;
+            /** Exc Info */
+            exc_info?: string | null;
+            /** App Key */
+            app_key?: string | null;
+            /** Execution Id */
+            execution_id?: string | null;
+            /** Instance Name */
+            instance_name?: string | null;
+            /** Instance Index */
+            instance_index?: number | null;
+            /** Source Tier */
+            source_tier?: string | null;
+        };
+        /**
+         * LogLevelRequest
+         * @description Request body for PUT /api/logs/level.
+         */
+        LogLevelRequest: {
+            /** Logger */
+            logger: string;
+            /** Level */
+            level: string;
+        };
+        /**
+         * LogLevelResponse
+         * @description Response for PUT /api/logs/level.
+         */
+        LogLevelResponse: {
+            /** Logger */
+            logger: string;
+            /** Effective Level */
+            effective_level: string;
+        };
+        /**
+         * LoggingConfigResponse
+         * @description Sanitized logging configuration fields.
+         */
+        LoggingConfigResponse: {
+            /** Log Level */
+            log_level: string;
+            /** Web Api */
+            web_api: string;
+        };
+        /**
+         * LogsByExecutionResponse
+         * @description Response for GET /api/logs/by-execution/{execution_id}.
+         */
+        LogsByExecutionResponse: {
+            /** Records */
+            records: components["schemas"]["LogEntryResponse"][];
+            /** Truncated */
+            truncated: boolean;
+            /** Retention Expired */
+            retention_expired: boolean;
+        };
+        /**
+         * SchedulerConfigResponse
+         * @description Sanitized scheduler configuration fields.
+         */
+        SchedulerConfigResponse: {
+            /** Min Delay Seconds */
+            min_delay_seconds: number;
+            /** Max Delay Seconds */
+            max_delay_seconds: number;
+            /** Default Delay Seconds */
+            default_delay_seconds: number;
+        };
+        /**
+         * ServiceInfoResponse
+         * @description Structured info for one internal service.
+         */
+        ServiceInfoResponse: {
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /**
+             * Role
+             * @default
+             */
+            role: string;
+            /** Ready Phase */
+            ready_phase?: string | null;
+            /** Retry At */
+            retry_at?: number | null;
+        };
+        /** SystemStatusResponse */
+        SystemStatusResponse: {
+            /** Status */
+            status: string;
+            /** Websocket Connected */
+            websocket_connected: boolean;
+            /** Uptime Seconds */
+            uptime_seconds: number;
+            /** Entity Count */
+            entity_count: number;
+            /** App Count */
+            app_count: number;
+            /** Services Running */
+            services_running: string[];
+            /** Services */
+            services?: components["schemas"]["ServiceInfoResponse"][];
+            /**
+             * Version
+             * @default
+             */
+            version: string;
+            /** Boot Issues */
+            boot_issues?: components["schemas"]["BootIssueResponse"][];
+            /**
+             * Log Records Dropped
+             * @default 0
+             */
+            log_records_dropped: number;
+        };
+        /**
+         * TelemetryStatusResponse
+         * @description Health check response for the telemetry database.
+         */
+        TelemetryStatusResponse: {
+            /** Degraded */
+            degraded: boolean;
+            /**
+             * Dropped Overflow
+             * @default 0
+             */
+            dropped_overflow: number;
+            /**
+             * Dropped Exhausted
+             * @default 0
+             */
+            dropped_exhausted: number;
+            /**
+             * Dropped No Session
+             * @default 0
+             */
+            dropped_no_session: number;
+            /**
+             * Dropped Shutdown
+             * @default 0
+             */
+            dropped_shutdown: number;
+            /**
+             * Error Handler Failures
+             * @default 0
+             */
+            error_handler_failures: number;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
+        };
+        /**
+         * WebApiConfigResponse
+         * @description Sanitized web API configuration fields.
+         */
+        WebApiConfigResponse: {
+            /** Run */
+            run: boolean;
+            /** Run Ui */
+            run_ui: boolean;
+            /** Ui Hot Reload */
+            ui_hot_reload: boolean;
+            /** Host */
+            host: string;
+            /** Port */
+            port: number;
+            /** Cors Origins */
+            cors_origins: string[];
+            /** Event Buffer Size */
+            event_buffer_size: number;
+            /** Log Buffer Size */
+            log_buffer_size: number;
+            /** Job History Size */
+            job_history_size: number;
+        };
     };
-    /**
-     * ActivityBucket
-     * @description A single time-window bucket for the sparkline chart.
-     */
-    ActivityBucket: {
-      /** Ok */
-      ok: number;
-      /** Err */
-      err: number;
-    };
-    /**
-     * ActivityFeedEntry
-     * @description A single activity entry for the cross-app recent activity feed.
-     */
-    ActivityFeedEntry: {
-      /** Row Id */
-      row_id: string;
-      /** Status */
-      status: string;
-      /** Timestamp */
-      timestamp: number;
-      /** App Key */
-      app_key: string;
-      /** Handler Name */
-      handler_name: string;
-      /** Duration Ms */
-      duration_ms?: number | null;
-      /** Error Type */
-      error_type?: string | null;
-      /**
-       * Kind
-       * @enum {string}
-       */
-      kind: "handler" | "job";
-    };
-    /**
-     * AppConfigResponse
-     * @description Response model for GET /apps/{app_key}/config.
-     */
-    AppConfigResponse: {
-      /** App Key */
-      app_key: string;
-      /** Filename */
-      filename: string;
-      /** Class Name */
-      class_name: string;
-      /** Enabled */
-      enabled: boolean;
-      /** App Config */
-      app_config:
-        | {
-            [key: string]: unknown;
-          }
-        | {
-            [key: string]: unknown;
-          }[];
-      /** Config Schema */
-      config_schema?: {
-        [key: string]: unknown;
-      } | null;
-    };
-    /**
-     * AppHealthResponse
-     * @description Health metrics for a single app instance.
-     */
-    AppHealthResponse: {
-      /** Error Rate */
-      error_rate: number;
-      /** Error Rate Class */
-      error_rate_class: string;
-      /** Handler Avg Duration */
-      handler_avg_duration: number;
-      /** Job Avg Duration */
-      job_avg_duration: number;
-      /** Last Activity Ts */
-      last_activity_ts: number | null;
-      /** Health Status */
-      health_status: string;
-    };
-    /** AppInstanceResponse */
-    AppInstanceResponse: {
-      /** App Key */
-      app_key: string;
-      /** Index */
-      index: number;
-      /** Instance Name */
-      instance_name: string;
-      /** Class Name */
-      class_name: string;
-      /** Status */
-      status: string;
-      /** Error Message */
-      error_message?: string | null;
-      /** Error Traceback */
-      error_traceback?: string | null;
-      /** Owner Id */
-      owner_id?: string | null;
-    };
-    /** AppManifestListResponse */
-    AppManifestListResponse: {
-      /** Total */
-      total: number;
-      /** Running */
-      running: number;
-      /** Failed */
-      failed: number;
-      /** Stopped */
-      stopped: number;
-      /** Disabled */
-      disabled: number;
-      /** Blocked */
-      blocked: number;
-      /** Manifests */
-      manifests: components["schemas"]["AppManifestResponse"][];
-      /** Only App */
-      only_app?: string | null;
-    };
-    /** AppManifestResponse */
-    AppManifestResponse: {
-      /** App Key */
-      app_key: string;
-      /** Class Name */
-      class_name: string;
-      /** Display Name */
-      display_name: string;
-      /** Filename */
-      filename: string;
-      /** Enabled */
-      enabled: boolean;
-      /** Auto Loaded */
-      auto_loaded: boolean;
-      /** Status */
-      status: string;
-      /** Block Reason */
-      block_reason?: string | null;
-      /**
-       * Instance Count
-       * @description Tracked instances (running/failed). 0 = none tracked (stopped/disabled).
-       * @default 0
-       */
-      instance_count: number;
-      /** Instances */
-      instances?: components["schemas"]["AppInstanceResponse"][];
-      /** Error Message */
-      error_message?: string | null;
-      /** Error Traceback */
-      error_traceback?: string | null;
-      /**
-       * Recent Invocations 1H
-       * @description Total handler invocations in the last hour across all instances.
-       * @default 0
-       */
-      recent_invocations_1h: number;
-    };
-    /**
-     * AppSourceResponse
-     * @description Response model for GET /apps/{app_key}/source.
-     */
-    AppSourceResponse: {
-      /** App Key */
-      app_key: string;
-      /** Filename */
-      filename: string;
-      /** Content */
-      content: string;
-      /** Line Count */
-      line_count: number;
-    };
-    /** AppStatusResponse */
-    AppStatusResponse: {
-      /** Total */
-      total: number;
-      /** Running */
-      running: number;
-      /** Failed */
-      failed: number;
-      /** Apps */
-      apps: components["schemas"]["AppInstanceResponse"][];
-      /** Only App */
-      only_app?: string | null;
-    };
-    /**
-     * AppsConfigResponse
-     * @description Sanitized apps configuration fields (config group sub-response).
-     */
-    AppsConfigResponse: {
-      /** Autodetect */
-      autodetect: boolean;
-      /** Directory */
-      directory: string;
-    };
-    /**
-     * BootIssueResponse
-     * @description A boot-time issue entry in the system status response.
-     */
-    BootIssueResponse: {
-      /**
-       * Severity
-       * @enum {string}
-       */
-      severity: "err" | "warn";
-      /** Label */
-      label: string;
-      /** Detail */
-      detail: string;
-    };
-    /**
-     * ConfigResponse
-     * @description Sanitized configuration response organized by config group.
-     */
-    ConfigResponse: {
-      /** Dev Mode */
-      dev_mode: boolean;
-      /** Base Url */
-      base_url: string;
-      /** Asyncio Debug Mode */
-      asyncio_debug_mode: boolean;
-      /** Allow Reload In Prod */
-      allow_reload_in_prod: boolean;
-      /** Data Dir */
-      data_dir: string;
-      /** Config Dir */
-      config_dir: string;
-      web_api: components["schemas"]["WebApiConfigResponse"];
-      logging: components["schemas"]["LoggingConfigResponse"];
-      lifecycle: components["schemas"]["LifecycleConfigResponse"];
-      apps: components["schemas"]["AppsConfigResponse"];
-      scheduler: components["schemas"]["SchedulerConfigResponse"];
-      file_watcher: components["schemas"]["FileWatcherConfigResponse"];
-    };
-    /**
-     * DashboardAppGridEntry
-     * @description Per-app health entry for the dashboard grid.
-     */
-    DashboardAppGridEntry: {
-      /** App Key */
-      app_key: string;
-      /** Status */
-      status: string;
-      /** Display Name */
-      display_name: string;
-      /**
-       * Instance Count
-       * @description Tracked instances (running/failed). 0 = none tracked (stopped/disabled).
-       * @default 0
-       */
-      instance_count: number;
-      /** Handler Count */
-      handler_count: number;
-      /** Job Count */
-      job_count: number;
-      /** Total Invocations */
-      total_invocations: number;
-      /** Total Errors */
-      total_errors: number;
-      /**
-       * Total Timed Out
-       * @default 0
-       */
-      total_timed_out: number;
-      /** Total Executions */
-      total_executions: number;
-      /** Total Job Errors */
-      total_job_errors: number;
-      /**
-       * Total Job Timed Out
-       * @default 0
-       */
-      total_job_timed_out: number;
-      /** Avg Duration Ms */
-      avg_duration_ms: number;
-      /** Last Activity Ts */
-      last_activity_ts: number | null;
-      /** Health Status */
-      health_status: string;
-      /** Error Rate */
-      error_rate: number;
-      /** Error Rate Class */
-      error_rate_class: string;
-      /** Activity Buckets */
-      activity_buckets?: components["schemas"]["ActivityBucket"][];
-      /** Last Error Message */
-      last_error_message?: string | null;
-      /** Last Error Type */
-      last_error_type?: string | null;
-      /** Last Error Ts */
-      last_error_ts?: number | null;
-    };
-    /**
-     * DashboardAppGridResponse
-     * @description Dashboard app grid with per-app health data.
-     */
-    DashboardAppGridResponse: {
-      /** Apps */
-      apps: components["schemas"]["DashboardAppGridEntry"][];
-    };
-    /**
-     * FileWatcherConfigResponse
-     * @description Sanitized file watcher configuration fields.
-     */
-    FileWatcherConfigResponse: {
-      /** Watch Files */
-      watch_files: boolean;
-      /** Debounce Milliseconds */
-      debounce_milliseconds: number;
-    };
-    /** HTTPValidationError */
-    HTTPValidationError: {
-      /** Detail */
-      detail?: components["schemas"]["ValidationError"][];
-    };
-    /**
-     * HandlerInvocation
-     * @description Single invocation record returned by ``get_handler_invocations()``.
-     */
-    HandlerInvocation: {
-      /** Execution Start Ts */
-      execution_start_ts: number;
-      /** Duration Ms */
-      duration_ms: number;
-      /** Status */
-      status: string;
-      /**
-       * Source Tier
-       * @default app
-       * @enum {string}
-       */
-      source_tier: "app" | "framework";
-      /** Error Type */
-      error_type: string | null;
-      /** Error Message */
-      error_message: string | null;
-      /** Error Traceback */
-      error_traceback?: string | null;
-      /** Execution Id */
-      execution_id?: string | null;
-      /** Trigger Context Id */
-      trigger_context_id?: string | null;
-      /** Trigger Origin */
-      trigger_origin?: string | null;
-    };
-    /**
-     * JobExecution
-     * @description Single execution record returned by ``get_job_executions()``.
-     */
-    JobExecution: {
-      /** Execution Start Ts */
-      execution_start_ts: number;
-      /** Duration Ms */
-      duration_ms: number;
-      /** Status */
-      status: string;
-      /**
-       * Source Tier
-       * @default app
-       * @enum {string}
-       */
-      source_tier: "app" | "framework";
-      /** Error Type */
-      error_type: string | null;
-      /** Error Message */
-      error_message: string | null;
-      /** Error Traceback */
-      error_traceback?: string | null;
-      /** Execution Id */
-      execution_id?: string | null;
-    };
-    /**
-     * JobSummary
-     * @description Per-job summary returned by ``get_job_summary()``.
-     *
-     *     ``failed`` counts only ``'error'`` status; ``timed_out`` is tracked separately.
-     *     Invariant: ``successful + failed + timed_out == total_executions``.
-     */
-    JobSummary: {
-      /** Job Id */
-      job_id: number;
-      /** App Key */
-      app_key: string;
-      /** Instance Index */
-      instance_index: number;
-      /** Job Name */
-      job_name: string;
-      /** Handler Method */
-      handler_method: string;
-      /** Trigger Type */
-      trigger_type: string | null;
-      /**
-       * Trigger Label
-       * @default
-       */
-      trigger_label: string;
-      /** Trigger Detail */
-      trigger_detail?: string | null;
-      /** Args Json */
-      args_json: string;
-      /** Kwargs Json */
-      kwargs_json: string;
-      /** Source Location */
-      source_location: string;
-      /** Registration Source */
-      registration_source: string | null;
-      /**
-       * Source Tier
-       * @default app
-       * @enum {string}
-       */
-      source_tier: "app" | "framework";
-      /** Total Executions */
-      total_executions: number;
-      /** Successful */
-      successful: number;
-      /** Failed */
-      failed: number;
-      /**
-       * Timed Out
-       * @default 0
-       */
-      timed_out: number;
-      /** Last Executed At */
-      last_executed_at: number | null;
-      /** Total Duration Ms */
-      total_duration_ms: number;
-      /** Avg Duration Ms */
-      avg_duration_ms: number;
-      /** Group */
-      group?: string | null;
-      /** Next Run */
-      next_run?: number | null;
-      /** Fire At */
-      fire_at?: number | null;
-      /** Jitter */
-      jitter?: number | null;
-      /**
-       * Name Auto
-       * @default false
-       */
-      name_auto: boolean;
-      /** Last Error Message */
-      last_error_message?: string | null;
-      /** Last Error Type */
-      last_error_type?: string | null;
-      /** Last Error Ts */
-      last_error_ts?: number | null;
-      /** Last Error Traceback */
-      last_error_traceback?: string | null;
-      /** Min Duration Ms */
-      min_duration_ms?: number | null;
-      /** Max Duration Ms */
-      max_duration_ms?: number | null;
-    };
-    /**
-     * LifecycleConfigResponse
-     * @description Sanitized lifecycle configuration fields.
-     */
-    LifecycleConfigResponse: {
-      /** Startup Timeout Seconds */
-      startup_timeout_seconds: number;
-      /** App Startup Timeout Seconds */
-      app_startup_timeout_seconds: number;
-      /** App Shutdown Timeout Seconds */
-      app_shutdown_timeout_seconds: number;
-    };
-    /**
-     * ListenerWithSummary
-     * @description Listener metrics enriched with human-readable handler summary.
-     */
-    ListenerWithSummary: {
-      /** Listener Id */
-      listener_id: number;
-      /** App Key */
-      app_key: string;
-      /**
-       * Instance Index
-       * @default 0
-       */
-      instance_index: number;
-      /** Topic */
-      topic: string;
-      /**
-       * Listener Kind
-       * @default event
-       */
-      listener_kind: string;
-      /** Handler Method */
-      handler_method: string;
-      /** Total Invocations */
-      total_invocations: number;
-      /** Successful */
-      successful: number;
-      /** Failed */
-      failed: number;
-      /** Di Failures */
-      di_failures: number;
-      /** Cancelled */
-      cancelled: number;
-      /**
-       * Avg Duration Ms
-       * @default 0
-       */
-      avg_duration_ms: number;
-      /** Min Duration Ms */
-      min_duration_ms?: number | null;
-      /** Max Duration Ms */
-      max_duration_ms?: number | null;
-      /**
-       * Total Duration Ms
-       * @default 0
-       */
-      total_duration_ms: number;
-      /** Predicate Description */
-      predicate_description?: string | null;
-      /** Human Description */
-      human_description?: string | null;
-      /** Debounce */
-      debounce?: number | null;
-      /** Throttle */
-      throttle?: number | null;
-      /**
-       * Once
-       * @default 0
-       */
-      once: number;
-      /**
-       * Priority
-       * @default 0
-       */
-      priority: number;
-      /** Last Invoked At */
-      last_invoked_at?: number | null;
-      /** Last Error Message */
-      last_error_message?: string | null;
-      /** Last Error Type */
-      last_error_type?: string | null;
-      /** Last Error Traceback */
-      last_error_traceback?: string | null;
-      /**
-       * Timed Out
-       * @default 0
-       */
-      timed_out: number;
-      /**
-       * Source Location
-       * @default
-       */
-      source_location: string;
-      /** Registration Source */
-      registration_source?: string | null;
-      /**
-       * Handler Summary
-       * @default
-       */
-      handler_summary: string;
-      /**
-       * Source Tier
-       * @default app
-       * @enum {string}
-       */
-      source_tier: "app" | "framework";
-      /**
-       * Immediate
-       * @default 0
-       */
-      immediate: number;
-      /** Duration */
-      duration?: number | null;
-      /** Entity Id */
-      entity_id?: string | null;
-    };
-    /** LogEntryResponse */
-    LogEntryResponse: {
-      /** Seq */
-      seq: number;
-      /** Timestamp */
-      timestamp: number;
-      /** Level */
-      level: string;
-      /** Logger Name */
-      logger_name: string;
-      /** Func Name */
-      func_name: string;
-      /** Lineno */
-      lineno: number;
-      /** Message */
-      message: string;
-      /** Exc Info */
-      exc_info?: string | null;
-      /** App Key */
-      app_key?: string | null;
-      /** Execution Id */
-      execution_id?: string | null;
-      /** Instance Name */
-      instance_name?: string | null;
-      /** Instance Index */
-      instance_index?: number | null;
-      /** Source Tier */
-      source_tier?: string | null;
-    };
-    /**
-     * LogLevelRequest
-     * @description Request body for PUT /api/logs/level.
-     */
-    LogLevelRequest: {
-      /** Logger */
-      logger: string;
-      /** Level */
-      level: string;
-    };
-    /**
-     * LogLevelResponse
-     * @description Response for PUT /api/logs/level.
-     */
-    LogLevelResponse: {
-      /** Logger */
-      logger: string;
-      /** Effective Level */
-      effective_level: string;
-    };
-    /**
-     * LoggingConfigResponse
-     * @description Sanitized logging configuration fields.
-     */
-    LoggingConfigResponse: {
-      /** Log Level */
-      log_level: string;
-      /** Web Api */
-      web_api: string;
-    };
-    /**
-     * LogsByExecutionResponse
-     * @description Response for GET /api/logs/by-execution/{execution_id}.
-     */
-    LogsByExecutionResponse: {
-      /** Records */
-      records: components["schemas"]["LogEntryResponse"][];
-      /** Truncated */
-      truncated: boolean;
-      /** Retention Expired */
-      retention_expired: boolean;
-    };
-    /**
-     * SchedulerConfigResponse
-     * @description Sanitized scheduler configuration fields.
-     */
-    SchedulerConfigResponse: {
-      /** Min Delay Seconds */
-      min_delay_seconds: number;
-      /** Max Delay Seconds */
-      max_delay_seconds: number;
-      /** Default Delay Seconds */
-      default_delay_seconds: number;
-    };
-    /**
-     * ServiceInfoResponse
-     * @description Structured info for one internal service.
-     */
-    ServiceInfoResponse: {
-      /** Name */
-      name: string;
-      /** Status */
-      status: string;
-      /**
-       * Role
-       * @default
-       */
-      role: string;
-      /** Ready Phase */
-      ready_phase?: string | null;
-      /** Retry At */
-      retry_at?: number | null;
-    };
-    /** SystemStatusResponse */
-    SystemStatusResponse: {
-      /** Status */
-      status: string;
-      /** Websocket Connected */
-      websocket_connected: boolean;
-      /** Uptime Seconds */
-      uptime_seconds: number;
-      /** Entity Count */
-      entity_count: number;
-      /** App Count */
-      app_count: number;
-      /** Services Running */
-      services_running: string[];
-      /** Services */
-      services?: components["schemas"]["ServiceInfoResponse"][];
-      /**
-       * Version
-       * @default
-       */
-      version: string;
-      /** Boot Issues */
-      boot_issues?: components["schemas"]["BootIssueResponse"][];
-      /**
-       * Log Records Dropped
-       * @default 0
-       */
-      log_records_dropped: number;
-    };
-    /**
-     * TelemetryStatusResponse
-     * @description Health check response for the telemetry database.
-     */
-    TelemetryStatusResponse: {
-      /** Degraded */
-      degraded: boolean;
-      /**
-       * Dropped Overflow
-       * @default 0
-       */
-      dropped_overflow: number;
-      /**
-       * Dropped Exhausted
-       * @default 0
-       */
-      dropped_exhausted: number;
-      /**
-       * Dropped No Session
-       * @default 0
-       */
-      dropped_no_session: number;
-      /**
-       * Dropped Shutdown
-       * @default 0
-       */
-      dropped_shutdown: number;
-      /**
-       * Error Handler Failures
-       * @default 0
-       */
-      error_handler_failures: number;
-    };
-    /** ValidationError */
-    ValidationError: {
-      /** Location */
-      loc: (string | number)[];
-      /** Message */
-      msg: string;
-      /** Error Type */
-      type: string;
-      /** Input */
-      input?: unknown;
-      /** Context */
-      ctx?: Record<string, never>;
-    };
-    /**
-     * WebApiConfigResponse
-     * @description Sanitized web API configuration fields.
-     */
-    WebApiConfigResponse: {
-      /** Run */
-      run: boolean;
-      /** Run Ui */
-      run_ui: boolean;
-      /** Ui Hot Reload */
-      ui_hot_reload: boolean;
-      /** Host */
-      host: string;
-      /** Port */
-      port: number;
-      /** Cors Origins */
-      cors_origins: string[];
-      /** Event Buffer Size */
-      event_buffer_size: number;
-      /** Log Buffer Size */
-      log_buffer_size: number;
-      /** Job History Size */
-      job_history_size: number;
-    };
-  };
-  responses: never;
-  parameters: never;
-  requestBodies: never;
-  headers: never;
-  pathItems: never;
+    responses: never;
+    parameters: never;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-  get_health_api_health_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    get_health_api_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemStatusResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemStatusResponse"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    get_apps_api_apps_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["SystemStatusResponse"];
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppStatusResponse"];
+                };
+            };
         };
-      };
-      /** @description Service Unavailable */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["SystemStatusResponse"];
-        };
-      };
     };
-  };
-  get_apps_api_apps_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    get_app_manifests_api_apps_manifests_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppManifestListResponse"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    start_app_api_apps__app_key__start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_key: string;
+            };
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["AppStatusResponse"];
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
-      };
     };
-  };
-  get_app_manifests_api_apps_manifests_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    stop_app_api_apps__app_key__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    reload_app_api_apps__app_key__reload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_key: string;
+            };
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["AppManifestListResponse"];
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
-      };
     };
-  };
-  start_app_api_apps__app_key__start_post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        app_key: string;
-      };
-      cookie?: never;
+    get_app_config_api_apps__app_key__config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppConfigResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      202: {
-        headers: {
-          [name: string]: unknown;
+    get_app_source_api_apps__app_key__source_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_key: string;
+            };
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["ActionResponse"];
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppSourceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
     };
-  };
-  stop_app_api_apps__app_key__stop_post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        app_key: string;
-      };
-      cookie?: never;
+    get_services_api_services_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      202: {
-        headers: {
-          [name: string]: unknown;
+    get_recent_events_api_events_recent_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["ActionResponse"];
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
     };
-  };
-  reload_app_api_apps__app_key__reload_post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        app_key: string;
-      };
-      cookie?: never;
+    get_logs_api_logs_recent_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                app_key?: string | null;
+                level?: string | null;
+                since?: number | null;
+                execution_id?: string | null;
+                source_tier?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogEntryResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      202: {
-        headers: {
-          [name: string]: unknown;
+    get_logs_by_execution_api_logs_by_execution__execution_id__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                execution_id: string;
+            };
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["ActionResponse"];
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogsByExecutionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
     };
-  };
-  get_app_config_api_apps__app_key__config_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        app_key: string;
-      };
-      cookie?: never;
+    set_log_level_api_logs_level_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogLevelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogLevelResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    get_listener_metrics_api_bus_listeners_get: {
+        parameters: {
+            query?: {
+                app_key?: string | null;
+                instance_index?: number;
+                since?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["AppConfigResponse"];
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListenerWithSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
     };
-  };
-  get_app_source_api_apps__app_key__source_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        app_key: string;
-      };
-      cookie?: never;
+    get_config_api_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigResponse"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    telemetry_status_api_telemetry_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["AppSourceResponse"];
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TelemetryStatusResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TelemetryStatusResponse"];
+                };
+            };
         };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
     };
-  };
-  get_services_api_services_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    app_health_api_telemetry_app__app_key__health_get: {
+        parameters: {
+            query?: {
+                instance_index?: number;
+                since?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
+            };
+            header?: never;
+            path: {
+                /** @description Use `__hassette__` to query framework-internal actor telemetry. */
+                app_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppHealthResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    app_listeners_api_telemetry_app__app_key__listeners_get: {
+        parameters: {
+            query?: {
+                instance_index?: number;
+                since?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
+            };
+            header?: never;
+            path: {
+                /** @description Use `__hassette__` to query framework-internal actor telemetry. */
+                app_key: string;
+            };
+            cookie?: never;
         };
-        content: {
-          "application/json": {
-            [key: string]: unknown;
-          };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListenerWithSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
-      };
     };
-  };
-  get_recent_events_api_events_recent_get: {
-    parameters: {
-      query?: {
-        limit?: number;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
+    app_activity_api_telemetry_app__app_key__activity_get: {
+        parameters: {
+            query?: {
+                instance_index?: number | null;
+                limit?: number;
+                since?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
+            };
+            header?: never;
+            path: {
+                /** @description Use `__hassette__` to query framework-internal actor telemetry. */
+                app_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityFeedEntry"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    app_jobs_api_telemetry_app__app_key__jobs_get: {
+        parameters: {
+            query?: {
+                instance_index?: number;
+                since?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
+            };
+            header?: never;
+            path: {
+                /** @description Use `__hassette__` to query framework-internal actor telemetry. */
+                app_key: string;
+            };
+            cookie?: never;
         };
-        content: {
-          "application/json": {
-            [key: string]: unknown;
-          }[];
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
     };
-  };
-  get_logs_api_logs_recent_get: {
-    parameters: {
-      query?: {
-        limit?: number;
-        app_key?: string | null;
-        level?: string | null;
-        since?: number | null;
-        execution_id?: string | null;
-        source_tier?: string | null;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
+    handler_invocations_api_telemetry_handler__listener_id__invocations_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                since?: number | null;
+            };
+            header?: never;
+            path: {
+                listener_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HandlerInvocation"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    job_executions_api_telemetry_job__job_id__executions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                since?: number | null;
+            };
+            header?: never;
+            path: {
+                job_id: number;
+            };
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["LogEntryResponse"][];
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobExecution"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
     };
-  };
-  get_logs_by_execution_api_logs_by_execution__execution_id__get: {
-    parameters: {
-      query?: {
-        limit?: number;
-      };
-      header?: never;
-      path: {
-        execution_id: string;
-      };
-      cookie?: never;
+    dashboard_app_grid_api_telemetry_dashboard_app_grid_get: {
+        parameters: {
+            query?: {
+                since?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardAppGridResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
     };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
+    all_jobs_api_scheduler_jobs_get: {
+        parameters: {
+            query?: {
+                since?: number | null;
+                /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
+                source_tier?: ("app" | "framework" | "all") | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        content: {
-          "application/json": components["schemas"]["LogsByExecutionResponse"];
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
     };
-  };
-  set_log_level_api_logs_level_put: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["LogLevelRequest"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["LogLevelResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  get_listener_metrics_api_bus_listeners_get: {
-    parameters: {
-      query?: {
-        app_key?: string | null;
-        instance_index?: number;
-        since?: number | null;
-        /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-        source_tier?: ("app" | "framework" | "all") | null;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ListenerWithSummary"][];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  get_config_api_config_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ConfigResponse"];
-        };
-      };
-    };
-  };
-  telemetry_status_api_telemetry_status_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TelemetryStatusResponse"];
-        };
-      };
-      /** @description Service Unavailable */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["TelemetryStatusResponse"];
-        };
-      };
-    };
-  };
-  app_health_api_telemetry_app__app_key__health_get: {
-    parameters: {
-      query?: {
-        instance_index?: number;
-        since?: number | null;
-        /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-        source_tier?: ("app" | "framework" | "all") | null;
-      };
-      header?: never;
-      path: {
-        /** @description Use `__hassette__` to query framework-internal actor telemetry. */
-        app_key: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["AppHealthResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  app_listeners_api_telemetry_app__app_key__listeners_get: {
-    parameters: {
-      query?: {
-        instance_index?: number;
-        since?: number | null;
-        /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-        source_tier?: ("app" | "framework" | "all") | null;
-      };
-      header?: never;
-      path: {
-        /** @description Use `__hassette__` to query framework-internal actor telemetry. */
-        app_key: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ListenerWithSummary"][];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  app_activity_api_telemetry_app__app_key__activity_get: {
-    parameters: {
-      query?: {
-        instance_index?: number | null;
-        limit?: number;
-        since?: number | null;
-        /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-        source_tier?: ("app" | "framework" | "all") | null;
-      };
-      header?: never;
-      path: {
-        /** @description Use `__hassette__` to query framework-internal actor telemetry. */
-        app_key: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ActivityFeedEntry"][];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  app_jobs_api_telemetry_app__app_key__jobs_get: {
-    parameters: {
-      query?: {
-        instance_index?: number;
-        since?: number | null;
-        /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-        source_tier?: ("app" | "framework" | "all") | null;
-      };
-      header?: never;
-      path: {
-        /** @description Use `__hassette__` to query framework-internal actor telemetry. */
-        app_key: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["JobSummary"][];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  handler_invocations_api_telemetry_handler__listener_id__invocations_get: {
-    parameters: {
-      query?: {
-        limit?: number;
-        since?: number | null;
-      };
-      header?: never;
-      path: {
-        listener_id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HandlerInvocation"][];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  job_executions_api_telemetry_job__job_id__executions_get: {
-    parameters: {
-      query?: {
-        limit?: number;
-        since?: number | null;
-      };
-      header?: never;
-      path: {
-        job_id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["JobExecution"][];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  dashboard_app_grid_api_telemetry_dashboard_app_grid_get: {
-    parameters: {
-      query?: {
-        since?: number | null;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["DashboardAppGridResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  all_jobs_api_scheduler_jobs_get: {
-    parameters: {
-      query?: {
-        since?: number | null;
-        /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-        source_tier?: ("app" | "framework" | "all") | null;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["JobSummary"][];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
 }

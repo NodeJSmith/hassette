@@ -36,6 +36,7 @@ repos:
         entry: npx --prefix frontend prettier --write
         types_or: [ts, tsx, css]
         files: ^frontend/src/
+        exclude: (generated-types\.ts|\.module\.css\.d\.ts)$
 
       - id: eslint
         name: eslint (frontend)
