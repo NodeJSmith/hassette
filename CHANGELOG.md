@@ -15,7 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Refactoring
 
 * flatten app config path from [hassette.app.apps] to [hassette.apps] ([#792](https://github.com/NodeJSmith/hassette/issues/792)) ([a4251f1](https://github.com/NodeJSmith/hassette/commit/a4251f1640fe6350c90e14e7f9804f50172435f7))
-* **ui:** decompose large frontend components into focused modules ([#795](https://github.com/NodeJSmith/hassette/issues/795)) ([2e66499](https://github.com/NodeJSmith/hassette/commit/2e66499b2392c760834630218baeff77753b941b))
 
 ## [0.31.0](https://github.com/NodeJSmith/hassette/compare/v0.30.0...v0.31.0) (2026-05-20)
 
