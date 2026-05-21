@@ -10,7 +10,7 @@ verifying that a config file change took effect after a reload.
 
 Settings are organized into seven groups, each displayed as a card with a
 key-value table. Keys are shown as displayed in the UI — see
-[Global Settings](../../core-concepts/configuration/global.md) for the
+[Global Settings](../core-concepts/configuration/global.md) for the
 corresponding `hassette.toml` setting names.
 
 Values reflect the configuration as loaded at the most recent startup or
@@ -40,6 +40,6 @@ Values are rendered as follows:
 
 ## Related pages
 
-- [Configuration](../../core-concepts/configuration/global.md) — reference for
+- [Configuration](../core-concepts/configuration/global.md) — reference for
   all available settings and how to change them
 - [Web UI Overview](index.md) — enabling, accessing, and configuring the web UI

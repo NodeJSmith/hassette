@@ -68,7 +68,7 @@ These settings control the [web UI](../../web-ui/index.md) and the underlying we
 - **`run_web_api`** (boolean): Whether to run the web API service (REST API, healthcheck, and UI backend).
     - Default: `true`
 
-- **`run_web_ui`** (boolean): Whether to serve the browser dashboard. Only used when `run_web_api` is `true`.
+- **`run_web_ui`** (boolean): Whether to serve the web UI. Only used when `run_web_api` is `true`.
     - Default: `true`
 
 - **`web_api_host`** (string): Host to bind the web API server to.

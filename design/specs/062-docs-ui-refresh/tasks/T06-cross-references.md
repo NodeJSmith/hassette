@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Update cross-references in non-Web-UI docs"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03", "T05"]
 implements: ["FR#6", "AC#2", "AC#5", "AC#6"]
 ---

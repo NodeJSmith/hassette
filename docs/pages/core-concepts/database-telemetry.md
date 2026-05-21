@@ -1,6 +1,6 @@
 # Database & Telemetry
 
-Hassette stores operational telemetry in a local SQLite database. This data powers the Dashboard KPIs, app health metrics, error feeds, and session history in the [web UI](../web-ui/index.md).
+Hassette stores operational telemetry in a local SQLite database. This data powers the Apps page stats strip, handler invocations, job executions, and app health metrics in the [web UI](../web-ui/index.md).
 
 ## What Is Collected
 
@@ -8,16 +8,16 @@ Hassette records three types of telemetry:
 
 - **Handler invocations** — every time an event bus listener fires, the database records the start time, duration, success/failure, and any error details.
 - **Job executions** — every time a scheduled job runs, the same metrics are recorded.
-- **Sessions** — each Hassette startup creates a session row that tracks uptime, heartbeats, and exit status. See [Sessions](../web-ui/sessions.md) for details.
+- **Sessions** — each Hassette startup creates a session row that tracks uptime, heartbeats, and exit status.
 
 Telemetry is collected automatically. You do not need to enable it or write any code — it works out of the box.
 
 ### Source Tier
 
-Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) are included in Dashboard KPI counts alongside your app registrations. Framework errors appear in the unified **Recent Errors** feed with a **Framework** badge and the component name (e.g. Service Watcher, App Handler), so you can distinguish them from your app errors at a glance. The **App Health** grid shows only your apps — framework components do not appear there.
+Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) are included in Apps page stats strip counts alongside your app registrations. Framework errors appear in the unified **Error Spotlight** with a **Framework** badge and the component name (e.g. Service Watcher, App Handler), so you can distinguish them from your app errors at a glance. The **Handler health grid** shows only your apps — framework components do not appear there.
 
 ??? note "Internal detail"
-    Internally, framework handlers are stored with `source_tier='framework'` and a component-specific `app_key` of the form `__hassette__.<component>` — for example `__hassette__.service_watcher`, `__hassette__.app_handler`, or `__hassette__.core`. This naming identifies which part of the framework produced an error and is used by the web UI to display the component name in the **Framework** badge. The App Health grid filters out all framework keys, while KPIs and the error feed include all tiers by default.
+    Internally, framework handlers are stored with `source_tier='framework'` and a component-specific `app_key` of the form `__hassette__.<component>` — for example `__hassette__.service_watcher`, `__hassette__.app_handler`, or `__hassette__.core`. This naming identifies which part of the framework produced an error and is used by the web UI to display the component name in the **Framework** badge. The Handler health grid filters out all framework keys, while the stats strip and Error Spotlight include all tiers by default.
 
 ## Invocation and Execution Columns
 
@@ -107,14 +107,14 @@ This is the **system-level** health check for Hassette as a whole. It reports th
 
 Listener and job registrations are stored in the database and survive restarts. When Hassette starts, existing registrations are matched by their natural key (handler name, topic, and predicate signature — or the explicit `name=` value) and updated in place via upsert semantics. Registrations that no longer exist in the new session are marked with a `retired_at` timestamp rather than deleted.
 
-This means the Dashboard shows accurate handler and job counts even for registrations that predate the current session. Historical registrations from prior sessions remain visible in the web UI until they age out of the retention window.
+This means the Apps page stats strip shows accurate handler and job counts even for registrations that predate the current startup. Historical registrations from prior startups remain visible in the web UI until they age out of the retention window.
 
 ## Degraded Mode
 
 When the telemetry database becomes unavailable (disk full, permissions error, corruption), Hassette enters **degraded mode**:
 
-- The web UI continues to work, but telemetry-backed panels (KPIs, error rates, handler/job metrics) show empty or zeroed-out data.
-- The Dashboard displays a degraded indicator to alert you.
+- The web UI continues to work, but telemetry-backed panels (stats strip, Error Spotlight, handler/job metrics) show empty or zeroed-out data.
+- The status bar shows a degraded indicator to alert you.
 - Your automations continue to run normally — telemetry is an observability layer, not a dependency for app execution.
 - All telemetry is unavailable — including [persisted registrations](#registration-persistence). Because registration data lives in the same SQLite file, handler and job counts will also show zero until the database recovers.
 
@@ -134,6 +134,5 @@ To resolve a degraded state:
 
 ## Related Resources
 
-- [Sessions](../web-ui/sessions.md) — session history in the web UI
 - [Global Configuration](configuration/global.md) — all configuration fields
 - [App Cache](cache/index.md) — the disk cache for app data (separate from telemetry)

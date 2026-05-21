@@ -154,7 +154,7 @@ The compose examples include `stop_grace_period: 45s` to give Hassette enough ti
 
 ### Web UI
 
-Hassette includes a web UI at `http://<host>:8126/ui/` with a live dashboard, app management, log streaming, and session history. No extra setup needed. See the [Web UI documentation](../../web-ui/index.md) for a full tour.
+Hassette includes a web UI at `http://<host>:8126/ui/` with app monitoring, handler detail, log streaming, and system configuration. No extra setup needed. See the [Web UI documentation](../../web-ui/index.md) for a full tour.
 
 ## Next Steps
 

@@ -49,9 +49,9 @@ Filter events with built-in predicates and conditions for clean, readable code.
 
 #### Web UI
 
-Monitor and manage your automations from the browser — view a live KPI overview, manage apps, stream logs with filtering, and browse session history with telemetry. Enabled by default, no extra setup needed.
+Monitor and manage your automations from the browser — view aggregate stats at a glance, manage apps, stream logs with filtering, and inspect handler and job telemetry. Enabled by default, no extra setup needed.
 
-![Hassette Web UI Dashboard](./_static/web_ui_dashboard.png)
+![Hassette Web UI](./_static/web_ui_apps.png)
 
 See the [Web UI docs](pages/web-ui/index.md) for a full tour.
 

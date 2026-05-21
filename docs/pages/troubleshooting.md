@@ -91,7 +91,7 @@ See also: [Writing Handlers](core-concepts/bus/handlers.md) for how to use depen
 
 ## Database degraded / telemetry missing
 
-- **Dashboard shows zeroed-out metrics**: The telemetry database may be unavailable. Check for disk space issues or file permission problems.
+- **Stats strip shows zeroed-out metrics**: The telemetry database may be unavailable. Check for disk space issues or file permission problems.
 - **Docker**: Check the data volume has space: `docker compose exec hassette df -h /data`. The database file is at `/data/hassette.db` by default.
 - **Safe to delete**: Deleting `hassette.db` only loses telemetry history — your automations continue to run. Restart Hassette to recreate the database.
 - See [Database & Telemetry — Degraded Mode](core-concepts/database-telemetry.md#degraded-mode) for details.
@@ -135,5 +135,5 @@ For container startup failures, dependency installation problems, health check f
 
 - **Running locally**: Open `http://localhost:8126/ui/` after starting Hassette.
 - **Running in Docker**: Ensure your `docker-compose.yml` includes `ports: ["8126:8126"]`.
-- **Disabled**: Check that `run_web_api` and `run_web_ui` are both `true` (the default) in `hassette.toml`.
+- **Disabled**: Check that `run` and `run_ui` are both `true` under `[hassette.web_api]` in `hassette.toml`.
 - See [Web UI](web-ui/index.md) for configuration options.
