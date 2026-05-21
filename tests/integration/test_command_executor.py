@@ -13,9 +13,11 @@ from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.exceptions import DependencyError, HassetteError
-from hassette.scheduler.classes import JobExecutionRecord, ScheduledJob
+from hassette.scheduler.classes import JobExecutionRecord
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
 from hassette.utils.execution import ExecutionResult
+
+from .conftest import make_mock_job, make_mock_listener
 
 
 @pytest.fixture
@@ -63,23 +65,6 @@ def make_job_registration(*, job_name: str = "test_job") -> ScheduledJobRegistra
         source_location="test_command_executor.py:1",
         registration_source=None,
     )
-
-
-def make_mock_listener() -> MagicMock:
-    """Return a mock Listener whose invoke() is an awaitable coroutine."""
-    listener = MagicMock()
-    listener.invoke = AsyncMock()
-    listener.invoker.invoke = AsyncMock()
-    listener.error_handler = None
-    listener.invoker.error_handler = None
-    return listener
-
-
-def make_mock_job() -> MagicMock:
-    """Return a mock ScheduledJob."""
-    job = MagicMock(spec=ScheduledJob)
-    job.error_handler = None
-    return job
 
 
 async def test_cancelled_error_reraises(executor: CommandExecutor) -> None:

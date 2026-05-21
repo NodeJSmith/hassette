@@ -10,9 +10,10 @@ from hassette.bus.error_context import BusErrorContext
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.core.database_service import DatabaseService
-from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.test_utils import wait_for
+
+from .conftest import make_mock_job, make_mock_listener
 
 WAIT_TIMEOUT = 2.0
 
@@ -29,27 +30,6 @@ async def executor(
         yield exc
     finally:
         await exc.on_shutdown()
-
-
-def make_mock_listener(*, error_handler=None) -> MagicMock:
-    """Return a mock Listener whose invoke() is an awaitable coroutine."""
-    listener = MagicMock()
-    listener.invoke = AsyncMock()
-    listener.invoker.invoke = AsyncMock()
-    listener.error_handler = error_handler
-    listener.invoker.error_handler = error_handler
-    return listener
-
-
-def make_mock_job(*, error_handler=None) -> MagicMock:
-    """Return a mock ScheduledJob with optional error handler."""
-    job = MagicMock(spec=ScheduledJob)
-    job.error_handler = error_handler
-    job.name = "test_job"
-    job.group = None
-    job.args = ()
-    job.kwargs = {}
-    return job
 
 
 async def test_error_handler_runs_after_framework_log(executor: CommandExecutor) -> None:

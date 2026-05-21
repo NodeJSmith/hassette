@@ -3,19 +3,13 @@
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
-from hassette.resources.base import Resource
 from hassette.types.enums import ResourceStatus
 
 if TYPE_CHECKING:
     from hassette.events.hassette import ServiceStatusPayload
 from hassette.test_utils import make_mock_hassette
 
-
-class ConcreteResource(Resource):
-    """Minimal concrete Resource subclass for testing."""
-
-    async def on_initialize(self) -> None:
-        pass
+from .conftest import ConcreteResource
 
 
 async def make_resource() -> tuple[ConcreteResource, AsyncMock]:

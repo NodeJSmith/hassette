@@ -1,34 +1,12 @@
 """Integration tests for GET /api/apps/{app_key}/config."""
 
-from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock
-
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.web.app import create_fastapi_app
 
-
-def make_manifest_mock(
-    app_key: str = "my_app",
-    filename: str = "my_app.py",
-    class_name: str = "MyApp",
-    enabled: bool = True,
-    app_config: dict[str, Any] | list[dict[str, Any]] | None = None,
-    app_dir: str | None = None,
-) -> MagicMock:
-    """Build a minimal manifest mock for config endpoint tests."""
-    m = MagicMock()
-    m.app_key = app_key
-    m.filename = filename
-    m.class_name = class_name
-    m.enabled = enabled
-    m.app_config = app_config if app_config is not None else {"instance_name": f"{class_name}.0"}
-    m.app_dir = Path(app_dir or "/apps")
-    m.full_path = m.app_dir / filename
-    return m
+from .conftest import make_manifest_mock
 
 
 @pytest.fixture

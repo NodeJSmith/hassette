@@ -1,5 +1,6 @@
 """Shared fixtures and constants for tests/unit/core/."""
 
+import asyncio
 import logging
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -7,6 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 
 from hassette.core.app_lifecycle_service import AppLifecycleService
+from hassette.core.bus_service import BusService
+from hassette.core.command_executor import CommandExecutor
 from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.types.enums import ResourceStatus
 
@@ -171,3 +174,56 @@ def lifecycle_service(
         service = AppLifecycleService(mock_hassette, parent=None, registry=mock_registry)
     service.factory = mock_factory
     return service
+
+
+def make_executor(*, error_handler_timeout: float = 5.0) -> CommandExecutor:
+    """Build a CommandExecutor with all dependencies mocked out."""
+    hassette = MagicMock()
+    hassette.config.database.telemetry_write_queue_max = 1000
+    hassette.config.logging.command_executor = "DEBUG"
+    hassette.config.lifecycle.error_handler_timeout_seconds = error_handler_timeout
+    hassette.database_service = MagicMock()
+    hassette.session_id = 42
+    executor = CommandExecutor.__new__(CommandExecutor)
+    executor._write_queue = asyncio.Queue(maxsize=1000)
+    executor._dropped_overflow = 0
+    executor._dropped_exhausted = 0
+    executor._dropped_no_session = 0
+    executor._dropped_shutdown = 0
+    executor._error_handler_failures = 0
+    executor._last_capacity_warn_ts = 0.0
+    executor._timeout_warn_timestamps = {}
+    executor.repository = MagicMock()
+    executor.hassette = hassette
+    executor._logger = MagicMock()
+    executor.logger = MagicMock()
+
+    task_bucket = MagicMock()
+    task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
+    spawned_tasks: list[asyncio.Task] = []
+
+    def spawn(coro, *, name=None):
+        task = asyncio.create_task(coro, name=name)
+        spawned_tasks.append(task)
+        return task
+
+    task_bucket.spawn = spawn
+    executor.task_bucket = task_bucket
+    executor._spawned_tasks = spawned_tasks
+    return executor
+
+
+def make_bus_service(*, config_timeout: float | None = 600.0) -> BusService:
+    """Create a BusService with mocked internals, bypassing Resource.__init__."""
+    svc = BusService.__new__(BusService)
+    svc.hassette = MagicMock()
+    svc.hassette.config.lifecycle.event_handler_timeout_seconds = config_timeout
+    svc.hassette.config.bus_excluded_domains = ()
+    svc.hassette.config.bus_excluded_entities = ()
+    svc.hassette.config.logging.all_events = False
+    svc.hassette.config.lifecycle.registration_await_timeout = 30
+    svc._executor = MagicMock()
+    svc._executor.execute = AsyncMock()
+    svc._executor.register_listener = AsyncMock(return_value=0)
+    svc.logger = MagicMock()
+    return svc

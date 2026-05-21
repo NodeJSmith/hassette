@@ -13,43 +13,7 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.commands import ExecuteJob, InvokeHandler
 from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
 
-
-def make_executor() -> CommandExecutor:
-    """Build a CommandExecutor with all dependencies mocked out."""
-    hassette = MagicMock()
-    hassette.config.database.telemetry_write_queue_max = 1000
-    hassette.config.logging.command_executor = "DEBUG"
-    hassette.config.lifecycle.error_handler_timeout_seconds = 5.0
-    hassette.database_service = MagicMock()
-    hassette.session_id = 42
-    executor = CommandExecutor.__new__(CommandExecutor)
-    executor._write_queue = asyncio.Queue(maxsize=1000)
-    executor._dropped_overflow = 0
-    executor._dropped_exhausted = 0
-    executor._dropped_no_session = 0
-    executor._dropped_shutdown = 0
-    executor._error_handler_failures = 0
-    executor._last_capacity_warn_ts = 0.0
-    executor._timeout_warn_timestamps = {}
-    executor.repository = MagicMock()
-    executor.hassette = hassette
-    executor._logger = MagicMock()
-    executor.logger = MagicMock()
-
-    # task_bucket: spawn creates actual tasks so error handlers run
-    task_bucket = MagicMock()
-    task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-    spawned_tasks: list[asyncio.Task] = []
-
-    def _spawn(coro, *, name=None):
-        task = asyncio.create_task(coro, name=name)
-        spawned_tasks.append(task)
-        return task
-
-    task_bucket.spawn = _spawn
-    executor.task_bucket = task_bucket
-    executor._spawned_tasks = spawned_tasks
-    return executor
+from .conftest import make_executor
 
 
 def make_hass_event(origin: str = "LOCAL") -> Event:

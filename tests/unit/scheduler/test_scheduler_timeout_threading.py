@@ -1,35 +1,11 @@
 """Tests for timeout parameter threading through Scheduler public methods."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.config import TEST_SOURCE_LOCATION
 
-
-def make_scheduler() -> Scheduler:
-    """Create a Scheduler with a stubbed hassette and scheduler_service."""
-
-    hassette = MagicMock()
-    hassette.config.logging.scheduler_service = "INFO"
-    scheduler = Scheduler.__new__(Scheduler)
-    scheduler.hassette = hassette
-    scheduler._jobs_by_name = {}
-    scheduler._jobs_by_group = {}
-    scheduler.scheduler_service = MagicMock()
-    scheduler._unique_name = "test_scheduler"
-    mock_parent = MagicMock()
-    mock_parent.app_key = "test_app"
-    mock_parent.index = 0
-    mock_parent.source_tier = "app"
-    mock_parent.class_name = "TestParent"
-    scheduler.parent = mock_parent
-    return scheduler
-
-
-async def noop() -> None:
-    pass
-
+from .conftest import make_scheduler, noop
 
 PATCH_TARGET = "hassette.scheduler.scheduler.capture_registration_source"
 

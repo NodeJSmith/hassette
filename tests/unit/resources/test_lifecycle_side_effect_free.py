@@ -1,14 +1,8 @@
 """Tests verifying mark_ready/mark_not_ready remain side-effect-free."""
 
-from hassette.resources.base import Resource
 from hassette.test_utils import make_mock_hassette
 
-
-class ConcreteResource(Resource):
-    """Minimal concrete Resource subclass for testing."""
-
-    async def on_initialize(self) -> None:
-        pass
+from .conftest import ConcreteResource
 
 
 class TestLifecycleSideEffectFree:
