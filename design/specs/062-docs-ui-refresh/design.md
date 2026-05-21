@@ -1,7 +1,7 @@
 # Design: Web UI Documentation Rewrite
 
 **Date:** 2026-05-20
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** /tmp/claude-mine-define-research-fdlh21/brief.md
 

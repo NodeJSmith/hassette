@@ -15,6 +15,7 @@ absolute paths.  The script uses only stdlib modules so it works before
 
 import atexit
 import contextlib
+import io
 import os
 import shutil
 import signal
@@ -27,10 +28,6 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
 # Must match the pre-seeded JWT in tests/fixtures/demo-ha-config/.storage/auth
 # and the healthcheck in scripts/docker/ha-demo.yml
 HA_TOKEN = (
@@ -40,15 +37,22 @@ HA_TOKEN = (
     ".q-p85dOe-MMnKQhSNh_LEWnWJGK-GA3xdmqb4LKvkU0"
 )
 
-# ---------------------------------------------------------------------------
-# State tracked across startup so teardown knows what to clean up
-# ---------------------------------------------------------------------------
+HTTP_SOCKET_TIMEOUT_SECONDS = 3
+PROC_WAIT_TIMEOUT_SECONDS = 5
+HA_STARTUP_TIMEOUT_SECONDS = 60
+HASSETTE_STARTUP_TIMEOUT_SECONDS = 30
+VITE_STARTUP_TIMEOUT_SECONDS = 15
+DEFAULT_POLL_INTERVAL_SECONDS = 2.0
+AUTH_FAILURE_CODES = (401, 403)
+TRANSIENT_ERROR_CODES = (503, 404)
 
 _ha_compose_file: Path | None = None
 _ha_project_name: str | None = None
 _ha_env: dict[str, str] | None = None
 _hassette_proc: "subprocess.Popen[bytes] | None" = None
 _vite_proc: "subprocess.Popen[bytes] | None" = None
+_hassette_log_fh: io.TextIOWrapper | None = None
+_vite_log_fh: io.TextIOWrapper | None = None
 _tmp_dir: str | None = None
 _torn_down = False
 
@@ -101,7 +105,7 @@ def _poll_http(
     while time.monotonic() < deadline:
         try:
             req = urllib.request.Request(url, headers=headers or {})
-            with urllib.request.urlopen(req, timeout=3) as resp:
+            with urllib.request.urlopen(req, timeout=HTTP_SOCKET_TIMEOUT_SECONDS) as resp:
                 if resp.status == 200:
                     consecutive += 1
                     if consecutive >= consecutive_required:
@@ -109,10 +113,10 @@ def _poll_http(
                 else:
                     consecutive = 0
         except urllib.error.HTTPError as exc:
-            if exc.code in (401, 403):
+            if exc.code in AUTH_FAILURE_CODES:
                 print(f"DEMO_ERROR=HTTP {exc.code} from {url} (check credentials)", flush=True)
                 return False
-            if exc.code not in (503, 404):
+            if exc.code not in TRANSIENT_ERROR_CODES:
                 print(f"DEMO_WARN=HTTP {exc.code} from {url}", flush=True)
             consecutive = 0
         except Exception:
@@ -126,6 +130,17 @@ def _poll_http(
 # ---------------------------------------------------------------------------
 
 
+def _terminate_process_group(proc: "subprocess.Popen[bytes]") -> None:
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+        proc.wait(timeout=PROC_WAIT_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(Exception):
+            os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, OSError):
+        pass
+
+
 def teardown() -> None:
     """Terminate all services in reverse startup order.
 
@@ -136,29 +151,17 @@ def teardown() -> None:
         return
     _torn_down = True
 
-    # 1. Terminate Vite process group
     if _vite_proc is not None:
-        try:
-            os.killpg(_vite_proc.pid, signal.SIGTERM)
-            _vite_proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            with contextlib.suppress(Exception):
-                os.killpg(_vite_proc.pid, signal.SIGKILL)
-        except (ProcessLookupError, OSError):
-            pass
+        _terminate_process_group(_vite_proc)
 
-    # 2. Terminate hassette process group
     if _hassette_proc is not None:
-        try:
-            os.killpg(_hassette_proc.pid, signal.SIGTERM)
-            _hassette_proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            with contextlib.suppress(Exception):
-                os.killpg(_hassette_proc.pid, signal.SIGKILL)
-        except (ProcessLookupError, OSError):
-            pass
+        _terminate_process_group(_hassette_proc)
 
-    # 3. docker compose down
+    for fh in (_vite_log_fh, _hassette_log_fh):
+        if fh is not None:
+            with contextlib.suppress(Exception):
+                fh.close()
+
     if _ha_compose_file is not None and _ha_env is not None:
         cmd = ["docker", "compose", "-f", str(_ha_compose_file)]
         if _ha_project_name is not None:
@@ -167,7 +170,6 @@ def teardown() -> None:
         with contextlib.suppress(Exception):
             subprocess.run(cmd, check=False, env=_ha_env)
 
-    # 4. Remove temp directory
     if _tmp_dir is not None:
         shutil.rmtree(_tmp_dir, ignore_errors=True)
 
@@ -183,7 +185,15 @@ def _signal_handler(_signum: int, _frame: object) -> None:
 
 
 def main() -> None:
-    global _ha_compose_file, _ha_project_name, _ha_env, _hassette_proc, _vite_proc, _tmp_dir
+    global \
+        _ha_compose_file, \
+        _ha_project_name, \
+        _ha_env, \
+        _hassette_proc, \
+        _vite_proc, \
+        _hassette_log_fh, \
+        _vite_log_fh, \
+        _tmp_dir
 
     # Register cleanup handlers early so partial startup is also cleaned up.
     atexit.register(teardown)
@@ -277,13 +287,13 @@ def main() -> None:
     # ------------------------------------------------------------------
     ha_ready = _poll_http(
         f"http://localhost:{ha_port}/api/",
-        timeout_seconds=60,
-        poll_interval=2.0,
+        timeout_seconds=HA_STARTUP_TIMEOUT_SECONDS,
+        poll_interval=DEFAULT_POLL_INTERVAL_SECONDS,
         headers={"Authorization": f"Bearer {HA_TOKEN}"},
         consecutive_required=3,
     )
     if not ha_ready:
-        print("DEMO_ERROR=HA failed to start within 60s", flush=True)
+        print(f"DEMO_ERROR=HA failed to start within {HA_STARTUP_TIMEOUT_SECONDS}s", flush=True)
         teardown()
         sys.exit(1)
 
@@ -299,7 +309,7 @@ def main() -> None:
         "HASSETTE__DATA_DIR": str(repo_root / ".demo-data"),
     }
     hassette_log = Path(_tmp_dir) / "hassette.log"
-    _hassette_log_fh = hassette_log.open("w")
+    _hassette_log_fh = hassette_log.open("w")  # closed in teardown()
     _hassette_proc = subprocess.Popen(
         ["uv", "run", "python", "-m", "hassette", "--config-file", str(repo_root / "examples" / "hassette.toml")],
         env=hassette_env,
@@ -314,14 +324,16 @@ def main() -> None:
     # ------------------------------------------------------------------
     hassette_ready = _poll_http(
         f"http://localhost:{hassette_port}/api/health",
-        timeout_seconds=30,
-        poll_interval=2.0,
+        timeout_seconds=HASSETTE_STARTUP_TIMEOUT_SECONDS,
+        poll_interval=DEFAULT_POLL_INTERVAL_SECONDS,
     )
     if not hassette_ready:
         _hassette_log_fh.flush()
         log_lines = hassette_log.read_text().strip().splitlines()
         print(
-            f"DEMO_ERROR=Hassette failed to start within 30s (log: {hassette_log}, {len(log_lines)} lines)", flush=True
+            f"DEMO_ERROR=Hassette failed to start within {HASSETTE_STARTUP_TIMEOUT_SECONDS}s"
+            f" (log: {hassette_log}, {len(log_lines)} lines)",
+            flush=True,
         )
         for line in log_lines:
             print(f"DEMO_LOG={line}", flush=True)
@@ -352,7 +364,7 @@ def main() -> None:
         "VITE_PROXY_TARGET": f"http://localhost:{hassette_port}",
     }
     vite_log = Path(_tmp_dir) / "vite.log"
-    _vite_log_fh = vite_log.open("w")
+    _vite_log_fh = vite_log.open("w")  # closed in teardown()
     _vite_proc = subprocess.Popen(
         ["npm", "run", "dev", "--prefix", str(repo_root / "frontend"), "--", "--port", str(vite_port)],
         env=vite_env,
@@ -365,11 +377,11 @@ def main() -> None:
     # Poll Vite readiness
     vite_ready = _poll_http(
         f"http://localhost:{vite_port}",
-        timeout_seconds=15,
-        poll_interval=2.0,
+        timeout_seconds=VITE_STARTUP_TIMEOUT_SECONDS,
+        poll_interval=DEFAULT_POLL_INTERVAL_SECONDS,
     )
     if not vite_ready:
-        print(f"DEMO_ERROR=Vite failed to start within 15s (log: {vite_log})", flush=True)
+        print(f"DEMO_ERROR=Vite failed to start within {VITE_STARTUP_TIMEOUT_SECONDS}s (log: {vite_log})", flush=True)
         teardown()
         sys.exit(1)
 

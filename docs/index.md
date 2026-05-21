@@ -28,7 +28,7 @@ If you know Python, think of it as FastAPI-style dependency injection for Home A
 
 Type annotations and Pydantic models give you IDE autocomplete and inline docs for Home Assistant entities, services, and more.
 
-<video controls autoplay muted loop playsinline style="width: 100%; max-width: 1100px; border-radius: 10px;">
+<video class="hero-video" controls autoplay muted loop playsinline>
     <source src="./_static/autocomplete.webm" type="video/webm">
     <source src="./_static/autocomplete.mp4" type="video/mp4">
     Your browser does not support the video tag.
@@ -40,7 +40,7 @@ Dependency injection extracts the data you need automatically - just declare it 
 
 Filter events with built-in predicates and conditions for clean, readable code.
 
-<video controls autoplay muted loop playsinline style="width: 100%; max-width: 1100px; border-radius: 10px;">
+<video class="hero-video" controls autoplay muted loop playsinline>
     <source src="./_static/filtered_events.webm" type="video/webm">
     <source src="./_static/filtered_events.mp4" type="video/mp4">
     Your browser does not support the video tag.

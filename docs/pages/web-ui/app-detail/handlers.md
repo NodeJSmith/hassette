@@ -21,10 +21,8 @@ in the status bar.
 | **Handlers** | Total number of registered handlers and scheduled jobs |
 | **Invocations** | Total calls and executions across all handlers and jobs in the time window |
 | **Success Rate** | Percentage of invocations that completed without error |
-| **Failed** | Number of invocations that raised an unhandled exception |
-| **Timed out** | Number of invocations that exceeded their timeout |
-
-A non-zero **Failed** count is highlighted in red. A non-zero **Timed out** count is highlighted in amber.
+| **Failed** | Number of invocations that raised an unhandled exception (highlighted in red when non-zero) |
+| **Timed out** | Number of invocations that exceeded their timeout (highlighted in amber when non-zero) |
 
 ## Handler list
 

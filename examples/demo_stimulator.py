@@ -18,13 +18,15 @@ from pydantic_settings import SettingsConfigDict
 
 from hassette import App, AppConfig
 
+BURST_DELAY_SECONDS = 3
+
 
 class DemoStimulatorConfig(AppConfig):
     model_config = SettingsConfigDict(env_prefix="demo_stim_")
 
     enable_failure: bool = True
     activity_interval: float = 20.0
-    failure_delay: float = 12.0
+    failure_interval: float = 60.0
 
 
 class DemoStimulator(App[DemoStimulatorConfig]):
@@ -32,14 +34,14 @@ class DemoStimulator(App[DemoStimulatorConfig]):
 
     async def on_initialize(self) -> None:
         cfg = self.app_config
-        self._cycle = 0
+        self.cycle = 0
 
         self.bus.on_state_change(
             "input_boolean.test_toggle",
             handler=self.on_toggle_changed,
         )
 
-        self.scheduler.run_in(self.trigger_activity_burst, 3, name="initial_burst")
+        self.scheduler.run_in(self.trigger_activity_burst, BURST_DELAY_SECONDS, name="initial_burst")
 
         self.scheduler.run_every(
             self.trigger_activity_cycle,
@@ -51,7 +53,7 @@ class DemoStimulator(App[DemoStimulatorConfig]):
         if cfg.enable_failure:
             self.scheduler.run_every(
                 self.failing_job,
-                seconds=60.0,
+                seconds=cfg.failure_interval,
                 name="sensor_health_check",
                 group="monitoring",
             )
@@ -81,7 +83,7 @@ class DemoStimulator(App[DemoStimulatorConfig]):
             target={"entity_id": "input_boolean.test_toggle"},
         )
 
-        self.scheduler.run_in(self.trigger_cooldown, 3, name="cooldown")
+        self.scheduler.run_in(self.trigger_cooldown, BURST_DELAY_SECONDS, name="cooldown")
 
     async def trigger_cooldown(self) -> None:
         """Reset states after the burst."""
@@ -99,9 +101,9 @@ class DemoStimulator(App[DemoStimulatorConfig]):
 
     async def trigger_activity_cycle(self) -> None:
         """Periodic state changes to keep handler stats populated."""
-        self._cycle += 1
-        temp = 26.0 + (self._cycle % 5)
-        self.logger.info("Activity cycle %d — setting temp to %.1f°", self._cycle, temp)
+        self.cycle += 1
+        temp = 26.0 + (self.cycle % 5)
+        self.logger.info("Activity cycle %d — setting temp to %.1f°", self.cycle, temp)
 
         await self.api.set_state(
             "sensor.outside_temperature",

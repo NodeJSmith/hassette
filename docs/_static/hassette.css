@@ -7,6 +7,13 @@ img.hero {
   filter: drop-shadow(0 20px 20px rgba(0, 0, 0, 0.15));
 }
 
+video.hero-video {
+  display: block;
+  width: 100%;
+  max-width: 1100px;
+  border-radius: 10px;
+}
+
 @media (max-width: 480px) {
   img.hero {
     width: 80%;

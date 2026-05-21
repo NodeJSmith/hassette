@@ -80,7 +80,7 @@ nav:
       - Layout & Navigation: pages/web-ui/layout.md
       - Apps: pages/web-ui/apps.md
       - App Detail:
-          - pages/web-ui/app-detail/index.md
+          - Overview: pages/web-ui/app-detail/index.md
           - Overview Tab: pages/web-ui/app-detail/overview.md
           - Handlers Tab: pages/web-ui/app-detail/handlers.md
           - Code Tab: pages/web-ui/app-detail/code.md
