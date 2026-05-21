@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add App Detail index, Overview tab, and Handlers tab pages"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#2", "FR#3", "FR#4", "FR#7", "FR#8", "AC#4"]
 ---
