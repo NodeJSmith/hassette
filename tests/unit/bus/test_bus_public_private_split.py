@@ -72,7 +72,6 @@ async def test_subscription_registration_task_is_future(bus: "Bus") -> None:
         assert isinstance(sub.registration_task, asyncio.Future)
 
 
-@pytest.mark.asyncio
 async def test_subscription_registration_task_resolves_with_none(bus: "Bus") -> None:
     """AC#7: await subscription.registration_task resolves with None."""
     loop = asyncio.get_running_loop()

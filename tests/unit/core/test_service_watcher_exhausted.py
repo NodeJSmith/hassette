@@ -12,8 +12,6 @@ import logging
 from typing import ClassVar
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
-import pytest
-
 from hassette.core.service_watcher import ServiceWatcher
 from hassette.events.hassette import ServiceStatusPayload
 from hassette.resources.base import RestartSpec, Service
@@ -102,7 +100,6 @@ def make_watcher(hassette: MagicMock) -> ServiceWatcher:
     return watcher
 
 
-@pytest.mark.asyncio
 async def test_exhausted_cooling_sets_status_on_instance():
     """TRANSIENT service: _handle_exhaustion sets EXHAUSTED_COOLING on the service instance."""
     hassette = build_hassette()
@@ -141,7 +138,6 @@ async def test_exhausted_cooling_sets_status_on_instance():
     )
 
 
-@pytest.mark.asyncio
 async def test_exhausted_dead_sets_status_on_instance():
     """TEMPORARY service: _handle_exhaustion sets EXHAUSTED_DEAD on the service instance."""
     hassette = build_hassette()
@@ -166,7 +162,6 @@ async def test_exhausted_dead_sets_status_on_instance():
     )
 
 
-@pytest.mark.asyncio
 async def test_cooldown_exceeded_sets_exhausted_dead():
     """_cooldown_and_retry transitions EXHAUSTED_COOLING → EXHAUSTED_DEAD when max_cooldown_cycles exceeded."""
     hassette = build_hassette()
@@ -196,7 +191,6 @@ async def test_cooldown_exceeded_sets_exhausted_dead():
     )
 
 
-@pytest.mark.asyncio
 async def test_exhausted_status_skipped_when_service_not_found():
     """When _get_service returns empty list, status set is skipped — no exception, event still emitted."""
     hassette = build_hassette()

@@ -34,7 +34,6 @@ class NeverReady(Resource):
         pass
 
 
-@pytest.mark.asyncio
 async def test_all_children_become_ready():
     hassette = make_mock_hassette(sealed=False)
     parent = Parent(hassette)
@@ -46,7 +45,6 @@ async def test_all_children_become_ready():
     assert all(c.is_ready() for c in parent.children)
 
 
-@pytest.mark.asyncio
 async def test_empty_children_is_noop():
     hassette = make_mock_hassette(sealed=False)
     parent = Parent(hassette)
@@ -56,7 +54,6 @@ async def test_empty_children_is_noop():
     assert parent.children == []
 
 
-@pytest.mark.asyncio
 async def test_timeout_raises_with_diagnostics():
     hassette = make_mock_hassette(sealed=False)
     parent = Parent(hassette)
@@ -67,7 +64,6 @@ async def test_timeout_raises_with_diagnostics():
         await parent.start_children_and_wait(timeout=0.1)
 
 
-@pytest.mark.asyncio
 async def test_shutdown_during_wait_raises():
     hassette = make_mock_hassette(sealed=False)
     parent = Parent(hassette)

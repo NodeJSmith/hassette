@@ -2,8 +2,6 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from hassette.bus.listeners import HandlerInvoker, ListenerOptions
 
 
@@ -176,7 +174,6 @@ class TestHandlerInvokerSetAppErrorHandlerResolver:
 
 
 class TestHandlerInvokerDispatch:
-    @pytest.mark.asyncio
     async def test_dispatch_calls_invoke_fn(self) -> None:
         task_bucket = make_task_bucket()
         invoker = HandlerInvoker.create(
@@ -189,7 +186,6 @@ class TestHandlerInvokerDispatch:
         await invoker.dispatch(invoke_fn)
         invoke_fn.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_dispatch_once_guard_prevents_double_fire(self) -> None:
         """Once-guard: if once=True and fired=True, dispatch is skipped."""
         task_bucket = make_task_bucket()
@@ -210,7 +206,6 @@ class TestHandlerInvokerDispatch:
         await invoker.dispatch(invoke_fn)
         invoke_fn.assert_not_awaited()
 
-    @pytest.mark.asyncio
     async def test_dispatch_once_false_allows_multiple(self) -> None:
         """once=False allows multiple dispatches."""
         task_bucket = make_task_bucket()
@@ -225,7 +220,6 @@ class TestHandlerInvokerDispatch:
         await invoker.dispatch(invoke_fn)
         assert invoke_fn.await_count == 2
 
-    @pytest.mark.asyncio
     async def test_dispatch_skipped_when_already_fired(self) -> None:
         """If fired is True before dispatch, dispatch returns immediately."""
         task_bucket = make_task_bucket()
@@ -242,7 +236,6 @@ class TestHandlerInvokerDispatch:
 
 
 class TestHandlerInvokerInvoke:
-    @pytest.mark.asyncio
     async def test_invoke_calls_handler(self) -> None:
         called = False
 
@@ -262,7 +255,6 @@ class TestHandlerInvokerInvoke:
         await invoker.invoke(mock_event)
         assert called
 
-    @pytest.mark.asyncio
     async def test_invoke_passes_extra_kwargs(self) -> None:
         received = {}
 

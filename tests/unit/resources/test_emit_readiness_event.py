@@ -3,8 +3,6 @@
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
-import pytest
-
 from hassette.resources.base import Resource
 from hassette.types.enums import ResourceStatus
 
@@ -30,7 +28,6 @@ async def make_resource() -> tuple[ConcreteResource, AsyncMock]:
 class TestEmitReadinessEvent:
     """Tests for Resource._emit_readiness_event()."""
 
-    @pytest.mark.asyncio
     async def test_emit_readiness_event_sends_service_status(self) -> None:
         """_emit_readiness_event sends a service_status event with current readiness state."""
         resource, hassette = await make_resource()
@@ -53,7 +50,6 @@ class TestEmitReadinessEvent:
         assert payload.ready_phase == "test reason"
         assert payload.status == ResourceStatus.RUNNING
 
-    @pytest.mark.asyncio
     async def test_handle_running_includes_readiness(self) -> None:
         """handle_running emits an event carrying the current readiness state."""
         resource, hassette = await make_resource()

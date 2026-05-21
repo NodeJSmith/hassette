@@ -48,7 +48,6 @@ class SimpleService(Service):
             raise
 
 
-@pytest.mark.asyncio
 async def test_valid_transition_sequence():
     """Walk NOT_STARTED → STARTING → RUNNING → STOPPING → STOPPED via the setter — no error raised."""
     hassette = make_mock_hassette(sealed=False)
@@ -67,7 +66,6 @@ async def test_valid_transition_sequence():
     assert resource.status == ResourceStatus.STOPPED
 
 
-@pytest.mark.asyncio
 async def test_invalid_transition_raises_strict():
     """In strict mode, NOT_STARTED → RUNNING raises InvalidLifecycleTransitionError with correct fields."""
     hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
@@ -84,7 +82,6 @@ async def test_invalid_transition_raises_strict():
     assert err.resource_name  # non-empty
 
 
-@pytest.mark.asyncio
 async def test_invalid_transition_warns_nonstrict():
     """Non-strict mode: invalid transition does not raise and the transition still proceeds."""
     hassette = make_mock_hassette(strict_lifecycle=False, sealed=False)
@@ -97,7 +94,6 @@ async def test_invalid_transition_warns_nonstrict():
     assert resource.status == ResourceStatus.RUNNING
 
 
-@pytest.mark.asyncio
 async def test_force_terminal_bypasses_validation():
     """In strict mode, _force_terminal() on a RUNNING resource succeeds with STOPPED and no error."""
     hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
@@ -112,7 +108,6 @@ async def test_force_terminal_bypasses_validation():
     assert resource.status == ResourceStatus.STOPPED
 
 
-@pytest.mark.asyncio
 async def test_restart_transitions_valid():
     """FAILED → STARTING and CRASHED → STARTING are valid restart transitions."""
     hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
@@ -132,7 +127,6 @@ async def test_restart_transitions_valid():
     assert resource2.status == ResourceStatus.STARTING
 
 
-@pytest.mark.asyncio
 async def test_exhausted_transitions_valid():
     """FAILED→EXHAUSTED_COOLING, EXHAUSTED_COOLING→STARTING, EXHAUSTED_COOLING→EXHAUSTED_DEAD are valid."""
     hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
@@ -156,7 +150,6 @@ async def test_exhausted_transitions_valid():
     assert r3.status == ResourceStatus.EXHAUSTED_DEAD
 
 
-@pytest.mark.asyncio
 async def test_terminal_state_rejects_transitions():
     """EXHAUSTED_DEAD → STARTING raises InvalidLifecycleTransitionError in strict mode."""
     hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
@@ -171,7 +164,6 @@ async def test_terminal_state_rejects_transitions():
     assert err.to_status == ResourceStatus.STARTING
 
 
-@pytest.mark.asyncio
 async def test_hasattr_guard_no_hassette():
     """Setting status on an object without 'hassette' attribute should not raise (construction-time guard)."""
     # Create a LifecycleMixin directly — it does not call Resource.__init__,
@@ -186,7 +178,6 @@ async def test_hasattr_guard_no_hassette():
     assert mixin.status == ResourceStatus.STARTING
 
 
-@pytest.mark.asyncio
 async def test_same_state_no_transition():
     """handle_running() when already RUNNING returns early — idempotency preserved, previous_status unchanged."""
     hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
@@ -201,7 +192,6 @@ async def test_same_state_no_transition():
     assert resource._previous_status == ResourceStatus.STARTING
 
 
-@pytest.mark.asyncio
 async def test_hasattr_guard_invalid_transition_no_hassette():
     """Invalid transition on an object without hassette attribute should not raise AttributeError."""
     mixin = LifecycleMixin.__new__(LifecycleMixin)
@@ -213,7 +203,6 @@ async def test_hasattr_guard_invalid_transition_no_hassette():
     assert mixin.status == ResourceStatus.RUNNING
 
 
-@pytest.mark.asyncio
 async def test_is_true_identity_check_mock_safe():
     """MagicMock's truthy strict_lifecycle must NOT trigger strict mode (is True identity check)."""
     hassette = AsyncMock()
@@ -227,7 +216,6 @@ async def test_is_true_identity_check_mock_safe():
     assert resource.status == ResourceStatus.RUNNING
 
 
-@pytest.mark.asyncio
 async def test_same_state_setter_no_raise():
     """Direct same-state assignment via setter should not raise or re-validate."""
     hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
@@ -241,7 +229,6 @@ async def test_same_state_setter_no_raise():
     assert resource._previous_status == ResourceStatus.STARTING
 
 
-@pytest.mark.asyncio
 async def test_shutdown_sets_stopping_before_hooks():
     """Resource.shutdown() must set STOPPING before on_shutdown hook runs."""
     hassette = make_mock_hassette(sealed=False)
@@ -266,7 +253,6 @@ async def test_shutdown_sets_stopping_before_hooks():
     assert resource.status == ResourceStatus.STOPPED, f"Expected STOPPED after shutdown, got {resource.status}"
 
 
-@pytest.mark.asyncio
 async def test_service_shutdown_sets_stopping_before_hooks():
     """Service.shutdown() must set STOPPING before before_shutdown hook runs.
 
@@ -296,7 +282,6 @@ async def test_service_shutdown_sets_stopping_before_hooks():
     assert svc.status == ResourceStatus.STOPPED, f"Expected STOPPED after shutdown, got {svc.status}"
 
 
-@pytest.mark.asyncio
 async def test_shutdown_stopping_then_stopped_sequence():
     """Full transition sequence: RUNNING → STOPPING → STOPPED via shutdown()."""
     hassette = make_mock_hassette(sealed=False)
@@ -326,7 +311,6 @@ async def test_shutdown_stopping_then_stopped_sequence():
     assert stopping_idx < stopped_idx, "STOPPING must precede STOPPED"
 
 
-@pytest.mark.asyncio
 async def test_running_to_stopped_direct_is_valid():
     """RUNNING → STOPPED is valid for natural service completion (_serve_wrapper normal return)."""
     hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
