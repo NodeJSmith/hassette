@@ -3,7 +3,7 @@ task_id: "T01"
 title: "Update mkdocs nav, rewrite Overview, add Layout & Navigation"
 status: "planned"
 depends_on: []
-implements: ["FR#1", "FR#2", "AC#1"]
+implements: ["FR#1", "FR#2", "FR#4", "AC#1"]
 ---
 
 ## Summary
@@ -99,4 +99,5 @@ End with "Related pages" section linking to Apps.
 ## Verify
 - [ ] FR#1: mkdocs.yml Web UI nav matches the 12-page structure from the design doc
 - [ ] FR#2: Overview describes the UI overview; Layout & Navigation describes cross-cutting chrome — each page serves one purpose
+- [ ] FR#4: Screenshots referenced in Overview (`web_ui_apps.png`) and Layout (`web_ui_detail_sidebar.png`, `web_ui_detail_status_bar.png`, `web_ui_detail_command_palette.png`) exist in `docs/_static/`
 - [ ] AC#1: All 12 pages listed in mkdocs.yml nav

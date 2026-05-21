@@ -44,6 +44,14 @@ All screenshots are captured and ready in `docs/_static/`. Reference them direct
 - **Overview page mode ordering** — explanation paragraph first, hero screenshot, how-to (enabling/accessing/security), config reference in collapsed admonition. Don't mix modes.
 - **Use nested config keys** — the v0.32.0 migration moved flat keys to nested groups. Use `[hassette.web_api] run_ui = false` not `run_web_ui = false`. See `src/hassette/config/legacy.py` for the mapping.
 
+## Frontend Component Reference
+When writing docs pages, read these frontend files for accurate feature descriptions:
+
+**Pages:** `frontend/src/pages/` — `apps.tsx` (291 lines), `app-detail.tsx` (229 lines), `handlers.tsx` (218 lines), `logs.tsx` (93 lines), `config.tsx`
+**App Detail components:** `frontend/src/components/app-detail/` — `overview-tab.tsx`, `handlers-tab.tsx`, `code-tab.tsx`, `config-tab.tsx`, `app-logs-panel.tsx`, `handler-detail-layout.tsx`, `listener-detail.tsx`, `job-detail.tsx`, `handler-health-grid.tsx`, `error-spotlight.tsx`, `multi-instance.tsx`
+**Layout components:** `frontend/src/components/layout/` — `sidebar.tsx`, `status-bar.tsx`, `command-palette.tsx`, `alert-banner.tsx`
+**Shared log table:** `frontend/src/components/shared/log-table/` — `log-table-with-drawer.tsx`, `log-detail-drawer.tsx`, `column-picker.tsx`
+
 ## Design Doc References
 - `## Architecture` — page structure table, mkdocs nav, screenshot plan, cross-reference update list, execution order
 - `## Convention Examples` — target writing style for new pages (illustrative, not from existing files)

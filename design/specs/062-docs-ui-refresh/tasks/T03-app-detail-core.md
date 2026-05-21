@@ -3,7 +3,7 @@ task_id: "T03"
 title: "Add App Detail index, Overview tab, and Handlers tab pages"
 status: "planned"
 depends_on: ["T01"]
-implements: ["FR#2", "FR#3", "FR#7", "FR#8", "AC#4"]
+implements: ["FR#2", "FR#3", "FR#4", "FR#7", "FR#8", "AC#4"]
 ---
 
 ## Summary
@@ -75,4 +75,5 @@ Read `frontend/src/components/app-detail/handlers-tab.tsx`, `listener-detail.tsx
 - [ ] FR#3: Every documented interaction (instance switcher, error spotlight "view" link, handler selection, "view in code" link, "show traceback") exists in the frontend
 - [ ] FR#7: Monitoring workflow: reader understands how to check handler health at a glance via the overview tab
 - [ ] FR#8: Troubleshooting workflow: reader can follow error spotlight → handler detail → error banner → traceback → "view in code" → logs
+- [ ] FR#4: Screenshots referenced (`web_ui_app_detail_overview.png`, `web_ui_app_detail_handlers.png`, `web_ui_detail_error_spotlight.png`, `web_ui_detail_handler_error.png`, `web_ui_detail_instance_switcher.png`) exist in `docs/_static/`
 - [ ] AC#4: Related pages sections link the Apps → App Detail → Handlers → Code/Logs sequence without gaps

@@ -2,7 +2,7 @@
 task_id: "T04"
 title: "Add App Detail Code, Logs, and Config tab pages"
 status: "planned"
-depends_on: ["T01"]
+depends_on: ["T01", "T03"]
 implements: ["FR#2", "FR#3"]
 ---
 
