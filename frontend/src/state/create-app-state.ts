@@ -1,9 +1,10 @@
-import { batch, computed, signal, type Signal } from "@preact/signals";
-import { RingBuffer } from "../utils/ring-buffer";
-import { getStoredValue } from "../utils/local-storage";
-import { isTheme } from "../utils/theme";
+import { batch, computed, type Signal, signal } from "@preact/signals";
+
 import type { AppManifest } from "../api/endpoints";
-import type { WsLogPayload, WsInvocationCompletedPayload, WsExecutionCompletedPayload } from "../api/ws-types";
+import type { WsExecutionCompletedPayload, WsInvocationCompletedPayload, WsLogPayload } from "../api/ws-types";
+import { getStoredValue } from "../utils/local-storage";
+import { RingBuffer } from "../utils/ring-buffer";
+import { isTheme } from "../utils/theme";
 
 export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
 
@@ -73,9 +74,7 @@ export function createAppState() {
   let _updateLogSubscription: (level: string) => void = () => {};
 
   // Pre-create signals that are referenced by computed values.
-  const timePreset = signal<TimePreset>(
-    getStoredValue<TimePreset>("timePreset", "since-restart", isTimePreset)
-  );
+  const timePreset = signal<TimePreset>(getStoredValue<TimePreset>("timePreset", "since-restart", isTimePreset));
   const urlWindowParam = signal<TimePreset | null>(null);
 
   /**
@@ -122,9 +121,7 @@ export function createAppState() {
     logs: createLogStore(),
 
     /** Dark/light theme (initialized from localStorage via local-storage utility). */
-    theme: signal<"dark" | "light">(
-      getStoredValue<"dark" | "light">("theme", "light", isTheme)
-    ),
+    theme: signal<"dark" | "light">(getStoredValue<"dark" | "light">("theme", "light", isTheme)),
 
     /**
      * Selected time-window preset for telemetry queries.

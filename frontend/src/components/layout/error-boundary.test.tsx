@@ -1,5 +1,6 @@
+import { fireEvent, render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/preact";
+
 import { ErrorBoundary } from "./error-boundary";
 
 // A component that throws unconditionally — used to trigger error boundary.

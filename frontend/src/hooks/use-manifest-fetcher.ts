@@ -1,5 +1,6 @@
 import { useSignalEffect } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
+
 import { getManifests } from "../api/endpoints";
 import type { AppState } from "../state/create-app-state";
 
@@ -35,7 +36,9 @@ export function useManifestFetcher(state: AppState): void {
   const fetchRef = useRef(fetchManifests);
   fetchRef.current = fetchManifests;
 
-  useEffect(() => { void fetchRef.current(); }, []);
+  useEffect(() => {
+    void fetchRef.current();
+  }, []);
 
   const mountReconnectVersion = useRef(state.reconnectVersion.peek());
   useSignalEffect(() => {

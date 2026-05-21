@@ -1,13 +1,14 @@
 import { useEffect } from "preact/hooks";
-import { useSignal } from "../../hooks/use-signal";
-import { useQueryParams } from "../../hooks/use-query-params";
 import type { HighlighterGeneric } from "shiki";
-import { getAppSource } from "../../api/endpoints";
+
 import type { AppSourceData, ListenerData } from "../../api/endpoints";
-import { Spinner } from "../shared/spinner";
+import { getAppSource } from "../../api/endpoints";
+import { useQueryParams } from "../../hooks/use-query-params";
+import { useSignal } from "../../hooks/use-signal";
 import { parseSourceLocation } from "../../utils/format";
 import { Button } from "../shared/button";
 import { Card } from "../shared/card";
+import { Spinner } from "../shared/spinner";
 import styles from "./code-tab.module.css";
 
 interface Props {
@@ -116,7 +117,9 @@ export function CodeTab({ appKey, listeners }: Props) {
     }
 
     void load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [appKey]);
 
   useEffect(() => {
@@ -131,9 +134,7 @@ export function CodeTab({ appKey, listeners }: Props) {
   }, [focusLine, loading.value]);
 
   if (loading.value) {
-    return (
-      <Spinner />
-    );
+    return <Spinner />;
   }
 
   if (error.value) {
@@ -167,13 +168,7 @@ export function CodeTab({ appKey, listeners }: Props) {
         <div class={styles.headerMeta}>
           <span class="ht-text-muted ht-text-sm">{lineCount} lines</span>
           <span class={styles.readonlyLabel}>read-only</span>
-          <Button
-            ghost
-            size="sm"
-            data-testid="copy-path-btn"
-            onClick={handleCopyPath}
-            aria-label="Copy file path"
-          >
+          <Button ghost size="sm" data-testid="copy-path-btn" onClick={handleCopyPath} aria-label="Copy file path">
             copy path
           </Button>
         </div>

@@ -1,14 +1,15 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/preact";
-import { h } from "preact";
-import type { ComponentChildren } from "preact";
+import { act, renderHook } from "@testing-library/preact";
 import { http, HttpResponse } from "msw";
-import { server } from "../../../test/server";
-import { AppStateContext } from "../../../state/context";
-import { createAppState, type AppState } from "../../../state/create-app-state";
+import type { ComponentChildren } from "preact";
+import { h } from "preact";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import type { WsLogPayload } from "../../../api/ws-types";
-import { useLogData } from "./use-log-data";
+import { AppStateContext } from "../../../state/context";
+import { type AppState, createAppState } from "../../../state/create-app-state";
+import { server } from "../../../test/server";
 import { REST_FETCH_LIMIT } from "./constants";
+import { useLogData } from "./use-log-data";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
@@ -59,9 +60,7 @@ describe("useLogData", () => {
     it("is true initially before REST resolves", () => {
       const state = createAppState();
       // Override with a never-resolving handler to freeze the fetch in-flight.
-      server.use(
-        http.get("/api/logs/recent", () => new Promise(() => {})),
-      );
+      server.use(http.get("/api/logs/recent", () => new Promise(() => {})));
 
       const { result } = renderHook(() => useLogData({}), {
         wrapper: createWrapper(state),
@@ -95,10 +94,9 @@ describe("useLogData", () => {
         }),
       );
 
-      const { result } = renderHook(
-        () => useLogData({ appKey: "my_app", executionId: "exec-42" }),
-        { wrapper: createWrapper(state) },
-      );
+      const { result } = renderHook(() => useLogData({ appKey: "my_app", executionId: "exec-42" }), {
+        wrapper: createWrapper(state),
+      });
 
       await vi.waitFor(() => {
         expect(result.current.loading.value).toBe(false);
@@ -118,9 +116,7 @@ describe("useLogData", () => {
         makeLogEntry({ seq: 2, timestamp: 2000, message: "second" }),
       ];
 
-      server.use(
-        http.get("/api/logs/recent", () => HttpResponse.json(entries)),
-      );
+      server.use(http.get("/api/logs/recent", () => HttpResponse.json(entries)));
 
       const { result } = renderHook(() => useLogData({}), {
         wrapper: createWrapper(state),
@@ -139,9 +135,7 @@ describe("useLogData", () => {
       const state = createAppState();
       const entries = [makeLogEntry({ seq: 1, timestamp: 1000, message: "rest-entry" })];
 
-      server.use(
-        http.get("/api/logs/recent", () => HttpResponse.json(entries)),
-      );
+      server.use(http.get("/api/logs/recent", () => HttpResponse.json(entries)));
 
       const { result } = renderHook(() => useLogData({}), {
         wrapper: createWrapper(state),
@@ -160,9 +154,7 @@ describe("useLogData", () => {
       const state = createAppState();
       const restEntry = makeLogEntry({ seq: 1, timestamp: 1000, message: "rest" });
 
-      server.use(
-        http.get("/api/logs/recent", () => HttpResponse.json([restEntry])),
-      );
+      server.use(http.get("/api/logs/recent", () => HttpResponse.json([restEntry])));
 
       const { result } = renderHook(() => useLogData({}), {
         wrapper: createWrapper(state),
@@ -185,9 +177,7 @@ describe("useLogData", () => {
       const state = createAppState();
       const restEntry = makeLogEntry({ seq: 1, timestamp: 5000, message: "rest" });
 
-      server.use(
-        http.get("/api/logs/recent", () => HttpResponse.json([restEntry])),
-      );
+      server.use(http.get("/api/logs/recent", () => HttpResponse.json([restEntry])));
 
       const { result } = renderHook(() => useLogData({}), {
         wrapper: createWrapper(state),
@@ -212,14 +202,9 @@ describe("useLogData", () => {
     it("excludes WS entries for a different app_key when appKey is provided", async () => {
       const state = createAppState();
 
-      server.use(
-        http.get("/api/logs/recent", () => HttpResponse.json([])),
-      );
+      server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
-      const { result } = renderHook(
-        () => useLogData({ appKey: "my_app" }),
-        { wrapper: createWrapper(state) },
-      );
+      const { result } = renderHook(() => useLogData({ appKey: "my_app" }), { wrapper: createWrapper(state) });
 
       await vi.waitFor(() => {
         expect(result.current.loading.value).toBe(false);
@@ -238,14 +223,9 @@ describe("useLogData", () => {
     it("excludes WS entries for a different execution_id when executionId is provided", async () => {
       const state = createAppState();
 
-      server.use(
-        http.get("/api/logs/recent", () => HttpResponse.json([])),
-      );
+      server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
-      const { result } = renderHook(
-        () => useLogData({ executionId: "exec-1" }),
-        { wrapper: createWrapper(state) },
-      );
+      const { result } = renderHook(() => useLogData({ executionId: "exec-1" }), { wrapper: createWrapper(state) });
 
       await vi.waitFor(() => {
         expect(result.current.loading.value).toBe(false);
@@ -264,9 +244,7 @@ describe("useLogData", () => {
     it("includes all WS entries above the watermark when no filters are provided", async () => {
       const state = createAppState();
 
-      server.use(
-        http.get("/api/logs/recent", () => HttpResponse.json([])),
-      );
+      server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
       const { result } = renderHook(() => useLogData({}), {
         wrapper: createWrapper(state),
@@ -291,9 +269,7 @@ describe("useLogData", () => {
     it("shows a toast error and sets loading to false when the REST fetch rejects", async () => {
       const state = createAppState();
 
-      server.use(
-        http.get("/api/logs/recent", () => HttpResponse.error()),
-      );
+      server.use(http.get("/api/logs/recent", () => HttpResponse.error()));
 
       const { result } = renderHook(() => useLogData({}), {
         wrapper: createWrapper(state),

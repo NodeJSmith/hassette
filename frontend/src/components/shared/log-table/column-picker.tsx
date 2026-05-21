@@ -1,10 +1,11 @@
 import { useRef } from "preact/hooks";
+
 import { useSignal } from "../../../hooks/use-signal";
 import { useSubscribe } from "../../../hooks/use-subscribe";
-import { COLUMNS, REQUIRED_COLUMNS } from "./constants";
-import type { ColumnId } from "./types";
 import { ColumnFilterPopover } from "../column-filter-popover/index";
 import styles from "./column-picker.module.css";
+import { COLUMNS, REQUIRED_COLUMNS } from "./constants";
+import type { ColumnId } from "./types";
 
 interface Props {
   selectedColumns: ColumnId[];
@@ -24,7 +25,9 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
         ref={triggerRef}
         type="button"
         class={styles.trigger}
-        onClick={() => { open.value = !open.value; }}
+        onClick={() => {
+          open.value = !open.value;
+        }}
         aria-label="Choose visible columns"
         data-testid="column-picker"
       >
@@ -35,7 +38,13 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
           <rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.2" />
         </svg>
       </button>
-      <ColumnFilterPopover open={open.value} onClose={() => { open.value = false; }} triggerRef={triggerRef}>
+      <ColumnFilterPopover
+        open={open.value}
+        onClose={() => {
+          open.value = false;
+        }}
+        triggerRef={triggerRef}
+      >
         <div class={styles.list}>
           {COLUMNS.map((col) => {
             const isViewportHidden = viewportHidden.has(col.id);

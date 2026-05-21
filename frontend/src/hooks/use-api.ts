@@ -1,7 +1,8 @@
-import { useSignalEffect, type Signal } from "@preact/signals";
+import { type Signal, useSignalEffect } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
-import { useSignal } from "./use-signal";
+
 import { useAppState } from "../state/context";
+import { useSignal } from "./use-signal";
 
 export interface UseApiResult<T> {
   data: Signal<T | null>;

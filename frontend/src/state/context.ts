@@ -1,5 +1,6 @@
 import { createContext } from "preact";
 import { useContext } from "preact/hooks";
+
 import type { AppState } from "./create-app-state";
 
 export const AppStateContext = createContext<AppState>(null!);

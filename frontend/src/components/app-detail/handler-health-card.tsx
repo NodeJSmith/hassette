@@ -1,35 +1,29 @@
-import { STATUS_DOT_SIZE } from "../../utils/constants";
-import { useLocation } from "wouter";
 import clsx from "clsx";
-import type { UnifiedItem } from "./unified-handler-row";
-import { StatusShape } from "../shared/status-shape";
-import { Chip } from "../shared/chip";
-import { Tooltip } from "../shared/tooltip";
-import {
-  pluralize,
-  formatDuration,
-  formatRate,
-} from "../../utils/format";
+import { useLocation } from "wouter";
+
 import { useRelativeTime } from "../../hooks/use-relative-time";
+import { STATUS_DOT_SIZE } from "../../utils/constants";
+import { formatDuration, formatRate, pluralize } from "../../utils/format";
+import { Chip } from "../shared/chip";
+import { StatusShape } from "../shared/status-shape";
+import { Tooltip } from "../shared/tooltip";
+import styles from "./handler-health-card.module.css";
 import {
   handlerPath,
   isFailing,
-  itemRunCount,
-  itemLastActiveAt,
-  itemErrorType,
   itemErrorMessage,
+  itemErrorType,
   itemKindChip,
+  itemLastActiveAt,
+  itemRunCount,
 } from "./overview-tab-helpers";
-import styles from "./handler-health-card.module.css";
+import type { UnifiedItem } from "./unified-handler-row";
 
 interface HandlerHealthCardProps {
   item: UnifiedItem;
   appKey: string;
   instanceQs: string;
 }
-
-
-
 
 export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCardProps) {
   const [, navigate] = useLocation();
@@ -66,16 +60,16 @@ export function HandlerHealthCard({ item, appKey, instanceQs }: HandlerHealthCar
         <span aria-hidden="true">
           <StatusShape kind={item.statusKind} size={STATUS_DOT_SIZE} />
         </span>
-        <span class={styles.name} title={item.name}>{item.name}</span>
+        <span class={styles.name} title={item.name}>
+          {item.name}
+        </span>
       </div>
 
       <div class={styles.subtitle}>
         <Chip variant="muted" size="sm" aria-label={`kind: ${chipLabel}`}>
           {chipLabel}
         </Chip>
-        {errorType && (
-          <span class={styles.errorType}>{errorType}</span>
-        )}
+        {errorType && <span class={styles.errorType}>{errorType}</span>}
       </div>
 
       {errorMessage && (

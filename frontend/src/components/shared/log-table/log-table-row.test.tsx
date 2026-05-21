@@ -1,5 +1,6 @@
+import { fireEvent, render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/preact";
+
 import { createLogEntry } from "../../../test/factories";
 import type { ColumnId } from "./types";
 
@@ -13,12 +14,15 @@ vi.mock("../../../hooks/use-relative-time", () => ({
 }));
 
 vi.mock("wouter", () => ({
-  Link: ({ href, children, class: cls }: Record<string, unknown>) =>
-    <a href={href as string} class={cls as string}>{children as never}</a>,
+  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
+    <a href={href as string} class={cls as string}>
+      {children as never}
+    </a>
+  ),
 }));
 
-import { LogTableRow } from "./log-table-row";
 import { formatTimestamp } from "../../../utils/format";
+import { LogTableRow } from "./log-table-row";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -33,7 +37,11 @@ function renderRow(props: Partial<Parameters<typeof LogTableRow>[0]> = {}) {
     onClick: vi.fn(),
   };
   return render(
-    <table><tbody><LogTableRow {...defaults} {...props} /></tbody></table>,
+    <table>
+      <tbody>
+        <LogTableRow {...defaults} {...props} />
+      </tbody>
+    </table>,
   );
 }
 

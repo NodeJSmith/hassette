@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { createAppState, createLogStore } from "./create-app-state";
+
 import type { WsLogPayload } from "../api/ws-types";
+import { createAppState, createLogStore } from "./create-app-state";
 
 function createLogEntry(seq: number): WsLogPayload {
   return {

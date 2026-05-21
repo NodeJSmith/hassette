@@ -169,8 +169,8 @@
     justify-content: center;
   }
 
-  .appsTable thead th:nth-child(n+3),
-  .appsTable tbody td:nth-child(n+3) {
+  .appsTable thead th:nth-child(n + 3),
+  .appsTable tbody td:nth-child(n + 3) {
     display: none;
   }
 }
@@ -183,8 +183,8 @@
     display: none;
   }
 
-  .appsTable th:nth-child(n+3):not(:last-child),
-  .appsTable td:nth-child(n+3):not(:last-child) {
+  .appsTable th:nth-child(n + 3):not(:last-child),
+  .appsTable td:nth-child(n + 3):not(:last-child) {
     display: none;
   }
 

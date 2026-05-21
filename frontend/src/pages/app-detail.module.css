@@ -19,7 +19,9 @@
   font-weight: 500;
   color: var(--ink-3);
   cursor: pointer;
-  transition: color var(--t-fast), border-color var(--t-fast);
+  transition:
+    color var(--t-fast),
+    border-color var(--t-fast);
   white-space: nowrap;
   text-decoration: none;
   display: inline-block;
@@ -136,7 +138,9 @@
   font-size: var(--fs-micro);
   color: var(--ink-2);
   cursor: pointer;
-  transition: color var(--t-fast), background var(--t-fast);
+  transition:
+    color var(--t-fast),
+    background var(--t-fast);
   white-space: nowrap;
 }
 

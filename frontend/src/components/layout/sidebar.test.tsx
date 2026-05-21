@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { signal } from "@preact/signals";
 import { fireEvent } from "@testing-library/preact";
 import { h } from "preact";
-import { signal } from "@preact/signals";
-import { Sidebar } from "./sidebar";
+import { describe, expect, it, vi } from "vitest";
+
+import { createInstance, createManifest } from "../../test/factories";
 import { renderWithAppState } from "../../test/render-helpers";
-import { createManifest, createInstance } from "../../test/factories";
+import { Sidebar } from "./sidebar";
 
 function withManifests(manifests: ReturnType<typeof createManifest>[]) {
   return { stateOverrides: { manifests: signal(manifests), manifestsLoading: signal(false) } };
@@ -21,7 +22,11 @@ vi.mock("wouter", () => ({
     "data-testid": testId,
     ...rest
   }: Record<string, unknown>) =>
-    h("a", { href, class: cls, "aria-label": ariaLabel, "aria-current": ariaCurrent, "data-testid": testId, ...rest }, children as never),
+    h(
+      "a",
+      { href, class: cls, "aria-label": ariaLabel, "aria-current": ariaCurrent, "data-testid": testId, ...rest },
+      children as never,
+    ),
   useLocation: vi.fn().mockReturnValue(["/", vi.fn()]),
   useSearch: vi.fn().mockReturnValue(""),
 }));
@@ -122,9 +127,7 @@ describe("Sidebar — app list", () => {
   it("renders apps from the manifests API", () => {
     const { getByText } = renderWithAppState(
       <Sidebar />,
-      withManifests([
-        createManifest({ app_key: "my_app", display_name: "My App", status: "running" }),
-      ]),
+      withManifests([createManifest({ app_key: "my_app", display_name: "My App", status: "running" })]),
     );
     expect(getByText("My App")).toBeDefined();
   });
@@ -166,8 +169,9 @@ describe("Sidebar — app list", () => {
     expect(getByText("Failed App")).toBeDefined();
     // Group headers are in DOM order: FAILING before RUNNING
     const appNav = getByTestId("app-nav");
-    const groupHeaders = Array.from(appNav.querySelectorAll("[data-testid='group-header']"))
-      .map((el) => el.textContent);
+    const groupHeaders = Array.from(appNav.querySelectorAll("[data-testid='group-header']")).map(
+      (el) => el.textContent,
+    );
     const failingIdx = groupHeaders.findIndex((t) => t?.includes("FAILING"));
     const runningIdx = groupHeaders.findIndex((t) => t?.includes("RUNNING"));
     expect(failingIdx).toBeGreaterThanOrEqual(0);
@@ -329,10 +333,7 @@ describe("Sidebar — version display", () => {
 
 describe("Sidebar — APPS section header", () => {
   it("renders APPS header above the search input", () => {
-    const { getByText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([createManifest({ display_name: "My App" })]),
-    );
+    const { getByText } = renderWithAppState(<Sidebar />, withManifests([createManifest({ display_name: "My App" })]));
     expect(getByText(/^APPS/)).toBeDefined();
   });
 
@@ -369,9 +370,7 @@ describe("Sidebar — status groups", () => {
   it("groups failed apps under FAILING header", () => {
     const { getByText } = renderWithAppState(
       <Sidebar />,
-      withManifests([
-        createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
-      ]),
+      withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]),
     );
     expect(getByText("FAILING")).toBeDefined();
     expect(getByText("Failed App")).toBeDefined();
@@ -380,9 +379,7 @@ describe("Sidebar — status groups", () => {
   it("groups running apps under RUNNING header", () => {
     const { getByText } = renderWithAppState(
       <Sidebar />,
-      withManifests([
-        createManifest({ app_key: "running_app", display_name: "Running App", status: "running" }),
-      ]),
+      withManifests([createManifest({ app_key: "running_app", display_name: "Running App", status: "running" })]),
     );
     expect(getByText("RUNNING")).toBeDefined();
   });
@@ -390,9 +387,7 @@ describe("Sidebar — status groups", () => {
   it("groups disabled apps under DISABLED header", () => {
     const { getByText } = renderWithAppState(
       <Sidebar />,
-      withManifests([
-        createManifest({ app_key: "dis_app", display_name: "Disabled App", status: "disabled" }),
-      ]),
+      withManifests([createManifest({ app_key: "dis_app", display_name: "Disabled App", status: "disabled" })]),
     );
     expect(getByText("DISABLED")).toBeDefined();
   });
@@ -400,9 +395,7 @@ describe("Sidebar — status groups", () => {
   it("hides empty groups", () => {
     const { getByText, getByTestId } = renderWithAppState(
       <Sidebar />,
-      withManifests([
-        createManifest({ app_key: "running_app", display_name: "Running App", status: "running" }),
-      ]),
+      withManifests([createManifest({ app_key: "running_app", display_name: "Running App", status: "running" })]),
     );
     expect(getByText("Running App")).toBeDefined();
     const appNav = getByTestId("app-nav");
@@ -416,9 +409,7 @@ describe("Sidebar — status groups", () => {
   it("clicking group header collapses the group", () => {
     const { getByText, queryByText } = renderWithAppState(
       <Sidebar />,
-      withManifests([
-        createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
-      ]),
+      withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]),
     );
     const header = getByText("FAILING");
     // Failed App visible before collapse
@@ -432,9 +423,7 @@ describe("Sidebar — status groups", () => {
   it("pressing Enter on group header toggles collapse", () => {
     const { getByText, queryByText } = renderWithAppState(
       <Sidebar />,
-      withManifests([
-        createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
-      ]),
+      withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]),
     );
     const header = getByText("FAILING");
     expect(getByText("Failed App")).toBeDefined();
@@ -460,17 +449,16 @@ describe("Sidebar — status groups", () => {
     expect(getByText("FAILING")).toBeDefined();
     expect(getByText("Dead App")).toBeDefined();
     const appNav = getByTestId("app-nav");
-    const groupHeaders = Array.from(appNav.querySelectorAll("[data-testid='group-header']"))
-      .map((el) => el.textContent);
+    const groupHeaders = Array.from(appNav.querySelectorAll("[data-testid='group-header']")).map(
+      (el) => el.textContent,
+    );
     expect(groupHeaders.some((t) => t?.includes("RUNNING"))).toBe(false);
   });
 
   it("pressing Space on group header toggles collapse", () => {
     const { getByText, queryByText } = renderWithAppState(
       <Sidebar />,
-      withManifests([
-        createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
-      ]),
+      withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]),
     );
     const header = getByText("FAILING");
     expect(getByText("Failed App")).toBeDefined();

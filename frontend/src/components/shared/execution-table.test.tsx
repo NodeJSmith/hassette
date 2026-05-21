@@ -1,7 +1,8 @@
+import { fireEvent, render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/preact";
-import { ExecutionTable } from "./execution-table";
+
 import { createExecution, createInvocation } from "../../test/factories";
+import { ExecutionTable } from "./execution-table";
 
 vi.mock("./execution-logs", () => ({
   ExecutionLogs: ({ executionId }: { executionId: string }) => (
@@ -13,16 +14,12 @@ describe("ExecutionTable", () => {
   // ── Empty states ──
 
   it("renders handler empty state when records are empty", () => {
-    const { getByText } = render(
-      <ExecutionTable records={[]} kind="handler" tableId="invocation-table-1" />,
-    );
+    const { getByText } = render(<ExecutionTable records={[]} kind="handler" tableId="invocation-table-1" />);
     expect(getByText("no invocations recorded")).toBeDefined();
   });
 
   it("renders job empty state when records are empty", () => {
-    const { getByText } = render(
-      <ExecutionTable records={[]} kind="job" tableId="execution-table-1" />,
-    );
+    const { getByText } = render(<ExecutionTable records={[]} kind="job" tableId="execution-table-1" />);
     expect(getByText("no executions recorded.")).toBeDefined();
   });
 
@@ -36,9 +33,7 @@ describe("ExecutionTable", () => {
   });
 
   it("renders unified column headers", () => {
-    const { getByText } = render(
-      <ExecutionTable records={[createExecution()]} kind="job" tableId="t" />,
-    );
+    const { getByText } = render(<ExecutionTable records={[createExecution()]} kind="job" tableId="t" />);
     expect(getByText("Status")).toBeDefined();
     expect(getByText("Timestamp")).toBeDefined();
     expect(getByText("Duration")).toBeDefined();
@@ -51,9 +46,7 @@ describe("ExecutionTable", () => {
       createExecution({ execution_start_ts: 1700000002 }),
       createExecution({ execution_start_ts: 1700000003 }),
     ];
-    const { container } = render(
-      <ExecutionTable records={records} kind="job" tableId="t" />,
-    );
+    const { container } = render(<ExecutionTable records={records} kind="job" tableId="t" />);
     expect(container.querySelectorAll("[data-testid='execution-row']").length).toBe(3);
   });
 
@@ -73,11 +66,7 @@ describe("ExecutionTable", () => {
   it("shows truncated execution ID in table row", () => {
     const uuid = "abc12345-6789-abcd-ef01-234567890abc";
     const { container } = render(
-      <ExecutionTable
-        records={[createExecution({ execution_id: uuid })]}
-        kind="job"
-        tableId="t"
-      />,
+      <ExecutionTable records={[createExecution({ execution_id: uuid })]} kind="job" tableId="t" />,
     );
     const row = container.querySelector("[data-testid='execution-row']")!;
     expect(row.textContent).toContain("abc12345");
@@ -88,11 +77,7 @@ describe("ExecutionTable", () => {
 
   it("clicking row expands detail panel", () => {
     const { container } = render(
-      <ExecutionTable
-        records={[createExecution({ execution_id: "test-uuid" })]}
-        kind="job"
-        tableId="t"
-      />,
+      <ExecutionTable records={[createExecution({ execution_id: "test-uuid" })]} kind="job" tableId="t" />,
     );
 
     expect(container.querySelector("[data-testid='execution-detail']")).toBeNull();
@@ -101,9 +86,7 @@ describe("ExecutionTable", () => {
   });
 
   it("clicking open row again collapses it", () => {
-    const { container } = render(
-      <ExecutionTable records={[createExecution()]} kind="job" tableId="t" />,
-    );
+    const { container } = render(<ExecutionTable records={[createExecution()]} kind="job" tableId="t" />);
 
     const row = container.querySelector("[data-testid='execution-row']")!;
     fireEvent.click(row);
@@ -118,11 +101,7 @@ describe("ExecutionTable", () => {
   it("expanded detail shows execution id", () => {
     const uuid = "abc12345-6789-abcd-ef01-234567890abc";
     const { container } = render(
-      <ExecutionTable
-        records={[createExecution({ execution_id: uuid })]}
-        kind="job"
-        tableId="t"
-      />,
+      <ExecutionTable records={[createExecution({ execution_id: uuid })]} kind="job" tableId="t" />,
     );
 
     fireEvent.click(container.querySelector("[data-testid='execution-row']")!);
@@ -132,10 +111,13 @@ describe("ExecutionTable", () => {
   it("expanded detail shows traceback for error execution", () => {
     const { container } = render(
       <ExecutionTable
-        records={[createExecution({
-          status: "error",
-          error_traceback: "Traceback (most recent call last):\n  File job.py, line 10\n    some_func()\nValueError: bad value",
-        })]}
+        records={[
+          createExecution({
+            status: "error",
+            error_traceback:
+              "Traceback (most recent call last):\n  File job.py, line 10\n    some_func()\nValueError: bad value",
+          }),
+        ]}
         kind="job"
         tableId="t"
       />,
@@ -149,11 +131,7 @@ describe("ExecutionTable", () => {
 
   it("expanded detail shows logs section", () => {
     const { container } = render(
-      <ExecutionTable
-        records={[createExecution({ execution_id: "test-uuid" })]}
-        kind="job"
-        tableId="t"
-      />,
+      <ExecutionTable records={[createExecution({ execution_id: "test-uuid" })]} kind="job" tableId="t" />,
     );
 
     fireEvent.click(container.querySelector("[data-testid='execution-row']")!);
@@ -162,11 +140,7 @@ describe("ExecutionTable", () => {
 
   it("shows 'No execution ID' when execution_id is null", () => {
     const { container } = render(
-      <ExecutionTable
-        records={[createExecution({ execution_id: null })]}
-        kind="job"
-        tableId="t"
-      />,
+      <ExecutionTable records={[createExecution({ execution_id: null })]} kind="job" tableId="t" />,
     );
 
     fireEvent.click(container.querySelector("[data-testid='execution-row']")!);
@@ -190,11 +164,7 @@ describe("ExecutionTable", () => {
 
   it("uses invocation-detail testid for handler kind", () => {
     const { container } = render(
-      <ExecutionTable
-        records={[createInvocation()]}
-        kind="handler"
-        tableId="invocation-table-1"
-      />,
+      <ExecutionTable records={[createInvocation()]} kind="handler" tableId="invocation-table-1" />,
     );
 
     fireEvent.click(container.querySelector("[data-testid='invocation-row']")!);
@@ -204,22 +174,14 @@ describe("ExecutionTable", () => {
   // ── Show More ──
 
   it("shows Show More button when records exceed 5", () => {
-    const records = Array.from({ length: 6 }, (_, i) =>
-      createExecution({ execution_start_ts: 1700000000 + i }),
-    );
-    const { getByRole } = render(
-      <ExecutionTable records={records} kind="job" tableId="t" />,
-    );
+    const records = Array.from({ length: 6 }, (_, i) => createExecution({ execution_start_ts: 1700000000 + i }));
+    const { getByRole } = render(<ExecutionTable records={records} kind="job" tableId="t" />);
     expect(getByRole("button", { name: /show all/i })).toBeDefined();
   });
 
   it("does not show Show More button for 5 or fewer", () => {
-    const records = Array.from({ length: 5 }, (_, i) =>
-      createExecution({ execution_start_ts: 1700000000 + i }),
-    );
-    const { queryByRole } = render(
-      <ExecutionTable records={records} kind="job" tableId="t" />,
-    );
+    const records = Array.from({ length: 5 }, (_, i) => createExecution({ execution_start_ts: 1700000000 + i }));
+    const { queryByRole } = render(<ExecutionTable records={records} kind="job" tableId="t" />);
     expect(queryByRole("button", { name: /show all/i })).toBeNull();
   });
 });

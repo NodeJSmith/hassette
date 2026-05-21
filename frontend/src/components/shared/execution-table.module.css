@@ -1,12 +1,22 @@
 /* ExecutionTable — shared expandable execution/invocation table */
 
-.colArrow { width: var(--sp-4); }
+.colArrow {
+  width: var(--sp-4);
+}
 
-.row { cursor: pointer; transition: background var(--t-fast) var(--ease); }
-.rowOpen { background: var(--bg-sunken); }
-.row:hover { background: var(--bg-sunken); }
+.row {
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+.rowOpen {
+  background: var(--bg-sunken);
+}
+.row:hover {
+  background: var(--bg-sunken);
+}
 
-.statusCell {}
+.statusCell {
+}
 
 .statusCellInner {
   display: flex;

@@ -38,11 +38,7 @@ export function setStoredSet(key: string, value: Set<string>): void {
  * type at runtime. Without it, `JSON.parse` is trusted — use only for
  * values you fully control.
  */
-export function getStoredValue<T>(
-  key: string,
-  fallback: T,
-  validate?: (v: unknown) => v is T,
-): T {
+export function getStoredValue<T>(key: string, fallback: T, validate?: (v: unknown) => v is T): T {
   try {
     const raw = localStorage.getItem(STORAGE_PREFIX + key);
     if (raw === null) return fallback;

@@ -1,17 +1,18 @@
-import type { ComponentChildren } from "preact";
 import type { ReadonlySignal } from "@preact/signals";
-import type { DetailStatsCell } from "../shared/detail-stats";
+import type { ComponentChildren } from "preact";
+
 import { parseSourceLocation } from "../../utils/format";
-import { RegistrationSource } from "../shared/registration-source";
-import { SourceLocation } from "../shared/source-location";
-import { DetailStats } from "../shared/detail-stats";
-import { ErrorBanner } from "../shared/error-banner";
-import { ExecutionTable, type ExecutionRecord } from "../shared/execution-table";
-import { Spinner } from "../shared/spinner";
-import { StatusShape } from "../shared/status-shape";
 import { Badge } from "../shared/badge";
 import { Button } from "../shared/button";
 import { Chip, type ChipKind } from "../shared/chip";
+import type { DetailStatsCell } from "../shared/detail-stats";
+import { DetailStats } from "../shared/detail-stats";
+import { ErrorBanner } from "../shared/error-banner";
+import { type ExecutionRecord, ExecutionTable } from "../shared/execution-table";
+import { RegistrationSource } from "../shared/registration-source";
+import { SourceLocation } from "../shared/source-location";
+import { Spinner } from "../shared/spinner";
+import { StatusShape } from "../shared/status-shape";
 import styles from "./handler-detail-layout.module.css";
 
 interface ErrorInfo {
@@ -85,16 +86,22 @@ export function HandlerDetailLayout({
                 class={styles.nameAutoHint}
                 title={`Auto-generated name. Pass name="..." when scheduling for something descriptive.`}
                 aria-label="Auto-generated name"
-              >ⓘ</span>
+              >
+                ⓘ
+              </span>
             )}
           </span>
           {isFailing && (
-            <Badge variant="danger" size="sm" data-testid="handler-status-pill">failing</Badge>
+            <Badge variant="danger" size="sm" data-testid="handler-status-pill">
+              failing
+            </Badge>
           )}
         </div>
 
         {subtitle && (
-          <p class={styles.subtitle} data-testid={`${testIdPrefix}-human-description`}>{subtitle}</p>
+          <p class={styles.subtitle} data-testid={`${testIdPrefix}-human-description`}>
+            {subtitle}
+          </p>
         )}
 
         {registrationSource && (
@@ -121,12 +128,7 @@ export function HandlerDetailLayout({
         <DetailStats cells={statsCells} data-testid={statsTestId} />
 
         {onViewCode && sourceLocation && (
-          <Button
-            ghost
-            size="sm"
-            data-testid="view-in-code-btn"
-            onClick={() => onViewCode(sourceLine ?? undefined)}
-          >
+          <Button ghost size="sm" data-testid="view-in-code-btn" onClick={() => onViewCode(sourceLine ?? undefined)}>
             view in code →
           </Button>
         )}
@@ -137,11 +139,7 @@ export function HandlerDetailLayout({
         {executionLoading.value && !executionHasData ? (
           <Spinner />
         ) : (
-          <ExecutionTable
-            records={executionRecords}
-            kind={executionKind}
-            tableId={executionTableId}
-          />
+          <ExecutionTable records={executionRecords} kind={executionKind} tableId={executionTableId} />
         )}
       </div>
     </div>

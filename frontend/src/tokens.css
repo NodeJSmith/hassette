@@ -7,64 +7,89 @@
 /* — Light Theme (default) ——————————————————————————— */
 :root {
   /* Surfaces */
-  --bg-page:    #FAFAF8;
-  --bg-surface: #FDFDFB;
-  --bg-sunken:  #F4F4F1;
-  --bg-active:  #F0F0EC;
+  --bg-page: #fafaf8;
+  --bg-surface: #fdfdfb;
+  --bg-sunken: #f4f4f1;
+  --bg-active: #f0f0ec;
 
   /* Ink (text) */
-  --ink-1: #16181C;
-  --ink-2: #4A4D54;
-  --ink-3: #787C84;
-  --ink-4: #B0B3B8;
+  --ink-1: #16181c;
+  --ink-2: #4a4d54;
+  --ink-3: #787c84;
+  --ink-4: #b0b3b8;
 
   /* Lines (borders) */
-  --line-1:      #E6E6E2;
-  --line-2:      #ECECE8;
-  --line-strong: #D0D0CC;
+  --line-1: #e6e6e2;
+  --line-2: #ecece8;
+  --line-strong: #d0d0cc;
 
   /* Accent */
-  --accent:       var(--ink-1);
-  --accent-ink:   var(--bg-page);
-  --accent-hover: #2A2D33;
-  --accent-soft:  #E8E8E5;
+  --accent: var(--ink-1);
+  --accent-ink: var(--bg-page);
+  --accent-hover: #2a2d33;
+  --accent-soft: #e8e8e5;
 
   /* Status */
-  --ok:    #1F7A4D;  --ok-bg:    #EAF3EE;
-  --warn:  #9A6A12;  --warn-bg:  #F5EEDD;
-  --err:   #B53024;  --err-bg:   #F5DEDC;
-  --mute:  #9097A0;  --mute-bg:  #EFF0EC;
+  --ok: #1f7a4d;
+  --ok-bg: #eaf3ee;
+  --warn: #9a6a12;
+  --warn-bg: #f5eedd;
+  --err: #b53024;
+  --err-bg: #f5dedc;
+  --mute: #9097a0;
+  --mute-bg: #eff0ec;
 
   /* Inputs */
-  --input-bg: #FFFFFF;
+  --input-bg: #ffffff;
 
   /* Code */
-  --code-bg:      var(--bg-sunken);
+  --code-bg: var(--bg-sunken);
   --code-comment: var(--ink-3);
 
   /* Typography */
-  --font-display: 'Newsreader', 'Source Serif Pro', Georgia, serif;
-  --font-body:    'Geist', system-ui, -apple-system, sans-serif;
-  --font-mono:    'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-display: "Newsreader", "Source Serif Pro", Georgia, serif;
+  --font-body: "Geist", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   /* Type scale */
-  --fs-display: 38px;  --lh-display: 1.05;  --tr-display: -0.025em;
-  --fs-h1:      28px;  --lh-h1:      1.15;  --tr-h1:      -0.02em;
-  --fs-h2:      20px;  --lh-h2:      1.25;  --tr-h2:      -0.015em;
-  --fs-h3:      16px;  --lh-h3:      1.35;  --tr-h3:      -0.005em;
-  --fs-body:    14px;  --lh-body:    1.55;
-  --fs-small:   12.5px; --lh-small:  1.5;
-  --fs-micro:   11px;  --lh-micro:   1.4;
+  --fs-display: 38px;
+  --lh-display: 1.05;
+  --tr-display: -0.025em;
+  --fs-h1: 28px;
+  --lh-h1: 1.15;
+  --tr-h1: -0.02em;
+  --fs-h2: 20px;
+  --lh-h2: 1.25;
+  --tr-h2: -0.015em;
+  --fs-h3: 16px;
+  --lh-h3: 1.35;
+  --tr-h3: -0.005em;
+  --fs-body: 14px;
+  --lh-body: 1.55;
+  --fs-small: 12.5px;
+  --lh-small: 1.5;
+  --fs-micro: 11px;
+  --lh-micro: 1.4;
+  --fs-xs: 10px;
+  --lh-xs: 1.3;
+  --tr-label: 0.05em;
   --fs-mono-sm: 12px;
   --fs-mono-md: 13px;
 
   /* Spacing (4px grid, half-steps where needed) */
   --sp-0: 2px;
-  --sp-1: 4px;   --sp-2: 8px;   --sp-3: 12px;  --sp-4: 16px;
-  --sp-5: 20px;  --sp-6: 24px;  --sp-7: 32px;  --sp-8: 40px;
-  --sp-9: 56px;  --sp-10: 72px;
-  --sp-1h: 6px;   /* half-step between sp-1 and sp-2 */
-  --sp-3h: 14px;  /* half-step between sp-3 and sp-4 */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+  --sp-9: 56px;
+  --sp-10: 72px;
+  --sp-1h: 6px; /* half-step between sp-1 and sp-2 */
+  --sp-3h: 14px; /* half-step between sp-3 and sp-4 */
 
   /* Component sizing */
   --sz-touch: 44px;
@@ -75,10 +100,10 @@
   --fs-badge: 11.5px;
 
   /* Border radius */
-  --r-sm:  4px;
-  --r-md:  6px;
-  --r-lg:  8px;
-  --r-xl:  12px;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-xl: 12px;
   --r-pill: 999px;
 
   /* Shadows */
@@ -88,72 +113,76 @@
 
   /* Overlay */
   --overlay-bg: rgba(0, 0, 0, 0.45);
-  --err-dark:   #9A2020;
+  --err-dark: #9a2020;
 
   /* Code highlights */
   --code-annotate-bg: oklch(0.97 0.005 80);
-  --code-focus-bg:    oklch(0.93 0.04 80);
+  --code-focus-bg: oklch(0.93 0.04 80);
 
   /* Motion */
-  --ease:   cubic-bezier(0.4, 0, 0.2, 1);
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --t-fast: 120ms;
-  --t-med:  200ms;
+  --t-med: 200ms;
 
   /* Z-index scale */
   --z-table-head: 1;
-  --z-tooltip:    15;
+  --z-tooltip: 15;
   --z-status-bar: 20;
-  --z-sidebar:    30;
-  --z-hamburger:  50;
-  --z-drawer-bg:  55;
-  --z-drawer:     60;
-  --z-dialog:     100;
+  --z-sidebar: 30;
+  --z-hamburger: 50;
+  --z-drawer-bg: 55;
+  --z-drawer: 60;
+  --z-dialog: 100;
   --z-palette-bg: 200;
-  --z-palette:    201;
-  --z-skip:       1000;
+  --z-palette: 201;
+  --z-skip: 1000;
 }
 
 /* — Dark Theme ——————————————————————————————————————— */
 [data-theme="dark"] {
   /* Surfaces */
-  --bg-page:    #111316;
-  --bg-surface: #191B1F;
-  --bg-sunken:  #15171B;
-  --bg-active:  #1D2026;
+  --bg-page: #111316;
+  --bg-surface: #191b1f;
+  --bg-sunken: #15171b;
+  --bg-active: #1d2026;
 
   /* Ink (text) */
-  --ink-1: #EDEFF3;
-  --ink-2: #B5B9C0;
-  --ink-3: #888D97;
-  --ink-4: #5A5E66;
+  --ink-1: #edeff3;
+  --ink-2: #b5b9c0;
+  --ink-3: #888d97;
+  --ink-4: #5a5e66;
 
   /* Lines (borders) */
-  --line-1:      #272A30;
-  --line-2:      #1F2227;
-  --line-strong: #3A3E46;
+  --line-1: #272a30;
+  --line-2: #1f2227;
+  --line-strong: #3a3e46;
 
   /* Accent */
-  --accent:       #7A8AFF;
-  --accent-ink:   #0F1115;
-  --accent-hover: #93A0FF;
-  --accent-soft:  #1A1F36;
+  --accent: #7a8aff;
+  --accent-ink: #0f1115;
+  --accent-hover: #93a0ff;
+  --accent-soft: #1a1f36;
 
   /* Status */
-  --ok:    #5FB988;  --ok-bg:    #19241E;
-  --warn:  #D9B36E;  --warn-bg:  #272219;
-  --err:   #E08278;  --err-bg:   #28191A;
-  --mute:  #6A707A;  --mute-bg:  #1D1F23;
+  --ok: #5fb988;
+  --ok-bg: #19241e;
+  --warn: #d9b36e;
+  --warn-bg: #272219;
+  --err: #e08278;
+  --err-bg: #28191a;
+  --mute: #6a707a;
+  --mute-bg: #1d1f23;
 
   /* Inputs */
-  --input-bg: #1F2227;
+  --input-bg: #1f2227;
 
   /* Code highlights */
   --code-annotate-bg: oklch(0.18 0.005 250);
-  --code-focus-bg:    oklch(0.22 0.03 80);
+  --code-focus-bg: oklch(0.22 0.03 80);
 
   /* Overlay */
   --overlay-bg: rgba(0, 0, 0, 0.5);
-  --err-dark:   #7A1A1A;
+  --err-dark: #7a1a1a;
 
   /* Shadows */
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);

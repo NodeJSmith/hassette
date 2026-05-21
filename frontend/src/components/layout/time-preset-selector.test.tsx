@@ -1,9 +1,10 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent } from "@testing-library/preact";
 import { signal } from "@preact/signals";
-import { TimePresetSelector } from "./time-preset-selector";
-import { renderWithAppState } from "../../test/render-helpers";
+import { fireEvent } from "@testing-library/preact";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import type { TimePreset } from "../../state/create-app-state";
+import { renderWithAppState } from "../../test/render-helpers";
+import { TimePresetSelector } from "./time-preset-selector";
 
 // Mock setStoredValue so we don't touch localStorage in tests
 vi.mock("../../utils/local-storage", () => ({
@@ -142,7 +143,7 @@ describe("TimePresetSelector — URL sync on click", () => {
 
 describe("TimePresetSelector — URL window param on load", () => {
   it("reads ?window= on mount and writes to urlWindowParam", () => {
-    mockQpGet.mockImplementation((key: string) => key === "window" ? "24h" : null);
+    mockQpGet.mockImplementation((key: string) => (key === "window" ? "24h" : null));
     const urlWindowParam = signal<TimePreset | null>(null);
     renderWithAppState(<TimePresetSelector />, {
       stateOverrides: { urlWindowParam },
@@ -151,7 +152,7 @@ describe("TimePresetSelector — URL window param on load", () => {
   });
 
   it("does not write to timePreset when ?window= is present on load", () => {
-    mockQpGet.mockImplementation((key: string) => key === "window" ? "7d" : null);
+    mockQpGet.mockImplementation((key: string) => (key === "window" ? "7d" : null));
     const preset = signal<TimePreset>("since-restart");
     renderWithAppState(<TimePresetSelector />, {
       stateOverrides: { timePreset: preset },

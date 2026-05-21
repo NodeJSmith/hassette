@@ -1,5 +1,6 @@
-import { useRef } from "preact/hooks";
 import type { ComponentChildren } from "preact";
+import { useRef } from "preact/hooks";
+
 import { Card } from "./card";
 
 interface TableCardProps {
@@ -42,11 +43,7 @@ export function TableCard({
       <div class="ht-table-card-scroll" style={scrollHeight ? `--table-scroll-height: ${scrollHeight}` : undefined}>
         {children}
       </div>
-      {footer && (
-        <div data-footer-slot>
-          {footer}
-        </div>
-      )}
+      {footer && <div data-footer-slot>{footer}</div>}
     </Card>
   );
 }

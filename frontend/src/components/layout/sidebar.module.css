@@ -59,7 +59,9 @@
   color: var(--ink-3);
   font-size: var(--fs-micro);
   cursor: pointer;
-  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
 }
 
 .cmdkey:hover {
@@ -90,7 +92,9 @@
   border-radius: var(--r-md);
   color: var(--ink-2);
   font-size: var(--fs-body);
-  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+  transition:
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
   text-decoration: none;
 }
 
@@ -123,7 +127,9 @@
   border: 1px solid var(--line-1);
   border-radius: var(--r-md);
   outline: none;
-  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  transition:
+    border-color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
 }
 
 .appSearch:focus-visible {
@@ -216,7 +222,9 @@
   color: var(--ink-3);
   border-radius: var(--r-sm);
   cursor: pointer;
-  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
 }
 
 .appExpand:hover {

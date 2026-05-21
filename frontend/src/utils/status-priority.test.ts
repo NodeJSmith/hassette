@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { STATUS_PRIORITY, statusPriority } from "./status-priority";
 
 describe("STATUS_PRIORITY", () => {
@@ -20,11 +21,18 @@ describe("STATUS_PRIORITY", () => {
 
   it("covers all known app statuses", () => {
     const expected = [
-      "failed", "crashed", "exhausted_dead",
-      "blocked", "exhausted_cooling",
-      "starting", "running",
-      "stopping", "shutting_down",
-      "stopped", "disabled", "not_started",
+      "failed",
+      "crashed",
+      "exhausted_dead",
+      "blocked",
+      "exhausted_cooling",
+      "starting",
+      "running",
+      "stopping",
+      "shutting_down",
+      "stopped",
+      "disabled",
+      "not_started",
     ];
     for (const status of expected) {
       expect(STATUS_PRIORITY).toHaveProperty(status);

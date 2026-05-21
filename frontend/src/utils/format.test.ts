@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import {
   formatAge,
   formatDuration,
@@ -183,7 +184,6 @@ describe("formatTriggerDetail", () => {
 const BASE_TIME_S = 1_700_000_000; // arbitrary fixed epoch in seconds
 
 describe("formatRelativeTime", () => {
-
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(BASE_TIME_S * 1000);

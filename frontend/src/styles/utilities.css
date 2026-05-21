@@ -2,25 +2,51 @@
 
 /* — Utilities —————————————————————————————————————————— */
 /* Text color */
-.ht-text-muted     { color: var(--ink-3); }
-.ht-text-secondary { color: var(--ink-3); }
-.ht-text-danger    { color: var(--err); }
-.ht-text-warning   { color: var(--warn); }
+.ht-text-muted {
+  color: var(--ink-3);
+}
+.ht-text-secondary {
+  color: var(--ink-3);
+}
+.ht-text-danger {
+  color: var(--err);
+}
+.ht-text-warning {
+  color: var(--warn);
+}
 
 /* Text size & weight */
-.ht-text-xs { font-size: var(--fs-micro); }
-.ht-text-sm { font-size: var(--fs-small); }
-.ht-text-semibold { font-weight: 600; }
+.ht-text-xs {
+  font-size: var(--fs-micro);
+}
+.ht-text-sm {
+  font-size: var(--fs-small);
+}
+.ht-text-semibold {
+  font-weight: 600;
+}
 
 /* Spacing: margin */
-.ht-mb-2 { margin-bottom: var(--sp-2); }
-.ht-mb-3 { margin-bottom: var(--sp-3); }
-.ht-mb-4 { margin-bottom: var(--sp-4); }
-.ht-mb-8 { margin-bottom: var(--sp-8); }
-.ht-ml-2 { margin-left: var(--sp-2); }
+.ht-mb-2 {
+  margin-bottom: var(--sp-2);
+}
+.ht-mb-3 {
+  margin-bottom: var(--sp-3);
+}
+.ht-mb-4 {
+  margin-bottom: var(--sp-4);
+}
+.ht-mb-8 {
+  margin-bottom: var(--sp-8);
+}
+.ht-ml-2 {
+  margin-left: var(--sp-2);
+}
 
 /* Display */
-.ht-block { display: block; }
+.ht-block {
+  display: block;
+}
 
 /* Accessibility */
 .ht-visually-hidden {

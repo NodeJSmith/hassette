@@ -1,9 +1,16 @@
 import { useCallback } from "preact/hooks";
+
+import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "../../../hooks/use-media-query";
 import { useSignal } from "../../../hooks/use-signal";
-import { useMediaQuery, BREAKPOINT_MOBILE, BREAKPOINT_TABLET } from "../../../hooks/use-media-query";
 import { useSubscribe } from "../../../hooks/use-subscribe";
+import {
+  COLUMNS,
+  DEFAULT_COLUMNS_APP,
+  DEFAULT_COLUMNS_EXECUTION,
+  DEFAULT_COLUMNS_GLOBAL,
+  REQUIRED_COLUMNS,
+} from "./constants";
 import type { ColumnId, ViewContext } from "./types";
-import { DEFAULT_COLUMNS_GLOBAL, DEFAULT_COLUMNS_APP, DEFAULT_COLUMNS_EXECUTION, COLUMNS, REQUIRED_COLUMNS } from "./constants";
 
 const STORAGE_VERSION = 1;
 const STORAGE_KEY_PREFIX = "hassette-log-columns";
@@ -24,9 +31,12 @@ function storageKey(context: ViewContext): string {
 
 function defaultColumns(context: ViewContext): ColumnId[] {
   switch (context) {
-    case "global": return DEFAULT_COLUMNS_GLOBAL;
-    case "app": return DEFAULT_COLUMNS_APP;
-    case "execution": return DEFAULT_COLUMNS_EXECUTION;
+    case "global":
+      return DEFAULT_COLUMNS_GLOBAL;
+    case "app":
+      return DEFAULT_COLUMNS_APP;
+    case "execution":
+      return DEFAULT_COLUMNS_EXECUTION;
   }
 }
 

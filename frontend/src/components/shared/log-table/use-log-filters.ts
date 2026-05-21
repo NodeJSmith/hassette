@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "preact/hooks";
 import { computed, type ReadonlySignal } from "@preact/signals";
+import { useEffect, useRef } from "preact/hooks";
+
 import type { LogEntry } from "../../../api/endpoints";
 import { useQueryParams } from "../../../hooks/use-query-params";
 import { useSignal } from "../../../hooks/use-signal";
-import type { FilterState, LevelFilter, TierFilter, SortConfig, SortColumn } from "./types";
-import { LEVELS, LEVEL_INDEX, resolveSortColumn, SEARCH_DEBOUNCE_MS, DEFAULT_LEVEL } from "./constants";
+import { DEFAULT_LEVEL, LEVEL_INDEX, LEVELS, resolveSortColumn, SEARCH_DEBOUNCE_MS } from "./constants";
+import type { FilterState, LevelFilter, SortColumn, SortConfig, TierFilter } from "./types";
 
 interface UseLogFiltersParams {
   allEntries: ReadonlySignal<LogEntry[]>;
@@ -62,7 +63,12 @@ export function sortEntries(entries: readonly LogEntry[], column: SortColumn, as
   });
 }
 
-export function useLogFilters({ allEntries, restEntries, useLocalState = false, appKey }: UseLogFiltersParams): UseLogFiltersResult {
+export function useLogFilters({
+  allEntries,
+  restEntries,
+  useLocalState = false,
+  appKey,
+}: UseLogFiltersParams): UseLogFiltersResult {
   const qp = useQueryParams();
   const qpRef = useRef(qp);
   qpRef.current = qp;
@@ -78,7 +84,12 @@ export function useLogFilters({ allEntries, restEntries, useLocalState = false, 
   const localSortAsc = useSignal(false);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); }, []);
+  useEffect(
+    () => () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    },
+    [],
+  );
 
   const filterState = computed<FilterState>(() => {
     if (useLocalState) {
@@ -148,33 +159,52 @@ export function useLogFilters({ allEntries, restEntries, useLocalState = false, 
   });
 
   function setLevel(level: LevelFilter) {
-    if (useLocalState) { localLevel.value = level; return; }
-    if (level === DEFAULT_LEVEL) { qpRef.current.set({ level: null }); }
-    else if (level === "") { qpRef.current.set({ level: "all" }); }
-    else { qpRef.current.set({ level }); }
+    if (useLocalState) {
+      localLevel.value = level;
+      return;
+    }
+    if (level === DEFAULT_LEVEL) {
+      qpRef.current.set({ level: null });
+    } else if (level === "") {
+      qpRef.current.set({ level: "all" });
+    } else {
+      qpRef.current.set({ level });
+    }
   }
 
   function setTier(tier: TierFilter) {
     if (tier !== "app") setApp("");
-    if (useLocalState) { localTier.value = tier; return; }
+    if (useLocalState) {
+      localTier.value = tier;
+      return;
+    }
     qpRef.current.set({ tier: tier === defaultTier ? null : tier });
   }
 
   function setApp(app: string) {
-    if (useLocalState) { localApp.value = app; return; }
+    if (useLocalState) {
+      localApp.value = app;
+      return;
+    }
     qpRef.current.set({ app: app || null });
   }
 
   function setSearch(value: string) {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => {
-      if (useLocalState) { localSearch.value = value; return; }
+      if (useLocalState) {
+        localSearch.value = value;
+        return;
+      }
       qpRef.current.set({ search: value || null });
     }, SEARCH_DEBOUNCE_MS);
   }
 
   function setFunc(func: string) {
-    if (useLocalState) { localFunc.value = func; return; }
+    if (useLocalState) {
+      localFunc.value = func;
+      return;
+    }
     qpRef.current.set({ fn: func || null });
   }
 
@@ -208,8 +238,25 @@ export function useLogFilters({ allEntries, restEntries, useLocalState = false, 
     setApp("");
     setFunc("");
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    if (useLocalState) { localSearch.value = ""; } else { qpRef.current.set({ search: null }); }
+    if (useLocalState) {
+      localSearch.value = "";
+    } else {
+      qpRef.current.set({ search: null });
+    }
   }
 
-  return { filtered, filterState, livePaused, defaultTier, setLevel, setTier, setApp, setSearch, setFunc, setSort, resetSort, resetFilters };
+  return {
+    filtered,
+    filterState,
+    livePaused,
+    defaultTier,
+    setLevel,
+    setTier,
+    setApp,
+    setSearch,
+    setFunc,
+    setSort,
+    resetSort,
+    resetFilters,
+  };
 }

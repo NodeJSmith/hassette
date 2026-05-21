@@ -1,5 +1,5 @@
-import { reloadApp, stopApp } from "../../api/endpoints";
 import type { AppManifest, ListenerData } from "../../api/endpoints";
+import { reloadApp, stopApp } from "../../api/endpoints";
 import { formatListenerId } from "../../utils/handler-ids";
 
 const DOCS_URL = "https://hassette.readthedocs.io";
@@ -58,10 +58,7 @@ export function buildStaticPageItems(navigate: (path: string) => void): PaletteI
   ];
 }
 
-export function buildActionItems(
-  manifests: AppManifest[],
-  onClose: () => void,
-): PaletteItem[] {
+export function buildActionItems(manifests: AppManifest[], onClose: () => void): PaletteItem[] {
   return [
     {
       id: "action-reload-all",

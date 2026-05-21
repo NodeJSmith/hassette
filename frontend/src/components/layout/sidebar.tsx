@@ -1,16 +1,16 @@
+import clsx from "clsx";
 import { useState } from "preact/hooks";
 import { Link, useLocation, useSearch } from "wouter";
-import clsx from "clsx";
 
+import type { components } from "../../api/generated-types";
 import { useAppState } from "../../state/context";
 import { statusToKind } from "../../utils/status";
+import { Chip } from "../shared/chip";
 import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
-import { Chip } from "../shared/chip";
-import { GROUP_DEFS, getGroupKey, worstStatus, type GroupDef, type GroupKey } from "./sidebar-groups";
-import { useGroupOpen } from "./use-group-open";
-import type { components } from "../../api/generated-types";
 import styles from "./sidebar.module.css";
+import { getGroupKey, GROUP_DEFS, type GroupDef, type GroupKey, worstStatus } from "./sidebar-groups";
+import { useGroupOpen } from "./use-group-open";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
 
@@ -48,16 +48,13 @@ function AppEntry({ manifest, location, searchString }: AppEntryProps) {
         aria-disabled={isBlocked ? "true" : undefined}
         data-testid={`app-item-${manifest.app_key}`}
       >
-        <Link
-          href={appPath}
-          class={styles.appLink}
-          aria-current={isActive ? "page" : undefined}
-          data-testid="app-link"
-        >
+        <Link href={appPath} class={styles.appLink} aria-current={isActive ? "page" : undefined} data-testid="app-link">
           <StatusShape kind={kind} size={10} />
           <span class={styles.appName}>{manifest.display_name}</span>
           {manifest.auto_loaded && (
-            <Chip variant="muted" title="Auto-loaded">auto</Chip>
+            <Chip variant="muted" title="Auto-loaded">
+              auto
+            </Chip>
           )}
         </Link>
         {isMulti && (
@@ -126,13 +123,7 @@ function StatusGroupHeader({ def, count, isOpen, onToggle }: StatusGroupHeaderPr
       aria-expanded={isOpen}
       onClick={onToggle}
     >
-      <svg
-        class={styles.groupChevron}
-        viewBox="0 0 12 12"
-        width="10"
-        height="10"
-        aria-hidden="true"
-      >
+      <svg class={styles.groupChevron} viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
         <polyline
           points={isOpen ? "2,8 6,4 10,8" : "2,4 6,8 10,4"}
           fill="none"
@@ -162,16 +153,15 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   const allManifests = manifests.value;
   const isFiltering = search.trim().length > 0;
   const filtered = isFiltering
-    ? allManifests.filter((m) =>
-        m.display_name.toLowerCase().includes(search.toLowerCase()) ||
-        m.app_key.toLowerCase().includes(search.toLowerCase()),
+    ? allManifests.filter(
+        (m) =>
+          m.display_name.toLowerCase().includes(search.toLowerCase()) ||
+          m.app_key.toLowerCase().includes(search.toLowerCase()),
       )
     : allManifests;
 
   // Group apps by status
-  const groups = new Map<GroupKey, AppManifest[]>(
-    GROUP_DEFS.map((g) => [g.key, []]),
-  );
+  const groups = new Map<GroupKey, AppManifest[]>(GROUP_DEFS.map((g) => [g.key, []]));
   for (const m of filtered) {
     const key = getGroupKey(m);
     groups.get(key)!.push(m);
@@ -246,9 +236,7 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         {/* APPS section header */}
         <div class={styles.sectionHeader}>
           <span class={styles.sectionLabel}>APPS</span>
-          <span class={styles.sectionCount}>
-            {isFiltering ? `${filteredCount}/${totalCount}` : totalCount}
-          </span>
+          <span class={styles.sectionCount}>{isFiltering ? `${filteredCount}/${totalCount}` : totalCount}</span>
         </div>
 
         {/* Search */}
@@ -264,24 +252,15 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         </div>
 
         {/* Status groups */}
-        {manifestsLoading.value && (
-          <Spinner />
-        )}
-        {!manifestsLoading.value && filtered.length === 0 && (
-          <div class={styles.empty}>no apps</div>
-        )}
+        {manifestsLoading.value && <Spinner />}
+        {!manifestsLoading.value && filtered.length === 0 && <div class={styles.empty}>no apps</div>}
         {GROUP_DEFS.map((def) => {
           const apps = groups.get(def.key) ?? [];
           if (apps.length === 0) return null;
           const open = isGroupOpen(def.key);
           return (
             <div key={def.key} class={styles.group}>
-              <StatusGroupHeader
-                def={def}
-                count={apps.length}
-                isOpen={open}
-                onToggle={() => toggleGroup(def.key)}
-              />
+              <StatusGroupHeader def={def} count={apps.length} isOpen={open} onToggle={() => toggleGroup(def.key)} />
               {open && (
                 <ul class={styles.appList} aria-label={`${def.label} apps`}>
                   {apps.map((m) => (

@@ -13,7 +13,10 @@
   background: var(--bg-surface);
   color: var(--ink-1);
   cursor: pointer;
-  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+  transition:
+    background var(--t-fast),
+    border-color var(--t-fast),
+    color var(--t-fast);
   text-decoration: none;
   line-height: 1.5;
 }
@@ -60,12 +63,23 @@
 .ghost.success,
 .ghost.warning,
 .ghost.info,
-.ghost.danger { border-color: transparent; }
+.ghost.danger {
+  border-color: transparent;
+}
 
-.ghost.success:hover { background: var(--ok-bg); }
-.ghost.warning:hover { background: var(--warn-bg); }
-.ghost.info:hover { background: var(--bg-sunken); color: var(--accent-hover); }
-.ghost.danger:hover { background: var(--err-bg); }
+.ghost.success:hover {
+  background: var(--ok-bg);
+}
+.ghost.warning:hover {
+  background: var(--warn-bg);
+}
+.ghost.info:hover {
+  background: var(--bg-sunken);
+  color: var(--accent-hover);
+}
+.ghost.danger:hover {
+  background: var(--err-bg);
+}
 
 .primary {
   background: var(--accent);

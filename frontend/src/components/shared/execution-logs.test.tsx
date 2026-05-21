@@ -1,10 +1,20 @@
-import { describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/preact";
+import { describe, expect, it, vi } from "vitest";
+
 import { ExecutionLogs } from "./execution-logs";
 
 vi.mock("./log-table", () => ({
   useLogTable: () => ({
-    tableProps: { visibleColumns: [], sortConfig: { column: "timestamp", asc: false }, onSort: vi.fn(), columnFilters: {}, entries: [], selectedKey: null, onRowClick: vi.fn(), isMobile: false },
+    tableProps: {
+      visibleColumns: [],
+      sortConfig: { column: "timestamp", asc: false },
+      onSort: vi.fn(),
+      columnFilters: {},
+      entries: [],
+      selectedKey: null,
+      onRowClick: vi.fn(),
+      isMobile: false,
+    },
     drawerProps: { selectedKey: null, entries: [], onClose: vi.fn(), onNavigate: vi.fn() },
     columnFilters: {},
     countLabel: "0 entries",
@@ -18,7 +28,9 @@ vi.mock("./log-table", () => ({
     isLoading: false,
   }),
   LogTableView: () => <div data-testid="log-table-view" />,
-  LogTableWithDrawer: ({ children }: { children: preact.ComponentChildren }) => <div data-testid="log-table-with-drawer">{children}</div>,
+  LogTableWithDrawer: ({ children }: { children: preact.ComponentChildren }) => (
+    <div data-testid="log-table-with-drawer">{children}</div>
+  ),
 }));
 
 describe("ExecutionLogs", () => {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import { Redirect, Route, Switch, useLocation } from "wouter";
 import { Toaster } from "sonner";
+import { Redirect, Route, Switch, useLocation } from "wouter";
+
 import { AlertBanner, TelemetryDegradedBanner } from "./components/layout/alert-banner";
 import { CommandPalette } from "./components/layout/command-palette";
 import { ErrorBoundary } from "./components/layout/error-boundary";
@@ -32,8 +33,12 @@ export function App() {
   if (drawerOpen && !drawerMounted) setDrawerMounted(true);
 
   useEffect(() => {
-    const id = setInterval(() => { if (!document.hidden) state.tick.value++; }, RELATIVE_TIME_TICK_MS);
-    const onVisible = () => { if (!document.hidden) state.tick.value++; };
+    const id = setInterval(() => {
+      if (!document.hidden) state.tick.value++;
+    }, RELATIVE_TIME_TICK_MS);
+    const onVisible = () => {
+      if (!document.hidden) state.tick.value++;
+    };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       clearInterval(id);
@@ -74,7 +79,9 @@ export function App() {
       <Toaster position="bottom-right" theme={state.theme.value} closeButton richColors />
 
       {/* Skip link */}
-      <a href="#main-content" class="ht-skip-link">Skip to main content</a>
+      <a href="#main-content" class="ht-skip-link">
+        Skip to main content
+      </a>
 
       {/* Hamburger button (mobile) */}
       <button
@@ -93,24 +100,13 @@ export function App() {
       </button>
 
       {/* Off-canvas drawer (mobile) */}
-      <div
-        ref={drawerRef}
-        class={`ht-drawer${drawerOpen ? " is-open" : ""}`}
-        aria-hidden={!drawerOpen}
-      >
+      <div ref={drawerRef} class={`ht-drawer${drawerOpen ? " is-open" : ""}`} aria-hidden={!drawerOpen}>
         {drawerMounted && <Sidebar onOpenPalette={() => setPaletteOpen(true)} />}
       </div>
-      {drawerOpen && (
-        <div
-          class="ht-drawer-backdrop"
-          role="presentation"
-          onClick={() => setDrawerOpen(false)}
-        />
-      )}
+      {drawerOpen && <div class="ht-drawer-backdrop" role="presentation" onClick={() => setDrawerOpen(false)} />}
 
       {/* Desktop layout */}
       <div class="ht-layout" data-testid="layout" {...(drawerOpen ? { inert: true } : {})}>
-
         <Sidebar onOpenPalette={() => setPaletteOpen(true)} />
         <main class="ht-main" id="main-content" tabIndex={-1}>
           <StatusBar />
@@ -118,14 +114,32 @@ export function App() {
           <FailedAppsAlert />
           <ErrorBoundary resetKey={location}>
             <Switch>
-              <Route path="/"><Redirect to="/apps" /></Route>
-              <Route path="/apps/:key/handlers/:handlerId">{(params: { key: string; handlerId: string }) => <AppDetailPage params={{ key: params.key, tab: "handlers", handler: params.handlerId }} />}</Route>
-              <Route path="/apps/:key/handlers">{(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "handlers" }} />}</Route>
-              <Route path="/apps/:key/code">{(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "code" }} />}</Route>
-              <Route path="/apps/:key/logs">{(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "logs" }} />}</Route>
-              <Route path="/apps/:key/config">{(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "config" }} />}</Route>
-              <Route path="/apps/:key/overview">{(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "overview" }} />}</Route>
-              <Route path="/apps/:key">{(params: { key: string }) => <AppDetailPage params={{ key: params.key }} />}</Route>
+              <Route path="/">
+                <Redirect to="/apps" />
+              </Route>
+              <Route path="/apps/:key/handlers/:handlerId">
+                {(params: { key: string; handlerId: string }) => (
+                  <AppDetailPage params={{ key: params.key, tab: "handlers", handler: params.handlerId }} />
+                )}
+              </Route>
+              <Route path="/apps/:key/handlers">
+                {(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "handlers" }} />}
+              </Route>
+              <Route path="/apps/:key/code">
+                {(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "code" }} />}
+              </Route>
+              <Route path="/apps/:key/logs">
+                {(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "logs" }} />}
+              </Route>
+              <Route path="/apps/:key/config">
+                {(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "config" }} />}
+              </Route>
+              <Route path="/apps/:key/overview">
+                {(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "overview" }} />}
+              </Route>
+              <Route path="/apps/:key">
+                {(params: { key: string }) => <AppDetailPage params={{ key: params.key }} />}
+              </Route>
               <Route path="/apps" component={AppsPage} />
               <Route path="/handlers" component={HandlersPage} />
               <Route path="/diagnostics" component={DiagnosticsPage} />

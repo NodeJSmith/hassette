@@ -1,8 +1,9 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
 import { signal } from "@preact/signals";
-import { ConfigPage } from "./config";
-import { renderWithAppState } from "../test/render-helpers";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import { createSystemConfig } from "../test/factories";
+import { renderWithAppState } from "../test/render-helpers";
+import { ConfigPage } from "./config";
 
 vi.mock("../hooks/use-api", () => ({
   useApi: vi.fn(),
@@ -50,11 +51,15 @@ describe("ConfigPage", () => {
   });
 
   it("renders path fields in a Paths group", () => {
-    useApi.mockReturnValue(fakeApiResult(createSystemConfig({
-      apps: { autodetect: true, directory: "/my/apps" },
-      data_dir: "/my/data",
-      config_dir: "/my/config",
-    })));
+    useApi.mockReturnValue(
+      fakeApiResult(
+        createSystemConfig({
+          apps: { autodetect: true, directory: "/my/apps" },
+          data_dir: "/my/data",
+          config_dir: "/my/config",
+        }),
+      ),
+    );
     const { getByText } = renderWithAppState(<ConfigPage />);
     expect(getByText("paths")).toBeDefined();
     expect(getByText("app_dir")).toBeDefined();
@@ -89,13 +94,23 @@ describe("ConfigPage", () => {
   });
 
   it("displays numeric config values as text", () => {
-    useApi.mockReturnValue(fakeApiResult(createSystemConfig({
-      web_api: {
-        run: true, run_ui: true, ui_hot_reload: false,
-        host: "0.0.0.0", port: 9000, cors_origins: [],
-        event_buffer_size: 500, log_buffer_size: 2000, job_history_size: 1000,
-      },
-    })));
+    useApi.mockReturnValue(
+      fakeApiResult(
+        createSystemConfig({
+          web_api: {
+            run: true,
+            run_ui: true,
+            ui_hot_reload: false,
+            host: "0.0.0.0",
+            port: 9000,
+            cors_origins: [],
+            event_buffer_size: 500,
+            log_buffer_size: 2000,
+            job_history_size: 1000,
+          },
+        }),
+      ),
+    );
     const { getByText } = renderWithAppState(<ConfigPage />);
     expect(getByText("9000")).toBeDefined();
   });

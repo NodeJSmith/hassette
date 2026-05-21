@@ -1,5 +1,6 @@
+import { fireEvent, render, waitFor } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
-import { render, fireEvent, waitFor } from "@testing-library/preact";
+
 import { ConfirmDialog } from "./confirm-dialog";
 
 function renderDialog(overrides: Partial<Parameters<typeof ConfirmDialog>[0]> = {}) {

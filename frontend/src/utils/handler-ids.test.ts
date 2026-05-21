@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { formatListenerId, formatJobId, parseHandlerId } from "./handler-ids";
+
+import { formatJobId, formatListenerId, parseHandlerId } from "./handler-ids";
 
 describe("formatListenerId", () => {
   it("formats a listener ID with h- prefix", () => {

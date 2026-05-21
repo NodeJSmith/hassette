@@ -1,6 +1,7 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/preact";
 import { http, HttpResponse } from "msw";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import { server } from "../../test/server";
 
 // Mock shiki to avoid async highlighting in tests
@@ -24,7 +25,7 @@ vi.mock("shiki", () => ({
 let mockLineParam: string | null = null;
 vi.mock("../../hooks/use-query-params", () => ({
   useQueryParams: () => ({
-    get: (key: string) => key === "line" ? mockLineParam : null,
+    get: (key: string) => (key === "line" ? mockLineParam : null),
     set: vi.fn(),
   }),
 }));
@@ -83,9 +84,7 @@ describe("CodeTab", () => {
     await waitFor(() => {
       expect(screen.getByTestId("code-tab-error")).toBeDefined();
     });
-    expect(screen.getByTestId("code-tab-error").textContent).toContain(
-      "Source file not found",
-    );
+    expect(screen.getByTestId("code-tab-error").textContent).toContain("Source file not found");
   });
 
   it("shows line count in header", async () => {

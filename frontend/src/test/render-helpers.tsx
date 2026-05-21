@@ -6,10 +6,11 @@
  * directly.
  */
 
-import type { ComponentChildren } from "preact";
 import { render } from "@testing-library/preact";
+import type { ComponentChildren } from "preact";
+
 import { AppStateContext } from "../state/context";
-import { createAppState, type AppState } from "../state/create-app-state";
+import { type AppState, createAppState } from "../state/create-app-state";
 
 interface RenderWithAppStateOptions {
   stateOverrides?: Partial<AppState>;
@@ -21,15 +22,8 @@ interface RenderWithAppStateOptions {
  * A fresh AppState is created for each call. Pass `stateOverrides` to replace
  * individual signals or methods on the default state.
  */
-export function renderWithAppState(
-  ui: ComponentChildren,
-  { stateOverrides }: RenderWithAppStateOptions = {},
-) {
+export function renderWithAppState(ui: ComponentChildren, { stateOverrides }: RenderWithAppStateOptions = {}) {
   const state: AppState = { ...createAppState(), ...stateOverrides };
 
-  return render(
-    <AppStateContext.Provider value={state}>
-      {ui}
-    </AppStateContext.Provider>,
-  );
+  return render(<AppStateContext.Provider value={state}>{ui}</AppStateContext.Provider>);
 }

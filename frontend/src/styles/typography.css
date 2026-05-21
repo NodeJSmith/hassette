@@ -52,7 +52,9 @@ h4 {
   color: var(--ink-1);
 }
 
-code, pre, kbd {
+code,
+pre,
+kbd {
   font-family: var(--font-mono);
   font-size: var(--fs-mono-md);
 }

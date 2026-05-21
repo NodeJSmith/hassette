@@ -1,18 +1,19 @@
-import { useState } from "preact/hooks";
 import clsx from "clsx";
-import { EmptyState } from "../components/shared/empty-state";
-import { useApi } from "../hooks/use-api";
-import { useDocumentTitle } from "../hooks/use-document-title";
-import { useAppState } from "../state/context";
-import type { ServiceStatusEntry } from "../state/create-app-state";
-import { getSystemStatus } from "../api/endpoints";
+import { useState } from "preact/hooks";
+
 import type { BootIssue } from "../api/endpoints";
+import { getSystemStatus } from "../api/endpoints";
 import type { components } from "../api/generated-types";
-import { statusToKind } from "../utils/status";
-import { useRelativeTime } from "../hooks/use-relative-time";
+import cardStyles from "../components/shared/card.module.css";
+import { EmptyState } from "../components/shared/empty-state";
 import { Spinner } from "../components/shared/spinner";
 import { StatusShape } from "../components/shared/status-shape";
-import cardStyles from "../components/shared/card.module.css";
+import { useApi } from "../hooks/use-api";
+import { useDocumentTitle } from "../hooks/use-document-title";
+import { useRelativeTime } from "../hooks/use-relative-time";
+import { useAppState } from "../state/context";
+import type { ServiceStatusEntry } from "../state/create-app-state";
+import { statusToKind } from "../utils/status";
 import styles from "./diagnostics.module.css";
 
 type ServiceInfoResponse = components["schemas"]["ServiceInfoResponse"];
@@ -64,9 +65,7 @@ function mergeServices(
     });
   }
 
-  return [...merged.values()].sort((a, b) =>
-    a.resource_name.localeCompare(b.resource_name),
-  );
+  return [...merged.values()].sort((a, b) => a.resource_name.localeCompare(b.resource_name));
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -84,10 +83,7 @@ function DiagServiceRow({ service }: DiagServiceRowProps) {
   const kind = statusToKind(service.status);
 
   return (
-    <li
-      class={styles.serviceRow}
-      data-testid={`diag-service-row-${service.resource_name}`}
-    >
+    <li class={styles.serviceRow} data-testid={`diag-service-row-${service.resource_name}`}>
       <div class={styles.serviceMain}>
         <StatusShape kind={kind} size={10} />
         <span class={`${styles.serviceName} ht-text-mono`}>{service.resource_name}</span>
@@ -98,10 +94,7 @@ function DiagServiceRow({ service }: DiagServiceRowProps) {
           {service.status}
         </span>
         {service.ready_phase && (
-          <span
-            class={styles.servicePhase}
-            data-testid={`diag-service-phase-${service.resource_name}`}
-          >
+          <span class={styles.servicePhase} data-testid={`diag-service-phase-${service.resource_name}`}>
             {service.ready_phase}
           </span>
         )}
@@ -124,9 +117,7 @@ function DiagServiceRow({ service }: DiagServiceRowProps) {
           </button>
         )}
       </div>
-      {exceptionOpen && service.exception && (
-        <pre class={styles.exceptionDetail}>{service.exception}</pre>
-      )}
+      {exceptionOpen && service.exception && <pre class={styles.exceptionDetail}>{service.exception}</pre>}
     </li>
   );
 }
@@ -179,16 +170,12 @@ interface BootIssuesPanelProps {
 const SEVERITY_ORDER: Record<string, number> = { err: 0, warn: 1, info: 2 };
 
 function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
-  const sorted = [...bootIssues].sort((a, b) =>
-    (SEVERITY_ORDER[a.severity] ?? 99) - (SEVERITY_ORDER[b.severity] ?? 99),
+  const sorted = [...bootIssues].sort(
+    (a, b) => (SEVERITY_ORDER[a.severity] ?? 99) - (SEVERITY_ORDER[b.severity] ?? 99),
   );
 
   return (
-    <section
-      class={clsx(cardStyles.card, styles.section)}
-      aria-label="Boot issues"
-      data-testid="diag-boot-panel"
-    >
+    <section class={clsx(cardStyles.card, styles.section)} aria-label="Boot issues" data-testid="diag-boot-panel">
       <h2 class={styles.sectionHeading}>boot issues</h2>
       {sorted.length === 0 ? (
         <EmptyState icon="✓" title="clean startup — no issues." data-testid="diag-boot-clean" />
@@ -197,23 +184,13 @@ function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
           {sorted.map((issue, i) => {
             const kind = issue.severity === "err" ? "err" : "warn";
             return (
-              <li
-                key={`${issue.severity}-${issue.label}`}
-                class={styles.bootRow}
-                data-testid={`diag-boot-issue-${i}`}
-              >
+              <li key={`${issue.severity}-${issue.label}`} class={styles.bootRow} data-testid={`diag-boot-issue-${i}`}>
                 <StatusShape kind={kind} size={10} />
                 <div class={styles.bootContent}>
-                  <span
-                    class={styles.bootLabel}
-                    data-testid={`diag-boot-label-${i}`}
-                  >
+                  <span class={styles.bootLabel} data-testid={`diag-boot-label-${i}`}>
                     {issue.label}
                   </span>
-                  <span
-                    class={styles.bootDetail}
-                    data-testid={`diag-boot-detail-${i}`}
-                  >
+                  <span class={styles.bootDetail} data-testid={`diag-boot-detail-${i}`}>
                     {issue.detail}
                   </span>
                 </div>
@@ -249,11 +226,7 @@ function DropCounterRow({ label, value, testId }: DropCounterRowProps) {
   return (
     <li class={styles.dropRow} data-testid={testId}>
       <span class={styles.dropLabel}>{label}</span>
-      <span
-        class={clsx(styles.dropValue, "ht-text-mono", value > 0 && "ht-text-warning")}
-      >
-        {value}
-      </span>
+      <span class={clsx(styles.dropValue, "ht-text-mono", value > 0 && "ht-text-warning")}>{value}</span>
     </li>
   );
 }
@@ -282,11 +255,7 @@ function TelemetryPanel({
     >
       <h2 class={styles.sectionHeading}>telemetry health</h2>
       {telemetryDegraded && (
-        <div
-          class={styles.degradedBanner}
-          role="alert"
-          data-testid="diag-telemetry-degraded"
-        >
+        <div class={styles.degradedBanner} role="alert" data-testid="diag-telemetry-degraded">
           Telemetry degraded — writes may be failing or the database is unavailable.
         </div>
       )}
@@ -296,26 +265,10 @@ function TelemetryPanel({
         </p>
       ) : (
         <ul class={styles.dropList} aria-label="Drop counters">
-          <DropCounterRow
-            label="Buffer overflow"
-            value={droppedOverflow}
-            testId="diag-drop-overflow"
-          />
-          <DropCounterRow
-            label="Write failed"
-            value={droppedExhausted}
-            testId="diag-drop-exhausted"
-          />
-          <DropCounterRow
-            label="No session"
-            value={droppedNoSession}
-            testId="diag-drop-no-session"
-          />
-          <DropCounterRow
-            label="During shutdown"
-            value={droppedShutdown}
-            testId="diag-drop-shutdown"
-          />
+          <DropCounterRow label="Buffer overflow" value={droppedOverflow} testId="diag-drop-overflow" />
+          <DropCounterRow label="Write failed" value={droppedExhausted} testId="diag-drop-exhausted" />
+          <DropCounterRow label="No session" value={droppedNoSession} testId="diag-drop-no-session" />
+          <DropCounterRow label="During shutdown" value={droppedShutdown} testId="diag-drop-shutdown" />
           <DropCounterRow
             label="Error handler failures"
             value={errorHandlerFailures}
@@ -369,10 +322,7 @@ export function DiagnosticsPage() {
         </div>
       ) : (
         <>
-          <ServicesPanel
-            services={mergedServices}
-            wsConnected={wsConnected}
-          />
+          <ServicesPanel services={mergedServices} wsConnected={wsConnected} />
 
           <BootIssuesPanel bootIssues={bootIssues} />
         </>

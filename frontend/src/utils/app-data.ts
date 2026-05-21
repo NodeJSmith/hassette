@@ -30,10 +30,7 @@ export interface AppRow {
   last_error_ts: number | null;
 }
 
-export function mergeManifestsAndGrid(
-  manifests: AppManifest[],
-  gridEntries: DashboardAppGridEntry[],
-): AppRow[] {
+export function mergeManifestsAndGrid(manifests: AppManifest[], gridEntries: DashboardAppGridEntry[]): AppRow[] {
   const gridMap = new Map(gridEntries.map((e) => [e.app_key, e]));
   return manifests.map((m) => {
     const g = gridMap.get(m.app_key);

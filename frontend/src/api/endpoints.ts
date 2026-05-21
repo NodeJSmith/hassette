@@ -1,7 +1,7 @@
 /** Typed API endpoint functions for all Hassette REST endpoints. */
 
-import type { components } from "./generated-types";
 import { apiFetch, apiPost, apiPut } from "./client";
+import type { components } from "./generated-types";
 
 // ---- Generated type aliases ----
 
@@ -39,25 +39,31 @@ export const startApp = (appKey: string) => apiPost<{ status: string }>(`/apps/$
 export const stopApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/stop`);
 export const reloadApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/reload`);
 
-export const getAppConfig = (appKey: string) =>
-  apiFetch<AppConfigData>(`/apps/${encodeURIComponent(appKey)}/config`);
+export const getAppConfig = (appKey: string) => apiFetch<AppConfigData>(`/apps/${encodeURIComponent(appKey)}/config`);
 
-export const getAppSource = (appKey: string) =>
-  apiFetch<AppSourceData>(`/apps/${encodeURIComponent(appKey)}/source`);
+export const getAppSource = (appKey: string) => apiFetch<AppSourceData>(`/apps/${encodeURIComponent(appKey)}/source`);
 
 // ---- Telemetry ----
 
 export const getAppHealth = (appKey: string, instanceIndex = 0, since?: number | null) =>
-  apiFetch<AppHealthData>(buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/health`, { instance_index: instanceIndex, since }));
+  apiFetch<AppHealthData>(
+    buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/health`, { instance_index: instanceIndex, since }),
+  );
 
 export const getAppListeners = (appKey: string, instanceIndex = 0, since?: number | null) =>
-  apiFetch<ListenerData[]>(buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/listeners`, { instance_index: instanceIndex, since }));
+  apiFetch<ListenerData[]>(
+    buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/listeners`, { instance_index: instanceIndex, since }),
+  );
 
 export const getAppJobs = (appKey: string, instanceIndex = 0, since?: number | null) =>
-  apiFetch<JobData[]>(buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/jobs`, { instance_index: instanceIndex, since }));
+  apiFetch<JobData[]>(
+    buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/jobs`, { instance_index: instanceIndex, since }),
+  );
 
 export const getAppActivity = (appKey: string, instanceIndex?: number | null, limit = 50, since?: number | null) =>
-  apiFetch<ActivityFeedEntryData[]>(buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/activity`, { instance_index: instanceIndex, limit, since }));
+  apiFetch<ActivityFeedEntryData[]>(
+    buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/activity`, { instance_index: instanceIndex, limit, since }),
+  );
 
 export const getHandlerInvocations = (listenerId: number, limit = 50, since?: number | null) =>
   apiFetch<HandlerInvocationData[]>(buildUrl(`/telemetry/handler/${listenerId}/invocations`, { limit, since }));
@@ -90,14 +96,16 @@ export const getRecentLogs = (params?: {
   execution_id?: string | null;
   source_tier?: string | null;
 }) =>
-  apiFetch<LogEntry[]>(buildUrl("/logs/recent", {
-    level: params?.level,
-    app_key: params?.app_key,
-    limit: params?.limit,
-    since: params?.since,
-    execution_id: params?.execution_id,
-    source_tier: params?.source_tier,
-  }));
+  apiFetch<LogEntry[]>(
+    buildUrl("/logs/recent", {
+      level: params?.level,
+      app_key: params?.app_key,
+      limit: params?.limit,
+      since: params?.since,
+      execution_id: params?.execution_id,
+      source_tier: params?.source_tier,
+    }),
+  );
 
 export const getLogsByExecution = (executionId: string, limit?: number) =>
   apiFetch<LogsByExecutionResponse>(buildUrl(`/logs/by-execution/${encodeURIComponent(executionId)}`, { limit }));
@@ -112,8 +120,7 @@ export const getAllListeners = (since?: number | null) =>
 
 // ---- Scheduler (global) ----
 
-export const getAllJobs = (since?: number | null) =>
-  apiFetch<JobData[]>(buildUrl("/scheduler/jobs", { since }));
+export const getAllJobs = (since?: number | null) => apiFetch<JobData[]>(buildUrl("/scheduler/jobs", { since }));
 
 // ---- System status ----
 

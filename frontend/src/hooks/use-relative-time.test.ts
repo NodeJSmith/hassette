@@ -1,10 +1,11 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/preact";
-import { h } from "preact";
+import { act, renderHook } from "@testing-library/preact";
 import type { ComponentChildren } from "preact";
-import { useRelativeTime } from "./use-relative-time";
+import { h } from "preact";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { AppStateContext } from "../state/context";
-import { createAppState, type AppState } from "../state/create-app-state";
+import { type AppState, createAppState } from "../state/create-app-state";
+import { useRelativeTime } from "./use-relative-time";
 
 function createWrapper(state: AppState) {
   return function Wrapper({ children }: { children: ComponentChildren }) {
@@ -64,12 +65,15 @@ describe("useRelativeTime", () => {
     const state = createAppState();
     const ts = Math.floor(Date.now() / 1000) - 60;
     let renderCount = 0;
-    const { result } = renderHook(() => {
-      renderCount++;
-      return useRelativeTime(ts);
-    }, {
-      wrapper: createWrapper(state),
-    });
+    const { result } = renderHook(
+      () => {
+        renderCount++;
+        return useRelativeTime(ts);
+      },
+      {
+        wrapper: createWrapper(state),
+      },
+    );
 
     const initialRenderCount = renderCount;
     act(() => {

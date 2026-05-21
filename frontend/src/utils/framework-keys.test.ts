@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isFrameworkKey, frameworkDisplayName, frameworkDisplayLabel } from "./framework-keys";
+
+import { frameworkDisplayLabel, frameworkDisplayName, isFrameworkKey } from "./framework-keys";
 
 describe("isFrameworkKey", () => {
   it("test_isFrameworkKey_prefixed: matches __hassette__.<component> keys", () => {

@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/preact";
+import { describe, expect, it, vi } from "vitest";
+
 import type { LogEntry } from "../../../api/endpoints";
 
 // CSS modules in this project use vite-css-modules which generates hashed class
@@ -44,11 +45,7 @@ function makeDrawerProps(overrides: Partial<LogDrawerProps> = {}): LogDrawerProp
 }
 
 function renderWithDrawer(drawerProps: LogDrawerProps, children = <div data-testid="table-content" />) {
-  return render(
-    <LogTableWithDrawer drawerProps={drawerProps}>
-      {children}
-    </LogTableWithDrawer>,
-  );
+  return render(<LogTableWithDrawer drawerProps={drawerProps}>{children}</LogTableWithDrawer>);
 }
 
 // ---------------------------------------------------------------------------
@@ -72,10 +69,7 @@ describe("LogTableWithDrawer", () => {
     });
 
     it("renders arbitrary children content inside tableArea", () => {
-      const { getByText, container } = renderWithDrawer(
-        makeDrawerProps(),
-        <span>hello from children</span>,
-      );
+      const { getByText, container } = renderWithDrawer(makeDrawerProps(), <span>hello from children</span>);
       const tableArea = container.querySelector("[class*='tableArea']");
       expect(tableArea).not.toBeNull();
       expect(tableArea!.textContent).toContain("hello from children");
@@ -85,9 +79,7 @@ describe("LogTableWithDrawer", () => {
 
   describe("drawerOpen class", () => {
     it("applies drawerOpen class token to wrapper when selectedKey is not null", () => {
-      const { container } = renderWithDrawer(
-        makeDrawerProps({ selectedKey: "1001-1", entries: [makeEntry(1)] }),
-      );
+      const { container } = renderWithDrawer(makeDrawerProps({ selectedKey: "1001-1", entries: [makeEntry(1)] }));
       const wrapper = container.querySelector("[class*='wrapper']");
       expect(wrapper).not.toBeNull();
       expect(wrapper!.className).toMatch(/drawerOpen/);
@@ -103,9 +95,7 @@ describe("LogTableWithDrawer", () => {
 
   describe("LogDetailDrawer", () => {
     it("renders the drawer when selectedKey is not null", () => {
-      const { getByTestId } = renderWithDrawer(
-        makeDrawerProps({ selectedKey: "1001-1", entries: [makeEntry(1)] }),
-      );
+      const { getByTestId } = renderWithDrawer(makeDrawerProps({ selectedKey: "1001-1", entries: [makeEntry(1)] }));
       expect(getByTestId("drawer")).not.toBeNull();
     });
 

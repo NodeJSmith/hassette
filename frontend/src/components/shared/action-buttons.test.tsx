@@ -1,5 +1,6 @@
+import { fireEvent, render, waitFor } from "@testing-library/preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, fireEvent, waitFor } from "@testing-library/preact";
+
 import { ActionButtons } from "./action-buttons";
 
 // Mock the API endpoints — we test the component logic, not the network.
@@ -22,42 +23,32 @@ describe("ActionButtons", () => {
   // -- Button visibility by status --
 
   it("shows Start when status is stopped", () => {
-    const { getByTestId, queryByTestId } = render(
-      <ActionButtons appKey="my_app" status="stopped" />,
-    );
+    const { getByTestId, queryByTestId } = render(<ActionButtons appKey="my_app" status="stopped" />);
     expect(getByTestId("btn-start-my_app")).toBeDefined();
     expect(queryByTestId("btn-stop-my_app")).toBeNull();
     expect(queryByTestId("btn-reload-my_app")).toBeNull();
   });
 
   it("shows Start when status is failed", () => {
-    const { getByTestId, queryByTestId } = render(
-      <ActionButtons appKey="my_app" status="failed" />,
-    );
+    const { getByTestId, queryByTestId } = render(<ActionButtons appKey="my_app" status="failed" />);
     expect(getByTestId("btn-start-my_app")).toBeDefined();
     expect(queryByTestId("btn-stop-my_app")).toBeNull();
   });
 
   it("shows Start when status is disabled", () => {
-    const { getByTestId } = render(
-      <ActionButtons appKey="my_app" status="disabled" />,
-    );
+    const { getByTestId } = render(<ActionButtons appKey="my_app" status="disabled" />);
     expect(getByTestId("btn-start-my_app")).toBeDefined();
   });
 
   it("shows Stop and Reload when status is running", () => {
-    const { getByTestId, queryByTestId } = render(
-      <ActionButtons appKey="my_app" status="running" />,
-    );
+    const { getByTestId, queryByTestId } = render(<ActionButtons appKey="my_app" status="running" />);
     expect(queryByTestId("btn-start-my_app")).toBeNull();
     expect(getByTestId("btn-stop-my_app")).toBeDefined();
     expect(getByTestId("btn-reload-my_app")).toBeDefined();
   });
 
   it("shows no buttons for unknown statuses like starting", () => {
-    const { queryByTestId } = render(
-      <ActionButtons appKey="my_app" status="starting" />,
-    );
+    const { queryByTestId } = render(<ActionButtons appKey="my_app" status="starting" />);
     expect(queryByTestId("btn-start-my_app")).toBeNull();
     expect(queryByTestId("btn-stop-my_app")).toBeNull();
     expect(queryByTestId("btn-reload-my_app")).toBeNull();
@@ -68,9 +59,7 @@ describe("ActionButtons", () => {
   it("calls startApp and disables button during loading", async () => {
     startApp.mockResolvedValue({ status: "accepted" });
 
-    const { getByTestId } = render(
-      <ActionButtons appKey="my_app" status="stopped" />,
-    );
+    const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" />);
 
     const btn = getByTestId("btn-start-my_app") as HTMLButtonElement;
     expect(btn.disabled).toBe(false);
@@ -89,9 +78,7 @@ describe("ActionButtons", () => {
   it("calls stopApp when Stop is clicked", async () => {
     stopApp.mockResolvedValue({ status: "accepted" });
 
-    const { getByTestId } = render(
-      <ActionButtons appKey="my_app" status="running" />,
-    );
+    const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" />);
 
     fireEvent.click(getByTestId("btn-stop-my_app"));
     expect(stopApp).toHaveBeenCalledWith("my_app");
@@ -104,9 +91,7 @@ describe("ActionButtons", () => {
   it("calls reloadApp when Reload is clicked", async () => {
     reloadApp.mockResolvedValue({ status: "accepted" });
 
-    const { getByTestId } = render(
-      <ActionButtons appKey="my_app" status="running" />,
-    );
+    const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" />);
 
     fireEvent.click(getByTestId("btn-reload-my_app"));
     expect(reloadApp).toHaveBeenCalledWith("my_app");
@@ -121,9 +106,7 @@ describe("ActionButtons", () => {
   it("shows error message when action fails and re-enables button", async () => {
     startApp.mockRejectedValue(new Error("Connection refused"));
 
-    const { getByTestId, getByText } = render(
-      <ActionButtons appKey="my_app" status="stopped" />,
-    );
+    const { getByTestId, getByText } = render(<ActionButtons appKey="my_app" status="stopped" />);
 
     const btn = getByTestId("btn-start-my_app") as HTMLButtonElement;
     fireEvent.click(btn);
@@ -139,9 +122,7 @@ describe("ActionButtons", () => {
   it("shows stringified error for non-Error throws", async () => {
     startApp.mockRejectedValue("raw string error");
 
-    const { getByTestId, getByText } = render(
-      <ActionButtons appKey="my_app" status="stopped" />,
-    );
+    const { getByTestId, getByText } = render(<ActionButtons appKey="my_app" status="stopped" />);
 
     const btn = getByTestId("btn-start-my_app") as HTMLButtonElement;
     fireEvent.click(btn);
@@ -156,12 +137,13 @@ describe("ActionButtons", () => {
   it("ignores second click while first action is in-flight", async () => {
     let resolveAction!: (value: unknown) => void;
     startApp.mockImplementation(
-      () => new Promise((resolve) => { resolveAction = resolve; }),
+      () =>
+        new Promise((resolve) => {
+          resolveAction = resolve;
+        }),
     );
 
-    const { getByTestId } = render(
-      <ActionButtons appKey="my_app" status="stopped" />,
-    );
+    const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" />);
 
     const btn = getByTestId("btn-start-my_app") as HTMLButtonElement;
 

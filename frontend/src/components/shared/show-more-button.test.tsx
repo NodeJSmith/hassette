@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { render, fireEvent, act } from "@testing-library/preact";
 import { signal } from "@preact/signals";
+import { act, fireEvent, render } from "@testing-library/preact";
+import { describe, expect, it } from "vitest";
+
 import { ShowMoreButton } from "./show-more-button";
 
 describe("ShowMoreButton", () => {

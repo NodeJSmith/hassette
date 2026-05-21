@@ -1,8 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { listenerToRow, jobToRow, compareHandlerRows } from "./handler-rows";
-import type { UnifiedRow, HandlerSortKey } from "./handler-rows";
+import { describe, expect, it } from "vitest";
+
 import type { SortState } from "../components/shared/sort-header";
-import { createListener, createJob } from "../test/factories";
+import { createJob, createListener } from "../test/factories";
+import type { HandlerSortKey, UnifiedRow } from "./handler-rows";
+import { compareHandlerRows, jobToRow, listenerToRow } from "./handler-rows";
 
 // ---------------------------------------------------------------------------
 // listenerToRow
@@ -303,8 +304,8 @@ describe("compareHandlerRows — timed_out", () => {
 
 describe("compareHandlerRows — error_rate", () => {
   it("asc: lower rate first", () => {
-    const a = row({ runs: 100, failed: 1 });   // 1%
-    const b = row({ runs: 100, failed: 10 });  // 10%
+    const a = row({ runs: 100, failed: 1 }); // 1%
+    const b = row({ runs: 100, failed: 10 }); // 10%
     expect(compareHandlerRows(a, b, asc("error_rate"))).toBeLessThan(0);
   });
 

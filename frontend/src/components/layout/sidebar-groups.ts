@@ -1,5 +1,5 @@
-import { statusPriority } from "../../utils/status-priority";
 import type { components } from "../../api/generated-types";
+import { statusPriority } from "../../utils/status-priority";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
 

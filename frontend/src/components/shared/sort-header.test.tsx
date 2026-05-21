@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, act, fireEvent } from "@testing-library/preact";
+import { act, fireEvent, render, screen } from "@testing-library/preact";
+import { describe, expect, it, vi } from "vitest";
+
 import { SortHeader, type SortState } from "./sort-header";
 
 // ---------------------------------------------------------------------------
@@ -225,11 +226,7 @@ describe("SortHeader — filter-only", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader
-              filterContent={<div>Filter options</div>}
-              hasActiveFilter={false}
-              ariaLabel="Type"
-            >
+            <SortHeader filterContent={<div>Filter options</div>} hasActiveFilter={false} ariaLabel="Type">
               Type
             </SortHeader>
           </tr>
@@ -455,11 +452,7 @@ describe("SortHeader — popover toggle", () => {
       <table>
         <thead>
           <tr>
-            <SortHeader
-              filterContent={<button type="button">Inside</button>}
-              hasActiveFilter={false}
-              ariaLabel="Col"
-            >
+            <SortHeader filterContent={<button type="button">Inside</button>} hasActiveFilter={false} ariaLabel="Col">
               Col
             </SortHeader>
           </tr>

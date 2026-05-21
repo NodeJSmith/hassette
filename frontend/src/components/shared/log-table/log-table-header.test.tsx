@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/preact";
-import type { ColumnId, SortConfig, SortColumn } from "./types";
+import { describe, expect, it, vi } from "vitest";
+
 import type { ColumnFilters } from "../table-types";
+import type { ColumnId, SortColumn, SortConfig } from "./types";
 
 vi.mock("../../../hooks/use-media-query", () => ({
   useMediaQuery: vi.fn(() => false),
@@ -46,7 +47,11 @@ function renderHeader(props: Partial<Parameters<typeof LogTableHeader>[0]> = {})
     onSort: vi.fn(),
     columnFilters: {} as ColumnFilters,
   };
-  return render(<table><LogTableHeader {...defaults} {...props} /></table>);
+  return render(
+    <table>
+      <LogTableHeader {...defaults} {...props} />
+    </table>,
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
+import clsx from "clsx";
 import { useEffect, useRef } from "preact/hooks";
 import { useLocation } from "wouter";
-import clsx from "clsx";
 
 import { getAllListeners } from "../../api/endpoints";
 import { useApi } from "../../hooks/use-api";
@@ -8,18 +8,18 @@ import { useSignal } from "../../hooks/use-signal";
 import { useAppState } from "../../state/context";
 import { statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
+import styles from "./command-palette.module.css";
 import {
-  buildStaticPageItems,
   buildActionItems,
   buildAppItems,
   buildHandlerItems,
-  matchesQuery,
-  KIND_ORDER,
+  buildStaticPageItems,
   KIND_LABEL,
+  KIND_ORDER,
+  matchesQuery,
   type PaletteItem,
   type PaletteItemKind,
 } from "./palette-items";
-import styles from "./command-palette.module.css";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -73,9 +73,10 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const filtered = allItems.filter((item) => matchesQuery(item, query.value));
 
   // Build sections: only include kinds with results
-  const sections: { kind: PaletteItemKind; items: PaletteItem[] }[] = KIND_ORDER
-    .map((kind) => ({ kind, items: filtered.filter((item) => item.kind === kind) }))
-    .filter((s) => s.items.length > 0);
+  const sections: { kind: PaletteItemKind; items: PaletteItem[] }[] = KIND_ORDER.map((kind) => ({
+    kind,
+    items: filtered.filter((item) => item.kind === kind),
+  })).filter((s) => s.items.length > 0);
 
   // Flat ordered results for keyboard navigation
   const flatResults = sections.flatMap((s) => s.items);
@@ -106,12 +107,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   return (
     <>
       {/* Backdrop */}
-      <div
-        class={styles.backdrop}
-        aria-hidden="true"
-        data-testid="cmd-palette-backdrop"
-        onClick={onClose}
-      />
+      <div class={styles.backdrop} aria-hidden="true" data-testid="cmd-palette-backdrop" onClick={onClose} />
       {/* Panel */}
       <div
         role="dialog"
@@ -133,13 +129,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
         {/* Search input */}
         <div class={styles.inputWrap}>
-          <svg
-            class={styles.searchIcon}
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            aria-hidden="true"
-          >
+          <svg class={styles.searchIcon} width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
             <circle cx="6.5" cy="6.5" r="5" fill="none" stroke="currentColor" stroke-width="1.5" />
             <line x1="10.5" y1="10.5" x2="14" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
           </svg>
@@ -193,14 +183,10 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                     onClick={() => item.action()}
                   >
                     <span class={styles.resultLabel}>
-                      {item.status !== undefined && (
-                        <StatusShape kind={statusToKind(item.status)} size={8} />
-                      )}
+                      {item.status !== undefined && <StatusShape kind={statusToKind(item.status)} size={8} />}
                       {item.label}
                     </span>
-                    {item.sub && (
-                      <span class={styles.resultSub}>{item.sub}</span>
-                    )}
+                    {item.sub && <span class={styles.resultSub}>{item.sub}</span>}
                     <span class={styles.chip}>{item.kind}</span>
                   </button>
                 );
@@ -209,18 +195,19 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           ))}
         </div>
 
-        <div
-          tabIndex={0}
-          aria-hidden="true"
-          class={styles.focusTrap}
-          onFocus={() => inputRef.current?.focus()}
-        />
+        <div tabIndex={0} aria-hidden="true" class={styles.focusTrap} onFocus={() => inputRef.current?.focus()} />
 
         {/* Footer */}
         <div class={styles.footer} aria-hidden="true" data-testid="cmd-palette-footer">
-          <span><kbd>↑↓</kbd> navigate</span>
-          <span><kbd>↵</kbd> select</span>
-          <span><kbd>esc</kbd> close</span>
+          <span>
+            <kbd>↑↓</kbd> navigate
+          </span>
+          <span>
+            <kbd>↵</kbd> select
+          </span>
+          <span>
+            <kbd>esc</kbd> close
+          </span>
         </div>
       </div>
     </>

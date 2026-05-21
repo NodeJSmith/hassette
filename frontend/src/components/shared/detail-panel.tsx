@@ -1,7 +1,7 @@
-import { ExecutionLogs } from "./execution-logs";
-import { ErrorDisplay } from "./error-display";
-import { TracebackViewer } from "./traceback-viewer";
 import styles from "./detail-panel.module.css";
+import { ErrorDisplay } from "./error-display";
+import { ExecutionLogs } from "./execution-logs";
+import { TracebackViewer } from "./traceback-viewer";
 
 interface Props {
   status: string;
@@ -45,21 +45,11 @@ export function DetailPanel({
           <span class="ht-text-mono ht-text-xs">{executionId ?? "—"}</span>
         </div>
         {!hasTraceback && (
-          <ErrorDisplay
-            status={status}
-            durationMs={durationMs}
-            errorType={errorType}
-            errorMessage={errorMessage}
-          />
+          <ErrorDisplay status={status} durationMs={durationMs} errorType={errorType} errorMessage={errorMessage} />
         )}
       </div>
 
-      {hasTraceback && (
-        <TracebackViewer
-          traceback={errorTraceback}
-          testIdPrefix={testId.replace("-detail", "")}
-        />
-      )}
+      {hasTraceback && <TracebackViewer traceback={errorTraceback} testIdPrefix={testId.replace("-detail", "")} />}
 
       <div class={styles.logsWrapper}>
         {executionId ? (

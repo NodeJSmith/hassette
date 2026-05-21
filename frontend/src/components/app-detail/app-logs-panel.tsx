@@ -1,7 +1,7 @@
 import { useSignal } from "../../hooks/use-signal";
 import { useSubscribe } from "../../hooks/use-subscribe";
-import { useLogTable, LogTableView, LogTableWithDrawer } from "../shared/log-table";
 import { EmptyState } from "../shared/empty-state";
+import { LogTableView, LogTableWithDrawer, useLogTable } from "../shared/log-table";
 import { TableCard } from "../shared/table-card";
 import { TableFooter } from "../shared/table-footer";
 
@@ -17,7 +17,9 @@ export function AppLogsPanel({ appKey }: { appKey: string }) {
       placeholder="Search logs…"
       aria-label="Search app logs"
       value={search.value}
-      onInput={(e) => { search.value = (e.target as HTMLInputElement).value; }}
+      onInput={(e) => {
+        search.value = (e.target as HTMLInputElement).value;
+      }}
       data-testid="app-logs-search"
     />
   );

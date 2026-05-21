@@ -1,8 +1,9 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/preact";
-import { useColumnVisibility } from "./use-column-visibility";
-import { DEFAULT_COLUMNS_GLOBAL, DEFAULT_COLUMNS_APP, DEFAULT_COLUMNS_EXECUTION } from "./constants";
+import { act, renderHook } from "@testing-library/preact";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { DEFAULT_COLUMNS_APP, DEFAULT_COLUMNS_EXECUTION, DEFAULT_COLUMNS_GLOBAL } from "./constants";
 import type { ColumnId } from "./types";
+import { useColumnVisibility } from "./use-column-visibility";
 
 // keep in sync with log-table.test.tsx and hooks/use-media-query.ts
 const mockUseMediaQuery = vi.fn((_maxWidth: number) => false);
@@ -88,10 +89,7 @@ describe("useColumnVisibility", () => {
     });
 
     it("discards stored data with wrong version", () => {
-      localStorage.setItem(
-        "hassette-log-columns-global",
-        JSON.stringify({ version: 999, columns: ["level"] }),
-      );
+      localStorage.setItem("hassette-log-columns-global", JSON.stringify({ version: 999, columns: ["level"] }));
 
       const { result } = renderHook(() => useColumnVisibility("global"));
       expect(result.current.visibleColumns).toEqual(DEFAULT_COLUMNS_GLOBAL);

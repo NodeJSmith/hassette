@@ -1,8 +1,8 @@
-import { describe, expect, it, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/preact";
 import { http, HttpResponse } from "msw";
-import { server } from "../../test/server";
+import { beforeEach, describe, expect, it } from "vitest";
 
+import { server } from "../../test/server";
 import { ConfigTab } from "./config-tab";
 
 const defaultConfig = {

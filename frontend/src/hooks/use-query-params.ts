@@ -13,8 +13,8 @@
  * and read back with decodeURIComponent.
  */
 
-import { useSearch, useLocation } from "wouter";
 import { useRef } from "preact/hooks";
+import { useLocation, useSearch } from "wouter";
 
 export interface QueryParamOptions {
   /** When true, pushes a new history entry. Default false = replace. */

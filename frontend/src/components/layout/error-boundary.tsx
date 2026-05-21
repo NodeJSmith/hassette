@@ -1,7 +1,8 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useErrorBoundary, useRef } from "preact/hooks";
-import { Card } from "../shared/card";
+
 import { Button } from "../shared/button";
+import { Card } from "../shared/card";
 
 interface Props {
   children: ComponentChildren;

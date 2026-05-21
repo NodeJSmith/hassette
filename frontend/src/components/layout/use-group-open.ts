@@ -1,4 +1,5 @@
 import { useState } from "preact/hooks";
+
 import { GROUP_DEFS, type GroupKey } from "./sidebar-groups";
 
 const DEFAULT_GROUP_OPEN: Record<GroupKey, boolean> = Object.fromEntries(

@@ -1,5 +1,6 @@
-import { describe, expect, it, afterEach } from "vitest";
 import { renderHook } from "@testing-library/preact";
+import { afterEach, describe, expect, it } from "vitest";
+
 import { useDocumentTitle } from "./use-document-title";
 
 describe("useDocumentTitle", () => {

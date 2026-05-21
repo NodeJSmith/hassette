@@ -74,14 +74,7 @@ export function StatusShape({ kind, size = 12 }: Props) {
       focusable="false"
       style={{ flexShrink: 0 }}
     >
-      <circle
-        cx={half}
-        cy={half}
-        r={half - 1.5}
-        fill="none"
-        stroke="var(--mute)"
-        stroke-width="1.5"
-      />
+      <circle cx={half} cy={half} r={half - 1.5} fill="none" stroke="var(--mute)" stroke-width="1.5" />
     </svg>
   );
 }

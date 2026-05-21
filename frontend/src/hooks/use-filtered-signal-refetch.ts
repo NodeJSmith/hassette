@@ -1,4 +1,4 @@
-import { useSignalEffect, type ReadonlySignal } from "@preact/signals";
+import { type ReadonlySignal, useSignalEffect } from "@preact/signals";
 import { useEffect, useRef } from "preact/hooks";
 
 /**

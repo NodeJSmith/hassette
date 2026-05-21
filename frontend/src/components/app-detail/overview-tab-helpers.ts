@@ -1,5 +1,5 @@
-import type { UnifiedItem } from "./unified-handler-row";
 import { handlerKindLabel } from "../../utils/status";
+import type { UnifiedItem } from "./unified-handler-row";
 
 export function handlerPath(appKey: string, item: UnifiedItem, instanceQs: string): string {
   const prefix = item.kind === "listener" ? "h" : "j";
@@ -24,9 +24,7 @@ export function sortedByFailingFirst(items: UnifiedItem[]): UnifiedItem[] {
 }
 
 export function itemLastActiveAt(item: UnifiedItem): number | null {
-  return item.kind === "listener"
-    ? (item.data.last_invoked_at ?? null)
-    : (item.data.last_executed_at ?? null);
+  return item.kind === "listener" ? (item.data.last_invoked_at ?? null) : (item.data.last_executed_at ?? null);
 }
 
 export function itemErrorType(item: UnifiedItem): string | null {

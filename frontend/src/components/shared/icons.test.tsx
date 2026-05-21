@@ -1,20 +1,21 @@
-import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/preact";
+import { describe, expect, it } from "vitest";
+
 import {
-  IconLayers,
   IconBell,
-  IconClock,
-  IconScroll,
-  IconPlay,
-  IconSquare,
-  IconRefresh,
-  IconWarning,
-  IconInfo,
-  IconCheck,
-  IconDashboard,
   IconBoxes,
+  IconCheck,
+  IconClock,
+  IconDashboard,
   IconHistory,
+  IconInfo,
+  IconLayers,
+  IconPlay,
+  IconRefresh,
+  IconScroll,
   IconScrollText,
+  IconSquare,
+  IconWarning,
 } from "./icons";
 
 describe("Icons smoke tests", () => {
@@ -90,9 +91,20 @@ describe("Icons smoke tests", () => {
 
   it("all icons have the iconSvg module class", () => {
     const icons = [
-      IconLayers, IconBell, IconClock, IconScroll, IconPlay, IconSquare,
-      IconRefresh, IconWarning, IconInfo, IconCheck, IconDashboard, IconBoxes,
-      IconHistory, IconScrollText,
+      IconLayers,
+      IconBell,
+      IconClock,
+      IconScroll,
+      IconPlay,
+      IconSquare,
+      IconRefresh,
+      IconWarning,
+      IconInfo,
+      IconCheck,
+      IconDashboard,
+      IconBoxes,
+      IconHistory,
+      IconScrollText,
     ];
     for (const Icon of icons) {
       const { container } = render(<Icon />);
@@ -104,9 +116,20 @@ describe("Icons smoke tests", () => {
 
   it("all icons have aria-hidden='true'", () => {
     const icons = [
-      IconLayers, IconBell, IconClock, IconScroll, IconPlay, IconSquare,
-      IconRefresh, IconWarning, IconInfo, IconCheck, IconDashboard, IconBoxes,
-      IconHistory, IconScrollText,
+      IconLayers,
+      IconBell,
+      IconClock,
+      IconScroll,
+      IconPlay,
+      IconSquare,
+      IconRefresh,
+      IconWarning,
+      IconInfo,
+      IconCheck,
+      IconDashboard,
+      IconBoxes,
+      IconHistory,
+      IconScrollText,
     ];
     for (const Icon of icons) {
       const { container } = render(<Icon />);

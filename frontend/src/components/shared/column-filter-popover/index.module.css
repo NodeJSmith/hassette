@@ -59,6 +59,16 @@
   transition: all var(--t-fast);
 }
 
-.tierBtn:hover { color: var(--ink-1); background: var(--bg-sunken); }
-.tierBtn.active { color: var(--ink-1); background: var(--bg-active); font-weight: 500; }
-.tierBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tierBtn:hover {
+  color: var(--ink-1);
+  background: var(--bg-sunken);
+}
+.tierBtn.active {
+  color: var(--ink-1);
+  background: var(--bg-active);
+  font-weight: 500;
+}
+.tierBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

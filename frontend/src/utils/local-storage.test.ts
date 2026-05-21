@@ -14,10 +14,18 @@ function createMockStorage(): Storage {
   const store = new Map<string, string>();
   return {
     getItem: vi.fn((key: string) => store.get(key) ?? null),
-    setItem: vi.fn((key: string, value: string) => { store.set(key, value); }),
-    removeItem: vi.fn((key: string) => { store.delete(key); }),
-    clear: vi.fn(() => { store.clear(); }),
-    get length() { return store.size; },
+    setItem: vi.fn((key: string, value: string) => {
+      store.set(key, value);
+    }),
+    removeItem: vi.fn((key: string) => {
+      store.delete(key);
+    }),
+    clear: vi.fn(() => {
+      store.clear();
+    }),
+    get length() {
+      return store.size;
+    },
     key: vi.fn((index: number) => [...store.keys()][index] ?? null),
   };
 }
@@ -91,8 +99,7 @@ describe("getStoredValue", () => {
 });
 
 describe("getStoredValue with validator", () => {
-  const isTheme = (v: unknown): v is "dark" | "light" =>
-    typeof v === "string" && ["dark", "light"].includes(v);
+  const isTheme = (v: unknown): v is "dark" | "light" => typeof v === "string" && ["dark", "light"].includes(v);
 
   it("returns valid value when validator passes", () => {
     mockStorage.setItem("hassette:theme", JSON.stringify("light"));

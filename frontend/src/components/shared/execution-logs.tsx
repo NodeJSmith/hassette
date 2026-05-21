@@ -1,8 +1,8 @@
-import { useLogTable, LogTableView, LogTableWithDrawer } from "./log-table";
-import { TableCard } from "./table-card";
-import { TableFooter } from "./table-footer";
 import { EmptyState } from "./empty-state";
 import styles from "./execution-logs.module.css";
+import { LogTableView, LogTableWithDrawer, useLogTable } from "./log-table";
+import { TableCard } from "./table-card";
+import { TableFooter } from "./table-footer";
 
 interface Props {
   executionId: string;
@@ -36,7 +36,9 @@ export function ExecutionLogs({ executionId }: Props) {
         </LogTableWithDrawer>
       </TableCard>
       <p class={styles.viewAll}>
-        <a href={viewAllHref} data-testid="view-all-logs-link">View all logs</a>
+        <a href={viewAllHref} data-testid="view-all-logs-link">
+          View all logs
+        </a>
       </p>
     </div>
   );

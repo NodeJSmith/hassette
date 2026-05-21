@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import type { JSX } from "preact";
+
 import styles from "./button.module.css";
 
 export type ButtonVariant = "default" | "primary" | "success" | "warning" | "info" | "danger";

@@ -1,12 +1,17 @@
 import { useMemo } from "preact/hooks";
+
 import { EmptyState } from "../shared/empty-state";
-import type { UnifiedItem } from "./unified-handler-row";
-import { sortedByFailingFirst } from "./overview-tab-helpers";
 import { HandlerHealthCard } from "./handler-health-card";
 // Grid layout classes live in overview-tab's stylesheet — this component is only rendered within OverviewTab
 import styles from "./overview-tab.module.css";
+import { sortedByFailingFirst } from "./overview-tab-helpers";
+import type { UnifiedItem } from "./unified-handler-row";
 
-export function HandlerHealthGrid({ items, appKey, instanceQs }: {
+export function HandlerHealthGrid({
+  items,
+  appKey,
+  instanceQs,
+}: {
   items: UnifiedItem[];
   appKey: string;
   instanceQs: string;
@@ -32,12 +37,7 @@ export function HandlerHealthGrid({ items, appKey, instanceQs }: {
       <div class={styles.healthGridScroll}>
         <div class={styles.healthGrid}>
           {sorted.map((item) => (
-            <HandlerHealthCard
-              key={`${item.kind}-${item.id}`}
-              item={item}
-              appKey={appKey}
-              instanceQs={instanceQs}
-            />
+            <HandlerHealthCard key={`${item.kind}-${item.id}`} item={item} appKey={appKey} instanceQs={instanceQs} />
           ))}
         </div>
       </div>

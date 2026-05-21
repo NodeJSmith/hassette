@@ -1,10 +1,11 @@
+import clsx from "clsx";
 import { useState } from "preact/hooks";
 import { Link } from "wouter";
-import clsx from "clsx";
+
 import { StatusShape } from "../shared/status-shape";
-import type { UnifiedItem } from "./unified-handler-row";
-import { handlerPath, itemErrorType, itemErrorMessage } from "./overview-tab-helpers";
 import styles from "./overview-tab.module.css";
+import { handlerPath, itemErrorMessage, itemErrorType } from "./overview-tab-helpers";
+import type { UnifiedItem } from "./unified-handler-row";
 
 const SPOTLIGHT_LIMIT = 3;
 
@@ -20,19 +21,14 @@ function SpotlightEntry({ item, appKey, instanceQs }: SpotlightEntryProps) {
   const href = handlerPath(appKey, item, instanceQs);
 
   return (
-    <div
-      class={styles.spotlightEntry}
-      data-testid={`overview-spotlight-entry-${item.kind}-${item.id}`}
-    >
+    <div class={styles.spotlightEntry} data-testid={`overview-spotlight-entry-${item.kind}-${item.id}`}>
       <span aria-hidden="true">
         <StatusShape kind={item.statusKind} size={12} />
       </span>
       <div class={styles.spotlightBody}>
         <div class={styles.spotlightHeader}>
           <span class={styles.spotlightName}>{item.name}</span>
-          {errorType && (
-            <span class={styles.spotlightErrorType}>{errorType}</span>
-          )}
+          {errorType && <span class={styles.spotlightErrorType}>{errorType}</span>}
         </div>
         {errorMessage && (
           <div class={styles.spotlightErrorMsg} title={errorMessage}>
@@ -47,7 +43,11 @@ function SpotlightEntry({ item, appKey, instanceQs }: SpotlightEntryProps) {
   );
 }
 
-export function ErrorSpotlight({ failingItems, appKey, instanceQs }: {
+export function ErrorSpotlight({
+  failingItems,
+  appKey,
+  instanceQs,
+}: {
   failingItems: UnifiedItem[];
   appKey: string;
   instanceQs: string;
@@ -58,18 +58,10 @@ export function ErrorSpotlight({ failingItems, appKey, instanceQs }: {
   const hiddenCount = failingItems.length - SPOTLIGHT_LIMIT;
 
   return (
-    <section
-      class={clsx(styles.section, styles.spotlight)}
-      data-testid="overview-error-spotlight"
-    >
+    <section class={clsx(styles.section, styles.spotlight)} data-testid="overview-error-spotlight">
       <h3 class="ht-section-label">failing handlers</h3>
       {visibleItems.map((item) => (
-        <SpotlightEntry
-          key={`${item.kind}-${item.id}`}
-          item={item}
-          appKey={appKey}
-          instanceQs={instanceQs}
-        />
+        <SpotlightEntry key={`${item.kind}-${item.id}`} item={item} appKey={appKey} instanceQs={instanceQs} />
       ))}
       {!expanded && hiddenCount > 0 && (
         <button

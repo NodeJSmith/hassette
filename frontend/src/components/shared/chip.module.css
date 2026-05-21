@@ -32,10 +32,22 @@
 }
 
 /* kind variant: per-color overrides */
-.kindOk   { border-color: var(--ok);    color: var(--ok); }
-.kindWarn { border-color: var(--warn);  color: var(--warn); }
-.kindErr  { border-color: var(--err);   color: var(--err); }
-.kindMute { border-color: var(--ink-4); color: var(--ink-4); }
+.kindOk {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.kindWarn {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.kindErr {
+  border-color: var(--err);
+  color: var(--err);
+}
+.kindMute {
+  border-color: var(--ink-4);
+  color: var(--ink-4);
+}
 
 /* muted merges the formerly-duplicate --auto and --muted variants */
 .muted {
@@ -48,13 +60,13 @@
 .origin {
   font-family: var(--font-mono);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: var(--tr-label);
   color: var(--ink-3);
   border: 1px solid var(--line-2);
 }
 
 /* size modifier */
 .sm {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   padding: 1px var(--sp-1);
 }

@@ -1,8 +1,9 @@
+import { fireEvent, render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/preact";
+
 import type { LogEntry } from "../../../api/endpoints";
-import type { ColumnId, SortConfig } from "./types";
 import type { ColumnFilters } from "../table-types";
+import type { ColumnId, SortConfig } from "./types";
 
 // Stub sub-components so this test focuses solely on LogTableView's own logic.
 vi.mock("./log-table-header", () => ({
@@ -11,11 +12,7 @@ vi.mock("./log-table-header", () => ({
 
 vi.mock("./log-table-row", () => ({
   LogTableRow: (props: { rowKey: string; isSelected: boolean; onClick: () => void }) => (
-    <tr
-      data-testid={`row-${props.rowKey}`}
-      data-selected={String(props.isSelected)}
-      onClick={props.onClick}
-    />
+    <tr data-testid={`row-${props.rowKey}`} data-selected={String(props.isSelected)} onClick={props.onClick} />
   ),
 }));
 

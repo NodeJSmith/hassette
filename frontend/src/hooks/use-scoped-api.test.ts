@@ -1,10 +1,11 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/preact";
-import { h } from "preact";
+import { act, renderHook } from "@testing-library/preact";
 import type { ComponentChildren } from "preact";
-import { useScopedApi } from "./use-scoped-api";
+import { h } from "preact";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { AppStateContext } from "../state/context";
-import { createAppState, type AppState } from "../state/create-app-state";
+import { type AppState, createAppState } from "../state/create-app-state";
+import { useScopedApi } from "./use-scoped-api";
 
 function createWrapper(state: AppState) {
   return function Wrapper({ children }: { children: ComponentChildren }) {
@@ -38,7 +39,9 @@ describe("useScopedApi", () => {
     });
 
     // Advance time a bit — should still not fetch
-    act(() => { vi.advanceTimersByTime(50); });
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
 
     expect(fetcher).toHaveBeenCalledTimes(0);
     expect(result.current.loading.value).toBe(true);
@@ -55,7 +58,9 @@ describe("useScopedApi", () => {
     });
 
     // Still blocked
-    act(() => { vi.advanceTimersByTime(10); });
+    act(() => {
+      vi.advanceTimersByTime(10);
+    });
     expect(fetcher).toHaveBeenCalledTimes(0);
 
     // uptimeSeconds arrives
@@ -240,7 +245,9 @@ describe("useScopedApi", () => {
       wrapper: createWrapper(state),
     });
 
-    act(() => { vi.advanceTimersByTime(50); });
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
     expect(fetcher).toHaveBeenCalledTimes(0);
 
     // Simulate reconnect version bump while still waiting
@@ -248,7 +255,9 @@ describe("useScopedApi", () => {
       state.reconnectVersion.value = 1;
     });
 
-    act(() => { vi.advanceTimersByTime(50); });
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
     expect(fetcher).toHaveBeenCalledTimes(0);
   });
 
@@ -261,7 +270,9 @@ describe("useScopedApi", () => {
       wrapper: createWrapper(state),
     });
 
-    act(() => { vi.advanceTimersByTime(10); });
+    act(() => {
+      vi.advanceTimersByTime(10);
+    });
 
     const dataRef = result.current.data;
     const loadingRef = result.current.loading;
@@ -390,12 +401,11 @@ describe("useScopedApi", () => {
 
     const fetcher = vi.fn().mockResolvedValue("lazy-data");
 
-    const { result } = renderHook(
-      () => useScopedApi(fetcher, { lazy: true }),
-      { wrapper: createWrapper(state) },
-    );
+    const { result } = renderHook(() => useScopedApi(fetcher, { lazy: true }), { wrapper: createWrapper(state) });
 
-    act(() => { vi.advanceTimersByTime(50); });
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
     expect(fetcher).toHaveBeenCalledTimes(0);
 
     // Manual refetch should work
@@ -419,7 +429,9 @@ describe("useScopedApi", () => {
       wrapper: createWrapper(state),
     });
 
-    act(() => { vi.advanceTimersByTime(50); });
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
 
     // Calling refetch while waiting should be a no-op
     await act(async () => {

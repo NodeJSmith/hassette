@@ -12,6 +12,7 @@
  */
 
 import { afterAll, afterEach, beforeAll } from "vitest";
+
 import { server } from "./test/server";
 
 globalThis.requestAnimationFrame = (cb: FrameRequestCallback): number => {

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "preact/hooks";
 import { useLocation } from "wouter";
+
 import { ApiError } from "../api/client";
 import { getTelemetryStatus } from "../api/endpoints";
 import type { AppState } from "../state/create-app-state";

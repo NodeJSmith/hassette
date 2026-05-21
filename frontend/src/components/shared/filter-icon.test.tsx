@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/preact";
+import { describe, expect, it } from "vitest";
+
 import { FilterIcon } from "./filter-icon";
 
 describe("FilterIcon", () => {

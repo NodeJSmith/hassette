@@ -1,11 +1,14 @@
-import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/preact";
+import { describe, expect, it } from "vitest";
+
 import { Tooltip } from "./tooltip";
 
 describe("Tooltip", () => {
   it("renders children with data-tooltip and visually-hidden label", () => {
     const { container } = render(
-      <Tooltip label="avg duration"><span>23ms</span></Tooltip>,
+      <Tooltip label="avg duration">
+        <span>23ms</span>
+      </Tooltip>,
     );
     const trigger = container.querySelector("[data-tooltip]");
     expect(trigger).not.toBeNull();
@@ -15,7 +18,9 @@ describe("Tooltip", () => {
 
   it("passes through the class prop to the trigger element", () => {
     const { container } = render(
-      <Tooltip label="test" class="my-custom-class"><span>val</span></Tooltip>,
+      <Tooltip label="test" class="my-custom-class">
+        <span>val</span>
+      </Tooltip>,
     );
     const trigger = container.querySelector("[data-tooltip]");
     expect(trigger!.className).toContain("my-custom-class");
@@ -23,7 +28,9 @@ describe("Tooltip", () => {
 
   it("renders without class prop", () => {
     const { container } = render(
-      <Tooltip label="test"><span>val</span></Tooltip>,
+      <Tooltip label="test">
+        <span>val</span>
+      </Tooltip>,
     );
     const trigger = container.querySelector("[data-tooltip]");
     expect(trigger!.className).not.toBe("");
@@ -31,7 +38,9 @@ describe("Tooltip", () => {
 
   it("does not add tabIndex by default", () => {
     const { container } = render(
-      <Tooltip label="test"><span>val</span></Tooltip>,
+      <Tooltip label="test">
+        <span>val</span>
+      </Tooltip>,
     );
     const trigger = container.querySelector("[data-tooltip]");
     expect(trigger!.hasAttribute("tabindex")).toBe(false);
@@ -39,7 +48,9 @@ describe("Tooltip", () => {
 
   it("adds tabIndex when focusable is true", () => {
     const { container } = render(
-      <Tooltip label="test" focusable><span>val</span></Tooltip>,
+      <Tooltip label="test" focusable>
+        <span>val</span>
+      </Tooltip>,
     );
     const trigger = container.querySelector("[data-tooltip]");
     expect(trigger!.getAttribute("tabindex")).toBe("0");

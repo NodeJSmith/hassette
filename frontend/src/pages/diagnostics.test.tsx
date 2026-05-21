@@ -1,10 +1,11 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
 import { signal } from "@preact/signals";
-import { DiagnosticsPage } from "./diagnostics";
-import { renderWithAppState } from "../test/render-helpers";
-import { getSystemStatus } from "../api/endpoints";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import type { SystemStatus } from "../api/endpoints";
+import { getSystemStatus } from "../api/endpoints";
 import type { ServiceStatusEntry } from "../state/create-app-state";
+import { renderWithAppState } from "../test/render-helpers";
+import { DiagnosticsPage } from "./diagnostics";
 
 vi.mock("../components/shared/spinner", () => ({
   Spinner: () => <div data-testid="spinner" />,
@@ -93,9 +94,7 @@ describe("DiagnosticsPage", () => {
   it("overlays WS serviceStatus on top of HTTP seed", async () => {
     mockedGetSystemStatus.mockResolvedValue(
       makeSystemStatus({
-        services: [
-          { name: "bus", status: "running", role: "core", ready_phase: null, retry_at: null },
-        ],
+        services: [{ name: "bus", status: "running", role: "core", ready_phase: null, retry_at: null }],
       }),
     );
     const serviceStatus = signal<Record<string, ServiceStatusEntry>>({
@@ -165,9 +164,7 @@ describe("DiagnosticsPage", () => {
   it("renders boot issue labels and details", async () => {
     mockedGetSystemStatus.mockResolvedValue(
       makeSystemStatus({
-        boot_issues: [
-          { severity: "err", label: "Some error", detail: "The full detail text" },
-        ],
+        boot_issues: [{ severity: "err", label: "Some error", detail: "The full detail text" }],
       }),
     );
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
@@ -217,9 +214,7 @@ describe("DiagnosticsPage", () => {
   it("service row shows ready_phase text", async () => {
     mockedGetSystemStatus.mockResolvedValue(
       makeSystemStatus({
-        services: [
-          { name: "db", status: "running", role: "storage", ready_phase: "migrating schema", retry_at: null },
-        ],
+        services: [{ name: "db", status: "running", role: "storage", ready_phase: "migrating schema", retry_at: null }],
       }),
     );
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />);

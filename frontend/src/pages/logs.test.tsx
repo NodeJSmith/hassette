@@ -1,8 +1,9 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
 import { signal } from "@preact/signals";
-import { LogsPage } from "./logs";
-import { renderWithAppState } from "../test/render-helpers";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import { createManifest } from "../test/factories";
+import { renderWithAppState } from "../test/render-helpers";
+import { LogsPage } from "./logs";
 
 const mockSearchSignal = signal("");
 const mockNavigate = vi.fn((url: string) => {
@@ -13,13 +14,25 @@ const mockNavigate = vi.fn((url: string) => {
 vi.mock("wouter", () => ({
   useSearch: () => mockSearchSignal.value,
   useLocation: () => ["/logs", mockNavigate],
-  Link: ({ href, children, class: cls }: Record<string, unknown>) =>
-    <a href={href as string} class={cls as string}>{children as never}</a>,
+  Link: ({ href, children, class: cls }: Record<string, unknown>) => (
+    <a href={href as string} class={cls as string}>
+      {children as never}
+    </a>
+  ),
 }));
 
 vi.mock("../components/shared/log-table", () => ({
   useLogTable: () => ({
-    tableProps: { visibleColumns: [], sortConfig: { column: "timestamp", asc: false }, onSort: vi.fn(), columnFilters: {}, entries: [], selectedKey: null, onRowClick: vi.fn(), isMobile: false },
+    tableProps: {
+      visibleColumns: [],
+      sortConfig: { column: "timestamp", asc: false },
+      onSort: vi.fn(),
+      columnFilters: {},
+      entries: [],
+      selectedKey: null,
+      onRowClick: vi.fn(),
+      isMobile: false,
+    },
     drawerProps: { selectedKey: null, entries: [], onClose: vi.fn(), onNavigate: vi.fn() },
     columnFilters: {},
     countLabel: "0 entries",
@@ -33,7 +46,9 @@ vi.mock("../components/shared/log-table", () => ({
     isLoading: false,
   }),
   LogTableView: () => <div data-testid="log-table-view" />,
-  LogTableWithDrawer: ({ children }: { children: preact.ComponentChildren }) => <div data-testid="log-table-with-drawer">{children}</div>,
+  LogTableWithDrawer: ({ children }: { children: preact.ComponentChildren }) => (
+    <div data-testid="log-table-with-drawer">{children}</div>
+  ),
 }));
 
 function withManifests(manifests: ReturnType<typeof createManifest>[]) {
