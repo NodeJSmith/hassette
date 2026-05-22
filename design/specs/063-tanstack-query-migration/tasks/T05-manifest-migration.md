@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Migrate manifest data and command palette to useQuery"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1", "FR#9", "FR#10", "AC#7"]
 ---

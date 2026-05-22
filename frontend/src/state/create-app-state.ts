@@ -1,6 +1,5 @@
 import { batch, computed, type Signal, signal } from "@preact/signals";
 
-import type { AppManifest } from "../api/endpoints";
 import type { WsExecutionCompletedPayload, WsInvocationCompletedPayload, WsLogPayload } from "../api/ws-types";
 import { getStoredValue } from "../utils/local-storage";
 import { RingBuffer } from "../utils/ring-buffer";
@@ -91,12 +90,12 @@ export function createAppState() {
     /**
      * Per-app status keyed by app_key, updated via WS.
      *
-     * INVARIANT: appStatus changes trigger *debounced* page-level refetches
-     * (via useFilteredSignalRefetch in page components). This is intentionally separate
-     * from reconnectVersion, which triggers *immediate* refetches (via useApi's
-     * useSignalEffect). These two signals must remain independent code paths —
-     * routing reconnection through appStatus would silently eat the reconnect
-     * refetch behind the debounce timer.
+     * INVARIANT: appStatus changes trigger *debounced* cache invalidation
+     * (via useQueryInvalidator in page components). This is intentionally separate
+     * from the immediate reconnect invalidation (queryClient.invalidateQueries()
+     * in useWebSocket). These two code paths must remain independent — routing
+     * reconnection through appStatus would silently eat the reconnect invalidation
+     * behind the debounce timer.
      */
     appStatus: signal<Record<string, AppStatusEntry>>({}),
 
@@ -111,11 +110,6 @@ export function createAppState() {
 
     /** WebSocket connection state machine. */
     connection: signal<ConnectionStatus>("connecting"),
-
-    /** Shared manifest data — fetched once by useManifestFetcher, consumed by all pages. */
-    manifests: signal<AppManifest[]>([]),
-    manifestsLoading: signal(true),
-    manifestsError: signal<string | null>(null),
 
     /** Log entries in a ring buffer with a version signal for efficient rendering. */
     logs: createLogStore(),
@@ -176,11 +170,12 @@ export function createAppState() {
     executionCompleted: signal<WsExecutionCompletedPayload[] | null>(null),
 
     /**
-     * Incremented on WS reconnection (not first connect). useApi reads this
-     * to auto-refetch immediately via useSignalEffect.
+     * Incremented on WS reconnection (not first connect). Still consumed by
+     * use-api.ts and use-log-data.ts during the TanStack migration. Removed
+     * in the task that deletes use-api.ts (T09).
      *
-     * INVARIANT: reconnectVersion refetches must bypass debounce. See the
-     * appStatus comment above for why these two signals must stay independent.
+     * INVARIANT: reconnect refetches must bypass debounce — do not route
+     * reconnection through appStatus.
      */
     reconnectVersion: signal(0),
 

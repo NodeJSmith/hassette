@@ -1,34 +1,47 @@
-import { signal } from "@preact/signals";
-import { fireEvent, render, screen } from "@testing-library/preact";
+import { fireEvent, screen } from "@testing-library/preact";
 import { http, HttpResponse } from "msw";
 import { h } from "preact";
 import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../../api/generated-types";
-import { AppStateContext } from "../../state/context";
-import { type AppState, createAppState } from "../../state/create-app-state";
 import { createInstance, createListener, createManifest } from "../../test/factories";
+import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
+import { CommandPalette } from "./command-palette";
 
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
+type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
 
-// Mock wouter
-const mockNavigate = vi.fn();
+// Mock wouter — factory cannot reference top-level variables (hoisting)
 vi.mock("wouter", () => ({
-  useLocation: vi.fn().mockReturnValue(["/", mockNavigate]),
+  useLocation: vi.fn().mockReturnValue(["/", vi.fn()]),
   Link: ({ href, children, class: cls, ...rest }: Record<string, unknown>) =>
     h("a", { href, class: cls, ...rest }, children as never),
 }));
 
-// Import after mock is set up
-const { CommandPalette } = await import("./command-palette");
+// Import after mock is set up so useLocation is already mocked
+const wouter = await import("wouter");
+const mockNavigate = vi.fn();
+(wouter.useLocation as ReturnType<typeof vi.fn>).mockReturnValue(["/", mockNavigate]);
 
-function renderPalette(props: { open?: boolean; onClose?: () => void; stateOverrides?: Partial<AppState> } = {}) {
-  const state: AppState = { ...createAppState(), ...props.stateOverrides };
-  return render(
-    <AppStateContext.Provider value={state}>
-      <CommandPalette open={props.open ?? true} onClose={props.onClose ?? vi.fn()} />
-    </AppStateContext.Provider>,
+function renderPalette(props: { open?: boolean; onClose?: () => void } = {}) {
+  return renderWithAppState(<CommandPalette open={props.open ?? true} onClose={props.onClose ?? vi.fn()} />);
+}
+
+function withManifests(manifests: ReturnType<typeof createManifest>[]) {
+  server.use(
+    http.get("/api/apps/manifests", () =>
+      HttpResponse.json<ManifestListResponse>({
+        total: manifests.length,
+        running: manifests.filter((m) => m.status === "running").length,
+        failed: manifests.filter((m) => m.status === "failed").length,
+        stopped: 0,
+        disabled: 0,
+        blocked: 0,
+        manifests,
+        only_app: null,
+      }),
+    ),
   );
 }
 
@@ -109,18 +122,15 @@ describe("CommandPalette — static items (pages and actions)", () => {
 });
 
 describe("CommandPalette — app items", () => {
-  const garageOverrides = {
-    manifests: signal([createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" })]),
-    manifestsLoading: signal(false),
-  };
-
   it("shows app items from manifests", async () => {
-    renderPalette({ stateOverrides: garageOverrides });
+    withManifests([createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" })]);
+    renderPalette();
     expect(await screen.findByText("Garage App")).toBeDefined();
   });
 
   it("shows section header for apps", async () => {
-    const { container } = renderPalette({ stateOverrides: garageOverrides });
+    withManifests([createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" })]);
+    const { container } = renderPalette();
     await screen.findByText("Garage App");
     const headers = Array.from(container.querySelectorAll("[data-testid^='cmd-section-']")).map((el) =>
       el.getAttribute("data-testid")?.replace("cmd-section-", ""),
@@ -129,43 +139,35 @@ describe("CommandPalette — app items", () => {
   });
 
   it("shows instance items for multi-instance apps", async () => {
-    renderPalette({
-      stateOverrides: {
-        manifests: signal([
-          createManifest({
-            app_key: "multi_app",
-            display_name: "Multi App",
-            instance_count: 2,
-            instances: [
-              createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-              createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
-            ],
-          }),
-        ]),
-        manifestsLoading: signal(false),
-      },
-    });
+    withManifests([
+      createManifest({
+        app_key: "multi_app",
+        display_name: "Multi App",
+        instance_count: 2,
+        instances: [
+          createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+          createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+        ],
+      }),
+    ]);
+    renderPalette();
     expect(await screen.findByText("inst_0")).toBeDefined();
     expect(screen.getByText("inst_1")).toBeDefined();
   });
 
   it("navigates to /apps/:key?instance=N when instance item is selected", async () => {
-    const { container } = renderPalette({
-      stateOverrides: {
-        manifests: signal([
-          createManifest({
-            app_key: "multi_app",
-            display_name: "Multi App",
-            instance_count: 2,
-            instances: [
-              createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-              createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
-            ],
-          }),
-        ]),
-        manifestsLoading: signal(false),
-      },
-    });
+    withManifests([
+      createManifest({
+        app_key: "multi_app",
+        display_name: "Multi App",
+        instance_count: 2,
+        instances: [
+          createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+          createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+        ],
+      }),
+    ]);
+    const { container } = renderPalette();
     await screen.findByText("inst_1");
     const input = screen.getByPlaceholderText("Search apps, handlers, pages, actions…");
     fireEvent.input(input, { target: { value: "inst_1" } });
@@ -179,16 +181,12 @@ describe("CommandPalette — app items", () => {
 });
 
 describe("CommandPalette — filtering", () => {
-  const twoAppsOverrides = {
-    manifests: signal([
+  it("filters results to matching items when query is typed", async () => {
+    withManifests([
       createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" }),
       createManifest({ app_key: "lights_app", display_name: "Lights App", status: "running" }),
-    ]),
-    manifestsLoading: signal(false),
-  };
-
-  it("filters results to matching items when query is typed", async () => {
-    renderPalette({ stateOverrides: twoAppsOverrides });
+    ]);
+    renderPalette();
     await screen.findByText("Garage App");
     const input = screen.getByPlaceholderText("Search apps, handlers, pages, actions…");
     fireEvent.input(input, { target: { value: "garage" } });
@@ -197,23 +195,26 @@ describe("CommandPalette — filtering", () => {
   });
 
   it("hides section headers for sections with no matching results", async () => {
-    renderPalette({ stateOverrides: twoAppsOverrides });
+    withManifests([
+      createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" }),
+      createManifest({ app_key: "lights_app", display_name: "Lights App", status: "running" }),
+    ]);
+    const { container } = renderPalette();
     await screen.findByText("Garage App");
-    const input = screen.getByPlaceholderText("Search apps, handlers, pages, actions…");
-    // Search for something only matching apps, not pages/actions
+    const input = container.querySelector("input")!;
     fireEvent.input(input, { target: { value: "garage" } });
-    const { container } = renderPalette({ stateOverrides: twoAppsOverrides });
-    // Re-render after input is typed in first render
-    fireEvent.input(container.querySelector("input")!, { target: { value: "garage" } });
     const sections = Array.from(container.querySelectorAll("[data-testid^='cmd-section-']")).map((el) =>
       el.getAttribute("data-testid")?.replace("cmd-section-", ""),
     );
-    // Pages section should not appear (no page matches "garage")
     expect(sections).not.toContain("page");
   });
 
   it("shows empty state when nothing matches", async () => {
-    renderPalette({ stateOverrides: twoAppsOverrides });
+    withManifests([
+      createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" }),
+      createManifest({ app_key: "lights_app", display_name: "Lights App", status: "running" }),
+    ]);
+    renderPalette();
     await screen.findByText("Garage App");
     const input = screen.getByPlaceholderText("Search apps, handlers, pages, actions…");
     fireEvent.input(input, { target: { value: "zzznomatch" } });
@@ -259,12 +260,8 @@ describe("CommandPalette — selection actions", () => {
   });
 
   it("pressing Enter on an app item navigates to app detail page", async () => {
-    const { container } = renderPalette({
-      stateOverrides: {
-        manifests: signal([createManifest({ app_key: "my_app", display_name: "My App", status: "running" })]),
-        manifestsLoading: signal(false),
-      },
-    });
+    withManifests([createManifest({ app_key: "my_app", display_name: "My App", status: "running" })]);
+    const { container } = renderPalette();
     await screen.findByText("My App");
     const input = screen.getByPlaceholderText("Search apps, handlers, pages, actions…");
     // Type to filter to only apps
@@ -355,5 +352,27 @@ describe("CommandPalette — handlers", () => {
     renderPalette();
     // Should still show pages and apps
     expect(await screen.findByText("apps")).toBeDefined();
+  });
+
+  it("does not fetch handlers when palette is closed (AC#7 enabled gate)", async () => {
+    let callCount = 0;
+    server.use(
+      http.get("/api/bus/listeners", () => {
+        callCount++;
+        return HttpResponse.json<ListenerWithSummary[]>([
+          createListener({ listener_id: 1, app_key: "my_app", handler_method: "on_state_change" }),
+        ]);
+      }),
+    );
+
+    // Open palette — fetches handlers
+    const { unmount } = renderPalette({ open: true });
+    await screen.findByText("on_state_change");
+    expect(callCount).toBe(1);
+    unmount();
+
+    // Closed palette — enabled: open suppresses the fetch
+    renderPalette({ open: false });
+    expect(callCount).toBe(1);
   });
 });

@@ -19,6 +19,7 @@ import {
   WS_DEBOUNCE_DELAY_MS,
   WS_DEBOUNCE_MAX_WAIT_MS,
 } from "../hooks/use-filtered-signal-refetch";
+import { useManifests } from "../hooks/use-manifests";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedApi } from "../hooks/use-scoped-api";
 import { useAppState } from "../state/context";
@@ -65,7 +66,8 @@ function Tab({
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
   const activeTab: TabId = params.tab ?? "overview";
-  const { appStatus, manifests, manifestsLoading, invocationCompleted, executionCompleted } = useAppState();
+  const { appStatus, invocationCompleted, executionCompleted } = useAppState();
+  const { data: manifests = [], isPending: manifestsLoading } = useManifests();
   const [, navigate] = useLocation();
   const queryParams = useQueryParams();
   const correctUrl = useCorrectUrl();
@@ -110,7 +112,7 @@ export function AppDetailPage({ params }: Props) {
   const displayListeners = listeners.data.value ?? staleListeners.current ?? [];
   const displayJobs = jobs.data.value ?? staleJobs.current ?? [];
 
-  const manifest = manifests.value.find((m) => m.app_key === appKey);
+  const manifest = manifests.find((m) => m.app_key === appKey);
   useDocumentTitle(manifest?.display_name ?? "App");
 
   const isMultiInstance = (manifest?.instance_count ?? 0) > 1;
@@ -124,8 +126,8 @@ export function AppDetailPage({ params }: Props) {
     ? (manifest?.status ?? "unknown")
     : (wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown");
 
-  const hasData = !manifestsLoading.value && listeners.data.value !== null && jobs.data.value !== null;
-  const initialLoading = !hasData && (listeners.loading.value || jobs.loading.value || manifestsLoading.value);
+  const hasData = !manifestsLoading && listeners.data.value !== null && jobs.data.value !== null;
+  const initialLoading = !hasData && (listeners.loading.value || jobs.loading.value || manifestsLoading);
 
   useEffect(() => {
     if (initialLoading) return;

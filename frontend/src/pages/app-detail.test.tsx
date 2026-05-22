@@ -1,4 +1,5 @@
 import { signal } from "@preact/signals";
+import { QueryClientProvider } from "@tanstack/preact-query";
 import { fireEvent, render } from "@testing-library/preact";
 import type { ComponentChildren } from "preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +8,7 @@ import type { AppManifest, JobData, ListenerData } from "../api/endpoints";
 import { AppStateContext } from "../state/context";
 import { type AppState, createAppState } from "../state/create-app-state";
 import { createInstance, createManifest } from "../test/factories";
+import { createTestQueryClient } from "../test/query-test-utils";
 import { AppDetailPage } from "./app-detail";
 
 // Mutable search string for tests that need to control query params
@@ -111,6 +113,10 @@ vi.mock("../components/shared/confirm-dialog", () => ({
 }));
 
 // Mock hooks
+vi.mock("../hooks/use-manifests", () => ({
+  useManifests: vi.fn(() => ({ data: [], isPending: false })),
+}));
+
 vi.mock("../hooks/use-scoped-api", () => ({
   useScopedApi: vi.fn(),
 }));
@@ -119,6 +125,9 @@ const mockCorrectUrl = vi.fn();
 vi.mock("../hooks/use-correct-url", () => ({
   useCorrectUrl: () => mockCorrectUrl,
 }));
+
+const useManifestsMod = await import("../hooks/use-manifests");
+const useManifests = useManifestsMod.useManifests as unknown as ReturnType<typeof vi.fn>;
 
 const useScopedApiMod = await import("../hooks/use-scoped-api");
 const useScopedApi = useScopedApiMod.useScopedApi as unknown as ReturnType<typeof vi.fn>;
@@ -133,8 +142,13 @@ function fakeScopedApiResult<T>(data: T | null) {
 }
 
 function createWrapper(state: AppState) {
+  const queryClient = createTestQueryClient();
   return function Wrapper({ children }: { children: ComponentChildren }) {
-    return <AppStateContext.Provider value={state}>{children}</AppStateContext.Provider>;
+    return (
+      <QueryClientProvider client={queryClient}>
+        <AppStateContext.Provider value={state}>{children}</AppStateContext.Provider>
+      </QueryClientProvider>
+    );
   };
 }
 
@@ -151,9 +165,8 @@ describe("AppDetailPage", () => {
   });
 
   function setupManifestAndApi(manifest: AppManifest, listeners: ListenerData[] = [], jobs: JobData[] = []) {
-    // Manifests come from shared app state (synchronous)
-    state.manifests.value = [manifest];
-    state.manifestsLoading.value = false;
+    // Manifests now come from useManifests() hook — serve synchronously via mock
+    useManifests.mockReturnValue({ data: [manifest], isPending: false });
     // Listeners and jobs still come from useScopedApi
     useScopedApi
       .mockReturnValueOnce(fakeScopedApiResult(listeners)) // listeners

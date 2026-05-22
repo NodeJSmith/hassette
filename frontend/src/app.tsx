@@ -8,7 +8,7 @@ import { CommandPalette } from "./components/layout/command-palette";
 import { ErrorBoundary } from "./components/layout/error-boundary";
 import { Sidebar } from "./components/layout/sidebar";
 import { StatusBar } from "./components/layout/status-bar";
-import { useManifestFetcher } from "./hooks/use-manifest-fetcher";
+import { useManifests } from "./hooks/use-manifests";
 import { useTelemetryHealth } from "./hooks/use-telemetry-health";
 import { useWebSocket } from "./hooks/use-websocket";
 import { createQueryClient } from "./lib/query-client";
@@ -19,7 +19,7 @@ import { DiagnosticsPage } from "./pages/diagnostics";
 import { HandlersPage } from "./pages/handlers";
 import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
-import { AppStateContext, useAppState } from "./state/context";
+import { AppStateContext } from "./state/context";
 import { createAppState, RELATIVE_TIME_TICK_MS } from "./state/create-app-state";
 
 export function App() {
@@ -77,7 +77,6 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <AppStateContext.Provider value={state}>
         <WebSocketProvider state={state} />
-        <ManifestProvider state={state} />
         <TelemetryHealthProvider state={state} />
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
         <Toaster position="bottom-right" theme={state.theme.value} closeButton richColors />
@@ -173,8 +172,8 @@ function TelemetryHealthProvider({ state }: { state: ReturnType<typeof createApp
 
 /** Renders the alert banner when apps have failed. */
 function FailedAppsAlert() {
-  const { manifests } = useAppState();
-  const failedApps = manifests.value
+  const { data: manifests = [] } = useManifests();
+  const failedApps = manifests
     .filter((m) => m.status === "failed")
     .map((m) => ({
       app_key: m.app_key,
@@ -182,10 +181,4 @@ function FailedAppsAlert() {
     }));
 
   return <AlertBanner failedApps={failedApps} />;
-}
-
-/** Invisible component that fetches manifests once and refetches on reconnect. */
-function ManifestProvider({ state }: { state: ReturnType<typeof createAppState> }) {
-  useManifestFetcher(state);
-  return null;
 }

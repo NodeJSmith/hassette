@@ -17,6 +17,7 @@ import {
   WS_DEBOUNCE_DELAY_MS,
   WS_DEBOUNCE_MAX_WAIT_MS,
 } from "../hooks/use-filtered-signal-refetch";
+import { useManifests } from "../hooks/use-manifests";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../hooks/use-media-query";
 import { useQueryParams } from "../hooks/use-query-params";
 import { PRESET_WINDOW_SECONDS, useScopedApi } from "../hooks/use-scoped-api";
@@ -120,15 +121,8 @@ function StatusFilterContent({
 export function AppsPage() {
   useDocumentTitle("Apps");
 
-  const {
-    appStatus,
-    effectiveTimePreset,
-    uptimeSeconds,
-    manifests: manifestsState,
-    manifestsLoading,
-    invocationCompleted,
-    executionCompleted,
-  } = useAppState();
+  const { appStatus, effectiveTimePreset, uptimeSeconds, invocationCompleted, executionCompleted } = useAppState();
+  const { data: manifests = [], isPending: manifestsLoading } = useManifests();
   const { data: gridData, refetch: gridRefetch } = useScopedApi((since) => getDashboardAppGrid(since));
 
   useFilteredSignalRefetch(
@@ -172,7 +166,6 @@ export function AppsPage() {
     expanded.value = next;
   };
 
-  const manifests = manifestsState.value;
   const gridEntries = gridData.value?.apps ?? [];
   const allApps = mergeManifestsAndGrid(manifests, gridEntries);
 
@@ -222,7 +215,7 @@ export function AppsPage() {
     })
     .sort((a, b) => compareAppRows(a, b, sort, appStatus.value));
 
-  if (manifestsLoading.value && manifests.length === 0) return <Spinner />;
+  if (manifestsLoading && manifests.length === 0) return <Spinner />;
 
   const searchInput = (
     <input

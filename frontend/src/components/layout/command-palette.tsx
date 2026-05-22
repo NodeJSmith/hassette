@@ -1,11 +1,11 @@
+import { useQuery } from "@tanstack/preact-query";
 import clsx from "clsx";
 import { useEffect, useRef } from "preact/hooks";
 import { useLocation } from "wouter";
 
 import { getAllListeners } from "../../api/endpoints";
-import { useApi } from "../../hooks/use-api";
+import { useManifests } from "../../hooks/use-manifests";
 import { useSignal } from "../../hooks/use-signal";
-import { useAppState } from "../../state/context";
 import { statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 import styles from "./command-palette.module.css";
@@ -34,16 +34,18 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const resultsRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<Element | null>(null);
 
-  const { manifests } = useAppState();
-  const allManifests = manifests.value;
-  const listenersApi = useApi(getAllListeners, [], { lazy: true });
+  const { data: allManifests = [] } = useManifests();
+  const { data: listeners } = useQuery({
+    queryKey: ["all-listeners-palette"],
+    queryFn: () => getAllListeners(),
+    enabled: open,
+  });
 
   useEffect(() => {
     if (!open) return;
     triggerRef.current = document.activeElement;
     query.value = "";
     selectedIndex.value = -1;
-    void listenersApi.refetch();
     requestAnimationFrame(() => {
       inputRef.current?.focus();
     });
@@ -66,7 +68,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const pageItems = buildStaticPageItems(navigate);
   const actionItems = buildActionItems(allManifests, onClose);
   const appItems = buildAppItems(allManifests, navigate, onClose);
-  const handlerItems = buildHandlerItems(listenersApi.data.value ?? [], navigate, onClose);
+  const handlerItems = buildHandlerItems(listeners ?? [], navigate, onClose);
 
   const allItems: PaletteItem[] = [...pageItems, ...appItems, ...handlerItems, ...actionItems];
   // Group and filter

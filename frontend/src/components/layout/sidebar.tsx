@@ -3,6 +3,7 @@ import { useState } from "preact/hooks";
 import { Link, useLocation, useSearch } from "wouter";
 
 import type { components } from "../../api/generated-types";
+import { useManifests } from "../../hooks/use-manifests";
 import { useAppState } from "../../state/context";
 import { statusToKind } from "../../utils/status";
 import { Chip } from "../shared/chip";
@@ -145,12 +146,11 @@ interface SidebarProps {
 export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
   const [location] = useLocation();
   const searchString = useSearch();
-  const { systemVersion, manifests, manifestsLoading } = useAppState();
+  const { systemVersion } = useAppState();
+  const { data: allManifests = [], isPending: manifestsLoading } = useManifests();
   const [search, setSearch] = useState("");
 
   const version = systemVersion.value;
-
-  const allManifests = manifests.value;
   const isFiltering = search.trim().length > 0;
   const filtered = isFiltering
     ? allManifests.filter(
@@ -252,8 +252,8 @@ export function Sidebar({ onOpenPalette }: SidebarProps = {}) {
         </div>
 
         {/* Status groups */}
-        {manifestsLoading.value && <Spinner />}
-        {!manifestsLoading.value && filtered.length === 0 && <div class={styles.empty}>no apps</div>}
+        {manifestsLoading && <Spinner />}
+        {!manifestsLoading && filtered.length === 0 && <div class={styles.empty}>no apps</div>}
         {GROUP_DEFS.map((def) => {
           const apps = groups.get(def.key) ?? [];
           if (apps.length === 0) return null;
