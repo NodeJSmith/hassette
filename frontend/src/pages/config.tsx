@@ -1,7 +1,8 @@
+import { useQuery } from "@tanstack/preact-query";
+
 import { getConfig } from "../api/endpoints";
 import { Card } from "../components/shared/card";
 import { Spinner } from "../components/shared/spinner";
-import { useApi } from "../hooks/use-api";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import styles from "./config.module.css";
 
@@ -22,10 +23,14 @@ function formatValue(value: unknown): string {
 
 export function ConfigPage() {
   useDocumentTitle("Config");
-  const result = useApi(getConfig);
-  const config = result.data.value;
-  const loading = result.loading.value;
-  const error = result.error.value;
+  const {
+    data: config,
+    isPending: loading,
+    error,
+  } = useQuery({
+    queryKey: ["config"],
+    queryFn: getConfig,
+  });
 
   const groups: ConfigGroup[] = config
     ? [
@@ -104,7 +109,7 @@ export function ConfigPage() {
 
       {error && (
         <div class="ht-alert ht-alert--danger" role="alert">
-          {error}
+          {error.message}
         </div>
       )}
 

@@ -1,124 +1,117 @@
-import { signal } from "@preact/signals";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import { describe, expect, it, vi } from "vitest";
 
 import { createSystemConfig } from "../test/factories";
 import { renderWithAppState } from "../test/render-helpers";
+import { server } from "../test/server";
 import { ConfigPage } from "./config";
 
-vi.mock("../hooks/use-api", () => ({
-  useApi: vi.fn(),
+vi.mock("../components/shared/spinner", () => ({
+  Spinner: () => <div data-testid="spinner" />,
 }));
 
-const useApiMod = await import("../hooks/use-api");
-const useApi = useApiMod.useApi as unknown as ReturnType<typeof vi.fn>;
-
-function fakeApiResult<T>(data: T | null, loading = false, error: string | null = null) {
-  return {
-    data: signal(data),
-    loading: signal(loading),
-    error: signal(error),
-    refetch: vi.fn(),
-  };
-}
-
 describe("ConfigPage", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  it("renders 'config' heading", async () => {
+    const { findByRole } = renderWithAppState(<ConfigPage />);
+    expect(await findByRole("heading", { name: /config/i })).toBeDefined();
   });
 
-  it("renders 'config' heading", () => {
-    useApi.mockReturnValue(fakeApiResult(createSystemConfig()));
-    const { getByRole } = renderWithAppState(<ConfigPage />);
-    expect(getByRole("heading", { name: /config/i })).toBeDefined();
-  });
-
-  it("renders a table of config key-value pairs", () => {
-    useApi.mockReturnValue(fakeApiResult(createSystemConfig()));
-    const { container } = renderWithAppState(<ConfigPage />);
+  it("renders a table of config key-value pairs", async () => {
+    const { findByText, container } = renderWithAppState(<ConfigPage />);
+    // Wait for a config section label to confirm data loaded
+    await findByText("general");
     expect(container.querySelector("table")).not.toBeNull();
   });
 
   it("shows loading state while fetching", () => {
-    useApi.mockReturnValue(fakeApiResult(null, true));
+    // Override to never resolve so the spinner stays visible synchronously
+    server.use(http.get("/api/config", () => new Promise(() => {})));
     const { container } = renderWithAppState(<ConfigPage />);
     expect(container.querySelector("[data-testid='spinner']")).not.toBeNull();
   });
 
-  it("shows error state on fetch failure", () => {
-    useApi.mockReturnValue(fakeApiResult(null, false, "Network error"));
-    const { getByText } = renderWithAppState(<ConfigPage />);
-    expect(getByText(/network error/i)).toBeDefined();
+  it("shows error state on fetch failure", async () => {
+    server.use(http.get("/api/config", () => HttpResponse.json(null, { status: 500 })));
+    const { findByRole } = renderWithAppState(<ConfigPage />);
+    const alert = await findByRole("alert");
+    expect(alert.textContent).toBeTruthy();
   });
 
-  it("renders path fields in a Paths group", () => {
-    useApi.mockReturnValue(
-      fakeApiResult(
-        createSystemConfig({
-          apps: { autodetect: true, directory: "/my/apps" },
-          data_dir: "/my/data",
-          config_dir: "/my/config",
-        }),
+  it("renders path fields in a Paths group", async () => {
+    server.use(
+      http.get("/api/config", () =>
+        HttpResponse.json(
+          createSystemConfig({
+            apps: { autodetect: true, directory: "/my/apps" },
+            data_dir: "/my/data",
+            config_dir: "/my/config",
+          }),
+        ),
       ),
     );
-    const { getByText } = renderWithAppState(<ConfigPage />);
-    expect(getByText("paths")).toBeDefined();
-    expect(getByText("app_dir")).toBeDefined();
-    expect(getByText("data_dir")).toBeDefined();
-    expect(getByText("config_dir")).toBeDefined();
-    expect(getByText("/my/apps")).toBeDefined();
-    expect(getByText("/my/data")).toBeDefined();
-    expect(getByText("/my/config")).toBeDefined();
+    const { findByText } = renderWithAppState(<ConfigPage />);
+    expect(await findByText("paths")).toBeDefined();
+    expect(await findByText("app_dir")).toBeDefined();
+    expect(await findByText("data_dir")).toBeDefined();
+    expect(await findByText("config_dir")).toBeDefined();
+    expect(await findByText("/my/apps")).toBeDefined();
+    expect(await findByText("/my/data")).toBeDefined();
+    expect(await findByText("/my/config")).toBeDefined();
   });
 
-  it("renders connection settings group", () => {
-    useApi.mockReturnValue(fakeApiResult(createSystemConfig()));
-    const { getByText } = renderWithAppState(<ConfigPage />);
-    expect(getByText("connection")).toBeDefined();
-    expect(getByText("host")).toBeDefined();
-    expect(getByText("port")).toBeDefined();
+  it("renders connection settings group", async () => {
+    const { findByText } = renderWithAppState(<ConfigPage />);
+    expect(await findByText("connection")).toBeDefined();
+    expect(await findByText("host")).toBeDefined();
+    expect(await findByText("port")).toBeDefined();
   });
 
-  it("renders general settings group", () => {
-    useApi.mockReturnValue(fakeApiResult(createSystemConfig()));
-    const { getByText } = renderWithAppState(<ConfigPage />);
-    expect(getByText("general")).toBeDefined();
-    expect(getByText("log_level")).toBeDefined();
-    expect(getByText("dev_mode")).toBeDefined();
+  it("renders general settings group", async () => {
+    const { findByText } = renderWithAppState(<ConfigPage />);
+    expect(await findByText("general")).toBeDefined();
+    expect(await findByText("log_level")).toBeDefined();
+    expect(await findByText("dev_mode")).toBeDefined();
   });
 
-  it("renders timeouts group", () => {
-    useApi.mockReturnValue(fakeApiResult(createSystemConfig()));
-    const { getByText } = renderWithAppState(<ConfigPage />);
-    expect(getByText("timeouts")).toBeDefined();
-    expect(getByText("startup_timeout_seconds")).toBeDefined();
+  it("renders timeouts group", async () => {
+    const { findByText } = renderWithAppState(<ConfigPage />);
+    expect(await findByText("timeouts")).toBeDefined();
+    expect(await findByText("startup_timeout_seconds")).toBeDefined();
   });
 
-  it("displays numeric config values as text", () => {
-    useApi.mockReturnValue(
-      fakeApiResult(
-        createSystemConfig({
-          web_api: {
-            run: true,
-            run_ui: true,
-            ui_hot_reload: false,
-            host: "0.0.0.0",
-            port: 9000,
-            cors_origins: [],
-            event_buffer_size: 500,
-            log_buffer_size: 2000,
-            job_history_size: 1000,
-          },
-        }),
+  it("displays numeric config values as text", async () => {
+    server.use(
+      http.get("/api/config", () =>
+        HttpResponse.json(
+          createSystemConfig({
+            web_api: {
+              run: true,
+              run_ui: true,
+              ui_hot_reload: false,
+              host: "0.0.0.0",
+              port: 9000,
+              cors_origins: [],
+              event_buffer_size: 500,
+              log_buffer_size: 2000,
+              job_history_size: 1000,
+            },
+          }),
+        ),
       ),
     );
-    const { getByText } = renderWithAppState(<ConfigPage />);
-    expect(getByText("9000")).toBeDefined();
+    const { findByText } = renderWithAppState(<ConfigPage />);
+    expect(await findByText("9000")).toBeDefined();
   });
 
-  it("displays boolean config values as text", () => {
-    useApi.mockReturnValue(fakeApiResult(createSystemConfig({ dev_mode: true, asyncio_debug_mode: false })));
-    const { container } = renderWithAppState(<ConfigPage />);
-    // Find the dev_mode row and verify its value cell shows "true"
+  it("displays boolean config values as text", async () => {
+    server.use(
+      http.get("/api/config", () =>
+        HttpResponse.json(createSystemConfig({ dev_mode: true, asyncio_debug_mode: false })),
+      ),
+    );
+    const { findByText, container } = renderWithAppState(<ConfigPage />);
+    // Wait for a config section label to confirm data loaded
+    await findByText("general");
     const rows = Array.from(container.querySelectorAll("tr"));
     const devModeRow = rows.find((r) => r.textContent?.includes("dev_mode"));
     expect(devModeRow).toBeDefined();

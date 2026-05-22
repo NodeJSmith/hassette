@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Migrate ConfigPage and DiagnosticsPage to useQuery"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1"]
 ---
