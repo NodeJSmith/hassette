@@ -1,6 +1,4 @@
-import { signal } from "@preact/signals";
 import clsx from "clsx";
-import { useRef } from "preact/hooks";
 
 import { getDashboardAppGrid } from "../api/endpoints";
 import { Button } from "../components/shared/button";
@@ -22,6 +20,7 @@ import {
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../hooks/use-media-query";
 import { useQueryParams } from "../hooks/use-query-params";
 import { PRESET_WINDOW_SECONDS, useScopedApi } from "../hooks/use-scoped-api";
+import { useSignal } from "../hooks/use-signal";
 import { useAppState } from "../state/context";
 import { type AppRow, type AppSortState, compareAppRows, mergeManifestsAndGrid } from "../utils/app-data";
 import { pluralize } from "../utils/format";
@@ -43,7 +42,7 @@ const FILTER_TONES: Record<FilterId, StatusKind | null> = {
   blocked: "warn",
 };
 
-const VALID_SORT_KEYS = ["name", "status", "error", "runs", "last"] as const;
+const VALID_SORT_KEYS: ReadonlySet<string> = new Set<AppSortState["key"]>(["name", "status", "error", "runs", "last"]);
 
 // ---- Stats strip helpers ----
 
@@ -154,11 +153,9 @@ export function AppsPage() {
   const filter: FilterId =
     rawFilter !== null && (FILTER_OPTIONS as readonly string[]).includes(rawFilter) ? (rawFilter as FilterId) : "all";
   const rawSort = qp.get("sort");
-  const rawDir = qp.get("dir");
-  const isValidSortKey = rawSort !== null && (VALID_SORT_KEYS as readonly string[]).includes(rawSort);
   const sort: AppSortState = {
-    key: isValidSortKey ? (rawSort as AppSortState["key"]) : "status",
-    dir: rawDir === "desc" ? "desc" : "asc",
+    key: (rawSort !== null && VALID_SORT_KEYS.has(rawSort) ? rawSort : "status") as AppSortState["key"],
+    dir: qp.get("dir") === "desc" ? "desc" : "asc",
   };
   const search = qp.get("search") ?? "";
   const handleSort = (newSort: AppSortState) =>
@@ -166,7 +163,7 @@ export function AppsPage() {
       sort: newSort.key === "status" ? null : newSort.key,
       dir: newSort.dir === "asc" ? null : newSort.dir,
     });
-  const expanded = useRef(signal<Set<string>>(new Set())).current;
+  const expanded = useSignal<Set<string>>(new Set());
 
   const toggleExpand = (appKey: string) => {
     const next = new Set(expanded.value);
@@ -180,7 +177,7 @@ export function AppsPage() {
   const allApps = mergeManifestsAndGrid(manifests, gridEntries);
 
   let windowSeconds: number | null = null;
-  if (uptimeSeconds.value !== null && uptimeSeconds.value !== undefined) {
+  if (uptimeSeconds.value !== null) {
     windowSeconds =
       effectiveTimePreset.value === "since-restart"
         ? uptimeSeconds.value

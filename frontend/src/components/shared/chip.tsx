@@ -1,10 +1,11 @@
 import clsx from "clsx";
 import type { JSX } from "preact";
 
+import type { StatusKind } from "../../utils/status";
 import styles from "./chip.module.css";
 
 export type ChipVariant = "modifier" | "schedule" | "kind" | "origin" | "muted";
-export type ChipKind = "ok" | "warn" | "err" | "mute";
+export type ChipKind = StatusKind;
 export type ChipSize = "default" | "sm";
 
 const kindClassMap: Record<ChipKind, string> = {

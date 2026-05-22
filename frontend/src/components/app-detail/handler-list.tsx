@@ -16,13 +16,13 @@ interface Props {
   onSelect: (id: SelectedHandlerId) => void;
 }
 
-export function listenerStatusKind(l: ListenerData) {
+export function listenerHealthKind(l: ListenerData) {
   if (l.failed > 0 || l.timed_out > 0) return statusToKind("failed");
   if (l.total_invocations > 0) return statusToKind("running");
   return statusToKind("stopped");
 }
 
-export function jobStatusKind(j: JobData) {
+export function jobHealthKind(j: JobData) {
   if (j.failed > 0 || j.timed_out > 0) return statusToKind("failed");
   if (j.total_executions > 0) return statusToKind("running");
   return statusToKind("stopped");
@@ -34,7 +34,7 @@ export function buildItems(listeners: ListenerData[], jobs: JobData[]): UnifiedI
     id: listener.listener_id,
     name: lastDotSegment(listener.handler_method),
     humanDescription: listener.human_description ?? null,
-    statusKind: listenerStatusKind(listener),
+    statusKind: listenerHealthKind(listener),
     data: listener,
   }));
 
@@ -46,7 +46,7 @@ export function buildItems(listeners: ListenerData[], jobs: JobData[]): UnifiedI
       id: job.job_id,
       name: job.job_name,
       humanDescription,
-      statusKind: jobStatusKind(job),
+      statusKind: jobHealthKind(job),
       data: job,
     };
   });

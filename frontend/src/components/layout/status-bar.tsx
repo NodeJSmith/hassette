@@ -33,10 +33,10 @@ export function StatusBar() {
   };
 
   const statusConfig: Record<typeof status, { dotClass: string; label: string }> = {
-    connecting: { dotClass: clsx(styles.pulseDot, "connecting"), label: "Connecting..." },
+    connecting: { dotClass: clsx(styles.pulseDot, styles.pulseDotConnecting), label: "Connecting..." },
     connected: { dotClass: styles.pulseDot, label: "Connected" },
-    reconnecting: { dotClass: clsx(styles.pulseDot, "disconnected"), label: "Reconnecting..." },
-    disconnected: { dotClass: clsx(styles.pulseDot, "disconnected"), label: "Disconnected" },
+    reconnecting: { dotClass: clsx(styles.pulseDot, styles.pulseDotDisconnected), label: "Reconnecting..." },
+    disconnected: { dotClass: clsx(styles.pulseDot, styles.pulseDotDisconnected), label: "Disconnected" },
   };
 
   const { dotClass, label } = statusConfig[status];
@@ -50,13 +50,13 @@ export function StatusBar() {
         <TimePresetSelector />
       </div>
       <div class={styles.statusBarRight}>
-        <span class={styles.wsIndicator} aria-label={label} data-testid="ws-indicator">
+        <span class={styles.wsIndicator} aria-label={label} aria-live="polite" data-testid="ws-indicator">
           <span class={dotClass} />
           {status !== "connected" && <span class="ht-text-xs">{label}</span>}
         </span>
         {showDegraded && (
           <span class={styles.wsIndicator} aria-label="database degraded">
-            <span class={clsx(styles.pulseDot, "degraded")} />
+            <span class={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
             <span class="ht-text-xs">database degraded</span>
           </span>
         )}
@@ -67,7 +67,7 @@ export function StatusBar() {
             title={`buffer full: ${overflow}, write failed: ${exhausted}, no session: ${noSession}, during shutdown: ${shutdown}`}
             data-testid="dropped-events-indicator"
           >
-            <span class={clsx(styles.pulseDot, "degraded")} />
+            <span class={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
             <span class="ht-text-xs">{droppedTotal} dropped</span>
           </span>
         )}
@@ -78,7 +78,7 @@ export function StatusBar() {
             title={`${ehFailures} user error handler invocation${ehFailures !== 1 ? "s" : ""} raised or timed out`}
             data-testid="error-handler-failures-indicator"
           >
-            <span class={clsx(styles.pulseDot, "degraded")} />
+            <span class={clsx(styles.pulseDot, styles.pulseDotDegraded)} />
             <span class="ht-text-xs">
               {ehFailures} handler error{ehFailures !== 1 ? "s" : ""}
             </span>

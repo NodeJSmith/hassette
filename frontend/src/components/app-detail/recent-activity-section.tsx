@@ -28,34 +28,53 @@ interface ActivityGroup {
   lastTs: number;
 }
 
+interface Accumulator {
+  key: string;
+  handlerName: string;
+  status: string;
+  count: number;
+  durationSum: number;
+  durationCount: number;
+  firstTs: number;
+  lastTs: number;
+}
+
 function groupConsecutiveActivity(entries: ActivityFeedEntryData[]): ActivityGroup[] {
-  const groups: ActivityGroup[] = [];
+  const accumulators: Accumulator[] = [];
   for (const entry of entries) {
-    const prev = groups[groups.length - 1];
+    const prev = accumulators[accumulators.length - 1];
     if (prev && prev.handlerName === entry.handler_name && prev.status === entry.status) {
-      prev.count += 1;
-      prev.lastTs = entry.timestamp;
-      if (entry.duration_ms !== null && entry.duration_ms !== undefined) {
-        if (prev.avgDurationMs !== null && prev.avgDurationMs !== undefined) {
-          const prevTotal = prev.avgDurationMs * (prev.count - 1);
-          prev.avgDurationMs = (prevTotal + entry.duration_ms) / prev.count;
-        } else {
-          prev.avgDurationMs = entry.duration_ms;
-        }
-      }
+      const dur = entry.duration_ms ?? null;
+      accumulators[accumulators.length - 1] = {
+        ...prev,
+        count: prev.count + 1,
+        lastTs: entry.timestamp,
+        durationSum: prev.durationSum + (dur !== null ? dur : 0),
+        durationCount: prev.durationCount + (dur !== null ? 1 : 0),
+      };
     } else {
-      groups.push({
+      const dur = entry.duration_ms ?? null;
+      accumulators.push({
         key: entry.row_id,
         handlerName: entry.handler_name,
         status: entry.status,
         count: 1,
-        avgDurationMs: entry.duration_ms ?? null,
+        durationSum: dur !== null ? dur : 0,
+        durationCount: dur !== null ? 1 : 0,
         firstTs: entry.timestamp,
         lastTs: entry.timestamp,
       });
     }
   }
-  return groups;
+  return accumulators.map((acc) => ({
+    key: acc.key,
+    handlerName: acc.handlerName,
+    status: acc.status,
+    count: acc.count,
+    avgDurationMs: acc.durationCount > 0 ? acc.durationSum / acc.durationCount : null,
+    firstTs: acc.firstTs,
+    lastTs: acc.lastTs,
+  }));
 }
 
 function ActivityGroupRow({ group }: { group: ActivityGroup }) {

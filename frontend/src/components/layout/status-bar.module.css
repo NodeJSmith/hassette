@@ -18,17 +18,17 @@
   }
 }
 
-.pulseDot:global(.connecting) {
+.pulseDotConnecting {
   background: var(--mute);
   animation: none;
 }
 
-.pulseDot:global(.disconnected) {
+.pulseDotDisconnected {
   background: var(--err);
   animation: none;
 }
 
-.pulseDot:global(.degraded) {
+.pulseDotDegraded {
   background: var(--warn);
   animation: none;
 }

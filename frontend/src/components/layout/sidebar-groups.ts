@@ -39,5 +39,6 @@ export function getGroupKey(manifest: AppManifest): GroupKey {
   if (status === "failed" || status === "crashed" || status === "exhausted_dead") return "err";
   if (WARN_STATUSES.has(status)) return "warn";
   if (status === "stopped" || status === "not_started") return "stopped";
+  // "running", "starting", and any unknown status map to the healthy group
   return "ok";
 }
