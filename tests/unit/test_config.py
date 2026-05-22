@@ -745,6 +745,25 @@ class TestTomlDeepMerge:
         assert len(deprecation_warnings) == 1
         assert "[hassette.apps.*]" in str(deprecation_warnings[0].message)
 
+    def test_no_deprecation_when_top_level_apps_has_only_settings(self, tmp_path: Path) -> None:
+        """No DeprecationWarning when top-level [apps] has only config fields, no app definitions."""
+        toml_file = self.write_toml(
+            tmp_path,
+            """
+            [hassette.apps]
+            directory = "custom_apps"
+
+            [apps]
+            autodetect = false
+            """,
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            self.make_source(toml_file)
+
+        deprecation_warnings = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+        assert len(deprecation_warnings) == 0
+
 
 def test_bundled_toml_files_have_no_log_level_entries():
     """Regression guard: bundled TOML defaults must not contain *_log_level keys.
