@@ -15,7 +15,7 @@ import { Chip } from "../shared/chip";
 import type { DetailStatsCell } from "../shared/detail-stats";
 import chipStyles from "./handler-chips.module.css";
 import { HandlerDetailLayout } from "./handler-detail-layout";
-import { listenerStatusKind } from "./handler-list";
+import { listenerHealthKind } from "./handler-list";
 
 function ModifierChips({ listener }: { listener: ListenerData }) {
   const chips: Array<{ label: string; value?: string }> = [];
@@ -90,7 +90,7 @@ export function ListenerDetail({ listener, onSwitchToCode }: Props) {
   );
 
   const kindLabel = handlerKindLabel("listener", listener.listener_kind, null);
-  const listenerKind = listenerStatusKind(listener);
+  const listenerKind = listenerHealthKind(listener);
 
   return (
     <HandlerDetailLayout

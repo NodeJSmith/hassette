@@ -15,7 +15,7 @@ interface StatsStripProps {
   "data-testid"?: string;
 }
 
-const toneClass: Partial<Record<StatusKind, string>> = {
+const toneClass: Record<StatusKind, string> = {
   err: styles.valueErr,
   warn: styles.valueWarn,
   ok: styles.valueOk,

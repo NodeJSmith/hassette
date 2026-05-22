@@ -1,7 +1,7 @@
 const LISTENER_PREFIX = "h";
 const JOB_PREFIX = "j";
 
-const HANDLER_ID_RE = /^([hj])-(\d+)$/;
+const HANDLER_ID_RE = new RegExp(`^(${LISTENER_PREFIX}|${JOB_PREFIX})-(\\d+)$`);
 
 export function formatListenerId(id: number): string {
   return `${LISTENER_PREFIX}-${id}`;

@@ -42,6 +42,7 @@ export function HandlersTab({ listeners, jobs, selectedHandler, appKey, instance
   const [, navigate] = useLocation();
   const correctUrl = useCorrectUrl();
 
+  // ResizeObserver instead of useMediaQuery: breakpoint is relative to this container's width, not the viewport.
   const isMobile = useSignal(false);
   const containerRef = useRef<HTMLDivElement>(null);
 

@@ -110,7 +110,7 @@ export function useLogFilters({
     const tier: TierFilter = tierRaw === "all" || tierRaw === "framework" || tierRaw === "app" ? tierRaw : defaultTier;
     const app = current.get("app") ?? "";
     const search = current.get("search") ?? "";
-    const func = current.get("fn") ?? "";
+    const func = current.get("func") ?? current.get("fn") ?? "";
     const rawSort = current.get("sort") ?? "timestamp";
     const column = resolveSortColumn(rawSort);
     const sortAsc = current.get("dir") === "asc";
@@ -205,7 +205,7 @@ export function useLogFilters({
       localFunc.value = func;
       return;
     }
-    qpRef.current.set({ fn: func || null });
+    qpRef.current.set({ func: func || null, fn: null });
   }
 
   function setSort(column: SortColumn) {

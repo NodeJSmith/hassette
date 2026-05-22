@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { errorRateToVariant, INACTIVE_STATUSES, readinessVariant, statusToVariant } from "./status";
+import { INACTIVE_STATUSES, readinessVariant, statusToVariant } from "./status";
 
 describe("statusToVariant", () => {
   it("maps known app statuses to correct variants", () => {
@@ -57,20 +57,5 @@ describe("readinessVariant", () => {
     expect(readinessVariant("failed", false)).toBe("danger");
     expect(readinessVariant("exhausted_dead", false)).toBe("danger");
     expect(readinessVariant("exhausted_cooling", false)).toBe("warning");
-  });
-});
-
-describe("errorRateToVariant", () => {
-  it("maps known error rate classes to correct variants", () => {
-    expect(errorRateToVariant("good")).toBe("success");
-    expect(errorRateToVariant("warn")).toBe("warning");
-    expect(errorRateToVariant("bad")).toBe("danger");
-  });
-
-  it("returns neutral and warns for unknown class", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect(errorRateToVariant("terrible")).toBe("neutral");
-    expect(warnSpy).toHaveBeenCalledWith('Unknown error rate class: "terrible"');
-    warnSpy.mockRestore();
   });
 });

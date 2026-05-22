@@ -18,54 +18,54 @@ vi.mock("../../hooks/use-query-params", () => ({
 }));
 
 describe("StatusBar — connection states", () => {
-  it("renders connected state without status label", () => {
-    const { getByTestId, queryByText } = renderWithAppState(<StatusBar />, {
+  it("renders connected state with visually-hidden status text", () => {
+    const { getByTestId } = renderWithAppState(<StatusBar />, {
       stateOverrides: { connection: signal("connected") },
     });
     const indicator = getByTestId("ws-indicator");
-    expect(indicator.getAttribute("aria-label")).toBe("Connected");
-    expect(queryByText("Connected")).toBeNull(); // label is hidden when connected
+    expect(indicator.getAttribute("role")).toBe("status");
+    expect(indicator.textContent).toBe("Connected");
   });
 
-  it("renders connecting state with text label", () => {
+  it("renders connecting state with visible text label", () => {
     const { getByText } = renderWithAppState(<StatusBar />, {
       stateOverrides: { connection: signal("connecting") },
     });
     expect(getByText("Connecting...")).toBeDefined();
   });
 
-  it("renders disconnected state with text label", () => {
+  it("renders disconnected state with visible text label", () => {
     const { getByText, getByTestId } = renderWithAppState(<StatusBar />, {
       stateOverrides: { connection: signal("disconnected") },
     });
     expect(getByText("Disconnected")).toBeDefined();
     const indicator = getByTestId("ws-indicator");
-    expect(indicator.getAttribute("aria-label")).toBe("Disconnected");
+    expect(indicator.getAttribute("role")).toBe("status");
   });
 
-  it("renders reconnecting state with text label", () => {
+  it("renders reconnecting state with visible text label", () => {
     const { getByText, getByTestId } = renderWithAppState(<StatusBar />, {
       stateOverrides: { connection: signal("reconnecting") },
     });
     expect(getByText("Reconnecting...")).toBeDefined();
     const indicator = getByTestId("ws-indicator");
-    expect(indicator.getAttribute("aria-label")).toBe("Reconnecting...");
+    expect(indicator.getAttribute("role")).toBe("status");
   });
 
-  it("sets aria-label for connected state", () => {
-    const { container } = renderWithAppState(<StatusBar />, {
+  it("uses role=status for screen reader announcements", () => {
+    const { getByTestId } = renderWithAppState(<StatusBar />, {
       stateOverrides: { connection: signal("connected") },
     });
-    const indicator = container.querySelector("[aria-label='Connected']");
-    expect(indicator).not.toBeNull();
+    const indicator = getByTestId("ws-indicator");
+    expect(indicator.getAttribute("role")).toBe("status");
   });
 
-  it("sets aria-label for disconnected state", () => {
-    const { container } = renderWithAppState(<StatusBar />, {
+  it("always includes status text for screen readers", () => {
+    const { getByTestId } = renderWithAppState(<StatusBar />, {
       stateOverrides: { connection: signal("disconnected") },
     });
-    const indicator = container.querySelector("[aria-label='Disconnected']");
-    expect(indicator).not.toBeNull();
+    const indicator = getByTestId("ws-indicator");
+    expect(indicator.textContent).toBe("Disconnected");
   });
 });
 

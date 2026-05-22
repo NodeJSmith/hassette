@@ -1,6 +1,6 @@
 import styles from "./empty-state.module.css";
 
-interface Props {
+interface EmptyStateProps {
   icon?: string;
   title: string;
   body?: string;
@@ -8,7 +8,7 @@ interface Props {
   children?: preact.ComponentChildren;
 }
 
-export function EmptyState({ icon = "∅", title, body, "data-testid": testId, children }: Props) {
+export function EmptyState({ icon = "∅", title, body, "data-testid": testId, children }: EmptyStateProps) {
   return (
     <div class={styles.empty} data-testid={testId}>
       {icon && <div class={styles.icon}>{icon}</div>}

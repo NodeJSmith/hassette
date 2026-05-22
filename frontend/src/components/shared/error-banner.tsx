@@ -2,7 +2,7 @@ import { useState } from "preact/hooks";
 
 import styles from "./error-banner.module.css";
 
-interface Props {
+interface ErrorBannerProps {
   heading?: string;
   errorType?: string | null;
   errorMessage: string | null;
@@ -16,7 +16,7 @@ export function ErrorBanner({
   errorMessage,
   traceback,
   "data-testid": testId,
-}: Props) {
+}: ErrorBannerProps) {
   const [traceExpanded, setTraceExpanded] = useState(false);
 
   return (

@@ -15,7 +15,7 @@ import { Chip } from "../shared/chip";
 import type { DetailStatsCell } from "../shared/detail-stats";
 import chipStyles from "./handler-chips.module.css";
 import { HandlerDetailLayout } from "./handler-detail-layout";
-import { jobStatusKind } from "./handler-list";
+import { jobHealthKind } from "./handler-list";
 
 function ScheduleChips({ job }: { job: JobData }) {
   const chips: Array<{ label: string }> = [];
@@ -77,7 +77,7 @@ export function JobDetail({ job, onSwitchToCode }: Props) {
   );
 
   const kindLabel = handlerKindLabel("job", null, job.trigger_type);
-  const jobKind = jobStatusKind(job);
+  const jobKind = jobHealthKind(job);
 
   let nextRunText: string | null = null;
   if (job.next_run) nextRunText = `next ${nextRunLabel}`;

@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { useMemo } from "preact/hooks";
 
 import type { LogEntry } from "../../../api/endpoints";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../../hooks/use-media-query";
@@ -9,7 +10,7 @@ import { LEVEL_ABBREV, levelClass } from "./constants";
 import styles from "./log-table-row.module.css";
 import type { ColumnId, RowKey } from "./types";
 
-interface Props {
+interface LogTableRowProps {
   entry: LogEntry;
   rowKey: RowKey;
   visibleColumns: ColumnId[];
@@ -17,11 +18,12 @@ interface Props {
   onClick: () => void;
 }
 
-export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick }: Props) {
+export function LogTableRow({ entry, rowKey, visibleColumns, isSelected, onClick }: LogTableRowProps) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const relativeTime = useRelativeTime(entry.timestamp);
 
-  const isColumnVisible = (id: ColumnId) => visibleColumns.includes(id);
+  const visibleSet = useMemo(() => new Set(visibleColumns), [visibleColumns]);
+  const isColumnVisible = (id: ColumnId) => visibleSet.has(id);
 
   return (
     <tr

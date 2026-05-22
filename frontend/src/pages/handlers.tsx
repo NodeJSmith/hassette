@@ -21,6 +21,19 @@ import { compareHandlerRows, type HandlerSortKey, jobToRow, listenerToRow } from
 import styles from "./handlers.module.css";
 import { HandlerMobileRow, HandlerTableRow } from "./handlers-rows";
 
+const VALID_SORT_KEYS: ReadonlySet<string> = new Set<HandlerSortKey>([
+  "kind",
+  "app",
+  "name",
+  "trigger",
+  "runs",
+  "failed",
+  "timed_out",
+  "error_rate",
+  "avg_duration",
+  "next_run",
+]);
+
 export function HandlersPage() {
   useDocumentTitle("Handlers");
 
@@ -28,9 +41,10 @@ export function HandlersPage() {
 
   const selectedApp = qp.get("app") ?? "";
   const search = qp.get("search") ?? "";
+  const rawSort = qp.get("sort");
   const sort: SortState<HandlerSortKey> = {
-    key: (qp.get("sort") ?? "app") as HandlerSortKey,
-    dir: (qp.get("dir") ?? "asc") as "asc" | "desc",
+    key: (rawSort !== null && VALID_SORT_KEYS.has(rawSort) ? rawSort : "app") as HandlerSortKey,
+    dir: qp.get("dir") === "desc" ? "desc" : "asc",
   };
 
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
@@ -125,8 +139,8 @@ export function HandlersPage() {
     <input
       class="ht-search"
       type="text"
-      aria-label="Search"
-      placeholder="Search..."
+      aria-label="Search handlers"
+      placeholder="search handlers…"
       value={search}
       onInput={(e) => {
         qp.set({ search: (e.target as HTMLInputElement).value || null });

@@ -17,11 +17,6 @@ import { statusToKind } from "../utils/status";
 import styles from "./diagnostics.module.css";
 
 type ServiceInfoResponse = components["schemas"]["ServiceInfoResponse"];
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Merged service entry: HTTP seed + WS live overlay
-// ──────────────────────────────────────────────────────────────────────────────
-
 interface MergedService {
   resource_name: string;
   status: string;
@@ -67,11 +62,6 @@ function mergeServices(
 
   return [...merged.values()].sort((a, b) => a.resource_name.localeCompare(b.resource_name));
 }
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Individual service row
-// ──────────────────────────────────────────────────────────────────────────────
-
 interface DiagServiceRowProps {
   service: MergedService;
 }
@@ -121,11 +111,6 @@ function DiagServiceRow({ service }: DiagServiceRowProps) {
     </li>
   );
 }
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Services panel
-// ──────────────────────────────────────────────────────────────────────────────
-
 interface ServicesPanelProps {
   services: MergedService[];
   wsConnected: boolean;
@@ -158,11 +143,6 @@ function ServicesPanel({ services, wsConnected }: ServicesPanelProps) {
     </section>
   );
 }
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Boot issues panel
-// ──────────────────────────────────────────────────────────────────────────────
-
 interface BootIssuesPanelProps {
   bootIssues: BootIssue[];
 }
@@ -184,7 +164,11 @@ function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
           {sorted.map((issue, i) => {
             const kind = issue.severity === "err" ? "err" : "warn";
             return (
-              <li key={`${issue.severity}-${issue.label}`} class={styles.bootRow} data-testid={`diag-boot-issue-${i}`}>
+              <li
+                key={`${i}-${issue.severity}-${issue.label}`}
+                class={styles.bootRow}
+                data-testid={`diag-boot-issue-${i}`}
+              >
                 <StatusShape kind={kind} size={10} />
                 <div class={styles.bootContent}>
                   <span class={styles.bootLabel} data-testid={`diag-boot-label-${i}`}>
@@ -202,11 +186,6 @@ function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
     </section>
   );
 }
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Telemetry health panel
-// ──────────────────────────────────────────────────────────────────────────────
-
 interface TelemetryPanelProps {
   droppedOverflow: number;
   droppedExhausted: number;
@@ -279,11 +258,6 @@ function TelemetryPanel({
     </section>
   );
 }
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Page
-// ──────────────────────────────────────────────────────────────────────────────
-
 export function DiagnosticsPage() {
   useDocumentTitle("Diagnostics");
 

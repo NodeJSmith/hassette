@@ -37,3 +37,11 @@
 .valueWarn {
   color: var(--warn);
 }
+
+.valueOk {
+  color: var(--ok);
+}
+
+.valueMute {
+  color: var(--ink-3);
+}
