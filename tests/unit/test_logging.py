@@ -735,12 +735,12 @@ class TestLogPersistenceDropCountWithDB:
     """LogPersistenceHandler counts drops caused by DB queue-full backpressure."""
 
     @staticmethod
-    def _enqueue_returning_false(coro):
+    def enqueue_returning_false(coro):
         coro.close()
         return False
 
     @staticmethod
-    def _enqueue_raising_runtime_error(coro):
+    def enqueue_raising_runtime_error(coro):
         coro.close()
         raise RuntimeError("DB shut down")
 
@@ -749,7 +749,7 @@ class TestLogPersistenceDropCountWithDB:
         handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
         loop = asyncio.new_event_loop()
         db_service = MagicMock()
-        db_service.enqueue = MagicMock(side_effect=self._enqueue_returning_false)
+        db_service.enqueue = MagicMock(side_effect=self.enqueue_returning_false)
         handler.set_database(db_service, loop)
 
         for i in range(50):
@@ -766,7 +766,7 @@ class TestLogPersistenceDropCountWithDB:
         handler = LogPersistenceHandler(persistence_level=logging.DEBUG)
         loop = asyncio.new_event_loop()
         db_service = MagicMock()
-        db_service.enqueue = MagicMock(side_effect=self._enqueue_raising_runtime_error)
+        db_service.enqueue = MagicMock(side_effect=self.enqueue_raising_runtime_error)
         handler.set_database(db_service, loop)
 
         for i in range(50):

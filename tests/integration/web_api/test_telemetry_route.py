@@ -1,4 +1,4 @@
-"""Integration tests for the telemetry route enrichment (WP02, spec 2039).
+"""Integration tests for telemetry route enrichment.
 
 Tests verify:
 - app_jobs enriches DB rows with live heap data when a live match exists
@@ -9,28 +9,10 @@ Tests verify:
 from unittest.mock import AsyncMock
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 
 from hassette.core.telemetry_models import JobSummary
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.web_helpers import make_real_job
-from hassette.test_utils.web_mocks import create_hassette_stub
-from hassette.web.app import create_fastapi_app
-
-
-@pytest.fixture
-def mock_hassette_enrichment():
-    """Create a mock Hassette stub suitable for enrichment tests."""
-    return create_hassette_stub(run_web_ui=False)
-
-
-@pytest.fixture
-async def enrichment_client(mock_hassette_enrichment):
-    """AsyncClient wired to the enrichment-test app."""
-    app = create_fastapi_app(mock_hassette_enrichment)
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac, mock_hassette_enrichment
 
 
 def make_job_summary(
@@ -65,9 +47,7 @@ def make_job_summary(
 class TestAppJobsEnrichmentWithLiveMatch:
     """When a live heap job matches by db_id, enriched fields are populated."""
 
-    async def test_next_run_fire_at_jitter_from_live(self, enrichment_client) -> None:
-        client, mock_hassette = enrichment_client
-
+    async def test_next_run_fire_at_jitter_from_live(self, client, mock_hassette) -> None:
         # Arrange: one DB job summary
         db_summary = make_job_summary(job_id=42)
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
@@ -92,12 +72,12 @@ class TestAppJobsEnrichmentWithLiveMatch:
         # next_run should be epoch float
         assert row["next_run"] is not None
         assert isinstance(row["next_run"], float)
-        assert row["next_run"] == pytest.approx(live_job.next_run.timestamp(), abs=1.0)
+        assert row["next_run"] == pytest.approx(live_job.next_run.timestamp(), abs=0.01)
 
         # fire_at is populated because jitter is not None
         assert row["fire_at"] is not None
         assert isinstance(row["fire_at"], float)
-        assert row["fire_at"] == pytest.approx(live_job.fire_at.timestamp(), abs=1.0)
+        assert row["fire_at"] == pytest.approx(live_job.fire_at.timestamp(), abs=0.01)
 
         # jitter is set
         assert row["jitter"] == 15.0
@@ -106,9 +86,7 @@ class TestAppJobsEnrichmentWithLiveMatch:
 class TestAppJobsEnrichmentNoLiveMatch:
     """When no live heap job matches by db_id, live fields are None."""
 
-    async def test_no_live_match_live_fields_none(self, enrichment_client) -> None:
-        client, mock_hassette = enrichment_client
-
+    async def test_no_live_match_live_fields_none(self, client, mock_hassette) -> None:
         db_summary = make_job_summary(job_id=99)
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
         mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
@@ -128,9 +106,7 @@ class TestAppJobsEnrichmentNoLiveMatch:
 class TestAppJobsEnrichmentHeapFailureDegrades:
     """When get_all_jobs() raises, DB rows are returned without enrichment (no 500)."""
 
-    async def test_heap_failure_returns_db_rows_status_200(self, enrichment_client) -> None:
-        client, mock_hassette = enrichment_client
-
+    async def test_heap_failure_returns_db_rows_status_200(self, client, mock_hassette) -> None:
         # Arrange: DB job
         db_summary = make_job_summary(job_id=55)
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
@@ -151,13 +127,3 @@ class TestAppJobsEnrichmentHeapFailureDegrades:
         assert row["next_run"] is None
         assert row["fire_at"] is None
         assert row["jitter"] is None
-
-    async def test_heap_failure_does_not_500(self, enrichment_client) -> None:
-        """Verify response is not 500 regardless of exception type."""
-        client, mock_hassette = enrichment_client
-
-        mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[make_job_summary(job_id=1)])
-        mock_hassette.scheduler_service.get_all_jobs = AsyncMock(side_effect=RuntimeError("scheduler heap unavailable"))
-
-        response = await client.get("/api/telemetry/app/my_app/jobs")
-        assert response.status_code == 200

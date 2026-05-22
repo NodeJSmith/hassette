@@ -10,21 +10,18 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.web.telemetry_helpers import compute_health_metrics
 
-from .telemetry_query_helpers import (
-    db,  # noqa: F401 (pytest fixture)
-    db_hassette,  # noqa: F401 (pytest fixture)
+from .helpers import (
     insert_execution,
     insert_invocation,
     insert_job,
     insert_listener,
-    svc,  # noqa: F401 (pytest fixture)
 )
 
 
 class TestListenerSummaryTimedOut:
     async def test_listener_summary_counts_timed_out(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """Verify timed_out is a separate bucket in ListenerSummary."""
@@ -35,7 +32,7 @@ class TestListenerSummaryTimedOut:
         await insert_invocation(db_svc, lid, session_id, status="timed_out")
         await insert_invocation(db_svc, lid, session_id, status="timed_out")
 
-        summaries = await svc.get_listener_summary("test_app", 0)
+        summaries = await query_service.get_listener_summary("test_app", 0)
         assert len(summaries) == 1
         s = summaries[0]
         assert s.total_invocations == 4
@@ -48,7 +45,7 @@ class TestListenerSummaryTimedOut:
 class TestJobSummaryTimedOut:
     async def test_job_summary_counts_timed_out(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """Verify timed_out is a separate bucket in JobSummary."""
@@ -59,7 +56,7 @@ class TestJobSummaryTimedOut:
         await insert_execution(db_svc, jid, session_id, status="error")
         await insert_execution(db_svc, jid, session_id, status="timed_out")
 
-        summaries = await svc.get_job_summary("test_app", 0)
+        summaries = await query_service.get_job_summary("test_app", 0)
         assert len(summaries) == 1
         s = summaries[0]
         assert s.total_executions == 4
@@ -71,7 +68,7 @@ class TestJobSummaryTimedOut:
 class TestErrorRateIncludesTimedOut:
     async def test_error_rate_includes_timed_out_as_failure(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """Verify compute_health_metrics treats timed_out as a failure subtype."""
@@ -89,8 +86,8 @@ class TestErrorRateIncludesTimedOut:
         await insert_execution(db_svc, jid, session_id, status="success")
         await insert_execution(db_svc, jid, session_id, status="timed_out")
 
-        listeners = await svc.get_listener_summary("test_app", 0)
-        jobs = await svc.get_job_summary("test_app", 0)
+        listeners = await query_service.get_listener_summary("test_app", 0)
+        jobs = await query_service.get_job_summary("test_app", 0)
         metrics = compute_health_metrics(listeners, jobs)
 
         # Combined: 6 total, 3 failures (1 error + 1 timed_out handler + 1 timed_out job) = 50%

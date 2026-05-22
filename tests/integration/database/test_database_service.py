@@ -16,19 +16,6 @@ from hassette.test_utils.mock_hassette import make_mock_hassette
 
 
 @pytest.fixture
-def db_hassette(premigrated_db_path: Path) -> AsyncMock:
-    """Create a mock Hassette with database config pointing to a pre-migrated DB."""
-    hassette = make_mock_hassette(
-        sealed=False,
-        data_dir=premigrated_db_path.parent,
-        set_ready=False,
-        database={"telemetry_write_queue_max": 500},
-        lifecycle={"resource_shutdown_timeout_seconds": 5},
-    )
-    return hassette
-
-
-@pytest.fixture
 def mock_hassette_fresh(tmp_path: Path) -> AsyncMock:
     """Create a mock Hassette with a fresh (empty) data_dir for migration-from-scratch tests."""
     return make_mock_hassette(
@@ -189,7 +176,7 @@ async def test_heartbeat_update(initialized_service: DatabaseService) -> None:
 
     await asyncio.sleep(0.05)
     await initialized_service._update_heartbeat()
-    assert initialized_service._db_write_queue is not None
+
     await initialized_service._db_write_queue.join()
 
     cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
@@ -249,7 +236,7 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
     await db.commit()
 
     await initialized_service._run_retention_cleanup()
-    assert initialized_service._db_write_queue is not None
+
     await initialized_service._db_write_queue.join()
 
     # Old records should be deleted, recent ones retained
@@ -303,7 +290,7 @@ async def test_serve_runs_heartbeat_and_retention(initialized_service: DatabaseS
         await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
 
     await shutdown_task
-    assert initialized_service._db_write_queue is not None
+
     await initialized_service._db_write_queue.join()
 
     # Heartbeat should have been updated
@@ -322,24 +309,24 @@ async def test_heartbeat_failure_counter_tracks_failures(initialized_service: Da
     await initialized_service._db.close()
 
     await initialized_service._update_heartbeat()
-    assert initialized_service._db_write_queue is not None
+
     await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 1
 
     await initialized_service._update_heartbeat()
-    assert initialized_service._db_write_queue is not None
+
     await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 2
 
     await initialized_service._update_heartbeat()
-    assert initialized_service._db_write_queue is not None
+
     await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 3
 
     # Restore a valid connection and verify recovery resets counter
     initialized_service._db = await aiosqlite.connect(initialized_service._db_path)
     await initialized_service._update_heartbeat()
-    assert initialized_service._db_write_queue is not None
+
     await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 0
 
@@ -352,14 +339,14 @@ async def test_heartbeat_recovery_resets_counter(initialized_service: DatabaseSe
     initialized_service._db.execute = AsyncMock(side_effect=sqlite3.OperationalError("db error"))
 
     await initialized_service._update_heartbeat()
-    assert initialized_service._db_write_queue is not None
+
     await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 1
 
     # Restore real connection — next heartbeat should succeed and reset
     initialized_service._db = real_db
     await initialized_service._update_heartbeat()
-    assert initialized_service._db_write_queue is not None
+
     await initialized_service._db_write_queue.join()
     assert initialized_service._consecutive_heartbeat_failures == 0
 
@@ -447,7 +434,6 @@ async def test_enqueue_raises_before_init(service: DatabaseService) -> None:
 
 async def test_enqueue_drops_task_on_queue_full(initialized_service: DatabaseService) -> None:
     """enqueue() drops the coroutine and logs an error when the queue is full."""
-    assert initialized_service._db_write_queue is not None
 
     # Block the worker so nothing drains by using a gate coroutine
     gate = asyncio.Event()
@@ -485,7 +471,6 @@ async def test_enqueue_drops_task_on_queue_full(initialized_service: DatabaseSer
 
 async def test_enqueue_logs_backlog_warning_at_100_multiple(initialized_service: DatabaseService) -> None:
     """enqueue() logs a warning when queue depth is a nonzero multiple of 100."""
-    assert initialized_service._db_write_queue is not None
 
     gate = asyncio.Event()
 

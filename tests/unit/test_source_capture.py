@@ -1,7 +1,5 @@
 """Unit tests for capture_registration_source in hassette.utils.source_capture."""
 
-from __future__ import annotations
-
 import ast
 import types
 from unittest.mock import patch

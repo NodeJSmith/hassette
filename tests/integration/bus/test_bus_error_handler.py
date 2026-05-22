@@ -3,21 +3,12 @@
 import asyncio
 from typing import TYPE_CHECKING
 
-import pytest
-
 from hassette.bus.error_context import BusErrorContext
 from hassette.events.base import Event
 from hassette.test_utils import create_call_service_event, create_state_change_event, wait_for
 
 if TYPE_CHECKING:
-    from hassette.bus import Bus
     from hassette.test_utils.harness import HassetteHarness
-
-
-@pytest.fixture
-def bus(hassette_with_bus: "HassetteHarness") -> "Bus":
-    """Return the Bus resource for the running Hassette harness."""
-    return hassette_with_bus.bus
 
 
 async def test_app_level_error_handler_called_on_failure(hassette_with_bus: "HassetteHarness") -> None:
@@ -152,7 +143,7 @@ async def test_multiple_listeners_different_handlers(hassette_with_bus: "Hassett
 
 
 async def test_on_error_registered_after_listeners_still_works(hassette_with_bus: "HassetteHarness") -> None:
-    """on_error() registered AFTER listeners is resolved at dispatch time — it still fires (FR11)."""
+    """on_error() registered AFTER listeners is resolved at dispatch time — it still fires."""
     hassette = hassette_with_bus
     bus = hassette.bus
 

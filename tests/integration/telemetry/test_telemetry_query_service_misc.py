@@ -11,15 +11,12 @@ from hassette.core.telemetry_models import (
 )
 from hassette.core.telemetry_query_service import TelemetryQueryService, _source_tier_clause
 
-from .telemetry_query_helpers import (
+from .helpers import (
     BASE_TS,
-    db,  # noqa: F401 (pytest fixture)
-    db_hassette,  # noqa: F401 (pytest fixture)
     insert_execution,
     insert_invocation,
     insert_job,
     insert_listener,
-    svc,  # noqa: F401 (pytest fixture)
 )
 
 
@@ -58,7 +55,7 @@ class TestSourceTierClause:
 class TestGetJobSummarySinceScoped:
     async def test_get_job_summary_since_scoped(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """since filter restricts job execution counts to records after the threshold."""
@@ -81,7 +78,7 @@ class TestGetJobSummarySinceScoped:
             db_svc, j1, session_id, status="success", duration_ms=30.0, execution_start_ts=base_ts + 1.0
         )
 
-        rows = await svc.get_job_summary("test_app", 0, since=since_ts)
+        rows = await query_service.get_job_summary("test_app", 0, since=since_ts)
         assert len(rows) == 1
         row = rows[0]
         assert row.total_executions == 2
@@ -92,7 +89,7 @@ class TestGetJobSummarySinceScoped:
 class TestGetAllAppSummariesFrameworkTier:
     async def test_get_all_app_summaries_framework_tier(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """source_tier='framework' selects active_framework_listeners and active_framework_scheduled_jobs."""
@@ -113,7 +110,7 @@ class TestGetAllAppSummariesFrameworkTier:
         )
         await insert_execution(db_svc, fw_job, session_id, status="success", duration_ms=10.0, source_tier="framework")
 
-        result = await svc.get_all_app_summaries(source_tier="framework")
+        result = await query_service.get_all_app_summaries(source_tier="framework")
 
         # Framework data lives under __hassette__ key, which is discarded by FRAMEWORK_APP_KEY guard
         # So result should be empty (the __hassette__ key is excluded)
@@ -121,7 +118,7 @@ class TestGetAllAppSummariesFrameworkTier:
 
     async def test_get_all_app_summaries_framework_tier_non_hassette_app_key(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """source_tier='framework' shows framework-tier records for non-__hassette__ app_key."""
@@ -135,7 +132,7 @@ class TestGetAllAppSummariesFrameworkTier:
             db_svc, fw_listener, session_id, status="success", duration_ms=5.0, source_tier="framework"
         )
 
-        result = await svc.get_all_app_summaries(source_tier="framework")
+        result = await query_service.get_all_app_summaries(source_tier="framework")
         # my_app has 1 framework-tier listener (instance 0)
         assert "my_app" in result
         summary = result["my_app"]
@@ -146,16 +143,16 @@ class TestGetAllAppSummariesFrameworkTier:
 class TestCheckHealth:
     async def test_check_health_succeeds_on_live_db(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """check_health() completes without raising when the database is live."""
         # Should not raise
-        await svc.check_health()
+        await query_service.check_health()
 
     async def test_check_health_raises_on_closed_db(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """check_health() raises when the read_db connection is closed."""
@@ -164,7 +161,7 @@ class TestCheckHealth:
         await db_svc._read_db.close()
         try:
             with pytest.raises((sqlite3.Error, ValueError)):
-                await svc.check_health()
+                await query_service.check_health()
         finally:
             # Restore so fixture teardown doesn't crash
             db_svc._read_db = await aiosqlite.connect(db_svc._db_path, isolation_level=None)
@@ -174,7 +171,7 @@ class TestCheckHealth:
 class TestGetAppRecentActivity:
     async def test_merged_sorted_by_timestamp_desc(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """Handler invocations and job executions are merged and sorted by timestamp DESC."""
@@ -191,7 +188,7 @@ class TestGetAppRecentActivity:
         )
         await insert_execution(db_svc, job_id, session_id, status="success", execution_start_ts=base_ts + 20.0)
 
-        results = await svc.get_app_recent_activity(
+        results = await query_service.get_app_recent_activity(
             app_key="test_app",
             instance_index=None,
             limit=50,
@@ -208,7 +205,7 @@ class TestGetAppRecentActivity:
 
     async def test_kind_field_correct(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """Handler invocations have kind='handler', job executions have kind='job'."""
@@ -221,7 +218,7 @@ class TestGetAppRecentActivity:
         await insert_invocation(db_svc, listener_id, session_id, status="success", execution_start_ts=base_ts + 20.0)
         await insert_execution(db_svc, job_id, session_id, status="success", execution_start_ts=base_ts + 10.0)
 
-        results = await svc.get_app_recent_activity(
+        results = await query_service.get_app_recent_activity(
             app_key="test_app",
             instance_index=None,
             limit=50,
@@ -235,7 +232,7 @@ class TestGetAppRecentActivity:
 
     async def test_limit_is_respected(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """limit parameter caps the number of returned entries."""
@@ -249,7 +246,7 @@ class TestGetAppRecentActivity:
                 db_svc, listener_id, session_id, status="success", execution_start_ts=base_ts + float(i)
             )
 
-        results = await svc.get_app_recent_activity(
+        results = await query_service.get_app_recent_activity(
             app_key="test_app",
             instance_index=None,
             limit=3,
@@ -265,7 +262,7 @@ class TestGetAppRecentActivity:
 
     async def test_since_filters_old_entries(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """since parameter excludes entries older than the threshold."""
@@ -285,7 +282,7 @@ class TestGetAppRecentActivity:
         await insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 5.0)
         await insert_execution(db_svc, job_id, session_id, status="error", execution_start_ts=base_ts + 10.0)
 
-        results = await svc.get_app_recent_activity(
+        results = await query_service.get_app_recent_activity(
             app_key="test_app",
             instance_index=None,
             limit=50,
@@ -298,7 +295,7 @@ class TestGetAppRecentActivity:
 
     async def test_source_tier_filtering(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """source_tier='framework' returns only framework-tier entries, not app-tier."""
@@ -320,7 +317,7 @@ class TestGetAppRecentActivity:
             source_tier="framework",
         )
 
-        results = await svc.get_app_recent_activity(
+        results = await query_service.get_app_recent_activity(
             app_key="test_app",
             instance_index=None,
             limit=50,
@@ -333,7 +330,7 @@ class TestGetAppRecentActivity:
 
     async def test_instance_index_scoping(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """instance_index filters to entries for that instance only."""
@@ -346,7 +343,7 @@ class TestGetAppRecentActivity:
         await insert_invocation(db_svc, listener_0, session_id, status="success", execution_start_ts=base_ts + 10.0)
         await insert_invocation(db_svc, listener_1, session_id, status="success", execution_start_ts=base_ts + 20.0)
 
-        results = await svc.get_app_recent_activity(
+        results = await query_service.get_app_recent_activity(
             app_key="test_app",
             instance_index=0,
             limit=50,
@@ -359,14 +356,14 @@ class TestGetAppRecentActivity:
 
     async def test_empty_app_returns_empty_list(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """App with no invocations or executions returns an empty list."""
         db_svc, _session_id = db
         await insert_listener(db_svc, app_key="test_app", handler_method="on_event")
 
-        results = await svc.get_app_recent_activity(
+        results = await query_service.get_app_recent_activity(
             app_key="test_app",
             instance_index=None,
             limit=50,
@@ -378,7 +375,7 @@ class TestGetAppRecentActivity:
 
     async def test_isolates_to_app_key(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """Results are scoped to the requested app_key only."""
@@ -391,7 +388,7 @@ class TestGetAppRecentActivity:
         await insert_invocation(db_svc, l_a, session_id, status="success", execution_start_ts=base_ts + 10.0)
         await insert_invocation(db_svc, l_b, session_id, status="success", execution_start_ts=base_ts + 20.0)
 
-        results = await svc.get_app_recent_activity(
+        results = await query_service.get_app_recent_activity(
             app_key="app_a",
             instance_index=None,
             limit=50,
@@ -404,7 +401,7 @@ class TestGetAppRecentActivity:
 
     async def test_row_id_uniqueness_and_prefixes(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """row_id values are unique across all rows and use the correct kind prefix."""
@@ -424,7 +421,7 @@ class TestGetAppRecentActivity:
         # One job execution with the same timestamp
         await insert_execution(db_svc, job_id, session_id, status="success", execution_start_ts=shared_ts)
 
-        results = await svc.get_app_recent_activity(
+        results = await query_service.get_app_recent_activity(
             app_key="test_app",
             instance_index=None,
             limit=50,

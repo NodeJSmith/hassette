@@ -14,22 +14,19 @@ from hassette.core.telemetry_models import (
 )
 from hassette.core.telemetry_query_service import TelemetryQueryService
 
-from .telemetry_query_helpers import (
+from .helpers import (
     BASE_TS,
-    db,  # noqa: F401 (pytest fixture)
-    db_hassette,  # noqa: F401 (pytest fixture)
     insert_execution,
     insert_invocation,
     insert_job,
     insert_listener,
-    svc,  # noqa: F401 (pytest fixture)
 )
 
 
 class TestGetListenerSummary:
     async def test_get_listener_summary_aggregates(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """2 listeners, 3 invocations (2 success, 1 error) — correct aggregates."""
@@ -42,7 +39,7 @@ class TestGetListenerSummary:
         await insert_invocation(db_svc, l1, session_id, status="success", duration_ms=20.0)
         await insert_invocation(db_svc, l1, session_id, status="error", duration_ms=5.0, error_type="ValueError")
 
-        rows = await svc.get_listener_summary("test_app", 0)
+        rows = await query_service.get_listener_summary("test_app", 0)
         assert len(rows) == 2
 
         assert all(isinstance(r, ListenerSummary) for r in rows)
@@ -54,14 +51,14 @@ class TestGetListenerSummary:
 
     async def test_get_listener_summary_empty(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """1 listener with no invocations — appears in results with zero counts."""
         db_svc, _session_id = db
         await insert_listener(db_svc, handler_method="on_idle")
 
-        rows = await svc.get_listener_summary("test_app", 0)
+        rows = await query_service.get_listener_summary("test_app", 0)
         assert len(rows) == 1
         row = rows[0]
         assert row.total_invocations == 0
@@ -70,7 +67,7 @@ class TestGetListenerSummary:
 
     async def test_get_listener_summary_since_scoped(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """2 invocations after since, 1 before — since filter returns only the 2 recent ones."""
@@ -86,7 +83,7 @@ class TestGetListenerSummary:
         # One invocation before since_ts — should NOT count
         await insert_invocation(db_svc, listener_id, session_id, status="error", execution_start_ts=base_ts + 1.0)
 
-        rows = await svc.get_listener_summary("test_app", 0, since=since_ts)
+        rows = await query_service.get_listener_summary("test_app", 0, since=since_ts)
         assert len(rows) == 1
         row = rows[0]
         assert row.total_invocations == 2
@@ -95,14 +92,14 @@ class TestGetListenerSummary:
 
     async def test_get_listener_summary_min_max_none_when_no_invocations(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """Handler with no invocations returns None for min_duration_ms and max_duration_ms."""
         db_svc, _session_id = db
         await insert_listener(db_svc, handler_method="on_idle")
 
-        rows = await svc.get_listener_summary("test_app", 0)
+        rows = await query_service.get_listener_summary("test_app", 0)
         assert len(rows) == 1
         row = rows[0]
         assert row.min_duration_ms is None
@@ -110,7 +107,7 @@ class TestGetListenerSummary:
 
     async def test_get_listener_summary_min_max_correct_with_invocations(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """Handler with invocations returns correct min and max duration."""
@@ -121,7 +118,7 @@ class TestGetListenerSummary:
         await insert_invocation(db_svc, listener_id, session_id, status="success", duration_ms=5.0)
         await insert_invocation(db_svc, listener_id, session_id, status="error", duration_ms=100.0)
 
-        rows = await svc.get_listener_summary("test_app", 0)
+        rows = await query_service.get_listener_summary("test_app", 0)
         assert len(rows) == 1
         row = rows[0]
         assert row.min_duration_ms == pytest.approx(5.0)
@@ -129,7 +126,7 @@ class TestGetListenerSummary:
 
     async def test_get_listener_summary_last_error_traceback_populated(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """Handler with errors includes last_error_traceback from the most recent error."""
@@ -160,7 +157,7 @@ class TestGetListenerSummary:
             execution_start_ts=base_ts + 10.0,
         )
 
-        rows = await svc.get_listener_summary("test_app", 0)
+        rows = await query_service.get_listener_summary("test_app", 0)
         assert len(rows) == 1
         row = rows[0]
         assert (
@@ -170,7 +167,7 @@ class TestGetListenerSummary:
 
     async def test_get_listener_summary_last_error_traceback_none_when_no_errors(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """Handler with no errors has None for last_error_traceback."""
@@ -180,7 +177,7 @@ class TestGetListenerSummary:
         await insert_invocation(db_svc, listener_id, session_id, status="success", duration_ms=10.0)
         await insert_invocation(db_svc, listener_id, session_id, status="success", duration_ms=20.0)
 
-        rows = await svc.get_listener_summary("test_app", 0)
+        rows = await query_service.get_listener_summary("test_app", 0)
         assert len(rows) == 1
         row = rows[0]
         assert row.last_error_traceback is None
@@ -189,7 +186,7 @@ class TestGetListenerSummary:
 class TestGetJobSummary:
     async def test_get_job_summary_aggregates(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """2 jobs, mixed results — correct aggregate totals."""
@@ -202,7 +199,7 @@ class TestGetJobSummary:
         await insert_execution(db_svc, j1, session_id, status="error", duration_ms=50.0)
         await insert_execution(db_svc, j2, session_id, status="success", duration_ms=200.0)
 
-        rows = await svc.get_job_summary("test_app", 0)
+        rows = await query_service.get_job_summary("test_app", 0)
         assert len(rows) == 2
 
         assert all(isinstance(r, JobSummary) for r in rows)
@@ -223,7 +220,7 @@ class TestGetJobSummary:
 
     async def test_get_job_summary_error_fields_populated_when_error_exists(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """A job with at least one error execution returns last_error_message, last_error_type, last_error_ts."""
@@ -255,7 +252,7 @@ class TestGetJobSummary:
             execution_start_ts=base_ts + 10.0,
         )
 
-        rows = await svc.get_job_summary("test_app", 0)
+        rows = await query_service.get_job_summary("test_app", 0)
         assert len(rows) == 1
         row = rows[0]
         assert row.last_error_type == "ValueError"
@@ -264,7 +261,7 @@ class TestGetJobSummary:
 
     async def test_get_job_summary_error_fields_none_when_only_successes(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """A job with only successful executions has None for all error fields."""
@@ -274,7 +271,7 @@ class TestGetJobSummary:
         await insert_execution(db_svc, job_id, session_id, status="success", duration_ms=10.0)
         await insert_execution(db_svc, job_id, session_id, status="success", duration_ms=20.0)
 
-        rows = await svc.get_job_summary("test_app", 0)
+        rows = await query_service.get_job_summary("test_app", 0)
         assert len(rows) == 1
         row = rows[0]
         assert row.last_error_type is None
@@ -283,7 +280,7 @@ class TestGetJobSummary:
 
     async def test_get_job_summary_error_fields_none_when_no_executions(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """A job with no executions has None for all error fields AND duration fields."""
@@ -291,7 +288,7 @@ class TestGetJobSummary:
 
         await insert_job(db_svc, job_name="idle_job")
 
-        rows = await svc.get_job_summary("test_app", 0)
+        rows = await query_service.get_job_summary("test_app", 0)
         assert len(rows) == 1
         row = rows[0]
         assert row.last_error_type is None
@@ -302,7 +299,7 @@ class TestGetJobSummary:
 
     async def test_get_job_summary_min_max_duration_correct(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """A job with multiple executions at different durations returns correct min and max."""
@@ -313,7 +310,7 @@ class TestGetJobSummary:
         await insert_execution(db_svc, job_id, session_id, status="success", duration_ms=200.0)
         await insert_execution(db_svc, job_id, session_id, status="error", duration_ms=10.0)
 
-        rows = await svc.get_job_summary("test_app", 0)
+        rows = await query_service.get_job_summary("test_app", 0)
         assert len(rows) == 1
         row = rows[0]
         assert row.min_duration_ms == pytest.approx(10.0)
@@ -322,7 +319,7 @@ class TestGetJobSummary:
 
     async def test_get_job_summary_last_error_picks_up_timed_out(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """A timed-out execution is surfaced as the last error."""
@@ -341,7 +338,7 @@ class TestGetJobSummary:
             execution_start_ts=base_ts + 5.0,
         )
 
-        rows = await svc.get_job_summary("test_app", 0)
+        rows = await query_service.get_job_summary("test_app", 0)
         row = rows[0]
         assert row.last_error_type == "TimeoutError"
         assert row.last_error_message == "exceeded limit"
@@ -349,7 +346,7 @@ class TestGetJobSummary:
 
     async def test_get_job_summary_last_error_none_when_error_predates_since(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """Error outside the since window returns None for error fields."""
@@ -368,7 +365,7 @@ class TestGetJobSummary:
             execution_start_ts=base_ts + 1.0,
         )
 
-        rows = await svc.get_job_summary("test_app", 0, since=base_ts + 50.0)
+        rows = await query_service.get_job_summary("test_app", 0, since=base_ts + 50.0)
         row = rows[0]
         assert row.last_error_type is None
         assert row.last_error_ts is None
@@ -377,7 +374,7 @@ class TestGetJobSummary:
 class TestGetHandlerInvocations:
     async def test_get_handler_invocations_ordered(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """5 invocations at different timestamps — most recent first, limit respected."""
@@ -389,7 +386,7 @@ class TestGetHandlerInvocations:
             await insert_invocation(db_svc, listener_id, session_id, execution_start_ts=base_ts + i)
 
         # limit=3 returns 3 most recent
-        rows = await svc.get_handler_invocations(listener_id, limit=3)
+        rows = await query_service.get_handler_invocations(listener_id, limit=3)
         assert len(rows) == 3
         assert all(isinstance(r, HandlerInvocation) for r in rows)
         assert rows[0].execution_start_ts == pytest.approx(base_ts + 4)
@@ -400,7 +397,7 @@ class TestGetHandlerInvocations:
 class TestGetJobExecutions:
     async def test_get_job_executions_ordered(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """3 executions — ordered DESC, respects limit."""
@@ -411,7 +408,7 @@ class TestGetJobExecutions:
         for i in range(3):
             await insert_execution(db_svc, job_id, session_id, execution_start_ts=base_ts + i)
 
-        rows = await svc.get_job_executions(job_id, limit=2)
+        rows = await query_service.get_job_executions(job_id, limit=2)
         assert len(rows) == 2
         assert all(isinstance(r, JobExecution) for r in rows)
         assert rows[0].execution_start_ts == pytest.approx(base_ts + 2)
@@ -421,7 +418,7 @@ class TestGetJobExecutions:
 class TestGetSlowHandlers:
     async def test_get_slow_handlers(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """Mix of fast + slow invocations — only above threshold returned, ordered by duration."""
@@ -433,7 +430,7 @@ class TestGetSlowHandlers:
         await insert_invocation(db_svc, listener_id, session_id, duration_ms=500.0)
         await insert_invocation(db_svc, listener_id, session_id, duration_ms=50.0)
 
-        rows = await svc.get_slow_handlers(threshold_ms=60.0)
+        rows = await query_service.get_slow_handlers(threshold_ms=60.0)
         assert len(rows) == 2
         assert rows[0].duration_ms == pytest.approx(500.0)
         assert rows[1].duration_ms == pytest.approx(100.0)
@@ -442,7 +439,7 @@ class TestGetSlowHandlers:
 class TestGetSessionList:
     async def test_get_session_list(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """3 sessions with different statuses — ordered by started_at DESC, correct duration."""
@@ -466,7 +463,7 @@ class TestGetSessionList:
         )
         await db_svc.db.commit()
 
-        rows = await svc.get_session_list(limit=20)
+        rows = await query_service.get_session_list(limit=20)
         assert len(rows) == 3
 
         # Returns typed SessionRecord models

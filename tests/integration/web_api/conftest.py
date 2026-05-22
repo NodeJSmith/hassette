@@ -1,8 +1,5 @@
 """Shared fixtures and helpers for web API integration tests."""
 
-import asyncio
-from unittest.mock import AsyncMock
-
 import pytest
 
 from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
@@ -68,24 +65,3 @@ def make_log_record(
         "instance_index": None,
         "source_tier": source_tier,
     }
-
-
-def mock_submit(return_value: object = None, side_effect: object = None) -> AsyncMock:
-    """Create an AsyncMock for database_service.submit that closes the passed coroutine."""
-    values = list(side_effect) if side_effect is not None else None
-    call_count = [0]
-
-    async def _impl(coro: object) -> object:
-        if asyncio.iscoroutine(coro):
-            coro.close()
-        if values is not None:
-            idx = min(call_count[0], len(values) - 1)
-            call_count[0] += 1
-            result = values[idx]
-            if isinstance(result, BaseException):
-                raise result
-            return result
-        return return_value
-
-    mock = AsyncMock(side_effect=_impl)
-    return mock

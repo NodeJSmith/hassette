@@ -33,7 +33,7 @@ def harness_config(tmp_path: Path) -> HassetteConfig:
 
 
 @pytest.fixture
-async def db_hassette(premigrated_db_path: Path) -> AsyncIterator[MagicMock]:
+async def framework_hassette(premigrated_db_path: Path) -> AsyncIterator[MagicMock]:
     """Create a mock Hassette with database service for direct executor tests."""
     hassette = make_mock_hassette(
         sealed=False,
@@ -85,9 +85,9 @@ async def test_framework_listener_registers_with_source_tier(harness_config: Has
         assert listener.identity.app_key.startswith("__hassette__.")
 
 
-async def test_framework_job_registers_with_db(db_hassette: MagicMock) -> None:
+async def test_framework_job_registers_with_db(framework_hassette: MagicMock) -> None:
     """Framework job registration creates DB record with source_tier='framework'."""
-    hassette = db_hassette
+    hassette = framework_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -126,9 +126,9 @@ async def test_framework_job_registers_with_db(db_hassette: MagicMock) -> None:
     assert source_tier == "framework"
 
 
-async def test_command_executor_records_source_tier_on_error(db_hassette: MagicMock) -> None:
+async def test_command_executor_records_source_tier_on_error(framework_hassette: MagicMock) -> None:
     """Framework listener error → invocation record with source_tier='framework'."""
-    hassette = db_hassette
+    hassette = framework_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -161,9 +161,9 @@ async def test_command_executor_records_source_tier_on_error(db_hassette: MagicM
     assert record.error_type == "ValueError"
 
 
-async def test_command_executor_job_registration_with_source_tier(db_hassette: MagicMock) -> None:
+async def test_command_executor_job_registration_with_source_tier(framework_hassette: MagicMock) -> None:
     """Framework job registration stores source_tier='framework' in DB."""
-    hassette = db_hassette
+    hassette = framework_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -197,9 +197,9 @@ async def test_command_executor_job_registration_with_source_tier(db_hassette: M
     assert source_tier == "framework"
 
 
-async def test_queue_persistence_via_drain_and_persist(db_hassette: MagicMock) -> None:
+async def test_queue_persistence_via_drain_and_persist(framework_hassette: MagicMock) -> None:
     """Records queued → _drain_and_persist() → persisted to DB."""
-    hassette = db_hassette
+    hassette = framework_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -260,9 +260,9 @@ async def test_queue_persistence_via_drain_and_persist(db_hassette: MagicMock) -
     assert status == "success"
 
 
-async def test_pre_registration_orphan_persisted_with_null_listener_id(db_hassette: MagicMock) -> None:
+async def test_pre_registration_orphan_persisted_with_null_listener_id(framework_hassette: MagicMock) -> None:
     """Handler invocation before DB registration → listener_id=None in DB."""
-    hassette = db_hassette
+    hassette = framework_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -301,9 +301,9 @@ async def test_pre_registration_orphan_persisted_with_null_listener_id(db_hasset
     assert status == "success"
 
 
-async def test_reconciliation_excludes_framework_app_key(db_hassette: MagicMock) -> None:
+async def test_reconciliation_excludes_framework_app_key(framework_hassette: MagicMock) -> None:
     """Reconciliation with non-framework app_key → __hassette__ rows unaffected."""
-    hassette = db_hassette
+    hassette = framework_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -376,9 +376,9 @@ async def test_telemetry_query_service_exists(harness_config: HassetteConfig) ->
         assert callable(query_service.get_all_app_summaries)
 
 
-async def test_drop_counter_overflow_when_queue_full(db_hassette: MagicMock) -> None:
+async def test_drop_counter_overflow_when_queue_full(framework_hassette: MagicMock) -> None:
     """Write queue full → dropped records incremented (AC-13)."""
-    hassette = db_hassette
+    hassette = framework_hassette
     hassette.config.database.telemetry_write_queue_max = 2
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
@@ -424,9 +424,9 @@ async def test_drop_counter_overflow_when_queue_full(db_hassette: MagicMock) -> 
     assert dropped_overflow > 0
 
 
-async def test_get_drop_counters_returns_tuple(db_hassette: MagicMock) -> None:
+async def test_get_drop_counters_returns_tuple(framework_hassette: MagicMock) -> None:
     """get_drop_counters() returns (overflow, exhausted, no_session, shutdown) counters."""
-    hassette = db_hassette
+    hassette = framework_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -442,9 +442,9 @@ async def test_get_drop_counters_returns_tuple(db_hassette: MagicMock) -> None:
     assert shutdown == 0
 
 
-async def test_sentinel_filtering_listener_id_zero(db_hassette: MagicMock) -> None:
+async def test_sentinel_filtering_listener_id_zero(framework_hassette: MagicMock) -> None:
     """Sentinel filtering: listener_id=0 dropped (regression check)."""
-    hassette = db_hassette
+    hassette = framework_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 
@@ -469,9 +469,9 @@ async def test_sentinel_filtering_listener_id_zero(db_hassette: MagicMock) -> No
     assert rows_list[0][0] == 0  # No records persisted
 
 
-async def test_sentinel_filtering_session_id_zero(db_hassette: MagicMock) -> None:
+async def test_sentinel_filtering_session_id_zero(framework_hassette: MagicMock) -> None:
     """Sentinel filtering: session_id=0 dropped (regression check)."""
-    hassette = db_hassette
+    hassette = framework_hassette
     executor = CommandExecutor(hassette, parent=hassette)
     await executor.on_initialize()
 

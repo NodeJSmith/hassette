@@ -103,8 +103,6 @@ class TestAppEndpoints:
         assert (await client.post("/api/apps/my_app/start")).status_code == 202
         assert (await client.post("/api/apps/my_app/stop")).status_code == 202
         assert (await client.post("/api/apps/my_app/reload")).status_code == 202
-        # Restore
-        mock_hassette.config.dev_mode = True
 
 
 class TestEventsEndpoint:
@@ -125,7 +123,7 @@ class TestEventsEndpoint:
 
 class TestSchedulerEndpoints:
     async def test_scheduler_jobs_endpoint_exists(self, client: "AsyncClient") -> None:
-        """GET /api/scheduler/jobs returns 200 — global jobs endpoint restored in spec 050 T03."""
+        """GET /api/scheduler/jobs returns 200."""
         response = await client.get("/api/scheduler/jobs")
         assert response.status_code == 200
         assert response.json() == []
