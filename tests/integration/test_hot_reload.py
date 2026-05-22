@@ -8,6 +8,7 @@ and app-lifecycle pipeline.
 
 import asyncio
 import shutil
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import anyio
@@ -52,24 +53,25 @@ class TestBasicHotReload:
 
     hassette: HassetteHarness
     app_handler: "AppHandler"
+    app_dir: Path
+    toml_file: Path
 
     @pytest.fixture(autouse=True)
     def setup(self, hassette_and_handler: tuple[HassetteHarness, "AppHandler"]):
         self.hassette, self.app_handler = hassette_and_handler
+        self.app_dir = self.hassette.config.apps.directory
+        self.toml_file = list(self.hassette.config.toml_files)[0]
 
     async def test_hot_reload_starts_newly_enabled_app(self):
         """Enable a disabled app and verify it starts."""
-        app_dir = self.hassette.config.apps.directory
-        toml_file = list(self.hassette.config.toml_files)[0]
-
-        app1 = create_app_manifest(suffix="enabled", app_dir=app_dir, enabled=True)
+        app1 = create_app_manifest(suffix="enabled", app_dir=self.app_dir, enabled=True)
         write_test_app_with_decorator(app_file=app1.full_path, class_name=app1.class_name)
 
         app_running_event = asyncio.Event()
         wire_up_app_running_listener(self.hassette.bus, app_running_event, app1.app_key)
 
-        write_app_toml(toml_file, app_dir=app_dir, apps=[app1])
-        await emit_file_change_event(self.hassette, {toml_file, app1.full_path})
+        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1])
+        await emit_file_change_event(self.hassette, {self.toml_file, app1.full_path})
 
         with anyio.fail_after(3):
             await app_running_event.wait()
@@ -79,18 +81,15 @@ class TestBasicHotReload:
 
     async def test_hot_reload_stops_newly_disabled_app(self):
         """Disable an enabled app via config change and verify it stops."""
-        app_dir = self.hassette.config.apps.directory
-        toml_file = list(self.hassette.config.toml_files)[0]
-
         # Start an app
-        app1 = create_app_manifest(suffix="stoppable", app_dir=app_dir, enabled=True)
+        app1 = create_app_manifest(suffix="stoppable", app_dir=self.app_dir, enabled=True)
         write_test_app_with_decorator(app_file=app1.full_path, class_name=app1.class_name)
 
         app_running = asyncio.Event()
         wire_up_app_running_listener(self.hassette.bus, app_running, app1.app_key)
 
-        write_app_toml(toml_file, app_dir=app_dir, apps=[app1])
-        await emit_file_change_event(self.hassette, {toml_file, app1.full_path})
+        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1])
+        await emit_file_change_event(self.hassette, {self.toml_file, app1.full_path})
 
         with anyio.fail_after(3):
             await app_running.wait()
@@ -102,8 +101,8 @@ class TestBasicHotReload:
         app_stopped = asyncio.Event()
         wire_up_app_state_listener(self.hassette.bus, app_stopped, app1.app_key, ResourceStatus.STOPPED)
 
-        write_app_toml(toml_file, app_dir=app_dir, apps=[])
-        await emit_file_change_event(self.hassette, {toml_file})
+        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[])
+        await emit_file_change_event(self.hassette, {self.toml_file})
 
         with anyio.fail_after(3):
             await app_stopped.wait()
@@ -112,12 +111,9 @@ class TestBasicHotReload:
 
     async def test_hot_reload_reloads_app_with_config_change(self):
         """Change app config value and verify app is reloaded with new config."""
-        app_dir = self.hassette.config.apps.directory
-        toml_file = list(self.hassette.config.toml_files)[0]
-
         # Start app with initial config
         app1 = create_app_manifest(
-            suffix="cfgtest", app_dir=app_dir, enabled=True, app_config={"test_value": "initial"}
+            suffix="cfgtest", app_dir=self.app_dir, enabled=True, app_config={"test_value": "initial"}
         )
         write_test_app_with_decorator(
             app_file=app1.full_path, class_name=app1.class_name, config_fields={"test_value": "str"}
@@ -126,8 +122,8 @@ class TestBasicHotReload:
         app_running = asyncio.Event()
         wire_up_app_running_listener(self.hassette.bus, app_running, app1.app_key)
 
-        write_app_toml(toml_file, app_dir=app_dir, apps=[app1])
-        await emit_file_change_event(self.hassette, {toml_file, app1.full_path})
+        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1])
+        await emit_file_change_event(self.hassette, {self.toml_file, app1.full_path})
 
         with anyio.fail_after(3):
             await app_running.wait()
@@ -138,14 +134,14 @@ class TestBasicHotReload:
 
         # Change config value and wait for reload
         app1_updated = create_app_manifest(
-            suffix="cfgtest", app_dir=app_dir, enabled=True, app_config={"test_value": "updated"}
+            suffix="cfgtest", app_dir=self.app_dir, enabled=True, app_config={"test_value": "updated"}
         )
 
         app_running2 = asyncio.Event()
         wire_up_app_running_listener(self.hassette.bus, app_running2, app1.app_key)
 
-        write_app_toml(toml_file, app_dir=app_dir, apps=[app1_updated])
-        await emit_file_change_event(self.hassette, {toml_file})
+        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1_updated])
+        await emit_file_change_event(self.hassette, {self.toml_file})
 
         with anyio.fail_after(3):
             await app_running2.wait()
@@ -156,17 +152,14 @@ class TestBasicHotReload:
 
     async def test_hot_reload_reimports_app_when_file_changes(self):
         """Modify app Python file and verify app is reimported."""
-        app_dir = self.hassette.config.apps.directory
-        toml_file = list(self.hassette.config.toml_files)[0]
-
-        app1 = create_app_manifest(suffix="reimport", app_dir=app_dir, enabled=True)
+        app1 = create_app_manifest(suffix="reimport", app_dir=self.app_dir, enabled=True)
         write_test_app_with_decorator(app_file=app1.full_path, class_name=app1.class_name)
 
         app_running = asyncio.Event()
         wire_up_app_running_listener(self.hassette.bus, app_running, app1.app_key)
 
-        write_app_toml(toml_file, app_dir=app_dir, apps=[app1])
-        await emit_file_change_event(self.hassette, {toml_file, app1.full_path})
+        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1])
+        await emit_file_change_event(self.hassette, {self.toml_file, app1.full_path})
 
         with anyio.fail_after(3):
             await app_running.wait()
@@ -199,19 +192,20 @@ class TestOnlyAppDecorator:
 
     hassette: HassetteHarness
     app_handler: "AppHandler"
+    app_dir: Path
+    toml_file: Path
 
     @pytest.fixture(autouse=True)
     def setup(self, hassette_and_handler: tuple[HassetteHarness, "AppHandler"]):
         self.hassette, self.app_handler = hassette_and_handler
+        self.app_dir = self.hassette.config.apps.directory
+        self.toml_file = list(self.hassette.config.toml_files)[0]
 
     async def test_hot_reload_adds_only_app_decorator(self):
         """Add @only_app app to config and verify other apps stop."""
-        app_dir = self.hassette.config.apps.directory
-        toml_file = list(self.hassette.config.toml_files)[0]
-
         # Start two normal apps
-        app1 = create_app_manifest(suffix="normal1", app_dir=app_dir)
-        app2 = create_app_manifest(suffix="normal2", app_dir=app_dir)
+        app1 = create_app_manifest(suffix="normal1", app_dir=self.app_dir)
+        app2 = create_app_manifest(suffix="normal2", app_dir=self.app_dir)
         write_test_app_with_decorator(app_file=app1.full_path, class_name=app1.class_name)
         write_test_app_with_decorator(app_file=app2.full_path, class_name=app2.class_name)
 
@@ -220,8 +214,8 @@ class TestOnlyAppDecorator:
         wire_up_app_running_listener(self.hassette.bus, app1_running, app1.app_key)
         wire_up_app_running_listener(self.hassette.bus, app2_running, app2.app_key)
 
-        write_app_toml(toml_file, app_dir=app_dir, apps=[app1, app2])
-        await emit_file_change_event(self.hassette, {toml_file, app1.full_path, app2.full_path})
+        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1, app2])
+        await emit_file_change_event(self.hassette, {self.toml_file, app1.full_path, app2.full_path})
 
         with anyio.fail_after(3):
             await app1_running.wait()
@@ -232,14 +226,14 @@ class TestOnlyAppDecorator:
         assert self.app_handler.registry.only_app is None
 
         # Add a third app with @only_app - existing apps should become orphans
-        app3 = create_app_manifest(suffix="onlyapp", app_dir=app_dir)
+        app3 = create_app_manifest(suffix="onlyapp", app_dir=self.app_dir)
         write_test_app_with_decorator(app_file=app3.full_path, class_name=app3.class_name, has_only_app=True)
 
         app3_running = asyncio.Event()
         wire_up_app_running_listener(self.hassette.bus, app3_running, app3.app_key)
 
-        write_app_toml(toml_file, app_dir=app_dir, apps=[app1, app2, app3])
-        await emit_file_change_event(self.hassette, {toml_file, app3.full_path})
+        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1, app2, app3])
+        await emit_file_change_event(self.hassette, {self.toml_file, app3.full_path})
 
         with anyio.fail_after(3):
             await app3_running.wait()
@@ -251,11 +245,8 @@ class TestOnlyAppDecorator:
 
     async def test_only_app_persists_across_config_changes(self):
         """Verify @only_app filter persists when config values change."""
-        app_dir = self.hassette.config.apps.directory
-        toml_file = list(self.hassette.config.toml_files)[0]
-
-        only = create_app_manifest(suffix="persist", app_dir=app_dir, app_config={"test_value": "initial"})
-        normal = create_app_manifest(suffix="filtered", app_dir=app_dir)
+        only = create_app_manifest(suffix="persist", app_dir=self.app_dir, app_config={"test_value": "initial"})
+        normal = create_app_manifest(suffix="filtered", app_dir=self.app_dir)
         write_test_app_with_decorator(
             app_file=only.full_path,
             class_name=only.class_name,
@@ -267,8 +258,8 @@ class TestOnlyAppDecorator:
         only_running = asyncio.Event()
         wire_up_app_running_listener(self.hassette.bus, only_running, only.app_key)
 
-        write_app_toml(toml_file, app_dir=app_dir, apps=[only, normal])
-        await emit_file_change_event(self.hassette, {toml_file, only.full_path, normal.full_path})
+        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[only, normal])
+        await emit_file_change_event(self.hassette, {self.toml_file, only.full_path, normal.full_path})
 
         with anyio.fail_after(3):
             await only_running.wait()
@@ -278,13 +269,13 @@ class TestOnlyAppDecorator:
         assert self.app_handler.registry.only_app == only.app_key
 
         # Change config value - only_app should reload with new config
-        only_updated = create_app_manifest(suffix="persist", app_dir=app_dir, app_config={"test_value": "updated"})
+        only_updated = create_app_manifest(suffix="persist", app_dir=self.app_dir, app_config={"test_value": "updated"})
 
         only_running2 = asyncio.Event()
         wire_up_app_running_listener(self.hassette.bus, only_running2, only.app_key)
 
-        write_app_toml(toml_file, app_dir=app_dir, apps=[only_updated, normal])
-        await emit_file_change_event(self.hassette, {toml_file})
+        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[only_updated, normal])
+        await emit_file_change_event(self.hassette, {self.toml_file})
 
         with anyio.fail_after(3):
             await only_running2.wait()
@@ -298,20 +289,17 @@ class TestOnlyAppDecorator:
     @pytest.mark.skip(reason="Timing-sensitive on CI — fix in follow-up PR")
     async def test_removing_only_app_starts_previously_blocked_apps(self):
         """Remove @only_app decorator and verify previously-blocked apps start."""
-        app_dir = self.hassette.config.apps.directory
-        toml_file = list(self.hassette.config.toml_files)[0]
-
         # Start two apps, one with @only_app — the other should be blocked
-        only = create_app_manifest(suffix="onlyremove", app_dir=app_dir)
-        blocked = create_app_manifest(suffix="wasblocked", app_dir=app_dir)
+        only = create_app_manifest(suffix="onlyremove", app_dir=self.app_dir)
+        blocked = create_app_manifest(suffix="wasblocked", app_dir=self.app_dir)
         write_test_app_with_decorator(app_file=only.full_path, class_name=only.class_name, has_only_app=True)
         write_test_app_with_decorator(app_file=blocked.full_path, class_name=blocked.class_name)
 
         only_running = asyncio.Event()
         wire_up_app_running_listener(self.hassette.bus, only_running, only.app_key)
 
-        write_app_toml(toml_file, app_dir=app_dir, apps=[only, blocked])
-        await emit_file_change_event(self.hassette, {toml_file, only.full_path, blocked.full_path})
+        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[only, blocked])
+        await emit_file_change_event(self.hassette, {self.toml_file, only.full_path, blocked.full_path})
 
         with anyio.fail_after(3):
             await only_running.wait()
