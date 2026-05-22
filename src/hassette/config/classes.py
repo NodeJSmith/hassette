@@ -38,7 +38,7 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
 
         overlapping = top_level_keys.intersection(hassette_values.keys())
         for key in overlapping:
-            if not isinstance(self.toml_data[key], dict) or not isinstance(hassette_values[key], dict):
+            if not (isinstance(self.toml_data[key], dict) and isinstance(hassette_values[key], dict)):
                 LOGGER.warning(
                     "Key %r found in both top level and 'hassette' section of TOML config, "
                     "the [hassette] value will be used",
@@ -47,8 +47,8 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
 
         if (
             "apps" in overlapping
-            and isinstance(self.toml_data.get("apps"), dict)
-            and isinstance(hassette_values.get("apps"), dict)
+            and isinstance(self.toml_data["apps"], dict)
+            and isinstance(hassette_values["apps"], dict)
         ):
             warn(
                 "Top-level [apps.*] keys and [hassette.apps.*] keys coexist in the same TOML file. "
