@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Create helper hooks and time-window utilities"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#5", "FR#7", "FR#8", "AC#8", "AC#10", "AC#12"]
 ---
