@@ -38,7 +38,7 @@ def root_cause(exc: BaseException) -> BaseException:
     err = exc
     while getattr(err, "__cause__", None) is not None:
         err = err.__cause__  # pyright: ignore[reportOptionalMemberAccess]
-    if getattr(err, "__cause__", None) is None and getattr(err, "__context__", None) is not None:
+    if err is exc and getattr(err, "__context__", None) is not None:
         err = err.__context__  # pyright: ignore[reportOptionalMemberAccess]
 
     if typing.TYPE_CHECKING:
