@@ -205,7 +205,7 @@ export function useLogFilters({
       localFunc.value = func;
       return;
     }
-    qpRef.current.set({ func: func || null });
+    qpRef.current.set({ func: func || null, fn: null });
   }
 
   function setSort(column: SortColumn) {

@@ -50,9 +50,9 @@ export function StatusBar() {
         <TimePresetSelector />
       </div>
       <div class={styles.statusBarRight}>
-        <span class={styles.wsIndicator} aria-label={label} aria-live="polite" data-testid="ws-indicator">
+        <span class={styles.wsIndicator} role="status" data-testid="ws-indicator">
           <span class={dotClass} />
-          {status !== "connected" && <span class="ht-text-xs">{label}</span>}
+          {status !== "connected" ? <span class="ht-text-xs">{label}</span> : <span class="ht-sr-only">{label}</span>}
         </span>
         {showDegraded && (
           <span class={styles.wsIndicator} aria-label="database degraded">
