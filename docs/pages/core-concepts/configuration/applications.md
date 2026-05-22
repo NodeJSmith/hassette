@@ -8,7 +8,7 @@ Apps are registered and configured in the `hassette.toml` file under `[apps.<nam
 
 Each app block requires:
 
-- **`filename`** (or `file_name`): Path to the python file relative to `app_dir`.
+- **`filename`** (or `file_name`): Path to the python file relative to `apps.directory`.
     - Should include the extension (e.g., `.py`), though Hassette will attempt to guess if missing.
     - Supports subdirectories (e.g., `subdir/my_app.py`).
 
@@ -37,7 +37,7 @@ You can pass configuration parameters to your apps using the `config` field.
 - **Multiple instances**: `[[apps.name.config]]` (recommended)
 
 !!! note "Paths"
-    `app_dir` is resolved to an absolute path at startup. Relative paths are resolved relative to the current working directory.
+    `apps.directory` is resolved to an absolute path at startup. Relative paths are resolved relative to the current working directory.
 
 !!! note "Filename extension"
     If `filename` has no extension, Hassette assumes `.py`.

@@ -66,7 +66,7 @@ Verify Hassette can see your app files:
 
 ### 2. Verify APP_DIR Configuration
 
-Ensure `app_dir` in `hassette.toml` matches the container path:
+Ensure `apps.directory` in `hassette.toml` matches the container path:
 
 ```toml
 --8<-- "pages/getting-started/docker/snippets/ts-app-dir-toml.toml"

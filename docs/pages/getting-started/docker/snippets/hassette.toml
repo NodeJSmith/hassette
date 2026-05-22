@@ -1,6 +1,8 @@
 [hassette]
 base_url = "http://homeassistant:8123"  # or your HA URL
-app_dir = "/apps"  # absolute path inside container
+
+[hassette.apps]
+directory = "/apps"  # absolute path inside container
 
 [apps.my_app]
 filename = "my_app.py"
