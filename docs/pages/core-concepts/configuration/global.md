@@ -230,6 +230,8 @@ event_handler_timeout_seconds = 30.0
 
 ## Logging Settings
 
+These settings live under `[hassette.logging]`.
+
 Hassette supports per-service log levels for each of its 13 internal services. Each field falls back to the global `log_level` setting (default: `INFO`).
 
 See [Log Level Tuning](../../advanced/log-level-tuning.md) for the full field list, precedence rules, and examples.

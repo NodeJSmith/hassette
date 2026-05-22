@@ -1,6 +1,6 @@
 # hassette.toml
 [hassette.logging]
-log_level = "INFO"                        # global default
+log_level = "INFO"  # global default
 
 # Turn up verbosity for the scheduler only
 scheduler_service = "DEBUG"

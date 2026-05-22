@@ -1,5 +1,5 @@
 [hassette]
-base_url = "http://localhost:8123" # Home Assistant URL
+base_url = "http://localhost:8123"  # Home Assistant URL
 
 [hassette.apps]
 directory = "src/apps"  # path containing your app modules
