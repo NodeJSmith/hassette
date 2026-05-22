@@ -107,6 +107,7 @@ import { WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-query-invalidator";
 - The invalidation key for listener-detail and job-detail includes the entity ID (`listener.listener_id`, `job.job_id`). This is correct — each detail view only invalidates its own data.
 - `recent-activity-section.tsx` has the `activityError` signal (line 119) — update to `error` from the query result. Also update the error display at line 150.
 - `DETAIL_FETCH_LIMIT` and `ACTIVITY_LIMIT` are local constants in each component — they don't change.
+- `listener-detail.tsx`, `job-detail.tsx`, and `recent-activity-section.tsx` have NO existing test files — no test migration needed for these components.
 - After this task, `useScopedApi` and `useFilteredSignalRefetch` have ZERO remaining consumers. They are deleted in T09.
 
 ## Verify

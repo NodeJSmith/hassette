@@ -82,7 +82,9 @@ Find all `.value` reads on these variables throughout the file and remove them. 
 
 ### 3. Update `frontend/src/components/shared/log-table/use-log-filters.ts`
 
-Read the full file (263 lines). The parameter types at lines 11-12 change:
+Read the full file (263 lines). This file is the most complex restructuring in the migration — it uses Preact `computed()` signals internally.
+
+**Parameter type change** (lines 11-12):
 ```typescript
 // Before
 allEntries: ReadonlySignal<LogEntry[]>;
@@ -93,9 +95,29 @@ allEntries: LogEntry[];
 restEntries: LogEntry[];
 ```
 
-Find all `.value` reads on `allEntries` and `restEntries` throughout the file and remove them. The hook uses these in `computed()` signals or `useSignalEffect` — the computation may need to change to `useMemo` if it was relying on signal reactivity.
+**Internal restructuring required**: The `filtered` computed signal (line 123) reads `restEntries.value` and `allEntries.value`. After migration, these are plain arrays — `computed()` cannot track non-signal values reactively. The restructuring:
 
-Read the full file carefully to understand how `allEntries` and `restEntries` are used before making changes.
+1. **`filterState` (line 94)** — KEEP as `computed`. It only reads from local signals (`localLevel`, `localTier`, etc.) and `qpRef`. No dependency on `allEntries`/`restEntries`.
+
+2. **`livePaused` (line 121)** — KEEP as `computed`. It only reads from `filterState.value`.
+
+3. **`filtered` (line 123)** — CHANGE from `computed` to `useMemo`. The `computed` currently reads from both signals (`filterState.value`, `livePaused.value`) and the entry parameters (`restEntries.value`, `allEntries.value`). After migration:
+   ```typescript
+   // Read signal values in the hook body (triggers re-renders on signal changes)
+   const paused = livePaused.value;
+   const { level, tier, app, search, func, sort } = filterState.value;
+   const source = paused ? restEntries : allEntries;
+
+   const filtered = useMemo(() => {
+     let result = source;
+     // ... existing filter chain (level, tier, app, search, func) ...
+     return sortEntries(result, sort.column, sort.asc);
+   }, [source, level, tier, app, search, func, sort.column, sort.asc]);
+   ```
+
+4. **Return type change** — `filtered` changes from `ReadonlySignal<LogEntry[]>` to `LogEntry[]` in `UseLogFiltersResult`. Consumers that read `filtered.value` change to just `filtered`.
+
+The `filterState` and `livePaused` return values can stay as `ReadonlySignal` — they only depend on internal signals. Update the `UseLogFiltersResult` interface for `filtered` only.
 
 ### 4. Rewrite `frontend/src/components/shared/log-table/use-log-data.test.ts`
 

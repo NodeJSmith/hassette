@@ -123,5 +123,5 @@ For each page test file (`handlers.test.tsx`, `apps.test.tsx`, `app-detail.test.
 
 - [ ] FR#2: navigating away from handlers/apps/app-detail and back within 30s serves cached data — verified by test asserting no additional MSW handler invocations on return navigation
 - [ ] FR#4: changing `appKey` during an in-flight fetch aborts the previous request and only completes the new one — verified by test confirming no console errors and only the final query key's data is rendered
-- [ ] AC#2: navigating apps → app-detail → apps shows cached data without network request — verified by test
+- [ ] AC#2: navigating apps → app-detail → apps shows cached data without network request — verified by test that counts MSW handler invocations before and after return navigation (TanStack serves from cache, so the handler call count should not increase on return within 30s)
 - [ ] AC#9: navigating away during a fetch produces no errors or console warnings — verified by test
