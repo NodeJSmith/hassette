@@ -1,9 +1,4 @@
-"""Integration tests for the /api/health endpoint (version, boot_issues).
-
-Tests for the four removed overview endpoints (dashboard/kpis, dashboard/activity,
-dashboard/errors, dashboard/framework-summary) were deleted as part of the
-overview page removal (spec 051).
-"""
+"""Integration tests for the /api/health endpoint (version, boot_issues)."""
 
 from unittest.mock import MagicMock
 
@@ -16,31 +11,31 @@ from hassette.web.app import create_fastapi_app
 
 
 @pytest.fixture
-def stub():
-    """Create a Hassette stub for health endpoint tests."""
+def mock_hassette():
+    """Create a Hassette mock_hassette for health endpoint tests."""
     return create_hassette_stub(run_web_ui=False)
 
 
 @pytest.fixture
-def rqs(stub):
-    """Create a RuntimeQueryService wired to the stub."""
-    return create_mock_runtime_query_service(stub)
+def runtime_query_service(mock_hassette):
+    """Create a RuntimeQueryService wired to the mock_hassette."""
+    return create_mock_runtime_query_service(mock_hassette)
 
 
 @pytest.fixture
-async def client(stub, rqs):  # noqa: ARG001 — rqs wired to stub as side-effect
-    app = create_fastapi_app(stub)
+async def client(mock_hassette, runtime_query_service):  # noqa: ARG001 — runtime_query_service wired to mock_hassette as side-effect
+    app = create_fastapi_app(mock_hassette)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac, stub
+        yield ac, mock_hassette
 
 
 class TestVersionInHealth:
     async def test_health_returns_version(self, client) -> None:
         """GET /api/health response includes a 'version' field."""
-        ac, stub = client
+        ac, mock_hassette = client
         # Wire get_system_status to return a status with version
-        stub.runtime_query_service.get_system_status = MagicMock(
+        mock_hassette.runtime_query_service.get_system_status = MagicMock(
             return_value=SystemStatus(
                 status="ok",
                 websocket_connected=True,
@@ -60,8 +55,8 @@ class TestVersionInHealth:
 
     async def test_health_returns_boot_issues(self, client) -> None:
         """GET /api/health response includes 'boot_issues' list."""
-        ac, stub = client
-        stub.runtime_query_service.get_system_status = MagicMock(
+        ac, mock_hassette = client
+        mock_hassette.runtime_query_service.get_system_status = MagicMock(
             return_value=SystemStatus(
                 status="ok",
                 websocket_connected=True,
@@ -87,8 +82,8 @@ class TestVersionInHealth:
 
     async def test_health_boot_issues_empty_by_default(self, client) -> None:
         """GET /api/health with no boot issues returns an empty list."""
-        ac, stub = client
-        stub.runtime_query_service.get_system_status = MagicMock(
+        ac, mock_hassette = client
+        mock_hassette.runtime_query_service.get_system_status = MagicMock(
             return_value=SystemStatus(
                 status="ok",
                 websocket_connected=True,

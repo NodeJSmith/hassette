@@ -138,12 +138,12 @@ class TestHassetteAppKey:
 
 
 class TestTelemetryStatusDropCounterFallback:
-    """Cover lines 87-88: AttributeError/RuntimeError fallback for get_drop_counters."""
+    """AttributeError/RuntimeError fallback for get_drop_counters."""
 
     async def test_attribute_error_on_get_drop_counters_returns_zeros(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """AttributeError from get_drop_counters falls back to zero counters (line 87-88)."""
+        """AttributeError from get_drop_counters falls back to zero counters."""
         mock_hassette.get_drop_counters.side_effect = AttributeError("no such attribute")
         response = await client.get("/api/telemetry/status")
         assert response.status_code == 200
@@ -157,7 +157,7 @@ class TestTelemetryStatusDropCounterFallback:
     async def test_runtime_error_on_get_drop_counters_returns_zeros(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """RuntimeError from get_drop_counters falls back to zero counters (line 87-88)."""
+        """RuntimeError from get_drop_counters falls back to zero counters."""
         mock_hassette.get_drop_counters.side_effect = RuntimeError("not yet initialised")
         response = await client.get("/api/telemetry/status")
         assert response.status_code == 200
@@ -168,12 +168,12 @@ class TestTelemetryStatusDropCounterFallback:
 
 
 class TestAppHealthDbErrorFallback:
-    """Cover lines 124-128: DB_ERRORS guard on the app_health endpoint."""
+    """DB_ERRORS guard on the app_health endpoint."""
 
     async def test_oserror_returns_503_with_zeroed_health(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """OSError on get_listener_summary returns 503 with zero-value health (lines 124-128)."""
+        """OSError on get_listener_summary returns 503 with zero-value health."""
         mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(side_effect=OSError("disk I/O error"))
         response = await client.get("/api/telemetry/app/my_app/health")
         assert response.status_code == 503
@@ -187,7 +187,7 @@ class TestAppHealthDbErrorFallback:
     async def test_valueerror_returns_503_with_zeroed_health(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """ValueError on get_listener_summary returns 503 with zero-value health (lines 124-128)."""
+        """ValueError on get_listener_summary returns 503 with zero-value health."""
         mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
             side_effect=ValueError("Connection is closed")
         )
@@ -211,12 +211,12 @@ class TestAppHealthDbErrorFallback:
 
 
 class TestDashboardAppGridDbErrorFallback:
-    """Cover lines 330-332, 347-349: DB_ERRORS guard on dashboard_app_grid."""
+    """DB_ERRORS guard on dashboard_app_grid."""
 
     async def test_sqlite_error_returns_200_with_empty_summaries(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """sqlite3.Error on get_all_app_summaries falls back to empty summaries dict (lines 330-332).
+        """sqlite3.Error on get_all_app_summaries falls back to empty summaries dict.
 
         The endpoint still returns 200 with manifests having zero health data.
         """
@@ -236,7 +236,7 @@ class TestDashboardAppGridDbErrorFallback:
     async def test_oserror_returns_200_with_zeroed_entries(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """OSError on get_all_app_summaries falls back to zeroed per-app entries (lines 330-332)."""
+        """OSError on get_all_app_summaries falls back to zeroed per-app entries."""
         mock_hassette.telemetry_query_service.get_all_app_summaries = AsyncMock(side_effect=OSError("disk I/O error"))
         response = await client.get("/api/telemetry/dashboard/app-grid")
         assert response.status_code == 200
@@ -249,7 +249,7 @@ class TestDashboardAppGridDbErrorFallback:
     async def test_valueerror_returns_200_with_zeroed_entries(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """ValueError on get_all_app_summaries falls back to zeroed per-app entries (lines 330-332)."""
+        """ValueError on get_all_app_summaries falls back to zeroed per-app entries."""
         mock_hassette.telemetry_query_service.get_all_app_summaries = AsyncMock(
             side_effect=ValueError("Connection is closed")
         )
@@ -261,7 +261,7 @@ class TestDashboardAppGridDbErrorFallback:
     async def test_app_grid_db_error_uses_error_rate_from_empty_summary(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """When summaries dict is empty after DB error, _error_rate_from_summary returns 0.0 (line 347-349)."""
+        """When summaries dict is empty after DB error, _error_rate_from_summary returns 0.0."""
         mock_hassette.telemetry_query_service.get_all_app_summaries = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
@@ -283,45 +283,21 @@ class TestAppKeyValidation:
     """
 
     @pytest.mark.parametrize(
-        "app_key",
+        ("action", "app_key"),
         [
-            "!!invalid",
-            "0starts_with_digit",
-            "-starts_with_dash",
-            "a" * 129,  # exceeds 128-char limit (pattern allows 1 + up to 127 = 128 total)
+            (action, key)
+            for action in ("start", "stop", "reload")
+            for key in (
+                "!!invalid",
+                "0starts_with_digit",
+                "-starts_with_dash",
+                "a" * 129,  # exceeds 128-char limit (pattern allows 1 + up to 127 = 128 total)
+            )
         ],
     )
-    async def test_invalid_app_key_start_returns_400(self, client: "AsyncClient", app_key: str) -> None:
-        """Invalid app_key format returns 400 on POST /api/apps/{app_key}/start."""
-        response = await client.post(f"/api/apps/{app_key}/start")
-        assert response.status_code == 400
-
-    @pytest.mark.parametrize(
-        "app_key",
-        [
-            "!!invalid",
-            "0starts_with_digit",
-            "-starts_with_dash",
-            "a" * 129,
-        ],
-    )
-    async def test_invalid_app_key_stop_returns_400(self, client: "AsyncClient", app_key: str) -> None:
-        """Invalid app_key format returns 400 on POST /api/apps/{app_key}/stop."""
-        response = await client.post(f"/api/apps/{app_key}/stop")
-        assert response.status_code == 400
-
-    @pytest.mark.parametrize(
-        "app_key",
-        [
-            "!!invalid",
-            "0starts_with_digit",
-            "-starts_with_dash",
-            "a" * 129,
-        ],
-    )
-    async def test_invalid_app_key_reload_returns_400(self, client: "AsyncClient", app_key: str) -> None:
-        """Invalid app_key format returns 400 on POST /api/apps/{app_key}/reload."""
-        response = await client.post(f"/api/apps/{app_key}/reload")
+    async def test_invalid_app_key_returns_400(self, client: "AsyncClient", action: str, app_key: str) -> None:
+        """Invalid app_key format returns 400 on all management actions."""
+        response = await client.post(f"/api/apps/{app_key}/{action}")
         assert response.status_code == 400
 
     async def test_nonexistent_app_key_start_returns_404(self, client: "AsyncClient", mock_hassette) -> None:
