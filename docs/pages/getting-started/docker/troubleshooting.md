@@ -64,9 +64,9 @@ Verify Hassette can see your app files:
 --8<-- "pages/getting-started/docker/snippets/ts-ls-apps.sh"
 ```
 
-### 2. Verify APP_DIR Configuration
+### 2. Verify App Directory Configuration
 
-Ensure `app_dir` in `hassette.toml` matches the container path:
+Ensure `apps.directory` in `hassette.toml` matches the container path:
 
 ```toml
 --8<-- "pages/getting-started/docker/snippets/ts-app-dir-toml.toml"
@@ -208,7 +208,7 @@ If apps fail to import installed packages:
 
 1. Verify the package is listed in your dependencies
 2. Check logs for installation errors at startup
-3. Ensure `HASSETTE__APP_DIR` points to the correct location
+3. Ensure `HASSETTE__APPS__DIRECTORY` points to the correct location
 
 ## Health Check Failing
 

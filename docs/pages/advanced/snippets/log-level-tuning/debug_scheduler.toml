@@ -1,2 +1,2 @@
-[hassette]
-scheduler_service_log_level = "DEBUG"
+[hassette.logging]
+scheduler_service = "DEBUG"

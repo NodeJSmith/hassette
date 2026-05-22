@@ -2,13 +2,13 @@
 
 This page covers the **TOML side** of app configuration: registering apps in `hassette.toml`, supplying config values, and running multiple instances. For how to define typed `AppConfig` models in Python, see [App Configuration](../apps/configuration.md).
 
-Apps are registered and configured in the `hassette.toml` file under `[apps.<name>]`.
+Apps are registered and configured in the `hassette.toml` file under `[hassette.apps.<name>]`.
 
 ## App Registration
 
 Each app block requires:
 
-- **`filename`** (or `file_name`): Path to the python file relative to `app_dir`.
+- **`filename`** (or `file_name`): Path to the python file relative to `apps.directory`.
     - Should include the extension (e.g., `.py`), though Hassette will attempt to guess if missing.
     - Supports subdirectories (e.g., `subdir/my_app.py`).
 
@@ -33,11 +33,11 @@ Each app block requires:
 
 You can pass configuration parameters to your apps using the `config` field.
 
-- **Single instance**: `config = { key = "value" }` or `[apps.name.config]`
-- **Multiple instances**: `[[apps.name.config]]` (recommended)
+- **Single instance**: `config = { key = "value" }` or `[hassette.apps.name.config]`
+- **Multiple instances**: `[[hassette.apps.name.config]]` (recommended)
 
 !!! note "Paths"
-    `app_dir` is resolved to an absolute path at startup. Relative paths are resolved relative to the current working directory.
+    `apps.directory` is resolved to an absolute path at startup. Relative paths are resolved relative to the current working directory.
 
 !!! note "Filename extension"
     If `filename` has no extension, Hassette assumes `.py`.
@@ -51,7 +51,7 @@ You can override nested config values using environment variables. This merges w
 
 ### Multiple Instances
 
-To run the same app multiple times with different configurations, use `[[apps.<name>.config]]` blocks.
+To run the same app multiple times with different configurations, use `[[hassette.apps.<name>.config]]` blocks.
 
 ```toml
 --8<-- "pages/core-concepts/configuration/snippets/multiple_instances.toml"
