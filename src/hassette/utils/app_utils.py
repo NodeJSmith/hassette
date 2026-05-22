@@ -33,87 +33,83 @@ FAILED_TO_LOAD_CLASSES: "dict[tuple[str, str], Exception]" = {}
 EXCLUDED_PATH_PARTS = ("site-packages", "importlib")
 
 
+def root_cause(exc: BaseException) -> BaseException:
+    """Prefer __cause__ (explicit raise ... from ...), else __context__."""
+    err = exc
+    while getattr(err, "__cause__", None) is not None:
+        err = err.__cause__  # pyright: ignore[reportOptionalMemberAccess]
+    if getattr(err, "__cause__", None) is None and getattr(err, "__context__", None) is not None:
+        err = err.__context__  # pyright: ignore[reportOptionalMemberAccess]
+
+    if typing.TYPE_CHECKING:
+        assert isinstance(err, BaseException)
+
+    return err
+
+
+def find_user_frame(exc: BaseException, app_dir: Path) -> traceback.FrameSummary | None:
+    """Pick the most useful traceback frame for an app load error.
+
+    1) last frame inside the app's directory
+    2) last frame not in site-packages/importlib/hassette
+    3) final frame of the traceback
+    """
+    try:
+        err = root_cause(exc)
+        tb_list = traceback.extract_tb(err.__traceback__)
+        if not tb_list:
+            return None
+
+        app_dir_str = app_dir.as_posix()
+
+        for fr in reversed(tb_list):
+            if fr.filename.replace("\\", "/").startswith(app_dir_str):
+                return fr
+
+        for fr in reversed(tb_list):
+            fn = fr.filename
+            if "hassette" not in fn and not any(part in fn for part in EXCLUDED_PATH_PARTS):
+                return fr
+
+        return tb_list[-1]
+
+    except Exception:
+        LOGGER.error("Error selecting user frame: %s", traceback.format_exc(limit=1))
+        return None
+
+
+def log_compact_load_error(app_manifest: "AppManifest", exc: BaseException) -> None:
+    """Log a compact, user-friendly error for a failed app load."""
+    fr = find_user_frame(exc, app_manifest.app_dir)
+    traceback_str = traceback.format_exception_only(type(exc), exc)[-1].strip()
+    if fr:
+        msg = "Failed to load app '%s':\n\t%s (at %s:%d)"
+        LOGGER.error(
+            msg,
+            app_manifest.display_name,
+            traceback_str,
+            fr.filename,
+            fr.lineno,
+            stacklevel=2,
+        )
+    else:
+        LOGGER.error(
+            "Failed to load app '%s':\n%s",
+            app_manifest.display_name,
+            traceback_str,
+            stacklevel=2,
+        )
+
+
 def run_apps_pre_check(config: "HassetteConfig") -> None:
     """Pre-check all apps to ensure they can be loaded correctly.
 
-    This prevents us from spinning up the whole system and then having apps fail to load
-    due to import errors, misconfiguration, etc.
-
-    Args:
-        config: The Hassette configuration containing app manifests.
+    Runs before system startup to surface import errors and misconfiguration
+    early, without spinning up the full WebSocket/scheduler stack.
 
     Raises:
         AppPrecheckFailedError: If any app fails to load correctly.
     """
-
-    def _root_cause(exc: BaseException) -> BaseException:
-        """Prefer __cause__ (explicit raise ... from ...), else __context__."""
-        err = exc
-        while getattr(err, "__cause__", None) is not None:
-            err = err.__cause__  # pyright: ignore[reportOptionalMemberAccess]
-        if getattr(err, "__cause__", None) is None and getattr(err, "__context__", None) is not None:
-            err = err.__context__  # pyright: ignore[reportOptionalMemberAccess]
-
-        if typing.TYPE_CHECKING:
-            assert isinstance(err, BaseException)
-
-        return err
-
-    def _find_user_frame(exc: BaseException, app_dir: Path) -> traceback.FrameSummary | None:
-        """
-        Pick the most useful traceback frame:
-        1) last frame inside the app's directory
-        2) last frame not in site-packages/importlib/hassette
-        3) final frame of the traceback
-        """
-        try:
-            err = _root_cause(exc)
-            tb_list = traceback.extract_tb(err.__traceback__)
-            if not tb_list:
-                return None
-
-            app_dir_str = app_dir.as_posix()
-
-            # 1) prefer frames inside the app dir
-            for fr in reversed(tb_list):
-                if fr.filename.replace("\\", "/").startswith(app_dir_str):
-                    return fr
-
-            # 2) otherwise prefer frames that aren't obviously noise
-            for fr in reversed(tb_list):
-                fn = fr.filename
-                if "hassette" not in fn and not any(part in fn for part in EXCLUDED_PATH_PARTS):
-                    return fr
-
-            # 3) fallback: last frame
-            return tb_list[-1]
-
-        except Exception:
-            # Ultra-defensive: never let error formatting throw
-            LOGGER.error("Error selecting user frame: %s", traceback.format_exc(limit=1))
-            return None
-
-    def _log_compact_load_error(app_manifest: "AppManifest", exc: BaseException) -> None:
-        fr = _find_user_frame(exc, app_manifest.app_dir)
-        traceback_str = traceback.format_exception_only(type(exc), exc)[-1].strip()
-        if fr:
-            msg = "Failed to load app '%s':\n\t%s (at %s:%d)"
-            LOGGER.error(
-                msg,
-                app_manifest.display_name,
-                traceback_str,
-                fr.filename,
-                fr.lineno,
-                stacklevel=2,
-            )
-        else:
-            LOGGER.error(
-                "Failed to load app '%s':\n%s",
-                app_manifest.display_name,
-                traceback_str,
-                stacklevel=2,
-            )
-
     had_errors = False
 
     for app_manifest in config.apps.manifests.values():
@@ -121,14 +117,12 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
             continue
 
         if app_manifest.auto_loaded:
-            # skip auto-detected apps; they were already checked during detection
             continue
 
         try:
             load_app_class_from_manifest(app_manifest=app_manifest)
 
         except CannotOverrideFinalError as e:
-            # Already a great, app-aware message
             LOGGER.error("App %s: %s", app_manifest.display_name, e)
             had_errors = True
 
@@ -140,7 +134,7 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
             had_errors = True
 
         except Exception as e:
-            _log_compact_load_error(app_manifest, e)
+            log_compact_load_error(app_manifest, e)
             had_errors = True
 
     if had_errors:

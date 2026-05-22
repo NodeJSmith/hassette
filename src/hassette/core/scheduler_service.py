@@ -257,7 +257,7 @@ class SchedulerService(Service):
     async def await_registrations_complete(self, app_key: str) -> None:
         """Wait for all pending DB registration tasks for an app to complete.
 
-        Called by ``AppLifecycleService._reconcile_app_registrations()`` before
+        Called by ``AppLifecycleService.reconcile_app_registrations()`` before
         reconciliation to ensure all job ``db_id`` values are populated. Tasks
         that error (DB unavailable) complete with ``db_id = None`` — the job is
         excluded from ``live_job_ids`` but not actively retired.

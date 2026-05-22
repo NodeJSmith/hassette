@@ -34,6 +34,11 @@ from hassette.utils.app_utils import autodetect_apps, clean_app
 
 LOGGER = getLogger(__name__)
 
+TOKEN_SHORT_THRESHOLD = 8
+TOKEN_MEDIUM_THRESHOLD = 12
+TOKEN_SHORT_PREFIX_LENGTH = 3
+TOKEN_LONG_PREFIX_LENGTH = 6
+
 
 class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Configuration for Hassette."""
@@ -228,11 +233,11 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     @property
     def truncated_token(self) -> str:
         """Return a truncated version of the token for display purposes."""
-        if len(self.token) < 8:
+        if len(self.token) < TOKEN_SHORT_THRESHOLD:
             return "***"
-        if len(self.token) <= 12:
-            return f"{self.token[:3]}***"
-        return f"{self.token[:6]}...{self.token[-6:]}"
+        if len(self.token) <= TOKEN_MEDIUM_THRESHOLD:
+            return f"{self.token[:TOKEN_SHORT_PREFIX_LENGTH]}***"
+        return f"{self.token[:TOKEN_LONG_PREFIX_LENGTH]}...{self.token[-TOKEN_LONG_PREFIX_LENGTH:]}"
 
     @model_validator(mode="after")
     def validate_log_retention_days(self) -> "HassetteConfig":
