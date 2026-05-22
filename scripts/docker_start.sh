@@ -26,7 +26,7 @@ log_phase "venv health check passed (v${HASSETTE_VERSION})"
 
 # APP_DIR is where we start looking for actual *.py files that contain App/AppSync classes
 # PROJECT_DIR is where to look for a uv.lock or pyproject.toml file for a package
-APP_DIR="${HASSETTE__APP_DIR:-/apps}"
+APP_DIR="${HASSETTE__APPS__DIRECTORY:-${HASSETTE__APP_DIR:-/apps}}"
 PROJECT_DIR="${HASSETTE__PROJECT_DIR:-/apps}"
 CONFIG="${HASSETTE__CONFIG_DIR:-/config}"
 INSTALL_DEPS="${HASSETTE__INSTALL_DEPS:-0}"

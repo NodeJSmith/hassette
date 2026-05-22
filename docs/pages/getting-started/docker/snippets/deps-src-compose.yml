@@ -10,7 +10,7 @@ services:
       # Startup script finds pyproject.toml/uv.lock at /apps
       - HASSETTE__PROJECT_DIR=/apps
       # Hassette finds app files in /apps/src/my_apps
-      - HASSETTE__APP_DIR=/apps/src/my_apps
+      - HASSETTE__APPS__DIRECTORY=/apps/src/my_apps
 
 volumes:
   data:

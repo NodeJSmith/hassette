@@ -93,25 +93,6 @@ def default_data_dir() -> Path:
     return platformdirs.user_data_path("hassette", version=f"v{VERSION.major}")
 
 
-def default_app_dir() -> Path:
-    """Return the first found app directory based on environment variables or defaults.
-
-    Will return the first of:
-        - HASSETTE__APP_DIR environment variable
-        - HASSETTE_APP_DIR environment variable
-        - /apps (for docker)
-        - platformdirs user app path
-
-    """
-
-    if env := os.getenv("HASSETTE__APP_DIR", os.getenv("HASSETTE_APP_DIR")):
-        return Path(env)
-    docker = Path("/apps")
-    if docker.exists():
-        return docker
-    return Path.cwd() / "apps"  # relative to where the program is run
-
-
 def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | Path | None | set[Path]) -> set[Path]:
     """Filter the provided paths to only include unique existing paths.
 
