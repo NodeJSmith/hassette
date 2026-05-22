@@ -1,4 +1,5 @@
 import { batch } from "@preact/signals";
+import { useQueryClient } from "@tanstack/preact-query";
 import { useEffect, useRef } from "preact/hooks";
 
 import type { WsServerMessage } from "../api/ws-types";
@@ -18,6 +19,7 @@ function buildSubscribePayload(level: string): string {
 }
 
 export function useWebSocket(state: AppState): void {
+  const queryClient = useQueryClient();
   const wsRef = useRef<WebSocket | null>(null);
   const backoffRef = useRef(INITIAL_BACKOFF_MS);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -79,6 +81,8 @@ export function useWebSocket(state: AppState): void {
                 state.serviceStatus.value = {};
                 // Signal all useApi instances to refetch
                 state.reconnectVersion.value = state.reconnectVersion.value + 1;
+                // Invalidate all TanStack Query caches so data is re-fetched after reconnect
+                void queryClient.invalidateQueries();
               } else {
                 hasConnectedRef.current = true;
               }

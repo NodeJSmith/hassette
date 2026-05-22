@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add reconnect invalidation to WebSocket handler"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#6", "AC#11"]
 ---
