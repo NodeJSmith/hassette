@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 from warnings import warn
 
+from mergedeep import merge
 from pydantic import (
     AliasChoices,
     BaseModel,
@@ -34,18 +35,29 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
         LOGGER.debug("Merging 'hassette' section from TOML config into top level")
         top_level_keys = set(self.toml_data.keys()) - {"hassette"}
         hassette_values = self.toml_data.pop("hassette")
-        for key in top_level_keys.intersection(hassette_values.keys()):
-            LOGGER.warning(
-                "Key %r found in both top level and 'hassette' section of TOML config, "
-                "the [hassette] value will be used",
-                key,
+
+        overlapping = top_level_keys.intersection(hassette_values.keys())
+        for key in overlapping:
+            if not isinstance(self.toml_data[key], dict) or not isinstance(hassette_values[key], dict):
+                LOGGER.warning(
+                    "Key %r found in both top level and 'hassette' section of TOML config, "
+                    "the [hassette] value will be used",
+                    key,
+                )
+
+        if (
+            "apps" in overlapping
+            and isinstance(self.toml_data.get("apps"), dict)
+            and isinstance(hassette_values.get("apps"), dict)
+        ):
+            warn(
+                "Top-level [apps.*] keys and [hassette.apps.*] keys coexist in the same TOML file. "
+                "Top-level [apps.*] is deprecated — move all app definitions under [hassette.apps.*].",
+                DeprecationWarning,
+                stacklevel=1,
             )
 
-        # Merge hassette_values into toml_data, preserving nested sub-dicts.
-        # In TOML, [hassette.database] is parsed as hassette_values["database"] = {...}.
-        # These nested dicts must remain as dicts so Pydantic's nested model resolution
-        # can coerce them into the appropriate model classes (e.g. DatabaseConfig).
-        self.toml_data.update(hassette_values)
+        self.toml_data = dict(merge({}, self.toml_data, hassette_values))
 
         # need to call InitSettingSource directly, as super() expects a file path
         # as the second argument

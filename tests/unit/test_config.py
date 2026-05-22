@@ -2,6 +2,7 @@ import os
 import sys
 import textwrap
 import tomllib
+import warnings
 from importlib.resources import files
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import dotenv
 import pytest
 
 from hassette import HassetteConfig, context
+from hassette.config.classes import HassetteTomlConfigSettingsSource
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.test_utils import run_hassette_startup_tasks
 from hassette.test_utils.config import TEST_TOKEN
@@ -613,6 +615,138 @@ def test_websocket_max_recovery_default() -> None:
     config = _LogLevelTestConfig()
     assert config.websocket.max_recovery_seconds == 300.0
     assert isinstance(config.websocket.max_recovery_seconds, float)
+
+
+class TestTomlDeepMerge:
+    """Tests for deep merge behavior when [hassette.*] and top-level keys coexist."""
+
+    def write_toml(self, tmp_path: Path, content: str) -> Path:
+        toml_file = tmp_path / "hassette.toml"
+        toml_file.write_text(textwrap.dedent(content).lstrip(), encoding="utf-8")
+        return toml_file
+
+    def make_source(self, toml_file: Path) -> HassetteTomlConfigSettingsSource:
+        class MinimalConfig(HassetteConfig):
+            model_config = HassetteConfig.model_config.copy() | {
+                "cli_parse_args": False,
+                "toml_file": [toml_file],
+                "env_file": [],
+            }
+
+            token: str = TEST_TOKEN
+            run_app_precheck: bool = False
+
+        return HassetteTomlConfigSettingsSource(MinimalConfig, toml_file=toml_file)
+
+    def test_hassette_apps_and_top_level_apps_are_merged(self, tmp_path: Path) -> None:
+        """Both [hassette.apps] directory settings and [apps.my_app] definitions survive."""
+        toml_file = self.write_toml(
+            tmp_path,
+            """
+            [hassette.apps]
+            directory = "custom_apps"
+
+            [apps.my_app]
+            filename = "my_app.py"
+            class_name = "MyApp"
+            """,
+        )
+        source = self.make_source(toml_file)
+
+        assert isinstance(source.toml_data.get("apps"), dict)
+        apps = source.toml_data["apps"]
+        assert apps.get("directory") == "custom_apps"
+        assert isinstance(apps.get("my_app"), dict)
+        assert apps["my_app"]["filename"] == "my_app.py"
+
+    def test_hassette_section_only_unchanged(self, tmp_path: Path) -> None:
+        """Only [hassette.apps] present — existing happy path works."""
+        toml_file = self.write_toml(
+            tmp_path,
+            """
+            [hassette.apps]
+            directory = "my_apps"
+            """,
+        )
+        source = self.make_source(toml_file)
+
+        assert source.toml_data["apps"]["directory"] == "my_apps"
+
+    def test_top_level_only_no_hassette_section(self, tmp_path: Path) -> None:
+        """No [hassette] section — standard path, no merge logic triggered."""
+        toml_file = self.write_toml(
+            tmp_path,
+            """
+            [apps]
+            directory = "plain_apps"
+            """,
+        )
+        source = self.make_source(toml_file)
+
+        assert source.toml_data["apps"]["directory"] == "plain_apps"
+
+    def test_deep_merge_non_apps_nested_key(self, tmp_path: Path) -> None:
+        """Non-apps nested keys also deep-merge rather than overwrite."""
+        toml_file = self.write_toml(
+            tmp_path,
+            """
+            [database]
+            retention_days = 30
+
+            [hassette.database]
+            batch_size = 500
+            """,
+        )
+        source = self.make_source(toml_file)
+
+        db = source.toml_data["database"]
+        assert db["retention_days"] == 30
+        assert db["batch_size"] == 500
+
+    def test_scalar_conflict_hassette_wins_no_deprecation(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Scalar hassette value overwrites top-level dict; LOGGER.warning fires, no DeprecationWarning."""
+        toml_file = self.write_toml(
+            tmp_path,
+            """
+            [apps.my_app]
+            filename = "my_app.py"
+            class_name = "MyApp"
+
+            [hassette]
+            apps = "disabled"
+            """,
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            source = self.make_source(toml_file)
+
+        assert source.toml_data["apps"] == "disabled"
+        assert any("apps" in r.message and "hassette" in r.message for r in caplog.records)
+        deprecation_warnings = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+        assert len(deprecation_warnings) == 0
+
+    def test_deprecation_warning_when_apps_coexist(self, tmp_path: Path) -> None:
+        """DeprecationWarning fires when both [apps.*] and [hassette.apps.*] are present."""
+        toml_file = self.write_toml(
+            tmp_path,
+            """
+            [hassette.apps]
+            directory = "custom_apps"
+
+            [apps.my_app]
+            filename = "my_app.py"
+            class_name = "MyApp"
+            """,
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            self.make_source(toml_file)
+
+        deprecation_warnings = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+        assert len(deprecation_warnings) == 1
+        assert "[hassette.apps.*]" in str(deprecation_warnings[0].message)
 
 
 def test_bundled_toml_files_have_no_log_level_entries():
