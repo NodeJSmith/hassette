@@ -53,6 +53,14 @@ repos:
         files: ^frontend/src/
         pass_filenames: false
 
+      - id: check-css-refs
+        name: Check undefined CSS refs in TSX
+        language: system
+        entry: uv run python tools/check_undefined_css_refs.py
+        types_or: [ts, tsx, css]
+        files: ^frontend/src/
+        pass_filenames: false
+
       # regenerate sync.py
       # language: system + uv run so the hook uses the same PEP 723 script metadata
       # path as local development — otherwise any future generator dependency added
