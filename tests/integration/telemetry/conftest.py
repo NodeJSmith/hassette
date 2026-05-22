@@ -47,7 +47,7 @@ async def db(db_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int
 
 
 @pytest.fixture
-def svc(db_hassette: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQueryService:  # noqa: ARG001
+def query_service(db_hassette: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQueryService:  # noqa: ARG001
     """Create a TelemetryQueryService with DatabaseService already wired.
 
     Skips on_initialize (which waits on DatabaseService) since the fixture

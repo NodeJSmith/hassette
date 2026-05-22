@@ -407,7 +407,7 @@ async def test_duration_attribute_change_cancel_only_on_predicate_fail(
 async def test_duration_handler_receives_original_triggering_event(
     bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
-    """FR4: handler receives the original triggering event, not a synthetic recheck event."""
+    """Handler receives the original triggering event, not a synthetic recheck event."""
     harness, hassette, bus = bus_harness
 
     received: list[RawStateChangeEvent] = []
@@ -426,7 +426,7 @@ async def test_duration_handler_receives_original_triggering_event(
 
     assert len(received) == 1
     ev = received[0]
-    assert ev.payload.data.old_state is not None, "FR4: handler should receive original event with old_state"
+    assert ev.payload.data.old_state is not None, "handler should receive original event with old_state"
     assert ev.payload.data.old_state["state"] == "off"
     assert ev.payload.data.new_state is not None
     assert ev.payload.data.new_state["state"] == "on"

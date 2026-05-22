@@ -9,28 +9,10 @@ Tests verify:
 from unittest.mock import AsyncMock
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 
 from hassette.core.telemetry_models import JobSummary
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.web_helpers import make_real_job
-from hassette.test_utils.web_mocks import create_hassette_stub
-from hassette.web.app import create_fastapi_app
-
-
-@pytest.fixture
-def mock_hassette():
-    """Create a mock Hassette stub suitable for enrichment tests."""
-    return create_hassette_stub(run_web_ui=False)
-
-
-@pytest.fixture
-async def client(mock_hassette):
-    """AsyncClient wired to the enrichment-test app."""
-    app = create_fastapi_app(mock_hassette)
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac, mock_hassette
 
 
 def make_job_summary(
@@ -65,9 +47,7 @@ def make_job_summary(
 class TestAppJobsEnrichmentWithLiveMatch:
     """When a live heap job matches by db_id, enriched fields are populated."""
 
-    async def test_next_run_fire_at_jitter_from_live(self, client) -> None:
-        client, mock_hassette = client
-
+    async def test_next_run_fire_at_jitter_from_live(self, client, mock_hassette) -> None:
         # Arrange: one DB job summary
         db_summary = make_job_summary(job_id=42)
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
@@ -106,9 +86,7 @@ class TestAppJobsEnrichmentWithLiveMatch:
 class TestAppJobsEnrichmentNoLiveMatch:
     """When no live heap job matches by db_id, live fields are None."""
 
-    async def test_no_live_match_live_fields_none(self, client) -> None:
-        client, mock_hassette = client
-
+    async def test_no_live_match_live_fields_none(self, client, mock_hassette) -> None:
         db_summary = make_job_summary(job_id=99)
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
         mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
@@ -128,9 +106,7 @@ class TestAppJobsEnrichmentNoLiveMatch:
 class TestAppJobsEnrichmentHeapFailureDegrades:
     """When get_all_jobs() raises, DB rows are returned without enrichment (no 500)."""
 
-    async def test_heap_failure_returns_db_rows_status_200(self, client) -> None:
-        client, mock_hassette = client
-
+    async def test_heap_failure_returns_db_rows_status_200(self, client, mock_hassette) -> None:
         # Arrange: DB job
         db_summary = make_job_summary(job_id=55)
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])

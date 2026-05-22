@@ -63,7 +63,7 @@ def make_job_record(
 
 class TestHandlerInvocationExecutionId:
     async def test_persist_and_query_handler_invocation_with_execution_id(
-        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, svc: TelemetryQueryService
+        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, query_service: TelemetryQueryService
     ) -> None:
         """Persist a HandlerInvocationRecord with all three new fields and query them back."""
         db_svc, session_id = db
@@ -78,7 +78,7 @@ class TestHandlerInvocationExecutionId:
 
         await repo.persist_batch([record], [])
 
-        results = await svc.get_handler_invocations(listener_id, limit=10)
+        results = await query_service.get_handler_invocations(listener_id, limit=10)
         assert len(results) == 1
         inv = results[0]
         assert inv.execution_id == "abc-123"
@@ -86,7 +86,7 @@ class TestHandlerInvocationExecutionId:
         assert inv.trigger_origin == "LOCAL"
 
     async def test_null_execution_id_persists_and_queries(
-        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, svc: TelemetryQueryService
+        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, query_service: TelemetryQueryService
     ) -> None:
         """Persist a record with execution_id=None and confirm it comes back as None (not empty string)."""
         db_svc, session_id = db
@@ -95,12 +95,12 @@ class TestHandlerInvocationExecutionId:
 
         await repo.persist_batch([record], [])
 
-        results = await svc.get_handler_invocations(listener_id, limit=10)
+        results = await query_service.get_handler_invocations(listener_id, limit=10)
         assert len(results) == 1
         assert results[0].execution_id is None
 
     async def test_fk_fallback_preserves_execution_id(
-        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, svc: TelemetryQueryService
+        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, query_service: TelemetryQueryService
     ) -> None:
         """On FK violation, only listener_id is nulled; execution_id/context/origin are preserved."""
         db_svc, session_id = db
@@ -168,7 +168,7 @@ class TestHandlerInvocationExecutionId:
 
 class TestJobExecutionExecutionId:
     async def test_persist_and_query_job_execution_with_execution_id(
-        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, svc: TelemetryQueryService
+        self, db: tuple[DatabaseService, int], repo: TelemetryRepository, query_service: TelemetryQueryService
     ) -> None:
         """Persist a JobExecutionRecord with execution_id and query it back."""
         db_svc, session_id = db
@@ -177,7 +177,7 @@ class TestJobExecutionExecutionId:
 
         await repo.persist_batch([], [record])
 
-        results = await svc.get_job_executions(job_id, limit=10)
+        results = await query_service.get_job_executions(job_id, limit=10)
         assert len(results) == 1
         je = results[0]
         assert je.execution_id == "def-789"

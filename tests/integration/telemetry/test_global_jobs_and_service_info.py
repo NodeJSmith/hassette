@@ -40,7 +40,7 @@ STUB_TIMESTAMP = 1_700_000_000.0
 class TestGetAllJobsSummary:
     async def test_returns_jobs_from_multiple_apps(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """get_all_jobs_summary() aggregates jobs from multiple apps without app_key filter."""
@@ -52,7 +52,7 @@ class TestGetAllJobsSummary:
         await insert_execution(db_svc, j1, session_id, status="success", duration_ms=10.0)
         await insert_execution(db_svc, j2, session_id, status="error", duration_ms=50.0, error_type="ValueError")
 
-        results = await svc.get_all_jobs_summary()
+        results = await query_service.get_all_jobs_summary()
 
         assert len(results) == 2
         app_keys = {r.app_key for r in results}
@@ -61,7 +61,7 @@ class TestGetAllJobsSummary:
 
     async def test_no_app_key_filter_returns_all(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """All jobs are returned regardless of app_key when no filter is applied."""
@@ -70,12 +70,12 @@ class TestGetAllJobsSummary:
         for i in range(5):
             await insert_job(db_svc, app_key=f"app_{i}", job_name=f"job_{i}")
 
-        results = await svc.get_all_jobs_summary()
+        results = await query_service.get_all_jobs_summary()
         assert len(results) == 5
 
     async def test_includes_error_fields(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """Jobs with failed executions have last_error_type, last_error_message populated."""
@@ -92,7 +92,7 @@ class TestGetAllJobsSummary:
             error_message="something went wrong",
         )
 
-        results = await svc.get_all_jobs_summary()
+        results = await query_service.get_all_jobs_summary()
         assert len(results) == 1
         row = results[0]
         assert row.last_error_type == "RuntimeError"
@@ -100,7 +100,7 @@ class TestGetAllJobsSummary:
 
     async def test_includes_min_max_duration(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """min_duration_ms and max_duration_ms are populated from executions."""
@@ -111,7 +111,7 @@ class TestGetAllJobsSummary:
         await insert_execution(db_svc, j1, session_id, status="success", duration_ms=100.0)
         await insert_execution(db_svc, j1, session_id, status="success", duration_ms=50.0)
 
-        results = await svc.get_all_jobs_summary()
+        results = await query_service.get_all_jobs_summary()
         assert len(results) == 1
         row = results[0]
         assert row.min_duration_ms == pytest.approx(5.0)
@@ -119,7 +119,7 @@ class TestGetAllJobsSummary:
 
     async def test_no_executions_has_none_min_max(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """Jobs with no executions have min/max duration as None (never executed)."""
@@ -127,7 +127,7 @@ class TestGetAllJobsSummary:
 
         await insert_job(db_svc, app_key="my_app", job_name="idle_job")
 
-        results = await svc.get_all_jobs_summary()
+        results = await query_service.get_all_jobs_summary()
         assert len(results) == 1
         row = results[0]
         assert row.min_duration_ms is None
@@ -135,7 +135,7 @@ class TestGetAllJobsSummary:
 
     async def test_since_filter_restricts_by_timestamp(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """since parameter filters executions by timestamp."""
@@ -150,14 +150,14 @@ class TestGetAllJobsSummary:
         # After since: should count
         await insert_execution(db_svc, j1, session_id, status="success", execution_start_ts=base_ts + 10.0)
 
-        results = await svc.get_all_jobs_summary(since=since_ts)
+        results = await query_service.get_all_jobs_summary(since=since_ts)
         assert len(results) == 1
         row = results[0]
         assert row.total_executions == 1
 
     async def test_source_tier_app_excludes_framework(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """source_tier='app' excludes framework-tier jobs."""
@@ -166,13 +166,13 @@ class TestGetAllJobsSummary:
         await insert_job(db_svc, app_key="my_app", job_name="app_job", source_tier="app")
         await insert_job(db_svc, app_key="fw_app", job_name="fw_job", source_tier="framework")
 
-        results = await svc.get_all_jobs_summary(source_tier="app")
+        results = await query_service.get_all_jobs_summary(source_tier="app")
         assert len(results) == 1
         assert results[0].source_tier == "app"
 
     async def test_source_tier_all_includes_both_tiers(
         self,
-        svc: TelemetryQueryService,
+        query_service: TelemetryQueryService,
         db: tuple[DatabaseService, int],
     ) -> None:
         """source_tier='all' returns both app and framework tier jobs."""
@@ -181,7 +181,7 @@ class TestGetAllJobsSummary:
         await insert_job(db_svc, app_key="my_app", job_name="app_job", source_tier="app")
         await insert_job(db_svc, app_key="fw_app", job_name="fw_job", source_tier="framework")
 
-        results = await svc.get_all_jobs_summary(source_tier="all")
+        results = await query_service.get_all_jobs_summary(source_tier="all")
         assert len(results) == 2
 
 
@@ -420,23 +420,23 @@ class TestGatherAllListenersTiers:
 class TestServiceInfoResponseExtension:
     def test_service_info_response_has_role_ready_phase_retry_at(self) -> None:
         """ServiceInfoResponse has role, ready_phase, retry_at fields."""
-        svc = ServiceInfoResponse(
+        resp = ServiceInfoResponse(
             name="WebSocketService",
             status="running",
             role="Service",
             ready_phase="connected",
             retry_at=STUB_TIMESTAMP,
         )
-        assert svc.role == "Service"
-        assert svc.ready_phase == "connected"
-        assert svc.retry_at == STUB_TIMESTAMP
+        assert resp.role == "Service"
+        assert resp.ready_phase == "connected"
+        assert resp.retry_at == STUB_TIMESTAMP
 
     def test_service_info_response_defaults(self) -> None:
         """ServiceInfoResponse has sensible defaults when role/ready_phase/retry_at omitted."""
-        svc = ServiceInfoResponse(name="SomeService", status="running")
-        assert svc.role == ""
-        assert svc.ready_phase is None
-        assert svc.retry_at is None
+        resp = ServiceInfoResponse(name="SomeService", status="running")
+        assert resp.role == ""
+        assert resp.ready_phase is None
+        assert resp.retry_at is None
 
     def test_system_status_response_from_mapper_populates_fields(self) -> None:
         """system_status_response_from() populates role, ready_phase, retry_at from ServiceInfo."""

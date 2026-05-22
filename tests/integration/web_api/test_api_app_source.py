@@ -3,11 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
-from httpx import ASGITransport, AsyncClient
-
-from hassette.test_utils.web_mocks import create_hassette_stub
-from hassette.web.app import create_fastapi_app
 from tests.integration.conftest import make_manifest_mock
 
 SAMPLE_SOURCE = """\
@@ -20,25 +15,11 @@ class MyApp(App[AppConfig]):
 """
 
 
-@pytest.fixture
-def mock_hassette():
-    return create_hassette_stub(run_web_ui=False)
-
-
-@pytest.fixture
-async def client(mock_hassette):
-    app = create_fastapi_app(mock_hassette)
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac, mock_hassette
-
-
 class TestAppSourceEndpoint:
     """Tests for GET /api/apps/{app_key}/source."""
 
-    async def test_valid_app_returns_source(self, client) -> None:
+    async def test_valid_app_returns_source(self, client, mock_hassette) -> None:
         """Returns 200 with source content for a valid app."""
-        ac, mock_hassette = client
 
         with tempfile.TemporaryDirectory() as tmpdir:
             app_dir = Path(tmpdir)
@@ -53,7 +34,7 @@ class TestAppSourceEndpoint:
             )
             mock_hassette._app_handler.registry.get_manifest.return_value = manifest
 
-            response = await ac.get("/api/apps/my_app/source")
+            response = await client.get("/api/apps/my_app/source")
 
         assert response.status_code == 200
         data = response.json()
@@ -62,18 +43,16 @@ class TestAppSourceEndpoint:
         assert "class MyApp" in data["content"]
         assert data["line_count"] == len(SAMPLE_SOURCE.splitlines())
 
-    async def test_unknown_app_returns_404(self, client) -> None:
+    async def test_unknown_app_returns_404(self, client, mock_hassette) -> None:
         """Returns 404 when app_key is not in the registry."""
-        ac, mock_hassette = client
         mock_hassette._app_handler.registry.get_manifest.return_value = None
 
-        response = await ac.get("/api/apps/nonexistent/source")
+        response = await client.get("/api/apps/nonexistent/source")
 
         assert response.status_code == 404
 
-    async def test_missing_file_returns_404(self, client) -> None:
+    async def test_missing_file_returns_404(self, client, mock_hassette) -> None:
         """Returns 404 when the source file doesn't exist on disk."""
-        ac, mock_hassette = client
 
         with tempfile.TemporaryDirectory() as tmpdir:
             app_dir = Path(tmpdir)
@@ -88,13 +67,12 @@ class TestAppSourceEndpoint:
             )
             mock_hassette._app_handler.registry.get_manifest.return_value = manifest
 
-            response = await ac.get("/api/apps/my_app/source")
+            response = await client.get("/api/apps/my_app/source")
 
         assert response.status_code == 404
 
-    async def test_path_traversal_returns_403(self, client) -> None:
+    async def test_path_traversal_returns_403(self, client, mock_hassette) -> None:
         """Returns 403 when full_path resolves outside the app_dir."""
-        ac, mock_hassette = client
 
         with tempfile.TemporaryDirectory() as tmpdir:
             app_dir = Path(tmpdir) / "apps"
@@ -111,14 +89,12 @@ class TestAppSourceEndpoint:
             )
             mock_hassette._app_handler.registry.get_manifest.return_value = manifest
 
-            response = await ac.get("/api/apps/my_app/source")
+            response = await client.get("/api/apps/my_app/source")
 
         assert response.status_code == 403
 
     async def test_invalid_app_key_returns_400(self, client) -> None:
         """Invalid app_key format returns 400."""
-        ac, _mock = client
-
-        response = await ac.get("/api/apps/!!bad!!/source")
+        response = await client.get("/api/apps/!!bad!!/source")
 
         assert response.status_code == 400

@@ -143,7 +143,7 @@ async def test_multiple_listeners_different_handlers(hassette_with_bus: "Hassett
 
 
 async def test_on_error_registered_after_listeners_still_works(hassette_with_bus: "HassetteHarness") -> None:
-    """on_error() registered AFTER listeners is resolved at dispatch time — it still fires (FR11)."""
+    """on_error() registered AFTER listeners is resolved at dispatch time — it still fires."""
     hassette = hassette_with_bus
     bus = hassette.bus
 
