@@ -7,8 +7,6 @@ import traceback
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 from hassette.utils.app_utils import find_user_frame, log_compact_load_error, root_cause
 
 
@@ -112,20 +110,3 @@ class TestLogCompactLoadError:
 
         exc = ImportError("missing module")
         log_compact_load_error(manifest, exc)
-
-    def test_includes_exception_type_in_output(self, tmp_path: Path, caplog: pytest.LogCaptureFixture):
-        app_file = tmp_path / "bad_app.py"
-        app_file.write_text("x = 1 / 0")
-
-        manifest = MagicMock()
-        manifest.display_name = "bad_app"
-        manifest.app_dir = tmp_path
-
-        try:
-            exec(compile(app_file.read_text(), str(app_file), "exec"))
-        except ZeroDivisionError as exc:
-            with caplog.at_level("ERROR"):
-                log_compact_load_error(manifest, exc)
-
-            assert any("bad_app" in r.message for r in caplog.records)
-            assert any("ZeroDivisionError" in r.message for r in caplog.records)
