@@ -41,7 +41,7 @@ These two environment variables serve different purposes:
 | `HASSETTE__PROJECT_DIR` | Where the startup script looks for `pyproject.toml`/`uv.lock` to install dependencies | Startup script   |
 
 !!! important "Key Distinction"
-    `APPS__DIRECTORY` tells Hassette where your code lives. `PROJECT_DIR` tells the startup script where your package definition lives. These can be the same directory or different directories depending on your project structure.
+    `HASSETTE__APPS__DIRECTORY` tells Hassette where your code lives. `HASSETTE__PROJECT_DIR` tells the startup script where your package definition lives. These can be the same directory or different directories depending on your project structure.
 
 ## Project Structures
 
