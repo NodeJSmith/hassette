@@ -37,11 +37,11 @@ These two environment variables serve different purposes:
 
 | Variable                | Purpose                                                                               | Used By          |
 | ----------------------- | ------------------------------------------------------------------------------------- | ---------------- |
-| `HASSETTE__APP_DIR`     | Where Hassette looks for `.py` files containing `App`/`AppSync` classes               | Hassette runtime |
+| `HASSETTE__APPS__DIRECTORY` | Where Hassette looks for `.py` files containing `App`/`AppSync` classes           | Hassette runtime |
 | `HASSETTE__PROJECT_DIR` | Where the startup script looks for `pyproject.toml`/`uv.lock` to install dependencies | Startup script   |
 
 !!! important "Key Distinction"
-    `APP_DIR` tells Hassette where your code lives. `PROJECT_DIR` tells the startup script where your package definition lives. These can be the same directory or different directories depending on your project structure.
+    `APPS__DIRECTORY` tells Hassette where your code lives. `PROJECT_DIR` tells the startup script where your package definition lives. These can be the same directory or different directories depending on your project structure.
 
 ## Project Structures
 
@@ -61,7 +61,7 @@ For basic apps where you do not need to import sibling files, use a simple flat 
 
 In this setup:
 
-- `HASSETTE__APP_DIR` defaults to `/apps` ✓
+- `HASSETTE__APPS__DIRECTORY` defaults to `/apps` ✓
 - `HASSETTE__PROJECT_DIR` defaults to `/apps` ✓
 
 !!! note "Opt-in required for requirements.txt"
@@ -85,7 +85,7 @@ In this setup:
 
 - The project root (containing `pyproject.toml`) is mounted to `/apps`
 - `HASSETTE__PROJECT_DIR=/apps` tells the startup script where to find dependencies
-- `HASSETTE__APP_DIR=/apps/src/my_apps` tells Hassette where to find your app files
+- `HASSETTE__APPS__DIRECTORY=/apps/src/my_apps` tells Hassette where to find your app files
 - Your app files can import from the `my_apps` package normally
 
 ## Using pyproject.toml

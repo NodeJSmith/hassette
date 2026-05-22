@@ -110,7 +110,7 @@ Override any configuration via environment variables using the `HASSETTE__` pref
 | ----------------------- | ---------------------------------------------------------------------------------------------------- |
 | `HASSETTE__TOKEN`       | Home Assistant long-lived access token                                                               |
 | `HASSETTE__BASE_URL`    | Home Assistant URL (e.g., `http://homeassistant:8123`)                                               |
-| `HASSETTE__APP_DIR`     | Directory containing your app Python files                                                           |
+| `HASSETTE__APPS__DIRECTORY` | Directory containing your app Python files                                                       |
 | `HASSETTE__PROJECT_DIR` | Directory containing `pyproject.toml`/`uv.lock` for dependency installation                         |
 | `HASSETTE__CONFIG_DIR`  | Directory containing configuration files                                                             |
 | `HASSETTE__LOG_LEVEL`   | Logging level (`debug`, `info`, `warning`, `error`). (`LOG_LEVEL` is also read at startup before the config initializes, but `HASSETTE__LOG_LEVEL` controls the full runtime log level.) |
@@ -118,7 +118,7 @@ Override any configuration via environment variables using the `HASSETTE__` pref
 | `HASSETTE__PRUNE_UV_CACHE` | Set to `0` to skip `uv cache prune` at startup (default: `1`)                                    |
 | `TZ`                    | System timezone (e.g., `America/New_York`)                                                           |
 
-See [Managing Dependencies](dependencies.md) for details on `HASSETTE__APP_DIR` and `HASSETTE__PROJECT_DIR`.
+See [Managing Dependencies](dependencies.md) for details on `HASSETTE__APPS__DIRECTORY` and `HASSETTE__PROJECT_DIR`.
 
 ## Production Deployment
 
