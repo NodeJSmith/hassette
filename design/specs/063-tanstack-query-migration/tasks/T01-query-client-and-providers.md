@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Add query client factory, provider setup, and test utilities"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#2", "FR#3", "AC#3"]
 ---
@@ -42,7 +42,7 @@ defaultOptions: {
 }
 ```
 
-Check how the existing `apiFetch` function in `frontend/src/api/endpoints.ts` throws errors — the retry function must detect HTTP status from whatever error type `apiFetch` produces. If `apiFetch` throws a plain `Error` with no `.status`, you may need to create a small `HttpError` class that preserves the status code, or check TanStack Query's error handling docs for how the adapter surfaces HTTP errors.
+Check how the existing `apiFetch` function in `frontend/src/api/client.ts` throws errors — the retry function must detect HTTP status from whatever error type `apiFetch` produces. If `apiFetch` throws a plain `Error` with no `.status`, you may need to create a small `HttpError` class that preserves the status code, or check TanStack Query's error handling docs for how the adapter surfaces HTTP errors.
 
 ### 3. Create `frontend/src/lib/query-client.test.ts`
 
@@ -100,9 +100,9 @@ Do NOT remove `ManifestProvider` yet — that happens in T05.
 ## Focus
 
 - The `frontend/src/lib/` directory does not exist. Create it before writing `query-client.ts`.
-- The existing `apiFetch` in `frontend/src/api/endpoints.ts` is the HTTP client wrapper. Read it to understand what error type it throws — the retry function depends on this.
+- The existing `apiFetch` in `frontend/src/api/client.ts` is the HTTP client wrapper. It throws `ApiError` (extends `Error`) which has a `.status` property — the retry function depends on this.
 - `frontend/src/test/render-helpers.tsx` currently wraps only with `AppStateContext.Provider` (lines 26-29). Adding `QueryClientProvider` here is the minimal change that enables all subsequent tasks.
-- `frontend/src/app.tsx` currently has the provider tree at lines 73-154. The `QueryClientProvider` wraps OUTSIDE `AppStateContext.Provider` so that hooks inside the tree (like `useWebSocket`, which will call `useQueryClient()` in T03) can access the query client.
+- `frontend/src/app.tsx` currently has the provider tree at lines 74-153. The `QueryClientProvider` wraps OUTSIDE `AppStateContext.Provider` so that hooks inside the tree (like `useWebSocket`, which will call `useQueryClient()` in T03) can access the query client.
 - All 15 test files using `renderWithAppState` are indirectly affected. The test query client (`retry: false`, `staleTime: 0`) makes wrapping transparent for tests that don't touch queries.
 - Follow the import pattern used in existing files: relative imports like `../lib/query-client`, `./query-test-utils`.
 

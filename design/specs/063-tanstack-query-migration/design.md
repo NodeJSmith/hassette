@@ -77,7 +77,7 @@ A fourth hook, `useManifestFetcher`, duplicates the same hand-rolled fetch patte
 - **FR#1** All data-fetching call sites use the library's query hooks — no remaining custom data-fetching hooks (`useApi`, `useScopedApi`, `useFilteredSignalRefetch`, `useManifestFetcher`, or the hand-rolled fetch in `useLogData`)
 - **FR#2** Navigating away from a page and returning within 30 seconds serves cached data without a new network request
 - **FR#3** Transient server errors (HTTP 5xx, network errors) retry automatically up to 2 times with backoff; client errors (HTTP 4xx) do not retry
-- **FR#4** Unmounting a component or changing query parameters cancels any in-flight request for the previous query
+- **FR#4** Unmounting a component or changing query parameters discards results from the previous query — no errors, console warnings, or state writes to unmounted components
 - **FR#5** Real-time event signals trigger cache invalidation with 500ms trailing debounce and 1500ms max-wait cap, matching the current behavior
 - **FR#6** Connection recovery (reconnect after disconnect) triggers immediate invalidation of all active query caches, bypassing debounce
 - **FR#7** Time-window-scoped queries gate on server uptime availability — no fetch fires until the uptime value is received from the server
@@ -87,7 +87,7 @@ A fourth hook, `useManifestFetcher`, duplicates the same hand-rolled fetch patte
 
 ## Edge Cases
 
-- **Rapid preset switching**: changing the time preset multiple times quickly should cancel previous in-flight fetches and only complete the latest one
+- **Rapid preset switching**: changing the time preset multiple times quickly should discard results from previous fetches and only render the latest one
 - **Burst of real-time events**: 50 events arriving in 5 seconds should produce at most ~4 fetches (capped by the 1500ms max-wait), not 50
 - **Component unmount during fetch**: navigating away mid-request should not cause errors or state writes to unmounted components
 - **Concurrent identical requests**: two components requesting the same data should share one network request, not fire two
@@ -332,7 +332,7 @@ await findByText("config"); // async — waits for query to resolve
 - `frontend/src/components/app-detail/recent-activity-section.tsx` — replace `useScopedApi` + `useFilteredSignalRefetch`
 - `frontend/src/components/layout/sidebar.tsx` — replace `state.manifests` → `useManifests()`
 - `frontend/src/components/app-detail/overview-tab.test.tsx` — update `WS_DEBOUNCE_MAX_WAIT_MS` import from deleted hook to `use-query-invalidator`
-- `frontend/src/components/layout/command-palette.test.tsx` — replace `manifests`/`manifestsLoading` state overrides with MSW-backed manifest responses; update for `lazy: true` → `enabled: isOpen` migration (switch to async assertions)
+- `frontend/src/components/layout/command-palette.test.tsx` — replace `manifests`/`manifestsLoading` state overrides with MSW-backed manifest responses; update for `lazy: true` → `enabled: open` migration (switch to async assertions)
 - `frontend/src/components/layout/sidebar.test.tsx` — replace `manifests`/`manifestsLoading` state overrides with MSW-backed manifest responses
 - `frontend/src/pages/logs.test.tsx` — replace `manifests`/`manifestsLoading` state overrides with MSW-backed manifest responses
 - `frontend/src/components/shared/log-table/use-log-table.test.tsx` — update `useLogData` mock return values from `signal([])` to plain arrays; update `loading` mock from signal to boolean
@@ -511,7 +511,7 @@ All page/component test files migrate from hook mocks to MSW-backed async tests:
 - Use MSW handlers from `test/handlers.ts` to control API responses
 - Replace synchronous assertions (`expect(x).toBeDefined()`) with async queries (`await findByText(...)`, `waitFor(...)`)
 - Key scenarios per page: loading state (`isPending` → spinner), error display (`error.message`), populated data, empty state
-- `command-palette.test.tsx` specifically: simulate palette open to trigger the `enabled: isOpen` gate; replace `manifests`/`manifestsLoading` state overrides with MSW-backed manifest responses
+- `command-palette.test.tsx` specifically: simulate palette open to trigger the `enabled: open` gate; replace `manifests`/`manifestsLoading` state overrides with MSW-backed manifest responses
 
 ### Failure mode coverage (distributed across test files above)
 

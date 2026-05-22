@@ -75,8 +75,6 @@ const { data: jobs, isPending: jobsLoading } = useScopedQuery(
 );
 ```
 
-Note: `useScopedQuery` may need an `options` parameter added to pass `placeholderData`. Read the T02 implementation of `useScopedQuery` to see if it supports forwarding extra `useQuery` options. If not, extend it to accept an optional `queryOptions` parameter that spreads into the `useQuery` call.
-
 Replace invalidation:
 ```tsx
 useQueryInvalidator(
@@ -116,7 +114,7 @@ For each page test file (`handlers.test.tsx`, `apps.test.tsx`, `app-detail.test.
 - `apps.tsx` line 22 imports `PRESET_WINDOW_SECONDS` from `use-scoped-api` — update to import from `../utils/time-window`.
 - `apps.tsx` line 184 uses `PRESET_WINDOW_SECONDS[effectiveTimePreset.value]` directly. After migration, `effectiveTimePreset` is still a signal read from `useAppState()` — the `.value` access stays for this usage (it's reading the signal directly, not via a hook return).
 - AppDetailPage's `placeholderData: keepPreviousData` requires importing `keepPreviousData` from `@tanstack/preact-query`.
-- If `useScopedQuery` (T02) doesn't accept extra options, extend it here. Add an optional third parameter: `options?: Partial<UseQueryOptions>` that spreads into the `useQuery` call. This is the only consumer that needs it.
+- `useScopedQuery` (T02) accepts an optional third `options` parameter — pass `{ placeholderData: keepPreviousData }` through it.
 - After this task, `useScopedApi` and `useFilteredSignalRefetch` still have component-level consumers (T07). Do NOT delete those hooks yet.
 
 ## Verify

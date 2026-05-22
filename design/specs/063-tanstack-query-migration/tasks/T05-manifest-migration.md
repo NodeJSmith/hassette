@@ -90,12 +90,14 @@ void listenersApi.refetch();
 ```tsx
 const { data: listeners, isPending } = useQuery({
   queryKey: ["all-listeners-palette"],
-  queryFn: getAllListeners,
-  enabled: isOpen, // only fetch when palette is open
+  queryFn: () => getAllListeners(),
+  enabled: open, // only fetch when palette is open
 });
 ```
 
-The `lazy: true` + manual `refetch()` pattern maps to `enabled: isOpen`. Find the open state variable in the component. Remove the `useApi` import. Remove the manual `refetch()` call.
+The `lazy: true` + manual `refetch()` pattern maps to `enabled: open` (the prop name is `open`, not `isOpen`). Remove the `useApi` import. Remove the manual `refetch()` call.
+
+Note: `getAllListeners` accepts `(since?: number | null)`. Do NOT pass it directly as `queryFn: getAllListeners` — TanStack passes a `QueryFunctionContext` object as the first argument, which would be interpreted as the `since` parameter and break the API call. Always wrap: `queryFn: () => getAllListeners()`.
 
 Update error handling in this file too — any error display changes from string to `Error` object.
 
@@ -124,7 +126,7 @@ For each test file: read the full file first, then remove manifest-related state
 - Six source files and three test files are modified. This is a large task but all changes follow the same pattern.
 - `command-palette.tsx` has TWO migrations: manifest AND useApi-lazy. Both are done here to avoid touching the file twice.
 - `app-detail.tsx` and `apps.tsx` also use `useScopedApi` — do NOT migrate those calls here. Only migrate the manifest access. The scoped query migration happens in T06.
-- The `isOpen` variable for command palette's `enabled` gate — read the component to find how palette open state is tracked. It's passed as a prop (`open`).
+- The palette's `enabled` gate uses the `open` prop (line 25: `open: boolean` in `CommandPaletteProps`, line 29: destructured as `{ open, onClose }`).
 - `getManifests` in `frontend/src/api/endpoints.ts` (line 36) returns `Promise<ManifestListResponse>`.
 - After this task, `useApi` has zero remaining consumers (config and diagnostics migrated in T04, command-palette migrated here). The file is not deleted until T09.
 - Utility files `palette-items.ts` and `app-data.ts` receive manifests as parameters — they need no changes.
@@ -133,5 +135,5 @@ For each test file: read the full file first, then remove manifest-related state
 
 - [ ] FR#1: `useManifestFetcher` is deleted; `command-palette.tsx` no longer imports `useApi` — verified by file deletion and grep
 - [ ] FR#9: `useManifests()` wraps `useQuery` with `select: (data) => data.manifests`; `ManifestProvider` removed from `app.tsx`; no manifest signals in `AppState` — verified by code review
-- [ ] FR#10: command palette fetches on open via `enabled: isOpen` and serves cached data on subsequent opens — verified by `command-palette.test.tsx`
+- [ ] FR#10: command palette fetches on open via `enabled: open` and serves cached data on subsequent opens — verified by `command-palette.test.tsx`
 - [ ] AC#7: command palette test shows cached data on subsequent opens within cache window — verified by test assertion

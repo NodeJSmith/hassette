@@ -224,6 +224,9 @@ docs/code-reference
 # Node (JS dev tooling)
 node_modules/
 
+# Un-ignore frontend/src/lib/ (the root lib/ rule is Python-specific)
+!frontend/src/lib/
+
 # Frontend build output (built at package time, not checked in)
 src/hassette/web/static/spa/
 frontend/node_modules/

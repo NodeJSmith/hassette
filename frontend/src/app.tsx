@@ -1,3 +1,4 @@
+import { QueryClientProvider } from "@tanstack/preact-query";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Toaster } from "sonner";
 import { Redirect, Route, Switch, useLocation } from "wouter";
@@ -10,6 +11,7 @@ import { StatusBar } from "./components/layout/status-bar";
 import { useManifestFetcher } from "./hooks/use-manifest-fetcher";
 import { useTelemetryHealth } from "./hooks/use-telemetry-health";
 import { useWebSocket } from "./hooks/use-websocket";
+import { createQueryClient } from "./lib/query-client";
 import { AppDetailPage } from "./pages/app-detail";
 import { AppsPage } from "./pages/apps";
 import { ConfigPage } from "./pages/config";
@@ -21,6 +23,7 @@ import { AppStateContext, useAppState } from "./state/context";
 import { createAppState, RELATIVE_TIME_TICK_MS } from "./state/create-app-state";
 
 export function App() {
+  const queryClient = useMemo(() => createQueryClient(), []);
   const state = useMemo(() => createAppState(), []);
   const [location] = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -71,86 +74,88 @@ export function App() {
   }, [drawerOpen]);
 
   return (
-    <AppStateContext.Provider value={state}>
-      <WebSocketProvider state={state} />
-      <ManifestProvider state={state} />
-      <TelemetryHealthProvider state={state} />
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-      <Toaster position="bottom-right" theme={state.theme.value} closeButton richColors />
+    <QueryClientProvider client={queryClient}>
+      <AppStateContext.Provider value={state}>
+        <WebSocketProvider state={state} />
+        <ManifestProvider state={state} />
+        <TelemetryHealthProvider state={state} />
+        <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+        <Toaster position="bottom-right" theme={state.theme.value} closeButton richColors />
 
-      {/* Skip link */}
-      <a href="#main-content" class="ht-skip-link">
-        Skip to main content
-      </a>
+        {/* Skip link */}
+        <a href="#main-content" class="ht-skip-link">
+          Skip to main content
+        </a>
 
-      {/* Hamburger button (mobile) */}
-      <button
-        ref={hamburgerRef}
-        type="button"
-        class="ht-hamburger"
-        aria-label={drawerOpen ? "Close navigation" : "Open navigation"}
-        aria-expanded={drawerOpen}
-        onClick={() => setDrawerOpen(true)}
-      >
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-          <line x1="3" y1="6" x2="21" y2="6" />
-          <line x1="3" y1="12" x2="21" y2="12" />
-          <line x1="3" y1="18" x2="21" y2="18" />
-        </svg>
-      </button>
+        {/* Hamburger button (mobile) */}
+        <button
+          ref={hamburgerRef}
+          type="button"
+          class="ht-hamburger"
+          aria-label={drawerOpen ? "Close navigation" : "Open navigation"}
+          aria-expanded={drawerOpen}
+          onClick={() => setDrawerOpen(true)}
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
 
-      {/* Off-canvas drawer (mobile) */}
-      <div ref={drawerRef} class={`ht-drawer${drawerOpen ? " is-open" : ""}`} aria-hidden={!drawerOpen}>
-        {drawerMounted && <Sidebar onOpenPalette={() => setPaletteOpen(true)} />}
-      </div>
-      {drawerOpen && <div class="ht-drawer-backdrop" role="presentation" onClick={() => setDrawerOpen(false)} />}
+        {/* Off-canvas drawer (mobile) */}
+        <div ref={drawerRef} class={`ht-drawer${drawerOpen ? " is-open" : ""}`} aria-hidden={!drawerOpen}>
+          {drawerMounted && <Sidebar onOpenPalette={() => setPaletteOpen(true)} />}
+        </div>
+        {drawerOpen && <div class="ht-drawer-backdrop" role="presentation" onClick={() => setDrawerOpen(false)} />}
 
-      {/* Desktop layout */}
-      <div class="ht-layout" data-testid="layout" {...(drawerOpen ? { inert: true } : {})}>
-        <Sidebar onOpenPalette={() => setPaletteOpen(true)} />
-        <main class="ht-main" id="main-content" tabIndex={-1}>
-          <StatusBar />
-          <TelemetryDegradedBanner />
-          <FailedAppsAlert />
-          <ErrorBoundary resetKey={location}>
-            <Switch>
-              <Route path="/">
-                <Redirect to="/apps" />
-              </Route>
-              <Route path="/apps/:key/handlers/:handlerId">
-                {(params: { key: string; handlerId: string }) => (
-                  <AppDetailPage params={{ key: params.key, tab: "handlers", handler: params.handlerId }} />
-                )}
-              </Route>
-              <Route path="/apps/:key/handlers">
-                {(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "handlers" }} />}
-              </Route>
-              <Route path="/apps/:key/code">
-                {(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "code" }} />}
-              </Route>
-              <Route path="/apps/:key/logs">
-                {(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "logs" }} />}
-              </Route>
-              <Route path="/apps/:key/config">
-                {(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "config" }} />}
-              </Route>
-              <Route path="/apps/:key/overview">
-                {(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "overview" }} />}
-              </Route>
-              <Route path="/apps/:key">
-                {(params: { key: string }) => <AppDetailPage params={{ key: params.key }} />}
-              </Route>
-              <Route path="/apps" component={AppsPage} />
-              <Route path="/handlers" component={HandlersPage} />
-              <Route path="/diagnostics" component={DiagnosticsPage} />
-              <Route path="/logs" component={LogsPage} />
-              <Route path="/config" component={ConfigPage} />
-              <Route component={NotFoundPage} />
-            </Switch>
-          </ErrorBoundary>
-        </main>
-      </div>
-    </AppStateContext.Provider>
+        {/* Desktop layout */}
+        <div class="ht-layout" data-testid="layout" {...(drawerOpen ? { inert: true } : {})}>
+          <Sidebar onOpenPalette={() => setPaletteOpen(true)} />
+          <main class="ht-main" id="main-content" tabIndex={-1}>
+            <StatusBar />
+            <TelemetryDegradedBanner />
+            <FailedAppsAlert />
+            <ErrorBoundary resetKey={location}>
+              <Switch>
+                <Route path="/">
+                  <Redirect to="/apps" />
+                </Route>
+                <Route path="/apps/:key/handlers/:handlerId">
+                  {(params: { key: string; handlerId: string }) => (
+                    <AppDetailPage params={{ key: params.key, tab: "handlers", handler: params.handlerId }} />
+                  )}
+                </Route>
+                <Route path="/apps/:key/handlers">
+                  {(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "handlers" }} />}
+                </Route>
+                <Route path="/apps/:key/code">
+                  {(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "code" }} />}
+                </Route>
+                <Route path="/apps/:key/logs">
+                  {(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "logs" }} />}
+                </Route>
+                <Route path="/apps/:key/config">
+                  {(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "config" }} />}
+                </Route>
+                <Route path="/apps/:key/overview">
+                  {(params: { key: string }) => <AppDetailPage params={{ key: params.key, tab: "overview" }} />}
+                </Route>
+                <Route path="/apps/:key">
+                  {(params: { key: string }) => <AppDetailPage params={{ key: params.key }} />}
+                </Route>
+                <Route path="/apps" component={AppsPage} />
+                <Route path="/handlers" component={HandlersPage} />
+                <Route path="/diagnostics" component={DiagnosticsPage} />
+                <Route path="/logs" component={LogsPage} />
+                <Route path="/config" component={ConfigPage} />
+                <Route component={NotFoundPage} />
+              </Switch>
+            </ErrorBoundary>
+          </main>
+        </div>
+      </AppStateContext.Provider>
+    </QueryClientProvider>
   );
 }
 

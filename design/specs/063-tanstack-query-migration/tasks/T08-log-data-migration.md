@@ -2,7 +2,7 @@
 task_id: "T08"
 title: "Migrate log data fetching to useQuery"
 status: "planned"
-depends_on: ["T01"]
+depends_on: ["T01", "T03"]
 implements: ["FR#1"]
 ---
 
@@ -82,7 +82,7 @@ Find all `.value` reads on these variables throughout the file and remove them. 
 
 ### 3. Update `frontend/src/components/shared/log-table/use-log-filters.ts`
 
-Read the full file (263 lines). This file is the most complex restructuring in the migration — it uses Preact `computed()` signals internally.
+Read the full file (262 lines). This file is the most complex restructuring in the migration — it uses Preact `computed()` signals internally.
 
 **Parameter type change** (lines 11-12):
 ```typescript

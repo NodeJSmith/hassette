@@ -44,8 +44,11 @@ Signature:
 export function useScopedQuery<T>(
   baseKey: readonly unknown[],
   fetcher: (since: number) => Promise<T>,
+  options?: { placeholderData?: typeof keepPreviousData },
 ): UseQueryResult<T>
 ```
+
+The optional `options` parameter forwards supported `useQuery` options. Currently only `placeholderData` is needed (by AppDetailPage in T06 for stale-while-revalidate). Spread `options` into the `useQuery` call.
 
 Key behaviors:
 - Computes `waitingForUptime = preset === "since-restart" && uptimeSeconds === null`
@@ -118,7 +121,7 @@ Use `vi.useFakeTimers()` for timing control. Use `renderHookWithProviders` for r
 
 ## Focus
 
-- `frontend/src/utils/` already exists with 18 files. `time-window.ts` follows existing conventions.
+- `frontend/src/utils/` already exists with 20 files. `time-window.ts` follows existing conventions.
 - The `resolveSince` function in `use-scoped-api.ts` uses `MS_PER_SECOND` from `../utils/format`. Check whether this constant is needed in `time-window.ts` or if the function uses raw division.
 - The `useScopedQuery` hook reads `effectiveTimePreset` from AppState — this is a `Computed<TimePreset>` signal (see `create-app-state.ts` line ~205). The hook must read `.value` from it.
 - The `useQueryInvalidator` debounce algorithm is the critical invariant: trailing edge resets, max-wait does NOT reset. The existing implementation in `use-filtered-signal-refetch.ts` lines 65-88 is the reference — replicate the timing behavior exactly.
