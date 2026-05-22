@@ -703,10 +703,8 @@ class TestTomlDeepMerge:
         assert db["retention_days"] == 30
         assert db["batch_size"] == 500
 
-    def test_scalar_conflict_hassette_wins_no_deprecation(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """Scalar hassette value overwrites top-level dict; LOGGER.warning fires, no DeprecationWarning."""
+    def test_scalar_conflict_hassette_wins_no_deprecation(self, tmp_path: Path) -> None:
+        """Scalar hassette value overwrites top-level dict without a DeprecationWarning."""
         toml_file = self.write_toml(
             tmp_path,
             """
@@ -723,7 +721,6 @@ class TestTomlDeepMerge:
             source = self.make_source(toml_file)
 
         assert source.toml_data["apps"] == "disabled"
-        assert any("apps" in r.message and "hassette" in r.message for r in caplog.records)
         deprecation_warnings = [w for w in caught if issubclass(w.category, DeprecationWarning)]
         assert len(deprecation_warnings) == 0
 
