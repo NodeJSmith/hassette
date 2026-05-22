@@ -197,7 +197,7 @@ async def scheduler_client(mock_hassette_scheduler):
     app = create_fastapi_app(mock_hassette_scheduler)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac, mock_hassette_scheduler
+        yield ac
 
 
 def make_job_summary(
@@ -228,30 +228,27 @@ def make_job_summary(
 
 
 class TestGlobalJobsEndpointExists:
-    async def test_endpoint_returns_200(self, scheduler_client) -> None:
+    async def test_endpoint_returns_200(self, scheduler_client, mock_hassette_scheduler) -> None:
         """GET /api/scheduler/jobs returns 200 and a list."""
-        client, mock_hassette = scheduler_client
-        mock_hassette.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[])
-        mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
+        mock_hassette_scheduler.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[])
+        mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
 
-        response = await client.get("/api/scheduler/jobs")
+        response = await scheduler_client.get("/api/scheduler/jobs")
         assert response.status_code == 200
         assert response.json() == []
 
 
 class TestGlobalJobsEndpointMultipleApps:
-    async def test_returns_jobs_from_multiple_apps(self, scheduler_client) -> None:
+    async def test_returns_jobs_from_multiple_apps(self, scheduler_client, mock_hassette_scheduler) -> None:
         """GET /api/scheduler/jobs returns jobs from multiple apps."""
-        client, mock_hassette = scheduler_client
-
         db_jobs = [
             make_job_summary(job_id=1, app_key="app_alpha"),
             make_job_summary(job_id=2, app_key="app_beta"),
         ]
-        mock_hassette.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=db_jobs)
-        mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
+        mock_hassette_scheduler.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=db_jobs)
+        mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
 
-        response = await client.get("/api/scheduler/jobs")
+        response = await scheduler_client.get("/api/scheduler/jobs")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
@@ -260,20 +257,18 @@ class TestGlobalJobsEndpointMultipleApps:
 
 
 class TestGlobalJobsEndpointEnrichesWithLiveData:
-    async def test_enriches_with_live_heap_data(self, scheduler_client) -> None:
+    async def test_enriches_with_live_heap_data(self, scheduler_client, mock_hassette_scheduler) -> None:
         """Global jobs endpoint enriches DB rows with live next_run, fire_at, jitter."""
-        client, mock_hassette = scheduler_client
-
         db_summary = make_job_summary(job_id=42, app_key="my_app")
-        mock_hassette.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[db_summary])
+        mock_hassette_scheduler.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[db_summary])
 
         trigger = Every(hours=1)
         live_job = make_real_job(name="test_job", trigger=trigger, jitter=10.0)
         live_job.mark_registered(42)
         live_job.fire_at = live_job.next_run.add(seconds=5.0)
-        mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[live_job])
+        mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(return_value=[live_job])
 
-        response = await client.get("/api/scheduler/jobs")
+        response = await scheduler_client.get("/api/scheduler/jobs")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
@@ -286,30 +281,26 @@ class TestGlobalJobsEndpointEnrichesWithLiveData:
 
 
 class TestGlobalJobsEndpointDegradedOnHeapFailure:
-    async def test_returns_db_rows_when_heap_unavailable(self, scheduler_client) -> None:
+    async def test_returns_db_rows_when_heap_unavailable(self, scheduler_client, mock_hassette_scheduler) -> None:
         """Returns DB-only rows (no 500) when get_all_jobs() raises."""
-        client, mock_hassette = scheduler_client
-
         db_summary = make_job_summary(job_id=55)
-        mock_hassette.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[db_summary])
-        mock_hassette.scheduler_service.get_all_jobs = AsyncMock(side_effect=RuntimeError("heap unavailable"))
+        mock_hassette_scheduler.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[db_summary])
+        mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(side_effect=RuntimeError("heap unavailable"))
 
-        response = await client.get("/api/scheduler/jobs")
+        response = await scheduler_client.get("/api/scheduler/jobs")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
         assert data[0]["next_run"] is None
         assert data[0]["fire_at"] is None
 
-    async def test_db_error_returns_503(self, scheduler_client) -> None:
+    async def test_db_error_returns_503(self, scheduler_client, mock_hassette_scheduler) -> None:
         """DB failure returns 503 response."""
-        client, mock_hassette = scheduler_client
-
-        mock_hassette.telemetry_query_service.get_all_jobs_summary = AsyncMock(
+        mock_hassette_scheduler.telemetry_query_service.get_all_jobs_summary = AsyncMock(
             side_effect=sqlite3.OperationalError("disk I/O error")
         )
 
-        response = await client.get("/api/scheduler/jobs")
+        response = await scheduler_client.get("/api/scheduler/jobs")
         assert response.status_code == 503
         assert response.json() == []
 
@@ -509,10 +500,8 @@ class TestServiceInfoResponseExtension:
 
 
 class TestHealthEndpointServiceInfoFields:
-    async def test_health_endpoint_returns_services_with_role(self, scheduler_client) -> None:
+    async def test_health_endpoint_returns_services_with_role(self, scheduler_client, mock_hassette_scheduler) -> None:
         """GET /api/health returns services array with role field populated."""
-        client, mock_hassette = scheduler_client
-
         mock_child = MagicMock()
         mock_child.class_name = "WebSocketService"
         mock_child.status = ResourceStatus.RUNNING
@@ -520,13 +509,13 @@ class TestHealthEndpointServiceInfoFields:
         mock_child._ready_reason = "connected"
         mock_child._retry_at = None
 
-        mock_hassette.children = [mock_child]
+        mock_hassette_scheduler.children = [mock_child]
 
         # Wire runtime_query_service so it uses a real get_system_status
-        rqs = create_mock_runtime_query_service(mock_hassette)
-        mock_hassette.runtime_query_service = rqs
+        rqs = create_mock_runtime_query_service(mock_hassette_scheduler)
+        mock_hassette_scheduler.runtime_query_service = rqs
 
-        response = await client.get("/api/health")
+        response = await scheduler_client.get("/api/health")
         assert response.status_code == 200
         data = response.json()
         assert "services" in data
