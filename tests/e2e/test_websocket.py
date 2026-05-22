@@ -99,7 +99,7 @@ def test_websocket_connected_message_has_uptime(page: Page, live_server_ws: str)
     status_bar = page.locator("[data-testid='status-bar']")
     expect(status_bar).to_be_visible()
     ws_indicator = page.locator("[data-testid='ws-indicator']")
-    expect(ws_indicator.first).to_have_attribute("aria-label", "Connected", timeout=10000)
+    expect(ws_indicator.first).to_have_text("Connected", timeout=10000)
 
     # After WS connects, useScopedApi unblocks (uptime_seconds gate) and fires
     # telemetry fetches. Wait for the apps page to finish loading.
@@ -123,7 +123,7 @@ def test_websocket_no_session_id_in_requests(page: Page, live_server_ws: str) ->
 
     # Wait for WS to connect and data to load
     ws_indicator = page.locator("[data-testid='ws-indicator']")
-    expect(ws_indicator.first).to_have_attribute("aria-label", "Connected", timeout=10000)
+    expect(ws_indicator.first).to_have_text("Connected", timeout=10000)
     expect(page.locator("[data-testid='apps-page']")).to_be_visible(timeout=10000)
 
     # At least one dashboard telemetry request must have been made
