@@ -25,9 +25,10 @@ Global settings control how Hassette runs and connects to Home Assistant. These 
 
 ## Runtime Settings
 
-- **`app_dir`** (string): Directory containing your app modules.
-    - Default: `.` (current directory)
+- **`apps.directory`** (string): Directory containing your app modules.
+    - Default: `apps` (relative to the current working directory)
     - Example: `src/apps`
+    - Lives under `[hassette.apps]` in `hassette.toml`.
 
 - **`dev_mode`** (boolean): Enable development features.
     - **Heuristics**: If not explicitly set, Hassette detects dev mode by checking for:
@@ -104,13 +105,13 @@ These settings live under `[hassette.web_api]` and control the [web UI](../../we
 
 ## Database Settings
 
-These settings control the persistent telemetry database. See [Database & Telemetry](../database-telemetry.md) for details on what is stored.
+These settings live under `[hassette.database]` and control the persistent telemetry database. See [Database & Telemetry](../database-telemetry.md) for details on what is stored.
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `db_path` | path or null | `null` | Path to the SQLite database file. Defaults to `{data_dir}/hassette.db` when not set. |
-| `db_retention_days` | integer | `7` | Number of days to retain execution records (handler invocations, job executions). Minimum: 1. |
-| `db_max_size_mb` | float | `500` | Maximum database file size in MB. When exceeded, oldest execution records are deleted. Set to `0` to disable the size limit. |
+| `path` | path or null | `null` | Path to the SQLite database file. Defaults to `{data_dir}/hassette.db` when not set. |
+| `retention_days` | integer | `7` | Number of days to retain execution records (handler invocations, job executions). Minimum: 1. |
+| `max_size_mb` | float | `500` | Maximum database file size in MB. When exceeded, oldest execution records are deleted. Set to `0` to disable the size limit. |
 
 **Example:**
 
@@ -229,6 +230,8 @@ event_handler_timeout_seconds = 30.0
 
 ## Logging Settings
 
+These settings live under `[hassette.logging]`.
+
 Hassette supports per-service log levels for each of its 13 internal services. Each field falls back to the global `log_level` setting (default: `INFO`).
 
 See [Log Level Tuning](../../advanced/log-level-tuning.md) for the full field list, precedence rules, and examples.
@@ -257,16 +260,16 @@ Filter out noisy events at the bus level before they reach your apps.
 
 ## App Detection Settings
 
-| Setting | Type | Default | Description |
-|---------|------|---------|-------------|
-| `autodetect_apps` | boolean | `true` | Automatically discover apps in the app directory. |
-| `run_app_precheck` | boolean | `true` | Run app precheck before starting. If any apps fail to load, Hassette does not start. |
-| `allow_startup_if_app_precheck_fails` | boolean | `false` | Allow Hassette to start even if the app precheck fails. Generally not recommended. |
-| `extend_autodetect_exclude_dirs` | tuple of strings | `()` | Additional directories to exclude from app auto-detection. **Use this instead of `autodetect_exclude_dirs`** — it adds to the defaults rather than replacing them. |
-| `autodetect_exclude_dirs` | tuple of strings | *(built-in list)* | Full list of excluded directories. Setting this directly **replaces** the defaults (`.git`, `__pycache__`, `.venv`, etc.), which is usually not what you want. |
+| Setting | Table | Type | Default | Description |
+|---------|-------|------|---------|-------------|
+| `autodetect` | `[hassette.apps]` | boolean | `true` | Automatically discover apps in the app directory. |
+| `run_app_precheck` | `[hassette]` | boolean | `true` | Run app precheck before starting. If any apps fail to load, Hassette does not start. |
+| `allow_startup_if_app_precheck_fails` | `[hassette]` | boolean | `false` | Allow Hassette to start even if the app precheck fails. Generally not recommended. |
+| `extend_exclude_dirs` | `[hassette.apps]` | tuple of strings | `()` | Additional directories to exclude from app auto-detection. **Use this instead of `exclude_dirs`** — it adds to the defaults rather than replacing them. |
+| `exclude_dirs` | `[hassette.apps]` | tuple of strings | *(built-in list)* | Full list of excluded directories. Setting this directly **replaces** the defaults (`.git`, `__pycache__`, `.venv`, etc.), which is usually not what you want. |
 
 !!! warning
-    If you need to exclude additional directories from app auto-detection, always use `extend_autodetect_exclude_dirs`. Setting `autodetect_exclude_dirs` directly will remove the default exclusions, causing Hassette to scan `.git`, `__pycache__`, virtual environments, and other directories that should be ignored.
+    If you need to exclude additional directories from app auto-detection, always use `extend_exclude_dirs`. Setting `exclude_dirs` directly will remove the default exclusions, causing Hassette to scan `.git`, `__pycache__`, virtual environments, and other directories that should be ignored.
 
 ## Advanced Settings
 

@@ -8,18 +8,18 @@ If something isn't working as expected, narrow the noise before enabling global 
 
 | Symptom | Service to tune |
 |---------|----------------|
-| Events not firing, wrong filters | `bus_service_log_level` |
-| Jobs not running, wrong timing | `scheduler_service_log_level` |
-| App not loading or crashing on start | `app_handler_log_level` |
-| Unexpected state values, stale data | `state_proxy_log_level` or `api_log_level` |
-| HA connection drops, WebSocket errors | `websocket_log_level` |
-| High API call latency, HTTP errors | `api_log_level` |
-| Noisy file-change messages in development | `file_watcher_log_level` |
-| Web UI not responding, errors visible in the web UI | `web_api_log_level` |
+| Events not firing, wrong filters | `logging.bus_service` |
+| Jobs not running, wrong timing | `logging.scheduler_service` |
+| App not loading or crashing on start | `logging.app_handler` |
+| Unexpected state values, stale data | `logging.state_proxy` or `logging.api` |
+| HA connection drops, WebSocket errors | `logging.websocket` |
+| High API call latency, HTTP errors | `logging.api` |
+| Noisy file-change messages in development | `logging.file_watcher` |
+| Web UI not responding, errors visible in the web UI | `logging.web_api` |
 
 ## How It Works
 
-Every service in Hassette has a dedicated `*_log_level` configuration field. When set, that service uses the specified level instead of the global `log_level`. When not set, the service inherits the global `log_level` (which defaults to `INFO`).
+Every service in Hassette has a dedicated log level field under `[hassette.logging]`. When set, that service uses the specified level instead of the global `log_level`. When not set, the service inherits the global `log_level` (which defaults to `INFO`).
 
 ```toml
 --8<-- "pages/advanced/snippets/log-level-tuning/basic_example.toml"
@@ -29,37 +29,37 @@ Every service in Hassette has a dedicated `*_log_level` configuration field. Whe
 
 Hassette provides 13 per-service log level fields:
 
-| TOML Field | Controls |
-|------------|----------|
-| `database_service_log_level` | Database service (telemetry storage, retention, heartbeats) |
-| `bus_service_log_level` | Event bus service (event dispatch, listener management) |
-| `scheduler_service_log_level` | Scheduler service (job scheduling, trigger evaluation) |
-| `app_handler_log_level` | App handler (app lifecycle, loading, starting, stopping) |
-| `web_api_log_level` | Web API service (HTTP endpoints, web UI) |
-| `websocket_log_level` | WebSocket service (Home Assistant connection) |
-| `service_watcher_log_level` | Service watcher (monitors service health, restarts) |
-| `file_watcher_log_level` | File watcher (detects code changes for hot reload) |
-| `task_bucket_log_level` | Task buckets (async task execution pools) |
-| `command_executor_log_level` | Command executor (app action dispatch) |
-| `apps_log_level` | Default level for all apps (can be overridden per-app) |
-| `state_proxy_log_level` | State proxy (Home Assistant state cache) |
-| `api_log_level` | API client (REST and WebSocket calls to Home Assistant) |
+| TOML Key | Controls |
+|----------|----------|
+| `logging.database_service` | Database service (telemetry storage, retention, heartbeats) |
+| `logging.bus_service` | Event bus service (event dispatch, listener management) |
+| `logging.scheduler_service` | Scheduler service (job scheduling, trigger evaluation) |
+| `logging.app_handler` | App handler (app lifecycle, loading, starting, stopping) |
+| `logging.web_api` | Web API service (HTTP endpoints, web UI) |
+| `logging.websocket` | WebSocket service (Home Assistant connection) |
+| `logging.service_watcher` | Service watcher (monitors service health, restarts) |
+| `logging.file_watcher` | File watcher (detects code changes for hot reload) |
+| `logging.task_bucket` | Task buckets (async task execution pools) |
+| `logging.command_executor` | Command executor (app action dispatch) |
+| `logging.apps` | Default level for all apps (can be overridden per-app) |
+| `logging.state_proxy` | State proxy (Home Assistant state cache) |
+| `logging.api` | API client (REST and WebSocket calls to Home Assistant) |
 
 All fields accept standard Python log levels: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` (case-insensitive).
 
 ## Fallback Behavior
 
-Each `*_log_level` field follows this precedence:
+Each per-service log level field follows this precedence:
 
 1. **Explicit value** — if you set the field in `hassette.toml`, that value is used.
 2. **Global `log_level`** — if the field is not set, it inherits the global `log_level`.
 3. **Default** — if neither is set, the level is `INFO`.
 
-This means setting `log_level = "DEBUG"` raises the verbosity of every service at once, while individual fields let you override specific services up or down.
+This means setting `log_level = "DEBUG"` under `[hassette.logging]` raises the verbosity of every service at once, while individual fields let you override specific services up or down.
 
 ## Per-App Log Levels
 
-The `apps_log_level` field sets the default log level for all your automation apps. You can also override the log level for a specific app in its configuration:
+The `logging.apps` field sets the default log level for all your automation apps. You can also override the log level for a specific app in its configuration:
 
 ```toml
 --8<-- "pages/advanced/snippets/log-level-tuning/per_app_log_level.toml"

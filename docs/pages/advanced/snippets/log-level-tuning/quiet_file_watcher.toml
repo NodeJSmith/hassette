@@ -1,2 +1,2 @@
-[hassette]
-file_watcher_log_level = "WARNING"
+[hassette.logging]
+file_watcher = "WARNING"

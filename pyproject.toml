@@ -46,6 +46,7 @@ dependencies = [
     "frozendict>=2.4.7",
     "glom>=24.11.0",
     "humanize>=4.13.0",
+    "mergedeep>=1.3.4",
     "orjson>=3.10.18",
     "packaging>=25.0",
     "platformdirs>=4.3.8",
@@ -124,6 +125,7 @@ filterwarnings = [
     "error",
     "default:.*does not declare restart_spec.*:UserWarning",
     "default::ResourceWarning:anyio\\.streams\\.memory",
+    "default:Top-level \\[apps\\.\\*\\]:DeprecationWarning:hassette\\.config\\.classes",
 ]
 # Skip slow Docker tests by default (run with: pytest -m docker)
 addopts = "-m 'not docker and not system and not system_destructive'"

@@ -1,12 +1,14 @@
 [hassette]
 base_url = "http://localhost:8123"
-app_dir = "hassette_apps"
 
-[apps.my_app]
+[hassette.apps]
+directory = "hassette_apps"
+
+[hassette.apps.my_app]
 filename = "main.py"
 class_name = "MyApp"
 enabled = true
 
 # [[double brackets]] = TOML array-of-tables; supports running the same app with multiple configs
-[[apps.my_app.config]]
+[[hassette.apps.my_app.config]]
 greeting = "This is from the config file!"
