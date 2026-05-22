@@ -98,6 +98,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # F811: pytest fixtures imported from non-conftest modules shadow the name
 # at the import site, then pytest re-binds them as test parameters.
 "tests/integration/test_telemetry_*.py" = ["F811"]
+"tests/integration/test_global_jobs_and_service_info.py" = ["F811"]
 
 [format]
 # Like Black, use double quotes for strings.

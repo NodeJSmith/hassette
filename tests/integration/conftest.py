@@ -15,6 +15,7 @@ from httpx import ASGITransport, AsyncClient
 from hassette import Hassette
 from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
+from hassette.scheduler.classes import ScheduledJob
 from hassette.test_utils import make_mock_hassette
 from hassette.test_utils.web_mocks import create_mock_runtime_query_service
 from hassette.web.app import create_fastapi_app
@@ -128,13 +129,17 @@ def premigrated_db_path(_migrated_db_template: Path, tmp_path: Path) -> Path:
 
 @pytest.fixture
 def db_hassette(premigrated_db_path: Path) -> AsyncMock:
-    """Provide a mock Hassette with real validated config pointing to a pre-migrated DB."""
+    """Provide a mock Hassette with real validated config pointing to a pre-migrated DB.
+
+    Note: telemetry_query_helpers.py defines a variant with web_api={"run": True} for telemetry tests.
+    """
     return make_mock_hassette(
         data_dir=premigrated_db_path.parent,
-        database={"max_size_mb": 0},
+        set_ready=False,
+        sealed=False,
+        database={"telemetry_write_queue_max": 500, "max_size_mb": 0},
         lifecycle={"resource_shutdown_timeout_seconds": 5},
         scheduler={"min_delay_seconds": 0.1, "max_delay_seconds": 60.0, "default_delay_seconds": 1.0},
-        sealed=False,
     )
 
 
@@ -175,8 +180,6 @@ def make_mock_listener(*, error_handler=None) -> MagicMock:
 
 def make_mock_job(*, error_handler=None) -> MagicMock:
     """Return a mock ScheduledJob with optional error handler."""
-    from hassette.scheduler.classes import ScheduledJob
-
     job = MagicMock(spec=ScheduledJob)
     job.error_handler = error_handler
     job.name = "test_job"

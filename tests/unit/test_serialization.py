@@ -1,7 +1,5 @@
 """Unit tests for safe_json_serialize in hassette.utils.serialization."""
 
-from __future__ import annotations
-
 import json
 from datetime import datetime
 from enum import Enum

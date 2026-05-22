@@ -8,11 +8,8 @@ Covers:
 - ServiceInfoResponse includes role, ready_phase, retry_at when available
 """
 
-import asyncio
 import sqlite3
 import time
-from collections.abc import AsyncIterator
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -24,7 +21,6 @@ from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.telemetry_models import JobSummary, ListenerSummary
 from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.scheduler.triggers import Every
-from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.test_utils.web_helpers import make_real_job
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.types.enums import ResourceRole, ResourceStatus
@@ -33,46 +29,15 @@ from hassette.web.mappers import system_status_response_from
 from hassette.web.models import ServiceInfoResponse
 from hassette.web.utils import gather_all_listeners
 
-from .telemetry_query_helpers import insert_execution, insert_job
+from .telemetry_query_helpers import (
+    db,  # noqa: F401 (pytest fixture)
+    db_hassette,  # noqa: F401 (pytest fixture)
+    insert_execution,
+    insert_job,
+    svc,  # noqa: F401 (pytest fixture)
+)
 
 STUB_TIMESTAMP = 1_700_000_000.0
-
-
-@pytest.fixture
-def db_hassette(premigrated_db_path: Path) -> MagicMock:
-    return make_mock_hassette(
-        data_dir=premigrated_db_path.parent,
-        set_ready=False,
-        sealed=False,
-        database={"telemetry_write_queue_max": 500, "max_size_mb": 0},
-        lifecycle={"resource_shutdown_timeout_seconds": 5},
-        web_api={"run": True},
-    )
-
-
-@pytest.fixture
-async def db(db_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
-    db_service = DatabaseService(db_hassette, parent=None)
-    await db_service.on_initialize()
-    cursor = await db_service.db.execute(
-        "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-        (time.time(), time.time()),
-    )
-    session_id = cursor.lastrowid
-    await db_service.db.commit()
-    db_hassette.session_id = session_id
-    db_hassette.database_service = db_service
-    yield db_service, session_id
-    await db_service.on_shutdown()
-
-
-@pytest.fixture
-def svc(db_hassette: MagicMock, db: tuple[DatabaseService, int]) -> TelemetryQueryService:  # noqa: ARG001
-    service = TelemetryQueryService.__new__(TelemetryQueryService)
-    service.hassette = db_hassette
-    service.logger = MagicMock()
-    service._snapshot_lock = asyncio.Lock()
-    return service
 
 
 class TestGetAllJobsSummary:
@@ -569,5 +534,5 @@ class TestHealthEndpointServiceInfoFields:
         data = response.json()
         assert "services" in data
         # Each service entry should have a role field
-        for svc in data["services"]:
-            assert "role" in svc
+        for service in data["services"]:
+            assert "role" in service

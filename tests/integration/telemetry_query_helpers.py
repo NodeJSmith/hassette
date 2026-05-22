@@ -19,6 +19,7 @@ BASE_TS = 1_000_000.0
 
 @pytest.fixture
 def db_hassette(premigrated_db_path: Path) -> MagicMock:
+    """Variant of conftest.db_hassette with web_api enabled for telemetry query tests."""
     return make_mock_hassette(
         data_dir=premigrated_db_path.parent,
         set_ready=False,

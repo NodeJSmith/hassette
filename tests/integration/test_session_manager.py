@@ -3,7 +3,6 @@
 import sqlite3
 import time
 from collections.abc import AsyncIterator
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -13,7 +12,6 @@ from hassette.core.session_manager import SessionManager
 from hassette.events import HassetteServiceEvent
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import ServiceStatusPayload
-from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.types import ResourceRole, ResourceStatus, Topic
 
 
@@ -40,17 +38,6 @@ def make_crashed_event(
                 ready_phase=None,
             ),
         ),
-    )
-
-
-@pytest.fixture
-def db_hassette(premigrated_db_path: Path) -> AsyncMock:
-    """Create a mock Hassette with database config pointing to a pre-migrated DB."""
-    return make_mock_hassette(
-        data_dir=premigrated_db_path.parent,
-        set_ready=False,
-        database={"telemetry_write_queue_max": 500, "max_size_mb": 0},
-        lifecycle={"resource_shutdown_timeout_seconds": 5},
     )
 
 

@@ -3,21 +3,12 @@
 import asyncio
 from typing import TYPE_CHECKING
 
-import pytest
-
 from hassette.bus.error_context import BusErrorContext
 from hassette.events.base import Event
 from hassette.test_utils import create_call_service_event, create_state_change_event, wait_for
 
 if TYPE_CHECKING:
-    from hassette.bus import Bus
     from hassette.test_utils.harness import HassetteHarness
-
-
-@pytest.fixture
-def bus(hassette_with_bus: "HassetteHarness") -> "Bus":
-    """Return the Bus resource for the running Hassette harness."""
-    return hassette_with_bus.bus
 
 
 async def test_app_level_error_handler_called_on_failure(hassette_with_bus: "HassetteHarness") -> None:

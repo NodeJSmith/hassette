@@ -74,7 +74,7 @@ class TestDurationConfigValidation:
 
 class TestDurationConfigAttachTimer:
     @staticmethod
-    def _attach(cfg: DurationConfig) -> None:
+    def attach(cfg: DurationConfig) -> None:
         cfg.attach_timer(
             task_bucket=MagicMock(),
             owner_id="test_owner",
@@ -84,12 +84,12 @@ class TestDurationConfigAttachTimer:
 
     def test_attach_timer_stores_timer(self) -> None:
         cfg = DurationConfig(entity_id="light.kitchen", duration=5.0)
-        self._attach(cfg)
+        self.attach(cfg)
         assert cfg._timer is not None
 
     def test_timer_property_after_attach(self) -> None:
         cfg = DurationConfig(entity_id="light.kitchen", duration=5.0)
-        self._attach(cfg)
+        self.attach(cfg)
         assert cfg.timer is not None
         assert cfg.timer is cfg._timer
 
@@ -100,9 +100,9 @@ class TestDurationConfigAttachTimer:
 
     def test_attach_timer_raises_if_already_attached(self) -> None:
         cfg = DurationConfig(entity_id="light.kitchen", duration=5.0)
-        self._attach(cfg)
+        self.attach(cfg)
         with pytest.raises(AssertionError):
-            self._attach(cfg)
+            self.attach(cfg)
 
     def test_attach_timer_passes_fields_to_duration_timer(self) -> None:
         pred = MagicMock()
@@ -111,7 +111,7 @@ class TestDurationConfigAttachTimer:
             duration=10.0,
             hold_predicate=pred,
         )
-        self._attach(cfg)
+        self.attach(cfg)
 
         timer = cfg._timer
         assert timer is not None
