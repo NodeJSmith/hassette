@@ -131,7 +131,7 @@ def premigrated_db_path(_migrated_db_template: Path, tmp_path: Path) -> Path:
 def db_hassette(premigrated_db_path: Path) -> AsyncMock:
     """Provide a mock Hassette with real validated config pointing to a pre-migrated DB.
 
-    Note: telemetry_query_helpers.py defines a variant with web_api={"run": True} for telemetry tests.
+    Note: telemetry/conftest.py defines a variant with web_api={"run": True} for telemetry tests.
     """
     return make_mock_hassette(
         data_dir=premigrated_db_path.parent,

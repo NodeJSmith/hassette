@@ -7,7 +7,7 @@ from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
-MIGRATIONS_PATH = Path(__file__).resolve().parent.parent.parent / "src" / "hassette" / "migrations"
+MIGRATIONS_PATH = Path(__file__).resolve().parent.parent.parent.parent / "src" / "hassette" / "migrations"
 
 # Hardcoded because this project uses raw Alembic operations (op.create_table, op.add_column),
 # not autogenerate from ORM models — there is no Base.metadata to compare against.
@@ -117,7 +117,7 @@ EXPECTED_TABLES = {
 }
 
 
-def make_alembic_config(db_path: Path):
+def make_alembic_config(db_path: Path) -> Config:
     """Build a programmatic Alembic Config matching production (DatabaseService._run_migrations)."""
     config = Config()
     config.set_main_option("script_location", str(MIGRATIONS_PATH))

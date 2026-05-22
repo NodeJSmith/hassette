@@ -13,12 +13,9 @@ from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.core.telemetry_repository import TelemetryRepository, _inv_insert_params, _job_insert_params
 from hassette.scheduler.classes import JobExecutionRecord
 
-from .telemetry_query_helpers import (
-    db,  # noqa: F401 (pytest fixture)
-    db_hassette,  # noqa: F401 (pytest fixture)
+from .helpers import (
     insert_job,
     insert_listener,
-    svc,  # noqa: F401 (pytest fixture)
 )
 
 

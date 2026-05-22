@@ -9,57 +9,25 @@ drain them.
 """
 
 import asyncio
-import typing
-from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock
-
-import pytest
 
 from hassette.events import RawStateChangeEvent
 from hassette.test_utils import wait_for
 from hassette.test_utils.harness import HassetteHarness
 from hassette.test_utils.helpers import create_state_change_event
 from hassette.types import Topic
-from tests.integration.bus_test_helpers import seed, send_state_change
+
+from .conftest import DURATION
+from .helpers import seed, send_state_change
 
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.bus import Bus
 
-DURATION = 0.05  # 50 ms — fast enough for tests
 
-
-@pytest.fixture
-async def dur_harness(test_config) -> AsyncIterator[tuple[HassetteHarness, "Hassette", "Bus"]]:
-    """Fresh harness with bus + state_proxy for each test.
-
-    Mirrors the imm_harness pattern from test_bus_immediate.py.
-    """
-    harness = HassetteHarness(test_config, skip_global_set=False)
-    harness.with_bus().with_scheduler().with_state_proxy().with_state_registry()
-
-    api_mock = AsyncMock()
-    api_mock.sync = AsyncMock()
-    api_mock.get_states_raw = AsyncMock(return_value=[])
-    harness.hassette._api = api_mock
-
-    await harness.start()
-
-    harness.state_proxy.mark_ready(reason="dur_harness: mark ready for test")
-
-    hassette = typing.cast("Hassette", harness.hassette)
-    bus = harness.bus
-
-    try:
-        yield harness, hassette, bus
-    finally:
-        await harness.stop()
-
-
-async def test_duration_fires_after_held(dur_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_duration_fires_after_held(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """State held for duration → handler fires with the original triggering event."""
-    harness, hassette, bus = dur_harness
+    harness, hassette, bus = bus_harness
 
     received: list[RawStateChangeEvent] = []
     fired = asyncio.Event()
@@ -82,9 +50,9 @@ async def test_duration_fires_after_held(dur_harness: tuple[HassetteHarness, "Ha
     assert received[0].payload.data.new_state["state"] == "on"
 
 
-async def test_duration_cancelled_on_state_exit(dur_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_duration_cancelled_on_state_exit(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """State changes away before duration elapses → no fire."""
-    harness, _hassette, bus = dur_harness
+    harness, _hassette, bus = bus_harness
 
     received: list[RawStateChangeEvent] = []
 
@@ -107,9 +75,9 @@ async def test_duration_cancelled_on_state_exit(dur_harness: tuple[HassetteHarne
     assert received == []
 
 
-async def test_duration_resets_on_re_entry(dur_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_duration_resets_on_re_entry(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """State leaves and returns → timer restarts from zero, fires after second hold."""
-    harness, hassette, bus = dur_harness
+    harness, hassette, bus = bus_harness
 
     received: list[RawStateChangeEvent] = []
     fired = asyncio.Event()
@@ -141,9 +109,9 @@ async def test_duration_resets_on_re_entry(dur_harness: tuple[HassetteHarness, "
     assert len(received) == 1
 
 
-async def test_duration_double_check_before_fire(dur_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_duration_double_check_before_fire(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """State reverts between timer start and fire → no fire (state re-verification)."""
-    harness, _hassette, bus = dur_harness
+    harness, _hassette, bus = bus_harness
 
     received: list[RawStateChangeEvent] = []
 
@@ -170,9 +138,9 @@ async def test_duration_double_check_before_fire(dur_harness: tuple[HassetteHarn
     assert received == []
 
 
-async def test_duration_with_once_fires_exactly_once(dur_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_duration_with_once_fires_exactly_once(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """once=True + duration: fires once; subsequent trigger does not fire."""
-    harness, hassette, bus = dur_harness
+    harness, hassette, bus = bus_harness
 
     call_count = 0
     fired = asyncio.Event()
@@ -202,9 +170,9 @@ async def test_duration_with_once_fires_exactly_once(dur_harness: tuple[Hassette
     assert call_count == 1, f"once=True handler fired {call_count} times"
 
 
-async def test_duration_once_removal_on_exception(dur_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_duration_once_removal_on_exception(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Handler raises → listener still removed (once contract upheld even on exception)."""
-    harness, hassette, bus = dur_harness
+    harness, hassette, bus = bus_harness
 
     call_count = 0
     fired = asyncio.Event()
@@ -236,9 +204,9 @@ async def test_duration_once_removal_on_exception(dur_harness: tuple[HassetteHar
     assert call_count == 1
 
 
-async def test_duration_subscription_cancel_stops_timer(dur_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_duration_subscription_cancel_stops_timer(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Cancel subscription while timer pending → no fire, no leak."""
-    harness, _hassette, bus = dur_harness
+    harness, _hassette, bus = bus_harness
 
     received: list[RawStateChangeEvent] = []
 
@@ -261,10 +229,10 @@ async def test_duration_subscription_cancel_stops_timer(dur_harness: tuple[Hasse
 
 
 async def test_duration_not_cancelled_by_attribute_refresh(
-    dur_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+    bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Attribute-only state_changed (same state value) does NOT cancel timer for on_state_change."""
-    harness, hassette, bus = dur_harness
+    harness, hassette, bus = bus_harness
 
     received: list[RawStateChangeEvent] = []
     fired = asyncio.Event()
@@ -296,17 +264,17 @@ async def test_duration_not_cancelled_by_attribute_refresh(
     assert len(received) == 1
 
 
-async def test_duration_multiple_listeners_independent(dur_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_duration_multiple_listeners_independent(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Two listeners with different durations on same entity maintain independent timers."""
-    harness, hassette, bus = dur_harness
+    harness, hassette, bus = bus_harness
 
     short = DURATION
-    long_ = DURATION * 3
+    long_duration = DURATION * 3
 
     received_short: list[RawStateChangeEvent] = []
     received_long: list[RawStateChangeEvent] = []
     short_fired = asyncio.Event()
-    long_fired = asyncio.Event()
+    long_durationfired = asyncio.Event()
 
     async def handler_short(event: RawStateChangeEvent) -> None:
         received_short.append(event)
@@ -314,10 +282,10 @@ async def test_duration_multiple_listeners_independent(dur_harness: tuple[Hasset
 
     async def handler_long(event: RawStateChangeEvent) -> None:
         received_long.append(event)
-        hassette.task_bucket.post_to_loop(long_fired.set)
+        hassette.task_bucket.post_to_loop(long_durationfired.set)
 
     bus.on_state_change("light.kitchen", changed_to="on", handler=handler_short, duration=short)
-    bus.on_state_change("light.kitchen", changed_to="on", handler=handler_long, duration=long_)
+    bus.on_state_change("light.kitchen", changed_to="on", handler=handler_long, duration=long_duration)
 
     await send_state_change(harness, "light.kitchen", "off", "on")
     await seed(harness, "light.kitchen", "on")
@@ -328,15 +296,15 @@ async def test_duration_multiple_listeners_independent(dur_harness: tuple[Hasset
     assert len(received_long) == 0
 
     # Long fires after
-    await asyncio.wait_for(long_fired.wait(), timeout=long_ + 0.5)
+    await asyncio.wait_for(long_durationfired.wait(), timeout=long_duration + 0.5)
     assert len(received_long) == 1
 
 
 async def test_duration_cancel_listener_uses_framework_tier(
-    dur_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+    bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Cancellation listener registered with source_tier='framework'."""
-    harness, _hassette, bus = dur_harness
+    harness, _hassette, bus = bus_harness
 
     async def handler(event: RawStateChangeEvent) -> None:
         pass
@@ -358,9 +326,9 @@ async def test_duration_cancel_listener_uses_framework_tier(
     assert len(framework_listeners) >= 1, f"No framework-tier listeners found: {listeners}"
 
 
-async def test_duration_cancel_listener_same_owner_id(dur_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_duration_cancel_listener_same_owner_id(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Cancellation listener uses same owner_id as main listener — cleaned up by remove_listeners_by_owner."""
-    harness, _hassette, bus = dur_harness
+    harness, _hassette, bus = bus_harness
 
     async def handler(event: RawStateChangeEvent) -> None:
         pass
@@ -392,10 +360,10 @@ async def test_duration_cancel_listener_same_owner_id(dur_harness: tuple[Hassett
 
 
 async def test_duration_attribute_change_cancel_only_on_predicate_fail(
-    dur_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+    bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """For on_attribute_change, unrelated attribute changes do not cancel the timer."""
-    harness, hassette, bus = dur_harness
+    harness, hassette, bus = bus_harness
 
     received: list[RawStateChangeEvent] = []
     fired = asyncio.Event()
@@ -437,10 +405,10 @@ async def test_duration_attribute_change_cancel_only_on_predicate_fail(
 
 
 async def test_duration_handler_receives_original_triggering_event(
-    dur_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+    bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """FR4: handler receives the original triggering event, not a synthetic recheck event."""
-    harness, hassette, bus = dur_harness
+    harness, hassette, bus = bus_harness
 
     received: list[RawStateChangeEvent] = []
     fired = asyncio.Event()
@@ -464,9 +432,9 @@ async def test_duration_handler_receives_original_triggering_event(
     assert ev.payload.data.new_state["state"] == "on"
 
 
-async def test_changed_from_with_duration_fires(dur_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_changed_from_with_duration_fires(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """changed_from + duration: timer fires when entity holds target state (hold-predicate split)."""
-    harness, hassette, bus = dur_harness
+    harness, hassette, bus = bus_harness
 
     received: list[RawStateChangeEvent] = []
     fired = asyncio.Event()
@@ -485,10 +453,10 @@ async def test_changed_from_with_duration_fires(dur_harness: tuple[HassetteHarne
 
 
 async def test_changed_from_with_duration_cancels_on_revert(
-    dur_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+    bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """changed_from + duration: timer cancelled when entity reverts before duration elapses."""
-    harness, _hassette, bus = dur_harness
+    harness, _hassette, bus = bus_harness
 
     received: list[RawStateChangeEvent] = []
 

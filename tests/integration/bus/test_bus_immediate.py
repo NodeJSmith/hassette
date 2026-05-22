@@ -5,10 +5,7 @@ State is seeded into the StateProxy via harness.seed_state() before the listener
 """
 
 import asyncio
-import typing
-from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock
 
 import pytest
 from whenever import ZonedDateTime
@@ -23,38 +20,9 @@ if TYPE_CHECKING:
     from hassette.bus import Bus
 
 
-@pytest.fixture
-async def imm_harness(test_config) -> AsyncIterator[tuple[HassetteHarness, "Hassette", "Bus"]]:
-    """Fresh harness with bus + state_proxy for each test.
-
-    Marks the state proxy ready. State is seeded via harness.seed_state().
-    The api mock returns an empty state list so _load_cache succeeds without HTTP.
-    """
-    harness = HassetteHarness(test_config, skip_global_set=False)
-    harness.with_bus().with_scheduler().with_state_proxy().with_state_registry()
-
-    # Pre-configure api mock before harness.start() so StateProxy._load_cache won't fail
-    api_mock = AsyncMock()
-    api_mock.sync = AsyncMock()
-    api_mock.get_states_raw = AsyncMock(return_value=[])
-    harness.hassette._api = api_mock
-
-    await harness.start()
-
-    harness.state_proxy.mark_ready(reason="imm_harness: mark ready for test")
-
-    hassette = typing.cast("Hassette", harness.hassette)
-    bus = harness.bus
-
-    try:
-        yield harness, hassette, bus
-    finally:
-        await harness.stop()
-
-
-async def test_immediate_fires_when_state_matches(imm_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_immediate_fires_when_state_matches(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Entity in target state at registration time → handler fires with synthetic event."""
-    harness, hassette, bus = imm_harness
+    harness, hassette, bus = bus_harness
 
     await harness.seed_state(
         "light.kitchen",
@@ -76,10 +44,10 @@ async def test_immediate_fires_when_state_matches(imm_harness: tuple[HassetteHar
 
 
 async def test_immediate_no_fire_when_state_does_not_match(
-    imm_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+    bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Entity in non-target state → no fire (changed_to predicate rejects it)."""
-    harness, _hassette, bus = imm_harness
+    harness, _hassette, bus = bus_harness
 
     await harness.seed_state(
         "light.kitchen",
@@ -98,9 +66,9 @@ async def test_immediate_no_fire_when_state_does_not_match(
     assert received == []
 
 
-async def test_immediate_no_fire_entity_not_found(imm_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_immediate_no_fire_entity_not_found(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Entity not in StateProxy → no fire, no error raised."""
-    _harness, _hassette, bus = imm_harness
+    _harness, _hassette, bus = bus_harness
 
     # Do NOT seed state — entity does not exist
 
@@ -116,9 +84,9 @@ async def test_immediate_no_fire_entity_not_found(imm_harness: tuple[HassetteHar
     assert received == []
 
 
-async def test_immediate_synthetic_event_structure(imm_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_immediate_synthetic_event_structure(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """Synthetic event has old_state=None, new_state=current, ZonedDateTime time_fired, unique context.id."""
-    harness, hassette, bus = imm_harness
+    harness, hassette, bus = bus_harness
 
     state_dict = make_state_dict("sensor.temp", "25.5")
     await harness.seed_state("sensor.temp", state_dict)
@@ -147,9 +115,9 @@ async def test_immediate_synthetic_event_structure(imm_harness: tuple[HassetteHa
     assert event.payload.context.user_id is None
 
 
-async def test_immediate_with_once_consumes_invocation(imm_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_immediate_with_once_consumes_invocation(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """immediate fires, subsequent live event does NOT fire (once=True consumed by immediate)."""
-    harness, hassette, bus = imm_harness
+    harness, hassette, bus = bus_harness
 
     await harness.seed_state(
         "switch.outlet",
@@ -178,9 +146,9 @@ async def test_immediate_with_once_consumes_invocation(imm_harness: tuple[Hasset
     assert call_count == 1, f"once=True handler should fire exactly once, fired {call_count} times"
 
 
-async def test_immediate_with_debounce(imm_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_immediate_with_debounce(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """immediate fire passes through the debounce guard (fires after debounce period)."""
-    harness, hassette, bus = imm_harness
+    harness, hassette, bus = bus_harness
 
     await harness.seed_state(
         "sensor.motion",
@@ -201,9 +169,9 @@ async def test_immediate_with_debounce(imm_harness: tuple[HassetteHarness, "Hass
     assert len(received) == 1
 
 
-async def test_immediate_glob_entity_rejected(imm_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_immediate_glob_entity_rejected(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """immediate=True with a glob entity_id raises ValueError at registration time."""
-    _harness, _hassette, bus = imm_harness
+    _harness, _hassette, bus = bus_harness
 
     async def handler(event: RawStateChangeEvent) -> None:
         pass
@@ -213,10 +181,10 @@ async def test_immediate_glob_entity_rejected(imm_harness: tuple[HassetteHarness
 
 
 async def test_immediate_attribute_change_with_attr_did_change(
-    imm_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+    bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """on_attribute_change + immediate=True fires when entity present; AttrDidChange returns True for old_state=None."""
-    harness, hassette, bus = imm_harness
+    harness, hassette, bus = bus_harness
 
     await harness.seed_state(
         "light.office",
@@ -240,10 +208,10 @@ async def test_immediate_attribute_change_with_attr_did_change(
 
 
 async def test_immediate_changed_false_fires_for_any_existing_entity(
-    imm_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+    bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """changed=False + immediate=True fires for any entity that exists, regardless of state value."""
-    harness, hassette, bus = imm_harness
+    harness, hassette, bus = bus_harness
 
     # Seed entity with arbitrary state
     await harness.seed_state(
@@ -270,11 +238,11 @@ async def test_immediate_changed_false_fires_for_any_existing_entity(
 
 
 async def test_immediate_duration_fires_when_elapsed_exceeds(
-    imm_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+    bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Entity held for 10s, duration=5 → fires immediately (elapsed >= duration)."""
 
-    harness, hassette, bus = imm_harness
+    harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 10 seconds ago
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=10)
@@ -305,10 +273,10 @@ async def test_immediate_duration_fires_when_elapsed_exceeds(
 
 
 async def test_immediate_duration_starts_timer_for_remaining(
-    imm_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+    bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Entity held for 3s, duration=5 → timer fires after remaining 2s (plus margin)."""
-    harness, hassette, bus = imm_harness
+    harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 3 seconds ago
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=3)
@@ -341,9 +309,9 @@ async def test_immediate_duration_starts_timer_for_remaining(
     assert len(received) == 1
 
 
-async def test_immediate_duration_last_changed_none(imm_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
+async def test_immediate_duration_last_changed_none(bus_harness: tuple[HassetteHarness, "Hassette", "Bus"]) -> None:
     """last_changed missing from state dict → elapsed=0, full timer starts (does NOT fire immediately)."""
-    harness, _hassette, bus = imm_harness
+    harness, _hassette, bus = bus_harness
 
     state = make_state_dict("switch.pump", "on")
     # Override last_changed to None to simulate missing timestamp
@@ -369,10 +337,10 @@ async def test_immediate_duration_last_changed_none(imm_harness: tuple[HassetteH
 
 
 async def test_immediate_duration_negative_elapsed_clamped(
-    imm_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+    bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """Clock skew produces last_changed in the future → elapsed clamped to 0, full timer starts."""
-    harness, _hassette, bus = imm_harness
+    harness, _hassette, bus = bus_harness
 
     # Seed state with last_changed 10 seconds in the FUTURE (clock skew)
     future = ZonedDateTime.now_in_system_tz().add(seconds=10)
@@ -400,10 +368,10 @@ async def test_immediate_duration_negative_elapsed_clamped(
 
 
 async def test_immediate_duration_attribute_change_always_zero(
-    imm_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+    bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """on_attribute_change + immediate + duration always starts from zero, even if last_changed is old."""
-    harness, _hassette, bus = imm_harness
+    harness, _hassette, bus = bus_harness
 
     # Seed state with last_changed 30 seconds ago — would normally fire immediately
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=30)
@@ -433,10 +401,10 @@ async def test_immediate_duration_attribute_change_always_zero(
 
 
 async def test_immediate_duration_once_fires_exactly_once(
-    imm_harness: tuple[HassetteHarness, "Hassette", "Bus"],
+    bus_harness: tuple[HassetteHarness, "Hassette", "Bus"],
 ) -> None:
     """immediate + duration + once=True: immediate fire consumes the listener; no subsequent fires."""
-    harness, hassette, bus = imm_harness
+    harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 10s ago (duration=5 → fires immediately)
     past = ZonedDateTime.now_in_system_tz().subtract(seconds=10)

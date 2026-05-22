@@ -29,12 +29,9 @@ from hassette.web.mappers import system_status_response_from
 from hassette.web.models import ServiceInfoResponse
 from hassette.web.utils import gather_all_listeners
 
-from .telemetry_query_helpers import (
-    db,  # noqa: F401 (pytest fixture)
-    db_hassette,  # noqa: F401 (pytest fixture)
+from .helpers import (
     insert_execution,
     insert_job,
-    svc,  # noqa: F401 (pytest fixture)
 )
 
 STUB_TIMESTAMP = 1_700_000_000.0

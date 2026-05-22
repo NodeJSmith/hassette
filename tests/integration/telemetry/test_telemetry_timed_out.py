@@ -10,14 +10,11 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.web.telemetry_helpers import compute_health_metrics
 
-from .telemetry_query_helpers import (
-    db,  # noqa: F401 (pytest fixture)
-    db_hassette,  # noqa: F401 (pytest fixture)
+from .helpers import (
     insert_execution,
     insert_invocation,
     insert_job,
     insert_listener,
-    svc,  # noqa: F401 (pytest fixture)
 )
 
 

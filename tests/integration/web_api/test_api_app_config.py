@@ -5,8 +5,7 @@ from httpx import ASGITransport, AsyncClient
 
 from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.web.app import create_fastapi_app
-
-from .conftest import make_manifest_mock
+from tests.integration.conftest import make_manifest_mock
 
 
 @pytest.fixture

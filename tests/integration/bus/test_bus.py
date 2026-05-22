@@ -10,6 +10,8 @@ import pytest
 
 from hassette import RawStateChangeEvent
 from hassette.bus.listeners import Subscription
+from hassette.bus.rate_limiter import RateLimiter
+from hassette.core.commands import InvokeHandler
 from hassette.event_handling.conditions import IsOrContains
 from hassette.event_handling.predicates import (
     AllOf,
@@ -26,8 +28,6 @@ from hassette.types import Topic
 if typing.TYPE_CHECKING:
     from hassette.bus import Bus
     from hassette.test_utils.harness import HassetteHarness
-from hassette.bus.rate_limiter import RateLimiter
-from hassette.core.commands import InvokeHandler
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ async def test_on_registers_listener_and_supports_unsubscribe(
 ) -> None:
     """Bus.on wraps handlers, normalises predicates, and wires subscription cleanup."""
 
-    async def handler(event):  # noqa
+    async def handler(_event):
         await asyncio.sleep(0)
 
     add_listener_mock = Mock()
@@ -259,7 +259,7 @@ async def test_bus_background_tasks_cleanup(hassette_with_bus: "HassetteHarness"
 
     event_received = asyncio.Event()
 
-    async def handler(event: Event[SimpleNamespace]) -> None:  # noqa
+    async def handler(_event: Event[SimpleNamespace]) -> None:
         hassette_with_bus.task_bucket.post_to_loop(event_received.set)
 
     hassette.bus.on(topic="custom.cleanup", handler=handler, once=True)
@@ -689,18 +689,16 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
 
     hassette.bus.on(topic="custom.cancel_debounce", handler=handler, debounce=0.5)
 
-    # Poll until listener appears in the router (registration is async + DB-backed)
-    listener = None
-    rate_limiter = None
-    deadline = asyncio.get_running_loop().time() + 3.0
-    while asyncio.get_running_loop().time() < deadline:
-        all_listeners = hassette.bus_service.router.get_topic_listeners("custom.cancel_debounce")
-        if len(all_listeners) == 1 and all_listeners[0].invoker.rate_limiter is not None:
-            listener = all_listeners[0]
-            rate_limiter = listener.invoker.rate_limiter
-            break
-        await asyncio.sleep(0.02)
-    assert listener is not None, "Listener for custom.cancel_debounce was not registered in time"
+    # Wait until listener appears in the router (registration is async + DB-backed)
+    topic = "custom.cancel_debounce"
+
+    def listener_ready() -> bool:
+        listeners = hassette.bus_service.router.get_topic_listeners(topic)
+        return len(listeners) == 1 and listeners[0].invoker.rate_limiter is not None
+
+    await wait_for(listener_ready, desc="listener registered with rate limiter", timeout=3.0)
+    listener = hassette.bus_service.router.get_topic_listeners(topic)[0]
+    rate_limiter = listener.invoker.rate_limiter
     assert isinstance(rate_limiter, RateLimiter)
 
     # Send an event to start the debounce timer
