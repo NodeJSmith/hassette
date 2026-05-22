@@ -60,11 +60,14 @@ def find_user_frame(exc: BaseException, app_dir: Path) -> traceback.FrameSummary
         if not tb_list:
             return None
 
-        app_dir_str = app_dir.as_posix()
+        resolved_app_dir = app_dir.resolve()
 
         for fr in reversed(tb_list):
-            if fr.filename.replace("\\", "/").startswith(app_dir_str):
-                return fr
+            try:
+                if Path(fr.filename).resolve().is_relative_to(resolved_app_dir):
+                    return fr
+            except (ValueError, OSError):
+                continue
 
         for fr in reversed(tb_list):
             fn = fr.filename
@@ -106,6 +109,9 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
 
     Runs before system startup to surface import errors and misconfiguration
     early, without spinning up the full WebSocket/scheduler stack.
+
+    Args:
+        config: The Hassette configuration containing app manifests.
 
     Raises:
         AppPrecheckFailedError: If any app fails to load correctly.
