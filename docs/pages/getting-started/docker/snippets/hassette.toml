@@ -4,11 +4,11 @@ base_url = "http://homeassistant:8123"  # or your HA URL
 [hassette.apps]
 directory = "/apps"  # absolute path inside container
 
-[apps.my_app]
+[hassette.apps.my_app]
 filename = "my_app.py"
 class_name = "MyApp"
 enabled = true
 
-[[apps.my_app.config]]
+[[hassette.apps.my_app.config]]
 # Your app-specific configuration
 instance_name = "my_app"

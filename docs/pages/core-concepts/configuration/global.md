@@ -26,7 +26,7 @@ Global settings control how Hassette runs and connects to Home Assistant. These 
 ## Runtime Settings
 
 - **`apps.directory`** (string): Directory containing your app modules.
-    - Default: `.` (current directory)
+    - Default: `apps` (relative to the current working directory)
     - Example: `src/apps`
     - Lives under `[hassette.apps]` in `hassette.toml`.
 
