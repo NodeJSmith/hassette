@@ -270,7 +270,7 @@ class TestRefreshConfig:
 
 
 class TestReconcileAppRegistrations:
-    """Tests for _reconcile_app_registrations — the post-ready reconciliation helper."""
+    """Tests for reconcile_app_registrations — the post-ready reconciliation helper."""
 
     async def test_scheduler_barrier_awaited_before_job_ids_collected(
         self,
@@ -299,7 +299,7 @@ class TestReconcileAppRegistrations:
         mock_app_instance.scheduler.get_job_db_ids = Mock(side_effect=_track_get_job_ids)
 
         instances = {0: mock_app_instance}
-        await lifecycle_service._reconcile_app_registrations("test_app", instances)
+        await lifecycle_service.reconcile_app_registrations("test_app", instances)
 
         # scheduler barrier must appear before get_job_db_ids
         assert "scheduler_barrier:test_app" in call_order, "Scheduler barrier was not called"
@@ -329,7 +329,7 @@ class TestReconcileAppRegistrations:
         mock_hassette.scheduler_service.await_registrations_complete = AsyncMock(side_effect=_track_scheduler_barrier)
 
         instances = {0: mock_app_instance}
-        await lifecycle_service._reconcile_app_registrations("test_app", instances)
+        await lifecycle_service.reconcile_app_registrations("test_app", instances)
 
         assert call_order.index("bus_barrier") < call_order.index("scheduler_barrier")
 
@@ -341,7 +341,7 @@ class TestReconcileAppRegistrations:
     ) -> None:
         """reconcile_registrations() is called with live IDs after barriers complete."""
         instances = {0: mock_app_instance}
-        await lifecycle_service._reconcile_app_registrations("test_app", instances)
+        await lifecycle_service.reconcile_app_registrations("test_app", instances)
 
         mock_hassette.command_executor.reconcile_registrations.assert_awaited_once()
         call_kwargs = mock_hassette.command_executor.reconcile_registrations.call_args
@@ -358,7 +358,7 @@ class TestReconcileAppRegistrations:
 
         instances = {0: mock_app_instance}
 
-        await lifecycle_service._reconcile_app_registrations("test_app", instances)
+        await lifecycle_service.reconcile_app_registrations("test_app", instances)
 
 
 class TestSetAppsConfigs:

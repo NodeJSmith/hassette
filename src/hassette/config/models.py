@@ -23,6 +23,8 @@ LOG_ANNOTATION = Annotated[LOG_LEVEL_TYPE, BeforeValidator(partial(coerce_log_le
 
 APP_REQUIRED_KEYS = frozenset({"filename", "class_name"})
 
+DEFAULT_WEB_API_PORT = 8126
+
 
 class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     """Database storage, retention, write-queue, and operational-interval settings."""
@@ -259,7 +261,7 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
     host: str = Field(default="0.0.0.0")
     """Host to bind the web API server to."""
 
-    port: int = Field(default=8126)
+    port: int = Field(default=DEFAULT_WEB_API_PORT)
     """Port to run the web API server on."""
 
     cors_origins: tuple[str, ...] = Field(default=("http://localhost:3000", "http://localhost:5173"))

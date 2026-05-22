@@ -138,7 +138,7 @@ class AppLifecycleService(Resource):
                     inst.app_config.instance_name,
                     class_name,
                 )
-                await self._emit_app_state_change(inst, status=RUNNING, prev_status=STARTING)
+                await self.emit_app_state_change(inst, status=RUNNING, prev_status=STARTING)
             except TimeoutError as e:
                 self.logger.error(
                     "Timed out while starting app '%s' (%s):\n%s",
@@ -148,7 +148,7 @@ class AppLifecycleService(Resource):
                 )
                 inst.status = STOPPED
                 self.registry.record_failure(app_key, idx, e)
-                await self._emit_app_state_change(inst, status=FAILED, prev_status=STARTING, exception=e)
+                await self.emit_app_state_change(inst, status=FAILED, prev_status=STARTING, exception=e)
             except Exception as e:
                 self.logger.error(
                     "Failed to start app '%s' (%s):\n%s",
@@ -158,13 +158,13 @@ class AppLifecycleService(Resource):
                 )
                 inst.status = STOPPED
                 self.registry.record_failure(app_key, idx, e)
-                await self._emit_app_state_change(inst, status=FAILED, prev_status=STARTING, exception=e)
+                await self.emit_app_state_change(inst, status=FAILED, prev_status=STARTING, exception=e)
             finally:
                 structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
 
         # Post-ready reconciliation: retire stale rows from previous sessions.
         # Runs after the instance loop to ensure all registrations are complete.
-        await self._reconcile_app_registrations(app_key, instances)
+        await self.reconcile_app_registrations(app_key, instances)
 
     async def shutdown_instance(self, inst: "App[AppConfig]", instance_index: int | None = None) -> None:
         """Shutdown a single app instance.
@@ -194,7 +194,7 @@ class AppLifecycleService(Resource):
             self.logger.debug(
                 "Stopped app '%s' '%s' in %s", inst.app_config.instance_name, inst.class_name, friendly_time
             )
-            await self._emit_app_state_change(inst, status=STOPPED, prev_status=STOPPING)
+            await self.emit_app_state_change(inst, status=STOPPED, prev_status=STOPPING)
         except Exception as e:
             self.logger.error(
                 "Failed to stop app '%s' after %s seconds:\n%s",
@@ -202,7 +202,7 @@ class AppLifecycleService(Resource):
                 self.shutdown_timeout,
                 get_short_traceback(),
             )
-            await self._emit_app_state_change(inst, status=FAILED, prev_status=STOPPING, exception=e)
+            await self.emit_app_state_change(inst, status=FAILED, prev_status=STOPPING, exception=e)
         finally:
             if instance_index is not None:
                 structlog.contextvars.unbind_contextvars("app_key", "instance_name", "instance_index")
@@ -235,7 +235,7 @@ class AppLifecycleService(Resource):
 
         self.registry.clear_all()
 
-    async def _emit_app_state_change(
+    async def emit_app_state_change(
         self,
         app: "App[AppConfig]",
         status: ResourceStatus,
@@ -446,7 +446,7 @@ class AppLifecycleService(Resource):
         """
         self.logger.debug("Setting apps configuration")
         self.registry.set_manifests(deepcopy(apps_config))
-        self._update_only_app_filter(None)  # reset only_app, will be recomputed on next initialize
+        self.update_only_app_filter(None)  # reset only_app, will be recomputed on next initialize
 
         self.logger.debug(
             "Found %d apps in configuration: %s", len(self.registry.manifests), list(self.registry.manifests.keys())
@@ -469,13 +469,13 @@ class AppLifecycleService(Resource):
                 )
 
         if not only_apps:
-            self._update_only_app_filter(None)
+            self.update_only_app_filter(None)
             return
 
         if not self.hassette.config.dev_mode:
             if not self.hassette.config.allow_only_app_in_prod:
                 self.logger.warning("Disallowing use of `only_app` decorator in production mode")
-                self._update_only_app_filter(None)
+                self.update_only_app_filter(None)
                 return
             self.logger.warning("Allowing use of `only_app` decorator in production mode due to config")
 
@@ -483,10 +483,10 @@ class AppLifecycleService(Resource):
             keys = ", ".join(app for app in only_apps)
             raise RuntimeError(f"Multiple apps marked as only: {keys}")
 
-        self._update_only_app_filter(only_apps[0])
+        self.update_only_app_filter(only_apps[0])
         self.logger.warning("App %s is marked as only, skipping all others", self.registry.only_app)
 
-    def _update_only_app_filter(self, app_key: str | None) -> None:
+    def update_only_app_filter(self, app_key: str | None) -> None:
         """Update the only_app filter in registry and change detector."""
         self.registry.set_only_app(app_key)
         self.change_detector.set_only_app_filter(app_key)
@@ -508,7 +508,7 @@ class AppLifecycleService(Resource):
 
         return previously_blocked - currently_blocked
 
-    async def _reconcile_app_registrations(
+    async def reconcile_app_registrations(
         self,
         app_key: str,
         instances: "dict[int, App[AppConfig]]",

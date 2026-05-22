@@ -15,6 +15,7 @@ from pydantic_settings.sources import InitSettingsSource
 from hassette.config.config import HassetteConfig
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.config.models import (
+    DEFAULT_WEB_API_PORT,
     AppsConfig,
     DatabaseConfig,
     FileWatcherConfig,
@@ -290,7 +291,7 @@ class TestWebApiConfig:
         assert cfg.run_ui is True
         assert cfg.ui_hot_reload is False
         assert cfg.host == "0.0.0.0"
-        assert cfg.port == 8126
+        assert cfg.port == DEFAULT_WEB_API_PORT
         assert cfg.cors_origins == ("http://localhost:3000", "http://localhost:5173")
         assert cfg.event_buffer_size == 500
         assert cfg.log_buffer_size == 2000

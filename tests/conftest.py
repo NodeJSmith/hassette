@@ -46,11 +46,11 @@ assert APPS_TOML_TEMPLATE.exists(), f"Apps TOML template {APPS_TOML_TEMPLATE} do
 pytest_plugins = ["hassette.test_utils.fixtures"]
 
 
-def _test_file_watcher() -> FileWatcherConfig:
+def build_file_watcher_config() -> FileWatcherConfig:
     return FileWatcherConfig(debounce_milliseconds=1, step_milliseconds=5)
 
 
-def _test_websocket() -> WebSocketConfig:
+def build_websocket_config() -> WebSocketConfig:
     return WebSocketConfig(
         connection_timeout_seconds=1,
         authentication_timeout_seconds=1,
@@ -60,7 +60,7 @@ def _test_websocket() -> WebSocketConfig:
     )
 
 
-def _test_lifecycle() -> LifecycleConfig:
+def build_lifecycle_config() -> LifecycleConfig:
     return LifecycleConfig(
         startup_timeout_seconds=3,
         run_sync_timeout_seconds=2,
@@ -68,7 +68,7 @@ def _test_lifecycle() -> LifecycleConfig:
     )
 
 
-def _test_scheduler() -> SchedulerConfig:
+def build_scheduler_config() -> SchedulerConfig:
     return SchedulerConfig(
         default_delay_seconds=1,
         min_delay_seconds=0.1,
@@ -76,15 +76,15 @@ def _test_scheduler() -> SchedulerConfig:
     )
 
 
-def _test_logging() -> LoggingConfig:
+def build_logging_config() -> LoggingConfig:
     return LoggingConfig(task_bucket="DEBUG")
 
 
-def _test_apps() -> AppsConfig:
+def build_apps_config() -> AppsConfig:
     return AppsConfig(directory=TEST_APPS_PATH, autodetect=False)
 
 
-def _test_web_api() -> WebApiConfig:
+def build_web_api_config() -> WebApiConfig:
     return WebApiConfig(run=False)
 
 
@@ -102,13 +102,13 @@ class TestConfig(HassetteConfig):
 
     token: str = "test-token"
 
-    file_watcher: FileWatcherConfig = Field(default_factory=_test_file_watcher)
-    websocket: WebSocketConfig = Field(default_factory=_test_websocket)
-    lifecycle: LifecycleConfig = Field(default_factory=_test_lifecycle)
-    scheduler: SchedulerConfig = Field(default_factory=_test_scheduler)
-    logging: LoggingConfig = Field(default_factory=_test_logging)
-    apps: AppsConfig = Field(default_factory=_test_apps)
-    web_api: WebApiConfig = Field(default_factory=_test_web_api)
+    file_watcher: FileWatcherConfig = Field(default_factory=build_file_watcher_config)
+    websocket: WebSocketConfig = Field(default_factory=build_websocket_config)
+    lifecycle: LifecycleConfig = Field(default_factory=build_lifecycle_config)
+    scheduler: SchedulerConfig = Field(default_factory=build_scheduler_config)
+    logging: LoggingConfig = Field(default_factory=build_logging_config)
+    apps: AppsConfig = Field(default_factory=build_apps_config)
+    web_api: WebApiConfig = Field(default_factory=build_web_api_config)
 
     def model_post_init(self, *args: Any) -> None:
         # override this to avoid values being set by defaults.py

@@ -9,6 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.core.app_registry import AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
 from hassette.core.telemetry_models import (
     AppHealthSummary,
@@ -781,7 +782,7 @@ def wire_config(hassette) -> None:
     """
     config_stub = SimpleNamespace(
         dev_mode=False,
-        base_url="http://localhost:8126",
+        base_url=f"http://localhost:{DEFAULT_WEB_API_PORT}",
         asyncio_debug_mode=False,
         allow_reload_in_prod=False,
         data_dir=Path("/srv/hassette/data"),
@@ -791,7 +792,7 @@ def wire_config(hassette) -> None:
             run_ui=True,
             ui_hot_reload=False,
             host="0.0.0.0",
-            port=8126,
+            port=DEFAULT_WEB_API_PORT,
             cors_origins=(),
             event_buffer_size=500,
             log_buffer_size=2000,

@@ -10,6 +10,7 @@ from collections import deque
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.core.app_registry import AppManifestInfo, AppStatusSnapshot
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.test_utils.web_helpers import make_full_snapshot
@@ -75,7 +76,7 @@ def create_hassette_stub(
     hassette.config.web_api.run_ui = run_web_ui
     hassette.config.web_api.ui_hot_reload = False
     hassette.config.web_api.host = "0.0.0.0"
-    hassette.config.web_api.port = 8126
+    hassette.config.web_api.port = DEFAULT_WEB_API_PORT
     hassette.config.web_api.cors_origins = cors_origins
     hassette.config.web_api.event_buffer_size = event_buffer_size
     hassette.config.web_api.log_buffer_size = 2000
