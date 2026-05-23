@@ -273,6 +273,13 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
     def model_post_init(self, *args):
         """Set default values for any unset fields after initialization."""
+        # Snapshot which group fields were set by actual user sources (init kwargs, env vars, TOML)
+        # BEFORE the defaults loop runs — setattr in the defaults loop updates model_fields_set,
+        # which would incorrectly block legacy migrations for defaulted fields.
+        pre_migration_fields: dict[str, set[str]] = {
+            name: set(getattr(self, name).model_fields_set) for name in NESTED_GROUPS
+        }
+
         default_str = "default (dev)" if self.dev_mode else "default (prod)"
         defaults = get_defaults_dict(dev=self.dev_mode)
 
@@ -306,13 +313,6 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                 )
                 setattr(group_obj, sub_field, sub_value)
 
-        # Snapshot which group fields were already set by new-path sources (env vars, init kwargs)
-        # before legacy migrations run. apply_legacy_env_vars uses this to distinguish "set by
-        # new-path env var" (should block) from "set by TOML migration" (env should win).
-        pre_migration_fields: dict[str, set[str]] = {
-            name: set(getattr(self, name).model_fields_set) for name in NESTED_GROUPS
-        }
-
         if self.model_extra:
             if "app" in self.model_extra:
                 LOGGER.warning(
@@ -324,16 +324,15 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
             legacy_hits = {k: LEGACY_KEY_MIGRATION[k] for k in self.model_extra if k in LEGACY_KEY_MIGRATION}
             if legacy_hits:
-                self.apply_legacy_migrations(legacy_hits)
+                self.apply_legacy_migrations(legacy_hits, pre_migration_fields)
 
         self.apply_legacy_env_vars(pre_migration_fields)
 
-    def apply_legacy_migrations(self, legacy_hits: dict[str, str]) -> None:
+    def apply_legacy_migrations(self, legacy_hits: dict[str, str], pre_migration_fields: dict[str, set[str]]) -> None:
         migrations: dict[str, dict[str, object]] = {}
         for old_key, dot_path in legacy_hits.items():
             group_name, sub_field = dot_path.split(".", 1)
-            group_obj = getattr(self, group_name)
-            if sub_field in group_obj.model_fields_set:
+            if sub_field in pre_migration_fields.get(group_name, set()):
                 continue
             LOGGER.warning(
                 "Migrating legacy config key %r → %s (source: config file). "

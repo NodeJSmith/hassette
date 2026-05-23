@@ -938,8 +938,6 @@ class TestLegacyEnvVarMigration:
     def test_legacy_env_vars_fires_when_env_source_excluded(self, monkeypatch, tmp_path):
         """When a subclass excludes env settings from sources, legacy env vars don't land in model_extra.
         apply_legacy_env_vars catches them by scanning os.environ directly."""
-        from pydantic_settings import BaseSettings as _BaseSettings
-        from pydantic_settings import PydanticBaseSettingsSource
 
         app_dir = tmp_path / "no_env_source_apps"
         app_dir.mkdir()
@@ -955,14 +953,7 @@ class TestLegacyEnvVarMigration:
             run_app_precheck: bool = False
 
             @classmethod
-            def settings_customise_sources(
-                cls,
-                _settings_cls: type[_BaseSettings],
-                init_settings: PydanticBaseSettingsSource,
-                _env_settings: PydanticBaseSettingsSource,
-                _dotenv_settings: PydanticBaseSettingsSource,
-                _file_secret_settings: PydanticBaseSettingsSource,
-            ) -> tuple[PydanticBaseSettingsSource, ...]:
+            def settings_customise_sources(cls, _settings_cls, init_settings, **_kwargs):
                 return (init_settings,)
 
         config = _NoEnvSourceConfig()
