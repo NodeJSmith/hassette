@@ -787,3 +787,81 @@ def test_bundled_toml_files_have_no_log_level_entries():
             assert nested_log_level_keys == [], (
                 f"{filename} [hassette.{group_name}] contains log_level entries: {nested_log_level_keys}"
             )
+
+
+class TestLegacyEnvVarMigration:
+    """Legacy flat env vars (e.g. HASSETTE__APP_DIR) are migrated to their nested destinations."""
+
+    def test_app_dir_migrates_to_apps_directory(self, monkeypatch, tmp_path):
+        app_dir = tmp_path / "my_apps"
+        app_dir.mkdir()
+        monkeypatch.setenv("HASSETTE__APP_DIR", str(app_dir))
+        config = _LogLevelTestConfig()
+        assert config.apps.directory == app_dir
+
+    @pytest.mark.usefixtures("clean_log_level_env")
+    def test_log_level_migrates_to_logging_log_level(self, monkeypatch):
+        monkeypatch.setenv("HASSETTE__LOG_LEVEL", "DEBUG")
+        config = _LogLevelTestConfig()
+        assert config.logging.log_level == "DEBUG"
+
+    def test_new_path_wins_over_legacy(self, monkeypatch, tmp_path):
+        legacy_dir = tmp_path / "old_apps"
+        legacy_dir.mkdir()
+        new_dir = tmp_path / "new_apps"
+        new_dir.mkdir()
+        monkeypatch.setenv("HASSETTE__APP_DIR", str(legacy_dir))
+        monkeypatch.setenv("HASSETTE__APPS__DIRECTORY", str(new_dir))
+        config = _LogLevelTestConfig()
+        assert config.apps.directory == new_dir
+
+    def test_multiple_legacy_keys_migrate_independently(self, monkeypatch, tmp_path):
+        app_dir = tmp_path / "my_apps"
+        app_dir.mkdir()
+        monkeypatch.setenv("HASSETTE__APP_DIR", str(app_dir))
+        monkeypatch.setenv("HASSETTE__AUTODETECT_APPS", "false")
+        config = _LogLevelTestConfig()
+        assert config.apps.directory == app_dir
+        assert config.apps.autodetect is False
+
+    def test_bool_legacy_key_coerces_correctly(self, monkeypatch):
+        monkeypatch.setenv("HASSETTE__AUTODETECT_APPS", "false")
+        config = _LogLevelTestConfig()
+        assert config.apps.autodetect is False
+
+    def test_empty_env_var_is_ignored(self, monkeypatch):
+        """Empty legacy env vars are skipped (matches env_ignore_empty=True semantics)."""
+        monkeypatch.setenv("HASSETTE__APP_DIR", "")
+        config = _LogLevelTestConfig()
+        assert config.apps.directory == Path.cwd() / "apps"
+
+    def test_unknown_extra_key_not_migrated(self, monkeypatch):
+        monkeypatch.setenv("HASSETTE__COMPLETELY_UNKNOWN_KEY", "foo")
+        config = _LogLevelTestConfig()
+        assert not hasattr(config.apps, "completely_unknown_key")
+        assert not hasattr(config.logging, "completely_unknown_key")
+
+    def test_toml_flat_key_migrates(self, tmp_path):
+        """Legacy flat keys in TOML (landing in model_extra) are migrated to nested fields."""
+        toml_file = tmp_path / "hassette.toml"
+        app_dir = tmp_path / "my_apps"
+        app_dir.mkdir()
+        toml_file.write_text(
+            textwrap.dedent(f"""
+            [hassette]
+            app_dir = "{app_dir.as_posix()}"
+            """).lstrip(),
+            encoding="utf-8",
+        )
+
+        class _TomlTestConfig(HassetteConfig):
+            model_config = HassetteConfig.model_config.copy() | {
+                "cli_parse_args": False,
+                "toml_file": [toml_file],
+                "env_file": [],
+            }
+            token: str = TEST_TOKEN
+            run_app_precheck: bool = False
+
+        config = _TomlTestConfig()
+        assert config.apps.directory == app_dir

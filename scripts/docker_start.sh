@@ -24,7 +24,10 @@ HASSETTE_VERSION=$(python -c "import importlib.metadata; print(importlib.metadat
 }
 log_phase "venv health check passed (v${HASSETTE_VERSION})"
 
-# APP_DIR is where we start looking for actual *.py files that contain App/AppSync classes
+# APP_DIR drives pre-launch requirements scanning (fd search roots, section 2 below).
+# The HASSETTE__APP_DIR fallback here is independent of the Python-level legacy env var
+# migration in config.py — both are needed (shell for pre-launch, Python for runtime).
+# See also: src/hassette/config/legacy.py LEGACY_KEY_MIGRATION
 # PROJECT_DIR is where to look for a uv.lock or pyproject.toml file for a package
 APP_DIR="${HASSETTE__APPS__DIRECTORY:-${HASSETTE__APP_DIR:-/apps}}"
 PROJECT_DIR="${HASSETTE__PROJECT_DIR:-/apps}"

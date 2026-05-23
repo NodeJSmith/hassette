@@ -1,3 +1,4 @@
+import os
 from contextlib import suppress
 from logging import getLogger
 from pathlib import Path
@@ -316,13 +317,54 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
             legacy_hits = {k: LEGACY_KEY_MIGRATION[k] for k in self.model_extra if k in LEGACY_KEY_MIGRATION}
             if legacy_hits:
-                lines = [f"  {old} -> [hassette.{new}]" for old, new in legacy_hits.items()]
-                LOGGER.warning(
-                    "Detected %d legacy flat config key(s) that moved to nested groups. "
-                    "These keys are being ignored — update your configuration:\n%s",
-                    len(legacy_hits),
-                    "\n".join(lines),
-                )
+                self.apply_legacy_migrations(legacy_hits)
+
+        self.apply_legacy_env_vars()
+
+    def apply_legacy_migrations(self, legacy_hits: dict[str, str]) -> None:
+        migrations: dict[str, dict[str, object]] = {}
+        for old_key, dot_path in legacy_hits.items():
+            group_name, sub_field = dot_path.split(".", 1)
+            group_obj = getattr(self, group_name)
+            if sub_field in group_obj.model_fields_set:
+                continue
+            LOGGER.warning(
+                "Migrating legacy config key %r → %s (source: config file). "
+                "Update your configuration to use HASSETTE__%s instead.",
+                old_key,
+                dot_path,
+                dot_path.replace(".", "__").upper(),
+            )
+            migrations.setdefault(group_name, {})[sub_field] = self.model_extra[old_key]  # pyright: ignore[reportOptionalSubscript]
+        self.apply_group_updates(migrations)
+
+    def apply_legacy_env_vars(self) -> None:
+        env_prefix = self.model_config.get("env_prefix", "").upper()
+        migrations: dict[str, dict[str, object]] = {}
+        for old_key, dot_path in LEGACY_KEY_MIGRATION.items():
+            env_var = f"{env_prefix}{old_key.upper()}"
+            raw_value = os.environ.get(env_var)
+            if not raw_value:
+                continue
+            group_name, sub_field = dot_path.split(".", 1)
+            group_obj = getattr(self, group_name)
+            if sub_field in group_obj.model_fields_set:
+                continue
+            LOGGER.warning(
+                "Migrating legacy env var %s → %s. Update your configuration to use HASSETTE__%s instead.",
+                env_var,
+                dot_path,
+                dot_path.replace(".", "__").upper(),
+            )
+            migrations.setdefault(group_name, {})[sub_field] = raw_value
+        self.apply_group_updates(migrations)
+
+    def apply_group_updates(self, migrations: dict[str, dict[str, object]]) -> None:
+        for group_name, updates in migrations.items():
+            group_obj = getattr(self, group_name)
+            group_data = group_obj.model_dump()
+            group_data.update(updates)
+            setattr(self, group_name, type(group_obj).model_validate(group_data))
 
     @classmethod
     def get_config(cls) -> "HassetteConfig":
