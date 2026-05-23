@@ -1,7 +1,7 @@
 ---
 task_id: "T08"
 title: "Migrate log data fetching to useQuery"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T03"]
 implements: ["FR#1"]
 ---

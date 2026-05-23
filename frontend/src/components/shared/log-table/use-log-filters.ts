@@ -1,5 +1,5 @@
 import { computed, type ReadonlySignal } from "@preact/signals";
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useMemo, useRef } from "preact/hooks";
 
 import type { LogEntry } from "../../../api/endpoints";
 import { useQueryParams } from "../../../hooks/use-query-params";
@@ -8,14 +8,14 @@ import { DEFAULT_LEVEL, LEVEL_INDEX, LEVELS, resolveSortColumn, SEARCH_DEBOUNCE_
 import type { FilterState, LevelFilter, SortColumn, SortConfig, TierFilter } from "./types";
 
 interface UseLogFiltersParams {
-  allEntries: ReadonlySignal<LogEntry[]>;
-  restEntries: ReadonlySignal<LogEntry[]>;
+  allEntries: LogEntry[];
+  restEntries: LogEntry[];
   useLocalState?: boolean;
   appKey?: string;
 }
 
 interface UseLogFiltersResult {
-  filtered: ReadonlySignal<LogEntry[]>;
+  filtered: LogEntry[];
   filterState: ReadonlySignal<FilterState>;
   livePaused: ReadonlySignal<boolean>;
   defaultTier: TierFilter;
@@ -120,11 +120,11 @@ export function useLogFilters({
 
   const livePaused = computed(() => filterState.value.sort.column !== "timestamp");
 
-  const filtered = computed<LogEntry[]>(() => {
-    const paused = livePaused.value;
-    const source = paused ? restEntries.value : allEntries.value;
-    const { level, tier, app, search, func, sort } = filterState.value;
+  const paused = livePaused.value;
+  const { level, tier, app, search, func, sort } = filterState.value;
+  const source = paused ? restEntries : allEntries;
 
+  const filtered = useMemo<LogEntry[]>(() => {
     let result = source;
 
     if (level) {
@@ -156,7 +156,7 @@ export function useLogFilters({
     }
 
     return sortEntries(result, sort.column, sort.asc);
-  });
+  }, [source, level, tier, app, search, func, sort.column, sort.asc]);
 
   function setLevel(level: LevelFilter) {
     if (useLocalState) {

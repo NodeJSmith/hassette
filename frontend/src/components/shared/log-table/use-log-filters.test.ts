@@ -1,4 +1,3 @@
-import { signal } from "@preact/signals";
 import { act, renderHook } from "@testing-library/preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -35,20 +34,30 @@ function entry(overrides: Partial<LogEntry> = {}): LogEntry {
   } as LogEntry;
 }
 
-/** Render useLogFilters with local state (no URL). All signal params are writable. */
+interface RenderLocalProps {
+  entries: LogEntry[];
+  rest: LogEntry[];
+  appKey?: string;
+}
+
+/** Render useLogFilters with local state (no URL). Uses initialProps for rerender support. */
 function renderLocal(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string) {
-  const allEntries = signal<LogEntry[]>(entries);
-  const restEntries = signal<LogEntry[]>(rest);
-  const hook = renderHook(() => useLogFilters({ allEntries, restEntries, useLocalState: true, appKey }));
-  return { hook, allEntries, restEntries };
+  const hook = renderHook(
+    ({ entries: allEntries, rest: restEntries, appKey: ak }: RenderLocalProps) =>
+      useLogFilters({ allEntries, restEntries, useLocalState: true, appKey: ak }),
+    { initialProps: { entries, rest, appKey } },
+  );
+  return { hook };
 }
 
 /** Render useLogFilters in URL mode (reads/writes mockSearch). */
 function renderUrl(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string) {
-  const allEntries = signal<LogEntry[]>(entries);
-  const restEntries = signal<LogEntry[]>(rest);
-  const hook = renderHook(() => useLogFilters({ allEntries, restEntries, useLocalState: false, appKey }));
-  return { hook, allEntries, restEntries };
+  const hook = renderHook(
+    ({ entries: allEntries, rest: restEntries, appKey: ak }: RenderLocalProps) =>
+      useLogFilters({ allEntries, restEntries, useLocalState: false, appKey: ak }),
+    { initialProps: { entries, rest, appKey } },
+  );
+  return { hook };
 }
 
 beforeEach(() => {
@@ -84,7 +93,7 @@ describe("level filtering", () => {
       entry({ level: "WARNING", message: "warn" }),
     ];
     const { hook } = renderLocal(entries);
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).not.toContain("debug");
     expect(messages).toContain("info");
     expect(messages).toContain("warn");
@@ -94,7 +103,7 @@ describe("level filtering", () => {
     const entries = [entry({ level: "DEBUG", message: "debug" }), entry({ level: "INFO", message: "info" })];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setLevel("" as LevelFilter));
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toContain("debug");
     expect(messages).toContain("info");
   });
@@ -109,7 +118,7 @@ describe("level filtering", () => {
     ];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setLevel("WARNING"));
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).not.toContain("debug");
     expect(messages).not.toContain("info");
     expect(messages).toContain("warn");
@@ -121,7 +130,7 @@ describe("level filtering", () => {
     const entries = [entry({ level: "ERROR", message: "error" }), entry({ level: "CRITICAL", message: "crit" })];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setLevel("CRITICAL"));
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toEqual(["crit"]);
   });
 });
@@ -137,7 +146,7 @@ describe("tier filtering", () => {
       entry({ source_tier: "framework", message: "from framework" }),
     ];
     const { hook } = renderLocal(entries);
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toContain("from app");
     expect(messages).not.toContain("from framework");
   });
@@ -149,7 +158,7 @@ describe("tier filtering", () => {
     ];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setTier("all"));
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toContain("from app");
     expect(messages).toContain("from framework");
   });
@@ -161,7 +170,7 @@ describe("tier filtering", () => {
     ];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setTier("framework"));
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).not.toContain("from app");
     expect(messages).toContain("from framework");
   });
@@ -170,7 +179,7 @@ describe("tier filtering", () => {
     const entries = [entry({ source_tier: "framework", message: "from framework" })];
     const { hook } = renderLocal(entries, [], "my_app");
     // "all" tier means framework entries pass through
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toContain("from framework");
   });
 
@@ -181,10 +190,10 @@ describe("tier filtering", () => {
     ];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setApp("alpha"));
-    expect(hook.result.current.filtered.value.map((e) => e.message)).toEqual(["alpha"]);
+    expect(hook.result.current.filtered.map((e) => e.message)).toEqual(["alpha"]);
     // Changing to "all" should reset app filter
     act(() => hook.result.current.setTier("all"));
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toContain("alpha");
     expect(messages).toContain("beta");
   });
@@ -205,7 +214,7 @@ describe("app filtering", () => {
       hook.result.current.setTier("all");
       hook.result.current.setApp("alpha");
     });
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toEqual(["alpha msg"]);
   });
 });
@@ -224,7 +233,7 @@ describe("search filtering", () => {
     act(() => hook.result.current.setSearch("hello"));
     // Wait for debounce
     await new Promise((r) => setTimeout(r, 200));
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toContain("Hello World");
     expect(messages).not.toContain("unrelated");
   });
@@ -237,7 +246,7 @@ describe("search filtering", () => {
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setSearch("MY_APP"));
     await new Promise((r) => setTimeout(r, 200));
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toContain("msg");
     expect(messages).not.toContain("other");
   });
@@ -255,7 +264,7 @@ describe("func filtering", () => {
     ];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setFunc("ON_STATE"));
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toContain("a");
     expect(messages).not.toContain("b");
   });
@@ -273,7 +282,7 @@ describe("sort", () => {
       entry({ timestamp: 2000, message: "mid" }),
     ];
     const { hook } = renderLocal(entries);
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toEqual(["new", "mid", "old"]);
   });
 
@@ -281,7 +290,7 @@ describe("sort", () => {
     const entries = [entry({ timestamp: 1000, message: "old" }), entry({ timestamp: 3000, message: "new" })];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setSort("timestamp"));
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toEqual(["old", "new"]);
   });
 
@@ -333,15 +342,14 @@ describe("livePaused", () => {
   it("reads from restEntries when paused", () => {
     const live = [entry({ message: "live" })];
     const rest = [entry({ message: "rest" })];
-    const { hook, allEntries, restEntries } = renderLocal(live, rest);
+    const { hook } = renderLocal(live, rest);
 
     act(() => {
-      allEntries.value = [entry({ message: "live" })];
-      restEntries.value = [entry({ message: "rest" })];
       hook.result.current.setSort("level");
     });
 
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    // After sorting by level, livePaused=true, so restEntries is the source
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toContain("rest");
     expect(messages).not.toContain("live");
   });
@@ -349,14 +357,26 @@ describe("livePaused", () => {
   it("reads from allEntries when not paused", () => {
     const live = [entry({ message: "live" })];
     const rest = [entry({ message: "rest" })];
-    const { hook, allEntries, restEntries } = renderLocal(live, rest);
+    const { hook } = renderLocal(live, rest);
 
-    act(() => {
-      allEntries.value = [entry({ message: "live" })];
-      restEntries.value = [entry({ message: "rest" })];
-    });
+    // livePaused=false by default (timestamp sort), so allEntries is the source
+    const messages = hook.result.current.filtered.map((e) => e.message);
+    expect(messages).toContain("live");
+    expect(messages).not.toContain("rest");
+  });
 
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+  it("switches to allEntries when paused is cleared", () => {
+    const live = [entry({ message: "live" })];
+    const rest = [entry({ message: "rest" })];
+    const { hook } = renderLocal(live, rest);
+
+    // Pause by sorting by level
+    act(() => hook.result.current.setSort("level"));
+    expect(hook.result.current.filtered.map((e) => e.message)).toContain("rest");
+
+    // Unpause by resetting sort
+    act(() => hook.result.current.resetSort());
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toContain("live");
     expect(messages).not.toContain("rest");
   });
@@ -405,7 +425,7 @@ describe("URL state mode", () => {
     mockSearch = "level=WARNING";
     const entries = [entry({ level: "DEBUG", message: "debug" }), entry({ level: "WARNING", message: "warn" })];
     const { hook } = renderUrl(entries);
-    const messages = hook.result.current.filtered.value.map((e) => e.message);
+    const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).not.toContain("debug");
     expect(messages).toContain("warn");
   });
