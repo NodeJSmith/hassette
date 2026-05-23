@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/preact-query";
-import { useMemo, useRef } from "preact/hooks";
+import { useEffect, useMemo } from "preact/hooks";
 import { toast } from "sonner";
 
 import { getRecentLogs, type LogEntry } from "../../../api/endpoints";
@@ -36,12 +36,11 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
       }),
   });
 
-  // Surface error via toast (matches original behavior).
-  const lastErrorRef = useRef<unknown>(null);
-  if (isError && error !== lastErrorRef.current) {
-    lastErrorRef.current = error;
-    toast.error(error instanceof Error ? error.message : "Failed to load recent logs");
-  }
+  useEffect(() => {
+    if (isError && error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load recent logs");
+    }
+  }, [isError, error]);
 
   const restEntries: LogEntry[] = data ?? [];
 
