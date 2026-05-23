@@ -468,6 +468,7 @@ class TelemetryQueryService(Resource):
                 FROM job_executions je
                 JOIN scheduled_jobs j ON j.id = je.job_id
                 WHERE j.app_key = :app_key AND j.instance_index = :instance_index
+                    AND j.cancelled_at IS NULL
                     {tier_sj_clause} {since_je_clause}
             )
             SELECT
