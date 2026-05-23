@@ -1,12 +1,8 @@
 import type { JobData } from "../../api/endpoints";
 import { getJobExecutions } from "../../api/endpoints";
-import {
-  useFilteredSignalRefetch,
-  WS_DEBOUNCE_DELAY_MS,
-  WS_DEBOUNCE_MAX_WAIT_MS,
-} from "../../hooks/use-filtered-signal-refetch";
+import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-query-invalidator";
 import { useRelativeTime } from "../../hooks/use-relative-time";
-import { useScopedApi } from "../../hooks/use-scoped-api";
+import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { useAppState } from "../../state/context";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import { formatDurationOrDash, formatOptionalDuration, formatTriggerDetail } from "../../utils/format";
@@ -57,21 +53,19 @@ interface Props {
 }
 
 export function JobDetail({ job, onSwitchToCode }: Props) {
-  const {
-    data: executions,
-    loading,
-    refetch,
-  } = useScopedApi((since) => getJobExecutions(job.job_id, DETAIL_FETCH_LIMIT, since), { deps: [job.job_id] });
+  const { data: executions, isPending: loading } = useScopedQuery(["job-executions", job.job_id], (since) =>
+    getJobExecutions(job.job_id, DETAIL_FETCH_LIMIT, since),
+  );
 
   const { executionCompleted } = useAppState();
   const lastExecutedLabel = useRelativeTime(job.last_executed_at);
   const nextRunLabel = useRelativeTime(job.next_run ?? null);
   const fireAtLabel = useRelativeTime(job.fire_at ?? null);
 
-  useFilteredSignalRefetch(
+  useQueryInvalidator(
     executionCompleted,
     (events) => events?.some((e) => e.job_id === job.job_id) ?? false,
-    () => void refetch(),
+    ["job-executions", job.job_id],
     WS_DEBOUNCE_DELAY_MS,
     WS_DEBOUNCE_MAX_WAIT_MS,
   );
@@ -119,11 +113,11 @@ export function JobDetail({ job, onSwitchToCode }: Props) {
       statsCells={buildJobStatsCells(job, lastExecutedLabel)}
       statsTestId="job-stats-row"
       executionHeading="executions"
-      executionRecords={executions.value ?? []}
+      executionRecords={executions ?? []}
       executionKind="job"
       executionTableId={`execution-table-${job.job_id}`}
       executionLoading={loading}
-      executionHasData={!!executions.value}
+      executionHasData={executions !== undefined}
     />
   );
 }

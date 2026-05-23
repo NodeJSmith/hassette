@@ -4,7 +4,7 @@ import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../../api/generated-types";
-import { WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-filtered-signal-refetch";
+import { WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-query-invalidator";
 import { createJob, createListener, createLogEntry } from "../../test/factories";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";

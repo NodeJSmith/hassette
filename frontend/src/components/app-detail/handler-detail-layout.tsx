@@ -1,4 +1,3 @@
-import type { ReadonlySignal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
 
 import { parseSourceLocation } from "../../utils/format";
@@ -41,7 +40,7 @@ interface Props {
   executionRecords: ExecutionRecord[];
   executionKind: "handler" | "job";
   executionTableId: string;
-  executionLoading: ReadonlySignal<boolean>;
+  executionLoading: boolean;
   executionHasData: boolean;
 }
 
@@ -136,7 +135,7 @@ export function HandlerDetailLayout({
 
       <div class={styles.executionsPanel}>
         <h3 class={styles.panelHeading}>{executionHeading}</h3>
-        {executionLoading.value && !executionHasData ? (
+        {executionLoading && !executionHasData ? (
           <Spinner />
         ) : (
           <ExecutionTable records={executionRecords} kind={executionKind} tableId={executionTableId} />

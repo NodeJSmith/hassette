@@ -1,7 +1,7 @@
 ---
 task_id: "T07"
 title: "Migrate scoped components (ListenerDetail, JobDetail, RecentActivity)"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#5"]
 ---
