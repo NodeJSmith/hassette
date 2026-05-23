@@ -4,7 +4,6 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Any, Protocol
 
 from hassette.config.helpers import VERSION
-from hassette.core.telemetry_models import JobSummary, ListenerSummary
 from hassette.web.models import ErrorRateClass, HealthStatus
 
 LOGGER = getLogger(__name__)
@@ -115,40 +114,6 @@ def extract_entity_from_topic(topic: str) -> str | None:
     if not remainder or "*" in remainder:
         return None
     return remainder
-
-
-def compute_health_metrics(
-    listeners: list[ListenerSummary],
-    jobs: list[JobSummary],
-) -> dict[str, Any]:
-    """Compute health strip metrics from listener and job summaries.
-
-    Returns a dict with ``error_rate``, ``handler_avg_duration``,
-    ``job_avg_duration``, and ``last_activity_ts``.
-    """
-    total_invocations = sum(ls.total_invocations for ls in listeners)
-    handler_errors = sum(ls.failed + ls.timed_out for ls in listeners)
-    total_job_executions = sum(j.total_executions for j in jobs)
-    job_errors = sum(j.failed + j.timed_out for j in jobs)
-    error_rate = compute_error_rate(
-        total_invocations=total_invocations,
-        total_executions=total_job_executions,
-        handler_errors=handler_errors,
-        job_errors=job_errors,
-    )
-    total_handler_duration = sum(ls.total_duration_ms for ls in listeners)
-    handler_avg_duration = (total_handler_duration / total_invocations) if total_invocations > 0 else 0.0
-    total_job_duration = sum(j.total_duration_ms for j in jobs)
-    job_avg_duration = (total_job_duration / total_job_executions) if total_job_executions > 0 else 0.0
-    last_times: list[float] = [ls.last_invoked_at for ls in listeners if ls.last_invoked_at is not None]
-    last_times.extend(j.last_executed_at for j in jobs if j.last_executed_at is not None)
-    last_activity_ts = max(last_times) if last_times else None
-    return {
-        "error_rate": error_rate,
-        "handler_avg_duration": handler_avg_duration,
-        "job_avg_duration": job_avg_duration,
-        "last_activity_ts": last_activity_ts,
-    }
 
 
 def format_handler_summary(listener: _ListenerLike) -> str:

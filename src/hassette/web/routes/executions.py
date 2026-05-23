@@ -2,7 +2,6 @@
 
 import logging
 import time
-import uuid
 from typing import TYPE_CHECKING, Annotated
 
 import uuid_utils
@@ -22,7 +21,7 @@ router = APIRouter(prefix="/executions", tags=["executions"])
 LOGGER = logging.getLogger(__name__)
 
 
-def _extract_uuidv7_timestamp_s(execution_id: str) -> float | None:
+def extract_uuidv7_timestamp_s(execution_id: str) -> float | None:
     """Return the Unix timestamp (seconds) embedded in a UUIDv7 string, or None if not v7.
 
     UUIDv7 embeds a 48-bit Unix millisecond timestamp in the first 48 bits. Falls back
@@ -37,7 +36,7 @@ def _extract_uuidv7_timestamp_s(execution_id: str) -> float | None:
     return parsed.timestamp / 1000.0
 
 
-async def _check_retention_expired_uuid4(hassette: "Hassette", execution_id: str) -> bool:
+async def check_retention_expired_uuid4(hassette: "Hassette", execution_id: str) -> bool:
     """Fall back to DB query for non-UUIDv7 execution IDs (historical UUIDv4 IDs)."""
     try:
         cutoff = time.time() - hassette.config.logging.log_retention_days * SECONDS_PER_DAY
@@ -65,7 +64,7 @@ async def get_execution_logs(
     with ``retention_expired=True`` if logs have been purged by retention policy.
     """
     try:
-        uuid.UUID(execution_id)
+        uuid_utils.UUID(execution_id)
     except ValueError as exc:
         raise HTTPException(
             status_code=422, detail=f"Invalid execution_id: {execution_id!r} is not a valid UUID"
@@ -84,14 +83,14 @@ async def get_execution_logs(
 
     retention_expired = False
     if not records:
-        ts_s = _extract_uuidv7_timestamp_s(execution_id)
+        ts_s = extract_uuidv7_timestamp_s(execution_id)
         if ts_s is not None:
             # UUIDv7: extract embedded timestamp — no DB lookup needed
             cutoff = time.time() - hassette.config.logging.log_retention_days * SECONDS_PER_DAY
             retention_expired = ts_s < cutoff
         else:
             # UUIDv4 or other version: fall back to DB query
-            retention_expired = await _check_retention_expired_uuid4(hassette, execution_id)
+            retention_expired = await check_retention_expired_uuid4(hassette, execution_id)
 
     log_entries = [LogEntryResponse.model_validate(r) for r in records]
     return LogsByExecutionResponse(records=log_entries, truncated=truncated, retention_expired=retention_expired)
