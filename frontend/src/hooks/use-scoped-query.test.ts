@@ -78,7 +78,7 @@ describe("useScopedQuery", () => {
       expect(fetcher).toHaveBeenCalledTimes(1);
     });
 
-    expect(fetcher).toHaveBeenCalledWith(expectedSince);
+    expect(fetcher).toHaveBeenCalledWith(expectedSince, expect.any(AbortSignal));
   });
 
   it("computes since = now - 3600 for 1h preset", async () => {
@@ -93,7 +93,7 @@ describe("useScopedQuery", () => {
       expect(fetcher).toHaveBeenCalled();
     });
 
-    expect(fetcher).toHaveBeenCalledWith(BASE_TIME_S - 3600);
+    expect(fetcher).toHaveBeenCalledWith(BASE_TIME_S - 3600, expect.any(AbortSignal));
   });
 
   it("computes since = now - 86400 for 24h preset", async () => {
@@ -108,7 +108,7 @@ describe("useScopedQuery", () => {
       expect(fetcher).toHaveBeenCalled();
     });
 
-    expect(fetcher).toHaveBeenCalledWith(BASE_TIME_S - 86400);
+    expect(fetcher).toHaveBeenCalledWith(BASE_TIME_S - 86400, expect.any(AbortSignal));
   });
 
   it("computes since = now - 604800 for 7d preset", async () => {
@@ -123,7 +123,7 @@ describe("useScopedQuery", () => {
       expect(fetcher).toHaveBeenCalled();
     });
 
-    expect(fetcher).toHaveBeenCalledWith(BASE_TIME_S - 604800);
+    expect(fetcher).toHaveBeenCalledWith(BASE_TIME_S - 604800, expect.any(AbortSignal));
   });
 
   it("respects effectiveTimePreset — urlWindowParam overrides timePreset", async () => {
@@ -140,7 +140,7 @@ describe("useScopedQuery", () => {
     });
 
     // Should use 7d (urlWindowParam), not 1h (timePreset)
-    expect(fetcher).toHaveBeenCalledWith(BASE_TIME_S - 604800);
+    expect(fetcher).toHaveBeenCalledWith(BASE_TIME_S - 604800, expect.any(AbortSignal));
   });
 
   it("refetches when preset changes (different query key)", async () => {

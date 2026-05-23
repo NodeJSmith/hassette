@@ -4,6 +4,7 @@ import { getConfig } from "../api/endpoints";
 import { Card } from "../components/shared/card";
 import { Spinner } from "../components/shared/spinner";
 import { useDocumentTitle } from "../hooks/use-document-title";
+import { queryKeys } from "../lib/query-keys";
 import styles from "./config.module.css";
 
 type ConfigRow = { key: string; value: string };
@@ -28,7 +29,7 @@ export function ConfigPage() {
     isPending: loading,
     error,
   } = useQuery({
-    queryKey: ["config"],
+    queryKey: queryKeys.config(),
     queryFn: getConfig,
   });
 

@@ -25,7 +25,7 @@ export interface UseScopedQueryOptions {
  */
 export function useScopedQuery<T>(
   baseKey: readonly unknown[],
-  fetcher: (since: number) => Promise<T>,
+  fetcher: (since: number, signal: AbortSignal) => Promise<T>,
   options?: UseScopedQueryOptions,
 ): UseQueryResult<T> {
   const { effectiveTimePreset, uptimeSeconds } = useAppState();
@@ -40,13 +40,12 @@ export function useScopedQuery<T>(
   // Fixed-window presets omit uptime so cache entries survive reconnects.
   const queryKey = [...baseKey, preset, ...(preset === "since-restart" ? [uptime] : [])];
 
-  const since = resolveSince(preset, uptime);
-
   return useQuery<T>({
     queryKey,
-    queryFn: () => {
+    queryFn: ({ signal }) => {
+      const since = resolveSince(preset, uptime);
       if (since === undefined) throw new Error("queryFn called while disabled");
-      return fetcher(since);
+      return fetcher(since, signal);
     },
     enabled: !waitingForUptime,
     ...options,

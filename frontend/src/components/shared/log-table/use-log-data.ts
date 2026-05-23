@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { getRecentLogs, type LogEntry } from "../../../api/endpoints";
 import { useSubscribe } from "../../../hooks/use-subscribe";
+import { queryKeys } from "../../../lib/query-keys";
 import { useAppState } from "../../../state/context";
 import { REST_FETCH_LIMIT } from "./constants";
 
@@ -26,7 +27,7 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
   useSubscribe(logs.version);
 
   const { data, isPending, isError, error } = useQuery({
-    queryKey: ["recent-logs", appKey ?? null, executionId ?? null],
+    queryKey: queryKeys.recentLogs(appKey, executionId),
     queryFn: () =>
       getRecentLogs({
         app_key: appKey,

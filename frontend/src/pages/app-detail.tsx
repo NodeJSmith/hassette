@@ -19,6 +19,7 @@ import { useManifests } from "../hooks/use-manifests";
 import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
+import { queryKeys } from "../lib/query-keys";
 import { useAppState } from "../state/context";
 import styles from "./app-detail.module.css";
 
@@ -50,6 +51,7 @@ function Tab({
       href={href}
       role="tab"
       id={`tab-${id}`}
+      tabIndex={isActive ? 0 : -1}
       aria-selected={isActive}
       aria-controls={`tabpanel-${id}`}
       class={clsx(styles.tabBtn, isActive && styles.tabBtnActive)}
@@ -75,28 +77,36 @@ export function AppDetailPage({ params }: Props) {
 
   const resolvedInstanceIndex = instanceIndex ?? 0;
 
-  const { data: listenersData, isPending: listenersLoading } = useScopedQuery(
-    ["app-listeners", appKey, resolvedInstanceIndex],
-    (since) => getAppListeners(appKey, resolvedInstanceIndex, since),
+  const {
+    data: listenersData,
+    isPending: listenersLoading,
+    error: listenersError,
+  } = useScopedQuery(
+    queryKeys.appListeners.base(appKey, resolvedInstanceIndex),
+    (since, signal) => getAppListeners(appKey, resolvedInstanceIndex, since, signal),
     { placeholderData: keepPreviousData },
   );
-  const { data: jobsData, isPending: jobsLoading } = useScopedQuery(
-    ["app-jobs", appKey, resolvedInstanceIndex],
-    (since) => getAppJobs(appKey, resolvedInstanceIndex, since),
+  const {
+    data: jobsData,
+    isPending: jobsLoading,
+    error: jobsError,
+  } = useScopedQuery(
+    queryKeys.appJobs.base(appKey, resolvedInstanceIndex),
+    (since, signal) => getAppJobs(appKey, resolvedInstanceIndex, since, signal),
     { placeholderData: keepPreviousData },
   );
 
   useQueryInvalidator(
     invocationCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
-    ["app-listeners", appKey],
+    queryKeys.appListeners.prefix(appKey),
     WS_DEBOUNCE_DELAY_MS,
     WS_DEBOUNCE_MAX_WAIT_MS,
   );
   useQueryInvalidator(
     executionCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
-    ["app-jobs", appKey],
+    queryKeys.appJobs.prefix(appKey),
     WS_DEBOUNCE_DELAY_MS,
     WS_DEBOUNCE_MAX_WAIT_MS,
   );
@@ -136,6 +146,14 @@ export function AppDetailPage({ params }: Props) {
 
   if (initialLoading) return <Spinner />;
 
+  if (listenersError || jobsError) {
+    return (
+      <div class="ht-alert ht-alert--danger" role="alert">
+        {(listenersError ?? jobsError)!.message}
+      </div>
+    );
+  }
+
   const instanceQs = instanceParam !== null && instanceParam !== "" ? `?instance=${instanceParam}` : "";
   const tabProps = { appKey, instanceQs, activeTab };
   const handlerCount = (listenersData?.length ?? 0) + (jobsData?.length ?? 0);
@@ -170,7 +188,20 @@ export function AppDetailPage({ params }: Props) {
         showParentOverview={showParentOverview}
       />
 
-      <div class={clsx(styles.tabStrip, "ht-mb-4")} role="tablist" aria-label="App sections">
+      <div
+        class={clsx(styles.tabStrip, "ht-mb-4")}
+        role="tablist"
+        aria-label="App sections"
+        onKeyDown={(e: KeyboardEvent) => {
+          if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+          e.preventDefault();
+          const tabs = (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="tab"]');
+          const current = Array.from(tabs).findIndex((t) => t.getAttribute("aria-selected") === "true");
+          const next = e.key === "ArrowRight" ? (current + 1) % tabs.length : (current - 1 + tabs.length) % tabs.length;
+          tabs[next]?.focus();
+          tabs[next]?.click();
+        }}
+      >
         <Tab id="overview" label="overview" {...tabProps} />
         {!showParentOverview && <Tab id="handlers" label="handlers" badge={handlerCount} {...tabProps} />}
         <Tab id="code" label="code" {...tabProps} />

@@ -11,6 +11,7 @@ import { Spinner } from "../components/shared/spinner";
 import { StatusShape } from "../components/shared/status-shape";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useRelativeTime } from "../hooks/use-relative-time";
+import { queryKeys } from "../lib/query-keys";
 import { useAppState } from "../state/context";
 import type { ServiceStatusEntry } from "../state/create-app-state";
 import { statusToKind } from "../utils/status";
@@ -277,7 +278,7 @@ export function DiagnosticsPage() {
     isPending: loading,
     error: loadError,
   } = useQuery({
-    queryKey: ["system-status"],
+    queryKey: queryKeys.systemStatus(),
     queryFn: getSystemStatus,
   });
 

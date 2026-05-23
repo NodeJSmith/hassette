@@ -6,6 +6,7 @@ import { useLocation } from "wouter";
 import { getAllListeners } from "../../api/endpoints";
 import { useManifests } from "../../hooks/use-manifests";
 import { useSignal } from "../../hooks/use-signal";
+import { queryKeys } from "../../lib/query-keys";
 import { statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 import styles from "./command-palette.module.css";
@@ -36,9 +37,10 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   const { data: allManifests = [] } = useManifests();
   const { data: listeners } = useQuery({
-    queryKey: ["all-listeners-palette"],
+    queryKey: queryKeys.allListenersPalette(),
     queryFn: () => getAllListeners(),
     enabled: open,
+    staleTime: 300_000,
   });
 
   useEffect(() => {
@@ -149,6 +151,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             aria-label="Search command palette"
             aria-autocomplete="list"
             aria-controls="cmd-palette-results"
+            aria-activedescendant={
+              selectedIndex.value >= 0 ? `cmd-option-${flatResults[selectedIndex.value]?.id}` : undefined
+            }
             autocomplete="off"
             spellcheck={false}
           />
@@ -177,6 +182,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                 return (
                   <button
                     key={item.id}
+                    id={`cmd-option-${item.id}`}
                     type="button"
                     role="option"
                     aria-selected={isActive}

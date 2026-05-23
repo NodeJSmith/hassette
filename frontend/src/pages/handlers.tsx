@@ -11,6 +11,7 @@ import { BREAKPOINT_MOBILE, useMediaQuery } from "../hooks/use-media-query";
 import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
+import { queryKeys } from "../lib/query-keys";
 import { useAppState } from "../state/context";
 import { pluralize } from "../utils/format";
 import { compareHandlerRows, type HandlerSortKey, jobToRow, listenerToRow } from "../utils/handler-rows";
@@ -45,21 +46,33 @@ export function HandlersPage() {
 
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
 
-  const { data: listeners, isPending: listenersLoading } = useScopedQuery(["all-listeners"], (since) =>
-    getAllListeners(since),
-  );
-  const { data: jobs, isPending: jobsLoading } = useScopedQuery(["all-jobs"], (since) => getAllJobs(since));
+  const {
+    data: listeners,
+    isPending: listenersLoading,
+    error: listenersError,
+  } = useScopedQuery(queryKeys.allListeners.base(), (since, signal) => getAllListeners(since, signal));
+  const {
+    data: jobs,
+    isPending: jobsLoading,
+    error: jobsError,
+  } = useScopedQuery(queryKeys.allJobs.base(), (since, signal) => getAllJobs(since, signal));
 
   const { invocationCompleted, executionCompleted } = useAppState();
 
   useQueryInvalidator(
     invocationCompleted,
     () => true,
-    ["all-listeners"],
+    queryKeys.allListeners.prefix(),
     WS_DEBOUNCE_DELAY_MS,
     WS_DEBOUNCE_MAX_WAIT_MS,
   );
-  useQueryInvalidator(executionCompleted, () => true, ["all-jobs"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS);
+  useQueryInvalidator(
+    executionCompleted,
+    () => true,
+    queryKeys.allJobs.prefix(),
+    WS_DEBOUNCE_DELAY_MS,
+    WS_DEBOUNCE_MAX_WAIT_MS,
+  );
 
   const allListeners = listeners ?? [];
   const allJobs = jobs ?? [];
@@ -67,6 +80,14 @@ export function HandlersPage() {
   const isLoading = (listenersLoading && allListeners.length === 0) || (jobsLoading && allJobs.length === 0);
 
   if (isLoading) return <Spinner />;
+
+  if (listenersError || jobsError) {
+    return (
+      <div class="ht-alert ht-alert--danger" role="alert">
+        {(listenersError ?? jobsError)!.message}
+      </div>
+    );
+  }
 
   const allRows = [...allListeners.map(listenerToRow), ...allJobs.map(jobToRow)];
 

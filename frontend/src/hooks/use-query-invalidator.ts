@@ -51,17 +51,21 @@ export function useQueryInvalidator<T>(
   queryKeyRef.current = queryKey;
 
   const lastValueRef = useRef<T>(signal.peek());
+  const mountedRef = useRef(false);
 
   useSignalEffect(() => {
     const value = signal.value;
 
-    // Skip the initial subscription call (same value as peek()) to prevent
-    // spurious invalidation on mount.
     if (Object.is(value, lastValueRef.current)) {
+      if (!mountedRef.current) {
+        mountedRef.current = true;
+      }
       return;
     }
     lastValueRef.current = value;
 
+    // Post-mount freshness check: if the signal already has a matching value
+    // on first real change after mount, invalidate immediately.
     if (!filterFnRef.current(value)) {
       return;
     }
@@ -78,20 +82,17 @@ export function useQueryInvalidator<T>(
       void queryClientRef.current.invalidateQueries({ queryKey: queryKeyRef.current });
     };
 
-    // Reset trailing timer on each matching event.
     if (timerRef.current !== null) {
       clearTimeout(timerRef.current);
     }
     timerRef.current = setTimeout(fire, delayMs);
 
-    // Start the max-wait timer only on the first matching event in a burst.
-    // Does NOT reset on subsequent matching events.
     if (maxTimerRef.current === null) {
       maxTimerRef.current = setTimeout(fire, maxWaitMs);
     }
   });
 
-  // Clean up both timers on unmount.
+  const serializedKey = JSON.stringify(queryKey);
   useEffect(() => {
     return () => {
       if (timerRef.current !== null) {
@@ -103,5 +104,5 @@ export function useQueryInvalidator<T>(
         maxTimerRef.current = null;
       }
     };
-  }, []);
+  }, [serializedKey]);
 }

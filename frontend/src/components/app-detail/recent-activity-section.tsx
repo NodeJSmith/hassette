@@ -6,6 +6,7 @@ import { getAppActivity } from "../../api/endpoints";
 import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-query-invalidator";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { useSubscribe } from "../../hooks/use-subscribe";
+import { queryKeys } from "../../lib/query-keys";
 import { useAppState } from "../../state/context";
 import { formatDurationOrDash, formatRelativeTime, lastDotSegment } from "../../utils/format";
 import { executionStatusKind } from "../../utils/status";
@@ -113,8 +114,8 @@ export function RecentActivitySection({
     data: activity,
     isPending: loading,
     error: activityError,
-  } = useScopedQuery(["app-activity", appKey, resolvedInstanceIndex], (since) =>
-    getAppActivity(appKey, resolvedInstanceIndex, ACTIVITY_LIMIT, since),
+  } = useScopedQuery(queryKeys.appActivity.base(appKey, resolvedInstanceIndex), (since, signal) =>
+    getAppActivity(appKey, resolvedInstanceIndex, ACTIVITY_LIMIT, since, signal),
   );
 
   const { invocationCompleted, executionCompleted, tick } = useAppState();
@@ -123,7 +124,7 @@ export function RecentActivitySection({
   useQueryInvalidator(
     invocationCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
-    ["app-activity", appKey],
+    queryKeys.appActivity.prefix(appKey),
     WS_DEBOUNCE_DELAY_MS,
     WS_DEBOUNCE_MAX_WAIT_MS,
   );
@@ -131,7 +132,7 @@ export function RecentActivitySection({
   useQueryInvalidator(
     executionCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
-    ["app-activity", appKey],
+    queryKeys.appActivity.prefix(appKey),
     WS_DEBOUNCE_DELAY_MS,
     WS_DEBOUNCE_MAX_WAIT_MS,
   );

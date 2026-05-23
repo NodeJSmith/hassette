@@ -18,6 +18,7 @@ import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } fr
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
 import { useSignal } from "../hooks/use-signal";
+import { queryKeys } from "../lib/query-keys";
 import { useAppState } from "../state/context";
 import { type AppRow, type AppSortState, compareAppRows, mergeManifestsAndGrid } from "../utils/app-data";
 import { pluralize } from "../utils/format";
@@ -120,19 +121,21 @@ export function AppsPage() {
 
   const { appStatus, effectiveTimePreset, uptimeSeconds, invocationCompleted, executionCompleted } = useAppState();
   const { data: manifests = [], isPending: manifestsLoading } = useManifests();
-  const { data: gridData } = useScopedQuery(["dashboard-grid"], (since) => getDashboardAppGrid(since));
+  const { data: gridData, error: gridError } = useScopedQuery(queryKeys.dashboardGrid.base(), (since, signal) =>
+    getDashboardAppGrid(since, signal),
+  );
 
   useQueryInvalidator(
     invocationCompleted,
     (events) => events !== null,
-    ["dashboard-grid"],
+    queryKeys.dashboardGrid.prefix(),
     WS_DEBOUNCE_DELAY_MS,
     WS_DEBOUNCE_MAX_WAIT_MS,
   );
   useQueryInvalidator(
     executionCompleted,
     (events) => events !== null,
-    ["dashboard-grid"],
+    queryKeys.dashboardGrid.prefix(),
     WS_DEBOUNCE_DELAY_MS,
     WS_DEBOUNCE_MAX_WAIT_MS,
   );
@@ -212,6 +215,14 @@ export function AppsPage() {
     .sort((a, b) => compareAppRows(a, b, sort, appStatus.value));
 
   if (manifestsLoading && manifests.length === 0) return <Spinner />;
+
+  if (gridError) {
+    return (
+      <div class="ht-alert ht-alert--danger" role="alert">
+        {gridError.message}
+      </div>
+    );
+  }
 
   const searchInput = (
     <input

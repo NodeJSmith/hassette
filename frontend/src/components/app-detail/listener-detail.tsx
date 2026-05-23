@@ -3,6 +3,7 @@ import { getHandlerInvocations } from "../../api/endpoints";
 import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-query-invalidator";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
+import { queryKeys } from "../../lib/query-keys";
 import { useAppState } from "../../state/context";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import { formatDurationOrDash, formatOptionalDuration, lastDotSegment, MS_PER_SECOND } from "../../utils/format";
@@ -67,8 +68,8 @@ interface Props {
 
 export function ListenerDetail({ listener, onSwitchToCode }: Props) {
   const { data: invocations, isPending: loading } = useScopedQuery(
-    ["handler-invocations", listener.listener_id],
-    (since) => getHandlerInvocations(listener.listener_id, DETAIL_FETCH_LIMIT, since),
+    queryKeys.handlerInvocations.base(listener.listener_id),
+    (since, signal) => getHandlerInvocations(listener.listener_id, DETAIL_FETCH_LIMIT, since, signal),
   );
 
   const { invocationCompleted } = useAppState();
@@ -77,7 +78,7 @@ export function ListenerDetail({ listener, onSwitchToCode }: Props) {
   useQueryInvalidator(
     invocationCompleted,
     (events) => events?.some((e) => e.listener_id === listener.listener_id) ?? false,
-    ["handler-invocations", listener.listener_id],
+    queryKeys.handlerInvocations.base(listener.listener_id),
     WS_DEBOUNCE_DELAY_MS,
     WS_DEBOUNCE_MAX_WAIT_MS,
   );
