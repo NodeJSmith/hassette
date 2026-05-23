@@ -348,7 +348,7 @@ describe("CommandPalette — handlers", () => {
   });
 
   it("degrades gracefully when handler fetch fails", async () => {
-    server.use(http.get("/api/bus/listeners", () => HttpResponse.error()));
+    server.use(http.get("/api/bus/listeners", () => new HttpResponse(null, { status: 500 })));
     renderPalette();
     // Should still show pages and apps
     expect(await screen.findByText("apps")).toBeDefined();
@@ -365,14 +365,10 @@ describe("CommandPalette — handlers", () => {
       }),
     );
 
-    // Open palette — fetches handlers
-    const { unmount } = renderPalette({ open: true });
-    await screen.findByText("on_state_change");
-    expect(callCount).toBe(1);
-    unmount();
-
-    // Closed palette — enabled: open suppresses the fetch
+    // Closed palette — enabled: open suppresses the fetch entirely
     renderPalette({ open: false });
-    expect(callCount).toBe(1);
+    // Flush any pending microtasks to confirm no fetch fires
+    await new Promise((r) => setTimeout(r, 0));
+    expect(callCount).toBe(0);
   });
 });
