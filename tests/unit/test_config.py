@@ -867,8 +867,9 @@ class TestLegacyEnvVarMigration:
         assert config.apps.directory == app_dir
 
     def test_env_var_lands_in_model_extra_then_migrates(self, monkeypatch, tmp_path):
-        """Legacy env vars are absorbed by pydantic-settings into model_extra, then apply_legacy_migrations
-        handles them. This is the primary migration path — apply_legacy_env_vars is defense-in-depth."""
+        """Legacy env vars are absorbed by pydantic-settings into model_extra during source processing,
+        then apply_legacy_migrations handles them in model_post_init. ExcludeExtrasMixin strips
+        consumed extras afterward, so model_extra is clean after init."""
         app_dir = tmp_path / "my_apps"
         app_dir.mkdir()
         monkeypatch.setenv("HASSETTE__APP_DIR", str(app_dir))
