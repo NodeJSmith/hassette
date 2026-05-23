@@ -313,6 +313,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                 )
                 setattr(group_obj, sub_field, sub_value)
 
+        legacy_extra_values: dict[str, object] = {}
         if self.model_extra:
             if "app" in self.model_extra:
                 LOGGER.warning(
@@ -324,9 +325,10 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
             legacy_hits = {k: LEGACY_KEY_MIGRATION[k] for k in self.model_extra if k in LEGACY_KEY_MIGRATION}
             if legacy_hits:
+                legacy_extra_values = {k: self.model_extra[k] for k in legacy_hits}
                 self.apply_legacy_migrations(legacy_hits, pre_migration_fields)
 
-        self.apply_legacy_env_vars(pre_migration_fields)
+        self.apply_legacy_env_vars(pre_migration_fields, legacy_extra_values)
 
     def apply_legacy_migrations(self, legacy_hits: dict[str, str], pre_migration_fields: dict[str, set[str]]) -> None:
         migrations: dict[str, dict[str, object]] = {}
@@ -344,13 +346,20 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             migrations.setdefault(group_name, {})[sub_field] = self.model_extra[old_key]  # pyright: ignore[reportOptionalSubscript]
         self.apply_group_updates(migrations)
 
-    def apply_legacy_env_vars(self, pre_migration_fields: dict[str, set[str]]) -> None:
+    def apply_legacy_env_vars(
+        self, pre_migration_fields: dict[str, set[str]], legacy_extra_values: dict[str, object]
+    ) -> None:
         env_prefix = self.model_config.get("env_prefix", "").upper()
         migrations: dict[str, dict[str, object]] = {}
         for old_key, dot_path in LEGACY_KEY_MIGRATION.items():
             env_var = f"{env_prefix}{old_key.upper()}"
             raw_value = os.environ.get(env_var)
-            if not raw_value:
+            if not raw_value:  # None = not set, "" = empty (matches env_ignore_empty)
+                continue
+            # Skip if apply_legacy_migrations already handled this key with the same value
+            # (both came from the same env var via pydantic-settings model_extra). When the
+            # values differ, env should override TOML — that's the priority fix.
+            if old_key in legacy_extra_values and str(legacy_extra_values[old_key]) == raw_value:
                 continue
             group_name, sub_field = dot_path.split(".", 1)
             if sub_field in pre_migration_fields.get(group_name, set()):
