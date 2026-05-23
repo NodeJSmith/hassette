@@ -1,7 +1,7 @@
 # Design: Migrate Data Fetching to TanStack Query
 
 **Date:** 2026-05-22
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Issue:** #820
 

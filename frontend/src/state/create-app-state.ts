@@ -5,6 +5,9 @@ import { getStoredValue } from "../utils/local-storage";
 import { RingBuffer } from "../utils/ring-buffer";
 import { isTheme } from "../utils/theme";
 
+export const RELATIVE_TIME_TICK_MS = 30_000;
+const LOG_BUFFER_CAPACITY = 1000;
+
 export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
 
 /** Time-window presets for telemetry queries. */
@@ -45,7 +48,7 @@ export interface LogStore {
 }
 
 export function createLogStore(): LogStore {
-  const buffer = new RingBuffer<WsLogPayload>(1000);
+  const buffer = new RingBuffer<WsLogPayload>(LOG_BUFFER_CAPACITY);
   const version = signal(0);
 
   return {
@@ -70,7 +73,7 @@ export function createLogStore(): LogStore {
 
 export function createAppState() {
   /** Server-side log level update callback; wired by useWebSocket after connect. */
-  let _updateLogSubscription: (level: string) => void = () => {};
+  let logSubscriptionCallback: (level: string) => void = () => {};
 
   // Pre-create signals that are referenced by computed values.
   const timePreset = signal<TimePreset>(getStoredValue<TimePreset>("timePreset", "since-restart", isTimePreset));
@@ -214,7 +217,7 @@ export function createAppState() {
      * Wired by useWebSocket once the socket is ready; no-op before that.
      */
     updateLogSubscription(level: string): void {
-      _updateLogSubscription(level);
+      logSubscriptionCallback(level);
     },
 
     /**
@@ -222,11 +225,9 @@ export function createAppState() {
      * @internal — only for use-websocket.ts
      */
     setUpdateLogSubscription(fn: (level: string) => void): void {
-      _updateLogSubscription = fn;
+      logSubscriptionCallback = fn;
     },
   };
 }
-
-export const RELATIVE_TIME_TICK_MS = 30_000;
 
 export type AppState = ReturnType<typeof createAppState>;

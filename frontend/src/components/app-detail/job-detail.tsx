@@ -12,6 +12,7 @@ import { Chip } from "../shared/chip";
 import type { DetailStatsCell } from "../shared/detail-stats";
 import chipStyles from "./handler-chips.module.css";
 import { HandlerDetailLayout } from "./handler-detail-layout";
+import layoutStyles from "./handler-detail-layout.module.css";
 import { jobHealthKind } from "./handler-list";
 
 function ScheduleChips({ job }: { job: JobData }) {
@@ -94,7 +95,7 @@ export function JobDetail({ job, onSwitchToCode }: Props) {
       chips={<ScheduleChips job={job} />}
       extras={
         nextRunText ? (
-          <div style={{ marginBottom: "var(--sp-3)" }} data-testid="job-next-run">
+          <div class={layoutStyles.nextRun} data-testid="job-next-run">
             <code class="ht-text-mono ht-text-sm ht-text-muted">{nextRunText}</code>
           </div>
         ) : undefined

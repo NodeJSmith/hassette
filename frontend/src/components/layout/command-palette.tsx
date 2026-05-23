@@ -22,6 +22,8 @@ import {
   type PaletteItemKind,
 } from "./palette-items";
 
+const PALETTE_STALE_TIME_MS = 300_000;
+
 interface CommandPaletteProps {
   open: boolean;
   onClose: () => void;
@@ -42,7 +44,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     queryKey: queryKeys.allListenersPalette(),
     queryFn: ({ signal }) => getAllListeners(undefined, signal),
     enabled: open,
-    staleTime: 300_000,
+    staleTime: PALETTE_STALE_TIME_MS,
   });
 
   useEffect(() => {

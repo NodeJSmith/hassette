@@ -41,6 +41,7 @@ const FILTER_TONES: Record<FilterId, StatusKind | null> = {
   blocked: "warn",
 };
 
+const MIN_WINDOW_FOR_RATE_CALC = 60;
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<AppSortState["key"]>(["name", "status", "error", "runs", "last"]);
 
 // ---- Stats strip helpers ----
@@ -54,7 +55,8 @@ function buildAppsCells(apps: AppRow[], windowSeconds: number | null, isMobile: 
     totalHandlers += a.handler_count + a.job_count;
     totalRuns += a.total_invocations + a.total_executions;
   }
-  const runsPerHour = windowSeconds && windowSeconds >= 60 ? totalRuns / (windowSeconds / 3600) : null;
+  const runsPerHour =
+    windowSeconds && windowSeconds >= MIN_WINDOW_FOR_RATE_CALC ? totalRuns / (windowSeconds / 3600) : null;
 
   const cells: StatsStripCell[] = [
     { label: "total", value: apps.length },

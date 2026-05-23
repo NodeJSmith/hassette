@@ -1,5 +1,6 @@
 /** Typed API endpoint functions for all Hassette REST endpoints. */
 
+import { DETAIL_FETCH_LIMIT } from "../utils/constants";
 import { apiFetch, apiPost, apiPut } from "./client";
 import type { components } from "./generated-types";
 
@@ -19,6 +20,8 @@ export type LogEntry = components["schemas"]["LogEntryResponse"];
 export type AppConfigData = components["schemas"]["AppConfigResponse"];
 export type AppSourceData = components["schemas"]["AppSourceResponse"];
 export type ActivityFeedEntryData = components["schemas"]["ActivityFeedEntry"];
+
+export const WS_PATH = "/api/ws";
 
 // ---- Query string helpers ----
 
@@ -65,7 +68,7 @@ export const getAppJobs = (appKey: string, instanceIndex = 0, since?: number | n
 export const getAppActivity = (
   appKey: string,
   instanceIndex?: number | null,
-  limit = 50,
+  limit = DETAIL_FETCH_LIMIT,
   since?: number | null,
   signal?: AbortSignal,
 ) =>
@@ -74,13 +77,23 @@ export const getAppActivity = (
     signal ? { signal } : undefined,
   );
 
-export const getHandlerInvocations = (listenerId: number, limit = 50, since?: number | null, signal?: AbortSignal) =>
+export const getHandlerInvocations = (
+  listenerId: number,
+  limit = DETAIL_FETCH_LIMIT,
+  since?: number | null,
+  signal?: AbortSignal,
+) =>
   apiFetch<HandlerInvocationData[]>(
     buildUrl(`/telemetry/handler/${listenerId}/invocations`, { limit, since }),
     signal ? { signal } : undefined,
   );
 
-export const getJobExecutions = (jobId: number, limit = 50, since?: number | null, signal?: AbortSignal) =>
+export const getJobExecutions = (
+  jobId: number,
+  limit = DETAIL_FETCH_LIMIT,
+  since?: number | null,
+  signal?: AbortSignal,
+) =>
   apiFetch<JobExecutionData[]>(
     buildUrl(`/telemetry/job/${jobId}/executions`, { limit, since }),
     signal ? { signal } : undefined,

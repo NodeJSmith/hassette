@@ -120,9 +120,8 @@ export function AppDetailPage({ params }: Props) {
     ? manifest?.instances?.find((i) => i.index === resolvedInstanceIndex)
     : undefined;
   const wsStatus = appStatus.value[appKey]?.status;
-  const liveStatus = showParentOverview
-    ? (manifest?.status ?? "unknown")
-    : (wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown");
+  const instanceStatus = wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown";
+  const liveStatus = showParentOverview ? (manifest?.status ?? "unknown") : instanceStatus;
 
   const hasData = !manifestsLoading && listenersData !== undefined && jobsData !== undefined;
   const initialLoading = !hasData && (listenersLoading || jobsLoading || manifestsLoading);

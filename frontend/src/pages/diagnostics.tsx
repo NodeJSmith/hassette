@@ -63,6 +63,7 @@ function mergeServices(
 
   return [...merged.values()].sort((a, b) => a.resource_name.localeCompare(b.resource_name));
 }
+
 interface DiagServiceRowProps {
   service: MergedService;
 }
@@ -112,6 +113,7 @@ function DiagServiceRow({ service }: DiagServiceRowProps) {
     </li>
   );
 }
+
 interface ServicesPanelProps {
   services: MergedService[];
   wsConnected: boolean;
@@ -144,15 +146,19 @@ function ServicesPanel({ services, wsConnected }: ServicesPanelProps) {
     </section>
   );
 }
+
 interface BootIssuesPanelProps {
   bootIssues: BootIssue[];
 }
 
 const SEVERITY_ORDER: Record<string, number> = { err: 0, warn: 1, info: 2 };
+const UNKNOWN_SEVERITY_SORT_ORDER = 99;
 
 function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
   const sorted = [...bootIssues].sort(
-    (a, b) => (SEVERITY_ORDER[a.severity] ?? 99) - (SEVERITY_ORDER[b.severity] ?? 99),
+    (a, b) =>
+      (SEVERITY_ORDER[a.severity] ?? UNKNOWN_SEVERITY_SORT_ORDER) -
+      (SEVERITY_ORDER[b.severity] ?? UNKNOWN_SEVERITY_SORT_ORDER),
   );
 
   return (
@@ -187,6 +193,7 @@ function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
     </section>
   );
 }
+
 interface TelemetryPanelProps {
   droppedOverflow: number;
   droppedExhausted: number;
@@ -259,6 +266,7 @@ function TelemetryPanel({
     </section>
   );
 }
+
 export function DiagnosticsPage() {
   useDocumentTitle("Diagnostics");
 

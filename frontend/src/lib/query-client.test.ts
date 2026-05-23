@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { ApiError } from "../api/client";
-import { createQueryClient } from "./query-client";
+import { createQueryClient, DEFAULT_STALE_TIME_MS } from "./query-client";
 
 describe("createQueryClient", () => {
   it("returns a QueryClient with staleTime 30_000", () => {
     const client = createQueryClient();
     const defaults = client.getDefaultOptions();
-    expect(defaults.queries?.staleTime).toBe(30_000);
+    expect(defaults.queries?.staleTime).toBe(DEFAULT_STALE_TIME_MS);
   });
 
   it("has refetchOnWindowFocus set to false", () => {
