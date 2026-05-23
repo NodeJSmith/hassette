@@ -30,7 +30,7 @@ Does NOT include ``"unknown"`` — zero-invocation apps return ``"excellent"``.
 ListenerKind = Literal["state change", "service call", "event"]
 """Kind of listener event (3 values).
 
-Verified against ``_listener_kind_from_topic()`` return values in ``mappers.py``.
+Verified against ``listener_kind_from_topic()`` return values in ``mappers.py``.
 """
 
 SystemHealthStatus = Literal["ok", "degraded", "starting"]

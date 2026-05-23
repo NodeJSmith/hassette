@@ -44,6 +44,7 @@ async def check_retention_expired_uuid4(hassette: "Hassette", execution_id: str)
             hassette.database_service.read_db, execution_id, cutoff
         )
     except DB_ERRORS:
+        LOGGER.warning("Failed to check retention for %s — assuming not expired", execution_id, exc_info=True)
         return False
 
 
