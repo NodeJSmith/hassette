@@ -1,10 +1,4 @@
-"""Shared helpers for telemetry computation and classification.
-
-Extracted from ``web/ui/context.py`` so they can be used by both the
-legacy Jinja2 partials (during migration) and the new JSON telemetry
-endpoints.  No imports from ``web/ui/`` — this module is the source,
-not the consumer.
-"""
+"""Shared helpers for telemetry computation and classification used by the JSON API layer."""
 
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Protocol

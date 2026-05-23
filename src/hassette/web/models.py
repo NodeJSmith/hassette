@@ -156,8 +156,8 @@ class LogEntryResponse(BaseModel):
     timestamp: float
     level: LOG_LEVEL_TYPE
     logger_name: str
-    func_name: str
-    lineno: int
+    func_name: str | None = None
+    lineno: int | None = None
     message: str
     exc_info: str | None = None
     app_key: str | None = None

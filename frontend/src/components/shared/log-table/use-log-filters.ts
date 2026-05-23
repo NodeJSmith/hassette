@@ -56,7 +56,7 @@ export function sortEntries(entries: readonly LogEntry[], column: SortColumn, as
         return aKey.localeCompare(bKey) * direction;
       }
       case "function":
-        return a.func_name.localeCompare(b.func_name) * direction;
+        return (a.func_name ?? "").localeCompare(b.func_name ?? "") * direction;
       case "message":
         return a.message.localeCompare(b.message) * direction;
     }
@@ -152,7 +152,7 @@ export function useLogFilters({
 
     if (func) {
       const lower = func.toLowerCase();
-      result = result.filter((e) => e.func_name.toLowerCase().includes(lower));
+      result = result.filter((e) => (e.func_name ?? "").toLowerCase().includes(lower));
     }
 
     return sortEntries(result, sort.column, sort.asc);

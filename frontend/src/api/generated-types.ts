@@ -1118,9 +1118,9 @@ export interface components {
             /** Logger Name */
             logger_name: string;
             /** Func Name */
-            func_name: string;
+            func_name?: string | null;
             /** Lineno */
-            lineno: number;
+            lineno?: number | null;
             /** Message */
             message: string;
             /** Exc Info */
