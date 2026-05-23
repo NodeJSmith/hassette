@@ -138,10 +138,7 @@ async def app_health(
     """Health strip metrics for a single app instance."""
     effective_tier = source_tier if source_tier is not None else "app"
     try:
-        listeners = await telemetry.get_listener_summary(
-            app_key=app_key, instance_index=instance_index, since=since, source_tier=effective_tier
-        )
-        jobs = await telemetry.get_job_summary(
+        agg = await telemetry.get_app_health_aggregates(
             app_key=app_key, instance_index=instance_index, since=since, source_tier=effective_tier
         )
     except DB_ERRORS:
@@ -156,35 +153,24 @@ async def app_health(
             health_status=classify_health_bar(100.0),
         )
 
-    total_invocations = sum(ls.total_invocations for ls in listeners)
-    total_executions = sum(j.total_executions for j in jobs)
-    handler_errors = sum(ls.failed + ls.timed_out for ls in listeners)
-    job_errors = sum(j.failed + j.timed_out for j in jobs)
+    total = agg.total_invocations + agg.total_executions
+    handler_errors = agg.handler_errors + agg.handler_timed_out
+    job_errors = agg.job_errors + agg.job_timed_out
     error_rate = compute_error_rate(
-        total_invocations=total_invocations,
-        total_executions=total_executions,
+        total_invocations=agg.total_invocations,
+        total_executions=agg.total_executions,
         handler_errors=handler_errors,
         job_errors=job_errors,
     )
-    total = total_invocations + total_executions
     errors = handler_errors + job_errors
     success_rate = ((total - errors) / total * 100) if total > 0 else 100.0
-
-    # Compute handler/job-specific averages
-    total_handler_inv = sum(ls.total_invocations for ls in listeners)
-    handler_avg = (sum(ls.total_duration_ms for ls in listeners) / total_handler_inv) if total_handler_inv > 0 else 0.0
-    total_job_exec = sum(j.total_executions for j in jobs)
-    job_avg = (sum(j.total_duration_ms for j in jobs) / total_job_exec) if total_job_exec > 0 else 0.0
-
-    last_times: list[float] = [ls.last_invoked_at for ls in listeners if ls.last_invoked_at is not None]
-    last_times.extend(j.last_executed_at for j in jobs if j.last_executed_at is not None)
 
     return AppHealthResponse(
         error_rate=error_rate,
         error_rate_class=classify_error_rate(error_rate),
-        handler_avg_duration=handler_avg,
-        job_avg_duration=job_avg,
-        last_activity_ts=max(last_times) if last_times else None,
+        handler_avg_duration=agg.handler_avg_duration_ms,
+        job_avg_duration=agg.job_avg_duration_ms,
+        last_activity_ts=agg.last_activity_ts,
         health_status=classify_health_bar(success_rate),
     )
 

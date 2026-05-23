@@ -15,7 +15,7 @@ class TestDbErrorGuards:
 
     async def test_app_health_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """sqlite3.Error on app_health returns 503 with zero-value response."""
-        mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
+        mock_hassette.telemetry_query_service.get_app_health_aggregates = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
         response = await client.get("/api/telemetry/app/my_app/health")
@@ -124,7 +124,7 @@ class TestHassetteAppKey:
         """GET /telemetry/app/__hassette__/health is accepted (200)."""
         response = await client.get("/api/telemetry/app/__hassette__/health")
         assert response.status_code == 200
-        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        call_kwargs = mock_hassette.telemetry_query_service.get_app_health_aggregates.call_args.kwargs
         assert call_kwargs["app_key"] == "__hassette__"
 
     async def test_hassette_app_key_accepted_on_listeners(
@@ -173,8 +173,10 @@ class TestAppHealthDbErrorFallback:
     async def test_oserror_returns_503_with_zeroed_health(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """OSError on get_listener_summary returns 503 with zero-value health."""
-        mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(side_effect=OSError("disk I/O error"))
+        """OSError on get_app_health_aggregates returns 503 with zero-value health."""
+        mock_hassette.telemetry_query_service.get_app_health_aggregates = AsyncMock(
+            side_effect=OSError("disk I/O error")
+        )
         response = await client.get("/api/telemetry/app/my_app/health")
         assert response.status_code == 503
         data = response.json()
@@ -187,8 +189,8 @@ class TestAppHealthDbErrorFallback:
     async def test_valueerror_returns_503_with_zeroed_health(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """ValueError on get_listener_summary returns 503 with zero-value health."""
-        mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
+        """ValueError on get_app_health_aggregates returns 503 with zero-value health."""
+        mock_hassette.telemetry_query_service.get_app_health_aggregates = AsyncMock(
             side_effect=ValueError("Connection is closed")
         )
         response = await client.get("/api/telemetry/app/my_app/health")
@@ -196,12 +198,9 @@ class TestAppHealthDbErrorFallback:
         data = response.json()
         assert data["error_rate"] == 0.0
 
-    async def test_db_error_on_job_summary_also_triggers_503(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """sqlite3.Error on get_job_summary (after listener_summary succeeds) returns 503."""
-        mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(return_value=[])
-        mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(
+    async def test_sqlite_error_triggers_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """sqlite3.Error on get_app_health_aggregates returns 503."""
+        mock_hassette.telemetry_query_service.get_app_health_aggregates = AsyncMock(
             side_effect=sqlite3.OperationalError("database is locked")
         )
         response = await client.get("/api/telemetry/app/my_app/health")
@@ -271,8 +270,8 @@ class TestDashboardAppGridDbErrorFallback:
         for entry in data["apps"]:
             # total_invocations=0 and total_executions=0 → error_rate=0.0
             assert entry["error_rate"] == 0.0
-            # health_status for zero-activity app is "unknown"
-            assert entry["health_status"] == "unknown"
+            # zero-invocation apps return "excellent" (not "unknown")
+            assert entry["health_status"] == "excellent"
 
 
 class TestAppKeyValidation:

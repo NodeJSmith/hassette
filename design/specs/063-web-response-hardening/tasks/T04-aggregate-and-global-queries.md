@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Add health aggregate and global listeners queries"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#4", "FR#5", "AC#4", "AC#5"]
 ---

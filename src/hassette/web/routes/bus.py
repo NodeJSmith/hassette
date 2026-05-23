@@ -1,22 +1,25 @@
 """Bus listener metrics endpoints."""
 
+from logging import getLogger
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 
 from hassette.types.types import QuerySourceTier
-from hassette.web.dependencies import SOURCE_TIER_PARAM, RuntimeDep, TelemetryDep
+from hassette.web.dependencies import SOURCE_TIER_PARAM, TelemetryDep
 from hassette.web.mappers import to_listener_with_summary
 from hassette.web.models import ListenerWithSummary
-from hassette.web.utils import gather_all_listeners
+from hassette.web.routes.telemetry import DB_ERRORS
+
+LOGGER = getLogger(__name__)
 
 router = APIRouter(tags=["bus"])
 
 
 @router.get("/bus/listeners", response_model=list[ListenerWithSummary])
 async def get_listener_metrics(
-    runtime: RuntimeDep,
     telemetry: TelemetryDep,
+    response: Response,
     app_key: Annotated[str | None, Query()] = None,
     instance_index: Annotated[
         int,
@@ -26,12 +29,15 @@ async def get_listener_metrics(
     source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
 ) -> list[ListenerWithSummary]:
     effective_tier = source_tier if source_tier is not None else "app"
-    if not app_key:
-        summaries = await gather_all_listeners(runtime, telemetry, since=since)
-        if effective_tier != "all":
-            summaries = [s for s in summaries if s.source_tier == effective_tier]
-    else:
-        summaries = await telemetry.get_listener_summary(
-            app_key=app_key, instance_index=instance_index, since=since, source_tier=effective_tier
-        )
+    try:
+        if not app_key:
+            summaries = await telemetry.get_all_listeners_summary(since=since, source_tier=effective_tier)
+        else:
+            summaries = await telemetry.get_listener_summary(
+                app_key=app_key, instance_index=instance_index, since=since, source_tier=effective_tier
+            )
+    except DB_ERRORS:
+        LOGGER.warning("Failed to fetch listener metrics", exc_info=True)
+        response.status_code = 503
+        return []
     return [to_listener_with_summary(ls) for ls in summaries]
