@@ -53,7 +53,8 @@ Add two new query methods to `TelemetryQueryService`: a purpose-built aggregate 
 4. **Update `bus.py` route** in `src/hassette/web/routes/bus.py` (lines 16-34):
    - When no `app_key` filter is provided, call `telemetry.get_all_listeners_summary(since=since)` directly
    - Remove the call to `gather_all_listeners()` for the unfiltered case
-   - Keep `gather_all_listeners()` for the filtered case (single app_key) or replace with `get_listener_summary()` directly
+   - For the filtered case (single app_key), call `get_listener_summary()` directly instead of `gather_all_listeners()`
+   - Delete `gather_all_listeners()` from `src/hassette/web/utils.py` if it has no remaining callers (grep first)
 
 5. **Write tests:**
    - `get_app_health_aggregates()`: verify totals match the sum of per-item detail queries with mixed handler/job success/error/timed_out statuses. Test with zero invocations, test with `since` parameter.

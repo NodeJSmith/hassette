@@ -72,5 +72,4 @@ Create the new `GET /api/executions/{execution_id}` endpoint, switch execution I
 - [ ] FR#7: `GET /api/executions/{execution_id}` returns `LogsByExecutionResponse` with log records
 - [ ] FR#8: `GET /api/logs/by-execution/{execution_id}` returns 404; the route handler is removed from `logs.py`
 - [ ] AC#7: Tests confirm happy path, truncation, retention expiry (UUIDv7 and UUIDv4 fallback), empty results, and DB error handling
-- [ ] AC#8: Tests confirm old path returns 404
-- [ ] FR#8: CLI design spec at `worktree-cli/design/specs/063-cli-query-tool/design.md` updated to reference `/api/executions/{execution_id}`
+- [ ] AC#8: Tests confirm old path returns 404; CLI design spec at `worktree-cli/design/specs/063-cli-query-tool/design.md` updated to reference `/api/executions/{execution_id}`
