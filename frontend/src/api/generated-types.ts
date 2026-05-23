@@ -802,6 +802,19 @@ export interface components {
             /** Apps */
             apps: components["schemas"]["DashboardAppGridEntry"][];
         };
+        /** EventEntry */
+        EventEntry: {
+            /** Type */
+            type: string;
+            /** Entity Id */
+            entity_id?: string | null;
+            /** Timestamp */
+            timestamp: number;
+            /** Data */
+            data?: {
+                [key: string]: unknown;
+            };
+        };
         /**
          * FileWatcherConfigResponse
          * @description Sanitized file watcher configuration fields.
@@ -1568,9 +1581,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["EventEntry"][];
                 };
             };
             /** @description Validation Error */
@@ -1690,6 +1701,7 @@ export interface operations {
         parameters: {
             query?: {
                 app_key?: string | null;
+                /** @description App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1. */
                 instance_index?: number;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
@@ -1773,6 +1785,7 @@ export interface operations {
     app_health_api_telemetry_app__app_key__health_get: {
         parameters: {
             query?: {
+                /** @description App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1. */
                 instance_index?: number;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
@@ -1810,6 +1823,7 @@ export interface operations {
     app_listeners_api_telemetry_app__app_key__listeners_get: {
         parameters: {
             query?: {
+                /** @description App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1. */
                 instance_index?: number;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
@@ -1885,6 +1899,7 @@ export interface operations {
     app_jobs_api_telemetry_app__app_key__jobs_get: {
         parameters: {
             query?: {
+                /** @description App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1. */
                 instance_index?: number;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */

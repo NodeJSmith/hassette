@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Fix route response schemas and type annotations"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#2", "FR#9", "AC#2", "AC#10"]
 ---

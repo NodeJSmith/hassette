@@ -13,7 +13,7 @@ LOGGER = getLogger(__name__)
 router = APIRouter(tags=["services"])
 
 
-@router.get("/services")
+@router.get("/services", response_model=dict[str, Any])
 async def get_services(api: ApiDep) -> dict[str, Any]:
     try:
         return await api.get_services()

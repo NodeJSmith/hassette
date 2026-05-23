@@ -33,7 +33,7 @@ async def get_logs(
     since: Annotated[float | None, Query()] = None,
     execution_id: Annotated[str | None, Query()] = None,
     source_tier: Annotated[str | None, Query()] = None,
-) -> list[dict]:
+) -> list[LogEntryResponse]:
     """Return recent log records from the database with optional filtering."""
     if level is not None:
         level = level.upper()
@@ -58,7 +58,7 @@ async def get_logs(
             execution_id=execution_id,
             source_tier=source_tier,
         )
-        return records
+        return [LogEntryResponse.model_validate(r) for r in records]
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch recent log records", exc_info=True)
         response.status_code = 503

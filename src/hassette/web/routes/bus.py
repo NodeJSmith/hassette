@@ -18,7 +18,10 @@ async def get_listener_metrics(
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
     app_key: Annotated[str | None, Query()] = None,
-    instance_index: Annotated[int, Query()] = 0,
+    instance_index: Annotated[
+        int,
+        Query(description="App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."),
+    ] = 0,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
 ) -> list[ListenerWithSummary]:

@@ -342,8 +342,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "$ref": "#/components/schemas/EventEntry"
                   },
                   "title": "Response Get Recent Events Api Events Recent Get"
                 }
@@ -620,9 +619,11 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
               "default": 0,
               "title": "Instance Index"
-            }
+            },
+            "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."
           },
           {
             "name": "since",
@@ -772,9 +773,11 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
               "default": 0,
               "title": "Instance Index"
-            }
+            },
+            "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."
           },
           {
             "name": "since",
@@ -866,9 +869,11 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
               "default": 0,
               "title": "Instance Index"
-            }
+            },
+            "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."
           },
           {
             "name": "since",
@@ -971,8 +976,10 @@
                   "type": "null"
                 }
               ],
+              "description": "App instance index. None returns activity across all instances.",
               "title": "Instance Index"
-            }
+            },
+            "description": "App instance index. None returns activity across all instances."
           },
           {
             "name": "limit",
@@ -1080,9 +1087,11 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
               "default": 0,
               "title": "Instance Index"
-            }
+            },
+            "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."
           },
           {
             "name": "since",
@@ -2235,6 +2244,40 @@
         ],
         "title": "DashboardAppGridResponse",
         "description": "Dashboard app grid with per-app health data."
+      },
+      "EventEntry": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "timestamp": {
+            "type": "number",
+            "title": "Timestamp"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "timestamp"
+        ],
+        "title": "EventEntry"
       },
       "FileWatcherConfigResponse": {
         "properties": {

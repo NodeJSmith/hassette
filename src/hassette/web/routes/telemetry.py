@@ -120,12 +120,18 @@ def _error_rate_from_summary(summary: AppHealthSummary) -> float:
     )
 
 
+_INSTANCE_INDEX_PARAM = Query(  # pyright: ignore[reportCallInDefaultInitializer]
+    default=0,
+    description="App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
+)
+
+
 @router.get("/app/{app_key}/health", response_model=AppHealthResponse)
 async def app_health(
     telemetry: TelemetryDep,
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
-    instance_index: int = 0,
+    instance_index: int = _INSTANCE_INDEX_PARAM,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
 ) -> AppHealthResponse:
@@ -188,7 +194,7 @@ async def app_listeners(
     telemetry: TelemetryDep,
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
-    instance_index: int = 0,
+    instance_index: int = _INSTANCE_INDEX_PARAM,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
 ) -> list[ListenerWithSummary]:
@@ -210,7 +216,9 @@ async def app_activity(
     telemetry: TelemetryDep,
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
-    instance_index: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    instance_index: int | None = Query(
+        default=None, description="App instance index. None returns activity across all instances."
+    ),  # pyright: ignore[reportCallInDefaultInitializer]
     limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
@@ -238,7 +246,7 @@ async def app_jobs(
     scheduler_service: SchedulerDep,
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
-    instance_index: int = 0,
+    instance_index: int = _INSTANCE_INDEX_PARAM,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
 ) -> list[JobSummary]:
