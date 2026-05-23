@@ -1,5 +1,6 @@
+import { keepPreviousData } from "@tanstack/preact-query";
 import clsx from "clsx";
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect } from "preact/hooks";
 import { Link, useLocation } from "wouter";
 
 import { getAppJobs, getAppListeners } from "../api/endpoints";
@@ -14,13 +15,11 @@ import { OverviewTab } from "../components/app-detail/overview-tab";
 import { Spinner } from "../components/shared/spinner";
 import { useCorrectUrl } from "../hooks/use-correct-url";
 import { useDocumentTitle } from "../hooks/use-document-title";
-import {
-  useFilteredSignalRefetch,
-  WS_DEBOUNCE_DELAY_MS,
-  WS_DEBOUNCE_MAX_WAIT_MS,
-} from "../hooks/use-filtered-signal-refetch";
+import { useManifests } from "../hooks/use-manifests";
+import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
-import { useScopedApi } from "../hooks/use-scoped-api";
+import { useScopedQuery } from "../hooks/use-scoped-query";
+import { queryKeys } from "../lib/query-keys";
 import { useAppState } from "../state/context";
 import styles from "./app-detail.module.css";
 
@@ -52,6 +51,7 @@ function Tab({
       href={href}
       role="tab"
       id={`tab-${id}`}
+      tabIndex={isActive ? 0 : -1}
       aria-selected={isActive}
       aria-controls={`tabpanel-${id}`}
       class={clsx(styles.tabBtn, isActive && styles.tabBtnActive)}
@@ -65,7 +65,8 @@ function Tab({
 export function AppDetailPage({ params }: Props) {
   const appKey = params.key;
   const activeTab: TabId = params.tab ?? "overview";
-  const { appStatus, manifests, manifestsLoading, invocationCompleted, executionCompleted } = useAppState();
+  const { appStatus, invocationCompleted, executionCompleted } = useAppState();
+  const { data: manifests = [], isPending: manifestsLoading } = useManifests();
   const [, navigate] = useLocation();
   const queryParams = useQueryParams();
   const correctUrl = useCorrectUrl();
@@ -75,42 +76,41 @@ export function AppDetailPage({ params }: Props) {
   const instanceIndex = parsedInstance !== undefined && Number.isFinite(parsedInstance) ? parsedInstance : undefined;
 
   const resolvedInstanceIndex = instanceIndex ?? 0;
-  const listeners = useScopedApi((since) => getAppListeners(appKey, resolvedInstanceIndex, since), {
-    deps: [appKey, resolvedInstanceIndex],
-  });
-  const jobs = useScopedApi((since) => getAppJobs(appKey, resolvedInstanceIndex, since), {
-    deps: [appKey, resolvedInstanceIndex],
-  });
 
-  useFilteredSignalRefetch(
+  const {
+    data: listenersData,
+    isPending: listenersLoading,
+    error: listenersError,
+  } = useScopedQuery(
+    queryKeys.appListeners.base(appKey, resolvedInstanceIndex),
+    (since, signal) => getAppListeners(appKey, resolvedInstanceIndex, since, signal),
+    { placeholderData: keepPreviousData },
+  );
+  const {
+    data: jobsData,
+    isPending: jobsLoading,
+    error: jobsError,
+  } = useScopedQuery(
+    queryKeys.appJobs.base(appKey, resolvedInstanceIndex),
+    (since, signal) => getAppJobs(appKey, resolvedInstanceIndex, since, signal),
+    { placeholderData: keepPreviousData },
+  );
+
+  useQueryInvalidator(
     invocationCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
-    () => {
-      void listeners.refetch();
-      void jobs.refetch();
-    },
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
+    queryKeys.appListeners.prefix(appKey),
   );
-  useFilteredSignalRefetch(
+  useQueryInvalidator(
     executionCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
-    () => {
-      void listeners.refetch();
-      void jobs.refetch();
-    },
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
+    queryKeys.appJobs.prefix(appKey),
   );
 
-  const staleListeners = useRef<typeof listeners.data.value>(null);
-  const staleJobs = useRef<typeof jobs.data.value>(null);
-  if (listeners.data.value) staleListeners.current = listeners.data.value;
-  if (jobs.data.value) staleJobs.current = jobs.data.value;
-  const displayListeners = listeners.data.value ?? staleListeners.current ?? [];
-  const displayJobs = jobs.data.value ?? staleJobs.current ?? [];
+  const displayListeners = listenersData ?? [];
+  const displayJobs = jobsData ?? [];
 
-  const manifest = manifests.value.find((m) => m.app_key === appKey);
+  const manifest = manifests.find((m) => m.app_key === appKey);
   useDocumentTitle(manifest?.display_name ?? "App");
 
   const isMultiInstance = (manifest?.instance_count ?? 0) > 1;
@@ -120,12 +120,11 @@ export function AppDetailPage({ params }: Props) {
     ? manifest?.instances?.find((i) => i.index === resolvedInstanceIndex)
     : undefined;
   const wsStatus = appStatus.value[appKey]?.status;
-  const liveStatus = showParentOverview
-    ? (manifest?.status ?? "unknown")
-    : (wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown");
+  const instanceStatus = wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown";
+  const liveStatus = showParentOverview ? (manifest?.status ?? "unknown") : instanceStatus;
 
-  const hasData = !manifestsLoading.value && listeners.data.value !== null && jobs.data.value !== null;
-  const initialLoading = !hasData && (listeners.loading.value || jobs.loading.value || manifestsLoading.value);
+  const hasData = !manifestsLoading && listenersData !== undefined && jobsData !== undefined;
+  const initialLoading = !hasData && (listenersLoading || jobsLoading || manifestsLoading);
 
   useEffect(() => {
     if (initialLoading) return;
@@ -142,9 +141,17 @@ export function AppDetailPage({ params }: Props) {
 
   if (initialLoading) return <Spinner />;
 
+  if (listenersError || jobsError) {
+    return (
+      <div class="ht-alert ht-alert--danger" role="alert">
+        {(listenersError ?? jobsError)!.message}
+      </div>
+    );
+  }
+
   const instanceQs = instanceParam !== null && instanceParam !== "" ? `?instance=${instanceParam}` : "";
   const tabProps = { appKey, instanceQs, activeTab };
-  const handlerCount = (listeners.data.value?.length ?? 0) + (jobs.data.value?.length ?? 0);
+  const handlerCount = (listenersData?.length ?? 0) + (jobsData?.length ?? 0);
 
   return (
     <div class="ht-page">
@@ -176,7 +183,20 @@ export function AppDetailPage({ params }: Props) {
         showParentOverview={showParentOverview}
       />
 
-      <div class={clsx(styles.tabStrip, "ht-mb-4")} role="tablist" aria-label="App sections">
+      <div
+        class={clsx(styles.tabStrip, "ht-mb-4")}
+        role="tablist"
+        aria-label="App sections"
+        onKeyDown={(e: KeyboardEvent) => {
+          if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+          e.preventDefault();
+          const tabs = (e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="tab"]');
+          const current = Array.from(tabs).findIndex((t) => t.getAttribute("aria-selected") === "true");
+          const next = e.key === "ArrowRight" ? (current + 1) % tabs.length : (current - 1 + tabs.length) % tabs.length;
+          tabs[next]?.focus();
+          tabs[next]?.click();
+        }}
+      >
         <Tab id="overview" label="overview" {...tabProps} />
         {!showParentOverview && <Tab id="handlers" label="handlers" badge={handlerCount} {...tabProps} />}
         <Tab id="code" label="code" {...tabProps} />

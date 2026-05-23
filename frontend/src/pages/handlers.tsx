@@ -7,14 +7,11 @@ import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
 import { type ColumnFilters } from "../components/shared/table-types";
 import { useDocumentTitle } from "../hooks/use-document-title";
-import {
-  useFilteredSignalRefetch,
-  WS_DEBOUNCE_DELAY_MS,
-  WS_DEBOUNCE_MAX_WAIT_MS,
-} from "../hooks/use-filtered-signal-refetch";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../hooks/use-media-query";
+import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
-import { useScopedApi } from "../hooks/use-scoped-api";
+import { useScopedQuery } from "../hooks/use-scoped-query";
+import { queryKeys } from "../lib/query-keys";
 import { useAppState } from "../state/context";
 import { pluralize } from "../utils/format";
 import { compareHandlerRows, type HandlerSortKey, jobToRow, listenerToRow } from "../utils/handler-rows";
@@ -49,34 +46,36 @@ export function HandlersPage() {
 
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
 
-  const listenersApi = useScopedApi((since) => getAllListeners(since));
-  const jobsApi = useScopedApi((since) => getAllJobs(since));
+  const {
+    data: listeners,
+    isPending: listenersLoading,
+    error: listenersError,
+  } = useScopedQuery(queryKeys.allListeners(), (since, signal) => getAllListeners(since, signal));
+  const {
+    data: jobs,
+    isPending: jobsLoading,
+    error: jobsError,
+  } = useScopedQuery(queryKeys.allJobs(), (since, signal) => getAllJobs(since, signal));
 
   const { invocationCompleted, executionCompleted } = useAppState();
 
-  useFilteredSignalRefetch(
-    invocationCompleted,
-    () => true,
-    () => void listenersApi.refetch(),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
-  );
+  useQueryInvalidator(invocationCompleted, () => true, queryKeys.allListeners());
+  useQueryInvalidator(executionCompleted, () => true, queryKeys.allJobs());
 
-  useFilteredSignalRefetch(
-    executionCompleted,
-    () => true,
-    () => void jobsApi.refetch(),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
-  );
+  const allListeners = listeners ?? [];
+  const allJobs = jobs ?? [];
 
-  const allListeners = listenersApi.data.value ?? [];
-  const allJobs = jobsApi.data.value ?? [];
-
-  const isLoading =
-    (listenersApi.loading.value && allListeners.length === 0) || (jobsApi.loading.value && allJobs.length === 0);
+  const isLoading = (listenersLoading && allListeners.length === 0) || (jobsLoading && allJobs.length === 0);
 
   if (isLoading) return <Spinner />;
+
+  if (listenersError || jobsError) {
+    return (
+      <div class="ht-alert ht-alert--danger" role="alert">
+        {(listenersError ?? jobsError)!.message}
+      </div>
+    );
+  }
 
   const allRows = [...allListeners.map(listenerToRow), ...allJobs.map(jobToRow)];
 

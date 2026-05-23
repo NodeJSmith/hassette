@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/preact-query";
 import clsx from "clsx";
 import { useState } from "preact/hooks";
 
@@ -8,9 +9,9 @@ import cardStyles from "../components/shared/card.module.css";
 import { EmptyState } from "../components/shared/empty-state";
 import { Spinner } from "../components/shared/spinner";
 import { StatusShape } from "../components/shared/status-shape";
-import { useApi } from "../hooks/use-api";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useRelativeTime } from "../hooks/use-relative-time";
+import { queryKeys } from "../lib/query-keys";
 import { useAppState } from "../state/context";
 import type { ServiceStatusEntry } from "../state/create-app-state";
 import { statusToKind } from "../utils/status";
@@ -62,6 +63,7 @@ function mergeServices(
 
   return [...merged.values()].sort((a, b) => a.resource_name.localeCompare(b.resource_name));
 }
+
 interface DiagServiceRowProps {
   service: MergedService;
 }
@@ -111,6 +113,7 @@ function DiagServiceRow({ service }: DiagServiceRowProps) {
     </li>
   );
 }
+
 interface ServicesPanelProps {
   services: MergedService[];
   wsConnected: boolean;
@@ -143,15 +146,19 @@ function ServicesPanel({ services, wsConnected }: ServicesPanelProps) {
     </section>
   );
 }
+
 interface BootIssuesPanelProps {
   bootIssues: BootIssue[];
 }
 
 const SEVERITY_ORDER: Record<string, number> = { err: 0, warn: 1, info: 2 };
+const UNKNOWN_SEVERITY_SORT_ORDER = 99;
 
 function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
   const sorted = [...bootIssues].sort(
-    (a, b) => (SEVERITY_ORDER[a.severity] ?? 99) - (SEVERITY_ORDER[b.severity] ?? 99),
+    (a, b) =>
+      (SEVERITY_ORDER[a.severity] ?? UNKNOWN_SEVERITY_SORT_ORDER) -
+      (SEVERITY_ORDER[b.severity] ?? UNKNOWN_SEVERITY_SORT_ORDER),
   );
 
   return (
@@ -186,6 +193,7 @@ function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
     </section>
   );
 }
+
 interface TelemetryPanelProps {
   droppedOverflow: number;
   droppedExhausted: number;
@@ -258,6 +266,7 @@ function TelemetryPanel({
     </section>
   );
 }
+
 export function DiagnosticsPage() {
   useDocumentTitle("Diagnostics");
 
@@ -272,17 +281,24 @@ export function DiagnosticsPage() {
     telemetryDegraded,
   } = useAppState();
 
-  const { data: systemStatus, loading, error: loadError } = useApi(getSystemStatus);
+  const {
+    data: systemStatus,
+    isPending: loading,
+    error: loadError,
+  } = useQuery({
+    queryKey: queryKeys.systemStatus(),
+    queryFn: getSystemStatus,
+  });
 
   const wsConnected = connection.value === "connected";
 
   // Merge HTTP seed with live WS updates
-  const httpServices = systemStatus.value?.services ?? [];
+  const httpServices = systemStatus?.services ?? [];
   const mergedServices = mergeServices(httpServices, serviceStatus.value);
 
-  const bootIssues: BootIssue[] = systemStatus.value?.boot_issues ?? [];
+  const bootIssues: BootIssue[] = systemStatus?.boot_issues ?? [];
 
-  if (loading.value) return <Spinner />;
+  if (loading) return <Spinner />;
 
   return (
     <div class="ht-page" data-testid="diagnostics-page">
@@ -290,9 +306,9 @@ export function DiagnosticsPage() {
         <h1 class="ht-display">diagnostics</h1>
       </div>
 
-      {loadError.value ? (
+      {loadError ? (
         <div class="ht-alert ht-alert--danger" role="alert" data-testid="diag-load-error">
-          {loadError.value}
+          {loadError.message}
         </div>
       ) : (
         <>

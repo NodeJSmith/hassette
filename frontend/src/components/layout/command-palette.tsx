@@ -1,11 +1,12 @@
+import { useQuery } from "@tanstack/preact-query";
 import clsx from "clsx";
 import { useEffect, useRef } from "preact/hooks";
 import { useLocation } from "wouter";
 
 import { getAllListeners } from "../../api/endpoints";
-import { useApi } from "../../hooks/use-api";
+import { useManifests } from "../../hooks/use-manifests";
 import { useSignal } from "../../hooks/use-signal";
-import { useAppState } from "../../state/context";
+import { queryKeys } from "../../lib/query-keys";
 import { statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 import styles from "./command-palette.module.css";
@@ -21,6 +22,8 @@ import {
   type PaletteItemKind,
 } from "./palette-items";
 
+const PALETTE_STALE_TIME_MS = 300_000;
+
 interface CommandPaletteProps {
   open: boolean;
   onClose: () => void;
@@ -34,16 +37,21 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const resultsRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<Element | null>(null);
 
-  const { manifests } = useAppState();
-  const allManifests = manifests.value;
-  const listenersApi = useApi(getAllListeners, [], { lazy: true });
+  const { data: allManifests = [] } = useManifests();
+  // Palette data changes infrequently and is only fetched when open — 5min staleTime
+  // avoids refetching on every open while keeping results reasonably fresh.
+  const { data: listeners } = useQuery({
+    queryKey: queryKeys.allListenersPalette(),
+    queryFn: ({ signal }) => getAllListeners(undefined, signal),
+    enabled: open,
+    staleTime: PALETTE_STALE_TIME_MS,
+  });
 
   useEffect(() => {
     if (!open) return;
     triggerRef.current = document.activeElement;
     query.value = "";
     selectedIndex.value = -1;
-    void listenersApi.refetch();
     requestAnimationFrame(() => {
       inputRef.current?.focus();
     });
@@ -66,7 +74,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const pageItems = buildStaticPageItems(navigate);
   const actionItems = buildActionItems(allManifests, onClose);
   const appItems = buildAppItems(allManifests, navigate, onClose);
-  const handlerItems = buildHandlerItems(listenersApi.data.value ?? [], navigate, onClose);
+  const handlerItems = buildHandlerItems(listeners ?? [], navigate, onClose);
 
   const allItems: PaletteItem[] = [...pageItems, ...appItems, ...handlerItems, ...actionItems];
   // Group and filter
@@ -147,6 +155,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             aria-label="Search command palette"
             aria-autocomplete="list"
             aria-controls="cmd-palette-results"
+            aria-activedescendant={
+              selectedIndex.value >= 0 ? `cmd-option-${flatResults[selectedIndex.value]?.id}` : undefined
+            }
             autocomplete="off"
             spellcheck={false}
           />
@@ -175,6 +186,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                 return (
                   <button
                     key={item.id}
+                    id={`cmd-option-${item.id}`}
                     type="button"
                     role="option"
                     aria-selected={isActive}

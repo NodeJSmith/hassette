@@ -1,3 +1,4 @@
+import { QueryClientProvider } from "@tanstack/preact-query";
 import { act, renderHook } from "@testing-library/preact";
 import { http, HttpResponse } from "msw";
 import type { ComponentChildren } from "preact";
@@ -7,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WsLogPayload } from "../../../api/ws-types";
 import { AppStateContext } from "../../../state/context";
 import { type AppState, createAppState } from "../../../state/create-app-state";
+import { createTestQueryClient } from "../../../test/query-test-utils";
 import { server } from "../../../test/server";
 import { REST_FETCH_LIMIT } from "./constants";
 import { useLogData } from "./use-log-data";
@@ -23,8 +25,9 @@ const { toast } = await import("sonner");
 // ---------------------------------------------------------------------------
 
 function createWrapper(state: AppState) {
+  const client = createTestQueryClient();
   return function Wrapper({ children }: { children: ComponentChildren }) {
-    return h(AppStateContext.Provider, { value: state }, children);
+    return h(QueryClientProvider, { client }, h(AppStateContext.Provider, { value: state }, children));
   };
 }
 
@@ -66,7 +69,7 @@ describe("useLogData", () => {
         wrapper: createWrapper(state),
       });
 
-      expect(result.current.loading.value).toBe(true);
+      expect(result.current.loading).toBe(true);
     });
 
     it("becomes false after REST resolves", async () => {
@@ -77,7 +80,7 @@ describe("useLogData", () => {
       });
 
       await vi.waitFor(() => {
-        expect(result.current.loading.value).toBe(false);
+        expect(result.current.loading).toBe(false);
       });
     });
   });
@@ -99,7 +102,7 @@ describe("useLogData", () => {
       });
 
       await vi.waitFor(() => {
-        expect(result.current.loading.value).toBe(false);
+        expect(result.current.loading).toBe(false);
       });
 
       expect(capturedUrl).toBeDefined();
@@ -123,12 +126,12 @@ describe("useLogData", () => {
       });
 
       await vi.waitFor(() => {
-        expect(result.current.loading.value).toBe(false);
+        expect(result.current.loading).toBe(false);
       });
 
-      expect(result.current.restEntries.value).toHaveLength(2);
-      expect(result.current.restEntries.value[0].message).toBe("first");
-      expect(result.current.restEntries.value[1].message).toBe("second");
+      expect(result.current.restEntries).toHaveLength(2);
+      expect(result.current.restEntries[0].message).toBe("first");
+      expect(result.current.restEntries[1].message).toBe("second");
     });
 
     it("includes REST entries in allEntries", async () => {
@@ -142,10 +145,10 @@ describe("useLogData", () => {
       });
 
       await vi.waitFor(() => {
-        expect(result.current.loading.value).toBe(false);
+        expect(result.current.loading).toBe(false);
       });
 
-      expect(result.current.allEntries.value.some((e) => e.message === "rest-entry")).toBe(true);
+      expect(result.current.allEntries.some((e) => e.message === "rest-entry")).toBe(true);
     });
   });
 
@@ -161,7 +164,7 @@ describe("useLogData", () => {
       });
 
       await vi.waitFor(() => {
-        expect(result.current.loading.value).toBe(false);
+        expect(result.current.loading).toBe(false);
       });
 
       // Push a WS entry with a timestamp strictly above the REST watermark.
@@ -169,8 +172,8 @@ describe("useLogData", () => {
         state.logs.push(makeLogEntry({ seq: 2, timestamp: 2000, message: "ws-new" }));
       });
 
-      expect(result.current.allEntries.value).toHaveLength(2);
-      expect(result.current.allEntries.value[1].message).toBe("ws-new");
+      expect(result.current.allEntries).toHaveLength(2);
+      expect(result.current.allEntries[1].message).toBe("ws-new");
     });
 
     it("does not include WS entries at or below the REST watermark (deduplication)", async () => {
@@ -184,7 +187,7 @@ describe("useLogData", () => {
       });
 
       await vi.waitFor(() => {
-        expect(result.current.loading.value).toBe(false);
+        expect(result.current.loading).toBe(false);
       });
 
       act(() => {
@@ -194,7 +197,7 @@ describe("useLogData", () => {
         state.logs.push(makeLogEntry({ seq: 3, timestamp: 3000, message: "dup-below-watermark" }));
       });
 
-      const messages = result.current.allEntries.value.map((e) => e.message);
+      const messages = result.current.allEntries.map((e) => e.message);
       expect(messages).not.toContain("dup-at-watermark");
       expect(messages).not.toContain("dup-below-watermark");
     });
@@ -207,7 +210,7 @@ describe("useLogData", () => {
       const { result } = renderHook(() => useLogData({ appKey: "my_app" }), { wrapper: createWrapper(state) });
 
       await vi.waitFor(() => {
-        expect(result.current.loading.value).toBe(false);
+        expect(result.current.loading).toBe(false);
       });
 
       act(() => {
@@ -215,7 +218,7 @@ describe("useLogData", () => {
         state.logs.push(makeLogEntry({ seq: 2, timestamp: 9001, app_key: "other_app", message: "not-mine" }));
       });
 
-      const messages = result.current.allEntries.value.map((e) => e.message);
+      const messages = result.current.allEntries.map((e) => e.message);
       expect(messages).toContain("mine");
       expect(messages).not.toContain("not-mine");
     });
@@ -228,7 +231,7 @@ describe("useLogData", () => {
       const { result } = renderHook(() => useLogData({ executionId: "exec-1" }), { wrapper: createWrapper(state) });
 
       await vi.waitFor(() => {
-        expect(result.current.loading.value).toBe(false);
+        expect(result.current.loading).toBe(false);
       });
 
       act(() => {
@@ -236,7 +239,7 @@ describe("useLogData", () => {
         state.logs.push(makeLogEntry({ seq: 2, timestamp: 9001, execution_id: "exec-2", message: "other-exec" }));
       });
 
-      const messages = result.current.allEntries.value.map((e) => e.message);
+      const messages = result.current.allEntries.map((e) => e.message);
       expect(messages).toContain("this-exec");
       expect(messages).not.toContain("other-exec");
     });
@@ -251,7 +254,7 @@ describe("useLogData", () => {
       });
 
       await vi.waitFor(() => {
-        expect(result.current.loading.value).toBe(false);
+        expect(result.current.loading).toBe(false);
       });
 
       act(() => {
@@ -259,7 +262,7 @@ describe("useLogData", () => {
         state.logs.push(makeLogEntry({ seq: 2, timestamp: 2000, app_key: "app-b", message: "b" }));
       });
 
-      const messages = result.current.allEntries.value.map((e) => e.message);
+      const messages = result.current.allEntries.map((e) => e.message);
       expect(messages).toContain("a");
       expect(messages).toContain("b");
     });
@@ -276,89 +279,11 @@ describe("useLogData", () => {
       });
 
       await vi.waitFor(() => {
-        expect(result.current.loading.value).toBe(false);
+        expect(result.current.loading).toBe(false);
       });
 
       expect(toast.error).toHaveBeenCalledTimes(1);
-      expect(result.current.restEntries.value).toHaveLength(0);
-    });
-  });
-
-  describe("reconnect refetch", () => {
-    it("re-fetches REST data when reconnectVersion increments", async () => {
-      const state = createAppState();
-      let fetchCount = 0;
-
-      server.use(
-        http.get("/api/logs/recent", () => {
-          fetchCount++;
-          return HttpResponse.json([]);
-        }),
-      );
-
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
-
-      await vi.waitFor(() => {
-        expect(result.current.loading.value).toBe(false);
-      });
-
-      expect(fetchCount).toBe(1);
-
-      act(() => {
-        state.reconnectVersion.value = 1;
-      });
-
-      await vi.waitFor(() => {
-        expect(fetchCount).toBe(2);
-      });
-    });
-
-    it("resets the watermark on reconnect so stale WS entries are re-evaluated", async () => {
-      const state = createAppState();
-      const firstBatch = [makeLogEntry({ seq: 1, timestamp: 5000, message: "initial-rest" })];
-      const secondBatch = [makeLogEntry({ seq: 2, timestamp: 3000, message: "reconnect-rest" })];
-      let callCount = 0;
-
-      server.use(
-        http.get("/api/logs/recent", () => {
-          callCount++;
-          return HttpResponse.json(callCount === 1 ? firstBatch : secondBatch);
-        }),
-      );
-
-      const { result } = renderHook(() => useLogData({}), {
-        wrapper: createWrapper(state),
-      });
-
-      await vi.waitFor(() => {
-        expect(result.current.loading.value).toBe(false);
-      });
-
-      // WS entry above the first watermark (5000).
-      act(() => {
-        state.logs.push(makeLogEntry({ seq: 3, timestamp: 9000, message: "ws-high" }));
-      });
-
-      expect(result.current.allEntries.value.some((e) => e.message === "ws-high")).toBe(true);
-
-      // Reconnect — second REST batch has watermark 3000.
-      act(() => {
-        state.reconnectVersion.value = 1;
-      });
-
-      await vi.waitFor(() => {
-        expect(result.current.loading.value).toBe(false);
-        expect(result.current.restEntries.value[0]?.message).toBe("reconnect-rest");
-      });
-
-      // WS entry above the new watermark (3000) should be included.
-      act(() => {
-        state.logs.push(makeLogEntry({ seq: 4, timestamp: 4000, message: "ws-after-reconnect" }));
-      });
-
-      expect(result.current.allEntries.value.some((e) => e.message === "ws-after-reconnect")).toBe(true);
+      expect(result.current.restEntries).toHaveLength(0);
     });
   });
 });

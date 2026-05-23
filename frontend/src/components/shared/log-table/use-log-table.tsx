@@ -102,6 +102,7 @@ export function useLogTable({
   } = useLogFilters({
     allEntries,
     restEntries,
+    // Execution-scoped views always use local state — URL params are owned by the parent page.
     useLocalState: useLocal || !!executionId,
     appKey,
   });
@@ -120,9 +121,9 @@ export function useLogTable({
   }, [externalSearch, setSearch]);
 
   const state = filterState.value;
-  const entries = filtered.value;
+  const entries = filtered;
   const paused = livePaused.value;
-  const isLoading = loading.value;
+  const isLoading = loading;
 
   const handleRowClick = useCallback((entry: LogEntry) => {
     const key = rowKey(entry);

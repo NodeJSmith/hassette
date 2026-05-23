@@ -1,5 +1,6 @@
 /** Typed API endpoint functions for all Hassette REST endpoints. */
 
+import { DETAIL_FETCH_LIMIT } from "../utils/constants";
 import { apiFetch, apiPost, apiPut } from "./client";
 import type { components } from "./generated-types";
 
@@ -19,6 +20,8 @@ export type LogEntry = components["schemas"]["LogEntryResponse"];
 export type AppConfigData = components["schemas"]["AppConfigResponse"];
 export type AppSourceData = components["schemas"]["AppSourceResponse"];
 export type ActivityFeedEntryData = components["schemas"]["ActivityFeedEntry"];
+
+export const WS_PATH = "/api/ws";
 
 // ---- Query string helpers ----
 
@@ -50,29 +53,57 @@ export const getAppHealth = (appKey: string, instanceIndex = 0, since?: number |
     buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/health`, { instance_index: instanceIndex, since }),
   );
 
-export const getAppListeners = (appKey: string, instanceIndex = 0, since?: number | null) =>
+export const getAppListeners = (appKey: string, instanceIndex = 0, since?: number | null, signal?: AbortSignal) =>
   apiFetch<ListenerData[]>(
     buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/listeners`, { instance_index: instanceIndex, since }),
+    signal ? { signal } : undefined,
   );
 
-export const getAppJobs = (appKey: string, instanceIndex = 0, since?: number | null) =>
+export const getAppJobs = (appKey: string, instanceIndex = 0, since?: number | null, signal?: AbortSignal) =>
   apiFetch<JobData[]>(
     buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/jobs`, { instance_index: instanceIndex, since }),
+    signal ? { signal } : undefined,
   );
 
-export const getAppActivity = (appKey: string, instanceIndex?: number | null, limit = 50, since?: number | null) =>
+export const getAppActivity = (
+  appKey: string,
+  instanceIndex?: number | null,
+  limit = DETAIL_FETCH_LIMIT,
+  since?: number | null,
+  signal?: AbortSignal,
+) =>
   apiFetch<ActivityFeedEntryData[]>(
     buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/activity`, { instance_index: instanceIndex, limit, since }),
+    signal ? { signal } : undefined,
   );
 
-export const getHandlerInvocations = (listenerId: number, limit = 50, since?: number | null) =>
-  apiFetch<HandlerInvocationData[]>(buildUrl(`/telemetry/handler/${listenerId}/invocations`, { limit, since }));
+export const getHandlerInvocations = (
+  listenerId: number,
+  limit = DETAIL_FETCH_LIMIT,
+  since?: number | null,
+  signal?: AbortSignal,
+) =>
+  apiFetch<HandlerInvocationData[]>(
+    buildUrl(`/telemetry/handler/${listenerId}/invocations`, { limit, since }),
+    signal ? { signal } : undefined,
+  );
 
-export const getJobExecutions = (jobId: number, limit = 50, since?: number | null) =>
-  apiFetch<JobExecutionData[]>(buildUrl(`/telemetry/job/${jobId}/executions`, { limit, since }));
+export const getJobExecutions = (
+  jobId: number,
+  limit = DETAIL_FETCH_LIMIT,
+  since?: number | null,
+  signal?: AbortSignal,
+) =>
+  apiFetch<JobExecutionData[]>(
+    buildUrl(`/telemetry/job/${jobId}/executions`, { limit, since }),
+    signal ? { signal } : undefined,
+  );
 
-export const getDashboardAppGrid = (since?: number | null) =>
-  apiFetch<{ apps: DashboardAppGridEntry[] }>(buildUrl("/telemetry/dashboard/app-grid", { since }));
+export const getDashboardAppGrid = (since?: number | null, signal?: AbortSignal) =>
+  apiFetch<{ apps: DashboardAppGridEntry[] }>(
+    buildUrl("/telemetry/dashboard/app-grid", { since }),
+    signal ? { signal } : undefined,
+  );
 
 export const getTelemetryStatus = (signal?: AbortSignal) =>
   apiFetch<TelemetryStatus>("/telemetry/status", signal ? { signal } : undefined);
@@ -88,14 +119,17 @@ export const getConfig = () => apiFetch<SystemConfig>("/config");
 export type LogsByExecutionResponse = components["schemas"]["LogsByExecutionResponse"];
 export type LogLevelResponse = components["schemas"]["LogLevelResponse"];
 
-export const getRecentLogs = (params?: {
-  level?: string;
-  app_key?: string;
-  limit?: number;
-  since?: number | null;
-  execution_id?: string | null;
-  source_tier?: string | null;
-}) =>
+export const getRecentLogs = (
+  params?: {
+    level?: string;
+    app_key?: string;
+    limit?: number;
+    since?: number | null;
+    execution_id?: string | null;
+    source_tier?: string | null;
+  },
+  signal?: AbortSignal,
+) =>
   apiFetch<LogEntry[]>(
     buildUrl("/logs/recent", {
       level: params?.level,
@@ -105,6 +139,7 @@ export const getRecentLogs = (params?: {
       execution_id: params?.execution_id,
       source_tier: params?.source_tier,
     }),
+    signal ? { signal } : undefined,
   );
 
 export const getLogsByExecution = (executionId: string, limit?: number) =>
@@ -115,12 +150,13 @@ export const setLogLevel = (logger: string, level: string) =>
 
 // ---- Bus ----
 
-export const getAllListeners = (since?: number | null) =>
-  apiFetch<ListenerData[]>(buildUrl("/bus/listeners", { since }));
+export const getAllListeners = (since?: number | null, signal?: AbortSignal) =>
+  apiFetch<ListenerData[]>(buildUrl("/bus/listeners", { since }), signal ? { signal } : undefined);
 
 // ---- Scheduler (global) ----
 
-export const getAllJobs = (since?: number | null) => apiFetch<JobData[]>(buildUrl("/scheduler/jobs", { since }));
+export const getAllJobs = (since?: number | null, signal?: AbortSignal) =>
+  apiFetch<JobData[]>(buildUrl("/scheduler/jobs", { since }), signal ? { signal } : undefined);
 
 // ---- System status ----
 

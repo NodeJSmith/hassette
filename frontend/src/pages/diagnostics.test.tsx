@@ -1,27 +1,21 @@
 import { signal } from "@preact/signals";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import { describe, expect, it, vi } from "vitest";
 
-import type { SystemStatus } from "../api/endpoints";
-import { getSystemStatus } from "../api/endpoints";
+import type { components } from "../api/generated-types";
 import type { ServiceStatusEntry } from "../state/create-app-state";
 import { renderWithAppState } from "../test/render-helpers";
+import { server } from "../test/server";
 import { DiagnosticsPage } from "./diagnostics";
 
 vi.mock("../components/shared/spinner", () => ({
   Spinner: () => <div data-testid="spinner" />,
 }));
 
-vi.mock("../api/endpoints", async (importOriginal) => {
-  const original = await importOriginal<typeof import("../api/endpoints")>();
-  return {
-    ...original,
-    getSystemStatus: vi.fn(),
-  };
-});
+type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
+type ServiceInfoResponse = components["schemas"]["ServiceInfoResponse"];
 
-const mockedGetSystemStatus = getSystemStatus as ReturnType<typeof vi.fn>;
-
-function makeSystemStatus(overrides: Partial<SystemStatus> = {}): SystemStatus {
+function makeSystemStatus(overrides: Partial<SystemStatusResponse> = {}): SystemStatusResponse {
   return {
     status: "ok",
     websocket_connected: true,
@@ -33,6 +27,17 @@ function makeSystemStatus(overrides: Partial<SystemStatus> = {}): SystemStatus {
     version: "1.0.0",
     boot_issues: [],
     log_records_dropped: 0,
+    ...overrides,
+  };
+}
+
+function makeServiceInfo(overrides: Partial<ServiceInfoResponse> = {}): ServiceInfoResponse {
+  return {
+    name: "bus",
+    status: "running",
+    role: "core",
+    ready_phase: null,
+    retry_at: null,
     ...overrides,
   };
 }
@@ -52,16 +57,18 @@ function makeServiceEntry(overrides: Partial<ServiceStatusEntry> = {}): ServiceS
 }
 
 describe("DiagnosticsPage", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockedGetSystemStatus.mockResolvedValue(makeSystemStatus());
-  });
-
   it("renders a spinner while loading", () => {
-    // Never resolve
-    mockedGetSystemStatus.mockImplementation(() => new Promise(() => {}));
+    // Never resolve so the spinner stays visible synchronously
+    server.use(http.get("/api/health", () => new Promise(() => {})));
     const { getByTestId } = renderWithAppState(<DiagnosticsPage />);
     expect(getByTestId("spinner")).toBeDefined();
+  });
+
+  it("shows error state on fetch failure", async () => {
+    server.use(http.get("/api/health", () => HttpResponse.json(null, { status: 500 })));
+    const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
+    const alert = await findByTestId("diag-load-error");
+    expect(alert.textContent).toBeTruthy();
   });
 
   it("renders all three sections after load", async () => {
@@ -72,19 +79,23 @@ describe("DiagnosticsPage", () => {
   });
 
   it("shows empty state when no services returned from HTTP seed", async () => {
-    mockedGetSystemStatus.mockResolvedValue(makeSystemStatus({ services: [] }));
+    server.use(http.get("/api/health", () => HttpResponse.json(makeSystemStatus({ services: [] }))));
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
     expect(await findByTestId("diag-services-empty")).toBeDefined();
   });
 
   it("renders service rows from HTTP seed", async () => {
-    mockedGetSystemStatus.mockResolvedValue(
-      makeSystemStatus({
-        services: [
-          { name: "bus", status: "running", role: "core", ready_phase: null, retry_at: null },
-          { name: "scheduler", status: "running", role: "core", ready_phase: null, retry_at: null },
-        ],
-      }),
+    server.use(
+      http.get("/api/health", () =>
+        HttpResponse.json(
+          makeSystemStatus({
+            services: [
+              makeServiceInfo({ name: "bus", status: "running" }),
+              makeServiceInfo({ name: "scheduler", status: "running" }),
+            ],
+          }),
+        ),
+      ),
     );
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
     expect(await findByTestId("diag-service-row-bus")).toBeDefined();
@@ -92,10 +103,14 @@ describe("DiagnosticsPage", () => {
   });
 
   it("overlays WS serviceStatus on top of HTTP seed", async () => {
-    mockedGetSystemStatus.mockResolvedValue(
-      makeSystemStatus({
-        services: [{ name: "bus", status: "running", role: "core", ready_phase: null, retry_at: null }],
-      }),
+    server.use(
+      http.get("/api/health", () =>
+        HttpResponse.json(
+          makeSystemStatus({
+            services: [makeServiceInfo({ name: "bus", status: "running" })],
+          }),
+        ),
+      ),
     );
     const serviceStatus = signal<Record<string, ServiceStatusEntry>>({
       bus: makeServiceEntry({ resource_name: "bus", status: "exhausted_cooling", retry_at: null }),
@@ -110,12 +125,16 @@ describe("DiagnosticsPage", () => {
 
   it("shows a cooling service with relative retry timestamp", async () => {
     const futureRetryAt = Date.now() / 1000 + 180; // 3 minutes from now
-    mockedGetSystemStatus.mockResolvedValue(
-      makeSystemStatus({
-        services: [
-          { name: "db", status: "exhausted_cooling", role: "storage", ready_phase: null, retry_at: futureRetryAt },
-        ],
-      }),
+    server.use(
+      http.get("/api/health", () =>
+        HttpResponse.json(
+          makeSystemStatus({
+            services: [
+              makeServiceInfo({ name: "db", status: "exhausted_cooling", role: "storage", retry_at: futureRetryAt }),
+            ],
+          }),
+        ),
+      ),
     );
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
     const retryEl = await findByTestId("diag-service-retry-db");
@@ -140,19 +159,23 @@ describe("DiagnosticsPage", () => {
   });
 
   it("shows clean startup when no boot issues", async () => {
-    mockedGetSystemStatus.mockResolvedValue(makeSystemStatus({ boot_issues: [] }));
+    server.use(http.get("/api/health", () => HttpResponse.json(makeSystemStatus({ boot_issues: [] }))));
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
     expect(await findByTestId("diag-boot-clean")).toBeDefined();
   });
 
   it("renders boot issues sorted by severity (errors first)", async () => {
-    mockedGetSystemStatus.mockResolvedValue(
-      makeSystemStatus({
-        boot_issues: [
-          { severity: "warn", label: "Config warning", detail: "check your config" },
-          { severity: "err", label: "Critical error", detail: "failed to load something" },
-        ],
-      }),
+    server.use(
+      http.get("/api/health", () =>
+        HttpResponse.json(
+          makeSystemStatus({
+            boot_issues: [
+              { severity: "warn", label: "Config warning", detail: "check your config" },
+              { severity: "err", label: "Critical error", detail: "failed to load something" },
+            ],
+          }),
+        ),
+      ),
     );
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
     const first = await findByTestId("diag-boot-label-0");
@@ -162,10 +185,14 @@ describe("DiagnosticsPage", () => {
   });
 
   it("renders boot issue labels and details", async () => {
-    mockedGetSystemStatus.mockResolvedValue(
-      makeSystemStatus({
-        boot_issues: [{ severity: "err", label: "Some error", detail: "The full detail text" }],
-      }),
+    server.use(
+      http.get("/api/health", () =>
+        HttpResponse.json(
+          makeSystemStatus({
+            boot_issues: [{ severity: "err", label: "Some error", detail: "The full detail text" }],
+          }),
+        ),
+      ),
     );
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
     expect((await findByTestId("diag-boot-label-0")).textContent).toBe("Some error");
@@ -212,10 +239,16 @@ describe("DiagnosticsPage", () => {
   });
 
   it("service row shows ready_phase text", async () => {
-    mockedGetSystemStatus.mockResolvedValue(
-      makeSystemStatus({
-        services: [{ name: "db", status: "running", role: "storage", ready_phase: "migrating schema", retry_at: null }],
-      }),
+    server.use(
+      http.get("/api/health", () =>
+        HttpResponse.json(
+          makeSystemStatus({
+            services: [
+              makeServiceInfo({ name: "db", status: "running", role: "storage", ready_phase: "migrating schema" }),
+            ],
+          }),
+        ),
+      ),
     );
     const { findByTestId } = renderWithAppState(<DiagnosticsPage />);
     const phaseEl = await findByTestId("diag-service-phase-db");

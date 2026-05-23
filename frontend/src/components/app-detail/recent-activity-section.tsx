@@ -3,13 +3,10 @@ import { useMemo } from "preact/hooks";
 
 import type { ActivityFeedEntryData } from "../../api/endpoints";
 import { getAppActivity } from "../../api/endpoints";
-import {
-  useFilteredSignalRefetch,
-  WS_DEBOUNCE_DELAY_MS,
-  WS_DEBOUNCE_MAX_WAIT_MS,
-} from "../../hooks/use-filtered-signal-refetch";
-import { useScopedApi } from "../../hooks/use-scoped-api";
+import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
+import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { useSubscribe } from "../../hooks/use-subscribe";
+import { queryKeys } from "../../lib/query-keys";
 import { useAppState } from "../../state/context";
 import { formatDurationOrDash, formatRelativeTime, lastDotSegment } from "../../utils/format";
 import { executionStatusKind } from "../../utils/status";
@@ -115,43 +112,37 @@ export function RecentActivitySection({
 }) {
   const {
     data: activity,
-    loading,
+    isPending: loading,
     error: activityError,
-    refetch,
-  } = useScopedApi((since) => getAppActivity(appKey, resolvedInstanceIndex, ACTIVITY_LIMIT, since), {
-    deps: [appKey, resolvedInstanceIndex],
-  });
+  } = useScopedQuery(queryKeys.appActivity.base(appKey, resolvedInstanceIndex), (since, signal) =>
+    getAppActivity(appKey, resolvedInstanceIndex, ACTIVITY_LIMIT, since, signal),
+  );
 
   const { invocationCompleted, executionCompleted, tick } = useAppState();
   useSubscribe(tick);
 
-  useFilteredSignalRefetch(
+  useQueryInvalidator(
     invocationCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
-    () => void refetch(),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
+    queryKeys.appActivity.prefix(appKey),
   );
 
-  useFilteredSignalRefetch(
+  useQueryInvalidator(
     executionCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
-    () => void refetch(),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
+    queryKeys.appActivity.prefix(appKey),
   );
 
-  const entries = activity.value ?? [];
-  const groups = useMemo(() => groupConsecutiveActivity(entries), [entries]);
+  const groups = useMemo(() => groupConsecutiveActivity(activity ?? []), [activity]);
 
   return (
     <section class={styles.section} data-testid="overview-activity-section">
       <h3 class="ht-section-label">recent activity</h3>
-      {activityError.value ? (
+      {activityError ? (
         <p class={clsx(styles.emptyInline, "ht-text-danger")} data-testid="overview-activity-error">
           could not load activity
         </p>
-      ) : !loading.value && entries.length === 0 ? (
+      ) : !loading && (activity ?? []).length === 0 ? (
         <p class={styles.emptyInline} data-testid="overview-activity-empty">
           no recent activity
         </p>

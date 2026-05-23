@@ -1,6 +1,8 @@
 import { batch } from "@preact/signals";
+import { useQueryClient } from "@tanstack/preact-query";
 import { useEffect, useRef } from "preact/hooks";
 
+import { WS_PATH } from "../api/endpoints";
 import type { WsServerMessage } from "../api/ws-types";
 import type { AppState } from "../state/create-app-state";
 
@@ -18,6 +20,7 @@ function buildSubscribePayload(level: string): string {
 }
 
 export function useWebSocket(state: AppState): void {
+  const queryClient = useQueryClient();
   const wsRef = useRef<WebSocket | null>(null);
   const backoffRef = useRef(INITIAL_BACKOFF_MS);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -36,7 +39,7 @@ export function useWebSocket(state: AppState): void {
       }
 
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
-      const socket = new WebSocket(`${proto}//${location.host}/api/ws`);
+      const socket = new WebSocket(`${proto}//${location.host}${WS_PATH}`);
       wsRef.current = socket;
 
       let handshakeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -67,7 +70,7 @@ export function useWebSocket(state: AppState): void {
               // Reset backoff here (not in onopen) — only a fully completed handshake should reset retry delay
               backoffRef.current = INITIAL_BACKOFF_MS;
               state.connection.value = "connected";
-              // uptime_seconds is the loading gate for useScopedApi
+              // uptime_seconds is the loading gate for scoped query hooks
               state.uptimeSeconds.value = msg.data.uptime_seconds;
               if (msg.data.version !== undefined) {
                 state.systemVersion.value = msg.data.version;
@@ -77,8 +80,8 @@ export function useWebSocket(state: AppState): void {
                 // Reconnection — clear stale log buffer and service status before re-subscribing
                 state.logs.clear();
                 state.serviceStatus.value = {};
-                // Signal all useApi instances to refetch
-                state.reconnectVersion.value = state.reconnectVersion.value + 1;
+                // Invalidate all TanStack Query caches so data is re-fetched after reconnect
+                void queryClient.invalidateQueries();
               } else {
                 hasConnectedRef.current = true;
               }
@@ -111,14 +114,6 @@ export function useWebSocket(state: AppState): void {
 
             case "log":
               state.logs.push(msg.data);
-              break;
-
-            case "connectivity":
-              // HA connection status — could be surfaced in UI
-              break;
-
-            case "state_changed":
-              // Available for future use
               break;
 
             case "service_status":

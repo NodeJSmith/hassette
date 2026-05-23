@@ -4,16 +4,16 @@ import { ColumnPicker } from "../components/shared/log-table/column-picker";
 import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
 import { useDocumentTitle } from "../hooks/use-document-title";
+import { useManifests } from "../hooks/use-manifests";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useSignal } from "../hooks/use-signal";
 import { useSubscribe } from "../hooks/use-subscribe";
-import { useAppState } from "../state/context";
 import styles from "./logs.module.css";
 
 export function LogsPage() {
   useDocumentTitle("Logs");
-  const { manifests } = useAppState();
-  const appKeys = manifests.value.map((m) => m.app_key).sort();
+  const { data: manifests = [] } = useManifests();
+  const appKeys = manifests.map((m) => m.app_key).sort();
   const qp = useQueryParams();
   const executionId = qp.get("execution_id");
 

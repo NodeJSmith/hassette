@@ -1,7 +1,8 @@
-import { act, renderHook } from "@testing-library/preact";
+import { act } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createAppState } from "../state/create-app-state";
+import { createTestQueryClient, renderHookWithProviders } from "../test/query-test-utils";
 import { useWebSocket } from "./use-websocket";
 
 /** Minimal mock WebSocket that tracks construction and allows simulating messages. */
@@ -52,8 +53,9 @@ describe("useWebSocket", () => {
 
   it("creates only one WebSocket connection across re-renders", () => {
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    const { rerender } = renderHook(() => useWebSocket(state));
+    const { rerender } = renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     expect(MockWebSocket.instances).toHaveLength(1);
 
@@ -65,24 +67,11 @@ describe("useWebSocket", () => {
     expect(MockWebSocket.instances).toHaveLength(1);
   });
 
-  it("does not increment reconnectVersion on first connect", () => {
-    const state = createAppState();
-
-    renderHook(() => useWebSocket(state));
-
-    const ws = MockWebSocket.instances[0];
-    act(() => {
-      ws.simulateOpen();
-      ws.simulateMessage({ type: "connected", data: { uptime_seconds: 120, entity_count: 10, app_count: 2 } });
-    });
-
-    expect(state.reconnectVersion.value).toBe(0);
-  });
-
   it("does not set sessionId (signal does not exist)", () => {
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     const ws = MockWebSocket.instances[0];
     act(() => {
@@ -95,8 +84,9 @@ describe("useWebSocket", () => {
 
   it("sets uptimeSeconds from connected message", () => {
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     const ws = MockWebSocket.instances[0];
     act(() => {
@@ -109,9 +99,11 @@ describe("useWebSocket", () => {
 
   it("initializes with 'connecting' state", () => {
     const state = createAppState();
+    const queryClient = createTestQueryClient();
+
     expect(state.connection.value).toBe("connecting");
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     // Before onopen/onmessage, state should remain "connecting"
     expect(state.connection.value).toBe("connecting");
@@ -119,8 +111,9 @@ describe("useWebSocket", () => {
 
   it("transitions to 'connected' on application-level connected message, not on onopen", () => {
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     const ws = MockWebSocket.instances[0];
 
@@ -140,8 +133,9 @@ describe("useWebSocket", () => {
   it("transitions to 'disconnected' on first-connection failure", () => {
     vi.useFakeTimers();
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     const ws = MockWebSocket.instances[0];
 
@@ -157,8 +151,9 @@ describe("useWebSocket", () => {
   it("closes socket on handshake timeout when server never sends connected message", () => {
     vi.useFakeTimers();
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     const ws = MockWebSocket.instances[0];
 
@@ -181,8 +176,9 @@ describe("useWebSocket", () => {
   it("clears handshake timer when connected message arrives", () => {
     vi.useFakeTimers();
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     const ws = MockWebSocket.instances[0];
 
@@ -199,49 +195,11 @@ describe("useWebSocket", () => {
     expect(state.connection.value).toBe("connected");
   });
 
-  it("increments reconnectVersion on reconnect but not first connect", () => {
-    vi.useFakeTimers();
-    const state = createAppState();
-
-    renderHook(() => useWebSocket(state));
-
-    // First connect
-    const ws1 = MockWebSocket.instances[0];
-    act(() => {
-      ws1.simulateOpen();
-      ws1.simulateMessage({ type: "connected", data: { uptime_seconds: 100, entity_count: 0, app_count: 0 } });
-    });
-    expect(state.reconnectVersion.value).toBe(0);
-
-    // Simulate disconnect
-    act(() => {
-      ws1.onclose?.();
-    });
-    expect(state.connection.value).toBe("reconnecting");
-
-    // Advance past backoff timer to trigger reconnect
-    act(() => {
-      vi.advanceTimersByTime(2000);
-    });
-
-    // Second WebSocket created by reconnect
-    expect(MockWebSocket.instances).toHaveLength(2);
-    const ws2 = MockWebSocket.instances[1];
-
-    act(() => {
-      ws2.simulateOpen();
-      ws2.simulateMessage({ type: "connected", data: { uptime_seconds: 200, entity_count: 0, app_count: 0 } });
-    });
-
-    expect(state.reconnectVersion.value).toBe(1);
-    // uptimeSeconds updated on reconnect too
-    expect(state.uptimeSeconds.value).toBe(200);
-  });
-
   it("sends log subscribe on connect", () => {
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     const ws = MockWebSocket.instances[0];
     act(() => {
@@ -260,8 +218,9 @@ describe("useWebSocket", () => {
   it("resubscribes on reconnect", () => {
     vi.useFakeTimers();
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     // First connect
     const ws1 = MockWebSocket.instances[0];
@@ -298,8 +257,9 @@ describe("useWebSocket", () => {
 
   it("wires updateLogSubscription to send level updates", () => {
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     const ws = MockWebSocket.instances[0];
     act(() => {
@@ -324,8 +284,9 @@ describe("useWebSocket", () => {
   it("updateLogSubscription is no-op after disconnect", () => {
     vi.useFakeTimers();
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     const ws = MockWebSocket.instances[0];
     act(() => {
@@ -348,8 +309,9 @@ describe("useWebSocket", () => {
 
   it("maps service_status ready and ready_phase into serviceStatus state", () => {
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     const ws = MockWebSocket.instances[0];
     act(() => {
@@ -385,8 +347,9 @@ describe("useWebSocket", () => {
 
   it("defaults ready to false and ready_phase to null for pre-schema events", () => {
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     const ws = MockWebSocket.instances[0];
     act(() => {
@@ -420,8 +383,9 @@ describe("useWebSocket", () => {
   it("clears serviceStatus on reconnect", () => {
     vi.useFakeTimers();
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     const ws1 = MockWebSocket.instances[0];
     act(() => {
@@ -470,6 +434,7 @@ describe("useWebSocket", () => {
   it("clears log store on reconnect", () => {
     vi.useFakeTimers();
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
     // Push some entries into the log store before connecting
     state.logs.push({
@@ -488,7 +453,7 @@ describe("useWebSocket", () => {
       source_tier: null,
     });
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     // First connect
     const ws1 = MockWebSocket.instances[0];
@@ -522,8 +487,9 @@ describe("useWebSocket", () => {
 
   it("writes invocation_completed batch to invocationCompleted signal", () => {
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     const ws = MockWebSocket.instances[0];
     act(() => {
@@ -552,8 +518,9 @@ describe("useWebSocket", () => {
 
   it("writes execution_completed batch to executionCompleted signal", () => {
     const state = createAppState();
+    const queryClient = createTestQueryClient();
 
-    renderHook(() => useWebSocket(state));
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
 
     const ws = MockWebSocket.instances[0];
     act(() => {
@@ -570,5 +537,59 @@ describe("useWebSocket", () => {
     });
 
     expect(state.executionCompleted.value).toEqual(batch);
+  });
+
+  it("calls queryClient.invalidateQueries() on reconnect", () => {
+    vi.useFakeTimers();
+    const state = createAppState();
+    const queryClient = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
+
+    // First connect — should NOT call invalidateQueries
+    const ws1 = MockWebSocket.instances[0];
+    act(() => {
+      ws1.simulateOpen();
+      ws1.simulateMessage({ type: "connected", data: { uptime_seconds: 100, entity_count: 0, app_count: 0 } });
+    });
+    expect(invalidateSpy).not.toHaveBeenCalled();
+
+    // Simulate disconnect
+    act(() => {
+      ws1.onclose?.();
+    });
+
+    // Advance past backoff timer to trigger reconnect
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    // Second WebSocket created by reconnect
+    const ws2 = MockWebSocket.instances[1];
+    act(() => {
+      ws2.simulateOpen();
+      ws2.simulateMessage({ type: "connected", data: { uptime_seconds: 200, entity_count: 0, app_count: 0 } });
+    });
+
+    // On reconnect, invalidateQueries should have been called with no filter
+    expect(invalidateSpy).toHaveBeenCalledOnce();
+    expect(invalidateSpy).toHaveBeenCalledWith();
+  });
+
+  it("does not call queryClient.invalidateQueries() on first connect", () => {
+    const state = createAppState();
+    const queryClient = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
+
+    const ws = MockWebSocket.instances[0];
+    act(() => {
+      ws.simulateOpen();
+      ws.simulateMessage({ type: "connected", data: { uptime_seconds: 100, entity_count: 0, app_count: 0 } });
+    });
+
+    expect(invalidateSpy).not.toHaveBeenCalled();
   });
 });

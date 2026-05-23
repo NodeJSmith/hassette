@@ -1,10 +1,10 @@
-import { computed, type ReadonlySignal } from "@preact/signals";
-import { useEffect, useRef } from "preact/hooks";
+import { useQuery } from "@tanstack/preact-query";
+import { useEffect, useMemo } from "preact/hooks";
 import { toast } from "sonner";
 
 import { getRecentLogs, type LogEntry } from "../../../api/endpoints";
-import { useSignal } from "../../../hooks/use-signal";
 import { useSubscribe } from "../../../hooks/use-subscribe";
+import { queryKeys } from "../../../lib/query-keys";
 import { useAppState } from "../../../state/context";
 import { REST_FETCH_LIMIT } from "./constants";
 
@@ -15,63 +15,48 @@ interface UseLogDataParams {
 
 interface UseLogDataResult {
   /** REST + WS entries combined, deduped by timestamp watermark. */
-  allEntries: ReadonlySignal<LogEntry[]>;
+  allEntries: LogEntry[];
   /** REST-only entries (used when live-paused to exclude WS stream). */
-  restEntries: ReadonlySignal<LogEntry[]>;
-  loading: ReadonlySignal<boolean>;
+  restEntries: LogEntry[];
+  loading: boolean;
 }
 
 export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDataResult {
-  const { logs, reconnectVersion } = useAppState();
+  const { logs } = useAppState();
 
   useSubscribe(logs.version);
 
-  const initialEntries = useSignal<LogEntry[]>([]);
-  const loading = useSignal(true);
-  const watermarkRef = useRef(0);
+  const { data, isPending, isError, error } = useQuery({
+    queryKey: queryKeys.recentLogs(appKey, executionId),
+    queryFn: ({ signal }) =>
+      getRecentLogs({ app_key: appKey, limit: REST_FETCH_LIMIT, execution_id: executionId }, signal),
+  });
 
-  const rv = reconnectVersion.value;
   useEffect(() => {
-    let cancelled = false;
-    loading.value = true;
-    watermarkRef.current = 0;
+    if (isError && error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load recent logs");
+    }
+  }, [isError, error]);
 
-    getRecentLogs({
-      app_key: appKey,
-      limit: REST_FETCH_LIMIT,
-      execution_id: executionId,
-    })
-      .then((entries) => {
-        if (cancelled) return;
-        initialEntries.value = entries;
-        watermarkRef.current = entries.reduce((max, e) => Math.max(max, e.timestamp), 0);
-        loading.value = false;
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        toast.error(err instanceof Error ? err.message : "Failed to load recent logs");
-        loading.value = false;
-      });
+  const restEntries: LogEntry[] = data ?? [];
 
-    return () => {
-      cancelled = true;
-    };
-  }, [appKey, rv, executionId]);
+  // Watermark: highest timestamp in the REST batch. WS entries must be strictly
+  // above this to be included, preventing duplicates.
+  const watermark = useMemo(() => restEntries.reduce((max, e) => Math.max(max, e.timestamp), 0), [restEntries]);
 
-  const restEntries = computed<LogEntry[]>(() => [...initialEntries.value]);
+  const allEntries = useMemo(() => {
+    if (!data) return [];
 
-  const allEntries = computed<LogEntry[]>(() => {
-    const initial = initialEntries.value;
-    void logs.version.value;
     const wsEntries = logs.toArray().filter((e) => {
-      if (e.timestamp <= watermarkRef.current) return false;
+      if (e.timestamp <= watermark) return false;
       if (appKey && e.app_key !== appKey) return false;
       if (executionId && e.execution_id !== executionId) return false;
       return true;
     }) as LogEntry[];
 
-    return [...initial, ...wsEntries];
-  });
+    return [...restEntries, ...wsEntries];
+    // logs.version.value in dep array drives recomputation on every WS push
+  }, [data, restEntries, watermark, logs.version.value, appKey, executionId]);
 
-  return { allEntries, restEntries, loading: loading as ReadonlySignal<boolean> };
+  return { allEntries, restEntries, loading: isPending };
 }

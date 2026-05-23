@@ -1,12 +1,9 @@
 import type { ListenerData } from "../../api/endpoints";
 import { getHandlerInvocations } from "../../api/endpoints";
-import {
-  useFilteredSignalRefetch,
-  WS_DEBOUNCE_DELAY_MS,
-  WS_DEBOUNCE_MAX_WAIT_MS,
-} from "../../hooks/use-filtered-signal-refetch";
+import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { useRelativeTime } from "../../hooks/use-relative-time";
-import { useScopedApi } from "../../hooks/use-scoped-api";
+import { useScopedQuery } from "../../hooks/use-scoped-query";
+import { queryKeys } from "../../lib/query-keys";
 import { useAppState } from "../../state/context";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import { formatDurationOrDash, formatOptionalDuration, lastDotSegment, MS_PER_SECOND } from "../../utils/format";
@@ -70,23 +67,18 @@ interface Props {
 }
 
 export function ListenerDetail({ listener, onSwitchToCode }: Props) {
-  const {
-    data: invocations,
-    loading,
-    refetch,
-  } = useScopedApi((since) => getHandlerInvocations(listener.listener_id, DETAIL_FETCH_LIMIT, since), {
-    deps: [listener.listener_id],
-  });
+  const { data: invocations, isPending: loading } = useScopedQuery(
+    queryKeys.handlerInvocations(listener.listener_id),
+    (since, signal) => getHandlerInvocations(listener.listener_id, DETAIL_FETCH_LIMIT, since, signal),
+  );
 
   const { invocationCompleted } = useAppState();
   const lastInvokedLabel = useRelativeTime(listener.last_invoked_at ?? null);
 
-  useFilteredSignalRefetch(
+  useQueryInvalidator(
     invocationCompleted,
     (events) => events?.some((e) => e.listener_id === listener.listener_id) ?? false,
-    () => void refetch(),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
+    queryKeys.handlerInvocations(listener.listener_id),
   );
 
   const kindLabel = handlerKindLabel("listener", listener.listener_kind, null);
@@ -116,11 +108,11 @@ export function ListenerDetail({ listener, onSwitchToCode }: Props) {
       statsCells={buildListenerStatsCells(listener, lastInvokedLabel)}
       statsTestId="handler-stats-row"
       executionHeading="invocations"
-      executionRecords={invocations.value ?? []}
+      executionRecords={invocations ?? []}
       executionKind="handler"
       executionTableId={`invocation-table-${listener.listener_id}`}
       executionLoading={loading}
-      executionHasData={!!invocations.value}
+      executionHasData={invocations !== undefined}
     />
   );
 }

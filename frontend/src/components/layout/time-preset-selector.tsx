@@ -26,6 +26,8 @@ export function TimePresetSelector() {
     const windowParam = qp.get("window");
     if (windowParam !== null && isTimePreset(windowParam)) {
       urlWindowParam.value = windowParam;
+    } else {
+      urlWindowParam.value = null;
     }
   }, []);
 

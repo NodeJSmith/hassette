@@ -13,6 +13,7 @@ import { createSystemConfig } from "./factories";
 
 // ---- Type aliases (keep in sync with endpoints.ts) ----
 
+type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
 type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
 type ConfigResponse = components["schemas"]["ConfigResponse"];
 type AppHealthResponse = components["schemas"]["AppHealthResponse"];
@@ -108,6 +109,11 @@ export const handlers = [
     return HttpResponse.json<JobExecution[]>([]);
   }),
 
+  // GET /api/scheduler/jobs
+  http.get("/api/scheduler/jobs", () => {
+    return HttpResponse.json<JobSummary[]>([]);
+  }),
+
   // GET /api/telemetry/dashboard/app-grid
   http.get("/api/telemetry/dashboard/app-grid", () => {
     return HttpResponse.json<DashboardAppGridResponse>({ apps: [] });
@@ -168,5 +174,21 @@ export const handlers = [
   // GET /api/config
   http.get("/api/config", () => {
     return HttpResponse.json<ConfigResponse>(createSystemConfig());
+  }),
+
+  // GET /api/health
+  http.get("/api/health", () => {
+    return HttpResponse.json<SystemStatusResponse>({
+      status: "ok",
+      websocket_connected: true,
+      uptime_seconds: 120,
+      entity_count: 10,
+      app_count: 2,
+      services_running: ["bus", "scheduler"],
+      services: [],
+      version: "1.0.0",
+      boot_issues: [],
+      log_records_dropped: 0,
+    });
   }),
 ];

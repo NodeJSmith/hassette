@@ -1,21 +1,21 @@
 import { computed, type ReadonlySignal } from "@preact/signals";
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useMemo, useRef } from "preact/hooks";
 
 import type { LogEntry } from "../../../api/endpoints";
 import { useQueryParams } from "../../../hooks/use-query-params";
 import { useSignal } from "../../../hooks/use-signal";
-import { DEFAULT_LEVEL, LEVEL_INDEX, LEVELS, resolveSortColumn, SEARCH_DEBOUNCE_MS } from "./constants";
+import { ALL_LEVELS, DEFAULT_LEVEL, LEVEL_INDEX, LEVELS, resolveSortColumn, SEARCH_DEBOUNCE_MS } from "./constants";
 import type { FilterState, LevelFilter, SortColumn, SortConfig, TierFilter } from "./types";
 
 interface UseLogFiltersParams {
-  allEntries: ReadonlySignal<LogEntry[]>;
-  restEntries: ReadonlySignal<LogEntry[]>;
+  allEntries: LogEntry[];
+  restEntries: LogEntry[];
   useLocalState?: boolean;
   appKey?: string;
 }
 
 interface UseLogFiltersResult {
-  filtered: ReadonlySignal<LogEntry[]>;
+  filtered: LogEntry[];
   filterState: ReadonlySignal<FilterState>;
   livePaused: ReadonlySignal<boolean>;
   defaultTier: TierFilter;
@@ -105,7 +105,7 @@ export function useLogFilters({
 
     const current = qpRef.current;
     const levelParam = current.get("level");
-    const level: LevelFilter = levelParam === "all" ? "" : ((levelParam as LevelFilter) ?? DEFAULT_LEVEL);
+    const level: LevelFilter = levelParam === "all" ? ALL_LEVELS : ((levelParam as LevelFilter) ?? DEFAULT_LEVEL);
     const tierRaw = current.get("tier");
     const tier: TierFilter = tierRaw === "all" || tierRaw === "framework" || tierRaw === "app" ? tierRaw : defaultTier;
     const app = current.get("app") ?? "";
@@ -120,11 +120,11 @@ export function useLogFilters({
 
   const livePaused = computed(() => filterState.value.sort.column !== "timestamp");
 
-  const filtered = computed<LogEntry[]>(() => {
-    const paused = livePaused.value;
-    const source = paused ? restEntries.value : allEntries.value;
-    const { level, tier, app, search, func, sort } = filterState.value;
+  const paused = livePaused.value;
+  const { level, tier, app, search, func, sort } = filterState.value;
+  const source = paused ? restEntries : allEntries;
 
+  const filtered = useMemo<LogEntry[]>(() => {
     let result = source;
 
     if (level) {
@@ -156,7 +156,7 @@ export function useLogFilters({
     }
 
     return sortEntries(result, sort.column, sort.asc);
-  });
+  }, [source, level, tier, app, search, func, sort.column, sort.asc]);
 
   function setLevel(level: LevelFilter) {
     if (useLocalState) {
@@ -165,7 +165,7 @@ export function useLogFilters({
     }
     if (level === DEFAULT_LEVEL) {
       qpRef.current.set({ level: null });
-    } else if (level === "") {
+    } else if (level === ALL_LEVELS) {
       qpRef.current.set({ level: "all" });
     } else {
       qpRef.current.set({ level });

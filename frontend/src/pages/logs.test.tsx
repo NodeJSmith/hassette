@@ -1,7 +1,6 @@
 import { signal } from "@preact/signals";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createManifest } from "../test/factories";
 import { renderWithAppState } from "../test/render-helpers";
 import { LogsPage } from "./logs";
 
@@ -51,10 +50,6 @@ vi.mock("../components/shared/log-table", () => ({
   ),
 }));
 
-function withManifests(manifests: ReturnType<typeof createManifest>[]) {
-  return { stateOverrides: { manifests: signal(manifests), manifestsLoading: signal(false) } };
-}
-
 beforeEach(() => {
   mockSearchSignal.value = "";
   mockNavigate.mockReset();
@@ -66,18 +61,18 @@ beforeEach(() => {
 
 describe("LogsPage", () => {
   it("renders logs page with card container", () => {
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
+    const { getByTestId } = renderWithAppState(<LogsPage />);
     expect(getByTestId("logs-page")).toBeDefined();
     expect(getByTestId("logs-card")).toBeDefined();
   });
 
   it("renders page heading", () => {
-    const { container } = renderWithAppState(<LogsPage />, withManifests([]));
+    const { container } = renderWithAppState(<LogsPage />);
     expect(container.querySelector("h1.ht-display")?.textContent).toBe("logs");
   });
 
   it("renders search input in the card search slot", () => {
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
+    const { getByTestId } = renderWithAppState(<LogsPage />);
     const searchInput = getByTestId("logs-search");
     expect(searchInput).toBeDefined();
     expect(searchInput.getAttribute("aria-label")).toBe("Search logs");
@@ -86,12 +81,12 @@ describe("LogsPage", () => {
   });
 
   it("renders LogTableWithDrawer inside the card", () => {
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
+    const { getByTestId } = renderWithAppState(<LogsPage />);
     expect(getByTestId("log-table-with-drawer")).toBeDefined();
   });
 
   it("renders footer slot in card", () => {
-    const { getByTestId } = renderWithAppState(<LogsPage />, withManifests([]));
+    const { getByTestId } = renderWithAppState(<LogsPage />);
     const card = getByTestId("logs-card");
     expect(card.querySelector("[data-footer-slot]")).not.toBeNull();
   });

@@ -12,19 +12,18 @@ import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
 import { type ColumnFilters } from "../components/shared/table-types";
 import { useDocumentTitle } from "../hooks/use-document-title";
-import {
-  useFilteredSignalRefetch,
-  WS_DEBOUNCE_DELAY_MS,
-  WS_DEBOUNCE_MAX_WAIT_MS,
-} from "../hooks/use-filtered-signal-refetch";
+import { useManifests } from "../hooks/use-manifests";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../hooks/use-media-query";
+import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
-import { PRESET_WINDOW_SECONDS, useScopedApi } from "../hooks/use-scoped-api";
+import { useScopedQuery } from "../hooks/use-scoped-query";
 import { useSignal } from "../hooks/use-signal";
+import { queryKeys } from "../lib/query-keys";
 import { useAppState } from "../state/context";
 import { type AppRow, type AppSortState, compareAppRows, mergeManifestsAndGrid } from "../utils/app-data";
 import { pluralize } from "../utils/format";
 import { type StatusKind } from "../utils/status";
+import { PRESET_WINDOW_SECONDS } from "../utils/time-window";
 import styles from "./apps.module.css";
 import { AppTableRow } from "./apps-table-row";
 
@@ -42,6 +41,7 @@ const FILTER_TONES: Record<FilterId, StatusKind | null> = {
   blocked: "warn",
 };
 
+const MIN_WINDOW_FOR_RATE_CALC = 60;
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<AppSortState["key"]>(["name", "status", "error", "runs", "last"]);
 
 // ---- Stats strip helpers ----
@@ -55,7 +55,8 @@ function buildAppsCells(apps: AppRow[], windowSeconds: number | null, isMobile: 
     totalHandlers += a.handler_count + a.job_count;
     totalRuns += a.total_invocations + a.total_executions;
   }
-  const runsPerHour = windowSeconds && windowSeconds >= 60 ? totalRuns / (windowSeconds / 3600) : null;
+  const runsPerHour =
+    windowSeconds && windowSeconds >= MIN_WINDOW_FOR_RATE_CALC ? totalRuns / (windowSeconds / 3600) : null;
 
   const cells: StatsStripCell[] = [
     { label: "total", value: apps.length },
@@ -120,32 +121,14 @@ function StatusFilterContent({
 export function AppsPage() {
   useDocumentTitle("Apps");
 
-  const {
-    appStatus,
-    effectiveTimePreset,
-    uptimeSeconds,
-    manifests: manifestsState,
-    manifestsLoading,
-    invocationCompleted,
-    executionCompleted,
-  } = useAppState();
-  const { data: gridData, refetch: gridRefetch } = useScopedApi((since) => getDashboardAppGrid(since));
-
-  useFilteredSignalRefetch(
-    invocationCompleted,
-    (events) => events !== null,
-    () => void gridRefetch(),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
+  const { appStatus, effectiveTimePreset, uptimeSeconds, invocationCompleted, executionCompleted } = useAppState();
+  const { data: manifests = [], isPending: manifestsLoading } = useManifests();
+  const { data: gridData, error: gridError } = useScopedQuery(queryKeys.dashboardGrid(), (since, signal) =>
+    getDashboardAppGrid(since, signal),
   );
 
-  useFilteredSignalRefetch(
-    executionCompleted,
-    (events) => events !== null,
-    () => void gridRefetch(),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
-  );
+  useQueryInvalidator(invocationCompleted, (events) => events !== null, queryKeys.dashboardGrid());
+  useQueryInvalidator(executionCompleted, (events) => events !== null, queryKeys.dashboardGrid());
 
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const qp = useQueryParams();
@@ -172,8 +155,7 @@ export function AppsPage() {
     expanded.value = next;
   };
 
-  const manifests = manifestsState.value;
-  const gridEntries = gridData.value?.apps ?? [];
+  const gridEntries = gridData?.apps ?? [];
   const allApps = mergeManifestsAndGrid(manifests, gridEntries);
 
   let windowSeconds: number | null = null;
@@ -222,7 +204,15 @@ export function AppsPage() {
     })
     .sort((a, b) => compareAppRows(a, b, sort, appStatus.value));
 
-  if (manifestsLoading.value && manifests.length === 0) return <Spinner />;
+  if (manifestsLoading && manifests.length === 0) return <Spinner />;
+
+  if (gridError) {
+    return (
+      <div class="ht-alert ht-alert--danger" role="alert">
+        {gridError.message}
+      </div>
+    );
+  }
 
   const searchInput = (
     <input

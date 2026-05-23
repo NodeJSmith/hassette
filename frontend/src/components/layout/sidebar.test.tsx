@@ -1,14 +1,34 @@
 import { signal } from "@preact/signals";
-import { fireEvent } from "@testing-library/preact";
+import { fireEvent, screen } from "@testing-library/preact";
+import { http, HttpResponse } from "msw";
 import { h } from "preact";
 import { describe, expect, it, vi } from "vitest";
 
+import type { components } from "../../api/generated-types";
 import { createInstance, createManifest } from "../../test/factories";
 import { renderWithAppState } from "../../test/render-helpers";
+import { server } from "../../test/server";
 import { Sidebar } from "./sidebar";
 
-function withManifests(manifests: ReturnType<typeof createManifest>[]) {
-  return { stateOverrides: { manifests: signal(manifests), manifestsLoading: signal(false) } };
+type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
+type AppManifest = components["schemas"]["AppManifestResponse"];
+
+/** Installs an MSW handler returning the given manifests for the duration of the test. */
+function withManifests(manifests: AppManifest[]) {
+  server.use(
+    http.get("/api/apps/manifests", () =>
+      HttpResponse.json<ManifestListResponse>({
+        total: manifests.length,
+        running: manifests.filter((m) => m.status === "running").length,
+        failed: manifests.filter((m) => m.status === "failed").length,
+        stopped: 0,
+        disabled: 0,
+        blocked: 0,
+        manifests,
+        only_app: null,
+      }),
+    ),
+  );
 }
 
 // Mock wouter to control the current location
@@ -124,49 +144,42 @@ describe("Sidebar — nav items", () => {
 });
 
 describe("Sidebar — app list", () => {
-  it("renders apps from the manifests API", () => {
-    const { getByText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([createManifest({ app_key: "my_app", display_name: "My App", status: "running" })]),
-    );
-    expect(getByText("My App")).toBeDefined();
+  it("renders apps from the manifests API", async () => {
+    withManifests([createManifest({ app_key: "my_app", display_name: "My App", status: "running" })]);
+    renderWithAppState(<Sidebar />);
+    expect(await screen.findByText("My App")).toBeDefined();
   });
 
-  it("renders app link with correct href", () => {
-    const { getByText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([createManifest({ app_key: "my_app", display_name: "My App" })]),
-    );
-    const link = getByText("My App").closest("a");
+  it("renders app link with correct href", async () => {
+    withManifests([createManifest({ app_key: "my_app", display_name: "My App" })]);
+    renderWithAppState(<Sidebar />);
+    const nameEl = await screen.findByText("My App");
+    const link = nameEl.closest("a");
     expect(link?.getAttribute("href")).toBe("/apps/my_app");
   });
 
-  it("shows auto badge on auto-loaded apps", () => {
-    const { getByTitle } = renderWithAppState(
-      <Sidebar />,
-      withManifests([createManifest({ auto_loaded: true, display_name: "My App" })]),
-    );
-    expect(getByTitle("Auto-loaded")).toBeDefined();
+  it("shows auto badge on auto-loaded apps", async () => {
+    withManifests([createManifest({ auto_loaded: true, display_name: "My App" })]);
+    renderWithAppState(<Sidebar />);
+    await screen.findByText("My App");
+    expect(screen.getByTitle("Auto-loaded")).toBeDefined();
   });
 
-  it("does not show auto badge on non-auto-loaded apps", () => {
-    const { queryByTitle } = renderWithAppState(
-      <Sidebar />,
-      withManifests([createManifest({ auto_loaded: false, display_name: "My App" })]),
-    );
-    expect(queryByTitle("Auto-loaded")).toBeNull();
+  it("does not show auto badge on non-auto-loaded apps", async () => {
+    withManifests([createManifest({ auto_loaded: false, display_name: "My App" })]);
+    renderWithAppState(<Sidebar />);
+    await screen.findByText("My App");
+    expect(screen.queryByTitle("Auto-loaded")).toBeNull();
   });
 
-  it("groups apps so FAILING group header appears before RUNNING group header in DOM", () => {
-    const { getByText, getByTestId } = renderWithAppState(
-      <Sidebar />,
-      withManifests([
-        createManifest({ app_key: "running_app", display_name: "Running App", status: "running" }),
-        createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
-      ]),
-    );
+  it("groups apps so FAILING group header appears before RUNNING group header in DOM", async () => {
+    withManifests([
+      createManifest({ app_key: "running_app", display_name: "Running App", status: "running" }),
+      createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
+    ]);
+    const { getByTestId } = renderWithAppState(<Sidebar />);
     // Failed App is visible in expanded FAILING group
-    expect(getByText("Failed App")).toBeDefined();
+    await screen.findByText("Failed App");
     // Group headers are in DOM order: FAILING before RUNNING
     const appNav = getByTestId("app-nav");
     const groupHeaders = Array.from(appNav.querySelectorAll("[data-testid='group-header']")).map(
@@ -179,12 +192,10 @@ describe("Sidebar — app list", () => {
     expect(failingIdx).toBeLessThan(runningIdx);
   });
 
-  it("applies is-blocked class and aria-disabled to blocked apps", () => {
-    const { getByText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([createManifest({ app_key: "b_app", display_name: "Blocked App", status: "blocked" })]),
-    );
-    const nameEl = getByText("Blocked App");
+  it("applies is-blocked class and aria-disabled to blocked apps", async () => {
+    withManifests([createManifest({ app_key: "b_app", display_name: "Blocked App", status: "blocked" })]);
+    renderWithAppState(<Sidebar />);
+    const nameEl = await screen.findByText("Blocked App");
     const item = nameEl.closest("[data-testid='app-item-b_app']");
     expect(item?.getAttribute("aria-disabled")).toBe("true");
   });
@@ -197,106 +208,98 @@ describe("Sidebar — search", () => {
     expect(input).not.toBeNull();
   });
 
-  it("filters apps by display name when user types", () => {
-    const { getByText, queryByText, container } = renderWithAppState(
-      <Sidebar />,
-      withManifests([
-        createManifest({ app_key: "alpha", display_name: "Alpha App" }),
-        createManifest({ app_key: "beta", display_name: "Beta App" }),
-      ]),
-    );
-    expect(getByText("Alpha App")).toBeDefined();
+  it("filters apps by display name when user types", async () => {
+    withManifests([
+      createManifest({ app_key: "alpha", display_name: "Alpha App" }),
+      createManifest({ app_key: "beta", display_name: "Beta App" }),
+    ]);
+    const { container } = renderWithAppState(<Sidebar />);
+    // Wait for both apps to appear
+    await screen.findByText("Alpha App");
+    await screen.findByText("Beta App");
     const input = container.querySelector("input[type='search']")!;
     fireEvent.input(input, { target: { value: "Alpha" } });
-    expect(queryByText("Beta App")).toBeNull();
-    expect(queryByText("Alpha App")).not.toBeNull();
+    expect(screen.queryByText("Beta App")).toBeNull();
+    expect(screen.queryByText("Alpha App")).not.toBeNull();
   });
 });
 
 describe("Sidebar — multi-instance apps", () => {
-  it("shows expand button for multi-instance apps", () => {
-    const { getByLabelText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([
-        createManifest({
-          app_key: "multi_app",
-          display_name: "Multi App",
-          instance_count: 2,
-          instances: [
-            createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-            createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
-          ],
-        }),
-      ]),
-    );
-    expect(getByLabelText("Expand Multi App")).toBeDefined();
+  it("shows expand button for multi-instance apps", async () => {
+    withManifests([
+      createManifest({
+        app_key: "multi_app",
+        display_name: "Multi App",
+        instance_count: 2,
+        instances: [
+          createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+          createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+        ],
+      }),
+    ]);
+    renderWithAppState(<Sidebar />);
+    expect(await screen.findByLabelText("Expand Multi App")).toBeDefined();
   });
 
-  it("clicking expand shows instance links", () => {
-    const { getByLabelText, getByText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([
-        createManifest({
-          app_key: "multi_app",
-          display_name: "Multi App",
-          instance_count: 2,
-          instances: [
-            createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-            createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
-          ],
-        }),
-      ]),
-    );
-    const expandBtn = getByLabelText("Expand Multi App");
+  it("clicking expand shows instance links", async () => {
+    withManifests([
+      createManifest({
+        app_key: "multi_app",
+        display_name: "Multi App",
+        instance_count: 2,
+        instances: [
+          createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+          createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+        ],
+      }),
+    ]);
+    renderWithAppState(<Sidebar />);
+    const expandBtn = await screen.findByLabelText("Expand Multi App");
     fireEvent.click(expandBtn);
-    expect(getByText("inst_0")).toBeDefined();
-    expect(getByText("inst_1")).toBeDefined();
+    expect(screen.getByText("inst_0")).toBeDefined();
+    expect(screen.getByText("inst_1")).toBeDefined();
   });
 
-  it("instance links use ?instance=N query param format", () => {
-    const { getByLabelText, getByText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([
-        createManifest({
-          app_key: "multi_app",
-          display_name: "Multi App",
-          instance_count: 2,
-          instances: [
-            createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-            createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
-          ],
-        }),
-      ]),
-    );
-    const expandBtn = getByLabelText("Expand Multi App");
+  it("instance links use ?instance=N query param format", async () => {
+    withManifests([
+      createManifest({
+        app_key: "multi_app",
+        display_name: "Multi App",
+        instance_count: 2,
+        instances: [
+          createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+          createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+        ],
+      }),
+    ]);
+    renderWithAppState(<Sidebar />);
+    const expandBtn = await screen.findByLabelText("Expand Multi App");
     fireEvent.click(expandBtn);
-    const inst0Link = getByText("inst_0").closest("a");
-    const inst1Link = getByText("inst_1").closest("a");
+    const inst0Link = screen.getByText("inst_0").closest("a");
+    const inst1Link = screen.getByText("inst_1").closest("a");
     expect(inst0Link?.getAttribute("href")).toBe("/apps/multi_app?instance=0");
     expect(inst1Link?.getAttribute("href")).toBe("/apps/multi_app?instance=1");
   });
 
-  it("instance link is active when location matches app path with correct instance query param", () => {
+  it("instance link is active when location matches app path with correct instance query param", async () => {
     useLocation.mockReturnValue(["/apps/multi_app", vi.fn()]);
     useSearch.mockReturnValue("instance=1");
-    const { getByLabelText, getByText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([
-        createManifest({
-          app_key: "multi_app",
-          display_name: "Multi App",
-          instance_count: 2,
-          instances: [
-            createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
-            createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
-          ],
-        }),
-      ]),
-    );
-    const expandBtn = getByLabelText("Expand Multi App");
+    withManifests([
+      createManifest({
+        app_key: "multi_app",
+        display_name: "Multi App",
+        instance_count: 2,
+        instances: [
+          createInstance({ app_key: "multi_app", index: 0, instance_name: "inst_0" }),
+          createInstance({ app_key: "multi_app", index: 1, instance_name: "inst_1" }),
+        ],
+      }),
+    ]);
+    renderWithAppState(<Sidebar />);
+    const expandBtn = await screen.findByLabelText("Expand Multi App");
     fireEvent.click(expandBtn);
-    const inst1Link = getByText("inst_1").closest("a");
-    const inst0Link = getByText("inst_0").closest("a");
+    const inst1Link = screen.getByText("inst_1").closest("a");
+    const inst0Link = screen.getByText("inst_0").closest("a");
     expect(inst1Link?.getAttribute("aria-current")).toBe("page");
     expect(inst0Link?.getAttribute("aria-current")).toBeNull();
   });
@@ -332,33 +335,31 @@ describe("Sidebar — version display", () => {
 });
 
 describe("Sidebar — APPS section header", () => {
-  it("renders APPS header above the search input", () => {
-    const { getByText } = renderWithAppState(<Sidebar />, withManifests([createManifest({ display_name: "My App" })]));
-    expect(getByText(/^APPS/)).toBeDefined();
+  it("renders APPS header above the search input", async () => {
+    withManifests([createManifest({ display_name: "My App" })]);
+    renderWithAppState(<Sidebar />);
+    await screen.findByText("My App");
+    expect(screen.getByText(/^APPS/)).toBeDefined();
   });
 
-  it("APPS header shows total count", () => {
-    const { getByTestId, getByText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([
-        createManifest({ app_key: "a1", display_name: "App One" }),
-        createManifest({ app_key: "a2", display_name: "App Two" }),
-      ]),
-    );
-    expect(getByText("App One")).toBeDefined();
+  it("APPS header shows total count", async () => {
+    withManifests([
+      createManifest({ app_key: "a1", display_name: "App One" }),
+      createManifest({ app_key: "a2", display_name: "App Two" }),
+    ]);
+    const { getByTestId } = renderWithAppState(<Sidebar />);
+    await screen.findByText("App One");
     const appNav = getByTestId("app-nav");
     expect(appNav.textContent).toContain("2");
   });
 
-  it("shows filtered/total counts when search is active", () => {
-    const { getByTestId, getByText, container } = renderWithAppState(
-      <Sidebar />,
-      withManifests([
-        createManifest({ app_key: "a1", display_name: "Alpha App" }),
-        createManifest({ app_key: "a2", display_name: "Beta App" }),
-      ]),
-    );
-    expect(getByText("Alpha App")).toBeDefined();
+  it("shows filtered/total counts when search is active", async () => {
+    withManifests([
+      createManifest({ app_key: "a1", display_name: "Alpha App" }),
+      createManifest({ app_key: "a2", display_name: "Beta App" }),
+    ]);
+    const { getByTestId, container } = renderWithAppState(<Sidebar />);
+    await screen.findByText("Alpha App");
     const input = container.querySelector("input[type='search']")!;
     fireEvent.input(input, { target: { value: "Alpha" } });
     const appNav = getByTestId("app-nav");
@@ -367,37 +368,29 @@ describe("Sidebar — APPS section header", () => {
 });
 
 describe("Sidebar — status groups", () => {
-  it("groups failed apps under FAILING header", () => {
-    const { getByText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]),
-    );
-    expect(getByText("FAILING")).toBeDefined();
-    expect(getByText("Failed App")).toBeDefined();
+  it("groups failed apps under FAILING header", async () => {
+    withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
+    renderWithAppState(<Sidebar />);
+    expect(await screen.findByText("FAILING")).toBeDefined();
+    expect(await screen.findByText("Failed App")).toBeDefined();
   });
 
-  it("groups running apps under RUNNING header", () => {
-    const { getByText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([createManifest({ app_key: "running_app", display_name: "Running App", status: "running" })]),
-    );
-    expect(getByText("RUNNING")).toBeDefined();
+  it("groups running apps under RUNNING header", async () => {
+    withManifests([createManifest({ app_key: "running_app", display_name: "Running App", status: "running" })]);
+    renderWithAppState(<Sidebar />);
+    expect(await screen.findByText("RUNNING")).toBeDefined();
   });
 
-  it("groups disabled apps under DISABLED header", () => {
-    const { getByText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([createManifest({ app_key: "dis_app", display_name: "Disabled App", status: "disabled" })]),
-    );
-    expect(getByText("DISABLED")).toBeDefined();
+  it("groups disabled apps under DISABLED header", async () => {
+    withManifests([createManifest({ app_key: "dis_app", display_name: "Disabled App", status: "disabled" })]);
+    renderWithAppState(<Sidebar />);
+    expect(await screen.findByText("DISABLED")).toBeDefined();
   });
 
-  it("hides empty groups", () => {
-    const { getByText, getByTestId } = renderWithAppState(
-      <Sidebar />,
-      withManifests([createManifest({ app_key: "running_app", display_name: "Running App", status: "running" })]),
-    );
-    expect(getByText("Running App")).toBeDefined();
+  it("hides empty groups", async () => {
+    withManifests([createManifest({ app_key: "running_app", display_name: "Running App", status: "running" })]);
+    const { getByTestId } = renderWithAppState(<Sidebar />);
+    await screen.findByText("Running App");
     const appNav = getByTestId("app-nav");
     const groupHeaders = Array.from(appNav.querySelectorAll("[data-testid='group-header']")).map(
       (el) => el.textContent,
@@ -406,48 +399,42 @@ describe("Sidebar — status groups", () => {
     expect(groupHeaders.some((t) => t?.includes("RUNNING"))).toBe(true);
   });
 
-  it("clicking group header collapses the group", () => {
-    const { getByText, queryByText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]),
-    );
-    const header = getByText("FAILING");
+  it("clicking group header collapses the group", async () => {
+    withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
+    renderWithAppState(<Sidebar />);
+    const header = await screen.findByText("FAILING");
     // Failed App visible before collapse
-    expect(getByText("Failed App")).toBeDefined();
+    expect(screen.getByText("Failed App")).toBeDefined();
     // Click header to collapse
     fireEvent.click(header.closest("[data-testid='group-header']")!);
     // Failed App hidden after collapse
-    expect(queryByText("Failed App")).toBeNull();
+    expect(screen.queryByText("Failed App")).toBeNull();
   });
 
-  it("pressing Enter on group header toggles collapse", () => {
-    const { getByText, queryByText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]),
-    );
-    const header = getByText("FAILING");
-    expect(getByText("Failed App")).toBeDefined();
+  it("pressing Enter on group header toggles collapse", async () => {
+    withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
+    renderWithAppState(<Sidebar />);
+    const header = await screen.findByText("FAILING");
+    expect(screen.getByText("Failed App")).toBeDefined();
     // Collapse via click (native <button> handles Enter/Space → click automatically)
     fireEvent.click(header.closest("[data-testid='group-header']")!);
-    expect(queryByText("Failed App")).toBeNull();
+    expect(screen.queryByText("Failed App")).toBeNull();
     // Re-expand
     fireEvent.click(header.closest("[data-testid='group-header']")!);
-    expect(queryByText("Failed App")).not.toBeNull();
+    expect(screen.queryByText("Failed App")).not.toBeNull();
   });
 
-  it("maps exhausted_dead to FAILING group", () => {
-    const { getByText, getByTestId } = renderWithAppState(
-      <Sidebar />,
-      withManifests([
-        createManifest({
-          app_key: "dead_app",
-          display_name: "Dead App",
-          status: "exhausted_dead",
-        }),
-      ]),
-    );
-    expect(getByText("FAILING")).toBeDefined();
-    expect(getByText("Dead App")).toBeDefined();
+  it("maps exhausted_dead to FAILING group", async () => {
+    withManifests([
+      createManifest({
+        app_key: "dead_app",
+        display_name: "Dead App",
+        status: "exhausted_dead",
+      }),
+    ]);
+    const { getByTestId } = renderWithAppState(<Sidebar />);
+    expect(await screen.findByText("FAILING")).toBeDefined();
+    expect(await screen.findByText("Dead App")).toBeDefined();
     const appNav = getByTestId("app-nav");
     const groupHeaders = Array.from(appNav.querySelectorAll("[data-testid='group-header']")).map(
       (el) => el.textContent,
@@ -455,28 +442,24 @@ describe("Sidebar — status groups", () => {
     expect(groupHeaders.some((t) => t?.includes("RUNNING"))).toBe(false);
   });
 
-  it("pressing Space on group header toggles collapse", () => {
-    const { getByText, queryByText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]),
-    );
-    const header = getByText("FAILING");
-    expect(getByText("Failed App")).toBeDefined();
+  it("pressing Space on group header toggles collapse", async () => {
+    withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
+    renderWithAppState(<Sidebar />);
+    const header = await screen.findByText("FAILING");
+    expect(screen.getByText("Failed App")).toBeDefined();
     fireEvent.click(header.closest("[data-testid='group-header']")!);
-    expect(queryByText("Failed App")).toBeNull();
+    expect(screen.queryByText("Failed App")).toBeNull();
     fireEvent.click(header.closest("[data-testid='group-header']")!);
-    expect(queryByText("Failed App")).not.toBeNull();
+    expect(screen.queryByText("Failed App")).not.toBeNull();
   });
 
-  it("forces RUNNING group open when all apps are healthy", () => {
-    const { getByText } = renderWithAppState(
-      <Sidebar />,
-      withManifests([
-        createManifest({ app_key: "app1", display_name: "App One", status: "running" }),
-        createManifest({ app_key: "app2", display_name: "App Two", status: "running" }),
-      ]),
-    );
-    expect(getByText("App One")).toBeDefined();
-    expect(getByText("App Two")).toBeDefined();
+  it("forces RUNNING group open when all apps are healthy", async () => {
+    withManifests([
+      createManifest({ app_key: "app1", display_name: "App One", status: "running" }),
+      createManifest({ app_key: "app2", display_name: "App Two", status: "running" }),
+    ]);
+    renderWithAppState(<Sidebar />);
+    expect(await screen.findByText("App One")).toBeDefined();
+    expect(screen.getByText("App Two")).toBeDefined();
   });
 });

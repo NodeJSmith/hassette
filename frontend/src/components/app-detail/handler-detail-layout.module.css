@@ -50,6 +50,10 @@
   border-radius: var(--r-md);
 }
 
+.nextRun {
+  margin-bottom: var(--sp-3);
+}
+
 .panelHeading {
   font-family: var(--font-body);
   font-size: var(--fs-h3);

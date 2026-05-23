@@ -1,10 +1,12 @@
 import { batch, computed, type Signal, signal } from "@preact/signals";
 
-import type { AppManifest } from "../api/endpoints";
 import type { WsExecutionCompletedPayload, WsInvocationCompletedPayload, WsLogPayload } from "../api/ws-types";
 import { getStoredValue } from "../utils/local-storage";
 import { RingBuffer } from "../utils/ring-buffer";
 import { isTheme } from "../utils/theme";
+
+export const RELATIVE_TIME_TICK_MS = 30_000;
+const LOG_BUFFER_CAPACITY = 1000;
 
 export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
 
@@ -46,7 +48,7 @@ export interface LogStore {
 }
 
 export function createLogStore(): LogStore {
-  const buffer = new RingBuffer<WsLogPayload>(1000);
+  const buffer = new RingBuffer<WsLogPayload>(LOG_BUFFER_CAPACITY);
   const version = signal(0);
 
   return {
@@ -71,7 +73,7 @@ export function createLogStore(): LogStore {
 
 export function createAppState() {
   /** Server-side log level update callback; wired by useWebSocket after connect. */
-  let _updateLogSubscription: (level: string) => void = () => {};
+  let logSubscriptionCallback: (level: string) => void = () => {};
 
   // Pre-create signals that are referenced by computed values.
   const timePreset = signal<TimePreset>(getStoredValue<TimePreset>("timePreset", "since-restart", isTimePreset));
@@ -82,7 +84,7 @@ export function createAppState() {
    * the localStorage-backed `timePreset` when set. Falls back to `timePreset`
    * when `urlWindowParam` is null.
    *
-   * `useScopedApi` reads this instead of `timePreset` directly so that URL
+   * Query hooks read this instead of `timePreset` directly so that URL
    * overrides reach the data layer without writing to localStorage.
    */
   const effectiveTimePreset = computed<TimePreset>(() => urlWindowParam.value ?? timePreset.value);
@@ -91,12 +93,12 @@ export function createAppState() {
     /**
      * Per-app status keyed by app_key, updated via WS.
      *
-     * INVARIANT: appStatus changes trigger *debounced* page-level refetches
-     * (via useFilteredSignalRefetch in page components). This is intentionally separate
-     * from reconnectVersion, which triggers *immediate* refetches (via useApi's
-     * useSignalEffect). These two signals must remain independent code paths —
-     * routing reconnection through appStatus would silently eat the reconnect
-     * refetch behind the debounce timer.
+     * INVARIANT: appStatus changes trigger *debounced* cache invalidation
+     * (via useQueryInvalidator in page components). This is intentionally separate
+     * from the immediate reconnect invalidation (queryClient.invalidateQueries()
+     * in useWebSocket). These two code paths must remain independent — routing
+     * reconnection through appStatus would silently eat the reconnect invalidation
+     * behind the debounce timer.
      */
     appStatus: signal<Record<string, AppStatusEntry>>({}),
 
@@ -111,11 +113,6 @@ export function createAppState() {
 
     /** WebSocket connection state machine. */
     connection: signal<ConnectionStatus>("connecting"),
-
-    /** Shared manifest data — fetched once by useManifestFetcher, consumed by all pages. */
-    manifests: signal<AppManifest[]>([]),
-    manifestsLoading: signal(true),
-    manifestsError: signal<string | null>(null),
 
     /** Log entries in a ring buffer with a version signal for efficient rendering. */
     logs: createLogStore(),
@@ -143,14 +140,14 @@ export function createAppState() {
     /**
      * Effective time-window preset: URL `?window=` override takes priority.
      * Falls back to `timePreset` (localStorage-backed) when `urlWindowParam` is null.
-     * Read by `useScopedApi` instead of `timePreset` directly.
+     * Read by query hooks instead of `timePreset` directly.
      */
     effectiveTimePreset,
 
     /**
      * Server uptime in seconds, received from the WS connected message.
      * Null until the first WS connected message is received.
-     * Used by useScopedApi to compute the "since-restart" window boundary.
+     * Used by query hooks to compute the "since-restart" window boundary.
      */
     uptimeSeconds: signal<number | null>(null),
 
@@ -174,15 +171,6 @@ export function createAppState() {
      * Consumers subscribe to this signal to trigger debounced refetches.
      */
     executionCompleted: signal<WsExecutionCompletedPayload[] | null>(null),
-
-    /**
-     * Incremented on WS reconnection (not first connect). useApi reads this
-     * to auto-refetch immediately via useSignalEffect.
-     *
-     * INVARIANT: reconnectVersion refetches must bypass debounce. See the
-     * appStatus comment above for why these two signals must stay independent.
-     */
-    reconnectVersion: signal(0),
 
     /** Monotonic counter incremented every RELATIVE_TIME_TICK_MS to trigger relative-time re-renders. */
     tick: signal(0),
@@ -229,7 +217,7 @@ export function createAppState() {
      * Wired by useWebSocket once the socket is ready; no-op before that.
      */
     updateLogSubscription(level: string): void {
-      _updateLogSubscription(level);
+      logSubscriptionCallback(level);
     },
 
     /**
@@ -237,11 +225,9 @@ export function createAppState() {
      * @internal — only for use-websocket.ts
      */
     setUpdateLogSubscription(fn: (level: string) => void): void {
-      _updateLogSubscription = fn;
+      logSubscriptionCallback = fn;
     },
   };
 }
-
-export const RELATIVE_TIME_TICK_MS = 30_000;
 
 export type AppState = ReturnType<typeof createAppState>;

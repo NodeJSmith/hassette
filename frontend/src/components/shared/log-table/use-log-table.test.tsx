@@ -22,10 +22,12 @@ import { useLogTable } from "./use-log-table";
 
 vi.mock("./use-log-data", () => ({
   useLogData: () => ({
-    allEntries: signal([]),
-    restEntries: signal([]),
+    allEntries: [],
+    restEntries: [],
+    // Reading mockLoading.value here subscribes to the signal during render,
+    // so Preact re-renders the hook when mockLoading changes.
     get loading() {
-      return mockLoading;
+      return mockLoading.value;
     },
   }),
 }));
@@ -33,7 +35,7 @@ vi.mock("./use-log-data", () => ({
 vi.mock("./use-log-filters", () => ({
   useLogFilters: () => ({
     get filtered() {
-      return mockFiltered;
+      return mockFiltered.value;
     },
     get filterState() {
       return mockFilterState;
@@ -111,6 +113,8 @@ const mockFilterState = signal<{
 });
 
 const mockFiltered = signal<LogEntry[]>([]);
+// mockLoading is a signal so the useLogData mock can return mockLoading.value
+// (subscribing to it during render) and tests can mutate it to trigger re-renders.
 const mockLoading = signal(false);
 
 const mockSetLevel = vi.fn();
@@ -361,7 +365,7 @@ describe("useLogTable — isEmpty / isLoading", () => {
     expect(result.current.isEmpty).toBe(false);
   });
 
-  it("isLoading reflects the loading signal", () => {
+  it("isLoading reflects the loading value", () => {
     const { result } = renderUseLogTable();
     expect(result.current.isLoading).toBe(false);
 

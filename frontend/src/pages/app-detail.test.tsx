@@ -1,5 +1,6 @@
-import { signal } from "@preact/signals";
+import { QueryClientProvider } from "@tanstack/preact-query";
 import { fireEvent, render } from "@testing-library/preact";
+import { http, HttpResponse } from "msw";
 import type { ComponentChildren } from "preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +8,8 @@ import type { AppManifest, JobData, ListenerData } from "../api/endpoints";
 import { AppStateContext } from "../state/context";
 import { type AppState, createAppState } from "../state/create-app-state";
 import { createInstance, createManifest } from "../test/factories";
+import { createTestQueryClient } from "../test/query-test-utils";
+import { server } from "../test/server";
 import { AppDetailPage } from "./app-detail";
 
 // Mutable search string for tests that need to control query params
@@ -110,32 +113,41 @@ vi.mock("../components/shared/confirm-dialog", () => ({
   ConfirmDialog: () => <div data-testid="confirm-dialog" />,
 }));
 
-// Mock hooks
-vi.mock("../hooks/use-scoped-api", () => ({
-  useScopedApi: vi.fn(),
-}));
-
 const mockCorrectUrl = vi.fn();
 vi.mock("../hooks/use-correct-url", () => ({
   useCorrectUrl: () => mockCorrectUrl,
 }));
 
-const useScopedApiMod = await import("../hooks/use-scoped-api");
-const useScopedApi = useScopedApiMod.useScopedApi as unknown as ReturnType<typeof vi.fn>;
-
-function fakeScopedApiResult<T>(data: T | null) {
-  return {
-    data: signal(data),
-    loading: signal(false),
-    error: signal<string | null>(null),
-    refetch: vi.fn(),
+// Local wrapper (not renderWithAppState) because tests share a mutable AppState across
+// beforeEach setup and individual tests — renderWithAppState creates a fresh state per call.
+function createWrapper(state: AppState) {
+  const queryClient = createTestQueryClient();
+  return function Wrapper({ children }: { children: ComponentChildren }) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <AppStateContext.Provider value={state}>{children}</AppStateContext.Provider>
+      </QueryClientProvider>
+    );
   };
 }
 
-function createWrapper(state: AppState) {
-  return function Wrapper({ children }: { children: ComponentChildren }) {
-    return <AppStateContext.Provider value={state}>{children}</AppStateContext.Provider>;
-  };
+function setupApi(manifest: AppManifest, listeners: ListenerData[] = [], jobs: JobData[] = []) {
+  server.use(
+    http.get("/api/apps/manifests", () =>
+      HttpResponse.json({
+        total: 1,
+        running: 1,
+        failed: 0,
+        stopped: 0,
+        disabled: 0,
+        blocked: 0,
+        manifests: [manifest],
+        only_app: null,
+      }),
+    ),
+    http.get("/api/telemetry/app/:app_key/listeners", () => HttpResponse.json(listeners)),
+    http.get("/api/telemetry/app/:app_key/jobs", () => HttpResponse.json(jobs)),
+  );
 }
 
 describe("AppDetailPage", () => {
@@ -143,6 +155,7 @@ describe("AppDetailPage", () => {
 
   beforeEach(() => {
     state = createAppState();
+    state.uptimeSeconds.value = 120;
     mockSearchString = "";
     mockNavigate.mockClear();
     capturedOnSwitchToCode = undefined;
@@ -150,129 +163,128 @@ describe("AppDetailPage", () => {
     vi.clearAllMocks();
   });
 
-  function setupManifestAndApi(manifest: AppManifest, listeners: ListenerData[] = [], jobs: JobData[] = []) {
-    // Manifests come from shared app state (synchronous)
-    state.manifests.value = [manifest];
-    state.manifestsLoading.value = false;
-    // Listeners and jobs still come from useScopedApi
-    useScopedApi
-      .mockReturnValueOnce(fakeScopedApiResult(listeners)) // listeners
-      .mockReturnValueOnce(fakeScopedApiResult(jobs)); // jobs
-  }
-
-  it("renders app_key in the header", () => {
+  it("renders app_key in the header", async () => {
     const manifest = createManifest({ app_key: "test_app", display_name: "Motion Sensor App" });
-    setupManifestAndApi(manifest);
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    expect(getByTestId("app-title").textContent).toContain("test_app");
+    setupApi(manifest);
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    expect((await findByTestId("app-title")).textContent).toContain("test_app");
   });
 
-  it("renders action buttons", () => {
-    setupManifestAndApi(createManifest());
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    expect(getByTestId("action-buttons")).toBeDefined();
+  it("renders action buttons", async () => {
+    setupApi(createManifest());
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    expect(await findByTestId("action-buttons")).toBeDefined();
   });
 
-  it("renders overview tab by default (no params.tab provided)", () => {
-    setupManifestAndApi(createManifest());
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+  it("renders overview tab by default (no params.tab provided)", async () => {
+    setupApi(createManifest());
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
     // OverviewTab is rendered by default
-    expect(getByTestId("overview-tab")).toBeDefined();
+    expect(await findByTestId("overview-tab")).toBeDefined();
   });
 
-  it("renders tab strip with Handlers tab", () => {
-    setupManifestAndApi(createManifest());
-    const { getByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    expect(getByRole("tab", { name: /handlers/i })).toBeDefined();
+  it("renders tab strip with Handlers tab", async () => {
+    setupApi(createManifest());
+    const { findByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    expect(await findByRole("tab", { name: /handlers/i })).toBeDefined();
   });
 
-  it("renders tab strip with Code tab", () => {
-    setupManifestAndApi(createManifest());
-    const { getByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    expect(getByRole("tab", { name: /code/i })).toBeDefined();
+  it("renders tab strip with Code tab", async () => {
+    setupApi(createManifest());
+    const { findByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    expect(await findByRole("tab", { name: /code/i })).toBeDefined();
   });
 
-  it("renders tab strip with Logs tab", () => {
-    setupManifestAndApi(createManifest());
-    const { getByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    expect(getByRole("tab", { name: /logs/i })).toBeDefined();
+  it("renders tab strip with Logs tab", async () => {
+    setupApi(createManifest());
+    const { findByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    expect(await findByRole("tab", { name: /logs/i })).toBeDefined();
   });
 
-  it("renders tab strip with Config tab", () => {
-    setupManifestAndApi(createManifest());
-    const { getByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    expect(getByRole("tab", { name: /config/i })).toBeDefined();
+  it("renders tab strip with Config tab", async () => {
+    setupApi(createManifest());
+    const { findByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    expect(await findByRole("tab", { name: /config/i })).toBeDefined();
   });
 
-  it("Overview tab is selected by default", () => {
-    setupManifestAndApi(createManifest());
-    const { getByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    const overviewTab = getByRole("tab", { name: /overview/i });
+  it("Overview tab is selected by default", async () => {
+    setupApi(createManifest());
+    const { findByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    const overviewTab = await findByRole("tab", { name: /overview/i });
     expect(overviewTab.getAttribute("aria-selected")).toBe("true");
   });
 
-  it("renders handlers-tab content when Handlers tab is active", () => {
-    setupManifestAndApi(createManifest());
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "handlers" }} />, {
+  it("renders handlers-tab content when Handlers tab is active", async () => {
+    setupApi(createManifest());
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "handlers" }} />, {
       wrapper: createWrapper(state),
     });
-    expect(getByTestId("handlers-tab")).toBeDefined();
+    expect(await findByTestId("handlers-tab")).toBeDefined();
   });
 
-  it("renders error display for failed app with error_message", () => {
+  it("renders error display for failed app with error_message", async () => {
     const manifest = createManifest({
       status: "failed",
       error_message: "Module not found: light_controller",
       error_traceback: null,
     });
-    setupManifestAndApi(manifest);
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    expect(getByTestId("error-display")).toBeDefined();
+    setupApi(manifest);
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    expect(await findByTestId("error-display")).toBeDefined();
   });
 
-  it("does not render error display when app has no error_message", () => {
+  it("does not render error display when app has no error_message", async () => {
     const manifest = createManifest({ error_message: null });
-    setupManifestAndApi(manifest);
-    const { queryByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    setupApi(manifest);
+    const { findByTestId, queryByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, {
+      wrapper: createWrapper(state),
+    });
+    // Wait for data to load before asserting absence
+    await findByTestId("app-title");
     expect(queryByTestId("error-display")).toBeNull();
   });
 
-  it("renders filename in subtitle meta", () => {
+  it("renders filename in subtitle meta", async () => {
     const manifest = createManifest({ app_key: "motion_sensor_app", filename: "apps/motion_sensor.py" });
-    setupManifestAndApi(manifest);
-    const { getByTestId } = render(<AppDetailPage params={{ key: "motion_sensor_app" }} />, {
+    setupApi(manifest);
+    const { findByTestId } = render(<AppDetailPage params={{ key: "motion_sensor_app" }} />, {
       wrapper: createWrapper(state),
     });
-    expect(getByTestId("app-subtitle-meta").textContent).toContain("apps/motion_sensor.py");
+    expect((await findByTestId("app-subtitle-meta")).textContent).toContain("apps/motion_sensor.py");
   });
 
-  it("renders auto-loaded badge when auto_loaded is true", () => {
+  it("renders auto-loaded badge when auto_loaded is true", async () => {
     const manifest = createManifest({ auto_loaded: true });
-    setupManifestAndApi(manifest);
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    expect(getByTestId("auto-loaded-badge")).toBeDefined();
+    setupApi(manifest);
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    expect(await findByTestId("auto-loaded-badge")).toBeDefined();
   });
 
-  it("does not render auto-loaded badge when auto_loaded is false", () => {
+  it("does not render auto-loaded badge when auto_loaded is false", async () => {
     const manifest = createManifest({ auto_loaded: false });
-    setupManifestAndApi(manifest);
-    const { queryByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    setupApi(manifest);
+    const { findByTestId, queryByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, {
+      wrapper: createWrapper(state),
+    });
+    // Wait for data to load before asserting absence
+    await findByTestId("app-title");
     expect(queryByTestId("auto-loaded-badge")).toBeNull();
   });
 
-  it("shows filename in subtitle meta", () => {
+  it("shows filename in subtitle meta", async () => {
     const manifest = createManifest({
       app_key: "test_app",
       filename: "apps/test_app.py",
       class_name: "TestApp",
     });
-    setupManifestAndApi(manifest);
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    expect(getByTestId("app-subtitle-meta").textContent).toContain("apps/test_app.py");
-    expect(getByTestId("app-subtitle-meta").textContent).toContain("TestApp");
+    setupApi(manifest);
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    const subtitleMeta = await findByTestId("app-subtitle-meta");
+    expect(subtitleMeta.textContent).toContain("apps/test_app.py");
+    expect(subtitleMeta.textContent).toContain("TestApp");
   });
 
-  it("renders multi-instance parent overview when instance_count > 1 and no index param", () => {
+  it("renders multi-instance parent overview when instance_count > 1 and no index param", async () => {
     const manifest = createManifest({
       instance_count: 2,
       instances: [
@@ -280,12 +292,12 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
       ],
     });
-    setupManifestAndApi(manifest);
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    expect(getByTestId("instance-grid")).toBeDefined();
+    setupApi(manifest);
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    expect(await findByTestId("instance-grid")).toBeDefined();
   });
 
-  it("renders instance grid cards with instance names", () => {
+  it("renders instance grid cards with instance names", async () => {
     const manifest = createManifest({
       instance_count: 2,
       instances: [
@@ -293,13 +305,13 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
       ],
     });
-    setupManifestAndApi(manifest);
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    expect(getByTestId("instance-card-0")).toBeDefined();
-    expect(getByTestId("instance-card-1")).toBeDefined();
+    setupApi(manifest);
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    expect(await findByTestId("instance-card-0")).toBeDefined();
+    expect(await findByTestId("instance-card-1")).toBeDefined();
   });
 
-  it("renders instance count badge in parent overview header", () => {
+  it("renders instance count badge in parent overview header", async () => {
     const manifest = createManifest({
       instance_count: 3,
       instances: [
@@ -308,12 +320,12 @@ describe("AppDetailPage", () => {
         createInstance({ index: 2, instance_name: "c", status: "stopped" }),
       ],
     });
-    setupManifestAndApi(manifest);
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    expect(getByTestId("instance-count-badge").textContent).toContain("3");
+    setupApi(manifest);
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    expect((await findByTestId("instance-count-badge")).textContent).toContain("3");
   });
 
-  it("renders instance switcher in detail header when on instance view with siblings", () => {
+  it("renders instance switcher in detail header when on instance view with siblings", async () => {
     const manifest = createManifest({
       instance_count: 2,
       instances: [
@@ -321,14 +333,14 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
       ],
     });
-    setupManifestAndApi(manifest);
+    setupApi(manifest);
     // Instance 0 is specified via query param
     mockSearchString = "instance=0";
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    expect(getByTestId("instance-switcher")).toBeDefined();
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    expect(await findByTestId("instance-switcher")).toBeDefined();
   });
 
-  it("renders breadcrumb with parent link when viewing instance detail", () => {
+  it("renders breadcrumb with parent link when viewing instance detail", async () => {
     const manifest = createManifest({
       display_name: "Multi App",
       instance_count: 2,
@@ -337,86 +349,87 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
       ],
     });
-    setupManifestAndApi(manifest);
+    setupApi(manifest);
     mockSearchString = "instance=0";
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    expect(getByTestId("breadcrumb-parent")).toBeDefined();
-    expect(getByTestId("breadcrumb-parent").textContent).toContain("test_app");
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    const breadcrumb = await findByTestId("breadcrumb-parent");
+    expect(breadcrumb).toBeDefined();
+    expect(breadcrumb.textContent).toContain("test_app");
   });
 
   // Tab routing via URL — tab is derived from params.tab prop (set by router)
-  it("renders CodeTab when params.tab is 'code'", () => {
+  it("renders CodeTab when params.tab is 'code'", async () => {
     const manifest = createManifest();
-    setupManifestAndApi(manifest);
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "code" }} />, {
+    setupApi(manifest);
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "code" }} />, {
       wrapper: createWrapper(state),
     });
-    expect(getByTestId("code-tab")).toBeDefined();
+    expect(await findByTestId("code-tab")).toBeDefined();
   });
 
-  it("renders ConfigTab when params.tab is 'config'", () => {
+  it("renders ConfigTab when params.tab is 'config'", async () => {
     const manifest = createManifest();
-    setupManifestAndApi(manifest);
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "config" }} />, {
+    setupApi(manifest);
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "config" }} />, {
       wrapper: createWrapper(state),
     });
-    expect(getByTestId("config-tab")).toBeDefined();
+    expect(await findByTestId("config-tab")).toBeDefined();
   });
 
-  it("renders log table content when params.tab is 'logs'", () => {
+  it("renders log table content when params.tab is 'logs'", async () => {
     const manifest = createManifest();
-    setupManifestAndApi(manifest);
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "logs" }} />, {
+    setupApi(manifest);
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "logs" }} />, {
       wrapper: createWrapper(state),
     });
-    expect(getByTestId("log-table-drawer")).toBeDefined();
+    expect(await findByTestId("log-table-drawer")).toBeDefined();
   });
 
-  it("code tab has aria-selected=true when params.tab is 'code'", () => {
+  it("code tab has aria-selected=true when params.tab is 'code'", async () => {
     const manifest = createManifest();
-    setupManifestAndApi(manifest);
-    const { getByRole } = render(<AppDetailPage params={{ key: "test_app", tab: "code" }} />, {
+    setupApi(manifest);
+    const { findByRole } = render(<AppDetailPage params={{ key: "test_app", tab: "code" }} />, {
       wrapper: createWrapper(state),
     });
-    const codeTab = getByRole("tab", { name: /code/i });
+    const codeTab = await findByRole("tab", { name: /code/i });
     expect(codeTab.getAttribute("aria-selected")).toBe("true");
   });
 
-  it("overview tab is selected by default when no params.tab provided", () => {
+  it("overview tab is selected by default when no params.tab provided", async () => {
     const manifest = createManifest();
-    setupManifestAndApi(manifest);
-    const { getByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    const overviewTab = getByRole("tab", { name: /overview/i });
+    setupApi(manifest);
+    const { findByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    const overviewTab = await findByRole("tab", { name: /overview/i });
     expect(overviewTab.getAttribute("aria-selected")).toBe("true");
   });
 
-  it("overview tab appears first in the tab bar", () => {
+  it("overview tab appears first in the tab bar", async () => {
     const manifest = createManifest();
-    setupManifestAndApi(manifest);
-    const { getAllByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    const tabs = getAllByRole("tab");
+    setupApi(manifest);
+    const { findAllByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    const tabs = await findAllByRole("tab");
     expect(tabs[0].textContent).toMatch(/overview/i);
   });
 
-  it("tab links point to the correct path with instance query param preserved", () => {
+  it("tab links point to the correct path with instance query param preserved", async () => {
     const manifest = createManifest();
-    setupManifestAndApi(manifest);
+    setupApi(manifest);
     mockSearchString = "instance=1";
-    const { getByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    const logsTab = getByRole("tab", { name: /logs/i });
+    const { findByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    const logsTab = await findByRole("tab", { name: /logs/i });
     expect(logsTab.getAttribute("href")).toBe("/apps/test_app/logs?instance=1");
   });
 
-  it("tab links omit instance query param when not set", () => {
+  it("tab links omit instance query param when not set", async () => {
     const manifest = createManifest();
-    setupManifestAndApi(manifest);
+    setupApi(manifest);
     // no mockSearchString = no instance param
-    const { getByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    const logsTab = getByRole("tab", { name: /logs/i });
+    const { findByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    const logsTab = await findByRole("tab", { name: /logs/i });
     expect(logsTab.getAttribute("href")).toBe("/apps/test_app/logs");
   });
 
-  it("instance switcher navigates to current tab path with instance query param", () => {
+  it("instance switcher navigates to current tab path with instance query param", async () => {
     const manifest = createManifest({
       instance_count: 2,
       instances: [
@@ -424,19 +437,19 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
       ],
     });
-    setupManifestAndApi(manifest);
+    setupApi(manifest);
     mockSearchString = "instance=0";
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "logs" }} />, {
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "logs" }} />, {
       wrapper: createWrapper(state),
     });
     // Click instance 1 in the switcher
-    const inst1Btn = getByTestId("switcher-instance-1");
+    const inst1Btn = await findByTestId("switcher-instance-1");
     fireEvent.click(inst1Btn);
     // Should navigate to /apps/test_app/logs?instance=1
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/logs?instance=1");
   });
 
-  it("multi-instance parent overview navigates using ?instance= query param", () => {
+  it("multi-instance parent overview navigates using ?instance= query param", async () => {
     const manifest = createManifest({
       instance_count: 2,
       instances: [
@@ -444,17 +457,17 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
       ],
     });
-    setupManifestAndApi(manifest);
+    setupApi(manifest);
     // No instance param = parent overview
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
     // Click an instance card
-    const card0 = getByTestId("instance-card-0");
+    const card0 = await findByTestId("instance-card-0");
     fireEvent.click(card0);
     // Should navigate to /apps/test_app/overview?instance=0
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/overview?instance=0");
   });
 
-  it("reads instance from ?instance= query param for multi-instance detail view", () => {
+  it("reads instance from ?instance= query param for multi-instance detail view", async () => {
     const manifest = createManifest({
       instance_count: 2,
       instances: [
@@ -462,17 +475,17 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
       ],
     });
-    setupManifestAndApi(manifest);
+    setupApi(manifest);
     mockSearchString = "instance=1";
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
     // Instance switcher should be rendered (not parent overview)
-    expect(getByTestId("instance-switcher")).toBeDefined();
+    await findByTestId("instance-switcher");
     // The instance 1 button should be active
-    const inst1Btn = getByTestId("switcher-instance-1");
+    const inst1Btn = await findByTestId("switcher-instance-1");
     expect(inst1Btn.getAttribute("aria-selected")).toBe("true");
   });
 
-  it("corrects out-of-range instance index to instance 0 via correctUrl", () => {
+  it("corrects out-of-range instance index to instance 0 via correctUrl", async () => {
     const manifest = createManifest({
       instance_count: 2,
       instances: [
@@ -480,47 +493,63 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "running" }),
       ],
     });
-    setupManifestAndApi(manifest);
+    setupApi(manifest);
     mockSearchString = "instance=99";
     render(<AppDetailPage params={{ key: "test_app", tab: "handlers" }} />, { wrapper: createWrapper(state) });
-    expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers?instance=0");
+    // Wait for manifests to load, then check correctUrl was called
+    await vi.waitFor(() => {
+      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers?instance=0");
+    });
   });
 
   // T03: "view in code" navigates to /apps/:key/code?line=N instead of mutating signal
-  it("onSwitchToCode navigates to code tab with ?line= param", () => {
-    setupManifestAndApi(createManifest());
-    render(<AppDetailPage params={{ key: "test_app", tab: "handlers" }} />, { wrapper: createWrapper(state) });
+  it("onSwitchToCode navigates to code tab with ?line= param", async () => {
+    setupApi(createManifest());
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "handlers" }} />, {
+      wrapper: createWrapper(state),
+    });
+    await findByTestId("handlers-tab");
     // Invoke the callback captured from HandlersTab
     capturedOnSwitchToCode?.(42);
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/code?line=42");
   });
 
-  it("onSwitchToCode navigates to code tab without ?line= when line is undefined", () => {
-    setupManifestAndApi(createManifest());
-    render(<AppDetailPage params={{ key: "test_app", tab: "handlers" }} />, { wrapper: createWrapper(state) });
+  it("onSwitchToCode navigates to code tab without ?line= when line is undefined", async () => {
+    setupApi(createManifest());
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "handlers" }} />, {
+      wrapper: createWrapper(state),
+    });
+    await findByTestId("handlers-tab");
     capturedOnSwitchToCode?.();
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/code");
   });
 
-  it("onSwitchToCode preserves ?instance= param when navigating to code tab", () => {
-    setupManifestAndApi(createManifest());
+  it("onSwitchToCode preserves ?instance= param when navigating to code tab", async () => {
+    setupApi(createManifest());
     mockSearchString = "instance=1";
-    render(<AppDetailPage params={{ key: "test_app", tab: "handlers" }} />, { wrapper: createWrapper(state) });
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "handlers" }} />, {
+      wrapper: createWrapper(state),
+    });
+    await findByTestId("handlers-tab");
     capturedOnSwitchToCode?.(15);
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/code?line=15&instance=1");
   });
 
-  it("passes selectedHandler prop from params.handler to HandlersTab", () => {
-    setupManifestAndApi(createManifest());
-    render(<AppDetailPage params={{ key: "test_app", tab: "handlers", handler: "h-42" }} />, {
+  it("passes selectedHandler prop from params.handler to HandlersTab", async () => {
+    setupApi(createManifest());
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "handlers", handler: "h-42" }} />, {
       wrapper: createWrapper(state),
     });
+    await findByTestId("handlers-tab");
     expect(capturedSelectedHandler).toBe("h-42");
   });
 
-  it("passes null selectedHandler to HandlersTab when no handler param", () => {
-    setupManifestAndApi(createManifest());
-    render(<AppDetailPage params={{ key: "test_app", tab: "handlers" }} />, { wrapper: createWrapper(state) });
+  it("passes null selectedHandler to HandlersTab when no handler param", async () => {
+    setupApi(createManifest());
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "handlers" }} />, {
+      wrapper: createWrapper(state),
+    });
+    await findByTestId("handlers-tab");
     expect(capturedSelectedHandler).toBeNull();
   });
 
@@ -534,62 +563,70 @@ describe("AppDetailPage", () => {
         createInstance({ index: 1, instance_name: "inst_1", status: "stopped" }),
       ],
     });
-    setupManifestAndApi(manifest);
+    setupApi(manifest);
   }
 
-  it("parent page renders tab strip with 4 tabs (no handlers)", () => {
+  it("parent page renders tab strip with 4 tabs (no handlers)", async () => {
     setupMultiInstanceParent();
-    const { getAllByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    const tabs = getAllByRole("tab");
+    const { findAllByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    const tabs = await findAllByRole("tab");
     const labels = tabs.map((t) => t.textContent?.trim());
     expect(labels).toEqual(["overview", "code", "logs", "config"]);
   });
 
-  it("parent page hides handlers tab", () => {
+  it("parent page hides handlers tab", async () => {
     setupMultiInstanceParent();
-    const { queryByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    const { findByTestId, queryByRole } = render(<AppDetailPage params={{ key: "test_app" }} />, {
+      wrapper: createWrapper(state),
+    });
+    await findByTestId("app-title");
     expect(queryByRole("tab", { name: /handlers/i })).toBeNull();
   });
 
-  it("parent page renders code tab content", () => {
+  it("parent page renders code tab content", async () => {
     setupMultiInstanceParent();
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "code" }} />, {
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "code" }} />, {
       wrapper: createWrapper(state),
     });
-    expect(getByTestId("code-tab")).toBeDefined();
+    expect(await findByTestId("code-tab")).toBeDefined();
   });
 
-  it("parent page renders logs tab content", () => {
+  it("parent page renders logs tab content", async () => {
     setupMultiInstanceParent();
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "logs" }} />, {
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "logs" }} />, {
       wrapper: createWrapper(state),
     });
-    expect(getByTestId("log-table-drawer")).toBeDefined();
+    expect(await findByTestId("log-table-drawer")).toBeDefined();
   });
 
-  it("parent page renders config tab content", () => {
+  it("parent page renders config tab content", async () => {
     setupMultiInstanceParent();
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "config" }} />, {
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app", tab: "config" }} />, {
       wrapper: createWrapper(state),
     });
-    expect(getByTestId("config-tab")).toBeDefined();
+    expect(await findByTestId("config-tab")).toBeDefined();
   });
 
-  it("parent page does not render instance switcher", () => {
+  it("parent page does not render instance switcher", async () => {
     setupMultiInstanceParent();
-    const { queryByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    const { findByTestId, queryByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, {
+      wrapper: createWrapper(state),
+    });
+    await findByTestId("app-title");
     expect(queryByTestId("instance-switcher")).toBeNull();
   });
 
-  it("parent page redirects /handlers to /overview via correctUrl", () => {
+  it("parent page redirects /handlers to /overview via correctUrl", async () => {
     setupMultiInstanceParent();
     render(<AppDetailPage params={{ key: "test_app", tab: "handlers" }} />, { wrapper: createWrapper(state) });
-    expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/overview");
+    await vi.waitFor(() => {
+      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/overview");
+    });
   });
 
-  it("parent page hides 'instance N' from subtitle meta", () => {
+  it("parent page hides 'instance N' from subtitle meta", async () => {
     setupMultiInstanceParent();
-    const { getByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
-    expect(getByTestId("app-subtitle-meta").textContent).not.toContain("instance");
+    const { findByTestId } = render(<AppDetailPage params={{ key: "test_app" }} />, { wrapper: createWrapper(state) });
+    expect((await findByTestId("app-subtitle-meta")).textContent).not.toContain("instance");
   });
 });

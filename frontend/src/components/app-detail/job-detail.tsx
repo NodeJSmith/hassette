@@ -1,12 +1,9 @@
 import type { JobData } from "../../api/endpoints";
 import { getJobExecutions } from "../../api/endpoints";
-import {
-  useFilteredSignalRefetch,
-  WS_DEBOUNCE_DELAY_MS,
-  WS_DEBOUNCE_MAX_WAIT_MS,
-} from "../../hooks/use-filtered-signal-refetch";
+import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { useRelativeTime } from "../../hooks/use-relative-time";
-import { useScopedApi } from "../../hooks/use-scoped-api";
+import { useScopedQuery } from "../../hooks/use-scoped-query";
+import { queryKeys } from "../../lib/query-keys";
 import { useAppState } from "../../state/context";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
 import { formatDurationOrDash, formatOptionalDuration, formatTriggerDetail } from "../../utils/format";
@@ -15,6 +12,7 @@ import { Chip } from "../shared/chip";
 import type { DetailStatsCell } from "../shared/detail-stats";
 import chipStyles from "./handler-chips.module.css";
 import { HandlerDetailLayout } from "./handler-detail-layout";
+import layoutStyles from "./handler-detail-layout.module.css";
 import { jobHealthKind } from "./handler-list";
 
 function ScheduleChips({ job }: { job: JobData }) {
@@ -57,23 +55,20 @@ interface Props {
 }
 
 export function JobDetail({ job, onSwitchToCode }: Props) {
-  const {
-    data: executions,
-    loading,
-    refetch,
-  } = useScopedApi((since) => getJobExecutions(job.job_id, DETAIL_FETCH_LIMIT, since), { deps: [job.job_id] });
+  const { data: executions, isPending: loading } = useScopedQuery(
+    queryKeys.jobExecutions(job.job_id),
+    (since, signal) => getJobExecutions(job.job_id, DETAIL_FETCH_LIMIT, since, signal),
+  );
 
   const { executionCompleted } = useAppState();
   const lastExecutedLabel = useRelativeTime(job.last_executed_at);
   const nextRunLabel = useRelativeTime(job.next_run ?? null);
   const fireAtLabel = useRelativeTime(job.fire_at ?? null);
 
-  useFilteredSignalRefetch(
+  useQueryInvalidator(
     executionCompleted,
     (events) => events?.some((e) => e.job_id === job.job_id) ?? false,
-    () => void refetch(),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
+    queryKeys.jobExecutions(job.job_id),
   );
 
   const kindLabel = handlerKindLabel("job", null, job.trigger_type);
@@ -100,7 +95,7 @@ export function JobDetail({ job, onSwitchToCode }: Props) {
       chips={<ScheduleChips job={job} />}
       extras={
         nextRunText ? (
-          <div style={{ marginBottom: "var(--sp-3)" }} data-testid="job-next-run">
+          <div class={layoutStyles.nextRun} data-testid="job-next-run">
             <code class="ht-text-mono ht-text-sm ht-text-muted">{nextRunText}</code>
           </div>
         ) : undefined
@@ -119,11 +114,11 @@ export function JobDetail({ job, onSwitchToCode }: Props) {
       statsCells={buildJobStatsCells(job, lastExecutedLabel)}
       statsTestId="job-stats-row"
       executionHeading="executions"
-      executionRecords={executions.value ?? []}
+      executionRecords={executions ?? []}
       executionKind="job"
       executionTableId={`execution-table-${job.job_id}`}
       executionLoading={loading}
-      executionHasData={!!executions.value}
+      executionHasData={executions !== undefined}
     />
   );
 }
