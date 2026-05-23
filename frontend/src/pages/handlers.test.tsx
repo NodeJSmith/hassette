@@ -1,4 +1,3 @@
-import { signal } from "@preact/signals";
 import { fireEvent } from "@testing-library/preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -24,32 +23,33 @@ vi.mock("../components/shared/spinner", () => ({
   Spinner: () => <div data-testid="spinner" />,
 }));
 
-vi.mock("../hooks/use-scoped-api", () => ({
-  useScopedApi: vi.fn(),
+vi.mock("../hooks/use-scoped-query", () => ({
+  useScopedQuery: vi.fn(),
 }));
 
-const useScopedApiMod = await import("../hooks/use-scoped-api");
-const useScopedApi = useScopedApiMod.useScopedApi as unknown as ReturnType<typeof vi.fn>;
+vi.mock("../hooks/use-query-invalidator", () => ({
+  useQueryInvalidator: vi.fn(),
+  WS_DEBOUNCE_DELAY_MS: 500,
+  WS_DEBOUNCE_MAX_WAIT_MS: 1500,
+}));
 
-function fakeApiResult<T>(data: T | null, loading = false, error: string | null = null) {
-  return {
-    data: signal(data),
-    loading: signal(loading),
-    error: signal(error),
-    refetch: vi.fn(),
-  };
+const useScopedQueryMod = await import("../hooks/use-scoped-query");
+const useScopedQuery = useScopedQueryMod.useScopedQuery as unknown as ReturnType<typeof vi.fn>;
+
+function fakeQueryResult<T>(data: T | undefined, isPending = false, error: Error | null = null) {
+  return { data, isPending, error };
 }
 
 function setupApi({
   listeners = [] as ReturnType<typeof createListener>[],
   jobs = [] as ReturnType<typeof createJob>[],
-  loading = false,
+  isPending = false,
 } = {}) {
-  const listenersResult = fakeApiResult(listeners, loading);
-  const jobsResult = fakeApiResult(jobs, loading);
-  useScopedApi.mockImplementation((fetcher: (since: number) => Promise<unknown>) => {
-    const probe = fetcher.toString();
-    if (probe.includes("getAllJobs")) return jobsResult;
+  const listenersResult = fakeQueryResult(listeners, isPending);
+  const jobsResult = fakeQueryResult(jobs, isPending);
+  // Identify which query is being set up via the query key prefix.
+  useScopedQuery.mockImplementation((key: readonly unknown[]) => {
+    if (Array.isArray(key) && key[0] === "all-jobs") return jobsResult;
     return listenersResult;
   });
 }

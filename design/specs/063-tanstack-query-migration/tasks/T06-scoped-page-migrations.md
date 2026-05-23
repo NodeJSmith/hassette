@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Migrate scoped pages (Handlers, Apps, AppDetail)"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T05"]
 implements: ["FR#2", "FR#4", "AC#2", "AC#9"]
 ---

@@ -7,14 +7,10 @@ import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
 import { type ColumnFilters } from "../components/shared/table-types";
 import { useDocumentTitle } from "../hooks/use-document-title";
-import {
-  useFilteredSignalRefetch,
-  WS_DEBOUNCE_DELAY_MS,
-  WS_DEBOUNCE_MAX_WAIT_MS,
-} from "../hooks/use-filtered-signal-refetch";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../hooks/use-media-query";
+import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
-import { useScopedApi } from "../hooks/use-scoped-api";
+import { useScopedQuery } from "../hooks/use-scoped-query";
 import { useAppState } from "../state/context";
 import { pluralize } from "../utils/format";
 import { compareHandlerRows, type HandlerSortKey, jobToRow, listenerToRow } from "../utils/handler-rows";
@@ -49,32 +45,26 @@ export function HandlersPage() {
 
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
 
-  const listenersApi = useScopedApi((since) => getAllListeners(since));
-  const jobsApi = useScopedApi((since) => getAllJobs(since));
+  const { data: listeners, isPending: listenersLoading } = useScopedQuery(["all-listeners"], (since) =>
+    getAllListeners(since),
+  );
+  const { data: jobs, isPending: jobsLoading } = useScopedQuery(["all-jobs"], (since) => getAllJobs(since));
 
   const { invocationCompleted, executionCompleted } = useAppState();
 
-  useFilteredSignalRefetch(
+  useQueryInvalidator(
     invocationCompleted,
     () => true,
-    () => void listenersApi.refetch(),
+    ["all-listeners"],
     WS_DEBOUNCE_DELAY_MS,
     WS_DEBOUNCE_MAX_WAIT_MS,
   );
+  useQueryInvalidator(executionCompleted, () => true, ["all-jobs"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS);
 
-  useFilteredSignalRefetch(
-    executionCompleted,
-    () => true,
-    () => void jobsApi.refetch(),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
-  );
+  const allListeners = listeners ?? [];
+  const allJobs = jobs ?? [];
 
-  const allListeners = listenersApi.data.value ?? [];
-  const allJobs = jobsApi.data.value ?? [];
-
-  const isLoading =
-    (listenersApi.loading.value && allListeners.length === 0) || (jobsApi.loading.value && allJobs.length === 0);
+  const isLoading = (listenersLoading && allListeners.length === 0) || (jobsLoading && allJobs.length === 0);
 
   if (isLoading) return <Spinner />;
 

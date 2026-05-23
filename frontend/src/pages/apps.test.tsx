@@ -1,4 +1,3 @@
-import { signal } from "@preact/signals";
 import { fireEvent } from "@testing-library/preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -24,14 +23,14 @@ vi.mock("../components/shared/spinner", () => ({
   Spinner: () => <div data-testid="spinner" />,
 }));
 
-vi.mock("../hooks/use-scoped-api", () => ({
-  useScopedApi: vi.fn(() => ({
-    data: signal({ apps: [] }),
-    loading: signal(false),
-    error: signal(null),
-    refetch: vi.fn(),
-  })),
-  PRESET_WINDOW_SECONDS: { "1h": 3600, "24h": 86400, "7d": 604800 },
+vi.mock("../hooks/use-scoped-query", () => ({
+  useScopedQuery: vi.fn(() => ({ data: { apps: [] }, isPending: false, error: null })),
+}));
+
+vi.mock("../hooks/use-query-invalidator", () => ({
+  useQueryInvalidator: vi.fn(),
+  WS_DEBOUNCE_DELAY_MS: 500,
+  WS_DEBOUNCE_MAX_WAIT_MS: 1500,
 }));
 
 // Mock useManifests so manifest data is synchronous (matching the pattern

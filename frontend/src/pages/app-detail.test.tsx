@@ -1,4 +1,3 @@
-import { signal } from "@preact/signals";
 import { QueryClientProvider } from "@tanstack/preact-query";
 import { fireEvent, render } from "@testing-library/preact";
 import type { ComponentChildren } from "preact";
@@ -117,8 +116,14 @@ vi.mock("../hooks/use-manifests", () => ({
   useManifests: vi.fn(() => ({ data: [], isPending: false })),
 }));
 
-vi.mock("../hooks/use-scoped-api", () => ({
-  useScopedApi: vi.fn(),
+vi.mock("../hooks/use-scoped-query", () => ({
+  useScopedQuery: vi.fn(),
+}));
+
+vi.mock("../hooks/use-query-invalidator", () => ({
+  useQueryInvalidator: vi.fn(),
+  WS_DEBOUNCE_DELAY_MS: 500,
+  WS_DEBOUNCE_MAX_WAIT_MS: 1500,
 }));
 
 const mockCorrectUrl = vi.fn();
@@ -129,16 +134,11 @@ vi.mock("../hooks/use-correct-url", () => ({
 const useManifestsMod = await import("../hooks/use-manifests");
 const useManifests = useManifestsMod.useManifests as unknown as ReturnType<typeof vi.fn>;
 
-const useScopedApiMod = await import("../hooks/use-scoped-api");
-const useScopedApi = useScopedApiMod.useScopedApi as unknown as ReturnType<typeof vi.fn>;
+const useScopedQueryMod = await import("../hooks/use-scoped-query");
+const useScopedQuery = useScopedQueryMod.useScopedQuery as unknown as ReturnType<typeof vi.fn>;
 
-function fakeScopedApiResult<T>(data: T | null) {
-  return {
-    data: signal(data),
-    loading: signal(false),
-    error: signal<string | null>(null),
-    refetch: vi.fn(),
-  };
+function fakeScopedQueryResult<T>(data: T | null) {
+  return { data, isPending: false, error: null };
 }
 
 function createWrapper(state: AppState) {
@@ -165,12 +165,13 @@ describe("AppDetailPage", () => {
   });
 
   function setupManifestAndApi(manifest: AppManifest, listeners: ListenerData[] = [], jobs: JobData[] = []) {
-    // Manifests now come from useManifests() hook — serve synchronously via mock
+    // Manifests come from useManifests() hook — serve synchronously via mock
     useManifests.mockReturnValue({ data: [manifest], isPending: false });
-    // Listeners and jobs still come from useScopedApi
-    useScopedApi
-      .mockReturnValueOnce(fakeScopedApiResult(listeners)) // listeners
-      .mockReturnValueOnce(fakeScopedApiResult(jobs)); // jobs
+    // Listeners and jobs come from useScopedQuery — identify by query key prefix
+    useScopedQuery.mockImplementation((key: readonly unknown[]) => {
+      if (Array.isArray(key) && key[0] === "app-jobs") return fakeScopedQueryResult(jobs);
+      return fakeScopedQueryResult(listeners); // "app-listeners"
+    });
   }
 
   it("renders app_key in the header", () => {

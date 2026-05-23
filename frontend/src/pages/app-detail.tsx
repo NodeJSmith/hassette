@@ -1,5 +1,6 @@
+import { keepPreviousData } from "@tanstack/preact-query";
 import clsx from "clsx";
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect } from "preact/hooks";
 import { Link, useLocation } from "wouter";
 
 import { getAppJobs, getAppListeners } from "../api/endpoints";
@@ -14,14 +15,10 @@ import { OverviewTab } from "../components/app-detail/overview-tab";
 import { Spinner } from "../components/shared/spinner";
 import { useCorrectUrl } from "../hooks/use-correct-url";
 import { useDocumentTitle } from "../hooks/use-document-title";
-import {
-  useFilteredSignalRefetch,
-  WS_DEBOUNCE_DELAY_MS,
-  WS_DEBOUNCE_MAX_WAIT_MS,
-} from "../hooks/use-filtered-signal-refetch";
 import { useManifests } from "../hooks/use-manifests";
+import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
-import { useScopedApi } from "../hooks/use-scoped-api";
+import { useScopedQuery } from "../hooks/use-scoped-query";
 import { useAppState } from "../state/context";
 import styles from "./app-detail.module.css";
 
@@ -77,40 +74,35 @@ export function AppDetailPage({ params }: Props) {
   const instanceIndex = parsedInstance !== undefined && Number.isFinite(parsedInstance) ? parsedInstance : undefined;
 
   const resolvedInstanceIndex = instanceIndex ?? 0;
-  const listeners = useScopedApi((since) => getAppListeners(appKey, resolvedInstanceIndex, since), {
-    deps: [appKey, resolvedInstanceIndex],
-  });
-  const jobs = useScopedApi((since) => getAppJobs(appKey, resolvedInstanceIndex, since), {
-    deps: [appKey, resolvedInstanceIndex],
-  });
 
-  useFilteredSignalRefetch(
+  const { data: listenersData, isPending: listenersLoading } = useScopedQuery(
+    ["app-listeners", appKey, resolvedInstanceIndex],
+    (since) => getAppListeners(appKey, resolvedInstanceIndex, since),
+    { placeholderData: keepPreviousData },
+  );
+  const { data: jobsData, isPending: jobsLoading } = useScopedQuery(
+    ["app-jobs", appKey, resolvedInstanceIndex],
+    (since) => getAppJobs(appKey, resolvedInstanceIndex, since),
+    { placeholderData: keepPreviousData },
+  );
+
+  useQueryInvalidator(
     invocationCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
-    () => {
-      void listeners.refetch();
-      void jobs.refetch();
-    },
+    ["app-listeners", appKey],
     WS_DEBOUNCE_DELAY_MS,
     WS_DEBOUNCE_MAX_WAIT_MS,
   );
-  useFilteredSignalRefetch(
+  useQueryInvalidator(
     executionCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
-    () => {
-      void listeners.refetch();
-      void jobs.refetch();
-    },
+    ["app-jobs", appKey],
     WS_DEBOUNCE_DELAY_MS,
     WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
-  const staleListeners = useRef<typeof listeners.data.value>(null);
-  const staleJobs = useRef<typeof jobs.data.value>(null);
-  if (listeners.data.value) staleListeners.current = listeners.data.value;
-  if (jobs.data.value) staleJobs.current = jobs.data.value;
-  const displayListeners = listeners.data.value ?? staleListeners.current ?? [];
-  const displayJobs = jobs.data.value ?? staleJobs.current ?? [];
+  const displayListeners = listenersData ?? [];
+  const displayJobs = jobsData ?? [];
 
   const manifest = manifests.find((m) => m.app_key === appKey);
   useDocumentTitle(manifest?.display_name ?? "App");
@@ -126,8 +118,8 @@ export function AppDetailPage({ params }: Props) {
     ? (manifest?.status ?? "unknown")
     : (wsStatus ?? currentInstance?.status ?? manifest?.status ?? "unknown");
 
-  const hasData = !manifestsLoading && listeners.data.value !== null && jobs.data.value !== null;
-  const initialLoading = !hasData && (listeners.loading.value || jobs.loading.value || manifestsLoading);
+  const hasData = !manifestsLoading && listenersData !== undefined && jobsData !== undefined;
+  const initialLoading = !hasData && (listenersLoading || jobsLoading || manifestsLoading);
 
   useEffect(() => {
     if (initialLoading) return;
@@ -146,7 +138,7 @@ export function AppDetailPage({ params }: Props) {
 
   const instanceQs = instanceParam !== null && instanceParam !== "" ? `?instance=${instanceParam}` : "";
   const tabProps = { appKey, instanceQs, activeTab };
-  const handlerCount = (listeners.data.value?.length ?? 0) + (jobs.data.value?.length ?? 0);
+  const handlerCount = (listenersData?.length ?? 0) + (jobsData?.length ?? 0);
 
   return (
     <div class="ht-page">
