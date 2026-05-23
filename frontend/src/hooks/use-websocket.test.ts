@@ -67,21 +67,6 @@ describe("useWebSocket", () => {
     expect(MockWebSocket.instances).toHaveLength(1);
   });
 
-  it("does not increment reconnectVersion on first connect", () => {
-    const state = createAppState();
-    const queryClient = createTestQueryClient();
-
-    renderHookWithProviders(() => useWebSocket(state), { queryClient });
-
-    const ws = MockWebSocket.instances[0];
-    act(() => {
-      ws.simulateOpen();
-      ws.simulateMessage({ type: "connected", data: { uptime_seconds: 120, entity_count: 10, app_count: 2 } });
-    });
-
-    expect(state.reconnectVersion.value).toBe(0);
-  });
-
   it("does not set sessionId (signal does not exist)", () => {
     const state = createAppState();
     const queryClient = createTestQueryClient();
@@ -208,46 +193,6 @@ describe("useWebSocket", () => {
       vi.advanceTimersByTime(10_000);
     });
     expect(state.connection.value).toBe("connected");
-  });
-
-  it("increments reconnectVersion on reconnect but not first connect", () => {
-    vi.useFakeTimers();
-    const state = createAppState();
-    const queryClient = createTestQueryClient();
-
-    renderHookWithProviders(() => useWebSocket(state), { queryClient });
-
-    // First connect
-    const ws1 = MockWebSocket.instances[0];
-    act(() => {
-      ws1.simulateOpen();
-      ws1.simulateMessage({ type: "connected", data: { uptime_seconds: 100, entity_count: 0, app_count: 0 } });
-    });
-    expect(state.reconnectVersion.value).toBe(0);
-
-    // Simulate disconnect
-    act(() => {
-      ws1.onclose?.();
-    });
-    expect(state.connection.value).toBe("reconnecting");
-
-    // Advance past backoff timer to trigger reconnect
-    act(() => {
-      vi.advanceTimersByTime(2000);
-    });
-
-    // Second WebSocket created by reconnect
-    expect(MockWebSocket.instances).toHaveLength(2);
-    const ws2 = MockWebSocket.instances[1];
-
-    act(() => {
-      ws2.simulateOpen();
-      ws2.simulateMessage({ type: "connected", data: { uptime_seconds: 200, entity_count: 0, app_count: 0 } });
-    });
-
-    expect(state.reconnectVersion.value).toBe(1);
-    // uptimeSeconds updated on reconnect too
-    expect(state.uptimeSeconds.value).toBe(200);
   });
 
   it("sends log subscribe on connect", () => {

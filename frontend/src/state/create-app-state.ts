@@ -81,7 +81,7 @@ export function createAppState() {
    * the localStorage-backed `timePreset` when set. Falls back to `timePreset`
    * when `urlWindowParam` is null.
    *
-   * `useScopedApi` reads this instead of `timePreset` directly so that URL
+   * Query hooks read this instead of `timePreset` directly so that URL
    * overrides reach the data layer without writing to localStorage.
    */
   const effectiveTimePreset = computed<TimePreset>(() => urlWindowParam.value ?? timePreset.value);
@@ -137,14 +137,14 @@ export function createAppState() {
     /**
      * Effective time-window preset: URL `?window=` override takes priority.
      * Falls back to `timePreset` (localStorage-backed) when `urlWindowParam` is null.
-     * Read by `useScopedApi` instead of `timePreset` directly.
+     * Read by query hooks instead of `timePreset` directly.
      */
     effectiveTimePreset,
 
     /**
      * Server uptime in seconds, received from the WS connected message.
      * Null until the first WS connected message is received.
-     * Used by useScopedApi to compute the "since-restart" window boundary.
+     * Used by query hooks to compute the "since-restart" window boundary.
      */
     uptimeSeconds: signal<number | null>(null),
 
@@ -168,16 +168,6 @@ export function createAppState() {
      * Consumers subscribe to this signal to trigger debounced refetches.
      */
     executionCompleted: signal<WsExecutionCompletedPayload[] | null>(null),
-
-    /**
-     * Incremented on WS reconnection (not first connect). Still consumed by
-     * use-api.ts and use-log-data.ts during the TanStack migration. Removed
-     * in the task that deletes use-api.ts (T09).
-     *
-     * INVARIANT: reconnect refetches must bypass debounce — do not route
-     * reconnection through appStatus.
-     */
-    reconnectVersion: signal(0),
 
     /** Monotonic counter incremented every RELATIVE_TIME_TICK_MS to trigger relative-time re-renders. */
     tick: signal(0),

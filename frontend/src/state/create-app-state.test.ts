@@ -29,9 +29,6 @@ describe("createAppState", () => {
     a.theme.value = "dark";
     expect(b.theme.value).toBe("light"); // not affected
 
-    a.reconnectVersion.value = 3;
-    expect(b.reconnectVersion.value).toBe(0);
-
     a.tick.value = 5;
     expect(b.tick.value).toBe(0);
   });

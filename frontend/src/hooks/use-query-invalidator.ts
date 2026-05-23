@@ -20,7 +20,7 @@ export const WS_DEBOUNCE_MAX_WAIT_MS = 1500;
  * Subscribes to a Preact signal via `useSignalEffect`, applies a filter function,
  * and calls `queryClient.invalidateQueries({ queryKey })` after a debounce.
  *
- * Debounce algorithm (same as `useFilteredSignalRefetch`):
+ * Debounce algorithm:
  * - Trailing timer: resets on each matching event; fires `delayMs` after the last event.
  * - Max-wait timer: starts on the first matching event; fires after `maxWaitMs` regardless
  *   of subsequent events. Does NOT reset on subsequent matching events.

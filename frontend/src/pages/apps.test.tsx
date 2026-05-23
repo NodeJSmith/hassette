@@ -33,8 +33,7 @@ vi.mock("../hooks/use-query-invalidator", () => ({
   WS_DEBOUNCE_MAX_WAIT_MS: 1500,
 }));
 
-// Mock useManifests so manifest data is synchronous (matching the pattern
-// used for useScopedApi above). Replaced here to avoid async MSW roundtrip
+// Mock useManifests so manifest data is synchronous. Avoids async MSW roundtrip
 // for tests that focus on filter/sort/search behavior, not data fetching.
 vi.mock("../hooks/use-manifests", () => ({
   useManifests: vi.fn(() => ({ data: [], isPending: false })),

@@ -1,7 +1,7 @@
 ---
 task_id: "T09"
 title: "Delete old hooks, remove reconnectVersion, and verify"
-status: "planned"
+status: "done"
 depends_on: ["T03", "T04", "T05", "T06", "T07", "T08"]
 implements: ["AC#1", "AC#4", "AC#5", "AC#6"]
 ---

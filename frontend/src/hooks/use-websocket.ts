@@ -69,7 +69,7 @@ export function useWebSocket(state: AppState): void {
               // Reset backoff here (not in onopen) — only a fully completed handshake should reset retry delay
               backoffRef.current = INITIAL_BACKOFF_MS;
               state.connection.value = "connected";
-              // uptime_seconds is the loading gate for useScopedApi
+              // uptime_seconds is the loading gate for scoped query hooks
               state.uptimeSeconds.value = msg.data.uptime_seconds;
               if (msg.data.version !== undefined) {
                 state.systemVersion.value = msg.data.version;
@@ -79,8 +79,6 @@ export function useWebSocket(state: AppState): void {
                 // Reconnection — clear stale log buffer and service status before re-subscribing
                 state.logs.clear();
                 state.serviceStatus.value = {};
-                // Signal all useApi instances to refetch
-                state.reconnectVersion.value = state.reconnectVersion.value + 1;
                 // Invalidate all TanStack Query caches so data is re-fetched after reconnect
                 void queryClient.invalidateQueries();
               } else {

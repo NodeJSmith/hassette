@@ -5,7 +5,7 @@ import { createJob, createListener } from "../../test/factories";
 import { HandlerList } from "./handler-list";
 
 // Mock UnifiedHandlerRow to isolate HandlerList behavior — the row component
-// calls useScopedApi which requires AppStateContext and MSW.
+// calls query hooks which require AppStateContext and MSW.
 vi.mock("./unified-handler-row", () => ({
   UnifiedHandlerRow: ({
     item,
