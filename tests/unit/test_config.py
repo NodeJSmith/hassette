@@ -865,3 +865,105 @@ class TestLegacyEnvVarMigration:
 
         config = _TomlTestConfig()
         assert config.apps.directory == app_dir
+
+    def test_env_var_lands_in_model_extra_then_migrates(self, monkeypatch, tmp_path):
+        """Legacy env vars are absorbed by pydantic-settings into model_extra, then apply_legacy_migrations
+        handles them. This is the primary migration path — apply_legacy_env_vars is defense-in-depth."""
+        app_dir = tmp_path / "my_apps"
+        app_dir.mkdir()
+        monkeypatch.setenv("HASSETTE__APP_DIR", str(app_dir))
+        config = _LogLevelTestConfig()
+        assert config.apps.directory == app_dir
+        assert "app_dir" not in (config.model_extra or {})
+
+    def test_legacy_env_var_wins_over_toml_flat_key(self, monkeypatch, tmp_path):
+        """When both a TOML flat key and a legacy env var map to the same field, env wins.
+
+        Both legacy sources land in model_extra where TOML processes last, so apply_legacy_migrations
+        would use the TOML value. But apply_legacy_env_vars checks against pre-migration
+        model_fields_set (before TOML migration ran), sees the field wasn't set by a new-path source,
+        and overwrites with the env value — preserving the env > config file convention.
+        """
+        toml_dir = tmp_path / "toml_apps"
+        toml_dir.mkdir()
+        env_dir = tmp_path / "env_apps"
+        env_dir.mkdir()
+
+        toml_file = tmp_path / "hassette.toml"
+        toml_file.write_text(
+            textwrap.dedent(f"""
+            [hassette]
+            app_dir = "{toml_dir.as_posix()}"
+            """).lstrip(),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("HASSETTE__APP_DIR", str(env_dir))
+
+        class _PriorityTestConfig(HassetteConfig):
+            model_config = HassetteConfig.model_config.copy() | {
+                "cli_parse_args": False,
+                "toml_file": [toml_file],
+                "env_file": [],
+            }
+            token: str = TEST_TOKEN
+            run_app_precheck: bool = False
+
+        config = _PriorityTestConfig()
+        assert config.apps.directory == env_dir
+
+    def test_empty_string_skipped_but_zero_string_migrates(self, monkeypatch):
+        """The `if not raw_value` guard skips empty strings (matching env_ignore_empty=True)
+        but passes through '0' and 'false' since non-empty strings are truthy in Python."""
+        monkeypatch.setenv("HASSETTE__AUTODETECT_APPS", "0")
+        config = _LogLevelTestConfig()
+        assert config.apps.autodetect is False
+
+    def test_string_false_migrates_to_bool(self, monkeypatch):
+        """The string 'false' passes through the emptiness guard and Pydantic coerces it to bool."""
+        monkeypatch.setenv("HASSETTE__AUTODETECT_APPS", "false")
+        config = _LogLevelTestConfig()
+        assert config.apps.autodetect is False
+
+    def test_group_updates_round_trip_preserves_validation(self, monkeypatch, tmp_path):
+        """apply_group_updates reconstructs the nested model via model_dump/model_validate,
+        so field validators still run on the migrated value."""
+        app_dir = tmp_path / "validated_apps"
+        app_dir.mkdir()
+        monkeypatch.setenv("HASSETTE__APP_DIR", str(app_dir))
+        config = _LogLevelTestConfig()
+        assert isinstance(config.apps.directory, Path)
+        assert config.apps.directory == app_dir
+
+    @pytest.mark.filterwarnings("ignore:Config key.*will be ignored:UserWarning")
+    def test_legacy_env_vars_fires_when_env_source_excluded(self, monkeypatch, tmp_path):
+        """When a subclass excludes env settings from sources, legacy env vars don't land in model_extra.
+        apply_legacy_env_vars catches them by scanning os.environ directly."""
+        from pydantic_settings import BaseSettings as _BaseSettings
+        from pydantic_settings import PydanticBaseSettingsSource
+
+        app_dir = tmp_path / "no_env_source_apps"
+        app_dir.mkdir()
+        monkeypatch.setenv("HASSETTE__APP_DIR", str(app_dir))
+
+        class _NoEnvSourceConfig(HassetteConfig):
+            model_config = HassetteConfig.model_config.copy() | {
+                "cli_parse_args": False,
+                "toml_file": [],
+                "env_file": [],
+            }
+            token: str = TEST_TOKEN
+            run_app_precheck: bool = False
+
+            @classmethod
+            def settings_customise_sources(
+                cls,
+                _settings_cls: type[_BaseSettings],
+                init_settings: PydanticBaseSettingsSource,
+                _env_settings: PydanticBaseSettingsSource,
+                _dotenv_settings: PydanticBaseSettingsSource,
+                _file_secret_settings: PydanticBaseSettingsSource,
+            ) -> tuple[PydanticBaseSettingsSource, ...]:
+                return (init_settings,)
+
+        config = _NoEnvSourceConfig()
+        assert config.apps.directory == app_dir

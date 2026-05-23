@@ -306,6 +306,13 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                 )
                 setattr(group_obj, sub_field, sub_value)
 
+        # Snapshot which group fields were already set by new-path sources (env vars, init kwargs)
+        # before legacy migrations run. apply_legacy_env_vars uses this to distinguish "set by
+        # new-path env var" (should block) from "set by TOML migration" (env should win).
+        pre_migration_fields: dict[str, set[str]] = {
+            name: set(getattr(self, name).model_fields_set) for name in NESTED_GROUPS
+        }
+
         if self.model_extra:
             if "app" in self.model_extra:
                 LOGGER.warning(
@@ -319,7 +326,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             if legacy_hits:
                 self.apply_legacy_migrations(legacy_hits)
 
-        self.apply_legacy_env_vars()
+        self.apply_legacy_env_vars(pre_migration_fields)
 
     def apply_legacy_migrations(self, legacy_hits: dict[str, str]) -> None:
         migrations: dict[str, dict[str, object]] = {}
@@ -338,7 +345,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             migrations.setdefault(group_name, {})[sub_field] = self.model_extra[old_key]  # pyright: ignore[reportOptionalSubscript]
         self.apply_group_updates(migrations)
 
-    def apply_legacy_env_vars(self) -> None:
+    def apply_legacy_env_vars(self, pre_migration_fields: dict[str, set[str]]) -> None:
         env_prefix = self.model_config.get("env_prefix", "").upper()
         migrations: dict[str, dict[str, object]] = {}
         for old_key, dot_path in LEGACY_KEY_MIGRATION.items():
@@ -347,8 +354,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             if not raw_value:
                 continue
             group_name, sub_field = dot_path.split(".", 1)
-            group_obj = getattr(self, group_name)
-            if sub_field in group_obj.model_fields_set:
+            if sub_field in pre_migration_fields.get(group_name, set()):
                 continue
             LOGGER.warning(
                 "Migrating legacy env var %s → %s. Update your configuration to use HASSETTE__%s instead.",
