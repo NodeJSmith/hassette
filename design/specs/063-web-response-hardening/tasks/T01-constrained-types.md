@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Define constrained types and apply to all model fields"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "AC#1"]
 ---

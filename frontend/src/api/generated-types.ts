@@ -509,8 +509,7 @@ export interface components {
         ActivityFeedEntry: {
             /** Row Id */
             row_id: string;
-            /** Status */
-            status: string;
+            status: components["schemas"]["InvocationStatus"];
             /** Timestamp */
             timestamp: number;
             /** App Key */
@@ -558,16 +557,22 @@ export interface components {
         AppHealthResponse: {
             /** Error Rate */
             error_rate: number;
-            /** Error Rate Class */
-            error_rate_class: string;
+            /**
+             * Error Rate Class
+             * @enum {string}
+             */
+            error_rate_class: "good" | "warn" | "bad";
             /** Handler Avg Duration */
             handler_avg_duration: number;
             /** Job Avg Duration */
             job_avg_duration: number;
             /** Last Activity Ts */
             last_activity_ts: number | null;
-            /** Health Status */
-            health_status: string;
+            /**
+             * Health Status
+             * @enum {string}
+             */
+            health_status: "excellent" | "good" | "warning" | "critical";
         };
         /** AppInstanceResponse */
         AppInstanceResponse: {
@@ -579,8 +584,7 @@ export interface components {
             instance_name: string;
             /** Class Name */
             class_name: string;
-            /** Status */
-            status: string;
+            status: components["schemas"]["ResourceStatus"];
             /** Error Message */
             error_message?: string | null;
             /** Error Traceback */
@@ -621,8 +625,11 @@ export interface components {
             enabled: boolean;
             /** Auto Loaded */
             auto_loaded: boolean;
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "disabled" | "blocked" | "running" | "failed" | "stopped";
             /** Block Reason */
             block_reason?: string | null;
             /**
@@ -727,8 +734,11 @@ export interface components {
         DashboardAppGridEntry: {
             /** App Key */
             app_key: string;
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "disabled" | "blocked" | "running" | "failed" | "stopped";
             /** Display Name */
             display_name: string;
             /**
@@ -763,12 +773,18 @@ export interface components {
             avg_duration_ms: number;
             /** Last Activity Ts */
             last_activity_ts: number | null;
-            /** Health Status */
-            health_status: string;
+            /**
+             * Health Status
+             * @enum {string}
+             */
+            health_status: "excellent" | "good" | "warning" | "critical";
             /** Error Rate */
             error_rate: number;
-            /** Error Rate Class */
-            error_rate_class: string;
+            /**
+             * Error Rate Class
+             * @enum {string}
+             */
+            error_rate_class: "good" | "warn" | "bad";
             /** Activity Buckets */
             activity_buckets?: components["schemas"]["ActivityBucket"][];
             /** Last Error Message */
@@ -810,8 +826,7 @@ export interface components {
             execution_start_ts: number;
             /** Duration Ms */
             duration_ms: number;
-            /** Status */
-            status: string;
+            status: components["schemas"]["InvocationStatus"];
             /**
              * Source Tier
              * @default app
@@ -832,6 +847,16 @@ export interface components {
             trigger_origin?: string | null;
         };
         /**
+         * InvocationStatus
+         * @description Status values for handler invocations and job executions.
+         *
+         *     Covers all values allowed by the CHECK constraints in migrations 001 and 005.
+         *     Pydantic v2 coerces plain strings to enum members on construction and
+         *     serialises back to plain strings in JSON responses.
+         * @enum {string}
+         */
+        InvocationStatus: "success" | "error" | "cancelled" | "timed_out";
+        /**
          * JobExecution
          * @description Single execution record returned by ``get_job_executions()``.
          */
@@ -840,8 +865,7 @@ export interface components {
             execution_start_ts: number;
             /** Duration Ms */
             duration_ms: number;
-            /** Status */
-            status: string;
+            status: components["schemas"]["InvocationStatus"];
             /**
              * Source Tier
              * @default app
@@ -972,8 +996,9 @@ export interface components {
             /**
              * Listener Kind
              * @default event
+             * @enum {string}
              */
-            listener_kind: string;
+            listener_kind: "state change" | "service call" | "event";
             /** Handler Method */
             handler_method: string;
             /** Total Invocations */
@@ -1065,8 +1090,11 @@ export interface components {
             seq: number;
             /** Timestamp */
             timestamp: number;
-            /** Level */
-            level: string;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
             /** Logger Name */
             logger_name: string;
             /** Func Name */
@@ -1086,7 +1114,7 @@ export interface components {
             /** Instance Index */
             instance_index?: number | null;
             /** Source Tier */
-            source_tier?: string | null;
+            source_tier?: ("app" | "framework") | null;
         };
         /**
          * LogLevelRequest
@@ -1131,6 +1159,12 @@ export interface components {
             retention_expired: boolean;
         };
         /**
+         * ResourceStatus
+         * @description Enumeration for resource status.
+         * @enum {string}
+         */
+        ResourceStatus: "not_started" | "starting" | "running" | "stopping" | "stopped" | "failed" | "crashed" | "exhausted_dead" | "exhausted_cooling";
+        /**
          * SchedulerConfigResponse
          * @description Sanitized scheduler configuration fields.
          */
@@ -1149,8 +1183,7 @@ export interface components {
         ServiceInfoResponse: {
             /** Name */
             name: string;
-            /** Status */
-            status: string;
+            status: components["schemas"]["ResourceStatus"];
             /**
              * Role
              * @default
@@ -1163,8 +1196,11 @@ export interface components {
         };
         /** SystemStatusResponse */
         SystemStatusResponse: {
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "degraded" | "starting";
             /** Websocket Connected */
             websocket_connected: boolean;
             /** Uptime Seconds */

@@ -26,7 +26,7 @@ const WARN_STATUSES = new Set(["exhausted_cooling", "stopping", "shutting_down"]
 export function worstStatus(manifest: AppManifest): string {
   const instances = manifest.instances ?? [];
   if (instances.length === 0) return manifest.status;
-  return instances.reduce((worst, inst) => {
+  return instances.reduce<string>((worst, inst) => {
     return statusPriority(inst.status) < statusPriority(worst) ? inst.status : worst;
   }, manifest.status);
 }

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from hassette.config.helpers import VERSION
 from hassette.core.telemetry_models import JobSummary, ListenerSummary
+from hassette.web.models import ErrorRateClass, HealthStatus
 
 LOGGER = getLogger(__name__)
 
@@ -56,7 +57,7 @@ def compute_error_rate(
     return min((failures / total) * 100, 100.0)
 
 
-def classify_error_rate(rate: float) -> str:
+def classify_error_rate(rate: float) -> ErrorRateClass:
     """Map an error-rate percentage to a CSS class name.
 
     Thresholds: <5% = "good", 5-10% = "warn", >=10% = "bad".
@@ -68,13 +69,13 @@ def classify_error_rate(rate: float) -> str:
     return "bad"
 
 
-def classify_health_bar(success_rate: float) -> str:
+def classify_health_bar(success_rate: float) -> HealthStatus:
     """Map a success-rate percentage to a CSS class name.
 
     Thresholds: 100% = "excellent", >=95% = "good",
     >=90% = "warning", <90% = "critical".
     """
-    if success_rate == 100:
+    if success_rate >= 100:
         return "excellent"
     if success_rate >= 95:
         return "good"

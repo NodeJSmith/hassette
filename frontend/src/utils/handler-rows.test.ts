@@ -41,8 +41,8 @@ describe("listenerToRow", () => {
   });
 
   it("maps listener_kind to trigger", () => {
-    const row = listenerToRow(createListener({ listener_kind: "attribute change" }));
-    expect(row.trigger).toBe("attribute change");
+    const row = listenerToRow(createListener({ listener_kind: "event" }));
+    expect(row.trigger).toBe("event");
   });
 
   it("maps total_invocations to runs", () => {

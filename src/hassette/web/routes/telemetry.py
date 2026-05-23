@@ -8,6 +8,7 @@ to records with ``execution_start_ts >= since``, or omit it for all-time aggrega
 import sqlite3
 import time
 from logging import getLogger
+from typing import cast
 
 from fastapi import APIRouter, Path, Query, Response
 
@@ -28,7 +29,9 @@ from hassette.web.models import (
     AppHealthResponse,
     DashboardAppGridEntry,
     DashboardAppGridResponse,
+    HealthStatus,
     ListenerWithSummary,
+    ManifestStatus,
     TelemetryStatusResponse,
 )
 from hassette.web.telemetry_helpers import (
@@ -93,12 +96,16 @@ async def telemetry_status(
     )
 
 
-def _health_status_from_summary(summary: AppHealthSummary) -> str:
-    """Derive a health status label from an app health summary."""
+def _health_status_from_summary(summary: AppHealthSummary) -> HealthStatus:
+    """Derive a health status label from an app health summary.
+
+    Zero-invocation apps return ``"excellent"`` — consistent with the 503
+    fallback path at line ~143 and the ``HealthStatus`` Literal (no ``"unknown"``).
+    """
     total = summary.total_invocations + summary.total_executions
-    failures = summary.total_errors + summary.total_timed_out + summary.total_job_errors + summary.total_job_timed_out
     if total == 0:
-        return "unknown"
+        return "excellent"
+    failures = summary.total_errors + summary.total_timed_out + summary.total_job_errors + summary.total_job_timed_out
     success_rate = ((total - failures) / total) * 100
     return classify_health_bar(success_rate)
 
@@ -359,7 +366,7 @@ async def dashboard_app_grid(
         entries.append(
             DashboardAppGridEntry(
                 app_key=manifest.app_key,
-                status=manifest.status,
+                status=cast("ManifestStatus", manifest.status),  # AppManifestInfo.status is str
                 display_name=manifest.display_name,
                 instance_count=manifest.instance_count,
                 handler_count=health.handler_count,

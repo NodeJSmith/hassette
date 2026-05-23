@@ -7,15 +7,18 @@ call these instead of receiving pre-mapped response objects from
 
 Enum coercion note
 ------------------
-``AppInstanceInfo.status`` is a ``ResourceStatus`` enum (``StrEnum``). Call
-``.value`` to get the plain string. ``AppManifestInfo.status`` is already a
-``str`` — do not call ``.value`` on it.
+``AppInstanceInfo.status`` is a ``ResourceStatus`` enum (``StrEnum``). Pydantic
+coerces it directly — pass the enum value as-is. ``AppManifestInfo.status`` is a
+``str`` with the 5-value ManifestStatus set; cast to ``ManifestStatus`` for pyright.
+``ServiceInfo.status`` is a ``str`` with ResourceStatus values; cast for pyright.
 """
+
+from typing import cast
 
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
 from hassette.core.domain_models import SystemStatus
 from hassette.core.telemetry_models import ListenerSummary
-from hassette.types.enums import Topic
+from hassette.types.enums import ResourceStatus, Topic
 from hassette.web.models import (
     AppInstanceResponse,
     AppManifestListResponse,
@@ -23,7 +26,9 @@ from hassette.web.models import (
     AppStatusResponse,
     BootIssueResponse,
     ConnectedPayload,
+    ListenerKind,
     ListenerWithSummary,
+    ManifestStatus,
     ServiceInfoResponse,
     SystemStatusResponse,
 )
@@ -37,7 +42,7 @@ def _instance_response_from(info: AppInstanceInfo) -> AppInstanceResponse:
         index=info.index,
         instance_name=info.instance_name,
         class_name=info.class_name,
-        status=info.status.value,  # ResourceStatus enum → str
+        status=info.status,  # ResourceStatus StrEnum — Pydantic coerces directly
         error_message=info.error_message,
         error_traceback=info.error_traceback,
         owner_id=info.owner_id,
@@ -79,7 +84,7 @@ def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListRes
                 filename=m.filename,
                 enabled=m.enabled,
                 auto_loaded=m.auto_loaded,
-                status=m.status,  # already str — no .value
+                status=cast("ManifestStatus", m.status),  # AppManifestInfo.status is str
                 block_reason=m.block_reason,
                 instance_count=m.instance_count,
                 instances=instances,
@@ -108,7 +113,7 @@ def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
     services = [
         ServiceInfoResponse(
             name=svc.name,
-            status=svc.status,
+            status=cast("ResourceStatus", svc.status),  # ServiceInfo.status is str
             role=svc.role,
             ready_phase=svc.ready_phase,
             retry_at=svc.retry_at,
@@ -143,13 +148,13 @@ def connected_payload_from(status: SystemStatus) -> ConnectedPayload:
     )
 
 
-_TOPIC_KIND_MAP: dict[str, str] = {
+_TOPIC_KIND_MAP: dict[str, ListenerKind] = {
     Topic.HASS_EVENT_STATE_CHANGED: "state change",
     Topic.HASS_EVENT_CALL_SERVICE: "service call",
 }
 
 
-def _listener_kind_from_topic(topic: str) -> str:
+def _listener_kind_from_topic(topic: str) -> ListenerKind:
     for prefix, kind in _TOPIC_KIND_MAP.items():
         if topic.startswith(prefix):
             return kind

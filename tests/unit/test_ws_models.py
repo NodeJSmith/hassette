@@ -43,7 +43,7 @@ class TestAppStatusChangedPayloadMatchesDataclass:
         payload = AppStatusChangedPayload.model_validate(serialized)
         assert payload.app_key == "my_app"
         assert payload.index == 0
-        assert payload.status == "ResourceStatus.RUNNING" or payload.status == "running"
+        assert payload.status == "running"
         assert payload.instance_name == "my_app_0"
         assert payload.class_name == "MyApp"
 
@@ -214,7 +214,7 @@ class TestCompletionWsMessages:
                     "job_id": 7,
                     "app_key": "scheduler_app",
                     "instance_index": 1,
-                    "status": "failed",
+                    "status": "error",
                     "duration_ms": 99.9,
                     "error_type": "TimeoutError",
                 }
@@ -243,7 +243,7 @@ class TestCompletionWsMessages:
                     "listener_id": 2,
                     "app_key": "b",
                     "instance_index": 1,
-                    "status": "failed",
+                    "status": "error",
                     "duration_ms": 2.0,
                     "error_type": "ValueError",
                 },

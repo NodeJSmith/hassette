@@ -65,6 +65,9 @@ class TestClassifyHealthBar:
     def test_perfect(self) -> None:
         assert classify_health_bar(100.0) == "excellent"
 
+    def test_above_100_clamps_to_excellent(self) -> None:
+        assert classify_health_bar(100.0001) == "excellent"
+
     def test_good(self) -> None:
         assert classify_health_bar(97.0) == "good"
 

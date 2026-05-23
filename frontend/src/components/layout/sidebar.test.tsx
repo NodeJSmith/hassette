@@ -429,7 +429,12 @@ describe("Sidebar — status groups", () => {
       createManifest({
         app_key: "dead_app",
         display_name: "Dead App",
-        status: "exhausted_dead",
+        status: "failed",
+        instance_count: 2,
+        instances: [
+          createInstance({ app_key: "dead_app", index: 0, status: "exhausted_dead" }),
+          createInstance({ app_key: "dead_app", index: 1, status: "running" }),
+        ],
       }),
     ]);
     const { getByTestId } = renderWithAppState(<Sidebar />);
