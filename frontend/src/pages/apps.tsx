@@ -14,7 +14,7 @@ import { type ColumnFilters } from "../components/shared/table-types";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useManifests } from "../hooks/use-manifests";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../hooks/use-media-query";
-import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-query-invalidator";
+import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
 import { useSignal } from "../hooks/use-signal";
@@ -121,24 +121,12 @@ export function AppsPage() {
 
   const { appStatus, effectiveTimePreset, uptimeSeconds, invocationCompleted, executionCompleted } = useAppState();
   const { data: manifests = [], isPending: manifestsLoading } = useManifests();
-  const { data: gridData, error: gridError } = useScopedQuery(queryKeys.dashboardGrid.base(), (since, signal) =>
+  const { data: gridData, error: gridError } = useScopedQuery(queryKeys.dashboardGrid(), (since, signal) =>
     getDashboardAppGrid(since, signal),
   );
 
-  useQueryInvalidator(
-    invocationCompleted,
-    (events) => events !== null,
-    queryKeys.dashboardGrid.prefix(),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
-  );
-  useQueryInvalidator(
-    executionCompleted,
-    (events) => events !== null,
-    queryKeys.dashboardGrid.prefix(),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
-  );
+  useQueryInvalidator(invocationCompleted, (events) => events !== null, queryKeys.dashboardGrid());
+  useQueryInvalidator(executionCompleted, (events) => events !== null, queryKeys.dashboardGrid());
 
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const qp = useQueryParams();

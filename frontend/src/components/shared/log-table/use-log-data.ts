@@ -28,12 +28,8 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
 
   const { data, isPending, isError, error } = useQuery({
     queryKey: queryKeys.recentLogs(appKey, executionId),
-    queryFn: () =>
-      getRecentLogs({
-        app_key: appKey,
-        limit: REST_FETCH_LIMIT,
-        execution_id: executionId,
-      }),
+    queryFn: ({ signal }) =>
+      getRecentLogs({ app_key: appKey, limit: REST_FETCH_LIMIT, execution_id: executionId }, signal),
   });
 
   useEffect(() => {

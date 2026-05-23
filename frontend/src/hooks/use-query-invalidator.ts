@@ -35,37 +35,34 @@ export function useQueryInvalidator<T>(
   signal: ReadonlySignal<T>,
   filterFn: (value: T) => boolean,
   queryKey: readonly unknown[],
-  delayMs: number,
-  maxWaitMs: number,
+  delayMs: number = WS_DEBOUNCE_DELAY_MS,
+  maxWaitMs: number = WS_DEBOUNCE_MAX_WAIT_MS,
 ): void {
   const queryClient = useQueryClient();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Stable refs so the signal effect closure doesn't capture stale values.
   const filterFnRef = useRef(filterFn);
   filterFnRef.current = filterFn;
   const queryClientRef = useRef(queryClient);
   queryClientRef.current = queryClient;
   const queryKeyRef = useRef(queryKey);
   queryKeyRef.current = queryKey;
+  const delayMsRef = useRef(delayMs);
+  delayMsRef.current = delayMs;
+  const maxWaitMsRef = useRef(maxWaitMs);
+  maxWaitMsRef.current = maxWaitMs;
 
   const lastValueRef = useRef<T>(signal.peek());
-  const mountedRef = useRef(false);
 
   useSignalEffect(() => {
     const value = signal.value;
 
     if (Object.is(value, lastValueRef.current)) {
-      if (!mountedRef.current) {
-        mountedRef.current = true;
-      }
       return;
     }
     lastValueRef.current = value;
 
-    // Post-mount freshness check: if the signal already has a matching value
-    // on first real change after mount, invalidate immediately.
     if (!filterFnRef.current(value)) {
       return;
     }
@@ -85,10 +82,10 @@ export function useQueryInvalidator<T>(
     if (timerRef.current !== null) {
       clearTimeout(timerRef.current);
     }
-    timerRef.current = setTimeout(fire, delayMs);
+    timerRef.current = setTimeout(fire, delayMsRef.current);
 
     if (maxTimerRef.current === null) {
-      maxTimerRef.current = setTimeout(fire, maxWaitMs);
+      maxTimerRef.current = setTimeout(fire, maxWaitMsRef.current);
     }
   });
 

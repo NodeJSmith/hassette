@@ -3,6 +3,8 @@ import type { ColumnDef, ColumnId, LevelFilter, SortColumn, TierFilter } from ".
 export const LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] as const;
 
 export const DEFAULT_LEVEL: LevelFilter = "INFO";
+// Empty string means "show all levels" in app code; serialized as "all" in URL params.
+export const ALL_LEVELS: LevelFilter = "";
 
 export const COPY_CONFIRM_MS = 1500;
 

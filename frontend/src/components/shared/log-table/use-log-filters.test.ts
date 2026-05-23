@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "../../../api/endpoints";
+import { SEARCH_DEBOUNCE_MS } from "./constants";
 import type { LevelFilter } from "./types";
 import { useLogFilters } from "./use-log-filters";
 
@@ -232,7 +233,7 @@ describe("search filtering", () => {
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setSearch("hello"));
     // Wait for debounce
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, SEARCH_DEBOUNCE_MS + 50));
     const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toContain("Hello World");
     expect(messages).not.toContain("unrelated");
@@ -245,7 +246,7 @@ describe("search filtering", () => {
     ];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setSearch("MY_APP"));
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, SEARCH_DEBOUNCE_MS + 50));
     const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toContain("msg");
     expect(messages).not.toContain("other");
@@ -407,7 +408,7 @@ describe("resetFilters", () => {
     const entries = [entry({ message: "hello" }), entry({ message: "world" })];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setSearch("hello"));
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, SEARCH_DEBOUNCE_MS + 50));
 
     act(() => hook.result.current.resetFilters());
     // Search is reset synchronously via direct signal assignment
@@ -505,7 +506,7 @@ describe("search debounce", () => {
     const { hook } = renderLocal(entries);
 
     act(() => hook.result.current.setSearch("needle"));
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, SEARCH_DEBOUNCE_MS + 50));
 
     const { search } = hook.result.current.filterState.value;
     expect(search).toBe("needle");

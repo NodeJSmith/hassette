@@ -1,6 +1,6 @@
 import type { JobData } from "../../api/endpoints";
 import { getJobExecutions } from "../../api/endpoints";
-import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-query-invalidator";
+import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { useRelativeTime } from "../../hooks/use-relative-time";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
@@ -55,7 +55,7 @@ interface Props {
 
 export function JobDetail({ job, onSwitchToCode }: Props) {
   const { data: executions, isPending: loading } = useScopedQuery(
-    queryKeys.jobExecutions.base(job.job_id),
+    queryKeys.jobExecutions(job.job_id),
     (since, signal) => getJobExecutions(job.job_id, DETAIL_FETCH_LIMIT, since, signal),
   );
 
@@ -67,9 +67,7 @@ export function JobDetail({ job, onSwitchToCode }: Props) {
   useQueryInvalidator(
     executionCompleted,
     (events) => events?.some((e) => e.job_id === job.job_id) ?? false,
-    queryKeys.jobExecutions.base(job.job_id),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
+    queryKeys.jobExecutions(job.job_id),
   );
 
   const kindLabel = handlerKindLabel("job", null, job.trigger_type);

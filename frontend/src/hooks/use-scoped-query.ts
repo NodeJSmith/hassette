@@ -38,13 +38,13 @@ export function useScopedQuery<T>(
 
   // Include uptime in the key only for since-restart (where it defines the window boundary).
   // Fixed-window presets omit uptime so cache entries survive reconnects.
-  const queryKey = [...baseKey, preset, ...(preset === "since-restart" ? [uptime] : [])];
+  const queryKey = [...baseKey, preset, ...(preset === "since-restart" ? [uptime] : [])] as const;
 
   return useQuery<T>({
     queryKey,
     queryFn: ({ signal }) => {
-      const since = resolveSince(preset, uptime);
-      if (since === undefined) throw new Error("queryFn called while disabled");
+      // enabled: !waitingForUptime guarantees resolveSince returns a number here
+      const since = resolveSince(preset, uptime)!;
       return fetcher(since, signal);
     },
     enabled: !waitingForUptime,

@@ -76,8 +76,8 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AppStateContext.Provider value={state}>
-        <WebSocketProvider state={state} />
-        <TelemetryHealthProvider state={state} />
+        <WebSocketEffect state={state} />
+        <TelemetryHealthEffect state={state} />
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
         <Toaster position="bottom-right" theme={state.theme.value} closeButton richColors />
 
@@ -158,14 +158,14 @@ export function App() {
   );
 }
 
-/** Invisible component that wires up the WebSocket connection. */
-function WebSocketProvider({ state }: { state: ReturnType<typeof createAppState> }) {
+/** Side-effect component that wires up the WebSocket connection. */
+function WebSocketEffect({ state }: { state: ReturnType<typeof createAppState> }) {
   useWebSocket(state);
   return null;
 }
 
-/** Invisible component that polls telemetry health status. */
-function TelemetryHealthProvider({ state }: { state: ReturnType<typeof createAppState> }) {
+/** Side-effect component that polls telemetry health status. */
+function TelemetryHealthEffect({ state }: { state: ReturnType<typeof createAppState> }) {
   useTelemetryHealth(state);
   return null;
 }

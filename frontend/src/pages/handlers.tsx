@@ -8,7 +8,7 @@ import { TableFooter } from "../components/shared/table-footer";
 import { type ColumnFilters } from "../components/shared/table-types";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../hooks/use-media-query";
-import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-query-invalidator";
+import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
@@ -50,29 +50,17 @@ export function HandlersPage() {
     data: listeners,
     isPending: listenersLoading,
     error: listenersError,
-  } = useScopedQuery(queryKeys.allListeners.base(), (since, signal) => getAllListeners(since, signal));
+  } = useScopedQuery(queryKeys.allListeners(), (since, signal) => getAllListeners(since, signal));
   const {
     data: jobs,
     isPending: jobsLoading,
     error: jobsError,
-  } = useScopedQuery(queryKeys.allJobs.base(), (since, signal) => getAllJobs(since, signal));
+  } = useScopedQuery(queryKeys.allJobs(), (since, signal) => getAllJobs(since, signal));
 
   const { invocationCompleted, executionCompleted } = useAppState();
 
-  useQueryInvalidator(
-    invocationCompleted,
-    () => true,
-    queryKeys.allListeners.prefix(),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
-  );
-  useQueryInvalidator(
-    executionCompleted,
-    () => true,
-    queryKeys.allJobs.prefix(),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
-  );
+  useQueryInvalidator(invocationCompleted, () => true, queryKeys.allListeners());
+  useQueryInvalidator(executionCompleted, () => true, queryKeys.allJobs());
 
   const allListeners = listeners ?? [];
   const allJobs = jobs ?? [];

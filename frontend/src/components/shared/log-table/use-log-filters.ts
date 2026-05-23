@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from "preact/hooks";
 import type { LogEntry } from "../../../api/endpoints";
 import { useQueryParams } from "../../../hooks/use-query-params";
 import { useSignal } from "../../../hooks/use-signal";
-import { DEFAULT_LEVEL, LEVEL_INDEX, LEVELS, resolveSortColumn, SEARCH_DEBOUNCE_MS } from "./constants";
+import { ALL_LEVELS, DEFAULT_LEVEL, LEVEL_INDEX, LEVELS, resolveSortColumn, SEARCH_DEBOUNCE_MS } from "./constants";
 import type { FilterState, LevelFilter, SortColumn, SortConfig, TierFilter } from "./types";
 
 interface UseLogFiltersParams {
@@ -105,7 +105,7 @@ export function useLogFilters({
 
     const current = qpRef.current;
     const levelParam = current.get("level");
-    const level: LevelFilter = levelParam === "all" ? "" : ((levelParam as LevelFilter) ?? DEFAULT_LEVEL);
+    const level: LevelFilter = levelParam === "all" ? ALL_LEVELS : ((levelParam as LevelFilter) ?? DEFAULT_LEVEL);
     const tierRaw = current.get("tier");
     const tier: TierFilter = tierRaw === "all" || tierRaw === "framework" || tierRaw === "app" ? tierRaw : defaultTier;
     const app = current.get("app") ?? "";
@@ -165,7 +165,7 @@ export function useLogFilters({
     }
     if (level === DEFAULT_LEVEL) {
       qpRef.current.set({ level: null });
-    } else if (level === "") {
+    } else if (level === ALL_LEVELS) {
       qpRef.current.set({ level: "all" });
     } else {
       qpRef.current.set({ level });

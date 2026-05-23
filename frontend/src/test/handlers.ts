@@ -109,6 +109,11 @@ export const handlers = [
     return HttpResponse.json<JobExecution[]>([]);
   }),
 
+  // GET /api/scheduler/jobs
+  http.get("/api/scheduler/jobs", () => {
+    return HttpResponse.json<JobSummary[]>([]);
+  }),
+
   // GET /api/telemetry/dashboard/app-grid
   http.get("/api/telemetry/dashboard/app-grid", () => {
     return HttpResponse.json<DashboardAppGridResponse>({ apps: [] });

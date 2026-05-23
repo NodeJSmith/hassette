@@ -102,6 +102,7 @@ export function useLogTable({
   } = useLogFilters({
     allEntries,
     restEntries,
+    // Execution-scoped views always use local state — URL params are owned by the parent page.
     useLocalState: useLocal || !!executionId,
     appKey,
   });

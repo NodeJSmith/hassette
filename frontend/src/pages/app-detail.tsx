@@ -16,7 +16,7 @@ import { Spinner } from "../components/shared/spinner";
 import { useCorrectUrl } from "../hooks/use-correct-url";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { useManifests } from "../hooks/use-manifests";
-import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../hooks/use-query-invalidator";
+import { useQueryInvalidator } from "../hooks/use-query-invalidator";
 import { useQueryParams } from "../hooks/use-query-params";
 import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
@@ -100,15 +100,11 @@ export function AppDetailPage({ params }: Props) {
     invocationCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
     queryKeys.appListeners.prefix(appKey),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
   );
   useQueryInvalidator(
     executionCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
     queryKeys.appJobs.prefix(appKey),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
   const displayListeners = listenersData ?? [];

@@ -36,9 +36,11 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const triggerRef = useRef<Element | null>(null);
 
   const { data: allManifests = [] } = useManifests();
+  // Palette data changes infrequently and is only fetched when open — 5min staleTime
+  // avoids refetching on every open while keeping results reasonably fresh.
   const { data: listeners } = useQuery({
     queryKey: queryKeys.allListenersPalette(),
-    queryFn: () => getAllListeners(),
+    queryFn: ({ signal }) => getAllListeners(undefined, signal),
     enabled: open,
     staleTime: 300_000,
   });

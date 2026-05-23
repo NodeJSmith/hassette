@@ -3,7 +3,7 @@ import { useMemo } from "preact/hooks";
 
 import type { ActivityFeedEntryData } from "../../api/endpoints";
 import { getAppActivity } from "../../api/endpoints";
-import { useQueryInvalidator, WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-query-invalidator";
+import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { useSubscribe } from "../../hooks/use-subscribe";
 import { queryKeys } from "../../lib/query-keys";
@@ -125,16 +125,12 @@ export function RecentActivitySection({
     invocationCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
     queryKeys.appActivity.prefix(appKey),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
   useQueryInvalidator(
     executionCompleted,
     (events) => events?.some((e) => e.app_key === appKey) ?? false,
     queryKeys.appActivity.prefix(appKey),
-    WS_DEBOUNCE_DELAY_MS,
-    WS_DEBOUNCE_MAX_WAIT_MS,
   );
 
   const groups = useMemo(() => groupConsecutiveActivity(activity ?? []), [activity]);

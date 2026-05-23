@@ -106,14 +106,17 @@ export const getConfig = () => apiFetch<SystemConfig>("/config");
 export type LogsByExecutionResponse = components["schemas"]["LogsByExecutionResponse"];
 export type LogLevelResponse = components["schemas"]["LogLevelResponse"];
 
-export const getRecentLogs = (params?: {
-  level?: string;
-  app_key?: string;
-  limit?: number;
-  since?: number | null;
-  execution_id?: string | null;
-  source_tier?: string | null;
-}) =>
+export const getRecentLogs = (
+  params?: {
+    level?: string;
+    app_key?: string;
+    limit?: number;
+    since?: number | null;
+    execution_id?: string | null;
+    source_tier?: string | null;
+  },
+  signal?: AbortSignal,
+) =>
   apiFetch<LogEntry[]>(
     buildUrl("/logs/recent", {
       level: params?.level,
@@ -123,6 +126,7 @@ export const getRecentLogs = (params?: {
       execution_id: params?.execution_id,
       source_tier: params?.source_tier,
     }),
+    signal ? { signal } : undefined,
   );
 
 export const getLogsByExecution = (executionId: string, limit?: number) =>
