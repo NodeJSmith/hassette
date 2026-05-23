@@ -1,7 +1,7 @@
 # Design: Harden Web API Response Models
 
 **Date:** 2026-05-23
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Issue:** #832
 

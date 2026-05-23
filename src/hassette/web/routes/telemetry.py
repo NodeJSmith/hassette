@@ -96,7 +96,7 @@ async def telemetry_status(
     )
 
 
-def _health_status_from_summary(summary: AppHealthSummary) -> HealthStatus:
+def health_status_from_summary(summary: AppHealthSummary) -> HealthStatus:
     """Derive a health status label from an app health summary.
 
     Zero-invocation apps return ``"excellent"`` — consistent with the 503
@@ -110,7 +110,7 @@ def _health_status_from_summary(summary: AppHealthSummary) -> HealthStatus:
     return classify_health_bar(success_rate)
 
 
-def _error_rate_from_summary(summary: AppHealthSummary) -> float:
+def error_rate_from_summary(summary: AppHealthSummary) -> float:
     """Compute error rate percentage from an app health summary."""
     return compute_error_rate(
         total_invocations=summary.total_invocations,
@@ -120,7 +120,7 @@ def _error_rate_from_summary(summary: AppHealthSummary) -> float:
     )
 
 
-_INSTANCE_INDEX_PARAM = Query(  # pyright: ignore[reportCallInDefaultInitializer]
+INSTANCE_INDEX_PARAM = Query(  # pyright: ignore[reportCallInDefaultInitializer]
     default=0,
     description="App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
 )
@@ -131,7 +131,7 @@ async def app_health(
     telemetry: TelemetryDep,
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
-    instance_index: int = _INSTANCE_INDEX_PARAM,
+    instance_index: int = INSTANCE_INDEX_PARAM,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
 ) -> AppHealthResponse:
@@ -180,7 +180,7 @@ async def app_listeners(
     telemetry: TelemetryDep,
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
-    instance_index: int = _INSTANCE_INDEX_PARAM,
+    instance_index: int = INSTANCE_INDEX_PARAM,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
 ) -> list[ListenerWithSummary]:
@@ -232,7 +232,7 @@ async def app_jobs(
     scheduler_service: SchedulerDep,
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
-    instance_index: int = _INSTANCE_INDEX_PARAM,
+    instance_index: int = INSTANCE_INDEX_PARAM,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
 ) -> list[JobSummary]:
@@ -354,7 +354,7 @@ async def dashboard_app_grid(
     entries = []
     for manifest in snapshot.manifests:
         health = summaries.get(manifest.app_key, empty)
-        rate = _error_rate_from_summary(health)
+        rate = error_rate_from_summary(health)
         buckets = per_app_buckets.get(manifest.app_key, [])
         err_info = per_app_errors.get(manifest.app_key)
         entries.append(
@@ -373,7 +373,7 @@ async def dashboard_app_grid(
                 total_job_timed_out=health.total_job_timed_out,
                 avg_duration_ms=health.avg_duration_ms,
                 last_activity_ts=health.last_activity_ts,
-                health_status=_health_status_from_summary(health),
+                health_status=health_status_from_summary(health),
                 error_rate=rate,
                 error_rate_class=classify_error_rate(rate),
                 last_error_message=err_info.error_message if err_info else None,

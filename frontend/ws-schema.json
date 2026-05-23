@@ -388,12 +388,28 @@
           "type": "string"
         },
         "func_name": {
-          "title": "Func Name",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Func Name"
         },
         "lineno": {
-          "title": "Lineno",
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lineno"
         },
         "message": {
           "title": "Message",
@@ -481,8 +497,6 @@
         "timestamp",
         "level",
         "logger_name",
-        "func_name",
-        "lineno",
         "message"
       ],
       "title": "LogEntryResponse",
