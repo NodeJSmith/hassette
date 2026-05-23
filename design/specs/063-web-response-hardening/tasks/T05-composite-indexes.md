@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Add composite indexes for status-filtered queries"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#6", "AC#6"]
 ---

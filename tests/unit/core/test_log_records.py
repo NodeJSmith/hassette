@@ -113,8 +113,8 @@ class TestMigration009:
         indexes = {row[0] for row in cursor.fetchall()}
         assert "idx_lr_app_time" in indexes
 
-    def test_migration_version_is_009(self, tmp_path: Path) -> None:
-        """After full migration, the Alembic version is 009."""
+    def test_migration_version_is_010(self, tmp_path: Path) -> None:
+        """After full migration, the Alembic version is 010."""
         db_path = str(tmp_path / "test.db")
         run_migrations_to_head(db_path)
 
@@ -126,7 +126,7 @@ class TestMigration009:
         finally:
             engine.dispose()
 
-        assert version == "009"
+        assert version == "010"
 
 
 class TestRestartPersistence:
