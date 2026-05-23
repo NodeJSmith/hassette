@@ -1,7 +1,7 @@
 ---
 task_id: "T07"
 title: "Update frontend paths and regenerate schemas"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03", "T04", "T05", "T06"]
 implements: ["AC#9", "AC#11", "AC#12"]
 ---
