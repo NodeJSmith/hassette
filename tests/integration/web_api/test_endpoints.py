@@ -291,57 +291,6 @@ class TestLogsEndpoints:
         response = await client.get("/api/logs/recent?source_tier=app")
         assert response.status_code == 200
 
-    @patch(f"{LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
-    async def test_get_logs_by_execution_returns_records(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
-        records = [make_log_record(1, "INFO", "started", execution_id="exec-abc")]
-        mock_get.return_value = (records, False)
-        response = await client.get("/api/logs/by-execution/exec-abc")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["truncated"] is False
-        assert data["retention_expired"] is False
-        assert len(data["records"]) == 1
-        assert data["records"][0]["execution_id"] == "exec-abc"
-
-    @patch(f"{LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
-    async def test_get_logs_by_execution_truncated(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
-        records = [make_log_record(i, execution_id="exec-xyz") for i in range(500)]
-        mock_get.return_value = (records, True)
-        response = await client.get("/api/logs/by-execution/exec-xyz")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["truncated"] is True
-        assert len(data["records"]) == 500
-
-    @patch(f"{LOGS_REPO}.check_execution_predates_retention_cutoff", new_callable=AsyncMock)
-    @patch(f"{LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
-    async def test_get_logs_by_execution_retention_expired(
-        self, mock_get: AsyncMock, mock_cutoff: AsyncMock, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """When records=[] and execution is old, retention_expired=True."""
-        mock_get.return_value = ([], False)
-        mock_cutoff.return_value = True
-        mock_hassette.config.logging.log_retention_days = 3
-        response = await client.get("/api/logs/by-execution/old-exec")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["retention_expired"] is True
-        assert data["records"] == []
-
-    @patch(f"{LOGS_REPO}.check_execution_predates_retention_cutoff", new_callable=AsyncMock)
-    @patch(f"{LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
-    async def test_get_logs_by_execution_empty_no_retention(
-        self, mock_get: AsyncMock, mock_cutoff: AsyncMock, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """When records=[] and execution is not old, retention_expired=False."""
-        mock_get.return_value = ([], False)
-        mock_cutoff.return_value = False
-        mock_hassette.config.logging.log_retention_days = 3
-        response = await client.get("/api/logs/by-execution/new-exec")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["retention_expired"] is False
-
     async def test_put_log_level_valid(self, client: "AsyncClient") -> None:
         response = await client.put("/api/logs/level", json={"logger": "hassette.test", "level": "DEBUG"})
         assert response.status_code == 200

@@ -492,14 +492,56 @@
         }
       }
     },
-    "/api/logs/by-execution/{execution_id}": {
-      "get": {
+    "/api/logs/level": {
+      "put": {
         "tags": [
           "logs"
         ],
-        "summary": "Get Logs By Execution",
-        "description": "Return all log records for a single execution, with retention-expired detection.",
-        "operationId": "get_logs_by_execution_api_logs_by_execution__execution_id__get",
+        "summary": "Set Log Level",
+        "description": "Change a logger's effective level at runtime without restarting.\n\nThe change takes effect immediately for both structlog and stdlib callers on that logger.",
+        "operationId": "set_log_level_api_logs_level_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogLevelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogLevelResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/executions/{execution_id}": {
+      "get": {
+        "tags": [
+          "executions"
+        ],
+        "summary": "Get Execution Logs",
+        "description": "Return all log records for a single execution, with retention-expired detection.\n\nFor UUIDv7 execution IDs, the embedded timestamp is extracted directly without a\ndatabase lookup. For historical UUIDv4 IDs, the database is queried to determine\nwhether retention has expired.\n\nReturns 422 if the execution_id is not a valid UUID. Returns an empty record list\nwith ``retention_expired=True`` if logs have been purged by retention policy.",
+        "operationId": "get_execution_logs_api_executions__execution_id__get",
         "parameters": [
           {
             "name": "execution_id",
@@ -530,48 +572,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LogsByExecutionResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/logs/level": {
-      "put": {
-        "tags": [
-          "logs"
-        ],
-        "summary": "Set Log Level",
-        "description": "Change a logger's effective level at runtime without restarting.\n\nThe change takes effect immediately for both structlog and stdlib callers on that logger.",
-        "operationId": "set_log_level_api_logs_level_put",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LogLevelRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LogLevelResponse"
                 }
               }
             }
@@ -3242,7 +3242,7 @@
           "retention_expired"
         ],
         "title": "LogsByExecutionResponse",
-        "description": "Response for GET /api/logs/by-execution/{execution_id}."
+        "description": "Response for GET /api/executions/{execution_id}."
       },
       "ResourceStatus": {
         "type": "string",

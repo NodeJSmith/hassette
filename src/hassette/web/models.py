@@ -168,7 +168,7 @@ class LogEntryResponse(BaseModel):
 
 
 class LogsByExecutionResponse(BaseModel):
-    """Response for GET /api/logs/by-execution/{execution_id}."""
+    """Response for GET /api/executions/{execution_id}."""
 
     records: list[LogEntryResponse]
     truncated: bool

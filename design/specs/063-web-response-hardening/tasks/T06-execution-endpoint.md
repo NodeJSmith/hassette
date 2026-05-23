@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Add execution endpoint with UUIDv7 and remove old path"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#7", "FR#8", "AC#7", "AC#8"]
 ---
