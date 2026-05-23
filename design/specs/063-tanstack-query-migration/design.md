@@ -149,7 +149,7 @@ In `frontend/src/app.tsx`, wrap the existing `AppStateContext.Provider` with `Qu
 
 In `frontend/src/hooks/use-websocket.ts`, after the `"connected"` case on reconnect (`hasConnectedRef.current` is true), call `queryClient.invalidateQueries()` with no filter to invalidate all active queries. The hook calls `useQueryClient()` internally to access the client (standard TanStack pattern — `WebSocketProvider` renders inside `QueryClientProvider`, so the context is available). No signature change to `useWebSocket`. This fires immediately (not debounced), preserving the invariant documented in `create-app-state.ts` that reconnect refetches bypass debounce.
 
-This introduces a `QueryClientProvider` context dependency to `useWebSocket`. All 20 existing tests in `use-websocket.test.ts` use bare `renderHook` with no provider wrapper — they must be updated to use a `renderHookWithProviders` helper (or equivalent) that wraps with both `AppStateContext.Provider` and `QueryClientProvider`. Add this helper to `frontend/src/test/query-test-utils.ts` alongside `createTestQueryClient()`.
+This introduces a `QueryClientProvider` context dependency to `useWebSocket`. All 20 existing tests in `use-websocket.test.ts` use bare `renderHook` with no provider wrapper — they must be updated to use a `renderHookWithProviders` helper (or equivalent) that wraps with both `AppStateContext.Provider` and `QueryClientProvider`. Add this helper to `frontend/src/test/query-test-utils.tsx` alongside `createTestQueryClient()`.
 
 ### Manifest fetcher migration
 
@@ -263,7 +263,7 @@ Scoped queries include `preset` in the key unconditionally and `uptime` only whe
 
 ### Test infrastructure changes
 
-Update `frontend/src/test/render-helpers.tsx` to wrap the tree in `QueryClientProvider` with a test-specific `QueryClient` (`retry: false`, `staleTime: 0`). Create `frontend/src/test/query-test-utils.ts` with a `createTestQueryClient()` factory that creates a fresh client per test for isolation.
+Update `frontend/src/test/render-helpers.tsx` to wrap the tree in `QueryClientProvider` with a test-specific `QueryClient` (`retry: false`, `staleTime: 0`). Create `frontend/src/test/query-test-utils.tsx` with a `createTestQueryClient()` factory that creates a fresh client per test for isolation.
 
 This provider change affects all 15 test files that use `renderWithAppState` — not just the ones explicitly listed above. The test query client configuration (`retry: false`, `staleTime: 0`) makes the wrapping transparent for tests that don't touch queries, but any component that now calls `useQuery` or `useManifests` inside these tests will attempt real query lifecycle behavior against MSW handlers.
 
@@ -292,7 +292,7 @@ await findByText("config"); // async — waits for query to resolve
 - `frontend/src/hooks/use-manifests.test.ts` — unwrapping, deduplication tests
 - `frontend/src/utils/time-window.ts` — `resolveSince()` and `PRESET_WINDOW_SECONDS` extracted from `use-scoped-api.ts`
 - `frontend/src/utils/time-window.test.ts` — `resolveSince` computation and constant value tests
-- `frontend/src/test/query-test-utils.ts` — test `QueryClient` factory and `renderHookWithProviders` helper
+- `frontend/src/test/query-test-utils.tsx` — test `QueryClient` factory and `renderHookWithProviders` helper
 
 ### Files deleted
 

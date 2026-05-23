@@ -27,11 +27,10 @@ vi.mock("../hooks/use-scoped-query", () => ({
   useScopedQuery: vi.fn(() => ({ data: { apps: [] }, isPending: false, error: null })),
 }));
 
-vi.mock("../hooks/use-query-invalidator", () => ({
-  useQueryInvalidator: vi.fn(),
-  WS_DEBOUNCE_DELAY_MS: 500,
-  WS_DEBOUNCE_MAX_WAIT_MS: 1500,
-}));
+vi.mock("../hooks/use-query-invalidator", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../hooks/use-query-invalidator")>();
+  return { ...actual, useQueryInvalidator: vi.fn() };
+});
 
 // Mock useManifests so manifest data is synchronous. Avoids async MSW roundtrip
 // for tests that focus on filter/sort/search behavior, not data fetching.

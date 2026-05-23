@@ -120,11 +120,10 @@ vi.mock("../hooks/use-scoped-query", () => ({
   useScopedQuery: vi.fn(),
 }));
 
-vi.mock("../hooks/use-query-invalidator", () => ({
-  useQueryInvalidator: vi.fn(),
-  WS_DEBOUNCE_DELAY_MS: 500,
-  WS_DEBOUNCE_MAX_WAIT_MS: 1500,
-}));
+vi.mock("../hooks/use-query-invalidator", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../hooks/use-query-invalidator")>();
+  return { ...actual, useQueryInvalidator: vi.fn() };
+});
 
 const mockCorrectUrl = vi.fn();
 vi.mock("../hooks/use-correct-url", () => ({
