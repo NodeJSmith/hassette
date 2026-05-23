@@ -184,6 +184,85 @@ class TestGetAllJobsSummary:
         results = await query_service.get_all_jobs_summary(source_tier="all")
         assert len(results) == 2
 
+    async def test_last_error_row_coherence(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Multiple errors — all last_error_* columns come from the most recent error row."""
+        db_svc, session_id = db
+        base_ts = 1_000_000.0
+
+        j1 = await insert_job(db_svc, app_key="coh_app", job_name="coherent_job")
+        await insert_execution(
+            db_svc,
+            j1,
+            session_id,
+            status="error",
+            error_type="OldError",
+            error_message="old message",
+            error_traceback="old traceback",
+            execution_start_ts=base_ts + 1.0,
+        )
+        await insert_execution(
+            db_svc,
+            j1,
+            session_id,
+            status="error",
+            error_type="NewError",
+            error_message="new message",
+            error_traceback="new traceback",
+            execution_start_ts=base_ts + 10.0,
+        )
+
+        results = await query_service.get_all_jobs_summary()
+        assert len(results) == 1
+        row = results[0]
+        # All three error columns must come from the same (most recent) row
+        assert row.last_error_type == "NewError"
+        assert row.last_error_message == "new message"
+        assert row.last_error_traceback == "new traceback"
+        assert row.last_error_ts == pytest.approx(base_ts + 10.0)
+
+    async def test_since_filter_scopes_error_cte(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Error before the since window is excluded from last_error_* in get_all_jobs_summary."""
+        db_svc, session_id = db
+        base_ts = 1_000_000.0
+        since_ts = base_ts + 50.0
+
+        j1 = await insert_job(db_svc, app_key="my_app", job_name="windowed_job")
+        await insert_execution(
+            db_svc,
+            j1,
+            session_id,
+            status="error",
+            error_type="OldError",
+            error_message="before window",
+            error_traceback="old tb",
+            execution_start_ts=base_ts + 1.0,
+        )
+        await insert_execution(
+            db_svc,
+            j1,
+            session_id,
+            status="error",
+            error_type="NewError",
+            error_message="inside window",
+            error_traceback="new tb",
+            execution_start_ts=base_ts + 100.0,
+        )
+
+        results = await query_service.get_all_jobs_summary(since=since_ts)
+        assert len(results) == 1
+        row = results[0]
+        assert row.last_error_type == "NewError"
+        assert row.last_error_message == "inside window"
+        assert row.last_error_traceback == "new tb"
+
 
 @pytest.fixture
 def mock_hassette_scheduler():

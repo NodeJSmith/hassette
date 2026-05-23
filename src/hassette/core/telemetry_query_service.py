@@ -188,12 +188,19 @@ class TelemetryQueryService(Resource):
         """
         tier_clause, tier_params = _source_tier_clause(source_tier, "l")
         since_join_clause, since_params = _since_clause(since, "hi.execution_start_ts")
-        since_err_clause, _ = _since_clause(since, "hi2.execution_start_ts")
+        since_err_clause, _ = _since_clause(since, "hi_err.execution_start_ts")
 
         join_condition = f"hi.listener_id = l.id {since_join_clause}"
         params: dict = {"app_key": app_key, "instance_index": instance_index, **tier_params, **since_params}
 
         query = f"""
+            WITH ranked_errors AS (
+                SELECT hi_err.listener_id, hi_err.error_type, hi_err.error_message,
+                       hi_err.error_traceback, hi_err.execution_start_ts,
+                       ROW_NUMBER() OVER (PARTITION BY hi_err.listener_id ORDER BY hi_err.execution_start_ts DESC) AS rn
+                FROM handler_invocations hi_err
+                WHERE hi_err.status IN ('error', 'timed_out') {since_err_clause}
+            )
             SELECT
                 l.id AS listener_id,
                 l.app_key,
@@ -228,11 +235,7 @@ class TelemetryQueryService(Resource):
                 last_err.error_traceback AS last_error_traceback
             FROM listeners l
             LEFT JOIN handler_invocations hi ON {join_condition}
-            LEFT JOIN handler_invocations last_err ON last_err.id = (
-                SELECT hi2.id FROM handler_invocations hi2
-                WHERE hi2.listener_id = l.id AND hi2.status IN ('error', 'timed_out') {since_err_clause}
-                ORDER BY hi2.execution_start_ts DESC LIMIT 1
-            )
+            LEFT JOIN ranked_errors last_err ON last_err.listener_id = l.id AND last_err.rn = 1
             WHERE l.app_key = :app_key AND l.instance_index = :instance_index
             {tier_clause}
             GROUP BY l.id
@@ -260,14 +263,19 @@ class TelemetryQueryService(Resource):
         """
         tier_clause, tier_params = _source_tier_clause(source_tier, "sj")
         since_join_clause, since_params = _since_clause(since, "je.execution_start_ts")
-        # Params discarded — :since is already in params via since_params above;
-        # the same bind name resolves inside the correlated subquery.
-        since_err_clause, _ = _since_clause(since, "je2.execution_start_ts")
+        since_err_clause, _ = _since_clause(since, "je_err.execution_start_ts")
 
         join_condition = f"je.job_id = sj.id {since_join_clause}"
         params: dict = {"app_key": app_key, "instance_index": instance_index, **tier_params, **since_params}
 
         query = f"""
+            WITH ranked_errors AS (
+                SELECT je_err.job_id, je_err.error_type, je_err.error_message,
+                       je_err.error_traceback, je_err.execution_start_ts,
+                       ROW_NUMBER() OVER (PARTITION BY je_err.job_id ORDER BY je_err.execution_start_ts DESC) AS rn
+                FROM job_executions je_err
+                WHERE je_err.status IN ('error', 'timed_out') {since_err_clause}
+            )
             SELECT
                 sj.id AS job_id,
                 sj.app_key,
@@ -299,11 +307,7 @@ class TelemetryQueryService(Resource):
                 last_err.error_traceback AS last_error_traceback
             FROM scheduled_jobs sj
             LEFT JOIN job_executions je ON {join_condition}
-            LEFT JOIN job_executions last_err ON last_err.id = (
-                SELECT je2.id FROM job_executions je2
-                WHERE je2.job_id = sj.id AND je2.status IN ('error', 'timed_out') {since_err_clause}
-                ORDER BY je2.execution_start_ts DESC LIMIT 1
-            )
+            LEFT JOIN ranked_errors last_err ON last_err.job_id = sj.id AND last_err.rn = 1
             WHERE sj.app_key = :app_key AND sj.instance_index = :instance_index
             AND sj.cancelled_at IS NULL
             {tier_clause}
@@ -321,9 +325,9 @@ class TelemetryQueryService(Resource):
         """Return per-job summaries across all apps, with no app_key filter.
 
         Models the single-query approach of ``get_job_summary()`` but without
-        the ``app_key``/``instance_index`` WHERE clause.  Uses a ``BEGIN DEFERRED``
-        WAL snapshot to ensure the main query and the correlated error subquery
-        see a consistent snapshot (same pattern as ``get_all_app_summaries()``).
+        the ``app_key``/``instance_index`` WHERE clause.  Uses a ``ROW_NUMBER()``
+        CTE for last-error aggregation — the query is a single statement, so
+        SQLite guarantees snapshot consistency without ``BEGIN DEFERRED``.
 
         Args:
             since: When provided, restrict execution counts to records with
@@ -334,13 +338,19 @@ class TelemetryQueryService(Resource):
         """
         tier_clause, tier_params = _source_tier_clause(source_tier, "sj")
         since_join_clause, since_params = _since_clause(since, "je.execution_start_ts")
-        # :since is reused inside the correlated subquery via the same bind name.
-        since_err_clause, _ = _since_clause(since, "je2.execution_start_ts")
+        since_err_clause, _ = _since_clause(since, "je_err.execution_start_ts")
 
         join_condition = f"je.job_id = sj.id {since_join_clause}"
         params: dict = {**tier_params, **since_params}
 
         query = f"""
+            WITH ranked_errors AS (
+                SELECT je_err.job_id, je_err.error_type, je_err.error_message,
+                       je_err.error_traceback, je_err.execution_start_ts,
+                       ROW_NUMBER() OVER (PARTITION BY je_err.job_id ORDER BY je_err.execution_start_ts DESC) AS rn
+                FROM job_executions je_err
+                WHERE je_err.status IN ('error', 'timed_out') {since_err_clause}
+            )
             SELECT
                 sj.id AS job_id,
                 sj.app_key,
@@ -372,23 +382,13 @@ class TelemetryQueryService(Resource):
                 last_err.error_traceback AS last_error_traceback
             FROM scheduled_jobs sj
             LEFT JOIN job_executions je ON {join_condition}
-            LEFT JOIN job_executions last_err ON last_err.id = (
-                SELECT je2.id FROM job_executions je2
-                WHERE je2.job_id = sj.id AND je2.status IN ('error', 'timed_out') {since_err_clause}
-                ORDER BY je2.execution_start_ts DESC LIMIT 1
-            )
+            LEFT JOIN ranked_errors last_err ON last_err.job_id = sj.id AND last_err.rn = 1
             WHERE sj.cancelled_at IS NULL
             {tier_clause}
             GROUP BY sj.id
         """
-        async with self._snapshot_lock:
-            try:
-                await self._db.execute("BEGIN DEFERRED")
-                async with self._db.execute(query, params) as cursor:
-                    rows = await cursor.fetchall()
-            finally:
-                with contextlib.suppress(aiosqlite.OperationalError):
-                    await self._db.execute("ROLLBACK")
+        async with self._db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
 
         return [JobSummary.model_validate(_row_to_dict(row)) for row in rows]
 

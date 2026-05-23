@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Rewrite correlated subqueries to ROW_NUMBER() CTEs"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#3", "AC#3"]
 ---
