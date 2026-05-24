@@ -11,6 +11,7 @@ from hassette.app.app_config import AppConfig
 from hassette.cli.commands.app import cmd_app, cmd_app_activity, cmd_app_config, cmd_app_health, cmd_app_source
 from hassette.cli.commands.job import cmd_job, cmd_job_detail
 from hassette.cli.commands.listener import cmd_listener, cmd_listener_detail
+from hassette.cli.commands.log import cmd_execution, cmd_log
 from hassette.cli.commands.misc import cmd_config, cmd_event, cmd_service
 from hassette.cli.commands.status import cmd_dashboard, cmd_status, cmd_telemetry
 from hassette.config.config import HassetteConfig
@@ -104,6 +105,13 @@ listener_app.command(cmd_listener_detail, name="detail")
 
 job_app.default(cmd_job)
 job_app.command(cmd_job_detail, name="detail")
+
+# ---------------------------------------------------------------------------
+# Register T08 log and execution command implementations
+# ---------------------------------------------------------------------------
+
+log_app.default(cmd_log)
+execution_app.default(cmd_execution)
 
 # ---------------------------------------------------------------------------
 # Default command — starts the framework server (backward compatibility)

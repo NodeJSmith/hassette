@@ -136,7 +136,7 @@ class HassetteCLIClient:
         params: dict[str, Any] = dict(extra_params or {})
 
         if instance is not None and app_key is None:
-            self._error_usage("--instance requires --app to be specified")
+            self.error_usage("--instance requires --app to be specified")
 
         if app_key is None:
             path = global_path
@@ -178,7 +178,7 @@ class HassetteCLIClient:
         for manifest in manifest_list.manifests:
             available.extend(inst.instance_name for inst in manifest.instances)
         names = ", ".join(repr(n) for n in available) if available else "(none)"
-        self._error_usage(f"Instance {instance!r} not found for app {app_key!r}. Available instances: {names}")
+        self.error_usage(f"Instance {instance!r} not found for app {app_key!r}. Available instances: {names}")
 
     # ---------------------------------------------------------------------------
     # Error helpers
@@ -205,7 +205,7 @@ class HassetteCLIClient:
             cli_output.stderr_console.print(f"[bold red]Network error:[/bold red] {message}")
         sys.exit(2)
 
-    def _error_usage(self, message: str) -> NoReturn:
+    def error_usage(self, message: str) -> NoReturn:
         """Print a usage error and exit non-zero."""
         if self.json_mode:
             _write_json_error(None, message)

@@ -39,7 +39,9 @@ from hassette.web.models import (
     FileWatcherConfigResponse,
     LifecycleConfigResponse,
     ListenerWithSummary,
+    LogEntryResponse,
     LoggingConfigResponse,
+    LogsByExecutionResponse,
     SchedulerConfigResponse,
     SystemStatusResponse,
     TelemetryStatusResponse,
@@ -613,4 +615,52 @@ def make_job_execution(
         error_type=error_type,
         error_message=error_message,
         execution_id=execution_id,
+    )
+
+
+def make_log_entry_response(
+    seq: int = 1,
+    timestamp: float = 1_700_000_000.0,
+    level: str = "INFO",
+    logger_name: str = "hassette.app.my_app",
+    func_name: str | None = "on_state_change",
+    lineno: int | None = 42,
+    message: str = "Handler invoked",
+    exc_info: str | None = None,
+    app_key: str | None = "my_app",
+    execution_id: str | None = None,
+    instance_name: str | None = None,
+    instance_index: int | None = 0,
+    source_tier: str | None = "app",
+) -> LogEntryResponse:
+    """Build a LogEntryResponse with sensible defaults."""
+    return LogEntryResponse(
+        seq=seq,
+        timestamp=timestamp,
+        level=level,  # pyright: ignore[reportArgumentType]
+        logger_name=logger_name,
+        func_name=func_name,
+        lineno=lineno,
+        message=message,
+        exc_info=exc_info,
+        app_key=app_key,
+        execution_id=execution_id,
+        instance_name=instance_name,
+        instance_index=instance_index,
+        source_tier=source_tier,  # pyright: ignore[reportArgumentType]
+    )
+
+
+def make_logs_by_execution_response(
+    records: list[LogEntryResponse] | None = None,
+    truncated: bool = False,
+    retention_expired: bool = False,
+) -> LogsByExecutionResponse:
+    """Build a LogsByExecutionResponse with sensible defaults."""
+    if records is None:
+        records = [make_log_entry_response()]
+    return LogsByExecutionResponse(
+        records=records,
+        truncated=truncated,
+        retention_expired=retention_expired,
     )
