@@ -2,7 +2,6 @@
 
 import asyncio
 import signal
-from argparse import Namespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -15,6 +14,8 @@ async def test_main_registers_sigterm_handler() -> None:
     """main() installs a SIGTERM handler that calls core.request_shutdown()."""
     mock_core = MagicMock()
     mock_core.run_forever = AsyncMock()
+    mock_config = MagicMock()
+    mock_config.token = "valid-token"
 
     registered_handlers: dict[int, tuple] = {}
 
@@ -22,16 +23,12 @@ async def test_main_registers_sigterm_handler() -> None:
         registered_handlers[sig] = (callback, args)
 
     loop = asyncio.get_running_loop()
-    mock_args = Namespace(env_file=None, config_file=None)
 
     with (
-        patch("hassette.__main__.get_parser") as mock_parser,
-        patch("hassette.__main__.HassetteConfig"),
         patch("hassette.__main__.Hassette", return_value=mock_core),
         patch.object(loop, "add_signal_handler", side_effect=fake_add_signal_handler),
     ):
-        mock_parser.return_value.parse_known_args.return_value = (mock_args, [])
-        await main()
+        await main(mock_config)
 
     assert signal.SIGTERM in registered_handlers, "SIGTERM handler was not registered"
     callback, args = registered_handlers[signal.SIGTERM]
@@ -50,22 +47,21 @@ async def test_sigterm_handler_triggers_shutdown_event() -> None:
 
     mock_core.request_shutdown = real_request_shutdown
 
+    mock_config = MagicMock()
+    mock_config.token = "valid-token"
+
     registered_handlers: dict[int, tuple] = {}
 
     def fake_add_signal_handler(sig: int, callback, *args) -> None:
         registered_handlers[sig] = (callback, args)
 
     loop = asyncio.get_running_loop()
-    mock_args = Namespace(env_file=None, config_file=None)
 
     with (
-        patch("hassette.__main__.get_parser") as mock_parser,
-        patch("hassette.__main__.HassetteConfig"),
         patch("hassette.__main__.Hassette", return_value=mock_core),
         patch.object(loop, "add_signal_handler", side_effect=fake_add_signal_handler),
     ):
-        mock_parser.return_value.parse_known_args.return_value = (mock_args, [])
-        await main()
+        await main(mock_config)
 
     assert signal.SIGTERM in registered_handlers, "SIGTERM handler was not registered"
 
@@ -80,17 +76,16 @@ async def test_main_continues_when_signal_handler_unsupported() -> None:
     mock_core = MagicMock()
     mock_core.run_forever = AsyncMock()
 
+    mock_config = MagicMock()
+    mock_config.token = "valid-token"
+
     loop = asyncio.get_running_loop()
-    mock_args = Namespace(env_file=None, config_file=None)
 
     with (
-        patch("hassette.__main__.get_parser") as mock_parser,
-        patch("hassette.__main__.HassetteConfig"),
         patch("hassette.__main__.Hassette", return_value=mock_core),
         patch.object(loop, "add_signal_handler", side_effect=NotImplementedError),
     ):
-        mock_parser.return_value.parse_known_args.return_value = (mock_args, [])
-        await main()
+        await main(mock_config)
 
     mock_core.run_forever.assert_awaited_once()
 
@@ -100,16 +95,8 @@ async def test_main_raises_fatal_error_when_token_is_none() -> None:
     mock_config = MagicMock()
     mock_config.token = None
 
-    mock_args = Namespace(env_file=None, config_file=None)
-
-    with (
-        patch("hassette.__main__.get_parser") as mock_parser,
-        patch("hassette.__main__.HassetteConfig", return_value=mock_config),
-        patch("hassette.__main__.Hassette") as mock_hassette,
-    ):
-        mock_parser.return_value.parse_known_args.return_value = (mock_args, [])
-        with pytest.raises(FatalError, match="HA token is required"):
-            await main()
+    with patch("hassette.__main__.Hassette") as mock_hassette, pytest.raises(FatalError, match="HA token is required"):
+        await main(mock_config)
 
     mock_hassette.assert_not_called()
 
@@ -122,16 +109,31 @@ async def test_main_proceeds_when_token_is_set() -> None:
     mock_config = MagicMock()
     mock_config.token = "valid-token"
 
-    mock_args = Namespace(env_file=None, config_file=None)
     loop = asyncio.get_running_loop()
 
     with (
-        patch("hassette.__main__.get_parser") as mock_parser,
-        patch("hassette.__main__.HassetteConfig", return_value=mock_config),
         patch("hassette.__main__.Hassette", return_value=mock_core),
         patch.object(loop, "add_signal_handler"),
     ):
-        mock_parser.return_value.parse_known_args.return_value = (mock_args, [])
-        await main()
+        await main(mock_config)
 
     mock_core.run_forever.assert_awaited_once()
+
+
+async def test_main_passes_config_to_hassette() -> None:
+    """main() passes the provided HassetteConfig to Hassette."""
+    mock_core = MagicMock()
+    mock_core.run_forever = AsyncMock()
+
+    mock_config = MagicMock()
+    mock_config.token = "valid-token"
+
+    loop = asyncio.get_running_loop()
+
+    with (
+        patch("hassette.__main__.Hassette", return_value=mock_core) as mock_hassette_cls,
+        patch.object(loop, "add_signal_handler"),
+    ):
+        await main(mock_config)
+
+    mock_hassette_cls.assert_called_once_with(config=mock_config)

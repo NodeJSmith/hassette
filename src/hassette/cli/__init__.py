@@ -1,0 +1,134 @@
+"""Hassette CLI — cyclopts App setup, default command, and subcommand registration."""
+
+import asyncio
+from importlib.metadata import version
+from logging import getLogger
+from typing import Annotated, Any
+
+from cyclopts import App, Parameter
+
+from hassette.app.app_config import AppConfig
+from hassette.config.config import HassetteConfig
+from hassette.exceptions import AppPrecheckFailedError, FatalError
+
+LOGGER = getLogger("hassette.cli")
+
+# ---------------------------------------------------------------------------
+# Version string
+# ---------------------------------------------------------------------------
+
+_VERSION = version("hassette")
+
+# ---------------------------------------------------------------------------
+# Root App
+# ---------------------------------------------------------------------------
+
+app = App(
+    name="hassette",
+    version=_VERSION,
+    version_flags=["--version", "-v"],
+    help="Hassette — async-first Home Assistant automation framework.",
+)
+
+app.register_install_completion_command()
+
+# ---------------------------------------------------------------------------
+# Subcommand stubs (implementations in T05-T08)
+# ---------------------------------------------------------------------------
+
+status_app = App(name="status", help="Show system status.")
+app.command(status_app)
+
+app_app = App(name="app", help="List and inspect apps.")
+app.command(app_app)
+
+listener_app = App(name="listener", help="List listeners and invocation history.")
+app.command(listener_app)
+
+job_app = App(name="job", help="List scheduled jobs and execution history.")
+app.command(job_app)
+
+log_app = App(name="log", help="Show recent log entries.")
+app.command(log_app)
+
+execution_app = App(name="execution", help="Show logs for a specific execution.")
+app.command(execution_app)
+
+event_app = App(name="event", help="Show recent HA events.")
+app.command(event_app)
+
+config_app = App(name="config", help="Show current configuration.")
+app.command(config_app)
+
+service_app = App(name="service", help="List available HA services.")
+app.command(service_app)
+
+telemetry_app = App(name="telemetry", help="Show telemetry status.")
+app.command(telemetry_app)
+
+dashboard_app = App(name="dashboard", help="Show app dashboard grid.")
+app.command(dashboard_app)
+
+# ---------------------------------------------------------------------------
+# Default command — starts the framework server (backward compatibility)
+# ---------------------------------------------------------------------------
+
+
+@app.default
+def start_server(
+    token: Annotated[str | None, Parameter(name=["--token", "-t"], help="Home Assistant access token.")] = None,
+    base_url: Annotated[
+        str | None, Parameter(name=["--base-url", "-u", "--url"], help="Base URL of the Home Assistant instance.")
+    ] = None,
+    verify_ssl: Annotated[
+        bool | None,
+        Parameter(name=["--verify-ssl"], help="Whether to verify SSL certificates.", negative=[]),
+    ] = None,
+    config_file: Annotated[
+        str | None, Parameter(name=["--config-file", "-c"], help="Path to the TOML configuration file.")
+    ] = None,
+    env_file: Annotated[
+        str | None, Parameter(name=["--env-file", "-e", "--env"], help="Path to the .env file.")
+    ] = None,
+    dev_mode: Annotated[
+        bool | None,
+        Parameter(name=["--dev-mode"], help="Enable developer mode.", negative=[]),
+    ] = None,
+) -> None:
+    """Start the Hassette framework server."""
+    # Apply file-path settings before constructing HassetteConfig
+    if env_file:
+        HassetteConfig.model_config["env_file"] = env_file
+        AppConfig.model_config["env_file"] = env_file
+
+    if config_file:
+        HassetteConfig.model_config["toml_file"] = config_file
+
+    # Build init kwargs — only pass values explicitly provided on the CLI (non-None)
+    init_kwargs: dict[str, Any] = {}
+    if token is not None:
+        init_kwargs["token"] = token
+    if base_url is not None:
+        init_kwargs["base_url"] = base_url
+    if verify_ssl is not None:
+        init_kwargs["verify_ssl"] = verify_ssl
+    if dev_mode is not None:
+        init_kwargs["dev_mode"] = dev_mode
+
+    config = HassetteConfig(**init_kwargs)
+
+    from hassette.__main__ import main
+
+    try:
+        asyncio.run(main(config))
+    except KeyboardInterrupt:
+        LOGGER.info("Keyboard interrupt received, shutting down")
+    except AppPrecheckFailedError as e:
+        LOGGER.error("App precheck failed: %s", e)
+        LOGGER.error("Hassette is shutting down due to app precheck failure")
+    except FatalError as e:
+        LOGGER.error("Fatal error occurred: %s", e)
+        LOGGER.error("Hassette is shutting down due to a fatal error")
+    except Exception as e:
+        LOGGER.exception("Unexpected error in Hassette: %s", e)
+        raise

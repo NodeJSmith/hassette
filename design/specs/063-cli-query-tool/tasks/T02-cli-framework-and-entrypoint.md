@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Set up cyclopts framework and refactor entry point"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#2", "FR#8", "FR#10", "AC#6", "AC#10"]
 ---

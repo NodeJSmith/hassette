@@ -101,11 +101,11 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     file_watcher: FileWatcherConfig = Field(default_factory=FileWatcherConfig)
     """File watcher debounce, step, and enable/disable settings."""
 
-    # note - not actually used here, reflects the options in __main__ argparser for --help
+    # note - not actually used here, reflects the --config-file / --env-file flags on the cyclopts default command
     config_file: Path | str | None = Field(default=Path("hassette.toml"))
     """Path to the configuration file."""
 
-    # note - not actually used here, reflects the options in __main__ argparser for --help
+    # note - not actually used here, reflects the --config-file / --env-file flags on the cyclopts default command
     env_file: Path | str | None = Field(default=Path(".env"))
     """Path to the environment file."""
 
