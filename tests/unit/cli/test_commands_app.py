@@ -185,7 +185,7 @@ class TestCmdAppHealth:
         )
         client, _ = cli_client_factory.build_with_routes(
             [
-                ("GET", "/api/apps/my-app", 200, manifest_list.model_dump()),
+                ("GET", "/api/apps/manifests", 200, manifest_list.model_dump()),
                 ("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump()),
             ]
         )

@@ -318,7 +318,7 @@ class TestInstanceRouting:
         def handler(request: httpx.Request) -> httpx.Response:
             nonlocal call_count
             call_count += 1
-            if "/api/apps/my_app" in str(request.url):
+            if "/api/apps/manifests" in str(request.url):
                 return httpx.Response(
                     200,
                     content=manifest_list.model_dump_json().encode(),
@@ -353,7 +353,7 @@ class TestInstanceRouting:
         manifest_list = _make_manifest_list(instances)
 
         def handler(request: httpx.Request) -> httpx.Response:
-            if "/api/apps/my_app" in str(request.url):
+            if "/api/apps/manifests" in str(request.url):
                 return httpx.Response(
                     200,
                     content=manifest_list.model_dump_json().encode(),

@@ -167,16 +167,19 @@ class HassetteCLIClient:
         except ValueError:
             pass
 
-        # Name resolution — fetch the app manifest list
-        manifest_list = self.get(f"/api/apps/{app_key}", AppManifestListResponse)
+        # Name resolution — fetch all manifests and filter client-side for the given app_key
+        manifest_list = self.get("/api/apps/manifests", AppManifestListResponse)
         for manifest in manifest_list.manifests:
+            if manifest.app_key != app_key:
+                continue
             for inst in manifest.instances:
                 if inst.instance_name == instance:
                     return inst.index
 
         available = []
         for manifest in manifest_list.manifests:
-            available.extend(inst.instance_name for inst in manifest.instances)
+            if manifest.app_key == app_key:
+                available.extend(inst.instance_name for inst in manifest.instances)
         names = ", ".join(repr(n) for n in available) if available else "(none)"
         self.error_usage(f"Instance {instance!r} not found for app {app_key!r}. Available instances: {names}")
 
