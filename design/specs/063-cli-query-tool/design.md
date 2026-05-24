@@ -1,7 +1,7 @@
 # Design: CLI Query Tool
 
 **Date:** 2026-05-22
-**Status:** approved
+**Status:** archived
 **Plan:** approved
 **Scope-mode:** hold
 **Research:** design/research/2026-05-22-cli-tool-prior-art/research.md, design/research/2026-05-22-cli-subcommand-structure/research.md, design/research/2026-05-22-cli-output-formatting/research.md, design/research/2026-05-24-cli-datetime-input/research.md
