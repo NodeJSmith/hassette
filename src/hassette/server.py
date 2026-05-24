@@ -12,11 +12,12 @@ LOGGER = getLogger(__name__)
 
 async def main(config: HassetteConfig) -> None:
     """Start the Hassette framework server with the provided configuration."""
-    if config.token is None:
+    if not config.token:
         raise FatalError(
             "HA token is required for server startup. Set HASSETTE__TOKEN or HA_TOKEN in your environment or .env file."
         )
 
+    config.ensure_directories()
     core = Hassette(config=config)
     core.wire_services()
 

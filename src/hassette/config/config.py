@@ -253,12 +253,19 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     @field_validator("config_dir", "data_dir", mode="after")
     @classmethod
     def resolve_paths(cls, value: Path) -> Path:
-        """Ensure that paths are resolved to absolute paths."""
-        resolved = value.resolve()
-        if not resolved.exists():
-            LOGGER.debug("Creating directory %s as it does not exist", resolved)
-            resolved.mkdir(parents=True, exist_ok=True)
-        return resolved
+        """Resolve paths to absolute without creating directories.
+
+        Directory creation is deferred to server startup (Hassette.wire_services)
+        so that read-only CLI commands don't produce filesystem side effects.
+        """
+        return value.resolve()
+
+    def ensure_directories(self) -> None:
+        """Create config_dir and data_dir if they don't exist."""
+        for directory in (self.config_dir, self.data_dir):
+            if not directory.exists():
+                LOGGER.debug("Creating directory %s as it does not exist", directory)
+                directory.mkdir(parents=True, exist_ok=True)
 
     def reload(self):
         """Reload the configuration from all sources."""

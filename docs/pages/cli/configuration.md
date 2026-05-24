@@ -67,9 +67,9 @@ $ hassette status --json
 
 When `--json` is active:
 
-- stdout contains exactly one valid JSON document (or nothing on usage errors)
-- All diagnostics (errors, warnings, connection issues) go to stderr
-- Errors are formatted as a JSON object on stdout (see [Error Handling](#json-error-format) below)
+- stdout contains exactly one JSON document — either the success result or an error object
+- The exit code distinguishes success (0) from failure (1 for HTTP errors, 2 for network errors)
+- No Rich formatting or human-readable text is written to stdout
 
 ### `NO_COLOR`
 

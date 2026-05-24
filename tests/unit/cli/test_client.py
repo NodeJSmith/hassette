@@ -37,7 +37,7 @@ def make_transport(
 
         return httpx.MockTransport(handler)
 
-    json_body = json.dumps(body or {})
+    json_body = json.dumps(body if body is not None else {})
 
     def _fixed_response(_req: httpx.Request) -> httpx.Response:
         return httpx.Response(

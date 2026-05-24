@@ -54,7 +54,7 @@ hassette listener --app my-app --since 1h
 hassette log --app my-app --since 1h --limit 20
 
 # Pipe structured output to jq
-hassette listener --app my-app --json | jq '.[] | select(.error_count > 0)'
+hassette listener --app my-app --json | jq '.[] | select(.failed > 0)'
 ```
 
 See the [CLI documentation](https://hassette.readthedocs.io/en/stable/pages/cli/) for the full command reference, scripting patterns, and shell completion setup.

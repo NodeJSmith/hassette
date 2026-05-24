@@ -29,15 +29,13 @@ from hassette.web.models import (
     TelemetryStatusResponse,
 )
 
-from .conftest import SystemTestConfig, make_web_system_config, startup_context, wait_for_web_server
+from .conftest import HA_TOKEN, SystemTestConfig, make_web_system_config, startup_context, wait_for_web_server
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
 SYSTEM_APPS_DIR = Path(__file__).parent / "apps"
-
-HA_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMyIsImlhdCI6MTczNTY4OTYwMCwiZXhwIjoyMDUxMDQ5NjAwfQ.q-p85dOe-MMnKQhSNh_LEWnWJGK-GA3xdmqb4LKvkU0"  # noqa: E501 — JWT cannot be line-wrapped
 
 pytestmark = [pytest.mark.system]
 
