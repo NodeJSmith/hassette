@@ -25,7 +25,7 @@ There is no terminal-native way to query a running hassette instance. Checking s
 - Interactive features (prompts, selection menus)
 - Configuration file management
 - Multi-instance profiles (named server configs)
-- Documentation site pages for CLI usage (deferred)
+
 
 ## User Scenarios
 
@@ -84,7 +84,7 @@ There is no terminal-native way to query a running hassette instance. Checking s
 - **FR#3** The default output format is a human-readable table for collections and a key-value panel for single objects
 - **FR#4** A flag switches output to structured data containing the complete response model
 - **FR#5** When the structured output flag is active, stdout contains exactly one valid document — no other output may appear on stdout
-- **FR#6** Commands that return collections support filtering by app key, time window, and result count limit via flags
+- **FR#6** Commands that return collections support filtering by app key, instance, time window, and result count limit via flags
 - **FR#7** The tool discovers the server address from the same configuration sources used by the server itself
 - **FR#8** Running the binary with no subcommand starts the server, preserving backward compatibility
 - **FR#9** Commands return structured data objects; a single rendering layer handles all output formatting
@@ -99,6 +99,8 @@ There is no terminal-native way to query a running hassette instance. Checking s
 - **Wide tables**: Listener and job tables have many columns — handle terminal width overflow with column truncation and ellipsis
 - **Empty results**: When a query returns an empty collection — display a clean "no results" message in human mode, empty collection in structured mode
 - **Invalid app key**: The user passes a nonexistent app key filter — display the empty result or error from the server accordingly
+- **Invalid instance**: `--instance` without `--app` exits non-zero with a usage error. `--instance office` where no instance has that name exits non-zero with an error listing available instance names. Integer index out of range is passed through to the API and returns empty results
+- **Instance on unsupported command**: `--instance` on a command that doesn't support it (e.g., `log`, `event`) exits non-zero with a usage error
 - **Timeout**: Server is reachable but slow — all requests have an explicit timeout; display a timeout error if exceeded
 
 ## Acceptance Criteria
@@ -107,6 +109,7 @@ There is no terminal-native way to query a running hassette instance. Checking s
 - **AC#2** Human-readable output fits within an 80-column terminal without horizontal scrolling for the default column set (FR#3)
 - **AC#3** Structured output mode produces valid parseable output on stdout with no other content on stdout (FR#4, FR#5)
 - **AC#4** `hassette listener --app my-app` returns only listeners belonging to `my-app` (FR#6)
+- **AC#11** `hassette listener --app my-app --instance 1` returns only listeners for instance index 1 of `my-app`; `--instance office` resolves the name to an index before querying (FR#6)
 - **AC#5** `hassette log --since 1h --limit 20` returns at most 20 log entries from the last hour (FR#6)
 - **AC#6** Running `hassette` with no arguments starts the framework server as before (FR#8)
 - **AC#7** Adding a new output format requires changes only to the rendering layer, not to individual commands (FR#9)
@@ -170,6 +173,8 @@ src/hassette/cli/
 
 The cyclopts App's default command (no subcommand) exposes HassetteConfig's top-level fields as CLI flags (`--token`, `--base-url`, `--verify-ssl`, `--config-file`, `--env-file`, `--dev-mode`, etc.) and passes them as init values to `HassetteConfig()`. This replaces both argparse and pydantic-settings CLI parsing with a single cyclopts-based parser. The exact set of exposed fields should match HassetteConfig's top-level fields — verify during implementation.
 
+CLI subcommands run synchronously (sync httpx, no event loop). The default command (server startup) wraps the async `main()` in `asyncio.run()` as it does today. The cyclopts App dispatches at the top level before any event loop is created, so subcommands never enter `asyncio.run()` — the sync/async boundary is clean.
+
 `HassetteConfig.model_config` changes `cli_parse_args` from `True` to `False` — pydantic-settings no longer parses `sys.argv`. All CLI argument parsing goes through cyclopts exclusively. HassetteConfig continues to load from env vars, .env files, and TOML as before; cyclopts-parsed values are passed as init kwargs (highest priority in the pydantic-settings source chain).
 
 ### Command mapping (noun-verb with bare-noun-as-list)
@@ -198,13 +203,14 @@ The cyclopts App's default command (no subcommand) exposes HassetteConfig's top-
 
 Several commands share filtering parameters. These are implemented as shared annotated types used across command signatures:
 
-- `--app` — filter by app_key (used by: listener, job, log, event)
+- `--app` — filter by app_key (used by: listener, job, log). When provided, the CLI routes to the per-app telemetry endpoint (e.g., `/api/telemetry/app/{key}/listeners` instead of `/api/bus/listeners`). Not available on `event` — the events endpoint does not support app-level filtering
+- `--instance` — filter by app instance (used by: listener, job, app health, app activity). Requires `--app`. Accepts either an integer index (`--instance 0`) or an instance name (`--instance office`). Integer values are passed directly as `instance_index` to the API. String values are resolved to an index by fetching `GET /api/apps/{key}` and matching against `instance_name` in the instances list; exits non-zero if no match is found. When omitted, the API default applies (index 0 for listener/job/health, all instances for activity)
 - `--since` — time window filter (used by: listener, job, log, app activity). Accepts relative durations (`Nd`, `Nh`, `Nm` — e.g., `1h`, `7d`, `30m`) and absolute ISO 8601 timestamps (`2026-05-22T10:00`). The CLI converts to a Unix epoch float before forwarding to the API. Invalid formats exit non-zero with a usage error on stderr. Implemented via a cyclopts custom type converter
-- `--limit` — max results (used by: log, event, app activity, listener invocations, job executions)
-- `--source-tier` — telemetry source tier (used by: listener, job, log)
+- `--limit` — max results (used by: log, event, execution, app activity, listener invocations, job executions)
+- `--source-tier` — filter by telemetry source tier: `app` (user automations) or `framework` (internal actors). Used by: listener, job, log. Default behavior varies by endpoint: listener and job endpoints default to `app` when omitted; log accepts all tiers when omitted
 - `--json` — output as JSON (used by: all commands)
 
-The API endpoint selection is transparent to the user. For example, `hassette listener --app my-app` uses the per-app telemetry endpoint internally (`/api/telemetry/app/{key}/listeners`) while `hassette listener` uses the global endpoint (`/api/bus/listeners`). Same command, different API route chosen based on whether `--app` is provided.
+The API endpoint selection is transparent to the user. `hassette listener` uses the global endpoint (`/api/bus/listeners`); `hassette listener --app my-app` routes to `/api/telemetry/app/{key}/listeners`. Same command, different API route. The same pattern applies to `hassette job` (global: `/api/scheduler/jobs`, per-app: `/api/telemetry/app/{key}/jobs`). Adding `--instance` narrows the per-app query further by passing `instance_index` to the telemetry endpoint.
 
 ### Rendering layer (`output.py`)
 
@@ -219,19 +225,19 @@ Commands return Pydantic response models (or lists of models). A single renderin
 ### HTTP client (`client.py`)
 
 Thin wrapper around `httpx.Client` (synchronous) that:
-- Takes base URL from HassetteConfig's `web_api.host` and `web_api.port`, substituting `0.0.0.0` → `127.0.0.1` (the server's bind-all address is not a routable connect address on macOS or Docker)
+- Takes base URL from HassetteConfig's `web_api.host` and `web_api.port`, substituting bind-all addresses (`0.0.0.0` → `127.0.0.1`, `::` → `::1`) since they are not routable connect addresses on macOS or Docker
 - Sets explicit timeout on every request (10s default)
 - Deserializes responses directly into Pydantic response models via `model.model_validate(response.json())`
 - Provides clear error messages for connection refused, timeout, and non-2xx responses:
-  - **Human mode**: print the server's `detail` field to stderr, exit non-zero
-  - **JSON mode**: emit `{"error": true, "status": <http_status>, "detail": "..."}` to stdout (maintaining the stdout-only JSON contract), exit non-zero
+  - **Human mode**: print the error detail to stderr, exit non-zero
+  - **JSON mode**: emit `{"error": true, "status": <http_status>, "detail": "..."}` to stdout (maintaining the stdout-only JSON contract), exit non-zero. For network errors (no HTTP status), `status` is `null` — e.g., `{"error": true, "status": null, "detail": "Connection refused: http://127.0.0.1:8126"}`
   - **Exit codes**: 1 for server errors (4xx/5xx), 2 for network errors (connection refused, timeout)
 
 ### Config changes
 
 `HassetteConfig.token` changes from `default=...` (required) to `default=None` (optional). Three locations need updates:
 
-1. **`auth_headers` property** (`config.py:225`): Add `if self.token is None: return {}` guard — returns empty headers instead of `"Bearer None"`
+1. **`auth_headers` property** (`config.py:224`): Add `if self.token is None: return {}` guard — returns empty headers instead of `"Bearer None"`
 2. **`truncated_token` property** (`config.py:235`): Add `if self.token is None: return "<not set>"` guard — avoids `TypeError` from `len(None)`
 3. **Server startup** (`core.py`, before `wire_services`): Validate that `config.token is not None` and raise `FatalError` if missing — prevents the server from starting without HA credentials
 
@@ -246,11 +252,11 @@ The property guards make `HassetteConfig` safe to use with `token=None` from any
 
 ## Replacement Targets
 
-The argparse-based CLI in `src/hassette/__main__.py` (lines 18-38, `get_parser()`) is replaced entirely by cyclopts App subcommand routing. The 3 argparse flags (`--config-file`, `--env-file`, `--version`) plus HassetteConfig's top-level fields become parameters on the cyclopts default command. No fallback path — cyclopts is a core dependency.
+The argparse-based CLI in `src/hassette/__main__.py` (lines 18-38, `get_parser()`) is replaced entirely by cyclopts App subcommand routing. The 2 argparse config flags (`--config-file`, `--env-file`) plus HassetteConfig's top-level fields become parameters on the cyclopts default command. `--version` is registered via cyclopts' built-in version support (`app.version_flags`). No fallback path — cyclopts is a core dependency.
 
-The pydantic-settings `cli_parse_args=True` setting in `HassetteConfig.model_config` (config.py:60) is changed to `cli_parse_args=False`. The `cli_prog_name`, `cli_kebab_case`, and `cli_ignore_unknown_args` settings and CLI shortcut aliases (config.py:58-68) can also be removed since cyclopts handles all CLI parsing.
+The pydantic-settings `cli_parse_args=True` setting in `HassetteConfig.model_config` (config.py:60) is changed to `cli_parse_args=False`. The `cli_prog_name`, `cli_kebab_case`, `cli_ignore_unknown_args`, and `cli_shortcuts` settings (config.py:58-68) are removed since cyclopts handles all CLI parsing. The short aliases defined in `cli_shortcuts` (`-t` for `--token`, `-u`/`--url` for `--base-url`, `-c` for `--config-file`, `-e`/`--env` for `--env-file`) must be re-implemented as cyclopts parameter aliases on the default command.
 
-Note: `HassetteConfig` instantiation creates `config_dir` and `data_dir` directories on disk via the `resolve_paths` validator (config.py:258-266). CLI query commands that instantiate `HassetteConfig` for server address discovery will trigger this side effect. The implementation should determine whether this is acceptable (the directories are harmless) or whether a lightweight config read path is needed to avoid creating directories from a read-only query tool.
+Note: `HassetteConfig` instantiation creates `config_dir` and `data_dir` directories on disk via the `resolve_paths` validator (config.py:258-266). CLI query commands that instantiate `HassetteConfig` for server address discovery will trigger this side effect. This is acceptable — the directories (`~/.config/hassette`, `~/.local/share/hassette`) are harmless defaults that would be created on first server run anyway.
 
 ## Convention Examples
 
@@ -352,9 +358,11 @@ Home Assistant uses a separate package (`homeassistant-cli`) for CLI queries. Th
 
 - **Rendering layer unit tests** (FR#3, FR#4, FR#5, FR#9): Mock Pydantic models → verify Rich table output has correct columns and values; verify JSON output is valid and contains all model fields; verify no output leaks to stdout in JSON mode besides the JSON document
 - **HTTP client unit tests** (FR#1, FR#7): Mock httpx responses → verify typed model deserialization; verify connection refused error handling; verify timeout handling
-- **Command integration tests** (FR#2, FR#6): Mock HTTP client → invoke each command function with various flag combinations; verify correct API endpoint is called with correct query params; verify correct response model is passed to the renderer
+- **Command integration tests** (FR#2, FR#6): Mock HTTP client → invoke each command function with various flag combinations; verify correct API endpoint is called with correct query params; verify correct response model is passed to the renderer; verify `--instance` name resolution fetches the app manifest and maps to the correct index
+- **Instance resolution tests** (FR#6): Verify integer pass-through; verify name-to-index resolution via app manifest lookup; verify error on unknown name with helpful message listing available instances; verify error when `--instance` used without `--app`
 - **Entry point tests** (FR#8): Test subcommand routing; test default command starts the framework with correct HassetteConfig init values from CLI flags
 - **Token validation test** (edge case): Verify HassetteConfig instantiates with token=None; verify server startup rejects None token
+- **CLI smoke tests** (end-to-end): Run the CLI against the existing system test demo hassette setup (Docker HA + demo app fixtures). Exercise each subcommand against a live instance — `hassette status`, `hassette app`, `hassette listener`, `hassette log --since 1h`, `hassette listener --app <key> --instance 0`, and `--json` variants. Verifies real HTTP round-trips, response deserialization, and human/JSON rendering against actual API data. Not mocked — catches integration issues that unit tests with mock responses miss
 
 ### Tests to Remove
 
@@ -364,9 +372,12 @@ No tests to remove.
 
 - **`CLAUDE.md`** — add CLI commands to the "Common Commands" section (e.g., `hassette status`, `hassette app`, `hassette log --app <key> --since 1h`)
 - **`README.md`** — add a "CLI" section showing basic usage examples (`hassette status`, `hassette app`, `hassette log --app <key> --since 1h`)
+- **`docs/` site** — new "CLI" page covering command reference (all subcommands, flags, output modes), usage examples (common workflows, scripting patterns with `--json` and `jq`), and configuration (server address discovery, shell completion setup). Linked from the site navigation
 - **No CHANGELOG update** — release-please generates this from conventional commit messages
 
 ## Impact
+
+<!-- Gap check 2026-05-24: 1 gap included — tests/unit/core/test_main.py (patches get_parser, imports argparse Namespace) → T02 rewrites these tests for cyclopts dispatch. Minor: cli_parse_args=False in ~35 test locations becomes redundant but harmless. -->
 
 ### Changed Files
 
