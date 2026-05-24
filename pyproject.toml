@@ -34,6 +34,8 @@ classifiers = [
 ]
 dependencies = [
     "aiohttp>=3.11.18",
+    "cyclopts>=4.0,<5.0",
+    "httpx>=0.28.0",
     "aiosqlite>=0.20",
     "alembic>=1.13",
     "anyio>=4.10.0",
@@ -80,7 +82,6 @@ dev = [
 ]
 test = [
     "coverage[toml]>=7.10.7",
-    "httpx>=0.28.0",
     "nox>=2025.5.1",
     "playwright>=1.52.0",
     "pytest-asyncio>=1.0.0",

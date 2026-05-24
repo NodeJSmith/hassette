@@ -32,6 +32,17 @@ uv run pyright
 
 # Serve documentation locally
 uv run mkdocs serve
+
+# Query a running instance
+hassette status
+hassette app
+hassette listener --app <key> --since 1h
+hassette log --app <key> --since 1h --limit 20
+hassette job --json
+
+# Instance-specific queries
+hassette listener --app <key> --instance 0
+hassette app health <key> --instance office
 ```
 
 ## Architecture

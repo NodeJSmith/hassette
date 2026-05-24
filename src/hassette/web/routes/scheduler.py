@@ -34,7 +34,7 @@ async def all_jobs(
 
     The heap snapshot is taken once — not per app — to avoid fan-out overhead.
     """
-    effective_tier = source_tier if source_tier is not None else "all"
+    effective_tier = source_tier if source_tier is not None else "app"
     try:
         db_jobs = list(await telemetry.get_all_jobs_summary(since=since, source_tier=effective_tier))
     except DB_ERRORS:

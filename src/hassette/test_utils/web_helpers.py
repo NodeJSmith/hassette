@@ -20,8 +20,34 @@ from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
+from hassette.core.telemetry_models import ActivityFeedEntry, HandlerInvocation, JobExecution, JobSummary
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
+from hassette.types.types import InvocationStatus
+from hassette.web.models import (
+    AppConfigResponse,
+    AppHealthResponse,
+    AppInstanceResponse,
+    AppManifestListResponse,
+    AppManifestResponse,
+    AppsConfigResponse,
+    AppSourceResponse,
+    ConfigResponse,
+    DashboardAppGridEntry,
+    DashboardAppGridResponse,
+    EventEntry,
+    FileWatcherConfigResponse,
+    LifecycleConfigResponse,
+    ListenerWithSummary,
+    LogEntryResponse,
+    LoggingConfigResponse,
+    LogsByExecutionResponse,
+    ManifestStatus,
+    SchedulerConfigResponse,
+    SystemStatusResponse,
+    TelemetryStatusResponse,
+    WebApiConfigResponse,
+)
 
 
 def make_full_snapshot(
@@ -70,6 +96,51 @@ def make_manifest(
         instances=instances or [],
         error_message=error_message,
         error_traceback=error_traceback,
+    )
+
+
+def make_manifest_response(
+    app_key: str = "my_app",
+    class_name: str = "MyApp",
+    display_name: str = "My App",
+    filename: str = "my_app.py",
+    enabled: bool = True,
+    auto_loaded: bool = False,
+    status: ManifestStatus = "running",
+    instance_count: int = 1,
+    instances: list[AppInstanceResponse] | None = None,
+) -> AppManifestResponse:
+    """Build an AppManifestResponse with sensible defaults."""
+    return AppManifestResponse(
+        app_key=app_key,
+        class_name=class_name,
+        display_name=display_name,
+        filename=filename,
+        enabled=enabled,
+        auto_loaded=auto_loaded,
+        status=status,
+        instance_count=instance_count,
+        instances=instances or [],
+    )
+
+
+def make_manifest_list_response(
+    manifests: list[AppManifestResponse] | None = None,
+) -> AppManifestListResponse:
+    """Build an AppManifestListResponse from a list of manifests."""
+    manifests = manifests or []
+    counts: dict[ManifestStatus, int] = {"running": 0, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0}
+    for m in manifests:
+        if m.status in counts:
+            counts[m.status] += 1
+    return AppManifestListResponse(
+        manifests=manifests,
+        total=len(manifests),
+        running=counts["running"],
+        failed=counts["failed"],
+        stopped=counts["stopped"],
+        disabled=counts["disabled"],
+        blocked=counts["blocked"],
     )
 
 
@@ -213,4 +284,388 @@ def make_real_job(
         group=group,
         app_key=app_key,
         instance_index=instance_index,
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# CLI response model factories (used by T05+ tests)
+# ──────────────────────────────────────────────────────────────────────
+
+
+def make_system_status_response(
+    status: str = "ok",
+    websocket_connected: bool = True,
+    uptime_seconds: float = 3600.0,
+    entity_count: int = 120,
+    app_count: int = 3,
+    version: str = "0.1.0",
+    services_running: list[str] | None = None,
+) -> SystemStatusResponse:
+    """Build a SystemStatusResponse with sensible defaults."""
+    return SystemStatusResponse(
+        status=status,  # pyright: ignore[reportArgumentType]
+        websocket_connected=websocket_connected,
+        uptime_seconds=uptime_seconds,
+        entity_count=entity_count,
+        app_count=app_count,
+        version=version,
+        services_running=services_running or ["websocket", "db"],
+    )
+
+
+def make_telemetry_status_response(
+    degraded: bool = False,
+    dropped_overflow: int = 0,
+    dropped_exhausted: int = 0,
+    dropped_no_session: int = 0,
+    dropped_shutdown: int = 0,
+    error_handler_failures: int = 0,
+) -> TelemetryStatusResponse:
+    """Build a TelemetryStatusResponse with sensible defaults."""
+    return TelemetryStatusResponse(
+        degraded=degraded,
+        dropped_overflow=dropped_overflow,
+        dropped_exhausted=dropped_exhausted,
+        dropped_no_session=dropped_no_session,
+        dropped_shutdown=dropped_shutdown,
+        error_handler_failures=error_handler_failures,
+    )
+
+
+def make_dashboard_app_grid_entry(
+    app_key: str = "my_app",
+    status: str = "running",
+    display_name: str = "My App",
+    instance_count: int = 1,
+    handler_count: int = 2,
+    job_count: int = 1,
+    total_invocations: int = 100,
+    total_errors: int = 0,
+    total_executions: int = 50,
+    total_job_errors: int = 0,
+    avg_duration_ms: float = 5.0,
+    last_activity_ts: float | None = None,
+    health_status: str = "excellent",
+    error_rate: float = 0.0,
+    error_rate_class: str = "good",
+) -> DashboardAppGridEntry:
+    """Build a DashboardAppGridEntry with sensible defaults."""
+    return DashboardAppGridEntry(
+        app_key=app_key,
+        status=status,  # pyright: ignore[reportArgumentType]
+        display_name=display_name,
+        instance_count=instance_count,
+        handler_count=handler_count,
+        job_count=job_count,
+        total_invocations=total_invocations,
+        total_errors=total_errors,
+        total_executions=total_executions,
+        total_job_errors=total_job_errors,
+        avg_duration_ms=avg_duration_ms,
+        last_activity_ts=last_activity_ts,
+        health_status=health_status,  # pyright: ignore[reportArgumentType]
+        error_rate=error_rate,
+        error_rate_class=error_rate_class,  # pyright: ignore[reportArgumentType]
+    )
+
+
+def make_dashboard_app_grid_response(
+    entries: list[DashboardAppGridEntry] | None = None,
+) -> DashboardAppGridResponse:
+    """Build a DashboardAppGridResponse from a list of entries."""
+    return DashboardAppGridResponse(apps=entries or [make_dashboard_app_grid_entry()])
+
+
+def make_event_entry(
+    type: str = "state_changed",
+    entity_id: str | None = "light.kitchen",
+    timestamp: float = 1_700_000_000.0,
+    data: dict | None = None,
+) -> EventEntry:
+    """Build an EventEntry with sensible defaults."""
+    return EventEntry(
+        type=type,
+        entity_id=entity_id,
+        timestamp=timestamp,
+        data=data or {},
+    )
+
+
+def make_config_response() -> ConfigResponse:
+    """Build a ConfigResponse with sensible defaults."""
+    return ConfigResponse(
+        dev_mode=False,
+        base_url="http://homeassistant.local:8123",
+        asyncio_debug_mode=False,
+        allow_reload_in_prod=False,
+        data_dir="/home/user/.local/share/hassette",
+        config_dir="/home/user/.config/hassette",
+        web_api=WebApiConfigResponse(
+            run=True,
+            run_ui=True,
+            ui_hot_reload=False,
+            host="0.0.0.0",
+            port=8126,
+            cors_origins=[],
+            event_buffer_size=100,
+            log_buffer_size=500,
+            job_history_size=100,
+        ),
+        logging=LoggingConfigResponse(log_level="INFO", web_api="WARNING"),
+        lifecycle=LifecycleConfigResponse(
+            startup_timeout_seconds=30,
+            app_startup_timeout_seconds=10,
+            app_shutdown_timeout_seconds=10,
+        ),
+        apps=AppsConfigResponse(autodetect=True, directory="apps"),
+        scheduler=SchedulerConfigResponse(
+            min_delay_seconds=0,
+            max_delay_seconds=3600,
+            default_delay_seconds=0,
+        ),
+        file_watcher=FileWatcherConfigResponse(watch_files=True, debounce_milliseconds=500),
+    )
+
+
+def make_app_health_response(
+    error_rate: float = 0.0,
+    error_rate_class: str = "good",
+    handler_avg_duration: float = 5.0,
+    job_avg_duration: float = 10.0,
+    last_activity_ts: float | None = 1_700_000_000.0,
+    health_status: str = "excellent",
+) -> AppHealthResponse:
+    """Build an AppHealthResponse with sensible defaults."""
+    return AppHealthResponse(
+        error_rate=error_rate,
+        error_rate_class=error_rate_class,  # pyright: ignore[reportArgumentType]
+        handler_avg_duration=handler_avg_duration,
+        job_avg_duration=job_avg_duration,
+        last_activity_ts=last_activity_ts,
+        health_status=health_status,  # pyright: ignore[reportArgumentType]
+    )
+
+
+def make_activity_feed_entry(
+    row_id: str = "h-1",
+    status: InvocationStatus = InvocationStatus.SUCCESS,
+    timestamp: float = 1_700_000_000.0,
+    app_key: str = "my_app",
+    handler_name: str = "on_state_change",
+    duration_ms: float | None = 12.5,
+    error_type: str | None = None,
+    kind: str = "handler",
+) -> ActivityFeedEntry:
+    """Build an ActivityFeedEntry with sensible defaults."""
+    return ActivityFeedEntry(
+        row_id=row_id,
+        status=status,
+        timestamp=timestamp,
+        app_key=app_key,
+        handler_name=handler_name,
+        duration_ms=duration_ms,
+        error_type=error_type,
+        kind=kind,  # pyright: ignore[reportArgumentType]
+    )
+
+
+def make_app_config_response(
+    app_key: str = "my_app",
+    filename: str = "my_app.py",
+    class_name: str = "MyApp",
+    enabled: bool = True,
+    app_config: dict | None = None,
+    config_schema: dict | None = None,
+) -> AppConfigResponse:
+    """Build an AppConfigResponse with sensible defaults."""
+    return AppConfigResponse(
+        app_key=app_key,
+        filename=filename,
+        class_name=class_name,
+        enabled=enabled,
+        app_config=app_config or {"setting_name": "default"},
+        config_schema=config_schema,
+    )
+
+
+def make_app_source_response(
+    app_key: str = "my_app",
+    filename: str = "my_app.py",
+    content: str = "class MyApp:\n    pass\n",
+    line_count: int = 2,
+) -> AppSourceResponse:
+    """Build an AppSourceResponse with sensible defaults."""
+    return AppSourceResponse(
+        app_key=app_key,
+        filename=filename,
+        content=content,
+        line_count=line_count,
+    )
+
+
+def make_listener_with_summary(
+    listener_id: int = 1,
+    app_key: str = "my_app",
+    instance_index: int = 0,
+    topic: str = "light.kitchen",
+    listener_kind: str = "state change",
+    handler_method: str = "on_light_change",
+    total_invocations: int = 10,
+    successful: int = 9,
+    failed: int = 1,
+    avg_duration_ms: float = 25.0,
+    last_invoked_at: float | None = 1_700_000_000.0,
+    last_error_type: str | None = None,
+    last_error_message: str | None = None,
+) -> ListenerWithSummary:
+    """Build a ListenerWithSummary with sensible defaults."""
+    return ListenerWithSummary(
+        listener_id=listener_id,
+        app_key=app_key,
+        instance_index=instance_index,
+        topic=topic,
+        listener_kind=listener_kind,  # pyright: ignore[reportArgumentType]
+        handler_method=handler_method,
+        total_invocations=total_invocations,
+        successful=successful,
+        failed=failed,
+        di_failures=0,
+        cancelled=0,
+        avg_duration_ms=avg_duration_ms,
+        last_invoked_at=last_invoked_at,
+        last_error_type=last_error_type,
+        last_error_message=last_error_message,
+    )
+
+
+def make_handler_invocation(
+    execution_start_ts: float = 1_700_000_000.0,
+    duration_ms: float = 12.5,
+    status: InvocationStatus = InvocationStatus.SUCCESS,
+    error_type: str | None = None,
+    error_message: str | None = None,
+    execution_id: str | None = None,
+) -> HandlerInvocation:
+    """Build a HandlerInvocation with sensible defaults."""
+    return HandlerInvocation(
+        execution_start_ts=execution_start_ts,
+        duration_ms=duration_ms,
+        status=status,
+        error_type=error_type,
+        error_message=error_message,
+        execution_id=execution_id,
+    )
+
+
+def make_job_summary(
+    job_id: int = 1,
+    app_key: str = "my_app",
+    instance_index: int = 0,
+    job_name: str = "check_lights",
+    handler_method: str = "check_lights",
+    trigger_type: str | None = "interval",
+    trigger_label: str = "every 30s",
+    trigger_detail: str | None = None,
+    total_executions: int = 5,
+    successful: int = 5,
+    failed: int = 0,
+    total_duration_ms: float | None = None,
+    avg_duration_ms: float = 8.0,
+    next_run: float | None = 1_700_003_600.0,
+    last_executed_at: float | None = 1_700_000_000.0,
+    last_error_type: str | None = None,
+    last_error_message: str | None = None,
+    group: str | None = None,
+) -> JobSummary:
+    """Build a JobSummary with sensible defaults."""
+    return JobSummary(
+        job_id=job_id,
+        app_key=app_key,
+        instance_index=instance_index,
+        job_name=job_name,
+        handler_method=handler_method,
+        trigger_type=trigger_type,
+        trigger_label=trigger_label,
+        trigger_detail=trigger_detail,
+        args_json="[]",
+        kwargs_json="{}",
+        source_location="my_app.py:10",
+        registration_source=None,
+        total_executions=total_executions,
+        successful=successful,
+        failed=failed,
+        last_executed_at=last_executed_at,
+        total_duration_ms=total_duration_ms if total_duration_ms is not None else total_executions * avg_duration_ms,
+        avg_duration_ms=avg_duration_ms,
+        next_run=next_run,
+        last_error_type=last_error_type,
+        last_error_message=last_error_message,
+        group=group,
+    )
+
+
+def make_job_execution(
+    execution_start_ts: float = 1_700_000_000.0,
+    duration_ms: float = 8.5,
+    status: InvocationStatus = InvocationStatus.SUCCESS,
+    error_type: str | None = None,
+    error_message: str | None = None,
+    execution_id: str | None = None,
+) -> JobExecution:
+    """Build a JobExecution with sensible defaults."""
+    return JobExecution(
+        execution_start_ts=execution_start_ts,
+        duration_ms=duration_ms,
+        status=status,
+        error_type=error_type,
+        error_message=error_message,
+        execution_id=execution_id,
+    )
+
+
+def make_log_entry_response(
+    seq: int = 1,
+    timestamp: float = 1_700_000_000.0,
+    level: str = "INFO",
+    logger_name: str = "hassette.app.my_app",
+    func_name: str | None = "on_state_change",
+    lineno: int | None = 42,
+    message: str = "Handler invoked",
+    exc_info: str | None = None,
+    app_key: str | None = "my_app",
+    execution_id: str | None = None,
+    instance_name: str | None = None,
+    instance_index: int | None = 0,
+    source_tier: str | None = "app",
+) -> LogEntryResponse:
+    """Build a LogEntryResponse with sensible defaults."""
+    return LogEntryResponse(
+        seq=seq,
+        timestamp=timestamp,
+        level=level,  # pyright: ignore[reportArgumentType]
+        logger_name=logger_name,
+        func_name=func_name,
+        lineno=lineno,
+        message=message,
+        exc_info=exc_info,
+        app_key=app_key,
+        execution_id=execution_id,
+        instance_name=instance_name,
+        instance_index=instance_index,
+        source_tier=source_tier,  # pyright: ignore[reportArgumentType]
+    )
+
+
+def make_logs_by_execution_response(
+    records: list[LogEntryResponse] | None = None,
+    truncated: bool = False,
+    retention_expired: bool = False,
+) -> LogsByExecutionResponse:
+    """Build a LogsByExecutionResponse with sensible defaults."""
+    if records is None:
+        records = [make_log_entry_response()]
+    return LogsByExecutionResponse(
+        records=records,
+        truncated=truncated,
+        retention_expired=retention_expired,
     )

@@ -22,4 +22,4 @@ These pages assume you are comfortable with [Apps](../core-concepts/apps/index.m
 
 ## See Also
 
-- [API Reference](../../reference/) — full auto-generated reference for all public modules, including the event handling annotations (`A`, `C`, `D`, `P`) and state models.
+- [API Reference](../../reference/index.md) — full auto-generated reference for all public modules, including the event handling annotations (`A`, `C`, `D`, `P`) and state models.

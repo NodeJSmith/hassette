@@ -55,17 +55,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         validate_by_name=True,
         use_attribute_docstrings=True,
         validate_assignment=True,
-        cli_prog_name="hassette",
-        cli_ignore_unknown_args=True,
-        cli_parse_args=True,
-        cli_kebab_case=True,
+        cli_parse_args=False,
         nested_model_default_partial_update=True,
-        cli_shortcuts={
-            "token": ["t"],
-            "base-url": ["u", "url"],
-            "config-file": ["config-file", "c"],
-            "env-file": ["env-file", "env", "e"],
-        },
     )
 
     @classmethod
@@ -110,11 +101,11 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     file_watcher: FileWatcherConfig = Field(default_factory=FileWatcherConfig)
     """File watcher debounce, step, and enable/disable settings."""
 
-    # note - not actually used here, reflects the options in __main__ argparser for --help
+    # note - not actually used here, reflects the --config-file / --env-file flags on the cyclopts default command
     config_file: Path | str | None = Field(default=Path("hassette.toml"))
     """Path to the configuration file."""
 
-    # note - not actually used here, reflects the options in __main__ argparser for --help
+    # note - not actually used here, reflects the --config-file / --env-file flags on the cyclopts default command
     env_file: Path | str | None = Field(default=Path(".env"))
     """Path to the environment file."""
 
@@ -129,8 +120,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Whether to verify SSL certificates when connecting to Home Assistant. Useful to disable for self-signed
     certificates."""
 
-    token: str = Field(
-        default=...,
+    token: str | None = Field(
+        default=None,
         validation_alias=AliasChoices("token", "hassette__token", "ha_token", "home_assistant_token"),
     )
     """Access token for Home Assistant instance"""
@@ -224,6 +215,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     @property
     def auth_headers(self) -> dict[str, str]:
         """Return the headers required for authentication."""
+        if self.token is None:
+            return {}
         return {"Authorization": f"Bearer {self.token}"}
 
     @property
@@ -234,6 +227,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     @property
     def truncated_token(self) -> str:
         """Return a truncated version of the token for display purposes."""
+        if self.token is None:
+            return "<not set>"
         if len(self.token) < TOKEN_SHORT_THRESHOLD:
             return "***"
         if len(self.token) <= TOKEN_MEDIUM_THRESHOLD:
@@ -258,12 +253,19 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     @field_validator("config_dir", "data_dir", mode="after")
     @classmethod
     def resolve_paths(cls, value: Path) -> Path:
-        """Ensure that paths are resolved to absolute paths."""
-        resolved = value.resolve()
-        if not resolved.exists():
-            LOGGER.debug("Creating directory %s as it does not exist", resolved)
-            resolved.mkdir(parents=True, exist_ok=True)
-        return resolved
+        """Resolve paths to absolute without creating directories.
+
+        Directory creation is deferred to server startup (Hassette.wire_services)
+        so that read-only CLI commands don't produce filesystem side effects.
+        """
+        return value.resolve()
+
+    def ensure_directories(self) -> None:
+        """Create config_dir and data_dir if they don't exist."""
+        for directory in (self.config_dir, self.data_dir):
+            if not directory.exists():
+                LOGGER.debug("Creating directory %s as it does not exist", directory)
+                directory.mkdir(parents=True, exist_ok=True)
 
     def reload(self):
         """Reload the configuration from all sources."""

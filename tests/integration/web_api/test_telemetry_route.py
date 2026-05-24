@@ -10,38 +10,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from hassette.core.telemetry_models import JobSummary
 from hassette.scheduler.triggers import Every
-from hassette.test_utils.web_helpers import make_real_job
-
-
-def make_job_summary(
-    job_id: int = 1,
-    app_key: str = "my_app",
-    job_name: str = "test_job",
-) -> JobSummary:
-    """Build a JobSummary as would be returned by get_job_summary()."""
-    return JobSummary(
-        job_id=job_id,
-        app_key=app_key,
-        instance_index=0,
-        job_name=job_name,
-        handler_method="MyApp.on_run",
-        trigger_type="interval",
-        trigger_label="every 1h",
-        trigger_detail=None,
-        args_json="[]",
-        kwargs_json="{}",
-        source_location="my_app.py:10",
-        registration_source=None,
-        total_executions=5,
-        successful=5,
-        failed=0,
-        last_executed_at=1700000000.0,
-        total_duration_ms=100.0,
-        avg_duration_ms=20.0,
-        group="morning",
-    )
+from hassette.test_utils.web_helpers import make_job_summary, make_real_job
 
 
 class TestAppJobsEnrichmentWithLiveMatch:
@@ -49,7 +19,9 @@ class TestAppJobsEnrichmentWithLiveMatch:
 
     async def test_next_run_fire_at_jitter_from_live(self, client, mock_hassette) -> None:
         # Arrange: one DB job summary
-        db_summary = make_job_summary(job_id=42)
+        db_summary = make_job_summary(
+            job_id=42, job_name="test_job", handler_method="MyApp.on_run", group="morning", next_run=None
+        )
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
 
         # Arrange: matching live job with db_id=42
@@ -87,7 +59,9 @@ class TestAppJobsEnrichmentNoLiveMatch:
     """When no live heap job matches by db_id, live fields are None."""
 
     async def test_no_live_match_live_fields_none(self, client, mock_hassette) -> None:
-        db_summary = make_job_summary(job_id=99)
+        db_summary = make_job_summary(
+            job_id=99, job_name="test_job", handler_method="MyApp.on_run", group="morning", next_run=None
+        )
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
         mock_hassette.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
 
@@ -108,7 +82,9 @@ class TestAppJobsEnrichmentHeapFailureDegrades:
 
     async def test_heap_failure_returns_db_rows_status_200(self, client, mock_hassette) -> None:
         # Arrange: DB job
-        db_summary = make_job_summary(job_id=55)
+        db_summary = make_job_summary(
+            job_id=55, job_name="test_job", handler_method="MyApp.on_run", group="morning", next_run=None
+        )
         mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[db_summary])
 
         # Arrange: get_all_jobs raises

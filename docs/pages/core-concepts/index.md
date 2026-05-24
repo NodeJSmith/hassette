@@ -240,7 +240,7 @@ For detailed Mermaid diagrams of every subsystem's internals — event routing, 
 - [States](states/index.md) – working with state models.
 - [Configuration](configuration/index.md) – Hassette and app configuration.
 - [Web UI](../web-ui/index.md) – browser-based monitoring and management.
-- [API Reference](../../reference/) – full auto-generated reference for all public modules.
+- [API Reference](../../reference/index.md) – full auto-generated reference for all public modules.
 
 ??? note "Advanced Topics — read these after you're comfortable with the basics"
     Once you've written a few automations, these topics give you more control:
