@@ -33,7 +33,7 @@ class TestCmdConfig:
             capture_stdout(),
             patch("hassette.cli.commands.misc.make_client", return_value=client),
         ):
-            cmd_config(json=False)
+            cmd_config()
 
         assert "/api/config" in called_paths
 
@@ -45,7 +45,7 @@ class TestCmdConfig:
             capture_stdout() as buf,
             patch("hassette.cli.commands.misc.make_client", return_value=client),
         ):
-            cmd_config(json=False)
+            cmd_config()
         output = buf.getvalue()
         assert "dev_mode" in output
         assert "base_url" in output
@@ -59,8 +59,9 @@ class TestCmdConfig:
         with (
             patch("hassette.cli.commands.misc.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_config(json=True)
+            cmd_config()
 
         parsed = json.loads("".join(captured))
         assert "web_api" in parsed
@@ -89,7 +90,7 @@ class TestCmdService:
             capture_stdout(),
             patch("hassette.cli.commands.misc.make_client", return_value=client),
         ):
-            cmd_service(json=False)
+            cmd_service()
 
         assert "/api/services" in called_paths
 
@@ -101,7 +102,7 @@ class TestCmdService:
             capture_stdout() as buf,
             patch("hassette.cli.commands.misc.make_client", return_value=client),
         ):
-            cmd_service(json=False)
+            cmd_service()
         output = buf.getvalue()
         assert "light" in output
 
@@ -114,8 +115,9 @@ class TestCmdService:
         with (
             patch("hassette.cli.commands.misc.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_service(json=True)
+            cmd_service()
 
         parsed = json.loads("".join(captured))
         assert "switch" in parsed
@@ -145,7 +147,7 @@ class TestCmdEvent:
             capture_stdout(),
             patch("hassette.cli.commands.misc.make_client", return_value=client),
         ):
-            cmd_event(json=False)
+            cmd_event()
 
         assert "/api/events/recent" in called_paths
 
@@ -164,7 +166,7 @@ class TestCmdEvent:
             capture_stdout(),
             patch("hassette.cli.commands.misc.make_client", return_value=client),
         ):
-            cmd_event(limit=10, json=False)
+            cmd_event(limit=10)
 
         assert len(captured_params) == 1
         assert captured_params[0] is not None
@@ -185,7 +187,7 @@ class TestCmdEvent:
             capture_stdout(),
             patch("hassette.cli.commands.misc.make_client", return_value=client),
         ):
-            cmd_event(json=False)
+            cmd_event()
 
         assert captured_params[0] == {}
 
@@ -196,7 +198,7 @@ class TestCmdEvent:
             capture_stdout() as buf,
             patch("hassette.cli.commands.misc.make_client", return_value=client),
         ):
-            cmd_event(json=False)
+            cmd_event()
         output = buf.getvalue()
         assert "event_0" in output
         assert "light.room_0" in output
@@ -209,8 +211,9 @@ class TestCmdEvent:
         with (
             patch("hassette.cli.commands.misc.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_event(json=True)
+            cmd_event()
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)

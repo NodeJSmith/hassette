@@ -39,7 +39,7 @@ class TestCmdStatus:
             capture_stdout(),
             patch("hassette.cli.commands.status.make_client", return_value=client),
         ):
-            cmd_status(json=False)
+            cmd_status()
 
         assert "/api/health" in called_paths
 
@@ -51,7 +51,7 @@ class TestCmdStatus:
             capture_stdout() as buf,
             patch("hassette.cli.commands.status.make_client", return_value=client),
         ):
-            cmd_status(json=False)
+            cmd_status()
         output = buf.getvalue()
         assert "ok" in output
         assert "0.2.0" in output
@@ -69,8 +69,9 @@ class TestCmdStatus:
         with (
             patch("hassette.cli.commands.status.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=capture_write),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_status(json=True)
+            cmd_status()
 
         combined = "".join(captured_stdout)
         parsed = json.loads(combined)
@@ -122,7 +123,7 @@ class TestCmdTelemetry:
             capture_stdout(),
             patch("hassette.cli.commands.status.make_client", return_value=client),
         ):
-            cmd_telemetry(json=False)
+            cmd_telemetry()
 
         assert "/api/telemetry/status" in called_paths
 
@@ -134,7 +135,7 @@ class TestCmdTelemetry:
             capture_stdout() as buf,
             patch("hassette.cli.commands.status.make_client", return_value=client),
         ):
-            cmd_telemetry(json=False)
+            cmd_telemetry()
         output = buf.getvalue()
         assert "degraded" in output
 
@@ -147,8 +148,9 @@ class TestCmdTelemetry:
         with (
             patch("hassette.cli.commands.status.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_telemetry(json=True)
+            cmd_telemetry()
 
         parsed = json.loads("".join(captured))
         assert parsed["dropped_overflow"] == 5
@@ -178,7 +180,7 @@ class TestCmdDashboard:
             capture_stdout(),
             patch("hassette.cli.commands.status.make_client", return_value=client),
         ):
-            cmd_dashboard(json=False)
+            cmd_dashboard()
 
         assert any("/api/telemetry/dashboard/app-grid" in p for p in called_paths)
 
@@ -192,7 +194,7 @@ class TestCmdDashboard:
             capture_stdout() as buf,
             patch("hassette.cli.commands.status.make_client", return_value=client),
         ):
-            cmd_dashboard(json=False)
+            cmd_dashboard()
         output = buf.getvalue()
         # Table headers must always be visible
         assert "App" in output
@@ -211,8 +213,9 @@ class TestCmdDashboard:
         with (
             patch("hassette.cli.commands.status.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_dashboard(json=True)
+            cmd_dashboard()
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)

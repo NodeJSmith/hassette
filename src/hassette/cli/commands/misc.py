@@ -2,9 +2,10 @@
 
 from typing import Any
 
+import hassette.cli.globals as cli_globals
 from hassette.cli.client import make_client
 from hassette.cli.output import Column, fmt_relative_time, render_detail, render_raw, render_table
-from hassette.cli.types import JsonArg, LimitArg
+from hassette.cli.types import LimitArg
 from hassette.web.models import ConfigResponse, EventEntry
 
 # ---------------------------------------------------------------------------
@@ -12,13 +13,11 @@ from hassette.web.models import ConfigResponse, EventEntry
 # ---------------------------------------------------------------------------
 
 
-def cmd_config(
-    json: JsonArg = False,
-) -> None:
+def cmd_config() -> None:
     """Show current configuration (GET /api/config)."""
-    client = make_client(json_mode=json)
+    client = make_client()
     result = client.get("/api/config", ConfigResponse)
-    render_detail(result, json_mode=json)
+    render_detail(result, json_mode=cli_globals.json_mode)
 
 
 # ---------------------------------------------------------------------------
@@ -26,13 +25,11 @@ def cmd_config(
 # ---------------------------------------------------------------------------
 
 
-def cmd_service(
-    json: JsonArg = False,
-) -> None:
+def cmd_service() -> None:
     """List available HA services (GET /api/services)."""
-    client = make_client(json_mode=json)
+    client = make_client()
     result: dict[str, Any] = client.get("/api/services", dict)
-    render_raw(result, json_mode=json)
+    render_raw(result, json_mode=cli_globals.json_mode)
 
 
 # ---------------------------------------------------------------------------
@@ -48,13 +45,12 @@ EVENT_COLUMNS: list[Column] = [
 
 def cmd_event(
     limit: LimitArg = None,
-    json: JsonArg = False,
 ) -> None:
     """Show recent HA events (GET /api/events/recent)."""
-    client = make_client(json_mode=json)
+    client = make_client()
     params: dict[str, Any] = {}
     if limit is not None:
         params["limit"] = limit
     result: list[EventEntry] = client.get("/api/events/recent", list, params=params)
     events = [EventEntry.model_validate(e) for e in result]
-    render_table(events, EVENT_COLUMNS, json_mode=json)  # pyright: ignore[reportArgumentType]
+    render_table(events, EVENT_COLUMNS, json_mode=cli_globals.json_mode)  # pyright: ignore[reportArgumentType]

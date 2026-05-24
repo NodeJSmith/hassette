@@ -36,7 +36,7 @@ class TestCmdLog:
             capture_stdout(),
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
-            cmd_log(json=False)
+            cmd_log()
 
         assert "/api/logs/recent" in called_paths
 
@@ -56,7 +56,7 @@ class TestCmdLog:
             capture_stdout(),
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
-            cmd_log(app="my-app", json=False)
+            cmd_log(app="my-app")
 
         logs_call = next(r for r in received_params if "logs/recent" in r["path"])
         assert logs_call["params"] is not None
@@ -78,7 +78,7 @@ class TestCmdLog:
             capture_stdout(),
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
-            cmd_log(app="my-app", json=False)
+            cmd_log(app="my-app")
 
         assert all("/api/logs/recent" in p for p in called_paths)
         assert not any("telemetry/app" in p for p in called_paths)
@@ -100,7 +100,7 @@ class TestCmdLog:
             capture_stdout(),
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
-            cmd_log(since=since_epoch, limit=20, json=False)
+            cmd_log(since=since_epoch, limit=20)
 
         logs_call = next(r for r in received_params if "logs/recent" in r["path"])
         assert logs_call["params"] is not None
@@ -123,7 +123,7 @@ class TestCmdLog:
             capture_stdout(),
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
-            cmd_log(source_tier="framework", json=False)
+            cmd_log(source_tier="framework")
 
         logs_call = next(r for r in received_params if "logs/recent" in r["path"])
         assert logs_call["params"] is not None
@@ -138,7 +138,7 @@ class TestCmdLog:
             patch("hassette.cli.commands.log.make_client", return_value=client),
             pytest.raises(SystemExit) as exc_info,
         ):
-            cmd_log(instance="0", json=False)
+            cmd_log(instance="0")
 
         assert exc_info.value.code != 0
         assert "instance" in err_buf.getvalue().lower()
@@ -151,7 +151,7 @@ class TestCmdLog:
             capture_stdout() as buf,
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
-            cmd_log(json=False)
+            cmd_log()
 
         output = buf.getvalue()
         assert "INFO" in output or "Level" in output
@@ -166,8 +166,9 @@ class TestCmdLog:
         with (
             patch("hassette.cli.commands.log.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_log(json=True)
+            cmd_log()
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)
@@ -182,7 +183,7 @@ class TestCmdLog:
             capture_stderr() as err_buf,
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
-            cmd_log(json=False)
+            cmd_log()
 
         assert "No results" in err_buf.getvalue()
 
@@ -224,7 +225,7 @@ class TestCmdExecution:
             capture_stdout(),
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
-            cmd_execution(uuid="abc-123-def", json=False)
+            cmd_execution(uuid="abc-123-def")
 
         assert f"/api/executions/{execution_id}" in called_paths
 
@@ -246,7 +247,7 @@ class TestCmdExecution:
             capture_stdout(),
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
-            cmd_execution(uuid="abc-123", limit=50, json=False)
+            cmd_execution(uuid="abc-123", limit=50)
 
         exec_call = next(r for r in received_params if "executions" in r["path"])
         assert exec_call["params"] is not None
@@ -263,7 +264,7 @@ class TestCmdExecution:
             capture_stdout() as buf,
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
-            cmd_execution(uuid="exec-1", json=False)
+            cmd_execution(uuid="exec-1")
 
         output = buf.getvalue()
         # Table output should show log entry data
@@ -280,7 +281,7 @@ class TestCmdExecution:
             capture_stdout() as buf,
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
-            cmd_execution(uuid="exec-2", json=False)
+            cmd_execution(uuid="exec-2")
 
         output = buf.getvalue()
         assert "ERROR" in output or "Level" in output
@@ -297,8 +298,9 @@ class TestCmdExecution:
         with (
             patch("hassette.cli.commands.log.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_execution(uuid="exec-3", json=True)
+            cmd_execution(uuid="exec-3")
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)
@@ -315,7 +317,7 @@ class TestCmdExecution:
             capture_stderr() as err_buf,
             patch("hassette.cli.commands.log.make_client", return_value=client),
         ):
-            cmd_execution(uuid="exec-4", json=False)
+            cmd_execution(uuid="exec-4")
 
         assert "No results" in err_buf.getvalue()
 

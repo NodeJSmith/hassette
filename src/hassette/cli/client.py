@@ -225,10 +225,20 @@ class HassetteCLIClient:
 # ---------------------------------------------------------------------------
 
 
-def make_client(json_mode: bool) -> HassetteCLIClient:
-    """Create a CLI client from the default config (no HA token required)."""
+def make_client() -> HassetteCLIClient:
+    """Create a CLI client from the default config (no HA token required).
+
+    Respects global options (--env-file, --config-file, --json) set by the meta app launcher.
+    """
+    import hassette.cli.globals as cli_globals
+
+    if cli_globals.env_file_override:
+        HassetteConfig.model_config["env_file"] = cli_globals.env_file_override
+    if cli_globals.config_file_override:
+        HassetteConfig.model_config["toml_file"] = cli_globals.config_file_override
+
     config = HassetteConfig(token=None)
-    return HassetteCLIClient(config, json_mode=json_mode)
+    return HassetteCLIClient(config, json_mode=cli_globals.json_mode)
 
 
 def _write_json_error(status: int | None, detail: str) -> None:

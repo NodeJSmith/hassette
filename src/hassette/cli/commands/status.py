@@ -1,8 +1,8 @@
 """System-level CLI commands: status, telemetry, dashboard."""
 
+import hassette.cli.globals as cli_globals
 from hassette.cli.client import make_client
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
-from hassette.cli.types import JsonArg
 from hassette.web.models import DashboardAppGridResponse, SystemStatusResponse, TelemetryStatusResponse
 
 
@@ -49,13 +49,11 @@ STATUS_COLUMNS: list[Column] = [
 ]
 
 
-def cmd_status(
-    json: JsonArg = False,
-) -> None:
+def cmd_status() -> None:
     """Show system status (GET /api/health)."""
-    client = make_client(json_mode=json)
+    client = make_client()
     result = client.get("/api/health", SystemStatusResponse)
-    render_detail(result, json_mode=json)
+    render_detail(result, json_mode=cli_globals.json_mode)
 
 
 # ---------------------------------------------------------------------------
@@ -63,13 +61,11 @@ def cmd_status(
 # ---------------------------------------------------------------------------
 
 
-def cmd_telemetry(
-    json: JsonArg = False,
-) -> None:
+def cmd_telemetry() -> None:
     """Show telemetry database status (GET /api/telemetry/status)."""
-    client = make_client(json_mode=json)
+    client = make_client()
     result = client.get("/api/telemetry/status", TelemetryStatusResponse)
-    render_detail(result, json_mode=json)
+    render_detail(result, json_mode=cli_globals.json_mode)
 
 
 # ---------------------------------------------------------------------------
@@ -87,10 +83,8 @@ DASHBOARD_COLUMNS: list[Column] = [
 ]
 
 
-def cmd_dashboard(
-    json: JsonArg = False,
-) -> None:
+def cmd_dashboard() -> None:
     """Show app dashboard grid (GET /api/telemetry/dashboard/app-grid)."""
-    client = make_client(json_mode=json)
+    client = make_client()
     result = client.get("/api/telemetry/dashboard/app-grid", DashboardAppGridResponse)
-    render_table(result.apps, DASHBOARD_COLUMNS, json_mode=json)  # pyright: ignore[reportArgumentType]
+    render_table(result.apps, DASHBOARD_COLUMNS, json_mode=cli_globals.json_mode)  # pyright: ignore[reportArgumentType]

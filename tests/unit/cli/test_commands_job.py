@@ -35,7 +35,7 @@ class TestCmdJob:
             capture_stdout(),
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
-            cmd_job(json=False)
+            cmd_job()
 
         assert "/api/scheduler/jobs" in called_paths
 
@@ -57,7 +57,7 @@ class TestCmdJob:
             capture_stdout(),
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
-            cmd_job(app="my-app", json=False)
+            cmd_job(app="my-app")
 
         assert any("/api/telemetry/app/my-app/jobs" in p for p in called_paths)
 
@@ -79,7 +79,7 @@ class TestCmdJob:
             capture_stdout(),
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
-            cmd_job(app="my-app", instance="0", json=False)
+            cmd_job(app="my-app", instance="0")
 
         jobs_call = next(r for r in received_params if "jobs" in r["path"])
         assert jobs_call["params"] is not None
@@ -94,7 +94,7 @@ class TestCmdJob:
             patch("hassette.cli.commands.job.make_client", return_value=client),
             pytest.raises(SystemExit) as exc_info,
         ):
-            cmd_job(instance="0", json=False)
+            cmd_job(instance="0")
 
         assert exc_info.value.code != 0
 
@@ -114,7 +114,7 @@ class TestCmdJob:
             capture_stdout(),
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
-            cmd_job(source_tier="app", json=False)
+            cmd_job(source_tier="app")
 
         jobs_call = next(r for r in received_params if "jobs" in r["path"])
         assert jobs_call["params"] is not None
@@ -128,7 +128,7 @@ class TestCmdJob:
             capture_stdout() as buf,
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
-            cmd_job(json=False)
+            cmd_job()
 
         output = buf.getvalue()
         assert "99" in output
@@ -144,8 +144,9 @@ class TestCmdJob:
         with (
             patch("hassette.cli.commands.job.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_job(json=True)
+            cmd_job()
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)
@@ -159,7 +160,7 @@ class TestCmdJob:
             capture_stderr() as err_buf,
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
-            cmd_job(json=False)
+            cmd_job()
 
         assert "No results" in err_buf.getvalue()
 
@@ -195,7 +196,7 @@ class TestCmdJobDetail:
             capture_stdout(),
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
-            cmd_job(job_id=5, json=False)
+            cmd_job(job_id=5)
 
         assert "/api/telemetry/job/5/executions" in called_paths
 
@@ -217,7 +218,7 @@ class TestCmdJobDetail:
             capture_stdout(),
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
-            cmd_job(job_id=5, limit=5, json=False)
+            cmd_job(job_id=5, limit=5)
 
         executions_call = next(r for r in received_params if "executions" in r["path"])
         assert executions_call["params"] is not None
@@ -242,7 +243,7 @@ class TestCmdJobDetail:
             capture_stdout(),
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
-            cmd_job(job_id=5, since=since_epoch, json=False)
+            cmd_job(job_id=5, since=since_epoch)
 
         executions_call = next(r for r in received_params if "executions" in r["path"])
         assert executions_call["params"] is not None
@@ -258,7 +259,7 @@ class TestCmdJobDetail:
             capture_stdout() as buf,
             patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
-            cmd_job(job_id=1, json=False)
+            cmd_job(job_id=1)
 
         output = buf.getvalue()
         assert "success" in output.lower() or "Status" in output
@@ -274,8 +275,9 @@ class TestCmdJobDetail:
         with (
             patch("hassette.cli.commands.job.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_job(job_id=1, json=True)
+            cmd_job(job_id=1)
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)

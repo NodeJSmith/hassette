@@ -8,7 +8,7 @@ def entrypoint() -> None:
 
     from hassette.cli import app  # deferred to break circular import at module level
 
-    app()
+    app.meta()
 
 
 if __name__ == "__main__":

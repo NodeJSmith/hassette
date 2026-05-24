@@ -2,9 +2,10 @@
 
 from typing import Any
 
+import hassette.cli.globals as cli_globals
 from hassette.cli.client import make_client
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_table
-from hassette.cli.types import AppKeyArg, InstanceArg, JsonArg, LimitArg, SinceArg, SourceTierArg
+from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.core.telemetry_models import HandlerInvocation
 from hassette.web.models import ListenerWithSummary
 
@@ -37,10 +38,10 @@ def cmd_listener(
     since: SinceArg = None,
     source_tier: SourceTierArg = None,
     limit: LimitArg = None,
-    json: JsonArg = False,
 ) -> None:
     """List listeners, or show invocation history for a specific listener."""
-    client = make_client(json_mode=json)
+    client = make_client()
+    json_mode = cli_globals.json_mode
 
     if listener_id is not None:
         params: dict[str, Any] = {}
@@ -55,7 +56,7 @@ def cmd_listener(
             params=params,
         )
         invocations = [HandlerInvocation.model_validate(e) for e in raw]
-        render_table(invocations, LISTENER_INVOCATION_COLUMNS, json_mode=json)  # pyright: ignore[reportArgumentType]
+        render_table(invocations, LISTENER_INVOCATION_COLUMNS, json_mode=json_mode)  # pyright: ignore[reportArgumentType]
         return
 
     extra_params: dict[str, Any] = {}
@@ -73,4 +74,4 @@ def cmd_listener(
         extra_params=extra_params,
     )
     listeners = [ListenerWithSummary.model_validate(e) for e in raw]
-    render_table(listeners, LISTENER_LIST_COLUMNS, json_mode=json)  # pyright: ignore[reportArgumentType]
+    render_table(listeners, LISTENER_LIST_COLUMNS, json_mode=json_mode)  # pyright: ignore[reportArgumentType]

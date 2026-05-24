@@ -49,7 +49,7 @@ class TestCmdApp:
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app(json=False)
+            cmd_app()
 
         assert "/api/apps/manifests" in called_paths
 
@@ -62,7 +62,7 @@ class TestCmdApp:
             capture_stdout() as buf,
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app(json=False)
+            cmd_app()
         output = buf.getvalue()
         assert "my_app" in output
         assert "running" in output
@@ -77,8 +77,9 @@ class TestCmdApp:
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_app(json=True)
+            cmd_app()
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)
@@ -93,7 +94,7 @@ class TestCmdApp:
             capture_stderr() as err_buf,
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app(json=False)
+            cmd_app()
         assert "No results" in err_buf.getvalue()
 
     def test_app_list_columns_defined(self) -> None:
@@ -133,7 +134,7 @@ class TestCmdAppHealth:
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app_health("my-app", json=False)
+            cmd_app_health("my-app")
 
         assert any("/api/telemetry/app/my-app/health" in p for p in called_paths)
 
@@ -155,7 +156,7 @@ class TestCmdAppHealth:
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app_health("my-app", instance="1", json=False)
+            cmd_app_health("my-app", instance="1")
 
         health_call = next(r for r in received_params if "health" in r["path"])
         assert health_call["params"] is not None
@@ -195,7 +196,7 @@ class TestCmdAppHealth:
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app_health("my-app", instance="office", json=False)
+            cmd_app_health("my-app", instance="office")
 
         health_call = next(r for r in received_params if "health" in r["path"])
         assert health_call["params"] is not None
@@ -211,7 +212,7 @@ class TestCmdAppHealth:
             capture_stdout() as buf,
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app_health("my-app", json=False)
+            cmd_app_health("my-app")
         output = buf.getvalue()
         assert "health_status" in output
         assert "excellent" in output
@@ -227,8 +228,9 @@ class TestCmdAppHealth:
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_app_health("my-app", json=True)
+            cmd_app_health("my-app")
 
         parsed = json.loads("".join(captured))
         assert parsed["error_rate"] == pytest.approx(0.1)
@@ -266,7 +268,7 @@ class TestCmdAppActivity:
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app_activity("my-app", json=False)
+            cmd_app_activity("my-app")
 
         assert any("/api/telemetry/app/my-app/activity" in p for p in called_paths)
 
@@ -288,7 +290,7 @@ class TestCmdAppActivity:
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app_activity("my-app", json=False)
+            cmd_app_activity("my-app")
 
         activity_call = next(r for r in received_params if "activity" in r["path"])
         # instance_index must not be present — API returns all instances when absent
@@ -314,7 +316,7 @@ class TestCmdAppActivity:
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app_activity("my-app", since=since_epoch, limit=10, json=False)
+            cmd_app_activity("my-app", since=since_epoch, limit=10)
 
         activity_call = next(r for r in received_params if "activity" in r["path"])
         assert activity_call["params"] is not None
@@ -339,7 +341,7 @@ class TestCmdAppActivity:
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app_activity("my-app", instance="2", json=False)
+            cmd_app_activity("my-app", instance="2")
 
         activity_call = next(r for r in received_params if "activity" in r["path"])
         assert activity_call["params"] is not None
@@ -355,7 +357,7 @@ class TestCmdAppActivity:
             capture_stdout() as buf,
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app_activity("my-app", json=False)
+            cmd_app_activity("my-app")
         output = buf.getvalue()
         # Rich may truncate the handler name in a narrow console — match the prefix
         assert "on_light_c" in output
@@ -371,8 +373,9 @@ class TestCmdAppActivity:
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_app_activity("my-app", json=True)
+            cmd_app_activity("my-app")
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)
@@ -413,7 +416,7 @@ class TestCmdAppConfig:
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app_config("my-app", json=False)
+            cmd_app_config("my-app")
 
         assert any("/api/apps/my-app/config" in p for p in called_paths)
 
@@ -425,7 +428,7 @@ class TestCmdAppConfig:
             capture_stdout() as buf,
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app_config("my-app", json=False)
+            cmd_app_config("my-app")
         output = buf.getvalue()
         assert "my-app" in output
         assert "MyApp" in output
@@ -439,8 +442,9 @@ class TestCmdAppConfig:
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_app_config("my-app", json=True)
+            cmd_app_config("my-app")
 
         parsed = json.loads("".join(captured))
         assert parsed["app_key"] == "my-app"
@@ -469,7 +473,7 @@ class TestCmdAppSource:
             capture_stdout(),
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app_source("my-app", json=False)
+            cmd_app_source("my-app")
 
         assert any("/api/apps/my-app/source" in p for p in called_paths)
 
@@ -481,7 +485,7 @@ class TestCmdAppSource:
             capture_stdout() as buf,
             patch("hassette.cli.commands.app.make_client", return_value=client),
         ):
-            cmd_app_source("my-app", json=False)
+            cmd_app_source("my-app")
         output = buf.getvalue()
         assert "my_app.py" in output
 
@@ -494,8 +498,9 @@ class TestCmdAppSource:
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_app_source("my-app", json=True)
+            cmd_app_source("my-app")
 
         parsed = json.loads("".join(captured))
         assert parsed["app_key"] == "my-app"

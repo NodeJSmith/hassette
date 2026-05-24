@@ -5,8 +5,9 @@ from importlib.metadata import PackageNotFoundError, version
 from logging import getLogger
 from typing import Annotated, Any
 
-from cyclopts import App, Parameter
+from cyclopts import App, Group, Parameter
 
+import hassette.cli.globals as cli_globals
 from hassette.app.app_config import AppConfig
 from hassette.cli.commands.app import cmd_app, cmd_app_activity, cmd_app_config, cmd_app_health, cmd_app_source
 from hassette.cli.commands.job import cmd_job
@@ -40,6 +41,7 @@ app = App(
     help="Hassette — async-first Home Assistant automation framework.",
 )
 
+app.meta.group_parameters = Group("Global Options", sort_key=0)
 app.register_install_completion_command()
 
 status_app = App(name="status", help="Show system status.")
@@ -95,6 +97,35 @@ log_app.default(cmd_log)
 execution_app.default(cmd_execution)
 
 # ---------------------------------------------------------------------------
+# Meta app — global options that apply to all commands
+# ---------------------------------------------------------------------------
+
+
+@app.meta.default
+def launcher(
+    *tokens: Annotated[str, Parameter(show=False, allow_leading_hyphen=True)],
+    config_file: Annotated[
+        str | None, Parameter(name=["--config-file", "-c"], help="Path to the TOML configuration file.")
+    ] = None,
+    env_file: Annotated[
+        str | None, Parameter(name=["--env-file", "-e", "--env"], help="Path to the .env file.")
+    ] = None,
+    json: Annotated[bool, Parameter(name=["--json"], help="Output results as JSON.", negative=[])] = False,
+) -> None:
+    cli_globals.env_file_override = env_file
+    cli_globals.config_file_override = config_file
+    cli_globals.json_mode = json
+
+    if env_file:
+        HassetteConfig.model_config["env_file"] = env_file
+        AppConfig.model_config["env_file"] = env_file
+    if config_file:
+        HassetteConfig.model_config["toml_file"] = config_file
+
+    app(tokens)
+
+
+# ---------------------------------------------------------------------------
 # Default command — starts the framework server (backward compatibility)
 # ---------------------------------------------------------------------------
 
@@ -109,26 +140,12 @@ def start_server(
         bool | None,
         Parameter(name=["--verify-ssl"], help="Whether to verify SSL certificates.", negative=[]),
     ] = None,
-    config_file: Annotated[
-        str | None, Parameter(name=["--config-file", "-c"], help="Path to the TOML configuration file.")
-    ] = None,
-    env_file: Annotated[
-        str | None, Parameter(name=["--env-file", "-e", "--env"], help="Path to the .env file.")
-    ] = None,
     dev_mode: Annotated[
         bool | None,
         Parameter(name=["--dev-mode"], help="Enable developer mode.", negative=[]),
     ] = None,
 ) -> None:
     """Start the Hassette framework server."""
-    # Apply file-path settings before constructing HassetteConfig
-    if env_file:
-        HassetteConfig.model_config["env_file"] = env_file
-        AppConfig.model_config["env_file"] = env_file
-
-    if config_file:
-        HassetteConfig.model_config["toml_file"] = config_file
-
     # Build init kwargs — only pass values explicitly provided on the CLI (non-None)
     init_kwargs: dict[str, Any] = {}
     if token is not None:

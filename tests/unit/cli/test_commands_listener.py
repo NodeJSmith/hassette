@@ -35,7 +35,7 @@ class TestCmdListener:
             capture_stdout(),
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
-            cmd_listener(json=False)
+            cmd_listener()
 
         assert "/api/bus/listeners" in called_paths
 
@@ -57,7 +57,7 @@ class TestCmdListener:
             capture_stdout(),
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
-            cmd_listener(app="my-app", json=False)
+            cmd_listener(app="my-app")
 
         assert any("/api/telemetry/app/my-app/listeners" in p for p in called_paths)
 
@@ -79,7 +79,7 @@ class TestCmdListener:
             capture_stdout(),
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
-            cmd_listener(app="my-app", instance="0", json=False)
+            cmd_listener(app="my-app", instance="0")
 
         listeners_call = next(r for r in received_params if "listeners" in r["path"])
         assert listeners_call["params"] is not None
@@ -94,7 +94,7 @@ class TestCmdListener:
             patch("hassette.cli.commands.listener.make_client", return_value=client),
             pytest.raises(SystemExit) as exc_info,
         ):
-            cmd_listener(instance="0", json=False)
+            cmd_listener(instance="0")
 
         assert exc_info.value.code != 0
 
@@ -114,7 +114,7 @@ class TestCmdListener:
             capture_stdout(),
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
-            cmd_listener(source_tier="app", json=False)
+            cmd_listener(source_tier="app")
 
         listeners_call = next(r for r in received_params if "listeners" in r["path"])
         assert listeners_call["params"] is not None
@@ -128,7 +128,7 @@ class TestCmdListener:
             capture_stdout() as buf,
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
-            cmd_listener(json=False)
+            cmd_listener()
 
         output = buf.getvalue()
         assert "42" in output
@@ -144,8 +144,9 @@ class TestCmdListener:
         with (
             patch("hassette.cli.commands.listener.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_listener(json=True)
+            cmd_listener()
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)
@@ -159,7 +160,7 @@ class TestCmdListener:
             capture_stderr() as err_buf,
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
-            cmd_listener(json=False)
+            cmd_listener()
 
         assert "No results" in err_buf.getvalue()
 
@@ -195,7 +196,7 @@ class TestCmdListenerDetail:
             capture_stdout(),
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
-            cmd_listener(listener_id=42, json=False)
+            cmd_listener(listener_id=42)
 
         assert "/api/telemetry/handler/42/invocations" in called_paths
 
@@ -217,7 +218,7 @@ class TestCmdListenerDetail:
             capture_stdout(),
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
-            cmd_listener(listener_id=42, limit=5, json=False)
+            cmd_listener(listener_id=42, limit=5)
 
         invocations_call = next(r for r in received_params if "invocations" in r["path"])
         assert invocations_call["params"] is not None
@@ -242,7 +243,7 @@ class TestCmdListenerDetail:
             capture_stdout(),
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
-            cmd_listener(listener_id=42, since=since_epoch, json=False)
+            cmd_listener(listener_id=42, since=since_epoch)
 
         invocations_call = next(r for r in received_params if "invocations" in r["path"])
         assert invocations_call["params"] is not None
@@ -258,7 +259,7 @@ class TestCmdListenerDetail:
             capture_stdout() as buf,
             patch("hassette.cli.commands.listener.make_client", return_value=client),
         ):
-            cmd_listener(listener_id=1, json=False)
+            cmd_listener(listener_id=1)
 
         output = buf.getvalue()
         assert "success" in output.lower() or "Status" in output
@@ -274,8 +275,9 @@ class TestCmdListenerDetail:
         with (
             patch("hassette.cli.commands.listener.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
+            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_listener(listener_id=1, json=True)
+            cmd_listener(listener_id=1)
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)

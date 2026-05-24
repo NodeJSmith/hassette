@@ -2,9 +2,10 @@
 
 from typing import Any
 
+import hassette.cli.globals as cli_globals
 from hassette.cli.client import make_client
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
-from hassette.cli.types import InstanceArg, JsonArg, LimitArg, SinceArg, SourceTierArg
+from hassette.cli.types import InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.core.telemetry_models import ActivityFeedEntry
 from hassette.web.models import AppConfigResponse, AppHealthResponse, AppManifestListResponse, AppSourceResponse
 
@@ -23,13 +24,11 @@ APP_LIST_COLUMNS: list[Column] = [
 ]
 
 
-def cmd_app(
-    json: JsonArg = False,
-) -> None:
+def cmd_app() -> None:
     """List all apps (GET /api/apps/manifests)."""
-    client = make_client(json_mode=json)
+    client = make_client()
     result = client.get("/api/apps/manifests", AppManifestListResponse)
-    render_table(result.manifests, APP_LIST_COLUMNS, json_mode=json)  # pyright: ignore[reportArgumentType]
+    render_table(result.manifests, APP_LIST_COLUMNS, json_mode=cli_globals.json_mode)  # pyright: ignore[reportArgumentType]
 
 
 # ---------------------------------------------------------------------------
@@ -51,10 +50,9 @@ def cmd_app_health(
     instance: InstanceArg = None,
     since: SinceArg = None,
     source_tier: SourceTierArg = None,
-    json: JsonArg = False,
 ) -> None:
     """Show health metrics for an app instance (GET /api/telemetry/app/{key}/health)."""
-    client = make_client(json_mode=json)
+    client = make_client()
 
     params: dict[str, Any] = {}
     if instance is not None:
@@ -65,7 +63,7 @@ def cmd_app_health(
         params["source_tier"] = source_tier
 
     result = client.get(f"/api/telemetry/app/{key}/health", AppHealthResponse, params=params)
-    render_detail(result, json_mode=json)
+    render_detail(result, json_mode=cli_globals.json_mode)
 
 
 # ---------------------------------------------------------------------------
@@ -89,13 +87,11 @@ def cmd_app_activity(
     instance: InstanceArg = None,
     since: SinceArg = None,
     limit: LimitArg = None,
-    json: JsonArg = False,
 ) -> None:
     """Show recent activity for an app (GET /api/telemetry/app/{key}/activity)."""
-    client = make_client(json_mode=json)
+    client = make_client()
 
     params: dict[str, Any] = {}
-    # instance_index is NOT added when omitted — API returns all instances in that case
     if instance is not None:
         params["instance_index"] = client.resolve_instance(key, instance)
     if since is not None:
@@ -105,7 +101,7 @@ def cmd_app_activity(
 
     raw: list[Any] = client.get(f"/api/telemetry/app/{key}/activity", list, params=params)
     entries = [ActivityFeedEntry.model_validate(e) for e in raw]
-    render_table(entries, APP_ACTIVITY_COLUMNS, json_mode=json)  # pyright: ignore[reportArgumentType]
+    render_table(entries, APP_ACTIVITY_COLUMNS, json_mode=cli_globals.json_mode)  # pyright: ignore[reportArgumentType]
 
 
 # ---------------------------------------------------------------------------
@@ -115,12 +111,11 @@ def cmd_app_activity(
 
 def cmd_app_config(
     key: str,
-    json: JsonArg = False,
 ) -> None:
     """Show app configuration (GET /api/apps/{key}/config)."""
-    client = make_client(json_mode=json)
+    client = make_client()
     result = client.get(f"/api/apps/{key}/config", AppConfigResponse)
-    render_detail(result, json_mode=json)
+    render_detail(result, json_mode=cli_globals.json_mode)
 
 
 # ---------------------------------------------------------------------------
@@ -130,9 +125,8 @@ def cmd_app_config(
 
 def cmd_app_source(
     key: str,
-    json: JsonArg = False,
 ) -> None:
     """Show app source code (GET /api/apps/{key}/source)."""
-    client = make_client(json_mode=json)
+    client = make_client()
     result = client.get(f"/api/apps/{key}/source", AppSourceResponse)
-    render_detail(result, json_mode=json)
+    render_detail(result, json_mode=cli_globals.json_mode)
