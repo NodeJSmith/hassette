@@ -1,7 +1,7 @@
 """System-level CLI commands: status, telemetry, dashboard."""
 
 from hassette.cli.client import HassetteCLIClient
-from hassette.cli.output import Column, fmt_duration, fmt_relative_time, render_detail, render_table
+from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
 from hassette.cli.types import JsonArg
 from hassette.config.config import HassetteConfig
 from hassette.web.models import DashboardAppGridResponse, SystemStatusResponse, TelemetryStatusResponse
@@ -27,7 +27,7 @@ def uptime_fmt(value: object) -> str:
 
 def boot_issues_fmt(value: object) -> str:
     """Summarise boot_issues as a count or dash."""
-    if value is None or value == []:
+    if not value:
         return "—"
     if isinstance(value, list):
         return str(len(value))
@@ -84,7 +84,7 @@ DASHBOARD_COLUMNS: list[Column] = [
     Column("status", "Status", max_width=8),
     Column("total_invocations", "Invoc", max_width=6),
     Column("total_errors", "Errs", max_width=5),
-    Column("avg_duration_ms", "Avg Dur", max_width=8, formatter=fmt_duration),
+    Column("avg_duration_ms", "Avg Dur", max_width=8, formatter=fmt_duration_ms),
     Column("last_activity_ts", "Last Active", max_width=11, formatter=fmt_relative_time),
     Column("health_status", "Health", max_width=9),
 ]

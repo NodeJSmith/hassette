@@ -11,7 +11,7 @@ Wraps ``httpx.Client`` (synchronous) with:
 
 import json
 import sys
-from typing import Any, NoReturn, TypeVar
+from typing import Any, NoReturn, TypeVar, overload
 
 import httpx
 
@@ -64,21 +64,22 @@ class HassetteCLIClient:
     # Core request method
     # ---------------------------------------------------------------------------
 
+    @overload
+    def get(self, path: str, model: type[dict], params: dict[str, Any] | None = None) -> dict[str, Any]: ...
+
+    @overload
+    def get(self, path: str, model: type[list], params: dict[str, Any] | None = None) -> list[Any]: ...
+
+    @overload
+    def get(self, path: str, model: type[T], params: dict[str, Any] | None = None) -> T: ...
+
     def get(
         self,
         path: str,
         model: type[T],
         params: dict[str, Any] | None = None,
-    ) -> T:
+    ) -> T | dict[str, Any] | list[Any]:
         """Perform a GET request, deserialize the response, and handle errors.
-
-        Args:
-            path: URL path (relative to base URL).
-            model: Pydantic model class to deserialize into, or ``dict`` for raw JSON.
-            params: Optional query parameters.
-
-        Returns:
-            A deserialized instance of ``model``.
 
         Raises:
             SystemExit: On HTTP 4xx/5xx (code 1) or network errors (code 2).
@@ -96,10 +97,8 @@ class HassetteCLIClient:
             self._handle_http_error(response)
 
         data = response.json()
-        if model is dict:
-            return data  # pyright: ignore[reportReturnType]
-        if model is list:
-            return data  # pyright: ignore[reportReturnType]
+        if model is dict or model is list:
+            return data
         return model.model_validate(data)  # pyright: ignore[reportAttributeAccessIssue]
 
     # ---------------------------------------------------------------------------
@@ -147,9 +146,9 @@ class HassetteCLIClient:
                 instance_index = self.resolve_instance(app_key, instance)
                 params["instance_index"] = instance_index
 
-        return self.get(path, model, params=params or None)
+        return self.get(path, model, params=params)
 
-    def resolve_instance(self, app_key: str, instance: str) -> int:  # noqa: RET503
+    def resolve_instance(self, app_key: str, instance: str) -> int:
         """Resolve an instance selector to an integer index.
 
         Args:
@@ -182,6 +181,7 @@ class HassetteCLIClient:
                 available.extend(inst.instance_name for inst in manifest.instances)
         names = ", ".join(repr(n) for n in available) if available else "(none)"
         self.error_usage(f"Instance {instance!r} not found for app {app_key!r}. Available instances: {names}")
+        raise AssertionError("unreachable")
 
     # ---------------------------------------------------------------------------
     # Error helpers
@@ -191,7 +191,7 @@ class HassetteCLIClient:
         """Print HTTP error and exit with code 1."""
         try:
             detail = response.json().get("detail", response.text)
-        except Exception:
+        except (ValueError, AttributeError):
             detail = response.text
 
         if self.json_mode:

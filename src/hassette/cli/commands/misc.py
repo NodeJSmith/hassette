@@ -59,6 +59,6 @@ def cmd_event(
     params: dict[str, Any] = {}
     if limit is not None:
         params["limit"] = limit
-    result: list[EventEntry] = client.get("/api/events/recent", list, params=params or None)
+    result: list[EventEntry] = client.get("/api/events/recent", list, params=params)
     events = [EventEntry.model_validate(e) for e in result]
     render_table(events, EVENT_COLUMNS, json_mode=json)  # pyright: ignore[reportArgumentType]

@@ -1,11 +1,12 @@
 """Shared CLI flag types and converters for hassette commands."""
 
 import re
-import time
 from typing import Annotated, Literal
 
 from cyclopts import Parameter
 from whenever import Instant, OffsetDateTime, PlainDateTime
+
+from hassette.cli.output import _now
 
 SINCE_HELP = (
     "Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or absolute "
@@ -33,11 +34,6 @@ _INVALID_FORMATS_HINT = (
     "2026-05-22T14:00:00-04:00). Compound durations (1h30m) and "
     "month/year units are not supported."
 )
-
-
-def _now() -> float:
-    """Return current time as epoch float. Patched in tests."""
-    return time.time()
 
 
 def convert_since(value: str) -> float:

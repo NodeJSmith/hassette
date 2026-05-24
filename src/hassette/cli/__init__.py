@@ -1,7 +1,7 @@
 """Hassette CLI — cyclopts App setup, default command, and subcommand registration."""
 
 import asyncio
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from logging import getLogger
 from typing import Annotated, Any
 
@@ -9,8 +9,8 @@ from cyclopts import App, Parameter
 
 from hassette.app.app_config import AppConfig
 from hassette.cli.commands.app import cmd_app, cmd_app_activity, cmd_app_config, cmd_app_health, cmd_app_source
-from hassette.cli.commands.job import cmd_job, cmd_job_detail
-from hassette.cli.commands.listener import cmd_listener, cmd_listener_detail
+from hassette.cli.commands.job import cmd_job
+from hassette.cli.commands.listener import cmd_listener
 from hassette.cli.commands.log import cmd_execution, cmd_log
 from hassette.cli.commands.misc import cmd_config, cmd_event, cmd_service
 from hassette.cli.commands.status import cmd_dashboard, cmd_status, cmd_telemetry
@@ -23,7 +23,10 @@ LOGGER = getLogger("hassette.cli")
 # Version string
 # ---------------------------------------------------------------------------
 
-_VERSION = version("hassette")
+try:
+    _version = version("hassette")
+except PackageNotFoundError:
+    _version = "unknown"
 
 # ---------------------------------------------------------------------------
 # Root App
@@ -31,22 +34,18 @@ _VERSION = version("hassette")
 
 app = App(
     name="hassette",
-    version=_VERSION,
+    version=_version,
     version_flags=["--version", "-v"],
     help="Hassette — async-first Home Assistant automation framework.",
 )
 
 app.register_install_completion_command()
 
-# ---------------------------------------------------------------------------
-# Subcommand stubs (implementations in T05-T08)
-# ---------------------------------------------------------------------------
-
 status_app = App(name="status", help="Show system status.")
 app.command(status_app)
 
-app_app = App(name="app", help="List and inspect apps.")
-app.command(app_app)
+apps_app = App(name="app", help="List and inspect apps.")
+app.command(apps_app)
 
 listener_app = App(name="listener", help="List listeners and invocation history.")
 app.command(listener_app)
@@ -75,10 +74,6 @@ app.command(telemetry_app)
 dashboard_app = App(name="dashboard", help="Show app dashboard grid.")
 app.command(dashboard_app)
 
-# ---------------------------------------------------------------------------
-# Register T05 command implementations
-# ---------------------------------------------------------------------------
-
 status_app.default(cmd_status)
 telemetry_app.default(cmd_telemetry)
 dashboard_app.default(cmd_dashboard)
@@ -86,29 +81,14 @@ config_app.default(cmd_config)
 service_app.default(cmd_service)
 event_app.default(cmd_event)
 
-# ---------------------------------------------------------------------------
-# Register T06 app command implementations
-# ---------------------------------------------------------------------------
-
-app_app.default(cmd_app)
-app_app.command(cmd_app_health, name="health")
-app_app.command(cmd_app_activity, name="activity")
-app_app.command(cmd_app_config, name="config")
-app_app.command(cmd_app_source, name="source")
-
-# ---------------------------------------------------------------------------
-# Register T07 listener and job command implementations
-# ---------------------------------------------------------------------------
+apps_app.default(cmd_app)
+apps_app.command(cmd_app_health, name="health")
+apps_app.command(cmd_app_activity, name="activity")
+apps_app.command(cmd_app_config, name="config")
+apps_app.command(cmd_app_source, name="source")
 
 listener_app.default(cmd_listener)
-listener_app.command(cmd_listener_detail, name="detail")
-
 job_app.default(cmd_job)
-job_app.command(cmd_job_detail, name="detail")
-
-# ---------------------------------------------------------------------------
-# Register T08 log and execution command implementations
-# ---------------------------------------------------------------------------
 
 log_app.default(cmd_log)
 execution_app.default(cmd_execution)
@@ -170,9 +150,11 @@ def start_server(
     except AppPrecheckFailedError as e:
         LOGGER.error("App precheck failed: %s", e)
         LOGGER.error("Hassette is shutting down due to app precheck failure")
+        raise SystemExit(1) from None
     except FatalError as e:
         LOGGER.error("Fatal error occurred: %s", e)
         LOGGER.error("Hassette is shutting down due to a fatal error")
+        raise SystemExit(1) from None
     except Exception as e:
         LOGGER.exception("Unexpected error in Hassette: %s", e)
         raise

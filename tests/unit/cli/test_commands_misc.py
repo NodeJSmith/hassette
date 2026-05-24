@@ -196,7 +196,7 @@ class TestCmdEvent:
         ):
             cmd_event(json=False)
 
-        assert captured_params[0] is None
+        assert captured_params[0] == {}
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """event command renders a table with event type and entity columns."""

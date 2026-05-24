@@ -9,7 +9,6 @@ from hassette.cli.commands.job import (
     JOB_EXECUTION_COLUMNS,
     JOB_LIST_COLUMNS,
     cmd_job,
-    cmd_job_detail,
 )
 from hassette.test_utils.web_helpers import make_job_execution, make_job_summary
 from tests.unit.cli.conftest import CLIClientFactory, capture_stderr, capture_stdout
@@ -185,11 +184,6 @@ class TestCmdJob:
         assert len(JOB_LIST_COLUMNS) <= 9
 
 
-# ---------------------------------------------------------------------------
-# cmd_job_detail — execution history for a specific job
-# ---------------------------------------------------------------------------
-
-
 class TestCmdJobDetail:
     def test_calls_executions_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """job <id> fetches from GET /api/telemetry/job/{id}/executions."""
@@ -210,7 +204,7 @@ class TestCmdJobDetail:
             patch("hassette.cli.commands.job.HassetteConfig"),
             patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
         ):
-            cmd_job_detail(id=5, json=False)
+            cmd_job(job_id=5, json=False)
 
         assert "/api/telemetry/job/5/executions" in called_paths
 
@@ -233,7 +227,7 @@ class TestCmdJobDetail:
             patch("hassette.cli.commands.job.HassetteConfig"),
             patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
         ):
-            cmd_job_detail(id=5, limit=5, json=False)
+            cmd_job(job_id=5, limit=5, json=False)
 
         executions_call = next(r for r in received_params if "executions" in r["path"])
         assert executions_call["params"] is not None
@@ -259,7 +253,7 @@ class TestCmdJobDetail:
             patch("hassette.cli.commands.job.HassetteConfig"),
             patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
         ):
-            cmd_job_detail(id=5, since=since_epoch, json=False)
+            cmd_job(job_id=5, since=since_epoch, json=False)
 
         executions_call = next(r for r in received_params if "executions" in r["path"])
         assert executions_call["params"] is not None
@@ -276,7 +270,7 @@ class TestCmdJobDetail:
             patch("hassette.cli.commands.job.HassetteConfig"),
             patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
         ):
-            cmd_job_detail(id=1, json=False)
+            cmd_job(job_id=1, json=False)
 
         output = buf.getvalue()
         assert "success" in output.lower() or "Status" in output
@@ -294,7 +288,7 @@ class TestCmdJobDetail:
             patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
         ):
-            cmd_job_detail(id=1, json=True)
+            cmd_job(job_id=1, json=True)
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)

@@ -76,27 +76,27 @@ def fmt_relative_time(value: Any) -> str:
         return str(value)
 
 
-def fmt_duration(value: Any) -> str:
-    """Convert a duration in seconds or milliseconds to a human-readable string.
+def fmt_duration_ms(value: Any) -> str:
+    """Convert a duration in milliseconds to a human-readable string."""
+    if value is None:
+        return ""
+    try:
+        ms = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if abs(ms) < 1000:
+        return f"{ms:.0f}ms"
+    return f"{ms / 1000:.1f}s"
 
-    Assumes seconds unless the value is greater than 10000, in which case
-    assumes milliseconds (heuristic for ms-based telemetry fields).
-    Examples: "1.2s", "450ms".
-    """
+
+def fmt_duration_s(value: Any) -> str:
+    """Convert a duration in seconds to a human-readable string."""
     if value is None:
         return ""
     try:
         num = float(value)
     except (TypeError, ValueError):
         return str(value)
-    # Heuristic: telemetry duration_ms fields are stored in ms
-    if abs(num) >= 10000:
-        # Treat as milliseconds
-        ms = num
-        if abs(ms) < 1000:
-            return f"{ms:.0f}ms"
-        return f"{ms / 1000:.1f}s"
-    # Treat as seconds
     if abs(num) < 1:
         return f"{num * 1000:.0f}ms"
     return f"{num:.1f}s"
@@ -173,7 +173,7 @@ def _cell_text(value: Any, col: Column) -> str:
     if col.formatter is not None:
         try:
             return col.formatter(value)
-        except Exception:
+        except (TypeError, ValueError):
             return str(value) if value is not None else ""
     if value is None:
         return ""

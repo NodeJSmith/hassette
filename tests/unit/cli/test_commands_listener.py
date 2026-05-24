@@ -9,7 +9,6 @@ from hassette.cli.commands.listener import (
     LISTENER_INVOCATION_COLUMNS,
     LISTENER_LIST_COLUMNS,
     cmd_listener,
-    cmd_listener_detail,
 )
 from hassette.test_utils.web_helpers import make_handler_invocation, make_listener_with_summary
 from tests.unit.cli.conftest import CLIClientFactory, capture_stderr, capture_stdout
@@ -185,11 +184,6 @@ class TestCmdListener:
         assert len(LISTENER_LIST_COLUMNS) <= 9
 
 
-# ---------------------------------------------------------------------------
-# cmd_listener_detail — invocation history for a specific listener
-# ---------------------------------------------------------------------------
-
-
 class TestCmdListenerDetail:
     def test_calls_invocations_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """listener <id> fetches from GET /api/telemetry/handler/{id}/invocations."""
@@ -210,7 +204,7 @@ class TestCmdListenerDetail:
             patch("hassette.cli.commands.listener.HassetteConfig"),
             patch("hassette.cli.commands.listener.HassetteCLIClient", return_value=client),
         ):
-            cmd_listener_detail(id=42, json=False)
+            cmd_listener(listener_id=42, json=False)
 
         assert "/api/telemetry/handler/42/invocations" in called_paths
 
@@ -233,7 +227,7 @@ class TestCmdListenerDetail:
             patch("hassette.cli.commands.listener.HassetteConfig"),
             patch("hassette.cli.commands.listener.HassetteCLIClient", return_value=client),
         ):
-            cmd_listener_detail(id=42, limit=5, json=False)
+            cmd_listener(listener_id=42, limit=5, json=False)
 
         invocations_call = next(r for r in received_params if "invocations" in r["path"])
         assert invocations_call["params"] is not None
@@ -259,7 +253,7 @@ class TestCmdListenerDetail:
             patch("hassette.cli.commands.listener.HassetteConfig"),
             patch("hassette.cli.commands.listener.HassetteCLIClient", return_value=client),
         ):
-            cmd_listener_detail(id=42, since=since_epoch, json=False)
+            cmd_listener(listener_id=42, since=since_epoch, json=False)
 
         invocations_call = next(r for r in received_params if "invocations" in r["path"])
         assert invocations_call["params"] is not None
@@ -276,7 +270,7 @@ class TestCmdListenerDetail:
             patch("hassette.cli.commands.listener.HassetteConfig"),
             patch("hassette.cli.commands.listener.HassetteCLIClient", return_value=client),
         ):
-            cmd_listener_detail(id=1, json=False)
+            cmd_listener(listener_id=1, json=False)
 
         output = buf.getvalue()
         assert "success" in output.lower() or "Status" in output
@@ -294,7 +288,7 @@ class TestCmdListenerDetail:
             patch("hassette.cli.commands.listener.HassetteCLIClient", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
         ):
-            cmd_listener_detail(id=1, json=True)
+            cmd_listener(listener_id=1, json=True)
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)

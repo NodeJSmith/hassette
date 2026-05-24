@@ -17,7 +17,8 @@ from hassette.cli.output import (
     _build_table,
     _cell_text,
     _extract_field,
-    fmt_duration,
+    fmt_duration_ms,
+    fmt_duration_s,
     fmt_relative_time,
     fmt_truncate,
     render_detail,
@@ -182,33 +183,37 @@ class TestFmtRelativeTime:
         assert "h ago" in result
 
 
-class TestFmtDuration:
+class TestFmtDurationMs:
     def test_none_returns_empty(self) -> None:
-        assert fmt_duration(None) == ""
+        assert fmt_duration_ms(None) == ""
+
+    def test_small_ms_shows_ms(self) -> None:
+        assert fmt_duration_ms(25) == "25ms"
+
+    def test_subsecond_ms_shows_ms(self) -> None:
+        assert fmt_duration_ms(450) == "450ms"
+
+    def test_large_ms_shows_seconds(self) -> None:
+        assert fmt_duration_ms(12000) == "12.0s"
+
+    def test_invalid_value_returns_string(self) -> None:
+        assert fmt_duration_ms("invalid") == "invalid"
+
+
+class TestFmtDurationS:
+    def test_none_returns_empty(self) -> None:
+        assert fmt_duration_s(None) == ""
 
     def test_subsecond_shows_ms(self) -> None:
-        result = fmt_duration(0.45)
+        result = fmt_duration_s(0.45)
         assert "ms" in result
 
     def test_seconds_shows_s(self) -> None:
-        result = fmt_duration(1.5)
-        assert "s" in result
-        assert "ms" not in result
-
-    def test_large_ms_value(self) -> None:
-        # Values >= 10000 are treated as milliseconds
-        result = fmt_duration(12000)
-        assert "s" in result
+        result = fmt_duration_s(1.5)
+        assert result == "1.5s"
 
     def test_invalid_value_returns_string(self) -> None:
-        result = fmt_duration("invalid")
-        assert isinstance(result, str)
-
-    def test_small_ms_shows_ms_unit(self) -> None:
-        result = fmt_duration(450)
-        # 450 < 10000 so treated as seconds; 450ms = 0.45s shown as ms
-        # Actually 450 seconds is shown as "450.0s"
-        assert "s" in result
+        assert fmt_duration_s("invalid") == "invalid"
 
 
 class TestFmtTruncate:
@@ -259,7 +264,7 @@ class TestCellText:
 
     def test_formatter_exception_falls_back_to_str(self) -> None:
         def bad_formatter(_v: Any) -> str:
-            raise RuntimeError("oops")
+            raise ValueError("oops")
 
         col = Column(field="val", header="Val", formatter=bad_formatter)
         result = _cell_text("raw", col)
@@ -601,5 +606,6 @@ class TestArchitecturalConstraint:
     def test_builtin_formatters_are_public(self) -> None:
         """Built-in formatters are publicly accessible for commands to reference."""
         assert callable(fmt_relative_time)
-        assert callable(fmt_duration)
+        assert callable(fmt_duration_ms)
+        assert callable(fmt_duration_s)
         assert callable(fmt_truncate)

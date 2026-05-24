@@ -3,7 +3,7 @@
 from typing import Any
 
 from hassette.cli.client import HassetteCLIClient
-from hassette.cli.output import Column, fmt_duration, fmt_relative_time, render_detail, render_table
+from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
 from hassette.cli.types import InstanceArg, JsonArg, LimitArg, SinceArg, SourceTierArg
 from hassette.config.config import HassetteConfig
 from hassette.core.telemetry_models import ActivityFeedEntry
@@ -42,8 +42,8 @@ APP_HEALTH_COLUMNS: list[Column] = [
     Column("health_status", "Health", max_width=10),
     Column("error_rate", "Error Rate", max_width=10),
     Column("error_rate_class", "Rate Class", max_width=10),
-    Column("handler_avg_duration", "Handler Avg", max_width=11, formatter=fmt_duration),
-    Column("job_avg_duration", "Job Avg", max_width=9, formatter=fmt_duration),
+    Column("handler_avg_duration", "Handler Avg", max_width=11, formatter=fmt_duration_ms),
+    Column("job_avg_duration", "Job Avg", max_width=9, formatter=fmt_duration_ms),
     Column("last_activity_ts", "Last Active", max_width=11, formatter=fmt_relative_time),
 ]
 
@@ -67,7 +67,7 @@ def cmd_app_health(
     if source_tier is not None:
         params["source_tier"] = source_tier
 
-    result = client.get(f"/api/telemetry/app/{key}/health", AppHealthResponse, params=params or None)
+    result = client.get(f"/api/telemetry/app/{key}/health", AppHealthResponse, params=params)
     render_detail(result, json_mode=json)
 
 
@@ -81,7 +81,7 @@ APP_ACTIVITY_COLUMNS: list[Column] = [
     Column("status", "Status", max_width=10),
     Column("app_key", "App", max_width=16),
     Column("handler_name", "Handler", max_width=22),
-    Column("duration_ms", "Duration", max_width=9, formatter=fmt_duration),
+    Column("duration_ms", "Duration", max_width=9, formatter=fmt_duration_ms),
     Column("timestamp", "When", max_width=11, formatter=fmt_relative_time),
     Column("error_type", "Error", max_width=16),
 ]
@@ -107,7 +107,7 @@ def cmd_app_activity(
     if limit is not None:
         params["limit"] = limit
 
-    raw: list[Any] = client.get(f"/api/telemetry/app/{key}/activity", list, params=params or None)
+    raw: list[Any] = client.get(f"/api/telemetry/app/{key}/activity", list, params=params)
     entries = [ActivityFeedEntry.model_validate(e) for e in raw]
     render_table(entries, APP_ACTIVITY_COLUMNS, json_mode=json)  # pyright: ignore[reportArgumentType]
 

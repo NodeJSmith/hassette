@@ -49,7 +49,7 @@ hassette status --json
 
 ### `hassette app`
 
-List all loaded apps with their key, display name, status, instance count, and recent invocation counts.
+List all loaded apps with their key, display name, status, instance count, and recent invocation counts. Uses the manifests endpoint which includes per-app metadata; the simpler `GET /api/apps` status endpoint is available via `--json` and the REST API directly.
 
 ```bash
 hassette app
@@ -109,7 +109,7 @@ Bare `hassette listener` lists all listeners with their topic, handler method, i
 | `--instance <n>` | Filter to a specific app instance (requires `--app`) |
 | `--since <duration>` | Time window for invocation counts and history |
 | `--limit <n>` | Maximum number of invocation records to return (when viewing a specific listener) |
-| `--source-tier <tier>` | Filter by `app` (user automations) or `framework` (internal Hassette components). Defaults to `app` |
+| `--source-tier <tier>` | Filter by `app` (user automations) or `framework` (internal Hassette components). Server defaults to `app` |
 | `--json` | Output as JSON |
 
 **Examples:**
@@ -147,7 +147,7 @@ hassette job <id>
 | `--instance <n>` | Filter to a specific app instance (requires `--app`) |
 | `--since <duration>` | Time window for execution history |
 | `--limit <n>` | Maximum number of execution records to return (when viewing a specific job) |
-| `--source-tier <tier>` | Filter by `app` or `framework`. Defaults to `app` |
+| `--source-tier <tier>` | Filter by `app` or `framework`. Server defaults to `all` for global queries, `app` for per-app queries |
 | `--json` | Output as JSON |
 
 **Examples:**
@@ -206,12 +206,12 @@ Recent Home Assistant events received by the WebSocket connection.
 
 ```bash
 hassette event
-hassette event --since 15m --limit 100
+hassette event --limit 100
 ```
 
 **API endpoint:** `GET /api/events/recent`
 
-**Flags:** `--since`, `--limit`, `--json`
+**Flags:** `--limit`, `--json`
 
 ---
 

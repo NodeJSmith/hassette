@@ -62,7 +62,7 @@ def cmd_log(
     raw: list[Any] = client.get(
         "/api/logs/recent",
         list,
-        params=params or None,
+        params=params,
     )
     entries = [LogEntryResponse.model_validate(e) for e in raw]
     render_table(entries, LOG_COLUMNS, json_mode=json)  # pyright: ignore[reportArgumentType]
@@ -89,6 +89,6 @@ def cmd_execution(
     response = client.get(
         f"/api/executions/{uuid}",
         LogsByExecutionResponse,
-        params=params or None,
+        params=params,
     )
     render_table(response.records, EXECUTION_LOG_COLUMNS, json_mode=json)  # pyright: ignore[reportArgumentType]
