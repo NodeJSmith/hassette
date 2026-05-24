@@ -1,11 +1,14 @@
-"""Tests for the __main__ entrypoint — SIGTERM signal handling."""
+"""Tests for the __main__ entrypoint — SIGTERM signal handling and startup validation."""
 
 import asyncio
 import signal
 from argparse import Namespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from hassette.__main__ import main
+from hassette.exceptions import FatalError
 
 
 async def test_main_registers_sigterm_handler() -> None:
@@ -85,6 +88,48 @@ async def test_main_continues_when_signal_handler_unsupported() -> None:
         patch("hassette.__main__.HassetteConfig"),
         patch("hassette.__main__.Hassette", return_value=mock_core),
         patch.object(loop, "add_signal_handler", side_effect=NotImplementedError),
+    ):
+        mock_parser.return_value.parse_known_args.return_value = (mock_args, [])
+        await main()
+
+    mock_core.run_forever.assert_awaited_once()
+
+
+async def test_main_raises_fatal_error_when_token_is_none() -> None:
+    """main() raises FatalError before creating Hassette when token is None."""
+    mock_config = MagicMock()
+    mock_config.token = None
+
+    mock_args = Namespace(env_file=None, config_file=None)
+
+    with (
+        patch("hassette.__main__.get_parser") as mock_parser,
+        patch("hassette.__main__.HassetteConfig", return_value=mock_config),
+        patch("hassette.__main__.Hassette") as mock_hassette,
+    ):
+        mock_parser.return_value.parse_known_args.return_value = (mock_args, [])
+        with pytest.raises(FatalError, match="HA token is required"):
+            await main()
+
+    mock_hassette.assert_not_called()
+
+
+async def test_main_proceeds_when_token_is_set() -> None:
+    """main() proceeds to create Hassette when token is not None."""
+    mock_core = MagicMock()
+    mock_core.run_forever = AsyncMock()
+
+    mock_config = MagicMock()
+    mock_config.token = "valid-token"
+
+    mock_args = Namespace(env_file=None, config_file=None)
+    loop = asyncio.get_running_loop()
+
+    with (
+        patch("hassette.__main__.get_parser") as mock_parser,
+        patch("hassette.__main__.HassetteConfig", return_value=mock_config),
+        patch("hassette.__main__.Hassette", return_value=mock_core),
+        patch.object(loop, "add_signal_handler"),
     ):
         mock_parser.return_value.parse_known_args.return_value = (mock_args, [])
         await main()

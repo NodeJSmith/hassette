@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Make token optional and update packaging"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#7", "FR#8", "AC#6", "AC#9"]
 ---

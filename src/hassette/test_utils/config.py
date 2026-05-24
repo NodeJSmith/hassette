@@ -53,7 +53,6 @@ def get_hermetic_hassette_config_cls() -> tuple[type[HassetteConfig], list[dict[
 
     class _Cls(HassetteConfig):
         model_config = HassetteConfig.model_config.copy() | {
-            "cli_parse_args": False,
             "toml_file": None,
             "env_file": None,
             "extra": "forbid",

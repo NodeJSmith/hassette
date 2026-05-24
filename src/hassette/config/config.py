@@ -55,17 +55,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         validate_by_name=True,
         use_attribute_docstrings=True,
         validate_assignment=True,
-        cli_prog_name="hassette",
-        cli_ignore_unknown_args=True,
-        cli_parse_args=True,
-        cli_kebab_case=True,
+        cli_parse_args=False,
         nested_model_default_partial_update=True,
-        cli_shortcuts={
-            "token": ["t"],
-            "base-url": ["u", "url"],
-            "config-file": ["config-file", "c"],
-            "env-file": ["env-file", "env", "e"],
-        },
     )
 
     @classmethod
@@ -129,8 +120,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Whether to verify SSL certificates when connecting to Home Assistant. Useful to disable for self-signed
     certificates."""
 
-    token: str = Field(
-        default=...,
+    token: str | None = Field(
+        default=None,
         validation_alias=AliasChoices("token", "hassette__token", "ha_token", "home_assistant_token"),
     )
     """Access token for Home Assistant instance"""
@@ -224,6 +215,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     @property
     def auth_headers(self) -> dict[str, str]:
         """Return the headers required for authentication."""
+        if self.token is None:
+            return {}
         return {"Authorization": f"Bearer {self.token}"}
 
     @property
@@ -234,6 +227,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     @property
     def truncated_token(self) -> str:
         """Return a truncated version of the token for display purposes."""
+        if self.token is None:
+            return "<not set>"
         if len(self.token) < TOKEN_SHORT_THRESHOLD:
             return "***"
         if len(self.token) <= TOKEN_MEDIUM_THRESHOLD:

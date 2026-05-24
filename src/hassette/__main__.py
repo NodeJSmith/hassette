@@ -50,6 +50,11 @@ async def main() -> None:
 
     config = HassetteConfig()
 
+    if config.token is None:
+        raise FatalError(
+            "HA token is required for server startup. Set HASSETTE__TOKEN or HA_TOKEN in your environment or .env file."
+        )
+
     core = Hassette(config=config)
     core.wire_services()
 

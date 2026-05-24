@@ -95,7 +95,6 @@ class TestConfig(HassetteConfig):
     """
 
     model_config = HassetteConfig.model_config.copy() | {
-        "cli_parse_args": False,
         "toml_file": TEST_TOML_FILE,
         "env_file": ENV_FILE,
     }
