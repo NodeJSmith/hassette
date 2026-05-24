@@ -8,6 +8,8 @@ from typing import Annotated, Any
 from cyclopts import App, Parameter
 
 from hassette.app.app_config import AppConfig
+from hassette.cli.commands.misc import cmd_config, cmd_event, cmd_service
+from hassette.cli.commands.status import cmd_dashboard, cmd_status, cmd_telemetry
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 
@@ -68,6 +70,17 @@ app.command(telemetry_app)
 
 dashboard_app = App(name="dashboard", help="Show app dashboard grid.")
 app.command(dashboard_app)
+
+# ---------------------------------------------------------------------------
+# Register T05 command implementations
+# ---------------------------------------------------------------------------
+
+status_app.default(cmd_status)
+telemetry_app.default(cmd_telemetry)
+dashboard_app.default(cmd_dashboard)
+config_app.default(cmd_config)
+service_app.default(cmd_service)
+event_app.default(cmd_event)
 
 # ---------------------------------------------------------------------------
 # Default command — starts the framework server (backward compatibility)

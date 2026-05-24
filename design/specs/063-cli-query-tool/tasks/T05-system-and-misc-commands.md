@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Add system and misc commands"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03", "T04"]
 implements: ["FR#1", "FR#2", "AC#1"]
 ---

@@ -1,13 +1,36 @@
 """Shared CLI test fixtures for CLI client and command tests (T03, T05-T08)."""
 
 import json
+from contextlib import contextmanager
+from io import StringIO
 from typing import Any
+from unittest.mock import patch
 
 import httpx
 import pytest
+from rich.console import Console
 
+import hassette.cli.output as output_module
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
+
+
+@contextmanager
+def capture_stdout():
+    """Capture Rich stdout console output."""
+    buf = StringIO()
+    mock_console = Console(file=buf, highlight=False, force_terminal=False)
+    with patch.object(output_module, "stdout_console", mock_console):
+        yield buf
+
+
+@contextmanager
+def capture_stderr():
+    """Capture Rich stderr console output."""
+    buf = StringIO()
+    mock_console = Console(file=buf, stderr=True, highlight=False, force_terminal=False)
+    with patch.object(output_module, "stderr_console", mock_console):
+        yield buf
 
 
 class MockTransportBuilder:

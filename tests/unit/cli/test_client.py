@@ -1,31 +1,17 @@
 """Unit tests for the HassetteCLIClient HTTP client wrapper."""
 
 import json
-from contextlib import contextmanager
-from io import StringIO
 from typing import Any
-from unittest.mock import patch
 
 import httpx
 import pytest
 from pydantic import BaseModel
-from rich.console import Console
 
-import hassette.cli.output as output_module
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
 from hassette.test_utils.web_helpers import make_manifest_list_response, make_manifest_response
 from hassette.web.models import AppInstanceResponse
-
-
-@contextmanager
-def capture_stderr():
-    """Capture Rich stderr console output from the shared stderr_console."""
-    buf = StringIO()
-    mock_console = Console(file=buf, stderr=True, highlight=False, force_terminal=False)
-    with patch.object(output_module, "stderr_console", mock_console):
-        yield buf
-
+from tests.unit.cli.conftest import capture_stderr
 
 # ---------------------------------------------------------------------------
 # Helpers

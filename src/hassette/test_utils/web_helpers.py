@@ -22,7 +22,23 @@ import hassette.utils.date_utils as date_utils
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
-from hassette.web.models import AppInstanceResponse, AppManifestListResponse, AppManifestResponse
+from hassette.web.models import (
+    AppInstanceResponse,
+    AppManifestListResponse,
+    AppManifestResponse,
+    AppsConfigResponse,
+    ConfigResponse,
+    DashboardAppGridEntry,
+    DashboardAppGridResponse,
+    EventEntry,
+    FileWatcherConfigResponse,
+    LifecycleConfigResponse,
+    LoggingConfigResponse,
+    SchedulerConfigResponse,
+    SystemStatusResponse,
+    TelemetryStatusResponse,
+    WebApiConfigResponse,
+)
 
 
 def make_full_snapshot(
@@ -255,4 +271,144 @@ def make_real_job(
         group=group,
         app_key=app_key,
         instance_index=instance_index,
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# CLI response model factories (used by T05+ tests)
+# ──────────────────────────────────────────────────────────────────────
+
+
+def make_system_status_response(
+    status: str = "ok",
+    websocket_connected: bool = True,
+    uptime_seconds: float = 3600.0,
+    entity_count: int = 120,
+    app_count: int = 3,
+    version: str = "0.1.0",
+    services_running: list[str] | None = None,
+) -> SystemStatusResponse:
+    """Build a SystemStatusResponse with sensible defaults."""
+    return SystemStatusResponse(
+        status=status,  # pyright: ignore[reportArgumentType]
+        websocket_connected=websocket_connected,
+        uptime_seconds=uptime_seconds,
+        entity_count=entity_count,
+        app_count=app_count,
+        version=version,
+        services_running=services_running or ["websocket", "db"],
+    )
+
+
+def make_telemetry_status_response(
+    degraded: bool = False,
+    dropped_overflow: int = 0,
+    dropped_exhausted: int = 0,
+    dropped_no_session: int = 0,
+    dropped_shutdown: int = 0,
+    error_handler_failures: int = 0,
+) -> TelemetryStatusResponse:
+    """Build a TelemetryStatusResponse with sensible defaults."""
+    return TelemetryStatusResponse(
+        degraded=degraded,
+        dropped_overflow=dropped_overflow,
+        dropped_exhausted=dropped_exhausted,
+        dropped_no_session=dropped_no_session,
+        dropped_shutdown=dropped_shutdown,
+        error_handler_failures=error_handler_failures,
+    )
+
+
+def make_dashboard_app_grid_entry(
+    app_key: str = "my_app",
+    status: str = "running",
+    display_name: str = "My App",
+    instance_count: int = 1,
+    handler_count: int = 2,
+    job_count: int = 1,
+    total_invocations: int = 100,
+    total_errors: int = 0,
+    total_executions: int = 50,
+    total_job_errors: int = 0,
+    avg_duration_ms: float = 5.0,
+    last_activity_ts: float | None = None,
+    health_status: str = "excellent",
+    error_rate: float = 0.0,
+    error_rate_class: str = "good",
+) -> DashboardAppGridEntry:
+    """Build a DashboardAppGridEntry with sensible defaults."""
+    return DashboardAppGridEntry(
+        app_key=app_key,
+        status=status,  # pyright: ignore[reportArgumentType]
+        display_name=display_name,
+        instance_count=instance_count,
+        handler_count=handler_count,
+        job_count=job_count,
+        total_invocations=total_invocations,
+        total_errors=total_errors,
+        total_executions=total_executions,
+        total_job_errors=total_job_errors,
+        avg_duration_ms=avg_duration_ms,
+        last_activity_ts=last_activity_ts,
+        health_status=health_status,  # pyright: ignore[reportArgumentType]
+        error_rate=error_rate,
+        error_rate_class=error_rate_class,  # pyright: ignore[reportArgumentType]
+    )
+
+
+def make_dashboard_app_grid_response(
+    entries: list[DashboardAppGridEntry] | None = None,
+) -> DashboardAppGridResponse:
+    """Build a DashboardAppGridResponse from a list of entries."""
+    return DashboardAppGridResponse(apps=entries or [make_dashboard_app_grid_entry()])
+
+
+def make_event_entry(
+    type: str = "state_changed",
+    entity_id: str | None = "light.kitchen",
+    timestamp: float = 1_700_000_000.0,
+    data: dict | None = None,
+) -> EventEntry:
+    """Build an EventEntry with sensible defaults."""
+    return EventEntry(
+        type=type,
+        entity_id=entity_id,
+        timestamp=timestamp,
+        data=data or {},
+    )
+
+
+def make_config_response() -> ConfigResponse:
+    """Build a ConfigResponse with sensible defaults."""
+    return ConfigResponse(
+        dev_mode=False,
+        base_url="http://homeassistant.local:8123",
+        asyncio_debug_mode=False,
+        allow_reload_in_prod=False,
+        data_dir="/home/user/.local/share/hassette",
+        config_dir="/home/user/.config/hassette",
+        web_api=WebApiConfigResponse(
+            run=True,
+            run_ui=True,
+            ui_hot_reload=False,
+            host="0.0.0.0",
+            port=8126,
+            cors_origins=[],
+            event_buffer_size=100,
+            log_buffer_size=500,
+            job_history_size=100,
+        ),
+        logging=LoggingConfigResponse(log_level="INFO", web_api="WARNING"),
+        lifecycle=LifecycleConfigResponse(
+            startup_timeout_seconds=30,
+            app_startup_timeout_seconds=10,
+            app_shutdown_timeout_seconds=10,
+        ),
+        apps=AppsConfigResponse(autodetect=True, directory="apps"),
+        scheduler=SchedulerConfigResponse(
+            min_delay_seconds=0,
+            max_delay_seconds=3600,
+            default_delay_seconds=0,
+        ),
+        file_watcher=FileWatcherConfigResponse(watch_files=True, debounce_milliseconds=500),
     )
