@@ -20,13 +20,18 @@ from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
+from hassette.core.telemetry_models import ActivityFeedEntry
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
+from hassette.types.types import InvocationStatus
 from hassette.web.models import (
+    AppConfigResponse,
+    AppHealthResponse,
     AppInstanceResponse,
     AppManifestListResponse,
     AppManifestResponse,
     AppsConfigResponse,
+    AppSourceResponse,
     ConfigResponse,
     DashboardAppGridEntry,
     DashboardAppGridResponse,
@@ -411,4 +416,80 @@ def make_config_response() -> ConfigResponse:
             default_delay_seconds=0,
         ),
         file_watcher=FileWatcherConfigResponse(watch_files=True, debounce_milliseconds=500),
+    )
+
+
+def make_app_health_response(
+    error_rate: float = 0.0,
+    error_rate_class: str = "good",
+    handler_avg_duration: float = 5.0,
+    job_avg_duration: float = 10.0,
+    last_activity_ts: float | None = 1_700_000_000.0,
+    health_status: str = "excellent",
+) -> AppHealthResponse:
+    """Build an AppHealthResponse with sensible defaults."""
+    return AppHealthResponse(
+        error_rate=error_rate,
+        error_rate_class=error_rate_class,  # pyright: ignore[reportArgumentType]
+        handler_avg_duration=handler_avg_duration,
+        job_avg_duration=job_avg_duration,
+        last_activity_ts=last_activity_ts,
+        health_status=health_status,  # pyright: ignore[reportArgumentType]
+    )
+
+
+def make_activity_feed_entry(
+    row_id: str = "h-1",
+    status: InvocationStatus = InvocationStatus.SUCCESS,
+    timestamp: float = 1_700_000_000.0,
+    app_key: str = "my_app",
+    handler_name: str = "on_state_change",
+    duration_ms: float | None = 12.5,
+    error_type: str | None = None,
+    kind: str = "handler",
+) -> ActivityFeedEntry:
+    """Build an ActivityFeedEntry with sensible defaults."""
+    return ActivityFeedEntry(
+        row_id=row_id,
+        status=status,
+        timestamp=timestamp,
+        app_key=app_key,
+        handler_name=handler_name,
+        duration_ms=duration_ms,
+        error_type=error_type,
+        kind=kind,  # pyright: ignore[reportArgumentType]
+    )
+
+
+def make_app_config_response(
+    app_key: str = "my_app",
+    filename: str = "my_app.py",
+    class_name: str = "MyApp",
+    enabled: bool = True,
+    app_config: dict | None = None,
+    config_schema: dict | None = None,
+) -> AppConfigResponse:
+    """Build an AppConfigResponse with sensible defaults."""
+    return AppConfigResponse(
+        app_key=app_key,
+        filename=filename,
+        class_name=class_name,
+        enabled=enabled,
+        app_config=app_config or {"setting_name": "default"},
+        config_schema=config_schema,
+    )
+
+
+def make_app_source_response(
+    app_key: str = "my_app",
+    filename: str = "my_app.py",
+    content: str = "class MyApp:\n    pass\n",
+    line_count: int = 2,
+) -> AppSourceResponse:
+    """Build an AppSourceResponse with sensible defaults."""
+    return AppSourceResponse(
+        app_key=app_key,
+        filename=filename,
+        content=content,
+        line_count=line_count,
     )

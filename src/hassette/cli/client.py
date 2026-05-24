@@ -144,12 +144,12 @@ class HassetteCLIClient:
             path = per_app_path_template.format(app_key=app_key)
 
             if instance is not None:
-                instance_index = self._resolve_instance(app_key, instance)
+                instance_index = self.resolve_instance(app_key, instance)
                 params["instance_index"] = instance_index
 
         return self.get(path, model, params=params or None)
 
-    def _resolve_instance(self, app_key: str, instance: str) -> int:  # noqa: RET503
+    def resolve_instance(self, app_key: str, instance: str) -> int:  # noqa: RET503
         """Resolve an instance selector to an integer index.
 
         Args:
