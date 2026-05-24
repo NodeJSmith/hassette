@@ -619,6 +619,8 @@ def wire_listener_telemetry(hassette, listeners_by_app: dict[str, list[ListenerS
     hassette._telemetry_query_service.get_listener_summary = AsyncMock(
         side_effect=lambda app_key, **_: listeners_by_app.get(app_key, [])
     )
+    all_listeners = [ls for app_listeners in listeners_by_app.values() for ls in app_listeners]
+    hassette._telemetry_query_service.get_all_listeners_summary = AsyncMock(return_value=all_listeners)
 
 
 def wire_job_telemetry(hassette, jobs_by_app: dict[str, list[JobSummary]]) -> None:
