@@ -191,11 +191,11 @@ def test_sort_change_does_not_push_history(page: Page, base_url: str) -> None:
     # Navigate to /handlers
     page.goto(base_url + "/handlers")
     page.wait_for_load_state("networkidle")
+    # Wait for the table to render (TanStack Query may still be fetching)
+    sort_button = page.locator("button[data-testid='sort-header-btn']").first
+    expect(sort_button).to_be_visible(timeout=10000)
     # Remember the initial URL (no sort params)
     initial_url = page.url
-    # Click a sort column header to change sort
-    sort_button = page.locator("button[data-testid='sort-header-btn']").first
-    expect(sort_button).to_be_visible()
     sort_button.click()
     page.wait_for_timeout(300)
     # URL should have changed (sort applied via replace)
