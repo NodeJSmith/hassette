@@ -60,6 +60,9 @@ class HassetteCLIClient:
         self.timeout = timeout
         self._client = httpx.Client(base_url=self.base_url, transport=transport)
 
+    def close(self) -> None:
+        self._client.close()
+
     # ---------------------------------------------------------------------------
     # Core request method
     # ---------------------------------------------------------------------------

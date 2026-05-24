@@ -7,7 +7,10 @@ endpoint deserializes correctly into its expected Pydantic model.
 Run via: uv run nox -s system
 """
 
+import asyncio
+import contextlib
 import socket
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -44,9 +47,14 @@ pytestmark = [pytest.mark.system]
 # ---------------------------------------------------------------------------
 
 
-def _make_cli_client(config: SystemTestConfig) -> HassetteCLIClient:
+@contextlib.contextmanager
+def _cli_client(config: SystemTestConfig) -> Iterator[HassetteCLIClient]:
     """Build a non-JSON-mode CLI client pointed at the running server."""
-    return HassetteCLIClient(config, json_mode=False)
+    client = HassetteCLIClient(config, json_mode=False)
+    try:
+        yield client
+    finally:
+        client.close()
 
 
 def _web_config_with_bus_app(ha_url: str, tmp_path: Path) -> tuple[SystemTestConfig, str]:
@@ -81,8 +89,8 @@ async def test_health_deserializes(ha_container: str, tmp_path: Path) -> None:
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
-        client = _make_cli_client(config)
-        result = client.get("/api/health", SystemStatusResponse)
+        with _cli_client(config) as client:
+            result = await asyncio.to_thread(client.get, "/api/health", SystemStatusResponse)
 
     assert isinstance(result, SystemStatusResponse)
     assert result.status in ("ok", "degraded", "starting")
@@ -93,8 +101,8 @@ async def test_config_deserializes(ha_container: str, tmp_path: Path) -> None:
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
-        client = _make_cli_client(config)
-        result = client.get("/api/config", ConfigResponse)
+        with _cli_client(config) as client:
+            result = await asyncio.to_thread(client.get, "/api/config", ConfigResponse)
 
     assert isinstance(result, ConfigResponse)
     assert result.web_api.port > 0
@@ -105,8 +113,8 @@ async def test_services_returns_dict(ha_container: str, tmp_path: Path) -> None:
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
-        client = _make_cli_client(config)
-        result: dict[str, Any] = client.get("/api/services", dict)
+        with _cli_client(config) as client:
+            result: dict[str, Any] = await asyncio.to_thread(client.get, "/api/services", dict)
 
     assert isinstance(result, dict)
 
@@ -116,8 +124,8 @@ async def test_telemetry_status_deserializes(ha_container: str, tmp_path: Path) 
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
-        client = _make_cli_client(config)
-        result = client.get("/api/telemetry/status", TelemetryStatusResponse)
+        with _cli_client(config) as client:
+            result = await asyncio.to_thread(client.get, "/api/telemetry/status", TelemetryStatusResponse)
 
     assert isinstance(result, TelemetryStatusResponse)
 
@@ -127,8 +135,8 @@ async def test_dashboard_deserializes(ha_container: str, tmp_path: Path) -> None
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
-        client = _make_cli_client(config)
-        result = client.get("/api/telemetry/dashboard/app-grid", DashboardAppGridResponse)
+        with _cli_client(config) as client:
+            result = await asyncio.to_thread(client.get, "/api/telemetry/dashboard/app-grid", DashboardAppGridResponse)
 
     assert isinstance(result, DashboardAppGridResponse)
     assert isinstance(result.apps, list)
@@ -139,8 +147,8 @@ async def test_events_deserializes_and_respects_limit(ha_container: str, tmp_pat
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
-        client = _make_cli_client(config)
-        raw: list[Any] = client.get("/api/events/recent", list, params={"limit": 5})
+        with _cli_client(config) as client:
+            raw: list[Any] = await asyncio.to_thread(client.get, "/api/events/recent", list, {"limit": 5})
 
     events = [EventEntry.model_validate(e) for e in raw]
     assert isinstance(events, list)
@@ -159,8 +167,8 @@ async def test_app_manifests_non_empty(ha_container: str, tmp_path: Path) -> Non
     config, base_url = _web_config_with_bus_app(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
-        client = _make_cli_client(config)
-        result = client.get("/api/apps/manifests", AppManifestListResponse)
+        with _cli_client(config) as client:
+            result = await asyncio.to_thread(client.get, "/api/apps/manifests", AppManifestListResponse)
 
     assert isinstance(result, AppManifestListResponse)
     assert len(result.manifests) > 0
@@ -176,8 +184,8 @@ async def test_listeners_deserializes(ha_container: str, tmp_path: Path) -> None
     config, base_url = _web_config_with_bus_app(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
-        client = _make_cli_client(config)
-        raw: list[Any] = client.get("/api/bus/listeners", list)
+        with _cli_client(config) as client:
+            raw: list[Any] = await asyncio.to_thread(client.get, "/api/bus/listeners", list)
 
     listeners = [ListenerWithSummary.model_validate(e) for e in raw]
     assert isinstance(listeners, list)
@@ -190,21 +198,21 @@ async def test_listener_app_filter_returns_subset(ha_container: str, tmp_path: P
     config, base_url = _web_config_with_bus_app(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
-        client = _make_cli_client(config)
+        with _cli_client(config) as client:
+            all_raw: list[Any] = await asyncio.to_thread(client.get, "/api/bus/listeners", list)
+            all_listeners = [ListenerWithSummary.model_validate(e) for e in all_raw]
 
-        all_raw: list[Any] = client.get("/api/bus/listeners", list)
-        all_listeners = [ListenerWithSummary.model_validate(e) for e in all_raw]
+            if not all_listeners:
+                pytest.skip("No listeners registered — BusHandlerApp may not have started in time")
 
-        if not all_listeners:
-            pytest.skip("No listeners registered — BusHandlerApp may not have started in time")
+            app_key = all_listeners[0].app_key
 
-        app_key = all_listeners[0].app_key
-
-        filtered_raw: list[Any] = client.get(
-            f"/api/telemetry/app/{app_key}/listeners",
-            list,
-        )
-        filtered = [ListenerWithSummary.model_validate(e) for e in filtered_raw]
+            filtered_raw: list[Any] = await asyncio.to_thread(
+                client.get,
+                f"/api/telemetry/app/{app_key}/listeners",
+                list,
+            )
+            filtered = [ListenerWithSummary.model_validate(e) for e in filtered_raw]
 
     assert len(filtered) > 0
     assert len(filtered) <= len(all_listeners)
@@ -217,22 +225,22 @@ async def test_listener_instance_filter(ha_container: str, tmp_path: Path) -> No
     config, base_url = _web_config_with_bus_app(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
-        client = _make_cli_client(config)
+        with _cli_client(config) as client:
+            all_raw: list[Any] = await asyncio.to_thread(client.get, "/api/bus/listeners", list)
+            all_listeners = [ListenerWithSummary.model_validate(e) for e in all_raw]
 
-        all_raw: list[Any] = client.get("/api/bus/listeners", list)
-        all_listeners = [ListenerWithSummary.model_validate(e) for e in all_raw]
+            if not all_listeners:
+                pytest.skip("No listeners registered — BusHandlerApp may not have started in time")
 
-        if not all_listeners:
-            pytest.skip("No listeners registered — BusHandlerApp may not have started in time")
+            app_key = all_listeners[0].app_key
 
-        app_key = all_listeners[0].app_key
-
-        instance_raw: list[Any] = client.get(
-            f"/api/telemetry/app/{app_key}/listeners",
-            list,
-            params={"instance_index": 0},
-        )
-        instance_listeners = [ListenerWithSummary.model_validate(e) for e in instance_raw]
+            instance_raw: list[Any] = await asyncio.to_thread(
+                client.get,
+                f"/api/telemetry/app/{app_key}/listeners",
+                list,
+                {"instance_index": 0},
+            )
+            instance_listeners = [ListenerWithSummary.model_validate(e) for e in instance_raw]
 
     assert isinstance(instance_listeners, list)
     for listener in instance_listeners:
@@ -249,8 +257,8 @@ async def test_jobs_deserializes(ha_container: str, tmp_path: Path) -> None:
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
-        client = _make_cli_client(config)
-        raw: list[Any] = client.get("/api/scheduler/jobs", list)
+        with _cli_client(config) as client:
+            raw: list[Any] = await asyncio.to_thread(client.get, "/api/scheduler/jobs", list)
 
     jobs = [JobSummary.model_validate(e) for e in raw]
     assert isinstance(jobs, list)
@@ -268,8 +276,8 @@ async def test_logs_respects_limit(ha_container: str, tmp_path: Path) -> None:
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
-        client = _make_cli_client(config)
-        raw: list[Any] = client.get("/api/logs/recent", list, params={"limit": 10})
+        with _cli_client(config) as client:
+            raw: list[Any] = await asyncio.to_thread(client.get, "/api/logs/recent", list, {"limit": 10})
 
     entries = [LogEntryResponse.model_validate(e) for e in raw]
     assert isinstance(entries, list)
@@ -293,9 +301,7 @@ def test_wrong_port_exits_with_code_2(tmp_path: Path) -> None:
         web_api={"run": False, "port": 19999},
         lifecycle={"startup_timeout_seconds": 30},
     )
-    client = HassetteCLIClient(config, json_mode=False)
-
-    with pytest.raises(SystemExit) as exc_info:
+    with _cli_client(config) as client, pytest.raises(SystemExit) as exc_info:
         client.get("/api/health", SystemStatusResponse)
 
     assert exc_info.value.code == 2
