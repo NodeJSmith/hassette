@@ -2,7 +2,7 @@
 task_id: "T03"
 title: "Create HTTP client with instance resolution"
 status: "planned"
-depends_on: ["T01"]
+depends_on: ["T01", "T02"]
 implements: ["FR#1", "FR#6", "FR#7", "AC#4", "AC#11", "AC#8", "AC#9"]
 ---
 

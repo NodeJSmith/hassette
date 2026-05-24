@@ -2,7 +2,7 @@
 task_id: "T04"
 title: "Create shared rendering layer"
 status: "planned"
-depends_on: []
+depends_on: ["T02"]
 implements: ["FR#3", "FR#4", "FR#5", "FR#9", "AC#2", "AC#3", "AC#7"]
 ---
 

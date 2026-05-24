@@ -2,6 +2,7 @@
 
 **Date:** 2026-05-22
 **Status:** approved
+**Plan:** approved
 **Scope-mode:** hold
 **Research:** design/research/2026-05-22-cli-tool-prior-art/research.md, design/research/2026-05-22-cli-subcommand-structure/research.md, design/research/2026-05-22-cli-output-formatting/research.md
 

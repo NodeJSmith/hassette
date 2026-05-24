@@ -57,11 +57,12 @@ Write tests for:
 - `src/hassette/__main__.py`: `main()` at line 41, `entrypoint()` at 65. FatalError is already imported
 - `src/hassette/core/websocket_service.py:541` uses `config.token` directly — safe because startup validation prevents None reaching the server
 - The `resolve_paths` validator (config.py:258) creates `config_dir` and `data_dir` on disk. CLI commands instantiating HassetteConfig trigger this. Design doc says this is acceptable
+- Token check location: the design doc says `core.py` before `wire_services`; this task places it in `__main__.py main()` which is functionally equivalent for all CLI users. A direct `Hassette(config)` caller would bypass it — acceptable since no external callers exist outside the entry point. If this matters later, add a secondary check in `core.py`.
 - Test files with `cli_parse_args=False`: tests/conftest.py, test_config.py (~15), test_config_models.py (~7), test_log_records.py (~4), test_autodetect_apps.py (~5), test_schema_migration.py, test_apps_env.py, system/conftest.py, test_utils/config.py
 
 ## Verify
 
 - [ ] FR#7: HassetteConfig loads server address from env vars and config files with token=None (CLI usage path)
-- [ ] FR#8: Server startup with valid token continues to work (backward compat)
-- [ ] AC#6: Running the server start path with a valid token still starts the framework
+- [ ] FR#8: Server startup with valid token calls `asyncio.run(main(...))` without ValidationError — existing behavior preserved
+- [ ] AC#6: `HassetteConfig(token=None)` instantiates without error; startup path with `token=None` raises FatalError before Hassette is created
 - [ ] AC#9: HassetteConfig reads web_api.host and web_api.port from env/config for CLI address discovery
