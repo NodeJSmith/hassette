@@ -1,0 +1,109 @@
+"""Shared CLI test fixtures for CLI client and command tests (T03, T05-T08)."""
+
+import json
+from typing import Any
+
+import httpx
+import pytest
+
+from hassette.cli.client import HassetteCLIClient
+from hassette.config.config import HassetteConfig
+
+
+class MockTransportBuilder:
+    """Builds an httpx.MockTransport from a route table.
+
+    Usage:
+        builder = MockTransportBuilder()
+        builder.add("GET", "/api/health", 200, {"status": "ok"})
+        transport = builder.build()
+    """
+
+    def __init__(self) -> None:
+        self._routes: list[tuple[str, str, int, Any]] = []
+        self._default_status = 200
+        self._default_body: Any = {}
+
+    def add(self, method: str, path_fragment: str, status: int, body: Any) -> "MockTransportBuilder":
+        """Register a mock response for requests whose URL contains ``path_fragment``.
+
+        The first matching route wins.
+        """
+        self._routes.append((method.upper(), path_fragment, status, body))
+        return self
+
+    def build(self) -> httpx.MockTransport:
+        routes = list(self._routes)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            method = request.method.upper()
+            for route_method, fragment, status, body in routes:
+                if route_method == method and fragment in url:
+                    content = json.dumps(body).encode()
+                    return httpx.Response(status, content=content, headers={"content-type": "application/json"})
+            return httpx.Response(
+                404,
+                content=json.dumps({"detail": f"No mock route for {method} {url}"}).encode(),
+                headers={"content-type": "application/json"},
+            )
+
+        return httpx.MockTransport(handler)
+
+
+class CLIClientFactory:
+    """Creates HassetteCLIClient instances with mock transports for testing."""
+
+    def __init__(self) -> None:
+        self.config = HassetteConfig(token=None)
+
+    def build(
+        self,
+        transport: httpx.BaseTransport,
+        json_mode: bool = False,
+    ) -> HassetteCLIClient:
+        """Build a HassetteCLIClient backed by ``transport``."""
+        return HassetteCLIClient(self.config, json_mode=json_mode, transport=transport)
+
+    def build_with_routes(
+        self,
+        routes: list[tuple[str, str, int, Any]],
+        json_mode: bool = False,
+    ) -> tuple[HassetteCLIClient, MockTransportBuilder]:
+        """Build a client pre-wired with route responses.
+
+        Args:
+            routes: List of ``(method, path_fragment, status, body)`` tuples.
+            json_mode: Whether the client operates in JSON mode.
+
+        Returns:
+            A ``(client, builder)`` pair. The builder can be inspected for
+            what routes were registered.
+        """
+        builder = MockTransportBuilder()
+        for method, path_fragment, status, body in routes:
+            builder.add(method, path_fragment, status, body)
+        transport = builder.build()
+        client = self.build(transport, json_mode=json_mode)
+        return client, builder
+
+
+@pytest.fixture
+def cli_client_factory() -> CLIClientFactory:
+    """Provide a CLIClientFactory for creating mock-backed CLI clients.
+
+    Example usage in a command test::
+
+        def test_status_command(cli_client_factory):
+            client, _ = cli_client_factory.build_with_routes([
+                ("GET", "/api/health", 200, {"status": "ok", ...}),
+            ])
+            # call command with client
+    """
+    return CLIClientFactory()
+
+
+@pytest.fixture
+def mock_transport_builder() -> MockTransportBuilder:
+    """Provide a fresh MockTransportBuilder for registering mock routes."""
+    return MockTransportBuilder()

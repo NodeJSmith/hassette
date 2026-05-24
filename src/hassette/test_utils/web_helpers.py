@@ -22,6 +22,7 @@ import hassette.utils.date_utils as date_utils
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
+from hassette.web.models import AppInstanceResponse, AppManifestListResponse, AppManifestResponse
 
 
 def make_full_snapshot(
@@ -70,6 +71,47 @@ def make_manifest(
         instances=instances or [],
         error_message=error_message,
         error_traceback=error_traceback,
+    )
+
+
+def make_manifest_response(
+    app_key: str = "my_app",
+    class_name: str = "MyApp",
+    display_name: str = "My App",
+    filename: str = "my_app.py",
+    enabled: bool = True,
+    auto_loaded: bool = False,
+    status: str = "running",
+    instance_count: int = 1,
+    instances: list[AppInstanceResponse] | None = None,
+) -> AppManifestResponse:
+    """Build an AppManifestResponse with sensible defaults."""
+    return AppManifestResponse(
+        app_key=app_key,
+        class_name=class_name,
+        display_name=display_name,
+        filename=filename,
+        enabled=enabled,
+        auto_loaded=auto_loaded,
+        status=status,
+        instance_count=instance_count,
+        instances=instances or [],
+    )
+
+
+def make_manifest_list_response(
+    manifests: list[AppManifestResponse] | None = None,
+) -> AppManifestListResponse:
+    """Build an AppManifestListResponse from a list of manifests."""
+    manifests = manifests or []
+    counts = {"running": 0, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0}
+    for m in manifests:
+        if m.status in counts:
+            counts[m.status] += 1
+    return AppManifestListResponse(
+        manifests=manifests,
+        total=len(manifests),
+        **counts,
     )
 
 
