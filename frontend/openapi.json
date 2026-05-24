@@ -342,8 +342,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "$ref": "#/components/schemas/EventEntry"
                   },
                   "title": "Response Get Recent Events Api Events Recent Get"
                 }
@@ -493,14 +492,56 @@
         }
       }
     },
-    "/api/logs/by-execution/{execution_id}": {
-      "get": {
+    "/api/logs/level": {
+      "put": {
         "tags": [
           "logs"
         ],
-        "summary": "Get Logs By Execution",
-        "description": "Return all log records for a single execution, with retention-expired detection.",
-        "operationId": "get_logs_by_execution_api_logs_by_execution__execution_id__get",
+        "summary": "Set Log Level",
+        "description": "Change a logger's effective level at runtime without restarting.\n\nThe change takes effect immediately for both structlog and stdlib callers on that logger.",
+        "operationId": "set_log_level_api_logs_level_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogLevelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogLevelResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/executions/{execution_id}": {
+      "get": {
+        "tags": [
+          "executions"
+        ],
+        "summary": "Get Execution Logs",
+        "description": "Return all log records for a single execution, with retention-expired detection.\n\nFor UUIDv7 execution IDs, the embedded timestamp is extracted directly without a\ndatabase lookup. For historical UUIDv4 IDs, the database is queried to determine\nwhether retention has expired.\n\nReturns 422 if the execution_id is not a valid UUID. Returns an empty record list\nwith ``retention_expired=True`` if logs have been purged by retention policy.",
+        "operationId": "get_execution_logs_api_executions__execution_id__get",
         "parameters": [
           {
             "name": "execution_id",
@@ -548,48 +589,6 @@
         }
       }
     },
-    "/api/logs/level": {
-      "put": {
-        "tags": [
-          "logs"
-        ],
-        "summary": "Set Log Level",
-        "description": "Change a logger's effective level at runtime without restarting.\n\nThe change takes effect immediately for both structlog and stdlib callers on that logger.",
-        "operationId": "set_log_level_api_logs_level_put",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LogLevelRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LogLevelResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/bus/listeners": {
       "get": {
         "tags": [
@@ -620,9 +619,11 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
               "default": 0,
               "title": "Instance Index"
-            }
+            },
+            "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."
           },
           {
             "name": "since",
@@ -772,9 +773,11 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
               "default": 0,
               "title": "Instance Index"
-            }
+            },
+            "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."
           },
           {
             "name": "since",
@@ -866,9 +869,11 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
               "default": 0,
               "title": "Instance Index"
-            }
+            },
+            "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."
           },
           {
             "name": "since",
@@ -971,8 +976,10 @@
                   "type": "null"
                 }
               ],
+              "description": "App instance index. None returns activity across all instances.",
               "title": "Instance Index"
-            }
+            },
+            "description": "App instance index. None returns activity across all instances."
           },
           {
             "name": "limit",
@@ -1080,9 +1087,11 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
               "default": 0,
               "title": "Instance Index"
-            }
+            },
+            "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."
           },
           {
             "name": "since",
@@ -1482,8 +1491,7 @@
             "title": "Row Id"
           },
           "status": {
-            "type": "string",
-            "title": "Status"
+            "$ref": "#/components/schemas/InvocationStatus"
           },
           "timestamp": {
             "type": "number",
@@ -1606,6 +1614,11 @@
           },
           "error_rate_class": {
             "type": "string",
+            "enum": [
+              "good",
+              "warn",
+              "bad"
+            ],
             "title": "Error Rate Class"
           },
           "handler_avg_duration": {
@@ -1629,6 +1642,12 @@
           },
           "health_status": {
             "type": "string",
+            "enum": [
+              "excellent",
+              "good",
+              "warning",
+              "critical"
+            ],
             "title": "Health Status"
           }
         },
@@ -1663,8 +1682,7 @@
             "title": "Class Name"
           },
           "status": {
-            "type": "string",
-            "title": "Status"
+            "$ref": "#/components/schemas/ResourceStatus"
           },
           "error_message": {
             "anyOf": [
@@ -1795,6 +1813,13 @@
           },
           "status": {
             "type": "string",
+            "enum": [
+              "disabled",
+              "blocked",
+              "running",
+              "failed",
+              "stopped"
+            ],
             "title": "Status"
           },
           "block_reason": {
@@ -2051,6 +2076,13 @@
           },
           "status": {
             "type": "string",
+            "enum": [
+              "disabled",
+              "blocked",
+              "running",
+              "failed",
+              "stopped"
+            ],
             "title": "Status"
           },
           "display_name": {
@@ -2114,6 +2146,12 @@
           },
           "health_status": {
             "type": "string",
+            "enum": [
+              "excellent",
+              "good",
+              "warning",
+              "critical"
+            ],
             "title": "Health Status"
           },
           "error_rate": {
@@ -2122,6 +2160,11 @@
           },
           "error_rate_class": {
             "type": "string",
+            "enum": [
+              "good",
+              "warn",
+              "bad"
+            ],
             "title": "Error Rate Class"
           },
           "activity_buckets": {
@@ -2202,6 +2245,40 @@
         "title": "DashboardAppGridResponse",
         "description": "Dashboard app grid with per-app health data."
       },
+      "EventEntry": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "timestamp": {
+            "type": "number",
+            "title": "Timestamp"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "timestamp"
+        ],
+        "title": "EventEntry"
+      },
       "FileWatcherConfigResponse": {
         "properties": {
           "watch_files": {
@@ -2245,8 +2322,7 @@
             "title": "Duration Ms"
           },
           "status": {
-            "type": "string",
-            "title": "Status"
+            "$ref": "#/components/schemas/InvocationStatus"
           },
           "source_tier": {
             "type": "string",
@@ -2335,6 +2411,17 @@
         "title": "HandlerInvocation",
         "description": "Single invocation record returned by ``get_handler_invocations()``."
       },
+      "InvocationStatus": {
+        "type": "string",
+        "enum": [
+          "success",
+          "error",
+          "cancelled",
+          "timed_out"
+        ],
+        "title": "InvocationStatus",
+        "description": "Status values for handler invocations and job executions.\n\nCovers all values allowed by the CHECK constraints in migrations 001 and 005.\nPydantic v2 coerces plain strings to enum members on construction and\nserialises back to plain strings in JSON responses."
+      },
       "JobExecution": {
         "properties": {
           "execution_start_ts": {
@@ -2346,8 +2433,7 @@
             "title": "Duration Ms"
           },
           "status": {
-            "type": "string",
-            "title": "Status"
+            "$ref": "#/components/schemas/InvocationStatus"
           },
           "source_tier": {
             "type": "string",
@@ -2714,6 +2800,11 @@
           },
           "listener_kind": {
             "type": "string",
+            "enum": [
+              "state change",
+              "service call",
+              "event"
+            ],
             "title": "Listener Kind",
             "default": "event"
           },
@@ -2961,6 +3052,13 @@
           },
           "level": {
             "type": "string",
+            "enum": [
+              "DEBUG",
+              "INFO",
+              "WARNING",
+              "ERROR",
+              "CRITICAL"
+            ],
             "title": "Level"
           },
           "logger_name": {
@@ -2968,11 +3066,25 @@
             "title": "Logger Name"
           },
           "func_name": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Func Name"
           },
           "lineno": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Lineno"
           },
           "message": {
@@ -3037,7 +3149,11 @@
           "source_tier": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "app",
+                  "framework"
+                ]
               },
               {
                 "type": "null"
@@ -3052,8 +3168,6 @@
           "timestamp",
           "level",
           "logger_name",
-          "func_name",
-          "lineno",
           "message"
         ],
         "title": "LogEntryResponse"
@@ -3140,7 +3254,23 @@
           "retention_expired"
         ],
         "title": "LogsByExecutionResponse",
-        "description": "Response for GET /api/logs/by-execution/{execution_id}."
+        "description": "Response for GET /api/executions/{execution_id}."
+      },
+      "ResourceStatus": {
+        "type": "string",
+        "enum": [
+          "not_started",
+          "starting",
+          "running",
+          "stopping",
+          "stopped",
+          "failed",
+          "crashed",
+          "exhausted_dead",
+          "exhausted_cooling"
+        ],
+        "title": "ResourceStatus",
+        "description": "Enumeration for resource status."
       },
       "SchedulerConfigResponse": {
         "properties": {
@@ -3194,8 +3324,7 @@
             "title": "Name"
           },
           "status": {
-            "type": "string",
-            "title": "Status"
+            "$ref": "#/components/schemas/ResourceStatus"
           },
           "role": {
             "type": "string",
@@ -3237,6 +3366,11 @@
         "properties": {
           "status": {
             "type": "string",
+            "enum": [
+              "ok",
+              "degraded",
+              "starting"
+            ],
             "title": "Status"
           },
           "websocket_connected": {

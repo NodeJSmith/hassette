@@ -8,6 +8,7 @@ to records with ``execution_start_ts >= since``, or omit it for all-time aggrega
 import sqlite3
 import time
 from logging import getLogger
+from typing import cast
 
 from fastapi import APIRouter, Path, Query, Response
 
@@ -28,7 +29,9 @@ from hassette.web.models import (
     AppHealthResponse,
     DashboardAppGridEntry,
     DashboardAppGridResponse,
+    HealthStatus,
     ListenerWithSummary,
+    ManifestStatus,
     TelemetryStatusResponse,
 )
 from hassette.web.telemetry_helpers import (
@@ -93,17 +96,21 @@ async def telemetry_status(
     )
 
 
-def _health_status_from_summary(summary: AppHealthSummary) -> str:
-    """Derive a health status label from an app health summary."""
+def health_status_from_summary(summary: AppHealthSummary) -> HealthStatus:
+    """Derive a health status label from an app health summary.
+
+    Zero-invocation apps return ``"excellent"`` — consistent with the 503
+    fallback path at line ~143 and the ``HealthStatus`` Literal (no ``"unknown"``).
+    """
     total = summary.total_invocations + summary.total_executions
-    failures = summary.total_errors + summary.total_timed_out + summary.total_job_errors + summary.total_job_timed_out
     if total == 0:
-        return "unknown"
+        return "excellent"
+    failures = summary.total_errors + summary.total_timed_out + summary.total_job_errors + summary.total_job_timed_out
     success_rate = ((total - failures) / total) * 100
     return classify_health_bar(success_rate)
 
 
-def _error_rate_from_summary(summary: AppHealthSummary) -> float:
+def error_rate_from_summary(summary: AppHealthSummary) -> float:
     """Compute error rate percentage from an app health summary."""
     return compute_error_rate(
         total_invocations=summary.total_invocations,
@@ -113,22 +120,25 @@ def _error_rate_from_summary(summary: AppHealthSummary) -> float:
     )
 
 
+INSTANCE_INDEX_PARAM = Query(  # pyright: ignore[reportCallInDefaultInitializer]
+    default=0,
+    description="App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
+)
+
+
 @router.get("/app/{app_key}/health", response_model=AppHealthResponse)
 async def app_health(
     telemetry: TelemetryDep,
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
-    instance_index: int = 0,
+    instance_index: int = INSTANCE_INDEX_PARAM,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
 ) -> AppHealthResponse:
     """Health strip metrics for a single app instance."""
     effective_tier = source_tier if source_tier is not None else "app"
     try:
-        listeners = await telemetry.get_listener_summary(
-            app_key=app_key, instance_index=instance_index, since=since, source_tier=effective_tier
-        )
-        jobs = await telemetry.get_job_summary(
+        agg = await telemetry.get_app_health_aggregates(
             app_key=app_key, instance_index=instance_index, since=since, source_tier=effective_tier
         )
     except DB_ERRORS:
@@ -143,35 +153,24 @@ async def app_health(
             health_status=classify_health_bar(100.0),
         )
 
-    total_invocations = sum(ls.total_invocations for ls in listeners)
-    total_executions = sum(j.total_executions for j in jobs)
-    handler_errors = sum(ls.failed + ls.timed_out for ls in listeners)
-    job_errors = sum(j.failed + j.timed_out for j in jobs)
+    total = agg.total_invocations + agg.total_executions
+    handler_errors = agg.handler_errors + agg.handler_timed_out
+    job_errors = agg.job_errors + agg.job_timed_out
     error_rate = compute_error_rate(
-        total_invocations=total_invocations,
-        total_executions=total_executions,
+        total_invocations=agg.total_invocations,
+        total_executions=agg.total_executions,
         handler_errors=handler_errors,
         job_errors=job_errors,
     )
-    total = total_invocations + total_executions
     errors = handler_errors + job_errors
     success_rate = ((total - errors) / total * 100) if total > 0 else 100.0
-
-    # Compute handler/job-specific averages
-    total_handler_inv = sum(ls.total_invocations for ls in listeners)
-    handler_avg = (sum(ls.total_duration_ms for ls in listeners) / total_handler_inv) if total_handler_inv > 0 else 0.0
-    total_job_exec = sum(j.total_executions for j in jobs)
-    job_avg = (sum(j.total_duration_ms for j in jobs) / total_job_exec) if total_job_exec > 0 else 0.0
-
-    last_times: list[float] = [ls.last_invoked_at for ls in listeners if ls.last_invoked_at is not None]
-    last_times.extend(j.last_executed_at for j in jobs if j.last_executed_at is not None)
 
     return AppHealthResponse(
         error_rate=error_rate,
         error_rate_class=classify_error_rate(error_rate),
-        handler_avg_duration=handler_avg,
-        job_avg_duration=job_avg,
-        last_activity_ts=max(last_times) if last_times else None,
+        handler_avg_duration=agg.handler_avg_duration_ms,
+        job_avg_duration=agg.job_avg_duration_ms,
+        last_activity_ts=agg.last_activity_ts,
         health_status=classify_health_bar(success_rate),
     )
 
@@ -181,7 +180,7 @@ async def app_listeners(
     telemetry: TelemetryDep,
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
-    instance_index: int = 0,
+    instance_index: int = INSTANCE_INDEX_PARAM,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
 ) -> list[ListenerWithSummary]:
@@ -203,7 +202,9 @@ async def app_activity(
     telemetry: TelemetryDep,
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
-    instance_index: int | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
+    instance_index: int | None = Query(
+        default=None, description="App instance index. None returns activity across all instances."
+    ),  # pyright: ignore[reportCallInDefaultInitializer]
     limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
@@ -231,7 +232,7 @@ async def app_jobs(
     scheduler_service: SchedulerDep,
     response: Response,
     app_key: str = Path(description="Use `__hassette__` to query framework-internal actor telemetry."),  # pyright: ignore[reportCallInDefaultInitializer]
-    instance_index: int = 0,
+    instance_index: int = INSTANCE_INDEX_PARAM,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
 ) -> list[JobSummary]:
@@ -353,13 +354,13 @@ async def dashboard_app_grid(
     entries = []
     for manifest in snapshot.manifests:
         health = summaries.get(manifest.app_key, empty)
-        rate = _error_rate_from_summary(health)
+        rate = error_rate_from_summary(health)
         buckets = per_app_buckets.get(manifest.app_key, [])
         err_info = per_app_errors.get(manifest.app_key)
         entries.append(
             DashboardAppGridEntry(
                 app_key=manifest.app_key,
-                status=manifest.status,
+                status=cast("ManifestStatus", manifest.status),  # AppManifestInfo.status is str
                 display_name=manifest.display_name,
                 instance_count=manifest.instance_count,
                 handler_count=health.handler_count,
@@ -372,7 +373,7 @@ async def dashboard_app_grid(
                 total_job_timed_out=health.total_job_timed_out,
                 avg_duration_ms=health.avg_duration_ms,
                 last_activity_ts=health.last_activity_ts,
-                health_status=_health_status_from_summary(health),
+                health_status=health_status_from_summary(health),
                 error_rate=rate,
                 error_rate_class=classify_error_rate(rate),
                 last_error_message=err_info.error_message if err_info else None,

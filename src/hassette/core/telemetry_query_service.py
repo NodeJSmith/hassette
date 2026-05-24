@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import time
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, assert_never
 
 import aiosqlite
@@ -26,6 +27,25 @@ from hassette.types.types import LOG_LEVEL_TYPE, QuerySourceTier, is_framework_k
 
 if TYPE_CHECKING:
     from hassette import Hassette
+
+
+@dataclass(frozen=True)
+class AppHealthAggregates:
+    """Single-row aggregate result returned by ``get_app_health_aggregates()``.
+
+    All counts and averages are computed in a single query over handler_invocations
+    and job_executions — no per-item detail fetching or Python-side aggregation.
+    """
+
+    total_invocations: int
+    handler_errors: int
+    handler_timed_out: int
+    handler_avg_duration_ms: float
+    total_executions: int
+    job_errors: int
+    job_timed_out: int
+    job_avg_duration_ms: float
+    last_activity_ts: float | None
 
 
 def _row_to_dict(row: aiosqlite.Row) -> dict[str, Any]:
@@ -188,12 +208,19 @@ class TelemetryQueryService(Resource):
         """
         tier_clause, tier_params = _source_tier_clause(source_tier, "l")
         since_join_clause, since_params = _since_clause(since, "hi.execution_start_ts")
-        since_err_clause, _ = _since_clause(since, "hi2.execution_start_ts")
+        since_err_clause, _ = _since_clause(since, "hi_err.execution_start_ts")
 
         join_condition = f"hi.listener_id = l.id {since_join_clause}"
         params: dict = {"app_key": app_key, "instance_index": instance_index, **tier_params, **since_params}
 
         query = f"""
+            WITH ranked_errors AS (
+                SELECT hi_err.listener_id, hi_err.error_type, hi_err.error_message,
+                       hi_err.error_traceback, hi_err.execution_start_ts,
+                       ROW_NUMBER() OVER (PARTITION BY hi_err.listener_id ORDER BY hi_err.execution_start_ts DESC) AS rn
+                FROM handler_invocations hi_err
+                WHERE hi_err.status IN ('error', 'timed_out') {since_err_clause}
+            )
             SELECT
                 l.id AS listener_id,
                 l.app_key,
@@ -228,11 +255,7 @@ class TelemetryQueryService(Resource):
                 last_err.error_traceback AS last_error_traceback
             FROM listeners l
             LEFT JOIN handler_invocations hi ON {join_condition}
-            LEFT JOIN handler_invocations last_err ON last_err.id = (
-                SELECT hi2.id FROM handler_invocations hi2
-                WHERE hi2.listener_id = l.id AND hi2.status IN ('error', 'timed_out') {since_err_clause}
-                ORDER BY hi2.execution_start_ts DESC LIMIT 1
-            )
+            LEFT JOIN ranked_errors last_err ON last_err.listener_id = l.id AND last_err.rn = 1
             WHERE l.app_key = :app_key AND l.instance_index = :instance_index
             {tier_clause}
             GROUP BY l.id
@@ -260,14 +283,19 @@ class TelemetryQueryService(Resource):
         """
         tier_clause, tier_params = _source_tier_clause(source_tier, "sj")
         since_join_clause, since_params = _since_clause(since, "je.execution_start_ts")
-        # Params discarded — :since is already in params via since_params above;
-        # the same bind name resolves inside the correlated subquery.
-        since_err_clause, _ = _since_clause(since, "je2.execution_start_ts")
+        since_err_clause, _ = _since_clause(since, "je_err.execution_start_ts")
 
         join_condition = f"je.job_id = sj.id {since_join_clause}"
         params: dict = {"app_key": app_key, "instance_index": instance_index, **tier_params, **since_params}
 
         query = f"""
+            WITH ranked_errors AS (
+                SELECT je_err.job_id, je_err.error_type, je_err.error_message,
+                       je_err.error_traceback, je_err.execution_start_ts,
+                       ROW_NUMBER() OVER (PARTITION BY je_err.job_id ORDER BY je_err.execution_start_ts DESC) AS rn
+                FROM job_executions je_err
+                WHERE je_err.status IN ('error', 'timed_out') {since_err_clause}
+            )
             SELECT
                 sj.id AS job_id,
                 sj.app_key,
@@ -299,11 +327,7 @@ class TelemetryQueryService(Resource):
                 last_err.error_traceback AS last_error_traceback
             FROM scheduled_jobs sj
             LEFT JOIN job_executions je ON {join_condition}
-            LEFT JOIN job_executions last_err ON last_err.id = (
-                SELECT je2.id FROM job_executions je2
-                WHERE je2.job_id = sj.id AND je2.status IN ('error', 'timed_out') {since_err_clause}
-                ORDER BY je2.execution_start_ts DESC LIMIT 1
-            )
+            LEFT JOIN ranked_errors last_err ON last_err.job_id = sj.id AND last_err.rn = 1
             WHERE sj.app_key = :app_key AND sj.instance_index = :instance_index
             AND sj.cancelled_at IS NULL
             {tier_clause}
@@ -321,9 +345,9 @@ class TelemetryQueryService(Resource):
         """Return per-job summaries across all apps, with no app_key filter.
 
         Models the single-query approach of ``get_job_summary()`` but without
-        the ``app_key``/``instance_index`` WHERE clause.  Uses a ``BEGIN DEFERRED``
-        WAL snapshot to ensure the main query and the correlated error subquery
-        see a consistent snapshot (same pattern as ``get_all_app_summaries()``).
+        the ``app_key``/``instance_index`` WHERE clause.  Uses a ``ROW_NUMBER()``
+        CTE for last-error aggregation — the query is a single statement, so
+        SQLite guarantees snapshot consistency without ``BEGIN DEFERRED``.
 
         Args:
             since: When provided, restrict execution counts to records with
@@ -334,13 +358,19 @@ class TelemetryQueryService(Resource):
         """
         tier_clause, tier_params = _source_tier_clause(source_tier, "sj")
         since_join_clause, since_params = _since_clause(since, "je.execution_start_ts")
-        # :since is reused inside the correlated subquery via the same bind name.
-        since_err_clause, _ = _since_clause(since, "je2.execution_start_ts")
+        since_err_clause, _ = _since_clause(since, "je_err.execution_start_ts")
 
         join_condition = f"je.job_id = sj.id {since_join_clause}"
         params: dict = {**tier_params, **since_params}
 
         query = f"""
+            WITH ranked_errors AS (
+                SELECT je_err.job_id, je_err.error_type, je_err.error_message,
+                       je_err.error_traceback, je_err.execution_start_ts,
+                       ROW_NUMBER() OVER (PARTITION BY je_err.job_id ORDER BY je_err.execution_start_ts DESC) AS rn
+                FROM job_executions je_err
+                WHERE je_err.status IN ('error', 'timed_out') {since_err_clause}
+            )
             SELECT
                 sj.id AS job_id,
                 sj.app_key,
@@ -372,25 +402,199 @@ class TelemetryQueryService(Resource):
                 last_err.error_traceback AS last_error_traceback
             FROM scheduled_jobs sj
             LEFT JOIN job_executions je ON {join_condition}
-            LEFT JOIN job_executions last_err ON last_err.id = (
-                SELECT je2.id FROM job_executions je2
-                WHERE je2.job_id = sj.id AND je2.status IN ('error', 'timed_out') {since_err_clause}
-                ORDER BY je2.execution_start_ts DESC LIMIT 1
-            )
+            LEFT JOIN ranked_errors last_err ON last_err.job_id = sj.id AND last_err.rn = 1
             WHERE sj.cancelled_at IS NULL
             {tier_clause}
             GROUP BY sj.id
         """
-        async with self._snapshot_lock:
-            try:
-                await self._db.execute("BEGIN DEFERRED")
-                async with self._db.execute(query, params) as cursor:
-                    rows = await cursor.fetchall()
-            finally:
-                with contextlib.suppress(aiosqlite.OperationalError):
-                    await self._db.execute("ROLLBACK")
+        async with self._db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
 
         return [JobSummary.model_validate(_row_to_dict(row)) for row in rows]
+
+    async def get_app_health_aggregates(
+        self,
+        app_key: str,
+        instance_index: int,
+        since: float | None = None,
+        source_tier: QuerySourceTier = "app",
+    ) -> AppHealthAggregates:
+        """Return a single-row aggregate of handler and job health metrics for one app instance.
+
+        Uses two CTEs (``handler_agg``, ``job_agg``) joined in a single statement.
+        Replaces the previous pattern of calling ``get_listener_summary()`` +
+        ``get_job_summary()`` and summing the results in Python.
+
+        Args:
+            app_key: The app key to filter by.
+            instance_index: The app instance index to filter by.
+            since: When provided, restrict counts to records with
+                ``execution_start_ts >= since`` (Unix epoch float).
+            source_tier: Filter by source tier. ``'app'`` (default) excludes
+                framework internals. ``'all'`` includes all tiers.
+        """
+        tier_hi_clause, tier_params = _source_tier_clause(source_tier, "l")
+        tier_sj_clause, _ = _source_tier_clause(source_tier, "j")
+        since_hi_clause, since_params = _since_clause(since, "hi.execution_start_ts")
+        since_je_clause, _ = _since_clause(since, "je.execution_start_ts")
+
+        params: dict = {
+            "app_key": app_key,
+            "instance_index": instance_index,
+            **tier_params,
+            **since_params,
+        }
+
+        query = f"""
+            WITH handler_agg AS (
+                SELECT
+                    COUNT(hi.rowid) AS total_invocations,
+                    SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS handler_errors,
+                    SUM(CASE WHEN hi.status = 'timed_out' THEN 1 ELSE 0 END) AS handler_timed_out,
+                    COALESCE(AVG(hi.duration_ms), 0.0) AS handler_avg_duration_ms,
+                    MAX(hi.execution_start_ts) AS handler_last_activity
+                FROM handler_invocations hi
+                JOIN listeners l ON l.id = hi.listener_id
+                WHERE l.app_key = :app_key AND l.instance_index = :instance_index
+                    {tier_hi_clause} {since_hi_clause}
+            ),
+            job_agg AS (
+                SELECT
+                    COUNT(je.rowid) AS total_executions,
+                    SUM(CASE WHEN je.status = 'error' THEN 1 ELSE 0 END) AS job_errors,
+                    SUM(CASE WHEN je.status = 'timed_out' THEN 1 ELSE 0 END) AS job_timed_out,
+                    COALESCE(AVG(je.duration_ms), 0.0) AS job_avg_duration_ms,
+                    MAX(je.execution_start_ts) AS job_last_activity
+                FROM job_executions je
+                JOIN scheduled_jobs j ON j.id = je.job_id
+                WHERE j.app_key = :app_key AND j.instance_index = :instance_index
+                    AND j.cancelled_at IS NULL
+                    {tier_sj_clause} {since_je_clause}
+            )
+            SELECT
+                handler_agg.total_invocations,
+                handler_agg.handler_errors,
+                handler_agg.handler_timed_out,
+                handler_agg.handler_avg_duration_ms,
+                job_agg.total_executions,
+                job_agg.job_errors,
+                job_agg.job_timed_out,
+                job_agg.job_avg_duration_ms,
+                handler_agg.handler_last_activity,
+                job_agg.job_last_activity
+            FROM handler_agg, job_agg
+        """
+        async with self._db.execute(query, params) as cursor:
+            row = await cursor.fetchone()
+
+        if row is None:
+            return AppHealthAggregates(
+                total_invocations=0,
+                handler_errors=0,
+                handler_timed_out=0,
+                handler_avg_duration_ms=0.0,
+                total_executions=0,
+                job_errors=0,
+                job_timed_out=0,
+                job_avg_duration_ms=0.0,
+                last_activity_ts=None,
+            )
+
+        d = _row_to_dict(row)
+        handler_last = d.get("handler_last_activity")
+        job_last = d.get("job_last_activity")
+        last_times = [t for t in (handler_last, job_last) if t is not None]
+        return AppHealthAggregates(
+            total_invocations=d["total_invocations"] or 0,
+            handler_errors=d["handler_errors"] or 0,
+            handler_timed_out=d["handler_timed_out"] or 0,
+            handler_avg_duration_ms=d["handler_avg_duration_ms"] or 0.0,
+            total_executions=d["total_executions"] or 0,
+            job_errors=d["job_errors"] or 0,
+            job_timed_out=d["job_timed_out"] or 0,
+            job_avg_duration_ms=d["job_avg_duration_ms"] or 0.0,
+            last_activity_ts=max(last_times) if last_times else None,
+        )
+
+    async def get_all_listeners_summary(
+        self,
+        since: float | None = None,
+        source_tier: QuerySourceTier = "app",
+    ) -> list[ListenerSummary]:
+        """Return per-listener summaries across all apps, with no app_key filter.
+
+        Mirrors ``get_all_jobs_summary()`` but for the ``listeners`` and
+        ``handler_invocations`` tables.  A single query returning all listeners
+        across all apps and instances — no per-instance fan-out.  Uses the
+        ``ROW_NUMBER()`` CTE for row-coherent last-error aggregation.
+
+        Does not acquire ``_snapshot_lock`` — this is a single-statement query
+        and SQLite guarantees snapshot consistency within a single statement.
+
+        Args:
+            since: When provided, restrict invocation counts to records with
+                ``execution_start_ts >= since`` (Unix epoch float).
+            source_tier: Filter listeners by source tier. ``'app'`` (default) excludes
+                framework internals. ``'framework'`` returns only internal actors.
+                ``'all'`` returns everything.
+        """
+        tier_clause, tier_params = _source_tier_clause(source_tier, "l")
+        since_join_clause, since_params = _since_clause(since, "hi.execution_start_ts")
+        since_err_clause, _ = _since_clause(since, "hi_err.execution_start_ts")
+
+        join_condition = f"hi.listener_id = l.id {since_join_clause}"
+        params: dict = {**tier_params, **since_params}
+
+        query = f"""
+            WITH ranked_errors AS (
+                SELECT hi_err.listener_id, hi_err.error_type, hi_err.error_message,
+                       hi_err.error_traceback, hi_err.execution_start_ts,
+                       ROW_NUMBER() OVER (PARTITION BY hi_err.listener_id ORDER BY hi_err.execution_start_ts DESC) AS rn
+                FROM handler_invocations hi_err
+                WHERE hi_err.status IN ('error', 'timed_out') {since_err_clause}
+            )
+            SELECT
+                l.id AS listener_id,
+                l.app_key,
+                l.instance_index,
+                l.handler_method,
+                l.topic,
+                l.debounce,
+                l.throttle,
+                l.once,
+                l.priority,
+                l.predicate_description,
+                l.human_description,
+                l.source_location,
+                l.registration_source,
+                l.source_tier,
+                l.immediate,
+                l.duration,
+                l.entity_id,
+                COUNT(hi.rowid) AS total_invocations,
+                SUM(CASE WHEN hi.status = 'success' THEN 1 ELSE 0 END) AS successful,
+                SUM(CASE WHEN hi.status = 'error' THEN 1 ELSE 0 END) AS failed,
+                SUM(CASE WHEN hi.is_di_failure = 1 THEN 1 ELSE 0 END) AS di_failures,
+                SUM(CASE WHEN hi.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
+                SUM(CASE WHEN hi.status = 'timed_out' THEN 1 ELSE 0 END) AS timed_out,
+                COALESCE(SUM(hi.duration_ms), 0.0) AS total_duration_ms,
+                COALESCE(AVG(hi.duration_ms), 0.0) AS avg_duration_ms,
+                MIN(hi.duration_ms) AS min_duration_ms,
+                MAX(hi.duration_ms) AS max_duration_ms,
+                MAX(hi.execution_start_ts) AS last_invoked_at,
+                last_err.error_type AS last_error_type,
+                last_err.error_message AS last_error_message,
+                last_err.error_traceback AS last_error_traceback
+            FROM listeners l
+            LEFT JOIN handler_invocations hi ON {join_condition}
+            LEFT JOIN ranked_errors last_err ON last_err.listener_id = l.id AND last_err.rn = 1
+            WHERE 1=1
+            {tier_clause}
+            GROUP BY l.id
+        """
+        async with self._db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+        return [ListenerSummary.model_validate(_row_to_dict(row)) for row in rows]
 
     async def get_all_app_summaries(
         self, since: float | None = None, source_tier: QuerySourceTier = "app"

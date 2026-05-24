@@ -136,8 +136,8 @@ export const handlers = [
     return HttpResponse.json<LogEntryResponse[]>([]);
   }),
 
-  // GET /api/logs/by-execution/:execution_id
-  http.get("/api/logs/by-execution/:execution_id", () => {
+  // GET /api/executions/:execution_id
+  http.get("/api/executions/:execution_id", () => {
     return HttpResponse.json<LogsByExecutionResponse>({
       records: [],
       truncated: false,

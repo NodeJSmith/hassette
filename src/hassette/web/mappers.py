@@ -7,15 +7,18 @@ call these instead of receiving pre-mapped response objects from
 
 Enum coercion note
 ------------------
-``AppInstanceInfo.status`` is a ``ResourceStatus`` enum (``StrEnum``). Call
-``.value`` to get the plain string. ``AppManifestInfo.status`` is already a
-``str`` — do not call ``.value`` on it.
+``AppInstanceInfo.status`` is a ``ResourceStatus`` enum (``StrEnum``). Pydantic
+coerces it directly — pass the enum value as-is. ``AppManifestInfo.status`` is a
+``str`` with the 5-value ManifestStatus set; cast to ``ManifestStatus`` for pyright.
+``ServiceInfo.status`` is a ``str`` with ResourceStatus values; cast for pyright.
 """
+
+from typing import cast
 
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
 from hassette.core.domain_models import SystemStatus
 from hassette.core.telemetry_models import ListenerSummary
-from hassette.types.enums import Topic
+from hassette.types.enums import ResourceStatus, Topic
 from hassette.web.models import (
     AppInstanceResponse,
     AppManifestListResponse,
@@ -23,21 +26,23 @@ from hassette.web.models import (
     AppStatusResponse,
     BootIssueResponse,
     ConnectedPayload,
+    ListenerKind,
     ListenerWithSummary,
+    ManifestStatus,
     ServiceInfoResponse,
     SystemStatusResponse,
 )
 from hassette.web.telemetry_helpers import format_handler_summary
 
 
-def _instance_response_from(info: AppInstanceInfo) -> AppInstanceResponse:
+def instance_response_from(info: AppInstanceInfo) -> AppInstanceResponse:
     """Convert a single ``AppInstanceInfo`` to ``AppInstanceResponse``."""
     return AppInstanceResponse(
         app_key=info.app_key,
         index=info.index,
         instance_name=info.instance_name,
         class_name=info.class_name,
-        status=info.status.value,  # ResourceStatus enum → str
+        status=info.status,  # ResourceStatus StrEnum — Pydantic coerces directly
         error_message=info.error_message,
         error_traceback=info.error_traceback,
         owner_id=info.owner_id,
@@ -50,7 +55,7 @@ def app_status_response_from(snapshot: AppStatusSnapshot) -> AppStatusResponse:
     Merges ``snapshot.running`` and ``snapshot.failed`` into a single ``apps``
     list (running first, then failed).
     """
-    apps = [_instance_response_from(info) for info in snapshot.running + snapshot.failed]
+    apps = [instance_response_from(info) for info in snapshot.running + snapshot.failed]
     return AppStatusResponse(
         total=snapshot.total_count,
         running=snapshot.running_count,
@@ -70,7 +75,7 @@ def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListRes
     """
     manifests = []
     for m in full.manifests:
-        instances = [_instance_response_from(inst) for inst in m.instances]
+        instances = [instance_response_from(inst) for inst in m.instances]
         manifests.append(
             AppManifestResponse(
                 app_key=m.app_key,
@@ -79,7 +84,7 @@ def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListRes
                 filename=m.filename,
                 enabled=m.enabled,
                 auto_loaded=m.auto_loaded,
-                status=m.status,  # already str — no .value
+                status=cast("ManifestStatus", m.status),  # AppManifestInfo.status is str
                 block_reason=m.block_reason,
                 instance_count=m.instance_count,
                 instances=instances,
@@ -108,7 +113,7 @@ def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
     services = [
         ServiceInfoResponse(
             name=svc.name,
-            status=svc.status,
+            status=cast("ResourceStatus", svc.status),  # ServiceInfo.status is str
             role=svc.role,
             ready_phase=svc.ready_phase,
             retry_at=svc.retry_at,
@@ -143,14 +148,14 @@ def connected_payload_from(status: SystemStatus) -> ConnectedPayload:
     )
 
 
-_TOPIC_KIND_MAP: dict[str, str] = {
+TOPIC_KIND_MAP: dict[str, ListenerKind] = {
     Topic.HASS_EVENT_STATE_CHANGED: "state change",
     Topic.HASS_EVENT_CALL_SERVICE: "service call",
 }
 
 
-def _listener_kind_from_topic(topic: str) -> str:
-    for prefix, kind in _TOPIC_KIND_MAP.items():
+def listener_kind_from_topic(topic: str) -> ListenerKind:
+    for prefix, kind in TOPIC_KIND_MAP.items():
         if topic.startswith(prefix):
             return kind
     return "event"
@@ -167,7 +172,7 @@ def to_listener_with_summary(ls: ListenerSummary) -> ListenerWithSummary:
         app_key=ls.app_key,
         instance_index=ls.instance_index,
         topic=ls.topic,
-        listener_kind=_listener_kind_from_topic(ls.topic),
+        listener_kind=listener_kind_from_topic(ls.topic),
         handler_method=ls.handler_method,
         total_invocations=ls.total_invocations,
         successful=ls.successful,

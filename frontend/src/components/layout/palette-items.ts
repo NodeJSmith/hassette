@@ -75,7 +75,7 @@ export function buildActionItems(manifests: AppManifest[], onClose: () => void):
       kind: "action",
       label: "Stop all failing",
       action: () => {
-        const failing = manifests.filter((m) => m.status === "failed" || m.status === "crashed");
+        const failing = manifests.filter((m) => m.status === "failed");
         void Promise.allSettled(failing.map((m) => stopApp(m.app_key)));
         onClose();
       },

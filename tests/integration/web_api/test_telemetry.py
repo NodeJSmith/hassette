@@ -11,6 +11,7 @@ from hassette.core.telemetry_models import (
     JobExecution,
     ListenerSummary,
 )
+from hassette.core.telemetry_query_service import AppHealthAggregates
 
 if TYPE_CHECKING:
     from httpx import AsyncClient
@@ -18,38 +19,19 @@ if TYPE_CHECKING:
 
 class TestTelemetryAppHealth:
     async def test_returns_metrics_with_classification(self, client: "AsyncClient", mock_hassette) -> None:
-        mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
-            return_value=[
-                ListenerSummary(
-                    listener_id=1,
-                    app_key="my_app",
-                    instance_index=0,
-                    handler_method="on_light",
-                    topic="state_changed.light.kitchen",
-                    debounce=None,
-                    throttle=None,
-                    once=0,
-                    priority=0,
-                    predicate_description=None,
-                    human_description=None,
-                    source_location="my_app.py:10",
-                    registration_source=None,
-                    total_invocations=100,
-                    successful=95,
-                    failed=5,
-                    di_failures=0,
-                    cancelled=0,
-                    total_duration_ms=5000.0,
-                    avg_duration_ms=50.0,
-                    min_duration_ms=10.0,
-                    max_duration_ms=200.0,
-                    last_invoked_at=1234567890.0,
-                    last_error_type=None,
-                    last_error_message=None,
-                )
-            ]
+        mock_hassette.telemetry_query_service.get_app_health_aggregates = AsyncMock(
+            return_value=AppHealthAggregates(
+                total_invocations=100,
+                handler_errors=5,
+                handler_timed_out=0,
+                handler_avg_duration_ms=50.0,
+                total_executions=0,
+                job_errors=0,
+                job_timed_out=0,
+                job_avg_duration_ms=0.0,
+                last_activity_ts=1234567890.0,
+            )
         )
-        mock_hassette.telemetry_query_service.get_job_summary = AsyncMock(return_value=[])
 
         response = await client.get("/api/telemetry/app/my_app/health")
         assert response.status_code == 200
@@ -70,8 +52,8 @@ class TestTelemetryAppHealth:
     async def test_instance_index_param(self, client: "AsyncClient", mock_hassette) -> None:
         response = await client.get("/api/telemetry/app/my_app/health?instance_index=1")
         assert response.status_code == 200
-        mock_hassette.telemetry_query_service.get_listener_summary.assert_called_once()
-        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args
+        mock_hassette.telemetry_query_service.get_app_health_aggregates.assert_called_once()
+        call_kwargs = mock_hassette.telemetry_query_service.get_app_health_aggregates.call_args
         assert call_kwargs.kwargs.get("instance_index") == 1 or call_kwargs[1].get("instance_index") == 1
 
 
@@ -197,14 +179,14 @@ class TestTelemetrySinceParam:
         """GET /telemetry/app/{key}/health?since=1700000000.0 forwards since to service."""
         response = await client.get("/api/telemetry/app/my_app/health?since=1700000000.0")
         assert response.status_code == 200
-        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        call_kwargs = mock_hassette.telemetry_query_service.get_app_health_aggregates.call_args.kwargs
         assert call_kwargs["since"] == pytest.approx(1700000000.0)
 
     async def test_app_health_omitted_since_is_none(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """GET /telemetry/app/{key}/health without since passes None."""
         response = await client.get("/api/telemetry/app/my_app/health")
         assert response.status_code == 200
-        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        call_kwargs = mock_hassette.telemetry_query_service.get_app_health_aggregates.call_args.kwargs
         assert call_kwargs["since"] is None
 
     async def test_app_listeners_passes_since(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
@@ -273,6 +255,16 @@ class TestBusListenersSinceParam:
         call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
         assert call_kwargs["since"] is None
 
+    async def test_bus_listeners_without_app_key_calls_global_query(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        response = await client.get("/api/bus/listeners?since=1700000020.0")
+        assert response.status_code == 200
+        mock_hassette.telemetry_query_service.get_all_listeners_summary.assert_called_once()
+        call_kwargs = mock_hassette.telemetry_query_service.get_all_listeners_summary.call_args.kwargs
+        assert call_kwargs["since"] == pytest.approx(1700000020.0)
+        mock_hassette.telemetry_query_service.get_listener_summary.assert_not_called()
+
 
 class TestSourceTierParameter:
     """Verify source_tier query parameter is accepted and forwarded correctly."""
@@ -281,7 +273,7 @@ class TestSourceTierParameter:
         """GET /telemetry/app/{key}/health?source_tier=all passes source_tier to service."""
         response = await client.get("/api/telemetry/app/my_app/health?source_tier=all")
         assert response.status_code == 200
-        call_kwargs = mock_hassette.telemetry_query_service.get_listener_summary.call_args.kwargs
+        call_kwargs = mock_hassette.telemetry_query_service.get_app_health_aggregates.call_args.kwargs
         assert call_kwargs["source_tier"] == "all"
 
     async def test_app_listeners_accepts_source_tier(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:

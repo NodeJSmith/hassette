@@ -1,10 +1,9 @@
-"""Tests for T03: global jobs endpoint, gather_all_listeners tier fix, ServiceInfoResponse extension.
+"""Tests for T03: global jobs endpoint, ServiceInfoResponse extension.
 
 Covers:
 - get_all_jobs_summary() returns jobs from multiple apps, no app_key filter
 - GET /api/scheduler/jobs enriches with live heap data when available
 - GET /api/scheduler/jobs returns DB-only data on scheduler failure (degraded)
-- gather_all_listeners() returns both app and framework tiers
 - ServiceInfoResponse includes role, ready_phase, retry_at when available
 """
 
@@ -18,7 +17,7 @@ from httpx import ASGITransport, AsyncClient
 from hassette.core.database_service import DatabaseService
 from hassette.core.domain_models import ServiceInfo, SystemStatus
 from hassette.core.runtime_query_service import RuntimeQueryService
-from hassette.core.telemetry_models import JobSummary, ListenerSummary
+from hassette.core.telemetry_models import JobSummary
 from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.scheduler.triggers import Every
 from hassette.test_utils.web_helpers import make_real_job
@@ -27,7 +26,6 @@ from hassette.types.enums import ResourceRole, ResourceStatus
 from hassette.web.app import create_fastapi_app
 from hassette.web.mappers import system_status_response_from
 from hassette.web.models import ServiceInfoResponse
-from hassette.web.utils import gather_all_listeners
 
 from .helpers import (
     insert_execution,
@@ -184,6 +182,85 @@ class TestGetAllJobsSummary:
         results = await query_service.get_all_jobs_summary(source_tier="all")
         assert len(results) == 2
 
+    async def test_last_error_row_coherence(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Multiple errors — all last_error_* columns come from the most recent error row."""
+        db_svc, session_id = db
+        base_ts = 1_000_000.0
+
+        j1 = await insert_job(db_svc, app_key="coh_app", job_name="coherent_job")
+        await insert_execution(
+            db_svc,
+            j1,
+            session_id,
+            status="error",
+            error_type="OldError",
+            error_message="old message",
+            error_traceback="old traceback",
+            execution_start_ts=base_ts + 1.0,
+        )
+        await insert_execution(
+            db_svc,
+            j1,
+            session_id,
+            status="error",
+            error_type="NewError",
+            error_message="new message",
+            error_traceback="new traceback",
+            execution_start_ts=base_ts + 10.0,
+        )
+
+        results = await query_service.get_all_jobs_summary()
+        assert len(results) == 1
+        row = results[0]
+        # All three error columns must come from the same (most recent) row
+        assert row.last_error_type == "NewError"
+        assert row.last_error_message == "new message"
+        assert row.last_error_traceback == "new traceback"
+        assert row.last_error_ts == pytest.approx(base_ts + 10.0)
+
+    async def test_since_filter_scopes_error_cte(
+        self,
+        query_service: TelemetryQueryService,
+        db: tuple[DatabaseService, int],
+    ) -> None:
+        """Error before the since window is excluded from last_error_* in get_all_jobs_summary."""
+        db_svc, session_id = db
+        base_ts = 1_000_000.0
+        since_ts = base_ts + 50.0
+
+        j1 = await insert_job(db_svc, app_key="my_app", job_name="windowed_job")
+        await insert_execution(
+            db_svc,
+            j1,
+            session_id,
+            status="error",
+            error_type="OldError",
+            error_message="before window",
+            error_traceback="old tb",
+            execution_start_ts=base_ts + 1.0,
+        )
+        await insert_execution(
+            db_svc,
+            j1,
+            session_id,
+            status="error",
+            error_type="NewError",
+            error_message="inside window",
+            error_traceback="new tb",
+            execution_start_ts=base_ts + 100.0,
+        )
+
+        results = await query_service.get_all_jobs_summary(since=since_ts)
+        assert len(results) == 1
+        row = results[0]
+        assert row.last_error_type == "NewError"
+        assert row.last_error_message == "inside window"
+        assert row.last_error_traceback == "new tb"
+
 
 @pytest.fixture
 def mock_hassette_scheduler():
@@ -303,109 +380,6 @@ class TestGlobalJobsEndpointDegradedOnHeapFailure:
         response = await scheduler_client.get("/api/scheduler/jobs")
         assert response.status_code == 503
         assert response.json() == []
-
-
-class TestGatherAllListenersTiers:
-    async def test_gather_all_listeners_returns_both_tiers(self) -> None:
-        """gather_all_listeners() includes app and framework tier listeners."""
-        # Create a manifest snapshot with two instances from different tiers
-        runtime = MagicMock()
-        telemetry = MagicMock()
-
-        app_listener = ListenerSummary(
-            listener_id=1,
-            app_key="my_app",
-            instance_index=0,
-            handler_method="on_event",
-            topic="hass.event.state_changed",
-            debounce=None,
-            throttle=None,
-            once=0,
-            priority=0,
-            predicate_description=None,
-            human_description=None,
-            source_location="my_app.py:1",
-            registration_source=None,
-            source_tier="app",
-            total_invocations=5,
-            successful=5,
-            failed=0,
-            di_failures=0,
-            cancelled=0,
-            total_duration_ms=50.0,
-            avg_duration_ms=10.0,
-            last_invoked_at=None,
-            last_error_type=None,
-            last_error_message=None,
-        )
-        fw_listener = ListenerSummary(
-            listener_id=2,
-            app_key="__hassette__WebSocketService",
-            instance_index=0,
-            handler_method="on_ws_event",
-            topic="internal",
-            debounce=None,
-            throttle=None,
-            once=0,
-            priority=0,
-            predicate_description=None,
-            human_description=None,
-            source_location="ws.py:10",
-            registration_source=None,
-            source_tier="framework",
-            total_invocations=10,
-            successful=10,
-            failed=0,
-            di_failures=0,
-            cancelled=0,
-            total_duration_ms=100.0,
-            avg_duration_ms=10.0,
-            last_invoked_at=None,
-            last_error_type=None,
-            last_error_message=None,
-        )
-
-        # Mock manifest snapshot with two app instances
-        # Simulate gathering listeners from two manifests; each returns a listener
-        # The key: get_listener_summary is called WITHOUT source_tier="app" filter
-        call_log: list[dict] = []
-
-        async def mock_get_listener_summary(**kwargs: object) -> list[ListenerSummary]:
-            call_log.append(dict(kwargs))
-            app_key = kwargs.get("app_key", "")
-            if app_key == "my_app":
-                return [app_listener]
-            return [fw_listener]
-
-        telemetry.get_listener_summary = mock_get_listener_summary
-
-        # Build snapshot with two entries
-        m1 = MagicMock()
-        m1.app_key = "my_app"
-        m1.instances = [MagicMock()]
-        m1.instances[0].index = 0
-
-        m2 = MagicMock()
-        m2.app_key = "__hassette__WebSocketService"
-        m2.instances = [MagicMock()]
-        m2.instances[0].index = 0
-
-        snapshot = MagicMock()
-        snapshot.manifests = [m1, m2]
-        runtime.get_all_manifests_snapshot.return_value = snapshot
-
-        result = await gather_all_listeners(runtime, telemetry)
-
-        # Both tiers must be present
-        tiers = {ls.source_tier for ls in result}
-        assert "app" in tiers
-        assert "framework" in tiers
-
-        for call in call_log:
-            source_tier_passed = call.get("source_tier")
-            assert source_tier_passed == "all", (
-                f"gather_all_listeners() must pass source_tier='all'. Got: {source_tier_passed!r}"
-            )
 
 
 class TestServiceInfoResponseExtension:

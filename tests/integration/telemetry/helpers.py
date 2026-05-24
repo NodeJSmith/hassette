@@ -99,6 +99,7 @@ async def insert_execution(
     duration_ms: float = 20.0,
     error_type: str | None = None,
     error_message: str | None = None,
+    error_traceback: str | None = None,
     execution_start_ts: float | None = None,
     source_tier: str = "app",
     is_di_failure: int = 0,
@@ -107,9 +108,20 @@ async def insert_execution(
     cursor = await db_svc.db.execute(
         """INSERT INTO job_executions
                (job_id, session_id, execution_start_ts, duration_ms,
-                status, error_type, error_message, source_tier, is_di_failure)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (job_id, session_id, ts, duration_ms, status, error_type, error_message, source_tier, is_di_failure),
+                status, error_type, error_message, error_traceback, source_tier, is_di_failure)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            job_id,
+            session_id,
+            ts,
+            duration_ms,
+            status,
+            error_type,
+            error_message,
+            error_traceback,
+            source_tier,
+            is_di_failure,
+        ),
     )
     await db_svc.db.commit()
     assert cursor.lastrowid is not None

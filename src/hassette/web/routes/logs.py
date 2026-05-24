@@ -1,19 +1,14 @@
 """Log query endpoints."""
 
 import logging
-import time
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query, Response
+from fastapi import APIRouter, HTTPException, Query, Response
 
-from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core import telemetry_repository as _repo
 from hassette.web.dependencies import HassetteDep
-from hassette.web.models import LogEntryResponse, LogLevelRequest, LogLevelResponse, LogsByExecutionResponse
+from hassette.web.models import LogEntryResponse, LogLevelRequest, LogLevelResponse
 from hassette.web.routes.telemetry import DB_ERRORS
-
-if TYPE_CHECKING:
-    from hassette import Hassette
 
 router = APIRouter(tags=["logs"])
 
@@ -33,7 +28,7 @@ async def get_logs(
     since: Annotated[float | None, Query()] = None,
     execution_id: Annotated[str | None, Query()] = None,
     source_tier: Annotated[str | None, Query()] = None,
-) -> list[dict]:
+) -> list[LogEntryResponse]:
     """Return recent log records from the database with optional filtering."""
     if level is not None:
         level = level.upper()
@@ -58,53 +53,11 @@ async def get_logs(
             execution_id=execution_id,
             source_tier=source_tier,
         )
-        return records
+        return [LogEntryResponse.model_validate(r) for r in records]
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch recent log records", exc_info=True)
         response.status_code = 503
         return []
-
-
-@router.get("/logs/by-execution/{execution_id}", response_model=LogsByExecutionResponse)
-async def get_logs_by_execution(
-    hassette: HassetteDep,
-    response: Response,
-    execution_id: Annotated[str, Path()],
-    limit: Annotated[int, Query(ge=1, le=5000)] = 500,
-) -> LogsByExecutionResponse:
-    """Return all log records for a single execution, with retention-expired detection."""
-    try:
-        records, truncated = await _repo.get_log_records_by_execution(
-            hassette.database_service.read_db,
-            execution_id,
-            limit=limit,
-        )
-    except DB_ERRORS:
-        LOGGER.warning("Failed to fetch log records for execution %s", execution_id, exc_info=True)
-        response.status_code = 503
-        return LogsByExecutionResponse(records=[], truncated=False, retention_expired=False)
-
-    retention_expired = False
-    if not records:
-        retention_expired = await _check_retention_expired(hassette, execution_id)
-
-    log_entries = [LogEntryResponse.model_validate(r) for r in records]
-    return LogsByExecutionResponse(records=log_entries, truncated=truncated, retention_expired=retention_expired)
-
-
-async def _check_retention_expired(hassette: "Hassette", execution_id: str) -> bool:
-    """Return True if logs were deleted by retention policy.
-
-    Checks handler_invocations and job_executions for the execution_id. If the
-    execution's timestamp is older than log_retention_days, its logs have been expired.
-    """
-    try:
-        cutoff = time.time() - hassette.config.logging.log_retention_days * SECONDS_PER_DAY
-        return await _repo.check_execution_predates_retention_cutoff(
-            hassette.database_service.read_db, execution_id, cutoff
-        )
-    except DB_ERRORS:
-        return False
 
 
 @router.put("/logs/level", response_model=LogLevelResponse)

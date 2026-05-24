@@ -5,6 +5,7 @@ import uuid
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import uuid_utils
 import whenever
 
 from hassette.bus.invocation_record import SYNTHETIC_ORIGIN
@@ -112,9 +113,18 @@ def is_valid_uuid4(value: str) -> bool:
         return False
 
 
+def is_valid_uuid7(value: str) -> bool:
+    """Return True if value is a valid UUID7 string."""
+    try:
+        parsed = uuid_utils.UUID(value)
+        return parsed.version == 7
+    except (ValueError, AttributeError):
+        return False
+
+
 class TestExecutionIdContextVar:
     async def test_execution_id_set_during_handler_execution(self) -> None:
-        """CURRENT_EXECUTION_ID is non-None and UUID4 during handler execution."""
+        """CURRENT_EXECUTION_ID is non-None and UUIDv7 during handler execution."""
         executor = make_executor()
         captured: list[str | None] = []
 
@@ -130,7 +140,7 @@ class TestExecutionIdContextVar:
         assert len(captured) == 1
         value = captured[0]
         assert value is not None
-        assert is_valid_uuid4(value)
+        assert is_valid_uuid7(value)
 
         # The enqueued record must have the same execution_id
         record = executor._write_queue.get_nowait()
@@ -179,7 +189,7 @@ class TestExecutionIdContextVar:
         assert ids[0] != ids[1]
 
     async def test_execution_id_set_during_job_execution(self) -> None:
-        """CURRENT_EXECUTION_ID is non-None and UUID4 during job execution."""
+        """CURRENT_EXECUTION_ID is non-None and UUIDv7 during job execution."""
         executor = make_executor()
         captured: list[str | None] = []
 
@@ -194,7 +204,7 @@ class TestExecutionIdContextVar:
         assert len(captured) == 1
         value = captured[0]
         assert value is not None
-        assert is_valid_uuid4(value)
+        assert is_valid_uuid7(value)
 
         # Enqueued record must have the same execution_id
         record = executor._write_queue.get_nowait()
@@ -340,7 +350,7 @@ class TestHandlerRecordTriggerFields:
 
 class TestJobRecordFields:
     async def test_job_record_has_execution_id_no_trigger(self) -> None:
-        """Job execution record has execution_id and no trigger fields."""
+        """Job execution record has execution_id (UUIDv7) and no trigger fields."""
         executor = make_executor()
         cmd = make_execute_job_cmd()
 
@@ -348,7 +358,7 @@ class TestJobRecordFields:
 
         record = executor._write_queue.get_nowait()
         assert record.execution_id is not None
-        assert is_valid_uuid4(record.execution_id)
+        assert is_valid_uuid7(record.execution_id)
         assert not hasattr(record, "trigger_context_id")
         assert not hasattr(record, "trigger_origin")
 

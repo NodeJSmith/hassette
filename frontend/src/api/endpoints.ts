@@ -143,7 +143,7 @@ export const getRecentLogs = (
   );
 
 export const getLogsByExecution = (executionId: string, limit?: number) =>
-  apiFetch<LogsByExecutionResponse>(buildUrl(`/logs/by-execution/${encodeURIComponent(executionId)}`, { limit }));
+  apiFetch<LogsByExecutionResponse>(buildUrl(`/executions/${encodeURIComponent(executionId)}`, { limit }));
 
 export const setLogLevel = (logger: string, level: string) =>
   apiPut<LogLevelResponse>("/logs/level", { logger, level });

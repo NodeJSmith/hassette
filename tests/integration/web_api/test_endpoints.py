@@ -120,6 +120,27 @@ class TestEventsEndpoint:
         data = response.json()
         assert len(data) == 1
 
+    async def test_get_recent_events_returns_event_entry_schema(
+        self, client: "AsyncClient", runtime_query_service: RuntimeQueryService
+    ) -> None:
+        """Response items conform to EventEntry schema: type, timestamp, data fields present."""
+        runtime_query_service._event_buffer.append(
+            {"type": "connectivity", "data": {"connected": True}, "timestamp": 9999999.0}
+        )
+        response = await client.get("/api/events/recent")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        entry = data[0]
+        # EventEntry required fields must be present
+        assert entry["type"] == "connectivity"
+        assert entry["timestamp"] == 9999999.0
+        # data field must be present (dict, not absent)
+        assert "data" in entry
+        assert entry["data"] == {"connected": True}
+        # entity_id is optional, defaults to None
+        assert entry.get("entity_id") is None
+
 
 class TestSchedulerEndpoints:
     async def test_scheduler_jobs_endpoint_exists(self, client: "AsyncClient") -> None:
@@ -202,10 +223,10 @@ class TestBusEndpoints:
         # ListenerWithSummary-specific fields present
         assert "source_location" in entry
         assert "human_description" in entry
-        # timed_out field must be present (WP03)
+        # timed_out is tracked separately from failed (not aggregated into it)
         assert "timed_out" in entry
         assert entry["timed_out"] == 0
-        # ListenerMetricsResponse-only fields absent (that class is deleted)
+        assert "listener_kind" in entry
         # Verify key fields are correct
         assert entry["listener_id"] == 1
         assert entry["app_key"] == "test_app"
@@ -269,57 +290,6 @@ class TestLogsEndpoints:
         mock_get.return_value = []
         response = await client.get("/api/logs/recent?source_tier=app")
         assert response.status_code == 200
-
-    @patch(f"{LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
-    async def test_get_logs_by_execution_returns_records(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
-        records = [make_log_record(1, "INFO", "started", execution_id="exec-abc")]
-        mock_get.return_value = (records, False)
-        response = await client.get("/api/logs/by-execution/exec-abc")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["truncated"] is False
-        assert data["retention_expired"] is False
-        assert len(data["records"]) == 1
-        assert data["records"][0]["execution_id"] == "exec-abc"
-
-    @patch(f"{LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
-    async def test_get_logs_by_execution_truncated(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
-        records = [make_log_record(i, execution_id="exec-xyz") for i in range(500)]
-        mock_get.return_value = (records, True)
-        response = await client.get("/api/logs/by-execution/exec-xyz")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["truncated"] is True
-        assert len(data["records"]) == 500
-
-    @patch(f"{LOGS_REPO}.check_execution_predates_retention_cutoff", new_callable=AsyncMock)
-    @patch(f"{LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
-    async def test_get_logs_by_execution_retention_expired(
-        self, mock_get: AsyncMock, mock_cutoff: AsyncMock, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """When records=[] and execution is old, retention_expired=True."""
-        mock_get.return_value = ([], False)
-        mock_cutoff.return_value = True
-        mock_hassette.config.logging.log_retention_days = 3
-        response = await client.get("/api/logs/by-execution/old-exec")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["retention_expired"] is True
-        assert data["records"] == []
-
-    @patch(f"{LOGS_REPO}.check_execution_predates_retention_cutoff", new_callable=AsyncMock)
-    @patch(f"{LOGS_REPO}.get_log_records_by_execution", new_callable=AsyncMock)
-    async def test_get_logs_by_execution_empty_no_retention(
-        self, mock_get: AsyncMock, mock_cutoff: AsyncMock, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """When records=[] and execution is not old, retention_expired=False."""
-        mock_get.return_value = ([], False)
-        mock_cutoff.return_value = False
-        mock_hassette.config.logging.log_retention_days = 3
-        response = await client.get("/api/logs/by-execution/new-exec")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["retention_expired"] is False
 
     async def test_put_log_level_valid(self, client: "AsyncClient") -> None:
         response = await client.put("/api/logs/level", json={"logger": "hassette.test", "level": "DEBUG"})
@@ -426,3 +396,56 @@ class TestOpenApiDocs:
         assert response.status_code == 200
         data = response.json()
         assert data["info"]["title"] == "Hassette Web API"
+
+    async def test_events_recent_has_response_schema(self, client: "AsyncClient") -> None:
+        """GET /api/events/recent has EventEntry declared as response_model in OpenAPI."""
+        response = await client.get("/api/openapi.json")
+        spec = response.json()
+        paths = spec.get("paths", {})
+        assert "/api/events/recent" in paths, f"events route missing; got: {list(paths)}"
+        get_op = paths["/api/events/recent"].get("get", {})
+        responses = get_op.get("responses", {})
+        assert "200" in responses, "events/recent must have a 200 response schema"
+        schema = responses["200"].get("content", {}).get("application/json", {}).get("schema", {})
+        assert schema is not None, "events/recent 200 response must have a JSON schema"
+        # When response_model=list[EventEntry] is set, FastAPI generates a $ref to EventEntry
+        # The schema will be an array whose items reference EventEntry
+        schema_str = str(schema)
+        assert "EventEntry" in schema_str, f"events/recent schema must reference EventEntry model; got: {schema_str}"
+
+    async def test_services_has_response_schema(self, client: "AsyncClient") -> None:
+        """GET /api/services has a declared response schema in OpenAPI (response_model set)."""
+        response = await client.get("/api/openapi.json")
+        spec = response.json()
+        paths = spec.get("paths", {})
+        assert "/api/services" in paths
+        get_op = paths["/api/services"].get("get", {})
+        responses = get_op.get("responses", {})
+        assert "200" in responses
+        schema_ref = responses["200"].get("content", {}).get("application/json", {}).get("schema")
+        assert schema_ref is not None, "services 200 response must have a JSON schema"
+
+    async def test_instance_index_has_description_on_telemetry_health(self, client: "AsyncClient") -> None:
+        """instance_index parameter on telemetry app health route has a description."""
+        response = await client.get("/api/openapi.json")
+        spec = response.json()
+        paths = spec.get("paths", {})
+        # Find the app health route
+        health_path = "/api/telemetry/app/{app_key}/health"
+        assert health_path in paths, f"health route missing; got {list(paths)}"
+        params = paths[health_path]["get"].get("parameters", [])
+        instance_params = [p for p in params if p.get("name") == "instance_index"]
+        assert instance_params, "instance_index parameter must be present on health route"
+        assert instance_params[0].get("description"), "instance_index must have a non-empty description"
+
+    async def test_instance_index_has_description_on_bus_listeners(self, client: "AsyncClient") -> None:
+        """instance_index parameter on bus listeners route has a description."""
+        response = await client.get("/api/openapi.json")
+        spec = response.json()
+        paths = spec.get("paths", {})
+        bus_path = "/api/bus/listeners"
+        assert bus_path in paths
+        params = paths[bus_path]["get"].get("parameters", [])
+        instance_params = [p for p in params if p.get("name") == "instance_index"]
+        assert instance_params, "instance_index parameter must be present on bus/listeners route"
+        assert instance_params[0].get("description"), "instance_index must have a non-empty description"

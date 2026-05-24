@@ -15,7 +15,7 @@ from typing import Literal, NamedTuple
 
 from pydantic import BaseModel
 
-from hassette.types.types import SourceTier
+from hassette.types.types import LOG_LEVEL_TYPE, InvocationStatus, SourceTier
 
 
 class AppLastError(NamedTuple):
@@ -101,13 +101,16 @@ class HandlerInvocation(BaseModel):
 
     execution_start_ts: float
     duration_ms: float
-    status: str
+    status: InvocationStatus
     source_tier: SourceTier = "app"
     error_type: str | None
     error_message: str | None
     error_traceback: str | None = None
     execution_id: str | None = None
-    """UUID4 string identifying the specific execution instance. None when not populated."""
+    """UUID string identifying the specific execution instance. None when not populated.
+
+    UUIDv7 for new executions (embeds timestamp); UUIDv4 for historical executions.
+    """
     trigger_context_id: str | None = None
     """event_id from the triggering event payload. None for non-event-triggered invocations."""
     trigger_origin: str | None = None
@@ -170,13 +173,16 @@ class JobExecution(BaseModel):
 
     execution_start_ts: float
     duration_ms: float
-    status: str
+    status: InvocationStatus
     source_tier: SourceTier = "app"
     error_type: str | None
     error_message: str | None
     error_traceback: str | None = None
     execution_id: str | None = None
-    """UUID4 string identifying the specific execution instance. None when not populated."""
+    """UUID string identifying the specific execution instance. None when not populated.
+
+    UUIDv7 for new executions (embeds timestamp); UUIDv4 for historical executions.
+    """
 
 
 class ListenerGlobalStats(BaseModel):
@@ -279,8 +285,8 @@ class ActivityFeedEntry(BaseModel):
     """Stable unique identifier for this entry. Prefixed with ``'h-'`` for handler invocations
     and ``'j-'`` for job executions, followed by the SQLite rowid."""
 
-    status: str
-    """Invocation/execution status (e.g. 'success', 'error', 'timed_out')."""
+    status: InvocationStatus
+    """Invocation/execution status."""
 
     timestamp: float
     """Unix epoch float for when the invocation/execution started."""
@@ -315,7 +321,7 @@ class LogRecord(BaseModel):
     id: int
     seq: int
     timestamp: float
-    level: str
+    level: LOG_LEVEL_TYPE
     logger_name: str
     func_name: str | None = None
     lineno: int | None = None
@@ -325,6 +331,8 @@ class LogRecord(BaseModel):
     instance_name: str | None = None
     instance_index: int | None = None
     execution_id: str | None = None
-    """UUID4 string identifying the execution that produced this log record. None for framework logs."""
+    """UUID string identifying the execution that produced this log record. None for framework logs.
+
+    UUIDv7 for new executions (embeds timestamp); UUIDv4 for historical executions."""
     source_tier: SourceTier | None = None
     """``'app'`` for user automation logs, ``'framework'`` for internal service logs."""

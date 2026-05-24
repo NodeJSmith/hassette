@@ -200,26 +200,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/logs/by-execution/{execution_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Logs By Execution
-         * @description Return all log records for a single execution, with retention-expired detection.
-         */
-        get: operations["get_logs_by_execution_api_logs_by_execution__execution_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/logs/level": {
         parameters: {
             query?: never;
@@ -235,6 +215,33 @@ export interface paths {
          *     The change takes effect immediately for both structlog and stdlib callers on that logger.
          */
         put: operations["set_log_level_api_logs_level_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/executions/{execution_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Execution Logs
+         * @description Return all log records for a single execution, with retention-expired detection.
+         *
+         *     For UUIDv7 execution IDs, the embedded timestamp is extracted directly without a
+         *     database lookup. For historical UUIDv4 IDs, the database is queried to determine
+         *     whether retention has expired.
+         *
+         *     Returns 422 if the execution_id is not a valid UUID. Returns an empty record list
+         *     with ``retention_expired=True`` if logs have been purged by retention policy.
+         */
+        get: operations["get_execution_logs_api_executions__execution_id__get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -509,8 +516,7 @@ export interface components {
         ActivityFeedEntry: {
             /** Row Id */
             row_id: string;
-            /** Status */
-            status: string;
+            status: components["schemas"]["InvocationStatus"];
             /** Timestamp */
             timestamp: number;
             /** App Key */
@@ -558,16 +564,22 @@ export interface components {
         AppHealthResponse: {
             /** Error Rate */
             error_rate: number;
-            /** Error Rate Class */
-            error_rate_class: string;
+            /**
+             * Error Rate Class
+             * @enum {string}
+             */
+            error_rate_class: "good" | "warn" | "bad";
             /** Handler Avg Duration */
             handler_avg_duration: number;
             /** Job Avg Duration */
             job_avg_duration: number;
             /** Last Activity Ts */
             last_activity_ts: number | null;
-            /** Health Status */
-            health_status: string;
+            /**
+             * Health Status
+             * @enum {string}
+             */
+            health_status: "excellent" | "good" | "warning" | "critical";
         };
         /** AppInstanceResponse */
         AppInstanceResponse: {
@@ -579,8 +591,7 @@ export interface components {
             instance_name: string;
             /** Class Name */
             class_name: string;
-            /** Status */
-            status: string;
+            status: components["schemas"]["ResourceStatus"];
             /** Error Message */
             error_message?: string | null;
             /** Error Traceback */
@@ -621,8 +632,11 @@ export interface components {
             enabled: boolean;
             /** Auto Loaded */
             auto_loaded: boolean;
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "disabled" | "blocked" | "running" | "failed" | "stopped";
             /** Block Reason */
             block_reason?: string | null;
             /**
@@ -727,8 +741,11 @@ export interface components {
         DashboardAppGridEntry: {
             /** App Key */
             app_key: string;
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "disabled" | "blocked" | "running" | "failed" | "stopped";
             /** Display Name */
             display_name: string;
             /**
@@ -763,12 +780,18 @@ export interface components {
             avg_duration_ms: number;
             /** Last Activity Ts */
             last_activity_ts: number | null;
-            /** Health Status */
-            health_status: string;
+            /**
+             * Health Status
+             * @enum {string}
+             */
+            health_status: "excellent" | "good" | "warning" | "critical";
             /** Error Rate */
             error_rate: number;
-            /** Error Rate Class */
-            error_rate_class: string;
+            /**
+             * Error Rate Class
+             * @enum {string}
+             */
+            error_rate_class: "good" | "warn" | "bad";
             /** Activity Buckets */
             activity_buckets?: components["schemas"]["ActivityBucket"][];
             /** Last Error Message */
@@ -785,6 +808,19 @@ export interface components {
         DashboardAppGridResponse: {
             /** Apps */
             apps: components["schemas"]["DashboardAppGridEntry"][];
+        };
+        /** EventEntry */
+        EventEntry: {
+            /** Type */
+            type: string;
+            /** Entity Id */
+            entity_id?: string | null;
+            /** Timestamp */
+            timestamp: number;
+            /** Data */
+            data?: {
+                [key: string]: unknown;
+            };
         };
         /**
          * FileWatcherConfigResponse
@@ -810,8 +846,7 @@ export interface components {
             execution_start_ts: number;
             /** Duration Ms */
             duration_ms: number;
-            /** Status */
-            status: string;
+            status: components["schemas"]["InvocationStatus"];
             /**
              * Source Tier
              * @default app
@@ -832,6 +867,16 @@ export interface components {
             trigger_origin?: string | null;
         };
         /**
+         * InvocationStatus
+         * @description Status values for handler invocations and job executions.
+         *
+         *     Covers all values allowed by the CHECK constraints in migrations 001 and 005.
+         *     Pydantic v2 coerces plain strings to enum members on construction and
+         *     serialises back to plain strings in JSON responses.
+         * @enum {string}
+         */
+        InvocationStatus: "success" | "error" | "cancelled" | "timed_out";
+        /**
          * JobExecution
          * @description Single execution record returned by ``get_job_executions()``.
          */
@@ -840,8 +885,7 @@ export interface components {
             execution_start_ts: number;
             /** Duration Ms */
             duration_ms: number;
-            /** Status */
-            status: string;
+            status: components["schemas"]["InvocationStatus"];
             /**
              * Source Tier
              * @default app
@@ -972,8 +1016,9 @@ export interface components {
             /**
              * Listener Kind
              * @default event
+             * @enum {string}
              */
-            listener_kind: string;
+            listener_kind: "state change" | "service call" | "event";
             /** Handler Method */
             handler_method: string;
             /** Total Invocations */
@@ -1065,14 +1110,17 @@ export interface components {
             seq: number;
             /** Timestamp */
             timestamp: number;
-            /** Level */
-            level: string;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
             /** Logger Name */
             logger_name: string;
             /** Func Name */
-            func_name: string;
+            func_name?: string | null;
             /** Lineno */
-            lineno: number;
+            lineno?: number | null;
             /** Message */
             message: string;
             /** Exc Info */
@@ -1086,7 +1134,7 @@ export interface components {
             /** Instance Index */
             instance_index?: number | null;
             /** Source Tier */
-            source_tier?: string | null;
+            source_tier?: ("app" | "framework") | null;
         };
         /**
          * LogLevelRequest
@@ -1120,7 +1168,7 @@ export interface components {
         };
         /**
          * LogsByExecutionResponse
-         * @description Response for GET /api/logs/by-execution/{execution_id}.
+         * @description Response for GET /api/executions/{execution_id}.
          */
         LogsByExecutionResponse: {
             /** Records */
@@ -1130,6 +1178,12 @@ export interface components {
             /** Retention Expired */
             retention_expired: boolean;
         };
+        /**
+         * ResourceStatus
+         * @description Enumeration for resource status.
+         * @enum {string}
+         */
+        ResourceStatus: "not_started" | "starting" | "running" | "stopping" | "stopped" | "failed" | "crashed" | "exhausted_dead" | "exhausted_cooling";
         /**
          * SchedulerConfigResponse
          * @description Sanitized scheduler configuration fields.
@@ -1149,8 +1203,7 @@ export interface components {
         ServiceInfoResponse: {
             /** Name */
             name: string;
-            /** Status */
-            status: string;
+            status: components["schemas"]["ResourceStatus"];
             /**
              * Role
              * @default
@@ -1163,8 +1216,11 @@ export interface components {
         };
         /** SystemStatusResponse */
         SystemStatusResponse: {
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "degraded" | "starting";
             /** Websocket Connected */
             websocket_connected: boolean;
             /** Uptime Seconds */
@@ -1532,9 +1588,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["EventEntry"][];
                 };
             };
             /** @description Validation Error */
@@ -1584,39 +1638,6 @@ export interface operations {
             };
         };
     };
-    get_logs_by_execution_api_logs_by_execution__execution_id__get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                execution_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LogsByExecutionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     set_log_level_api_logs_level_put: {
         parameters: {
             query?: never;
@@ -1650,10 +1671,44 @@ export interface operations {
             };
         };
     };
+    get_execution_logs_api_executions__execution_id__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                execution_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogsByExecutionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_listener_metrics_api_bus_listeners_get: {
         parameters: {
             query?: {
                 app_key?: string | null;
+                /** @description App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1. */
                 instance_index?: number;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
@@ -1737,6 +1792,7 @@ export interface operations {
     app_health_api_telemetry_app__app_key__health_get: {
         parameters: {
             query?: {
+                /** @description App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1. */
                 instance_index?: number;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
@@ -1774,6 +1830,7 @@ export interface operations {
     app_listeners_api_telemetry_app__app_key__listeners_get: {
         parameters: {
             query?: {
+                /** @description App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1. */
                 instance_index?: number;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
@@ -1811,6 +1868,7 @@ export interface operations {
     app_activity_api_telemetry_app__app_key__activity_get: {
         parameters: {
             query?: {
+                /** @description App instance index. None returns activity across all instances. */
                 instance_index?: number | null;
                 limit?: number;
                 since?: number | null;
@@ -1849,6 +1907,7 @@ export interface operations {
     app_jobs_api_telemetry_app__app_key__jobs_get: {
         parameters: {
             query?: {
+                /** @description App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1. */
                 instance_index?: number;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */

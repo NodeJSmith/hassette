@@ -223,8 +223,7 @@
           "type": "integer"
         },
         "status": {
-          "title": "Status",
-          "type": "string"
+          "$ref": "#/$defs/InvocationStatus"
         },
         "duration_ms": {
           "title": "Duration Ms",
@@ -296,8 +295,7 @@
           "type": "integer"
         },
         "status": {
-          "title": "Status",
-          "type": "string"
+          "$ref": "#/$defs/InvocationStatus"
         },
         "duration_ms": {
           "title": "Duration Ms",
@@ -353,6 +351,17 @@
       "title": "InvocationCompletedWsMessage",
       "type": "object"
     },
+    "InvocationStatus": {
+      "description": "Status values for handler invocations and job executions.\n\nCovers all values allowed by the CHECK constraints in migrations 001 and 005.\nPydantic v2 coerces plain strings to enum members on construction and\nserialises back to plain strings in JSON responses.",
+      "enum": [
+        "success",
+        "error",
+        "cancelled",
+        "timed_out"
+      ],
+      "title": "InvocationStatus",
+      "type": "string"
+    },
     "LogEntryResponse": {
       "properties": {
         "seq": {
@@ -364,6 +373,13 @@
           "type": "number"
         },
         "level": {
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARNING",
+            "ERROR",
+            "CRITICAL"
+          ],
           "title": "Level",
           "type": "string"
         },
@@ -372,12 +388,28 @@
           "type": "string"
         },
         "func_name": {
-          "title": "Func Name",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Func Name"
         },
         "lineno": {
-          "title": "Lineno",
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lineno"
         },
         "message": {
           "title": "Message",
@@ -446,6 +478,10 @@
         "source_tier": {
           "anyOf": [
             {
+              "enum": [
+                "app",
+                "framework"
+              ],
               "type": "string"
             },
             {
@@ -461,8 +497,6 @@
         "timestamp",
         "level",
         "logger_name",
-        "func_name",
-        "lineno",
         "message"
       ],
       "title": "LogEntryResponse",

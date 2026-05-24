@@ -95,13 +95,15 @@ async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseSe
 
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'")
         indexes = sorted(row[0] for row in cursor.fetchall())
-        # 14 original idx_ indexes + 3 new idx_lr_ indexes = 17
-        assert len(indexes) == 17
+        # 14 original idx_ indexes + 3 new idx_lr_ indexes + 2 new perf indexes = 19
+        assert len(indexes) == 19
         assert "idx_hi_listener_time" in indexes
+        assert "idx_hi_listener_status_time" in indexes
         assert "idx_hi_status_time" in indexes
         assert "idx_hi_time" in indexes
         assert "idx_hi_session" in indexes
         assert "idx_je_job_time" in indexes
+        assert "idx_je_job_status_time" in indexes
         assert "idx_je_status_time" in indexes
         assert "idx_je_time" in indexes
         assert "idx_je_session" in indexes

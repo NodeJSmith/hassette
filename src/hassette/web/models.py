@@ -5,7 +5,39 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field
 
 from hassette.core.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
-from hassette.types.types import SourceTier
+from hassette.types.enums import ResourceStatus
+from hassette.types.types import LOG_LEVEL_TYPE, InvocationStatus, SourceTier
+
+ManifestStatus = Literal["disabled", "blocked", "running", "failed", "stopped"]
+"""Status values for app manifests (manifest-scoped, 5 values).
+
+Verified against ``src/hassette/core/app_registry.py`` status derivation logic.
+"""
+
+ErrorRateClass = Literal["good", "warn", "bad"]
+"""CSS classification for error rate percentage.
+
+Verified against ``classify_error_rate()`` return values in ``telemetry_helpers.py``.
+"""
+
+HealthStatus = Literal["excellent", "good", "warning", "critical"]
+"""Health bar classification from success-rate percentage.
+
+Verified against ``classify_health_bar()`` return values in ``telemetry_helpers.py``.
+Does NOT include ``"unknown"`` — zero-invocation apps return ``"excellent"``.
+"""
+
+ListenerKind = Literal["state change", "service call", "event"]
+"""Kind of listener event (3 values).
+
+Verified against ``listener_kind_from_topic()`` return values in ``mappers.py``.
+"""
+
+SystemHealthStatus = Literal["ok", "degraded", "starting"]
+"""System-level health status (3 values).
+
+Mirrors ``SystemStatus.status`` from ``src/hassette/core/domain_models.py:62``.
+"""
 
 
 class BootIssueResponse(BaseModel):
@@ -20,7 +52,7 @@ class ServiceInfoResponse(BaseModel):
     """Structured info for one internal service."""
 
     name: str
-    status: str
+    status: ResourceStatus
     role: str = ""
     """Role of the service (e.g. 'service', 'resource'). Empty string when not available."""
     ready_phase: str | None = None
@@ -30,7 +62,7 @@ class ServiceInfoResponse(BaseModel):
 
 
 class SystemStatusResponse(BaseModel):
-    status: str
+    status: SystemHealthStatus
     websocket_connected: bool
     uptime_seconds: float
     entity_count: int
@@ -60,7 +92,7 @@ class AppInstanceResponse(BaseModel):
     index: int
     instance_name: str
     class_name: str
-    status: str
+    status: ResourceStatus
     error_message: str | None = None
     error_traceback: str | None = None
     owner_id: str | None = None
@@ -81,7 +113,7 @@ class AppManifestResponse(BaseModel):
     filename: str
     enabled: bool
     auto_loaded: bool
-    status: str
+    status: ManifestStatus
     block_reason: str | None = None
     instance_count: int = Field(
         default=0,
@@ -122,21 +154,21 @@ class WsMessage(BaseModel):
 class LogEntryResponse(BaseModel):
     seq: int
     timestamp: float
-    level: str
+    level: LOG_LEVEL_TYPE
     logger_name: str
-    func_name: str
-    lineno: int
+    func_name: str | None = None
+    lineno: int | None = None
     message: str
     exc_info: str | None = None
     app_key: str | None = None
     execution_id: str | None = None
     instance_name: str | None = None
     instance_index: int | None = None
-    source_tier: str | None = None
+    source_tier: SourceTier | None = None
 
 
 class LogsByExecutionResponse(BaseModel):
-    """Response for GET /api/logs/by-execution/{execution_id}."""
+    """Response for GET /api/executions/{execution_id}."""
 
     records: list[LogEntryResponse]
     truncated: bool
@@ -206,7 +238,7 @@ class InvocationCompletedData(BaseModel):
     listener_id: int
     app_key: str
     instance_index: int
-    status: str
+    status: InvocationStatus
     duration_ms: float
     error_type: str | None = None
 
@@ -217,7 +249,7 @@ class ExecutionCompletedData(BaseModel):
     job_id: int
     app_key: str
     instance_index: int
-    status: str
+    status: InvocationStatus
     duration_ms: float
     error_type: str | None = None
 
@@ -253,11 +285,11 @@ class AppHealthResponse(BaseModel):
     """Health metrics for a single app instance."""
 
     error_rate: float
-    error_rate_class: str
+    error_rate_class: ErrorRateClass
     handler_avg_duration: float
     job_avg_duration: float
     last_activity_ts: float | None
-    health_status: str
+    health_status: HealthStatus
 
 
 class ListenerWithSummary(BaseModel):
@@ -267,7 +299,7 @@ class ListenerWithSummary(BaseModel):
     app_key: str
     instance_index: int = 0
     topic: str
-    listener_kind: str = "event"
+    listener_kind: ListenerKind = "event"
     handler_method: str
     total_invocations: int
     successful: int
@@ -312,7 +344,7 @@ class DashboardAppGridEntry(BaseModel):
     """Per-app health entry for the dashboard grid."""
 
     app_key: str
-    status: str
+    status: ManifestStatus
     display_name: str
     instance_count: int = Field(
         default=0,
@@ -328,9 +360,9 @@ class DashboardAppGridEntry(BaseModel):
     total_job_timed_out: int = 0
     avg_duration_ms: float
     last_activity_ts: float | None
-    health_status: str
+    health_status: HealthStatus
     error_rate: float
-    error_rate_class: str
+    error_rate_class: ErrorRateClass
     activity_buckets: list[ActivityBucket] = Field(default_factory=list)
     """Per-app sparkline buckets (ok/err counts per time window)."""
     last_error_message: str | None = None

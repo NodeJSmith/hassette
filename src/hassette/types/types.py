@@ -1,5 +1,6 @@
 from collections.abc import Awaitable, Callable, Coroutine
 from datetime import time
+from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol, Required, TypeAlias, TypeVar, runtime_checkable
 
@@ -20,6 +21,21 @@ LOG_LEVEL_TYPE = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 SourceTier = Literal["app", "framework"]
 """Identifies whether a telemetry record originates from a user app or the framework itself."""
+
+
+class InvocationStatus(StrEnum):
+    """Status values for handler invocations and job executions.
+
+    Covers all values allowed by the CHECK constraints in migrations 001 and 005.
+    Pydantic v2 coerces plain strings to enum members on construction and
+    serialises back to plain strings in JSON responses.
+    """
+
+    SUCCESS = "success"
+    ERROR = "error"
+    CANCELLED = "cancelled"
+    TIMED_OUT = "timed_out"
+
 
 QuerySourceTier = Literal["app", "framework", "all"]
 """Valid source_tier values for query-side filtering. 'all' disables the filter."""
