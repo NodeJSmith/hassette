@@ -42,6 +42,7 @@ from hassette.web.models import (
     LogEntryResponse,
     LoggingConfigResponse,
     LogsByExecutionResponse,
+    ManifestStatus,
     SchedulerConfigResponse,
     SystemStatusResponse,
     TelemetryStatusResponse,
@@ -105,7 +106,7 @@ def make_manifest_response(
     filename: str = "my_app.py",
     enabled: bool = True,
     auto_loaded: bool = False,
-    status: str = "running",
+    status: ManifestStatus = "running",
     instance_count: int = 1,
     instances: list[AppInstanceResponse] | None = None,
 ) -> AppManifestResponse:
@@ -128,14 +129,18 @@ def make_manifest_list_response(
 ) -> AppManifestListResponse:
     """Build an AppManifestListResponse from a list of manifests."""
     manifests = manifests or []
-    counts = {"running": 0, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0}
+    counts: dict[ManifestStatus, int] = {"running": 0, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0}
     for m in manifests:
         if m.status in counts:
             counts[m.status] += 1
     return AppManifestListResponse(
         manifests=manifests,
         total=len(manifests),
-        **counts,
+        running=counts["running"],
+        failed=counts["failed"],
+        stopped=counts["stopped"],
+        disabled=counts["disabled"],
+        blocked=counts["blocked"],
     )
 
 

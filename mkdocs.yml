@@ -89,7 +89,11 @@ nav:
       - Handlers: pages/web-ui/handlers.md
       - Logs: pages/web-ui/logs.md
       - Config: pages/web-ui/config.md
-  - CLI: pages/cli/index.md
+  - CLI:
+      - Overview: pages/cli/index.md
+      - Command Reference: pages/cli/commands.md
+      - Workflows: pages/cli/workflows.md
+      - Configuration & Scripting: pages/cli/configuration.md
   - Testing:
       - Testing Your Apps: pages/testing/index.md
       - Time Control: pages/testing/time-control.md
