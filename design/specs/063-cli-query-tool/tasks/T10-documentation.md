@@ -1,7 +1,7 @@
 ---
 task_id: "T10"
 title: "Add CLI documentation"
-status: "planned"
+status: "done"
 depends_on: ["T05", "T06", "T07", "T08"]
 implements: ["FR#2", "FR#10"]
 ---

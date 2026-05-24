@@ -37,6 +37,28 @@ Hassette includes a web UI with four pages: **Dashboard** (KPI overview and app 
 
 The web UI is enabled by default at `http://<host>:8126/ui/`. See the [Web UI documentation](https://hassette.readthedocs.io/en/stable/pages/web-ui/) for details.
 
+## Terminal CLI
+
+Query a running Hassette instance from the terminal — no browser required:
+
+```bash
+# Check system health
+hassette status
+
+# List all apps and their status
+hassette app
+
+# Investigate a specific app
+hassette app health my-app
+hassette listener --app my-app --since 1h
+hassette log --app my-app --since 1h --limit 20
+
+# Pipe structured output to jq
+hassette listener --app my-app --json | jq '.[] | select(.error_count > 0)'
+```
+
+See the [CLI documentation](https://hassette.readthedocs.io/en/stable/pages/cli/) for the full command reference, scripting patterns, and shell completion setup.
+
 ## 🤔 Is Hassette Right for You?
 
 **New to automation frameworks?**

@@ -89,6 +89,7 @@ nav:
       - Handlers: pages/web-ui/handlers.md
       - Logs: pages/web-ui/logs.md
       - Config: pages/web-ui/config.md
+  - CLI: pages/cli/index.md
   - Testing:
       - Testing Your Apps: pages/testing/index.md
       - Time Control: pages/testing/time-control.md
