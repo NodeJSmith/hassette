@@ -1,16 +1,31 @@
 """Unit tests for the HassetteCLIClient HTTP client wrapper."""
 
 import json
+from contextlib import contextmanager
+from io import StringIO
 from typing import Any
+from unittest.mock import patch
 
 import httpx
 import pytest
 from pydantic import BaseModel
+from rich.console import Console
 
+import hassette.cli.output as output_module
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
 from hassette.test_utils.web_helpers import make_manifest_list_response, make_manifest_response
 from hassette.web.models import AppInstanceResponse
+
+
+@contextmanager
+def capture_stderr():
+    """Capture Rich stderr console output from the shared stderr_console."""
+    buf = StringIO()
+    mock_console = Console(file=buf, stderr=True, highlight=False, force_terminal=False)
+    with patch.object(output_module, "stderr_console", mock_console):
+        yield buf
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -124,15 +139,13 @@ class TestHttpErrorsHumanMode:
             client.get("/api/missing", SimpleModel)
         assert exc_info.value.code == 1
 
-    def test_404_prints_to_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_404_prints_to_stderr(self) -> None:
         config = _make_config()
         transport = make_transport(404, {"detail": "Not found"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        with pytest.raises(SystemExit):
+        with capture_stderr() as buf, pytest.raises(SystemExit):
             client.get("/api/missing", SimpleModel)
-        captured = capsys.readouterr()
-        assert captured.out == ""
-        assert len(captured.err) > 0
+        assert len(buf.getvalue()) > 0
 
     def test_500_exits_with_code_1(self) -> None:
         config = _make_config()
@@ -197,14 +210,14 @@ class TestNetworkErrors:
             client.get("/api/health", SimpleModel)
         assert exc_info.value.code == 2
 
-    def test_connection_refused_mentions_address_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_connection_refused_mentions_address_stderr(self) -> None:
         config = _make_config("127.0.0.1", 8126)
         transport = make_transport(raise_exc=httpx.ConnectError)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        with pytest.raises(SystemExit):
+        with capture_stderr() as buf, pytest.raises(SystemExit):
             client.get("/api/health", SimpleModel)
-        captured = capsys.readouterr()
-        assert "127.0.0.1" in captured.err or "8126" in captured.err
+        output = buf.getvalue()
+        assert "127.0.0.1" in output or "8126" in output
 
     def test_timeout_exits_code_2(self) -> None:
         config = _make_config()
@@ -344,7 +357,7 @@ class TestInstanceRouting:
         )
         assert any("instance_index=1" in u for u in captured_urls)
 
-    def test_unknown_instance_name_exits_nonzero(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_unknown_instance_name_exits_nonzero(self) -> None:
         config = _make_config()
         instances = [
             AppInstanceResponse(
@@ -372,15 +385,22 @@ class TestInstanceRouting:
                 instance="nonexistent",
             )
         assert exc_info.value.code != 0
-        captured = capsys.readouterr()
-        # Should mention available instance names
-        assert "default" in captured.err
+        client2 = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        with capture_stderr() as buf, pytest.raises(SystemExit):
+            client2.get_with_app_routing(
+                global_path="/api/bus/listeners",
+                per_app_path_template="/api/telemetry/app/{app_key}/listeners",
+                model=list,
+                app_key="my_app",
+                instance="nonexistent",
+            )
+        assert "default" in buf.getvalue()
 
-    def test_instance_without_app_exits_nonzero(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_instance_without_app_exits_nonzero(self) -> None:
         config = _make_config()
         transport = make_transport(200, [])
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        with pytest.raises(SystemExit) as exc_info:
+        with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
             client.get_with_app_routing(
                 global_path="/api/bus/listeners",
                 per_app_path_template="/api/telemetry/app/{app_key}/listeners",
@@ -389,5 +409,4 @@ class TestInstanceRouting:
                 instance="office",
             )
         assert exc_info.value.code != 0
-        captured = capsys.readouterr()
-        assert "--app" in captured.err
+        assert "--app" in buf.getvalue()

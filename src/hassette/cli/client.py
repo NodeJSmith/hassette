@@ -14,8 +14,8 @@ import sys
 from typing import Any, NoReturn, TypeVar
 
 import httpx
-from rich.console import Console
 
+import hassette.cli.output as cli_output
 from hassette.config.config import HassetteConfig
 from hassette.web.models import AppManifestListResponse
 
@@ -28,8 +28,6 @@ _BIND_ALL_SUBSTITUTIONS: dict[str, str] = {
 }
 
 T = TypeVar("T")
-
-_stderr_console = Console(stderr=True, highlight=False)
 
 
 def _substitute_host(host: str) -> str:
@@ -196,7 +194,7 @@ class HassetteCLIClient:
         if self.json_mode:
             _write_json_error(response.status_code, str(detail))
         else:
-            _stderr_console.print(f"[bold red]Error {response.status_code}:[/bold red] {detail}")
+            cli_output.stderr_console.print(f"[bold red]Error {response.status_code}:[/bold red] {detail}")
         sys.exit(1)
 
     def _handle_network_error(self, message: str) -> NoReturn:
@@ -204,7 +202,7 @@ class HassetteCLIClient:
         if self.json_mode:
             _write_json_error(None, message)
         else:
-            _stderr_console.print(f"[bold red]Network error:[/bold red] {message}")
+            cli_output.stderr_console.print(f"[bold red]Network error:[/bold red] {message}")
         sys.exit(2)
 
     def _error_usage(self, message: str) -> NoReturn:
@@ -212,7 +210,7 @@ class HassetteCLIClient:
         if self.json_mode:
             _write_json_error(None, message)
         else:
-            _stderr_console.print(f"[bold red]Usage error:[/bold red] {message}", highlight=False)
+            cli_output.stderr_console.print(f"[bold red]Usage error:[/bold red] {message}", highlight=False)
         sys.exit(1)
 
 
