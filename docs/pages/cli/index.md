@@ -8,7 +8,7 @@ The CLI queries the same REST API used by the web UI. You get the same data, for
 
 With Hassette running, open a second terminal:
 
-```
+```console
 $ hassette status
 ╭──────────────────── SystemStatusResponse ────────────────────╮
 │  status               ok                                     │
@@ -22,7 +22,7 @@ $ hassette status
 ╰──────────────────────────────────────────────────────────────╯
 ```
 
-```
+```console
 $ hassette app
 ┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
 ┃ App Key         ┃ Status  ┃ Display     ┃ Instances ┃ Invoc/1h ┃ Enabled ┃ File              ┃
@@ -34,7 +34,7 @@ $ hassette app
 └─────────────────┴─────────┴─────────────┴───────────┴──────────┴─────────┴───────────────────┘
 ```
 
-```
+```console
 $ hassette log --limit 5
 ┏━━━━━━━━━┳━━━━━━━┳━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ When    ┃ Level ┃ App ┃ Instance ┃ Function            ┃ Message                    ┃
@@ -53,7 +53,7 @@ $ hassette log --limit 5
 
 If Hassette is not running, you'll see a connection error:
 
-```
+```console
 $ hassette status
 Network error: Connection refused: http://127.0.0.1:8126
 ```

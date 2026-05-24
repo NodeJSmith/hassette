@@ -46,7 +46,7 @@ hassette listener --app my-app | grep error
 
 Structured output on stdout. The full response model is serialized — a superset of what the human table shows.
 
-```
+```console
 $ hassette status --json
 {
   "status": "ok",

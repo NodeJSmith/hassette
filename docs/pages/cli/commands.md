@@ -6,7 +6,7 @@ Every command supports `--json` for structured output. See [Configuration & Scri
 
 System health summary: status, WebSocket connection, uptime, app count, entity count, and version.
 
-```
+```console
 $ hassette status
 ╭──────────────────── SystemStatusResponse ────────────────────╮
 │  status               ok                                     │
@@ -28,7 +28,7 @@ $ hassette status
 
 List all loaded apps with their key, display name, status, instance count, and recent invocation counts.
 
-```
+```console
 $ hassette app
 ┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
 ┃ App Key         ┃ Status  ┃ Display     ┃ Instances ┃ Invoc/1h ┃ Enabled ┃ File              ┃
@@ -54,7 +54,7 @@ $ hassette app
 
 Health metrics for a specific app: error rate, average handler/job duration, and overall health status.
 
-```
+```console
 $ hassette app health bus_handler_app
 ╭──────── AppHealthResponse ────────╮
 │  error_rate            0.0        │
@@ -113,7 +113,7 @@ hassette app source my-app
 
 List all registered event bus listeners, or view invocation history for a specific listener.
 
-```
+```console
 $ hassette listener
 ┏━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━┳━━━━━━┳━━━━━┳━━━━━━┓
 ┃ ID ┃ Topic                                     ┃ Handler           ┃ Kind   ┃ Total ┃ OK ┃ Fail ┃ Avg ┃ Last ┃
@@ -158,7 +158,7 @@ The invocation table shows status, duration, error details, timestamp, and execu
 
 List all scheduled jobs, or view execution history for a specific job.
 
-```
+```console
 $ hassette job
 ┏━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┳━━━━┳━━━━━━┳━━━━━┳━━━━━━━━━━┓
 ┃ ID ┃ Handler              ┃ Trigger  ┃ Schedule ┃ Total ┃ OK ┃ Fail ┃ Avg ┃ Next Run ┃
@@ -202,7 +202,7 @@ The execution table shows status, duration, error details, timestamp, and execut
 
 Recent log entries from the in-memory log buffer.
 
-```
+```console
 $ hassette log --limit 5
 ┏━━━━━━━━━┳━━━━━━━┳━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ When    ┃ Level ┃ App ┃ Instance ┃ Function            ┃ Message                    ┃
@@ -261,7 +261,7 @@ You'll typically get the execution UUID from the `listener <id>` or `job <id>` i
 
 Recent Home Assistant events received by the WebSocket connection.
 
-```
+```console
 $ hassette event --limit 5
 ┏━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━┓
 ┃ Event Type     ┃ Entity ┃ When    ┃
@@ -292,7 +292,7 @@ $ hassette event --limit 5
 
 App grid summary as shown on the web UI dashboard: per-app health status, invocation counts, and error rates.
 
-```
+```console
 $ hassette dashboard
 ┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┓
 ┃ App             ┃ Status  ┃ Invoc ┃ Errs ┃ Avg Dur ┃ Last Active ┃ Health    ┃
@@ -342,7 +342,7 @@ hassette service
 
 Telemetry database statistics: record counts, drop rates, and error handler failures.
 
-```
+```console
 $ hassette telemetry
 ╭──── TelemetryStatusResponse ────╮
 │  degraded                False  │
