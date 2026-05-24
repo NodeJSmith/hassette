@@ -16,6 +16,8 @@ None — this feature adds CLI commands with text output only; no UI surfaces or
 
 3. **Commands return Pydantic models; a shared rendering layer formats them.** Commands are pure data producers. A single `output.py` handles Rich tables, key-value panels, and JSON serialization. This prevents the two-rendering-paths maintenance trap.
 
+8. **`--since` accepts relative durations and ISO 8601; naive timestamps are local time.** Relative: `Ns`, `Nm`, `Nh`, `Nd`, `Nw`. Absolute: ISO 8601 with optional timezone. Date-only (`2026-05-22`) = midnight local time. No compound durations, no natural language. See `design/research/2026-05-24-cli-datetime-input/research.md`.
+
 4. **Response models imported directly from server.** The CLI imports from `web/models.py` and `core/telemetry_models.py` — no wrappers or duplication. Couples CLI to server schema, but the schema is already a frontend contract, so changes are versioned.
 
 5. **`HassetteConfig.token` becomes optional (`str | None`).** CLI commands don't need HA credentials. Server startup validates token is not None before connecting. Property guards prevent `Bearer None` headers and `len(None)` errors.
@@ -34,6 +36,15 @@ None — this feature adds CLI commands with text output only; no UI surfaces or
 - `--config-file` and `--env-file` flags must continue to work for server startup.
 - Do NOT implement mutations (start/stop/reload), WebSocket streaming, interactive features, or config management — these are explicit non-goals.
 - Token validation happens at server startup, not at config instantiation.
+- `--instance` without `--app` validation lives in the client layer (client.py), NOT in each command. One check, one location.
+- The client receives `json_mode: bool` in its constructor. Commands pass the same value to both the client and the rendering layer. This is the single threading path for `--json`.
+- Non-HTTP errors (invalid `--since`, `--instance` without `--app`, unknown instance name) emit plain-text to stderr and exit non-zero regardless of `--json`. stdout gets nothing — the JSON contract (one valid document or nothing) is preserved.
+
+## Test Infrastructure Reuse
+
+- **Reuse `src/hassette/test_utils/web_helpers.py` factories** for building mock response data. It has `make_manifest()`, `make_job()`, `make_listener_metric()`, `make_full_snapshot()` etc. — the same models the CLI deserializes. Do NOT create parallel test data builders in CLI test files.
+- **T03 creates a shared mock CLI client fixture** (e.g., in `tests/conftest.py` or `tests/unit/cli/conftest.py`) that other tasks (T05-T08) import. The fixture provides a `HassetteCLIClient` with a mocked httpx transport. T05-T08 must NOT each create their own mock client setup — use the shared fixture from T03.
+- **Extend `web_helpers.py`** if a factory is missing (e.g., for `LogEntryResponse`, `EventEntry`). Don't duplicate — add to the existing module.
 
 ## Design Doc References
 

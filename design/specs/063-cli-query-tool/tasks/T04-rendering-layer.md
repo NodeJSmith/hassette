@@ -58,6 +58,16 @@ Each command module will declare a list of `Column` objects for its table output
 - In JSON mode, stdout must contain exactly one valid JSON document — no Rich formatting, no progress indicators, no warnings
 - Validate this by ensuring all non-data output uses the stderr console
 
+**Field formatters:**
+
+The `Column` dataclass should support an optional `formatter` callable (`Callable[[Any], str] | None`) for transforming raw field values into display strings. The rendering layer provides built-in formatters that commands can reference:
+
+- **Relative timestamp** — converts epoch floats or ISO strings to human-readable relative time (e.g., "2m ago", "1h ago"). Used by: log timestamps, activity timestamps, last_activity_ts, next_run.
+- **Duration** — converts seconds/milliseconds to human-readable duration (e.g., "1.2s", "450ms"). Used by: uptime, handler/job durations.
+- **Truncated string** — truncates long strings with ellipsis. Used by: log messages, error details.
+
+JSON mode ignores formatters — it uses the raw model values. Formatters apply only to human-mode table cells and detail panel values.
+
 ### Unit tests
 
 - Table rendering: mock Pydantic model list → verify Rich table has correct columns and values

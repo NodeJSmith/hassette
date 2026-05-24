@@ -4,7 +4,7 @@
 **Status:** approved
 **Plan:** approved
 **Scope-mode:** hold
-**Research:** design/research/2026-05-22-cli-tool-prior-art/research.md, design/research/2026-05-22-cli-subcommand-structure/research.md, design/research/2026-05-22-cli-output-formatting/research.md
+**Research:** design/research/2026-05-22-cli-tool-prior-art/research.md, design/research/2026-05-22-cli-subcommand-structure/research.md, design/research/2026-05-22-cli-output-formatting/research.md, design/research/2026-05-24-cli-datetime-input/research.md
 
 ## Problem
 
@@ -205,10 +205,10 @@ CLI subcommands run synchronously (sync httpx, no event loop). The default comma
 Several commands share filtering parameters. These are implemented as shared annotated types used across command signatures:
 
 - `--app` — filter by app_key (used by: listener, job, log). When provided, the CLI routes to the per-app telemetry endpoint (e.g., `/api/telemetry/app/{key}/listeners` instead of `/api/bus/listeners`). Not available on `event` — the events endpoint does not support app-level filtering
-- `--instance` — filter by app instance (used by: listener, job, app health, app activity). Requires `--app`. Accepts either an integer index (`--instance 0`) or an instance name (`--instance office`). Integer values are passed directly as `instance_index` to the API. String values are resolved to an index by fetching `GET /api/apps/{key}` and matching against `instance_name` in the instances list; exits non-zero if no match is found. When omitted, the API default applies (index 0 for listener/job/health, all instances for activity)
-- `--since` — time window filter (used by: listener, job, log, app activity). Accepts relative durations (`Nd`, `Nh`, `Nm` — e.g., `1h`, `7d`, `30m`) and absolute ISO 8601 timestamps (`2026-05-22T10:00`). The CLI converts to a Unix epoch float before forwarding to the API. Invalid formats exit non-zero with a usage error on stderr. Implemented via a cyclopts custom type converter
+- `--instance` — filter by app instance (used by: listener, job, app health, app activity). Requires `--app` — the client validates this and exits non-zero with a usage error if `--instance` is passed without `--app`. Accepts either an integer index (`--instance 0`) or an instance name (`--instance office`). Integer values are passed directly as `instance_index` to the API. String values are resolved to an index by fetching `GET /api/apps/{key}` and matching against `instance_name` in the instances list; exits non-zero if no match is found. When omitted, the API default applies (index 0 for listener/job/health, all instances for activity)
+- `--since` — time window filter (used by: listener, job, log, app health, app activity). Accepts relative durations (`Ns`, `Nm`, `Nh`, `Nd`, `Nw` — e.g., `1h`, `7d`, `30m`, `2w`) and absolute ISO 8601 timestamps (`2026-05-22T14:00:00`, `2026-05-22`). Single value + suffix only for durations — no compound (`1h30m`), no months/years. Naive timestamps are interpreted as **local time** (Git/journalctl convention for user-facing CLIs). Date-only input (`2026-05-22`) means midnight local time (progressive omission). The CLI converts to a Unix epoch float before forwarding to the API. Invalid formats exit non-zero with a usage error on stderr listing accepted formats. Implemented via a cyclopts custom type converter. See `design/research/2026-05-24-cli-datetime-input/research.md` for prior art
 - `--limit` — max results (used by: log, event, execution, app activity, listener invocations, job executions)
-- `--source-tier` — filter by telemetry source tier: `app` (user automations) or `framework` (internal actors). Used by: listener, job, log. Default behavior varies by endpoint: listener and job endpoints default to `app` when omitted; log accepts all tiers when omitted
+- `--source-tier` — filter by telemetry source tier: `app` (user automations) or `framework` (internal actors). Used by: listener, job, log, app health. Default behavior varies by endpoint: listener, job, and app health endpoints default to `app` when omitted; log accepts all tiers when omitted
 - `--json` — output as JSON (used by: all commands)
 
 The API endpoint selection is transparent to the user. `hassette listener` uses the global endpoint (`/api/bus/listeners`); `hassette listener --app my-app` routes to `/api/telemetry/app/{key}/listeners`. Same command, different API route. The same pattern applies to `hassette job` (global: `/api/scheduler/jobs`, per-app: `/api/telemetry/app/{key}/jobs`). Adding `--instance` narrows the per-app query further by passing `instance_index` to the telemetry endpoint.
@@ -233,6 +233,10 @@ Thin wrapper around `httpx.Client` (synchronous) that:
   - **Human mode**: print the error detail to stderr, exit non-zero
   - **JSON mode**: emit `{"error": true, "status": <http_status>, "detail": "..."}` to stdout (maintaining the stdout-only JSON contract), exit non-zero. For network errors (no HTTP status), `status` is `null` — e.g., `{"error": true, "status": null, "detail": "Connection refused: http://127.0.0.1:8126"}`
   - **Exit codes**: 1 for server errors (4xx/5xx), 2 for network errors (connection refused, timeout)
+
+The client receives the `--json` flag as a constructor parameter (passed by each command function alongside HassetteConfig). This is the single source of truth for output mode — the client uses it for error formatting, and commands pass it through to the rendering layer.
+
+**Non-HTTP errors** (invalid `--since` format, `--instance` without `--app`, unknown instance name) are handled before any HTTP call. These exit non-zero with a plain-text error on stderr regardless of `--json` mode — they are usage errors, not API responses, so the JSON stdout contract (one valid document or nothing) is preserved by emitting nothing to stdout. cyclopts' own validation errors (unknown flags, missing required args) follow the same pattern.
 
 ### Config changes
 

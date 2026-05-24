@@ -3,7 +3,7 @@ task_id: "T07"
 title: "Add listener and job commands"
 status: "planned"
 depends_on: ["T02", "T03", "T04"]
-implements: ["FR#1", "FR#2", "FR#6", "AC#1", "AC#4"]
+implements: ["FR#1", "FR#2", "FR#6", "AC#1", "AC#4", "AC#11"]
 ---
 
 ## Summary
@@ -50,7 +50,9 @@ Register `listener` and `job` as subcommands on the cyclopts App. The bare forms
 
 ### Unit tests
 
-For each command, test with a mocked HTTP client:
+Use the shared mock client fixture from T03 and test data factories from `src/hassette/test_utils/web_helpers.py`. Do NOT create parallel mock client setup or test data builders.
+
+For each command, test with the mocked HTTP client:
 - `listener` calls `GET /api/bus/listeners`
 - `listener --app my-app` calls `GET /api/telemetry/app/my-app/listeners`
 - `listener --app my-app --instance 0` passes `instance_index=0`

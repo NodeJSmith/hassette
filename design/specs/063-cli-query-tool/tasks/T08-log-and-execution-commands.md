@@ -35,7 +35,9 @@ Register `log` and `execution` as top-level subcommands on the cyclopts App.
 
 ### Unit tests
 
-Test with a mocked HTTP client:
+Use the shared mock client fixture from T03 and test data factories from `src/hassette/test_utils/web_helpers.py`. Do NOT create parallel mock client setup or test data builders.
+
+Test with the mocked HTTP client:
 - `log` calls `GET /api/logs/recent` with no params
 - `log --app my-app` passes `app_key=my-app` as query param
 - `log --since 1h --limit 20` passes correct `since` (epoch float) and `limit=20`
@@ -50,7 +52,7 @@ Test with a mocked HTTP client:
 - Response models: `LogEntryResponse` (models.py:154), `LogsByExecutionResponse` (models.py:170)
 - Route endpoints: logs.py `GET /api/logs/recent` (line 21); executions.py `GET /api/executions/{execution_id}` (line 51)
 - The logs endpoint accepts `app_key`, `level`, `since`, `limit`, `source_tier` as query params — check `src/hassette/web/routes/logs.py` for exact parameter names
-- `LogsByExecutionResponse` wraps `entries: list[LogEntryResponse]` and `execution_id: str` — extract the entries list for table rendering
+- `LogsByExecutionResponse` wraps `records: list[LogEntryResponse]`, `truncated: bool`, and `retention_expired: bool` — extract the `records` list for table rendering
 - `--source-tier` behavior on logs: accepts all tiers when omitted (unlike listener/job which default to `app`). This is server behavior — the CLI passes through.
 - Log timestamps: `LogEntryResponse` has a `timestamp` field — format it as human-readable relative time in human mode (e.g., "2m ago", "1h ago")
 

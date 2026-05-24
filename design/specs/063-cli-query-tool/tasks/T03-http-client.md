@@ -42,7 +42,12 @@ Build a thin wrapper around `httpx.Client` (synchronous):
 - If `instance` is None, don't pass `instance_index` (let API default)
 - If `instance` is a digit string (e.g., `"0"`, `"2"`), convert to int and pass as `instance_index` query param
 - If `instance` is a non-digit string (e.g., `"office"`), resolve by fetching `GET /api/apps/{app_key}` (returns `AppManifestListResponse` which contains manifests with `instances: list[AppInstanceResponse]`). Match the `instance_name` field. If found, pass the matching `index` as `instance_index`. If not found, exit non-zero with an error listing available instance names.
-- `--instance` without `--app` is a usage error — validate this in the client or in the calling command
+- `--instance` without `--app` is a usage error — validate this in the client (not in each command). The client is the single location for this check so commands don't duplicate it
+
+**`--json` mode threading:**
+- Accept `json_mode: bool` as a constructor parameter alongside HassetteConfig
+- The client uses this to decide error output format (JSON to stdout vs Rich to stderr)
+- Commands pass the same `json_mode` value to the rendering layer — the client is not responsible for rendering success output, only errors
 
 **Client lifecycle:**
 - Accept HassetteConfig in constructor, build httpx.Client once
@@ -63,6 +68,15 @@ Test with mocked httpx responses (use `httpx.MockTransport` or `respx`):
 - `--instance` name resolution: mock manifest response, verify correct index extracted
 - `--instance` unknown name: verify error message lists available names
 - `--instance` without `--app`: verify usage error
+
+### Shared test fixture for T05-T08
+
+Create a shared mock client fixture in `tests/unit/cli/conftest.py` (or `tests/conftest.py`) that T05-T08 import for their command tests. The fixture should:
+- Build a `HassetteCLIClient` with a mocked httpx transport (pre-configured responses)
+- Provide a helper to register mock responses for specific endpoints
+- Use factories from `src/hassette/test_utils/web_helpers.py` (e.g., `make_manifest()`) for building response data — do NOT duplicate those factories
+
+This avoids four parallel tasks each creating their own mock client setup independently.
 
 ## Focus
 

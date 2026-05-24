@@ -39,7 +39,7 @@ Edit `pyproject.toml`:
 - `tests/conftest.py` line 98: `TestConfig` sets `cli_parse_args=False` in model_config — now redundant (parent defaults to False). Remove it for clarity or leave it; either is fine.
 - `src/hassette/test_utils/config.py` line 56: same — the harness config sets `cli_parse_args=False`. Now redundant.
 - `tests/unit/test_config.py`: Many tests set `cli_parse_args=False` in model_config overrides. Now redundant. Leave them — removing is churn that doesn't change behavior.
-- Grep for `HassetteConfig(` calls without `token=` — these will now get `token=None` instead of `ValidationError`. Verify each still tests the intended behavior.
+- Grep for `HassetteConfig(` calls without `token=` — audit found zero such calls (all test configs include explicit `token=`). Confirm this is still the case; no behavior changes expected.
 
 ### Unit tests
 

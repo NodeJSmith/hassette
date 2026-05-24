@@ -68,7 +68,7 @@ Mark all tests with `@pytest.mark.system` to match the existing system test conv
 ## Focus
 
 - System test infrastructure: `tests/system/conftest.py` — `ha_container` fixture (line ~174), `make_web_system_config()`, `startup_context()` (line ~255), `wait_for_web_server()` (line ~326)
-- Demo app fixtures: `tests/system/fixtures/` contains demo app configs that register listeners and jobs. Check which app_key values are available for filtering tests.
+- Demo app fixtures: `tests/system/apps/` contains demo app classes (TrivialApp, ConfigApp, BusHandlerApp) that register listeners and jobs. Check which app_key values are available for filtering tests.
 - The system test nox session (`noxfile.py` line 94) runs tests with `pytest -m system` — new tests with `@pytest.mark.system` will be included automatically.
 - System tests require Docker — they're in a separate CI job (`.github/workflows/tests.yml` line 119).
 - For JSON mode validation: parse stdout as JSON, verify it deserializes to the expected Pydantic model type. This catches serialization mismatches.

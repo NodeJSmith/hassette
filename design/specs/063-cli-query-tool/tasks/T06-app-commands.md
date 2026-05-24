@@ -51,7 +51,9 @@ Register `app` as a subcommand group on the cyclopts App, with `health`, `activi
 
 ### Unit tests
 
-For each subcommand, test with a mocked HTTP client:
+Use the shared mock client fixture from T03 and test data factories from `src/hassette/test_utils/web_helpers.py`. Do NOT create parallel mock client setup or test data builders.
+
+For each subcommand, test with the mocked HTTP client:
 - Bare `app` calls `GET /api/apps/manifests`
 - `app health my-app` calls `GET /api/telemetry/app/my-app/health`
 - `app health my-app --instance 1` passes `instance_index=1`

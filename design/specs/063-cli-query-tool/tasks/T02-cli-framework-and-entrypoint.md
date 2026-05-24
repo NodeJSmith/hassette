@@ -32,7 +32,12 @@ Create the `commands/` subdirectory with an empty `__init__.py`. The command mod
 ### Define shared flag types
 
 Define reusable annotated types (or a module `cli/types.py`) for shared flags used across commands:
-- `--since`: Custom cyclopts type converter that accepts relative durations (`Nd`, `Nh`, `Nm`) and ISO 8601 timestamps. Converts to Unix epoch float. Exits non-zero with usage error on invalid format.
+- `--since`: Custom cyclopts type converter. Converts to Unix epoch float. Exits non-zero with usage error on invalid format. Accepted formats (see `design/research/2026-05-24-cli-datetime-input/research.md`):
+  - **Relative durations**: `Ns`, `Nm`, `Nh`, `Nd`, `Nw` (e.g., `1h`, `7d`, `30m`, `2w`). Single value + suffix only — no compound durations (`1h30m`), no `M` (months) or `y` (years).
+  - **ISO 8601 with timezone**: `2026-05-22T14:00:00-04:00` or `2026-05-22T18:00:00Z` — used as-is.
+  - **ISO 8601 naive**: `2026-05-22T14:00:00` — interpreted as **local time** (system timezone). This matches the Git/journalctl convention for user-facing CLI tools.
+  - **Date only**: `2026-05-22` — interpreted as midnight local time (progressive omission, journalctl pattern).
+  - No natural language ("yesterday", "last week"). Help text: `"Filter by time. Accepts relative (1h, 7d, 30m) or absolute (2026-05-22, 2026-05-22T14:00:00) timestamps. Naive timestamps use local time."`
 - `--limit`: `int | None`, optional
 - `--source-tier`: `Literal["app", "framework"] | None`, optional
 - `--json`: `bool`, default False
@@ -63,7 +68,13 @@ Register cyclopts shell completion support. cyclopts provides built-in completio
 
 ### Unit tests (new)
 
-- `--since` converter: test `1h` → epoch, `7d` → epoch, `30m` → epoch, ISO 8601 → epoch, invalid → non-zero exit
+- `--since` converter:
+  - Relative: `1h` → epoch ~3600s ago, `7d` → epoch ~7 days ago, `30m` → epoch ~30min ago, `2w` → epoch ~14 days ago, `30s` → epoch ~30s ago
+  - ISO 8601 with tz: `2026-05-22T14:00:00-04:00` → correct epoch
+  - ISO 8601 naive: `2026-05-22T14:00:00` → epoch in local timezone (not UTC)
+  - Date only: `2026-05-22` → epoch for midnight local time on that date
+  - Invalid: `abc`, `1x`, `--`, empty → non-zero exit with usage error listing accepted formats
+  - No compound: `1h30m` → non-zero exit (not supported)
 - `--source-tier` accepts `app` and `framework`, rejects other values
 - Default command passes CLI flags through to HassetteConfig init kwargs
 
