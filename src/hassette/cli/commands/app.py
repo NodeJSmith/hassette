@@ -2,10 +2,9 @@
 
 from typing import Any
 
-from hassette.cli.client import HassetteCLIClient
+from hassette.cli.client import make_client
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
 from hassette.cli.types import InstanceArg, JsonArg, LimitArg, SinceArg, SourceTierArg
-from hassette.config.config import HassetteConfig
 from hassette.core.telemetry_models import ActivityFeedEntry
 from hassette.web.models import AppConfigResponse, AppHealthResponse, AppManifestListResponse, AppSourceResponse
 
@@ -28,8 +27,7 @@ def cmd_app(
     json: JsonArg = False,
 ) -> None:
     """List all apps (GET /api/apps/manifests)."""
-    config = HassetteConfig(token=None)
-    client = HassetteCLIClient(config, json_mode=json)
+    client = make_client(json_mode=json)
     result = client.get("/api/apps/manifests", AppManifestListResponse)
     render_table(result.manifests, APP_LIST_COLUMNS, json_mode=json)  # pyright: ignore[reportArgumentType]
 
@@ -56,8 +54,7 @@ def cmd_app_health(
     json: JsonArg = False,
 ) -> None:
     """Show health metrics for an app instance (GET /api/telemetry/app/{key}/health)."""
-    config = HassetteConfig(token=None)
-    client = HassetteCLIClient(config, json_mode=json)
+    client = make_client(json_mode=json)
 
     params: dict[str, Any] = {}
     if instance is not None:
@@ -95,8 +92,7 @@ def cmd_app_activity(
     json: JsonArg = False,
 ) -> None:
     """Show recent activity for an app (GET /api/telemetry/app/{key}/activity)."""
-    config = HassetteConfig(token=None)
-    client = HassetteCLIClient(config, json_mode=json)
+    client = make_client(json_mode=json)
 
     params: dict[str, Any] = {}
     # instance_index is NOT added when omitted — API returns all instances in that case
@@ -122,8 +118,7 @@ def cmd_app_config(
     json: JsonArg = False,
 ) -> None:
     """Show app configuration (GET /api/apps/{key}/config)."""
-    config = HassetteConfig(token=None)
-    client = HassetteCLIClient(config, json_mode=json)
+    client = make_client(json_mode=json)
     result = client.get(f"/api/apps/{key}/config", AppConfigResponse)
     render_detail(result, json_mode=json)
 
@@ -138,7 +133,6 @@ def cmd_app_source(
     json: JsonArg = False,
 ) -> None:
     """Show app source code (GET /api/apps/{key}/source)."""
-    config = HassetteConfig(token=None)
-    client = HassetteCLIClient(config, json_mode=json)
+    client = make_client(json_mode=json)
     result = client.get(f"/api/apps/{key}/source", AppSourceResponse)
     render_detail(result, json_mode=json)

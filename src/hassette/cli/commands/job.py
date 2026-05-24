@@ -2,10 +2,9 @@
 
 from typing import Any
 
-from hassette.cli.client import HassetteCLIClient
+from hassette.cli.client import make_client
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, JsonArg, LimitArg, SinceArg, SourceTierArg
-from hassette.config.config import HassetteConfig
 from hassette.core.telemetry_models import JobExecution, JobSummary
 
 JOB_LIST_COLUMNS: list[Column] = [
@@ -40,8 +39,7 @@ def cmd_job(
     json: JsonArg = False,
 ) -> None:
     """List scheduled jobs, or show execution history for a specific job."""
-    config = HassetteConfig(token=None)
-    client = HassetteCLIClient(config, json_mode=json)
+    client = make_client(json_mode=json)
 
     if job_id is not None:
         params: dict[str, Any] = {}

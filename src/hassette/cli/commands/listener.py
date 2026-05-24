@@ -2,10 +2,9 @@
 
 from typing import Any
 
-from hassette.cli.client import HassetteCLIClient
+from hassette.cli.client import make_client
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, JsonArg, LimitArg, SinceArg, SourceTierArg
-from hassette.config.config import HassetteConfig
 from hassette.core.telemetry_models import HandlerInvocation
 from hassette.web.models import ListenerWithSummary
 
@@ -41,8 +40,7 @@ def cmd_listener(
     json: JsonArg = False,
 ) -> None:
     """List listeners, or show invocation history for a specific listener."""
-    config = HassetteConfig(token=None)
-    client = HassetteCLIClient(config, json_mode=json)
+    client = make_client(json_mode=json)
 
     if listener_id is not None:
         params: dict[str, Any] = {}

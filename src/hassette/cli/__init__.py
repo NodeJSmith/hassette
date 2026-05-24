@@ -16,6 +16,7 @@ from hassette.cli.commands.misc import cmd_config, cmd_event, cmd_service
 from hassette.cli.commands.status import cmd_dashboard, cmd_status, cmd_telemetry
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import AppPrecheckFailedError, FatalError
+from hassette.server import main as run_server
 
 LOGGER = getLogger("hassette.cli")
 
@@ -141,10 +142,8 @@ def start_server(
 
     config = HassetteConfig(**init_kwargs)
 
-    from hassette.__main__ import main
-
     try:
-        asyncio.run(main(config))
+        asyncio.run(run_server(config))
     except KeyboardInterrupt:
         LOGGER.info("Keyboard interrupt received, shutting down")
     except AppPrecheckFailedError as e:

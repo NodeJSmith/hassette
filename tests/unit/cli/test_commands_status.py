@@ -34,14 +34,12 @@ class TestCmdStatus:
             called_paths.append(path)
             return original_get(path, model, params=params)
 
-        with patch.object(client, "get", side_effect=tracking_get), capture_stdout():
-            from hassette.config.config import HassetteConfig
-
-            with (
-                patch("hassette.cli.commands.status.HassetteConfig", return_value=HassetteConfig(token=None)),
-                patch("hassette.cli.commands.status.HassetteCLIClient", return_value=client),
-            ):
-                cmd_status(json=False)
+        with (
+            patch.object(client, "get", side_effect=tracking_get),
+            capture_stdout(),
+            patch("hassette.cli.commands.status.make_client", return_value=client),
+        ):
+            cmd_status(json=False)
 
         assert "/api/health" in called_paths
 
@@ -51,8 +49,7 @@ class TestCmdStatus:
         client, _ = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.status.HassetteConfig"),
-            patch("hassette.cli.commands.status.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.status.make_client", return_value=client),
         ):
             cmd_status(json=False)
         output = buf.getvalue()
@@ -70,8 +67,7 @@ class TestCmdStatus:
             return len(s)
 
         with (
-            patch("hassette.cli.commands.status.HassetteConfig"),
-            patch("hassette.cli.commands.status.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.status.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=capture_write),
         ):
             cmd_status(json=True)
@@ -124,8 +120,7 @@ class TestCmdTelemetry:
         with (
             patch.object(client, "get", side_effect=tracking_get),
             capture_stdout(),
-            patch("hassette.cli.commands.status.HassetteConfig"),
-            patch("hassette.cli.commands.status.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.status.make_client", return_value=client),
         ):
             cmd_telemetry(json=False)
 
@@ -137,8 +132,7 @@ class TestCmdTelemetry:
         client, _ = cli_client_factory.build_with_routes([("GET", "/api/telemetry/status", 200, tel_data.model_dump())])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.status.HassetteConfig"),
-            patch("hassette.cli.commands.status.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.status.make_client", return_value=client),
         ):
             cmd_telemetry(json=False)
         output = buf.getvalue()
@@ -151,8 +145,7 @@ class TestCmdTelemetry:
         captured: list[str] = []
 
         with (
-            patch("hassette.cli.commands.status.HassetteConfig"),
-            patch("hassette.cli.commands.status.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.status.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
         ):
             cmd_telemetry(json=True)
@@ -183,8 +176,7 @@ class TestCmdDashboard:
         with (
             patch.object(client, "get", side_effect=tracking_get),
             capture_stdout(),
-            patch("hassette.cli.commands.status.HassetteConfig"),
-            patch("hassette.cli.commands.status.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.status.make_client", return_value=client),
         ):
             cmd_dashboard(json=False)
 
@@ -198,8 +190,7 @@ class TestCmdDashboard:
         )
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.status.HassetteConfig"),
-            patch("hassette.cli.commands.status.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.status.make_client", return_value=client),
         ):
             cmd_dashboard(json=False)
         output = buf.getvalue()
@@ -218,8 +209,7 @@ class TestCmdDashboard:
         captured: list[str] = []
 
         with (
-            patch("hassette.cli.commands.status.HassetteConfig"),
-            patch("hassette.cli.commands.status.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.status.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
         ):
             cmd_dashboard(json=True)

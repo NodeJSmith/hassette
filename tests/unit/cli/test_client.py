@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
+from hassette.config.models import WebApiConfig
 from hassette.test_utils.web_helpers import make_manifest_list_response, make_manifest_response
 from hassette.web.models import AppInstanceResponse
 from tests.unit.cli.conftest import capture_stderr
@@ -49,10 +50,7 @@ def make_transport(
 
 
 def _make_config(host: str = "127.0.0.1", port: int = 8126) -> HassetteConfig:
-    config = HassetteConfig(token=None)
-    config.web_api.host = host
-    config.web_api.port = port
-    return config
+    return HassetteConfig(token=None, web_api=WebApiConfig(host=host, port=port))
 
 
 def _make_manifest_list(instances: list[AppInstanceResponse]):

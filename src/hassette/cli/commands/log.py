@@ -2,10 +2,9 @@
 
 from typing import Any
 
-from hassette.cli.client import HassetteCLIClient
+from hassette.cli.client import make_client
 from hassette.cli.output import Column, fmt_relative_time, fmt_truncate, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, JsonArg, LimitArg, SinceArg, SourceTierArg
-from hassette.config.config import HassetteConfig
 from hassette.web.models import LogEntryResponse, LogsByExecutionResponse
 
 # ---------------------------------------------------------------------------
@@ -43,8 +42,7 @@ def cmd_log(
     json: JsonArg = False,
 ) -> None:
     """Show recent log entries (GET /api/logs/recent)."""
-    config = HassetteConfig(token=None)
-    client = HassetteCLIClient(config, json_mode=json)
+    client = make_client(json_mode=json)
 
     if instance is not None:
         client.error_usage("--instance is not supported on the log command")
@@ -79,8 +77,7 @@ def cmd_execution(
     json: JsonArg = False,
 ) -> None:
     """Show logs for a specific execution (GET /api/executions/{execution_id})."""
-    config = HassetteConfig(token=None)
-    client = HassetteCLIClient(config, json_mode=json)
+    client = make_client(json_mode=json)
 
     params: dict[str, Any] = {}
     if limit is not None:

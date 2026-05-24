@@ -1,9 +1,8 @@
 """System-level CLI commands: status, telemetry, dashboard."""
 
-from hassette.cli.client import HassetteCLIClient
+from hassette.cli.client import make_client
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
 from hassette.cli.types import JsonArg
-from hassette.config.config import HassetteConfig
 from hassette.web.models import DashboardAppGridResponse, SystemStatusResponse, TelemetryStatusResponse
 
 
@@ -54,8 +53,7 @@ def cmd_status(
     json: JsonArg = False,
 ) -> None:
     """Show system status (GET /api/health)."""
-    config = HassetteConfig(token=None)
-    client = HassetteCLIClient(config, json_mode=json)
+    client = make_client(json_mode=json)
     result = client.get("/api/health", SystemStatusResponse)
     render_detail(result, json_mode=json)
 
@@ -69,8 +67,7 @@ def cmd_telemetry(
     json: JsonArg = False,
 ) -> None:
     """Show telemetry database status (GET /api/telemetry/status)."""
-    config = HassetteConfig(token=None)
-    client = HassetteCLIClient(config, json_mode=json)
+    client = make_client(json_mode=json)
     result = client.get("/api/telemetry/status", TelemetryStatusResponse)
     render_detail(result, json_mode=json)
 
@@ -94,7 +91,6 @@ def cmd_dashboard(
     json: JsonArg = False,
 ) -> None:
     """Show app dashboard grid (GET /api/telemetry/dashboard/app-grid)."""
-    config = HassetteConfig(token=None)
-    client = HassetteCLIClient(config, json_mode=json)
+    client = make_client(json_mode=json)
     result = client.get("/api/telemetry/dashboard/app-grid", DashboardAppGridResponse)
     render_table(result.apps, DASHBOARD_COLUMNS, json_mode=json)  # pyright: ignore[reportArgumentType]

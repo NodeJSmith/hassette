@@ -2,10 +2,9 @@
 
 from typing import Any
 
-from hassette.cli.client import HassetteCLIClient
+from hassette.cli.client import make_client
 from hassette.cli.output import Column, fmt_relative_time, render_detail, render_raw, render_table
 from hassette.cli.types import JsonArg, LimitArg
-from hassette.config.config import HassetteConfig
 from hassette.web.models import ConfigResponse, EventEntry
 
 # ---------------------------------------------------------------------------
@@ -17,8 +16,7 @@ def cmd_config(
     json: JsonArg = False,
 ) -> None:
     """Show current configuration (GET /api/config)."""
-    config = HassetteConfig(token=None)
-    client = HassetteCLIClient(config, json_mode=json)
+    client = make_client(json_mode=json)
     result = client.get("/api/config", ConfigResponse)
     render_detail(result, json_mode=json)
 
@@ -32,8 +30,7 @@ def cmd_service(
     json: JsonArg = False,
 ) -> None:
     """List available HA services (GET /api/services)."""
-    config = HassetteConfig(token=None)
-    client = HassetteCLIClient(config, json_mode=json)
+    client = make_client(json_mode=json)
     result: dict[str, Any] = client.get("/api/services", dict)
     render_raw(result, json_mode=json)
 
@@ -54,8 +51,7 @@ def cmd_event(
     json: JsonArg = False,
 ) -> None:
     """Show recent HA events (GET /api/events/recent)."""
-    config = HassetteConfig(token=None)
-    client = HassetteCLIClient(config, json_mode=json)
+    client = make_client(json_mode=json)
     params: dict[str, Any] = {}
     if limit is not None:
         params["limit"] = limit

@@ -222,6 +222,12 @@ class HassetteCLIClient:
 # ---------------------------------------------------------------------------
 
 
+def make_client(json_mode: bool) -> HassetteCLIClient:
+    """Create a CLI client from the default config (no HA token required)."""
+    config = HassetteConfig(token=None)
+    return HassetteCLIClient(config, json_mode=json_mode)
+
+
 def _write_json_error(status: int | None, detail: str) -> None:
     """Write a JSON error document to stdout."""
     doc = {"error": True, "status": status, "detail": detail}

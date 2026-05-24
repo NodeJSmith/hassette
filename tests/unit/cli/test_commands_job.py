@@ -33,8 +33,7 @@ class TestCmdJob:
         with (
             patch.object(client, "get", side_effect=tracking_get),
             capture_stdout(),
-            patch("hassette.cli.commands.job.HassetteConfig"),
-            patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(json=False)
 
@@ -56,8 +55,7 @@ class TestCmdJob:
         with (
             patch.object(client, "get", side_effect=tracking_get),
             capture_stdout(),
-            patch("hassette.cli.commands.job.HassetteConfig"),
-            patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(app="my-app", json=False)
 
@@ -79,8 +77,7 @@ class TestCmdJob:
         with (
             patch.object(client, "get", side_effect=tracking_get),
             capture_stdout(),
-            patch("hassette.cli.commands.job.HassetteConfig"),
-            patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(app="my-app", instance="0", json=False)
 
@@ -94,8 +91,7 @@ class TestCmdJob:
 
         with (
             capture_stderr(),
-            patch("hassette.cli.commands.job.HassetteConfig"),
-            patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.job.make_client", return_value=client),
             pytest.raises(SystemExit) as exc_info,
         ):
             cmd_job(instance="0", json=False)
@@ -116,8 +112,7 @@ class TestCmdJob:
         with (
             patch.object(client, "get", side_effect=tracking_get),
             capture_stdout(),
-            patch("hassette.cli.commands.job.HassetteConfig"),
-            patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(source_tier="app", json=False)
 
@@ -131,8 +126,7 @@ class TestCmdJob:
         client, _ = cli_client_factory.build_with_routes([("GET", "/api/scheduler/jobs", 200, [job.model_dump()])])
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.job.HassetteConfig"),
-            patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(json=False)
 
@@ -148,8 +142,7 @@ class TestCmdJob:
         captured: list[str] = []
 
         with (
-            patch("hassette.cli.commands.job.HassetteConfig"),
-            patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.job.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
         ):
             cmd_job(json=True)
@@ -164,8 +157,7 @@ class TestCmdJob:
         with (
             capture_stdout(),
             capture_stderr() as err_buf,
-            patch("hassette.cli.commands.job.HassetteConfig"),
-            patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(json=False)
 
@@ -201,8 +193,7 @@ class TestCmdJobDetail:
         with (
             patch.object(client, "get", side_effect=tracking_get),
             capture_stdout(),
-            patch("hassette.cli.commands.job.HassetteConfig"),
-            patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(job_id=5, json=False)
 
@@ -224,8 +215,7 @@ class TestCmdJobDetail:
         with (
             patch.object(client, "get", side_effect=tracking_get),
             capture_stdout(),
-            patch("hassette.cli.commands.job.HassetteConfig"),
-            patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(job_id=5, limit=5, json=False)
 
@@ -250,8 +240,7 @@ class TestCmdJobDetail:
         with (
             patch.object(client, "get", side_effect=tracking_get),
             capture_stdout(),
-            patch("hassette.cli.commands.job.HassetteConfig"),
-            patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(job_id=5, since=since_epoch, json=False)
 
@@ -267,8 +256,7 @@ class TestCmdJobDetail:
         )
         with (
             capture_stdout() as buf,
-            patch("hassette.cli.commands.job.HassetteConfig"),
-            patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.job.make_client", return_value=client),
         ):
             cmd_job(job_id=1, json=False)
 
@@ -284,8 +272,7 @@ class TestCmdJobDetail:
         captured: list[str] = []
 
         with (
-            patch("hassette.cli.commands.job.HassetteConfig"),
-            patch("hassette.cli.commands.job.HassetteCLIClient", return_value=client),
+            patch("hassette.cli.commands.job.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
         ):
             cmd_job(job_id=1, json=True)

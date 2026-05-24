@@ -1,4 +1,4 @@
-"""Tests for the __main__ entrypoint — SIGTERM signal handling and startup validation."""
+"""Tests for the server entry point — SIGTERM signal handling and startup validation."""
 
 import asyncio
 import signal
@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from hassette.__main__ import main
 from hassette.exceptions import FatalError
+from hassette.server import main
 
 
 async def test_main_registers_sigterm_handler() -> None:
@@ -25,7 +25,7 @@ async def test_main_registers_sigterm_handler() -> None:
     loop = asyncio.get_running_loop()
 
     with (
-        patch("hassette.__main__.Hassette", return_value=mock_core),
+        patch("hassette.server.Hassette", return_value=mock_core),
         patch.object(loop, "add_signal_handler", side_effect=fake_add_signal_handler),
     ):
         await main(mock_config)
@@ -58,7 +58,7 @@ async def test_sigterm_handler_triggers_shutdown_event() -> None:
     loop = asyncio.get_running_loop()
 
     with (
-        patch("hassette.__main__.Hassette", return_value=mock_core),
+        patch("hassette.server.Hassette", return_value=mock_core),
         patch.object(loop, "add_signal_handler", side_effect=fake_add_signal_handler),
     ):
         await main(mock_config)
@@ -82,7 +82,7 @@ async def test_main_continues_when_signal_handler_unsupported() -> None:
     loop = asyncio.get_running_loop()
 
     with (
-        patch("hassette.__main__.Hassette", return_value=mock_core),
+        patch("hassette.server.Hassette", return_value=mock_core),
         patch.object(loop, "add_signal_handler", side_effect=NotImplementedError),
     ):
         await main(mock_config)
@@ -95,7 +95,7 @@ async def test_main_raises_fatal_error_when_token_is_none() -> None:
     mock_config = MagicMock()
     mock_config.token = None
 
-    with patch("hassette.__main__.Hassette") as mock_hassette, pytest.raises(FatalError, match="HA token is required"):
+    with patch("hassette.server.Hassette") as mock_hassette, pytest.raises(FatalError, match="HA token is required"):
         await main(mock_config)
 
     mock_hassette.assert_not_called()
@@ -112,7 +112,7 @@ async def test_main_proceeds_when_token_is_set() -> None:
     loop = asyncio.get_running_loop()
 
     with (
-        patch("hassette.__main__.Hassette", return_value=mock_core),
+        patch("hassette.server.Hassette", return_value=mock_core),
         patch.object(loop, "add_signal_handler"),
     ):
         await main(mock_config)
@@ -131,7 +131,7 @@ async def test_main_passes_config_to_hassette() -> None:
     loop = asyncio.get_running_loop()
 
     with (
-        patch("hassette.__main__.Hassette", return_value=mock_core) as mock_hassette_cls,
+        patch("hassette.server.Hassette", return_value=mock_core) as mock_hassette_cls,
         patch.object(loop, "add_signal_handler"),
     ):
         await main(mock_config)
