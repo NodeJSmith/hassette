@@ -89,8 +89,8 @@ SinceArg = Annotated[
 LimitArg = Annotated[int | None, Parameter(name=["--limit"], help="Maximum number of results to return.")]
 
 SourceTierArg = Annotated[
-    Literal["app", "framework"] | None,
-    Parameter(name=["--source-tier"], help="Filter by telemetry source tier: 'app' or 'framework'."),
+    Literal["app", "framework", "all"] | None,
+    Parameter(name=["--source-tier"], help="Filter by telemetry source tier: 'app', 'framework', or 'all'."),
 ]
 
 JsonArg = Annotated[bool, Parameter(name=["--json"], help="Output results as JSON.", negative=[])]

@@ -370,7 +370,7 @@ These flags are supported across multiple commands:
 | `--instance <n>` | int or string | `listener`, `job`, `app health`, `app activity` | Filter to a specific app instance. Accepts an integer index (`0`, `1`) or an instance name (`office`). Requires an app key context (`--app` flag or positional `<key>` argument). |
 | `--since <duration>` | relative or absolute | `listener`, `job`, `log`, `app health`, `app activity` | Time window for filtering. See [formats below](#-since-format). |
 | `--limit <n>` | integer | `log`, `event`, `execution`, `app activity`, and per-ID commands | Maximum number of records to return |
-| `--source-tier <tier>` | `app` or `framework` | `listener`, `job`, `log`, `app health` | Filter by source tier. `app` returns user automation records; `framework` returns internal Hassette component records. |
+| `--source-tier <tier>` | `app`, `framework`, or `all` | `listener`, `job`, `log`, `app health` | Filter by source tier. `app` returns user automation records; `framework` returns internal Hassette component records; `all` returns both (same as omitting the flag). |
 | `--json` | — | all commands | Output as JSON. See [Output Modes](configuration.md#output-modes). |
 
 ### `--since` format
