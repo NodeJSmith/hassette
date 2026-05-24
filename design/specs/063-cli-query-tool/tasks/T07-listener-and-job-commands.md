@@ -1,7 +1,7 @@
 ---
 task_id: "T07"
 title: "Add listener and job commands"
-status: "planned"
+status: "done"
 depends_on: ["T02", "T03", "T04"]
 implements: ["FR#1", "FR#2", "FR#6", "AC#1", "AC#4", "AC#11"]
 ---

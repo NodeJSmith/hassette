@@ -20,7 +20,7 @@ from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.core.app_registry import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
-from hassette.core.telemetry_models import ActivityFeedEntry
+from hassette.core.telemetry_models import ActivityFeedEntry, HandlerInvocation, JobExecution, JobSummary
 from hassette.scheduler.classes import ScheduledJob
 from hassette.scheduler.triggers import After, Cron, Every, Once
 from hassette.types.types import InvocationStatus
@@ -38,6 +38,7 @@ from hassette.web.models import (
     EventEntry,
     FileWatcherConfigResponse,
     LifecycleConfigResponse,
+    ListenerWithSummary,
     LoggingConfigResponse,
     SchedulerConfigResponse,
     SystemStatusResponse,
@@ -492,4 +493,124 @@ def make_app_source_response(
         filename=filename,
         content=content,
         line_count=line_count,
+    )
+
+
+def make_listener_with_summary(
+    listener_id: int = 1,
+    app_key: str = "my_app",
+    instance_index: int = 0,
+    topic: str = "light.kitchen",
+    listener_kind: str = "state change",
+    handler_method: str = "on_light_change",
+    total_invocations: int = 10,
+    successful: int = 9,
+    failed: int = 1,
+    avg_duration_ms: float = 25.0,
+    last_invoked_at: float | None = 1_700_000_000.0,
+    last_error_type: str | None = None,
+    last_error_message: str | None = None,
+) -> ListenerWithSummary:
+    """Build a ListenerWithSummary with sensible defaults."""
+    return ListenerWithSummary(
+        listener_id=listener_id,
+        app_key=app_key,
+        instance_index=instance_index,
+        topic=topic,
+        listener_kind=listener_kind,  # pyright: ignore[reportArgumentType]
+        handler_method=handler_method,
+        total_invocations=total_invocations,
+        successful=successful,
+        failed=failed,
+        di_failures=0,
+        cancelled=0,
+        avg_duration_ms=avg_duration_ms,
+        last_invoked_at=last_invoked_at,
+        last_error_type=last_error_type,
+        last_error_message=last_error_message,
+    )
+
+
+def make_handler_invocation(
+    execution_start_ts: float = 1_700_000_000.0,
+    duration_ms: float = 12.5,
+    status: InvocationStatus = InvocationStatus.SUCCESS,
+    error_type: str | None = None,
+    error_message: str | None = None,
+    execution_id: str | None = None,
+) -> HandlerInvocation:
+    """Build a HandlerInvocation with sensible defaults."""
+    return HandlerInvocation(
+        execution_start_ts=execution_start_ts,
+        duration_ms=duration_ms,
+        status=status,
+        error_type=error_type,
+        error_message=error_message,
+        execution_id=execution_id,
+    )
+
+
+def make_job_summary(
+    job_id: int = 1,
+    app_key: str = "my_app",
+    instance_index: int = 0,
+    job_name: str = "check_lights",
+    handler_method: str = "check_lights",
+    trigger_type: str | None = "interval",
+    trigger_label: str = "every 30s",
+    trigger_detail: str | None = None,
+    total_executions: int = 5,
+    successful: int = 5,
+    failed: int = 0,
+    total_duration_ms: float | None = None,
+    avg_duration_ms: float = 8.0,
+    next_run: float | None = 1_700_003_600.0,
+    last_executed_at: float | None = 1_700_000_000.0,
+    last_error_type: str | None = None,
+    last_error_message: str | None = None,
+    group: str | None = None,
+) -> JobSummary:
+    """Build a JobSummary with sensible defaults."""
+    return JobSummary(
+        job_id=job_id,
+        app_key=app_key,
+        instance_index=instance_index,
+        job_name=job_name,
+        handler_method=handler_method,
+        trigger_type=trigger_type,
+        trigger_label=trigger_label,
+        trigger_detail=trigger_detail,
+        args_json="[]",
+        kwargs_json="{}",
+        source_location="my_app.py:10",
+        registration_source=None,
+        total_executions=total_executions,
+        successful=successful,
+        failed=failed,
+        last_executed_at=last_executed_at,
+        total_duration_ms=total_duration_ms if total_duration_ms is not None else total_executions * avg_duration_ms,
+        avg_duration_ms=avg_duration_ms,
+        next_run=next_run,
+        last_error_type=last_error_type,
+        last_error_message=last_error_message,
+        group=group,
+    )
+
+
+def make_job_execution(
+    execution_start_ts: float = 1_700_000_000.0,
+    duration_ms: float = 8.5,
+    status: InvocationStatus = InvocationStatus.SUCCESS,
+    error_type: str | None = None,
+    error_message: str | None = None,
+    execution_id: str | None = None,
+) -> JobExecution:
+    """Build a JobExecution with sensible defaults."""
+    return JobExecution(
+        execution_start_ts=execution_start_ts,
+        duration_ms=duration_ms,
+        status=status,
+        error_type=error_type,
+        error_message=error_message,
+        execution_id=execution_id,
     )

@@ -9,6 +9,8 @@ from cyclopts import App, Parameter
 
 from hassette.app.app_config import AppConfig
 from hassette.cli.commands.app import cmd_app, cmd_app_activity, cmd_app_config, cmd_app_health, cmd_app_source
+from hassette.cli.commands.job import cmd_job, cmd_job_detail
+from hassette.cli.commands.listener import cmd_listener, cmd_listener_detail
 from hassette.cli.commands.misc import cmd_config, cmd_event, cmd_service
 from hassette.cli.commands.status import cmd_dashboard, cmd_status, cmd_telemetry
 from hassette.config.config import HassetteConfig
@@ -92,6 +94,16 @@ app_app.command(cmd_app_health, name="health")
 app_app.command(cmd_app_activity, name="activity")
 app_app.command(cmd_app_config, name="config")
 app_app.command(cmd_app_source, name="source")
+
+# ---------------------------------------------------------------------------
+# Register T07 listener and job command implementations
+# ---------------------------------------------------------------------------
+
+listener_app.default(cmd_listener)
+listener_app.command(cmd_listener_detail, name="detail")
+
+job_app.default(cmd_job)
+job_app.command(cmd_job_detail, name="detail")
 
 # ---------------------------------------------------------------------------
 # Default command — starts the framework server (backward compatibility)

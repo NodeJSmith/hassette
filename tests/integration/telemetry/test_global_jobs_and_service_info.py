@@ -20,7 +20,7 @@ from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.telemetry_models import JobSummary
 from hassette.core.telemetry_query_service import TelemetryQueryService
 from hassette.scheduler.triggers import Every
-from hassette.test_utils.web_helpers import make_real_job
+from hassette.test_utils.web_helpers import make_job_summary, make_real_job
 from hassette.test_utils.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 from hassette.types.enums import ResourceRole, ResourceStatus
 from hassette.web.app import create_fastapi_app
@@ -277,33 +277,6 @@ async def scheduler_client(mock_hassette_scheduler):
         yield ac
 
 
-def make_job_summary(
-    job_id: int = 1,
-    app_key: str = "my_app",
-    job_name: str = "test_job",
-) -> JobSummary:
-    return JobSummary(
-        job_id=job_id,
-        app_key=app_key,
-        instance_index=0,
-        job_name=job_name,
-        handler_method="MyApp.on_run",
-        trigger_type="interval",
-        trigger_label="every 1h",
-        trigger_detail=None,
-        args_json="[]",
-        kwargs_json="{}",
-        source_location="my_app.py:10",
-        registration_source=None,
-        total_executions=3,
-        successful=3,
-        failed=0,
-        last_executed_at=STUB_TIMESTAMP,
-        total_duration_ms=90.0,
-        avg_duration_ms=30.0,
-    )
-
-
 class TestGlobalJobsEndpointExists:
     async def test_endpoint_returns_200(self, scheduler_client, mock_hassette_scheduler) -> None:
         """GET /api/scheduler/jobs returns 200 and a list."""
@@ -319,8 +292,8 @@ class TestGlobalJobsEndpointMultipleApps:
     async def test_returns_jobs_from_multiple_apps(self, scheduler_client, mock_hassette_scheduler) -> None:
         """GET /api/scheduler/jobs returns jobs from multiple apps."""
         db_jobs = [
-            make_job_summary(job_id=1, app_key="app_alpha"),
-            make_job_summary(job_id=2, app_key="app_beta"),
+            make_job_summary(job_id=1, app_key="app_alpha", next_run=None),
+            make_job_summary(job_id=2, app_key="app_beta", next_run=None),
         ]
         mock_hassette_scheduler.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=db_jobs)
         mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(return_value=[])
@@ -336,7 +309,7 @@ class TestGlobalJobsEndpointMultipleApps:
 class TestGlobalJobsEndpointEnrichesWithLiveData:
     async def test_enriches_with_live_heap_data(self, scheduler_client, mock_hassette_scheduler) -> None:
         """Global jobs endpoint enriches DB rows with live next_run, fire_at, jitter."""
-        db_summary = make_job_summary(job_id=42, app_key="my_app")
+        db_summary = make_job_summary(job_id=42, app_key="my_app", next_run=None)
         mock_hassette_scheduler.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[db_summary])
 
         trigger = Every(hours=1)
@@ -360,7 +333,7 @@ class TestGlobalJobsEndpointEnrichesWithLiveData:
 class TestGlobalJobsEndpointDegradedOnHeapFailure:
     async def test_returns_db_rows_when_heap_unavailable(self, scheduler_client, mock_hassette_scheduler) -> None:
         """Returns DB-only rows (no 500) when get_all_jobs() raises."""
-        db_summary = make_job_summary(job_id=55)
+        db_summary = make_job_summary(job_id=55, next_run=None)
         mock_hassette_scheduler.telemetry_query_service.get_all_jobs_summary = AsyncMock(return_value=[db_summary])
         mock_hassette_scheduler.scheduler_service.get_all_jobs = AsyncMock(side_effect=RuntimeError("heap unavailable"))
 
