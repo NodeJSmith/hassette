@@ -129,14 +129,13 @@ There is no terminal-native way to query a running hassette instance. Checking s
 - Assumes the hassette web API is running and accessible over HTTP
 - Assumes the API endpoint paths and response models are stable (they are part of the frontend contract)
 
-**Prerequisite: Web API model hardening** — A separate spec must address gaps in the existing API response models before CLI implementation begins. The CLI is the first typed consumer outside the frontend and exposes these gaps:
-- Status/health/error-rate fields are bare `str` (CSS class names) with no `Literal` type constraint — the CLI cannot reliably map values to display output
-- Four telemetry response types (`JobSummary`, `JobExecution`, `HandlerInvocation`, `ActivityFeedEntry`) live in `core/telemetry_models.py` (DB query layer) not `web/models.py` (API contract surface) — need projection wrappers
-- `/api/services` returns `dict[str, Any]` — untyped pass-through with a different upstream failure mode (502 when HA unreachable)
-- `/api/events/recent` returns `list[dict]` — `EventEntry` model exists in `web/models.py` but the route doesn't use it
-- Per-app telemetry endpoints silently default to `instance_index=0` — multi-instance apps return partial data with no signal
+**Prerequisite: Web API model hardening (resolved)** — PR #837 (issue #832) hardened the API response models. Status, health, and classification fields now use constrained `Literal` types (`ManifestStatus`, `ErrorRateClass`, `HealthStatus`, `SystemHealthStatus`, `ListenerKind`) and `StrEnum` types (`InvocationStatus`, `ResourceStatus`). Events now return typed `EventEntry` models. The execution endpoint moved to `GET /api/executions/{execution_id}`. Per-app telemetry endpoints document their `instance_index` behavior.
 
-These issues exist independently of the CLI and benefit the frontend too (type safety, OpenAPI spec accuracy). The CLI spec assumes they are resolved before implementation.
+The telemetry models (`HandlerInvocation`, `JobExecution`, `JobSummary`, `ActivityFeedEntry`) remain in `core/telemetry_models.py` and are returned directly by routes — no projection wrappers. This is intentional: the telemetry models are already Pydantic models serving as the shared contract between the query service and web layer, and no fields need hiding from API consumers. The CLI imports from both `web/models` and `core/telemetry_models`.
+
+Two endpoints remain untyped: `/api/services` returns `dict[str, Any]` (proxied HA data with unpredictable schema) and the CLI renders it as-is.
+
+PR #835 migrated the frontend data layer to TanStack Query. This has no impact on the CLI — the REST API endpoints and response models are unchanged. Noted here because it landed in the same rebase window.
 
 ## Architecture
 
@@ -180,16 +179,16 @@ The cyclopts App's default command (no subcommand) exposes HassetteConfig's top-
 | `hassette status` | `GET /api/health` | `SystemStatusResponse` |
 | `hassette app` | `GET /api/apps/manifests` | `AppManifestListResponse` |
 | `hassette app health <key>` | `GET /api/telemetry/app/{key}/health` | `AppHealthResponse` |
-| `hassette app activity <key>` | `GET /api/telemetry/app/{key}/activity` | `list[ActivityFeedEntryResponse]` |
+| `hassette app activity <key>` | `GET /api/telemetry/app/{key}/activity` | `list[ActivityFeedEntry]` |
 | `hassette app config <key>` | `GET /api/apps/{key}/config` | `AppConfigResponse` |
 | `hassette app source <key>` | `GET /api/apps/{key}/source` | `AppSourceResponse` |
 | `hassette listener` | `GET /api/bus/listeners` | `list[ListenerWithSummary]` |
-| `hassette listener <id>` | `GET /api/telemetry/handler/{id}/invocations` | `list[HandlerInvocationResponse]` |
-| `hassette job` | `GET /api/scheduler/jobs` | `list[JobSummaryResponse]` |
-| `hassette job <id>` | `GET /api/telemetry/job/{id}/executions` | `list[JobExecutionResponse]` |
+| `hassette listener <id>` | `GET /api/telemetry/handler/{id}/invocations` | `list[HandlerInvocation]` |
+| `hassette job` | `GET /api/scheduler/jobs` | `list[JobSummary]` |
+| `hassette job <id>` | `GET /api/telemetry/job/{id}/executions` | `list[JobExecution]` |
 | `hassette log` | `GET /api/logs/recent` | `list[LogEntryResponse]` |
-| `hassette execution <uuid>` | `GET /api/logs/by-execution/{id}` | `LogsByExecutionResponse` |
-| `hassette event` | `GET /api/events/recent` | `list[dict]` |
+| `hassette execution <uuid>` | `GET /api/executions/{execution_id}` | `LogsByExecutionResponse` |
+| `hassette event` | `GET /api/events/recent` | `list[EventEntry]` |
 | `hassette config` | `GET /api/config` | `ConfigResponse` |
 | `hassette service` | `GET /api/services` | `dict[str, Any]` |
 | `hassette telemetry` | `GET /api/telemetry/status` | `TelemetryStatusResponse` |
@@ -212,8 +211,6 @@ The API endpoint selection is transparent to the user. For example, `hassette li
 Commands return Pydantic response models (or lists of models). A single rendering layer handles all formatting:
 
 - **JSON mode**: `model.model_dump_json(indent=2)` written to stdout. For lists: serialize the list. The Pydantic model IS the complete data — JSON is a superset of human output.
-
-Four telemetry response types (`JobSummary`, `JobExecution`, `HandlerInvocation`, `ActivityFeedEntry`) currently live in `core/telemetry_models.py`. The prerequisite web API model hardening spec will add projection wrappers in `web/models.py` — the CLI imports only from `web/models.py`.
 - **Human mode (list)**: Rich `Table` with per-command column definitions. Each command declares a list of `Column(field, header, max_width?, overflow?)` objects that map model fields to table columns.
 - **Human mode (detail)**: Rich key-value panel for single-object responses (e.g., `hassette status`, `hassette app config <key>`).
 - **Pipe detection**: Rich auto-detects TTY and strips ANSI when piped. Truncation disabled in non-TTY mode. Respects `NO_COLOR`.
@@ -234,8 +231,8 @@ Thin wrapper around `httpx.Client` (synchronous) that:
 
 `HassetteConfig.token` changes from `default=...` (required) to `default=None` (optional). Three locations need updates:
 
-1. **`auth_headers` property** (`config.py:224`): Add `if self.token is None: return {}` guard — returns empty headers instead of `"Bearer None"`
-2. **`truncated_token` property** (`config.py:236`): Add `if self.token is None: return "<not set>"` guard — avoids `TypeError` from `len(None)`
+1. **`auth_headers` property** (`config.py:225`): Add `if self.token is None: return {}` guard — returns empty headers instead of `"Bearer None"`
+2. **`truncated_token` property** (`config.py:235`): Add `if self.token is None: return "<not set>"` guard — avoids `TypeError` from `len(None)`
 3. **Server startup** (`core.py`, before `wire_services`): Validate that `config.token is not None` and raise `FatalError` if missing — prevents the server from starting without HA credentials
 
 The property guards make `HassetteConfig` safe to use with `token=None` from any call site (CLI commands, tests). The startup check enforces the server-side requirement early.
@@ -251,9 +248,9 @@ The property guards make `HassetteConfig` safe to use with `token=None` from any
 
 The argparse-based CLI in `src/hassette/__main__.py` (lines 18-38, `get_parser()`) is replaced entirely by cyclopts App subcommand routing. The 3 argparse flags (`--config-file`, `--env-file`, `--version`) plus HassetteConfig's top-level fields become parameters on the cyclopts default command. No fallback path — cyclopts is a core dependency.
 
-The pydantic-settings `cli_parse_args=True` setting in `HassetteConfig.model_config` (config.py:59) is changed to `cli_parse_args=False`. The `cli_prog_name`, `cli_kebab_case`, and `cli_ignore_unknown_args` settings and CLI shortcut aliases (config.py:62-67) can also be removed since cyclopts handles all CLI parsing.
+The pydantic-settings `cli_parse_args=True` setting in `HassetteConfig.model_config` (config.py:60) is changed to `cli_parse_args=False`. The `cli_prog_name`, `cli_kebab_case`, and `cli_ignore_unknown_args` settings and CLI shortcut aliases (config.py:58-68) can also be removed since cyclopts handles all CLI parsing.
 
-Note: `HassetteConfig` instantiation creates `config_dir` and `data_dir` directories on disk via the `resolve_paths` validator. CLI query commands that instantiate `HassetteConfig` for server address discovery will trigger this side effect. The CLI's config reading path should use `HassetteConfig.model_construct()` or a lightweight read that bypasses the full validator chain to avoid creating directories from a read-only query tool.
+Note: `HassetteConfig` instantiation creates `config_dir` and `data_dir` directories on disk via the `resolve_paths` validator (config.py:258-266). CLI query commands that instantiate `HassetteConfig` for server address discovery will trigger this side effect. The implementation should determine whether this is acceptable (the directories are harmless) or whether a lightweight config read path is needed to avoid creating directories from a read-only query tool.
 
 ## Convention Examples
 
@@ -280,7 +277,7 @@ async def get_health(runtime: RuntimeDep, response: Response) -> SystemStatusRes
 
 ```python
 class SystemStatusResponse(BaseModel):
-    status: str
+    status: SystemHealthStatus
     websocket_connected: bool
     uptime_seconds: float
     entity_count: int
@@ -294,7 +291,7 @@ class SystemStatusResponse(BaseModel):
 
 ### Config with HassetteConfig (the token field being changed)
 
-**Source:** `src/hassette/config/config.py:131-135`
+**Source:** `src/hassette/config/config.py:132-135`
 
 ```python
 token: str = Field(
@@ -353,7 +350,7 @@ Home Assistant uses a separate package (`homeassistant-cli`) for CLI queries. Th
 
 ### New Test Coverage
 
-- **Rendering layer unit tests** (FR#3, FR#4, FR#5, FR#11): Mock Pydantic models → verify Rich table output has correct columns and values; verify JSON output is valid and contains all model fields; verify no output leaks to stdout in JSON mode besides the JSON document
+- **Rendering layer unit tests** (FR#3, FR#4, FR#5, FR#9): Mock Pydantic models → verify Rich table output has correct columns and values; verify JSON output is valid and contains all model fields; verify no output leaks to stdout in JSON mode besides the JSON document
 - **HTTP client unit tests** (FR#1, FR#7): Mock httpx responses → verify typed model deserialization; verify connection refused error handling; verify timeout handling
 - **Command integration tests** (FR#2, FR#6): Mock HTTP client → invoke each command function with various flag combinations; verify correct API endpoint is called with correct query params; verify correct response model is passed to the renderer
 - **Entry point tests** (FR#8): Test subcommand routing; test default command starts the framework with correct HassetteConfig init values from CLI flags
@@ -374,9 +371,16 @@ No tests to remove.
 ### Changed Files
 
 - `pyproject.toml` — add `cyclopts` and `httpx` to core dependencies
-- `src/hassette/config/config.py` — change `token` field from required to optional (`str | None`, `default=None`)
-- `src/hassette/__main__.py` — refactor to dispatch between cyclopts (if available) and argparse fallback
+- `src/hassette/config/config.py` — change `token` field from required to optional (`str | None`, `default=None`); remove `cli_parse_args`, `cli_prog_name`, `cli_kebab_case`, `cli_ignore_unknown_args`, `cli_shortcuts`
+- `src/hassette/__main__.py` — replace argparse with cyclopts App delegation
 - `src/hassette/core/core.py` (or wherever server startup validates config) — add token-not-None check before HA connection
+
+### New Files
+
+- `src/hassette/cli/__init__.py` — cyclopts App setup, root command, subcommand registration
+- `src/hassette/cli/client.py` — HTTP client wrapper (httpx sync, typed responses)
+- `src/hassette/cli/output.py` — rendering layer (column definitions, Rich tables, JSON output)
+- `src/hassette/cli/commands/` — command modules (status, app, listener, job, log, misc)
 
 ### Behavioral Invariants
 
