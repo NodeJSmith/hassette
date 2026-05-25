@@ -29,7 +29,7 @@
 /* Table card */
 
 .appsTable thead th {
-  letter-spacing: 0.08em;
+  letter-spacing: var(--tr-label-wide);
 }
 
 /* Table rows */
@@ -40,7 +40,7 @@
 }
 
 .rowDimmed {
-  opacity: 0.55;
+  opacity: var(--op-disabled);
 }
 
 .rowInstance {
@@ -150,7 +150,7 @@
 
 .actionsCell [data-role="action-buttons"] {
   justify-content: flex-end;
-  opacity: 0.35;
+  opacity: var(--op-ghost);
   transition: opacity var(--t-fast) var(--ease);
 }
 

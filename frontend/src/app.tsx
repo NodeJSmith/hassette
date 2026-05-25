@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Toaster } from "sonner";
 import { Redirect, Route, Switch, useLocation } from "wouter";
 
+import { DesignTuner } from "./components/dev/design-tuner";
 import { AlertBanner, TelemetryDegradedBanner } from "./components/layout/alert-banner";
 import { CommandPalette } from "./components/layout/command-palette";
 import { ErrorBoundary } from "./components/layout/error-boundary";
@@ -153,6 +154,7 @@ export function App() {
             </ErrorBoundary>
           </main>
         </div>
+        {import.meta.env.DEV && <DesignTuner />}
       </AppStateContext.Provider>
     </QueryClientProvider>
   );

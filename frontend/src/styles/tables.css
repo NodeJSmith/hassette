@@ -9,15 +9,18 @@
 
 .ht-table thead tr {
   background: var(--bg-sunken);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-table-head);
 }
 
 .ht-table th {
   text-align: left;
   font-family: var(--font-mono);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   font-size: var(--fs-micro);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tr-label);
   color: var(--ink-3);
   padding: var(--sp-2) var(--sp-3);
   border-bottom: 1px solid var(--line-1);

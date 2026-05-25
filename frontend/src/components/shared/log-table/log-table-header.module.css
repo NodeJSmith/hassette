@@ -1,7 +1,3 @@
-/* Sticky thead — must match ht-table thead tr background to prevent content bleed on scroll */
+/* Sticky behavior now handled globally by .ht-table thead tr in tables.css */
 .thead {
-  position: sticky;
-  top: 0;
-  background: var(--bg-sunken);
-  z-index: var(--z-table-head);
 }

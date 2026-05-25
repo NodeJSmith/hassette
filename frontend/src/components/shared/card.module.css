@@ -6,6 +6,7 @@
   border-top: 1px solid var(--line-2);
   border-radius: var(--r-md);
   padding: var(--sp-5);
+  box-shadow: var(--shadow-1);
 }
 
 /* compact: reduce padding only */

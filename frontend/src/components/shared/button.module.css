@@ -6,7 +6,7 @@
   gap: 0.35em;
   font-family: var(--font-body);
   font-size: var(--fs-small);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   padding: 0.4em 0.85em;
   border: 1px solid var(--line-strong);
   border-radius: var(--r-md);
@@ -88,7 +88,7 @@
 }
 
 .primary:hover {
-  opacity: 0.9;
+  opacity: var(--op-subtle);
 }
 
 .success {
@@ -127,7 +127,7 @@
 }
 
 .danger:hover {
-  opacity: 0.9;
+  opacity: var(--op-subtle);
 }
 
 /* Responsive: touch targets below 900px */

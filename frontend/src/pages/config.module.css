@@ -66,7 +66,7 @@
     padding-bottom: var(--sp-2);
     border-bottom: 1px solid var(--line-2);
     word-break: break-word;
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
   }
 
   .configTable tbody tr:nth-child(even) {

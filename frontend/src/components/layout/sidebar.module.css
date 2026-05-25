@@ -1,7 +1,7 @@
 /* — Sidebar shell —————————————————————————————————————— */
 .sidebar {
   width: 240px;
-  background: var(--bg-surface);
+  background: var(--bg-chrome);
   border-right: 1px solid var(--line-1);
   color: var(--ink-2);
   display: flex;
@@ -34,14 +34,14 @@
 }
 
 .brandLink:hover {
-  opacity: 0.85;
+  opacity: var(--op-subtle);
   text-decoration: none;
 }
 
 .wordmark {
   font-family: var(--font-display);
   font-size: var(--fs-h3);
-  font-weight: 400;
+  font-weight: var(--fw-normal);
   color: var(--ink-1);
   letter-spacing: var(--tr-h3);
 }
@@ -105,9 +105,9 @@
 }
 
 .navItem:global(.is-active) {
-  background: var(--bg-active);
-  color: var(--ink-1);
-  font-weight: 500;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: var(--fw-medium);
 }
 
 /* — App search ————————————————————————————————————————— */
@@ -175,11 +175,11 @@
 }
 
 .appItem:global(.is-active) {
-  background: var(--bg-active);
+  background: var(--accent-soft);
 }
 
 .appItem:global(.is-blocked) {
-  opacity: 0.5;
+  opacity: var(--op-disabled);
 }
 
 .appLink {
@@ -283,8 +283,8 @@
 }
 
 .instanceLink:global(.is-active) {
-  color: var(--ink-1);
-  font-weight: 500;
+  color: var(--accent);
+  font-weight: var(--fw-medium);
 }
 
 .instanceName {
@@ -320,9 +320,9 @@
 
 .sectionLabel {
   font-size: var(--fs-micro);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--ink-2);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tr-label-wide);
   text-transform: uppercase;
 }
 
@@ -377,9 +377,9 @@
 .groupLabel {
   flex: 1;
   font-size: var(--fs-micro);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--ink-2);
-  letter-spacing: 0.05em;
+  letter-spacing: var(--tr-label);
   text-transform: uppercase;
 }
 

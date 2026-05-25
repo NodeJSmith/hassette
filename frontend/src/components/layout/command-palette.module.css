@@ -82,10 +82,10 @@
   padding: var(--sp-1) var(--sp-4);
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--ink-4);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tr-label-wide);
 }
 
 /* Individual result row */
@@ -111,7 +111,7 @@
 
 .resultActive {
   background: var(--bg-active);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 /* Label + status shape */
@@ -121,7 +121,7 @@
   gap: var(--sp-2);
   flex: 1;
   min-width: 0;
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

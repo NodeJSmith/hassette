@@ -11,7 +11,7 @@
 
 .title {
   font-size: var(--fs-small);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--ink-2);
   margin-bottom: var(--sp-1);
 }

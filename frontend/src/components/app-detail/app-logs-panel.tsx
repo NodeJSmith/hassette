@@ -33,14 +33,17 @@ export function AppLogsPanel({ appKey }: { appKey: string }) {
   );
 
   return (
-    <TableCard search={searchInput} footer={footer} scrollHeight="calc(100vh - 340px)" data-testid="logs-section">
-      <LogTableWithDrawer drawerProps={log.drawerProps}>
-        {log.isEmpty ? (
-          <EmptyState title="no log lines in window" body="nothing has been logged recently." />
-        ) : (
-          <LogTableView {...log.tableProps} />
-        )}
-      </LogTableWithDrawer>
-    </TableCard>
+    <>
+      {searchInput}
+      <TableCard footer={footer} scrollHeight="calc(100vh - 340px)" data-testid="logs-section">
+        <LogTableWithDrawer drawerProps={log.drawerProps}>
+          {log.isEmpty ? (
+            <EmptyState title="no log lines in window" body="nothing has been logged recently." />
+          ) : (
+            <LogTableView {...log.tableProps} />
+          )}
+        </LogTableWithDrawer>
+      </TableCard>
+    </>
   );
 }

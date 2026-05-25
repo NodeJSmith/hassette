@@ -28,7 +28,7 @@
 .title {
   font-family: var(--font-display);
   font-size: var(--fs-h3);
-  font-weight: 400;
+  font-weight: var(--fw-normal);
   color: var(--ink-1);
   margin-bottom: var(--sp-3);
 }
