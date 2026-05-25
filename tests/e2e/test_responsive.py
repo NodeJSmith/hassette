@@ -5,11 +5,16 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import DESKTOP_VIEWPORT, MOBILE_VIEWPORT
+from tests.e2e.conftest import (
+    DATA_LOAD_TIMEOUT_MS,
+    DESKTOP_VIEWPORT,
+    MOBILE_BOUNDARY_VIEWPORT,
+    MOBILE_VIEWPORT,
+    NARROW_DESKTOP_VIEWPORT,
+    SMALL_MOBILE_VIEWPORT,
+)
 
 pytestmark = pytest.mark.e2e
-
-TABLET_VIEWPORT = {"width": 768, "height": 1024}
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -21,7 +26,7 @@ def test_hamburger_visible_at_375px(page: Page, base_url: str) -> None:
     """Hamburger button is visible on mobile viewport."""
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/")
-    hamburger = page.locator(".ht-hamburger")
+    hamburger = page.locator("[data-testid='hamburger']")
     expect(hamburger).to_be_visible()
 
 
@@ -29,7 +34,7 @@ def test_hamburger_opens_drawer_at_mobile(page: Page, base_url: str) -> None:
     """Tapping the hamburger opens the off-canvas drawer."""
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/")
-    page.locator(".ht-hamburger").click()
+    page.locator("[data-testid='hamburger']").click()
     drawer = page.locator(".ht-drawer")
     expect(drawer).to_have_class(re.compile(r"\bis-open\b"))
 
@@ -38,7 +43,7 @@ def test_drawer_closes_on_backdrop_click(page: Page, base_url: str) -> None:
     """Tapping the backdrop closes the off-canvas drawer."""
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/")
-    page.locator(".ht-hamburger").click()
+    page.locator("[data-testid='hamburger']").click()
     expect(page.locator(".ht-drawer")).to_have_class(re.compile(r"\bis-open\b"))
     page.locator(".ht-drawer-backdrop").click()
     expect(page.locator(".ht-drawer")).not_to_have_class(re.compile(r"\bis-open\b"))
@@ -64,7 +69,7 @@ def test_hamburger_hidden_at_desktop(page: Page, base_url: str) -> None:
     """Hamburger button is hidden on desktop viewports."""
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/")
-    hamburger = page.locator(".ht-hamburger")
+    hamburger = page.locator("[data-testid='hamburger']")
     expect(hamburger).not_to_be_visible()
 
 
@@ -129,7 +134,7 @@ def test_touch_targets_44px(page: Page, base_url: str) -> None:
     assert box["height"] >= 44, f"Theme toggle height {box['height']}px < 44px"
 
     # Hamburger button
-    hamburger = page.locator(".ht-hamburger")
+    hamburger = page.locator("[data-testid='hamburger']")
     expect(hamburger).to_be_visible()
     box = hamburger.bounding_box()
     assert box is not None
@@ -143,7 +148,7 @@ def test_touch_targets_44px(page: Page, base_url: str) -> None:
 
 def test_breakpoint_boundary_768px(page: Page, base_url: str) -> None:
     """At exactly 768px, columns 3+ are hidden (max-width: 768px triggers)."""
-    page.set_viewport_size(TABLET_VIEWPORT)
+    page.set_viewport_size(MOBILE_BOUNDARY_VIEWPORT)
     page.goto(base_url + "/apps")
     # At 768px, the mobile CSS hides columns 3+ in the apps table
     table = page.locator("[data-testid='apps-table']")
@@ -163,7 +168,7 @@ def test_log_table_app_tag_at_375px(page: Page, base_url: str) -> None:
     page.goto(base_url + "/logs")
 
     # Wait for log entries to load
-    page.locator("text=/\\d+ entr/").wait_for(timeout=5000)
+    page.locator("text=/\\d+ entr/").wait_for(timeout=DATA_LOAD_TIMEOUT_MS)
 
     # App column header should not be rendered at mobile breakpoint
     # (the component conditionally omits the App <th>/<td> on mobile)
@@ -180,14 +185,12 @@ def test_log_table_app_tag_at_375px(page: Page, base_url: str) -> None:
 # Mobile table layout — no horizontal scroll
 # ──────────────────────────────────────────────────────────────────────
 
-SMALL_MOBILE_VIEWPORT = {"width": 320, "height": 480}
-
 
 def test_log_table_no_horizontal_scroll_at_320px(page: Page, base_url: str) -> None:
     """Log table must not allow horizontal scrolling on small mobile viewports."""
     page.set_viewport_size(SMALL_MOBILE_VIEWPORT)
     page.goto(base_url + "/logs")
-    page.locator("text=/\\d+ entr/").wait_for(timeout=5000)
+    page.locator("text=/\\d+ entr/").wait_for(timeout=DATA_LOAD_TIMEOUT_MS)
 
     table = page.locator("[data-testid='log-table']")
     expect(table).to_be_visible()
@@ -205,7 +208,7 @@ def test_log_table_no_horizontal_scroll_at_375px(page: Page, base_url: str) -> N
     """Log table must not allow horizontal scrolling at standard mobile width."""
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/logs")
-    page.locator("text=/\\d+ entr/").wait_for(timeout=5000)
+    page.locator("text=/\\d+ entr/").wait_for(timeout=DATA_LOAD_TIMEOUT_MS)
 
     table = page.locator("[data-testid='log-table']")
     expect(table).to_be_visible()
@@ -235,7 +238,7 @@ def test_apps_table_columns_fill_width_at_mobile(page: Page, base_url: str) -> N
 
 def test_handler_detail_accessible_on_narrow_viewport(page: Page, base_url: str) -> None:
     """Handler row click opens detail pane even on narrow viewport."""
-    page.set_viewport_size({"width": 800, "height": 600})
+    page.set_viewport_size(NARROW_DESKTOP_VIEWPORT)
     page.goto(base_url + "/apps/my_app/handlers")
 
     row = page.locator("[data-testid='unified-row-listener-1']")
@@ -243,4 +246,4 @@ def test_handler_detail_accessible_on_narrow_viewport(page: Page, base_url: str)
     row.click()
 
     detail = page.locator("[data-testid='listener-detail-1']")
-    expect(detail).to_be_visible(timeout=5000)
+    expect(detail).to_be_visible(timeout=DATA_LOAD_TIMEOUT_MS)

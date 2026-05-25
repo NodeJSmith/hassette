@@ -5,7 +5,7 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import DESKTOP_VIEWPORT, MOBILE_VIEWPORT
+from tests.e2e.conftest import ANIMATION_SETTLE_MS, DESKTOP_VIEWPORT, MOBILE_VIEWPORT
 
 pytestmark = pytest.mark.e2e
 
@@ -121,7 +121,7 @@ def test_mobile_hamburger_opens_drawer(page: Page, base_url: str) -> None:
     """Hamburger button is visible on mobile and opens the off-canvas drawer."""
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/apps")
-    hamburger = page.locator(".ht-hamburger")
+    hamburger = page.locator("[data-testid='hamburger']")
     expect(hamburger).to_be_visible()
     hamburger.click()
     drawer = page.locator(".ht-drawer")
@@ -132,11 +132,23 @@ def test_mobile_drawer_closes_on_backdrop_click(page: Page, base_url: str) -> No
     """Off-canvas drawer closes when backdrop is clicked."""
     page.set_viewport_size(MOBILE_VIEWPORT)
     page.goto(base_url + "/apps")
-    page.locator(".ht-hamburger").click()
+    page.locator("[data-testid='hamburger']").click()
     # Drawer is open
     expect(page.locator(".ht-drawer")).to_have_class(re.compile(r"\bis-open\b"))
     # Click backdrop to close
     page.locator(".ht-drawer-backdrop").click()
+    expect(page.locator(".ht-drawer")).not_to_have_class(re.compile(r"\bis-open\b"))
+
+
+def test_mobile_drawer_closes_on_navigation(page: Page, base_url: str) -> None:
+    """Drawer closes automatically when the user navigates to a new page."""
+    page.set_viewport_size(MOBILE_VIEWPORT)
+    page.goto(base_url + "/apps")
+    page.locator("[data-testid='hamburger']").click()
+    expect(page.locator(".ht-drawer")).to_have_class(re.compile(r"\bis-open\b"))
+    # Click a navigation link in the drawer
+    page.locator(".ht-drawer [data-testid='nav-logs']").click()
+    expect(page).to_have_url(re.compile(r"/logs"))
     expect(page.locator(".ht-drawer")).not_to_have_class(re.compile(r"\bis-open\b"))
 
 
@@ -205,7 +217,7 @@ def test_sidebar_app_list_renders(page: Page, base_url: str) -> None:
     running_header = page.locator("[data-testid='group-header']", has_text="RUNNING")
     expect(running_header).to_be_visible()
     running_header.click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     expect(app_nav).to_contain_text("My App")
 
 
@@ -217,7 +229,7 @@ def test_sidebar_app_search_filters(page: Page, base_url: str) -> None:
     search = page.locator("input[aria-label='Filter apps']")
     expect(search).to_be_visible()
     search.fill("My App")
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     # Only My App should be visible in the app nav section
     app_nav = page.locator("[data-testid='app-nav']")
     expect(app_nav).to_contain_text("My App")
@@ -231,7 +243,7 @@ def test_sidebar_clicking_app_navigates(page: Page, base_url: str) -> None:
     page.wait_for_load_state("networkidle")
     # my_app is in the RUNNING group which is collapsed — open it first
     page.locator("[data-testid='group-header']", has_text="RUNNING").click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     # Click the app link in the sidebar
     page.locator("[data-testid='app-link']", has_text="My App").click()
     expect(page).to_have_url(re.compile(r"/apps/my_app"))
@@ -247,12 +259,12 @@ def test_sidebar_multi_instance_expand(page: Page, base_url: str) -> None:
     running_header = page.locator("[data-testid='group-header']", has_text="RUNNING")
     expect(running_header).to_be_visible()
     running_header.click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     # multi_app has 3 instances — expand button should be visible
     expand_btn = page.get_by_label("Expand Multi App", exact=False)
     expect(expand_btn).to_be_visible()
     expand_btn.click()
-    page.wait_for_timeout(300)
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     # Instance list should now be visible
     expect(page.locator("[data-testid='instance-list']").first).to_be_visible()
 

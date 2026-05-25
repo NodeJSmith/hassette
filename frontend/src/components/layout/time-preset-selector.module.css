@@ -47,9 +47,42 @@
   border-left: 1px solid var(--line-2);
 }
 
+.select {
+  appearance: auto;
+  font-family: var(--font-body);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  color: var(--ink-2);
+  background: var(--bg-surface);
+  border: none;
+  padding: var(--sp-1) var(--sp-2);
+  min-height: var(--sz-touch);
+  cursor: pointer;
+}
+
+/* sync: BREAKPOINT_SIDEBAR in use-media-query.ts */
 @media screen and (max-width: 900px) {
   .btn {
     min-height: var(--sz-touch);
     padding: var(--sp-1) var(--sp-3);
+  }
+}
+
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
+@media screen and (max-width: 768px) {
+  .selector {
+    border: none;
+    background: transparent;
+  }
+
+  .uptime {
+    border-left: none;
+  }
+}
+
+/* sync: BREAKPOINT_SMALL_MOBILE in use-media-query.ts */
+@media screen and (max-width: 480px) {
+  .uptime {
+    display: none;
   }
 }

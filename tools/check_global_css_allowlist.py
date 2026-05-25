@@ -36,7 +36,6 @@ ALLOWLIST: list[str] = [
     "ht-search",
     "ht-alert",
     # Navigation & wayfinding
-    "ht-hamburger",
     "ht-drawer",
     "ht-skip-link",
     # Typography & display

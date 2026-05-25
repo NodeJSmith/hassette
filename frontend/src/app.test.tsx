@@ -104,19 +104,19 @@ describe("App — layout structure", () => {
 describe("App — hamburger button", () => {
   it("renders a hamburger button", () => {
     const { container } = render(<App />);
-    const btn = container.querySelector(".ht-hamburger");
+    const btn = container.querySelector("[data-testid='hamburger']");
     expect(btn).not.toBeNull();
   });
 
   it("hamburger button has accessible label", () => {
     const { container } = render(<App />);
-    const btn = container.querySelector(".ht-hamburger");
+    const btn = container.querySelector("[data-testid='hamburger']");
     expect(btn!.getAttribute("aria-label")).toBe("Open navigation");
   });
 
   it("hamburger button has aria-expanded=false initially", () => {
     const { container } = render(<App />);
-    const btn = container.querySelector(".ht-hamburger");
+    const btn = container.querySelector("[data-testid='hamburger']");
     expect(btn!.getAttribute("aria-expanded")).toBe("false");
   });
 
@@ -129,7 +129,7 @@ describe("App — hamburger button", () => {
 
   it("clicking the hamburger opens the drawer", () => {
     const { container } = render(<App />);
-    const btn = container.querySelector(".ht-hamburger")!;
+    const btn = container.querySelector("[data-testid='hamburger']")!;
     fireEvent.click(btn);
     const drawer = container.querySelector(".ht-drawer");
     expect(drawer!.className).toContain("is-open");
@@ -137,7 +137,7 @@ describe("App — hamburger button", () => {
 
   it("hamburger aria-expanded updates to true when drawer is open", () => {
     const { container } = render(<App />);
-    const btn = container.querySelector(".ht-hamburger")!;
+    const btn = container.querySelector("[data-testid='hamburger']")!;
     fireEvent.click(btn);
     expect(btn.getAttribute("aria-expanded")).toBe("true");
   });
@@ -198,5 +198,55 @@ describe("App — visibilitychange tick recovery", () => {
     expect(removed).toBe(true);
 
     removeSpy.mockRestore();
+  });
+});
+
+describe("App — drawer close mechanisms", () => {
+  it("backdrop click closes the drawer", () => {
+    const { container } = render(<App />);
+    const btn = container.querySelector("[data-testid='hamburger']")!;
+    fireEvent.click(btn);
+    expect(container.querySelector(".ht-drawer")!.className).toContain("is-open");
+
+    const backdrop = container.querySelector(".ht-drawer-backdrop")!;
+    fireEvent.click(backdrop);
+    expect(container.querySelector(".ht-drawer")!.className).not.toContain("is-open");
+  });
+
+  it("Escape key closes the drawer", () => {
+    const { container } = render(<App />);
+    const btn = container.querySelector("[data-testid='hamburger']")!;
+    fireEvent.click(btn);
+    expect(container.querySelector(".ht-drawer")!.className).toContain("is-open");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(container.querySelector(".ht-drawer")!.className).not.toContain("is-open");
+  });
+
+  it("clicking the hamburger a second time closes the drawer", () => {
+    const { container } = render(<App />);
+    const btn = container.querySelector("[data-testid='hamburger']")!;
+    fireEvent.click(btn);
+    expect(container.querySelector(".ht-drawer")!.className).toContain("is-open");
+    fireEvent.click(btn);
+    expect(container.querySelector(".ht-drawer")!.className).not.toContain("is-open");
+  });
+});
+
+describe("App — hamburger inside status bar", () => {
+  it("renders hamburger inside the status bar", () => {
+    const { container } = render(<App />);
+    const statusBar = container.querySelector("[data-testid='status-bar']");
+    expect(statusBar).not.toBeNull();
+    const hamburger = statusBar!.querySelector("[data-testid='hamburger']");
+    expect(hamburger).not.toBeNull();
+  });
+
+  it("does not render a standalone hamburger outside the status bar", () => {
+    const { container } = render(<App />);
+    const allHamburgers = container.querySelectorAll("[data-testid='hamburger']");
+    expect(allHamburgers).toHaveLength(1);
+    const statusBar = container.querySelector("[data-testid='status-bar']");
+    expect(statusBar!.contains(allHamburgers[0])).toBe(true);
   });
 });

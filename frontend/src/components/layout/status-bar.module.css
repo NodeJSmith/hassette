@@ -93,8 +93,43 @@
   gap: var(--sp-2);
 }
 
+/* — Hamburger ————————————————————————————————————————— */
+.hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--sz-touch);
+  height: var(--sz-touch);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+  flex-shrink: 0;
+}
+
+.hamburger:hover {
+  background: var(--bg-active);
+}
+
+.hamburger svg {
+  width: var(--sp-5);
+  height: var(--sp-5);
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 /* — Responsive: 900px ————————————————————————————————— */
+/* sync: BREAKPOINT_SIDEBAR in use-media-query.ts */
 @media screen and (max-width: 900px) {
+  .hamburger {
+    display: flex;
+  }
+
   .themeToggle {
     min-width: var(--sz-touch);
     min-height: var(--sz-touch);
@@ -102,11 +137,14 @@
 }
 
 /* — Responsive: 768px ————————————————————————————————— */
+/* sync: BREAKPOINT_MOBILE in use-media-query.ts */
 @media screen and (max-width: 768px) {
   .statusBar {
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
+    right: 0;
     z-index: var(--z-status-bar);
-    background: var(--bg-chrome);
+    padding: var(--sp-2) var(--sp-3);
   }
 }
