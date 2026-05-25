@@ -11,7 +11,7 @@ import { pluralize } from "../../../utils/format";
 import filterStyles from "../column-filter-popover/index.module.css";
 import type { ColumnFilters } from "../table-types";
 import { DEFAULT_LEVEL, LEVEL_OPTIONS, RENDER_CAP, TIER_OPTIONS } from "./constants";
-import type { ColumnId, LevelFilter, RowKey, SortColumn, SortConfig, ViewContext } from "./types";
+import type { ColumnId, LevelFilter, LogSortState, RowKey, ViewContext } from "./types";
 import { rowKey } from "./types";
 import { useColumnVisibility } from "./use-column-visibility";
 import { useLogData } from "./use-log-data";
@@ -28,8 +28,8 @@ export interface UseLogTableParams {
 
 export interface LogTableViewProps {
   visibleColumns: ColumnId[];
-  sortConfig: SortConfig;
-  onSort: (col: SortColumn) => void;
+  sort: LogSortState;
+  onSort: (sort: LogSortState) => void;
   columnFilters: ColumnFilters;
   entries: LogEntry[];
   selectedKey: RowKey | null;
@@ -156,36 +156,30 @@ export function useLogTable({
         active: state.level !== DEFAULT_LEVEL,
         label: "Level",
         content: (
-          <div>
-            <div class={filterStyles.heading}>Minimum level</div>
-            <select
-              value={state.level}
-              onChange={(e) => setLevel((e.target as HTMLSelectElement).value as LevelFilter)}
-              data-testid="filter-level"
-            >
-              {LEVEL_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={state.level}
+            onChange={(e) => setLevel((e.target as HTMLSelectElement).value as LevelFilter)}
+            data-testid="filter-level"
+          >
+            {LEVEL_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         ),
       },
       function: {
         active: state.func !== "",
         label: "Function",
         content: (
-          <div>
-            <div class={filterStyles.heading}>Function name</div>
-            <input
-              type="text"
-              value={state.func}
-              placeholder="Filter..."
-              onInput={(e) => setFunc((e.target as HTMLInputElement).value)}
-              data-testid="filter-fn"
-            />
-          </div>
+          <input
+            type="text"
+            value={state.func}
+            placeholder="Filter..."
+            onInput={(e) => setFunc((e.target as HTMLInputElement).value)}
+            data-testid="filter-fn"
+          />
         ),
       },
     };
@@ -209,21 +203,18 @@ export function useLogTable({
               ))}
             </div>
             {state.tier !== "framework" && appKeys && appKeys.length > 0 && (
-              <>
-                <div class={filterStyles.heading}>App</div>
-                <select
-                  value={state.app}
-                  onChange={(e) => setApp((e.target as HTMLSelectElement).value)}
-                  data-testid="filter-app"
-                >
-                  <option value="">All apps</option>
-                  {appKeys.map((key) => (
-                    <option key={key} value={key}>
-                      {key}
-                    </option>
-                  ))}
-                </select>
-              </>
+              <select
+                value={state.app}
+                onChange={(e) => setApp((e.target as HTMLSelectElement).value)}
+                data-testid="filter-app"
+              >
+                <option value="">All apps</option>
+                {appKeys.map((key) => (
+                  <option key={key} value={key}>
+                    {key}
+                  </option>
+                ))}
+              </select>
             )}
           </div>
         ),
@@ -250,7 +241,7 @@ export function useLogTable({
   return {
     tableProps: {
       visibleColumns,
-      sortConfig: state.sort,
+      sort: state.sort,
       onSort: setSort,
       columnFilters,
       entries: cappedEntries,

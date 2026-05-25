@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { LogEntry } from "../../../api/endpoints";
-import { levelClass, resolveSortColumn } from "./constants";
+import { levelClass, resolveSortKey } from "./constants";
 import { rowKey } from "./types";
 import { sortEntries } from "./use-log-filters";
 
@@ -27,13 +27,13 @@ describe("sortEntries", () => {
       entry({ timestamp: 3000, message: "new" }),
       entry({ timestamp: 2000, message: "mid" }),
     ];
-    const result = sortEntries(entries, "timestamp", false);
+    const result = sortEntries(entries, { key: "timestamp", dir: "desc" });
     expect(result.map((e) => e.message)).toEqual(["new", "mid", "old"]);
   });
 
   it("sorts by timestamp ascending", () => {
     const entries = [entry({ timestamp: 3000, message: "new" }), entry({ timestamp: 1000, message: "old" })];
-    const result = sortEntries(entries, "timestamp", true);
+    const result = sortEntries(entries, { key: "timestamp", dir: "asc" });
     expect(result.map((e) => e.message)).toEqual(["old", "new"]);
   });
 
@@ -45,7 +45,7 @@ describe("sortEntries", () => {
       entry({ level: "ERROR", message: "error" }),
       entry({ level: "WARNING", message: "warn" }),
     ];
-    const result = sortEntries(entries, "level", false);
+    const result = sortEntries(entries, { key: "level", dir: "desc" });
     expect(result.map((e) => e.message)).toEqual(["crit", "error", "warn", "info", "debug"]);
   });
 
@@ -55,40 +55,40 @@ describe("sortEntries", () => {
       entry({ func_name: "alpha", message: "a" }),
       entry({ func_name: "bravo", message: "b" }),
     ];
-    const result = sortEntries(entries, "function", true);
+    const result = sortEntries(entries, { key: "function", dir: "asc" });
     expect(result.map((e) => e.message)).toEqual(["a", "b", "c"]);
   });
 
   it("does not mutate the original array", () => {
     const entries = [entry({ timestamp: 2000 }), entry({ timestamp: 1000 })];
     const original = [...entries];
-    sortEntries(entries, "timestamp", true);
+    sortEntries(entries, { key: "timestamp", dir: "asc" });
     expect(entries).toEqual(original);
   });
 
   it("handles null app_key by sorting nulls last", () => {
     const entries = [entry({ app_key: null, message: "null" }), entry({ app_key: "alpha", message: "alpha" })];
-    const result = sortEntries(entries, "app", true);
+    const result = sortEntries(entries, { key: "app", dir: "asc" });
     expect(result.map((e) => e.message)).toEqual(["alpha", "null"]);
   });
 });
 
-describe("resolveSortColumn", () => {
+describe("resolveSortKey", () => {
   it("returns the column as-is for valid sort columns", () => {
-    expect(resolveSortColumn("timestamp")).toBe("timestamp");
-    expect(resolveSortColumn("level")).toBe("level");
-    expect(resolveSortColumn("app")).toBe("app");
-    expect(resolveSortColumn("function")).toBe("function");
-    expect(resolveSortColumn("message")).toBe("message");
+    expect(resolveSortKey("timestamp")).toBe("timestamp");
+    expect(resolveSortKey("level")).toBe("level");
+    expect(resolveSortKey("app")).toBe("app");
+    expect(resolveSortKey("function")).toBe("function");
+    expect(resolveSortKey("message")).toBe("message");
   });
 
   it("maps deprecated 'source' alias to 'function'", () => {
-    expect(resolveSortColumn("source")).toBe("function");
+    expect(resolveSortKey("source")).toBe("function");
   });
 
   it("falls back to 'timestamp' for invalid input", () => {
-    expect(resolveSortColumn("bogus")).toBe("timestamp");
-    expect(resolveSortColumn("")).toBe("timestamp");
+    expect(resolveSortKey("bogus")).toBe("timestamp");
+    expect(resolveSortKey("")).toBe("timestamp");
   });
 });
 

@@ -1,19 +1,27 @@
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../../hooks/use-media-query";
 import { SortHeader } from "../sort-header";
 import type { ColumnFilters } from "../table-types";
-import { COLUMN_MAP } from "./constants";
+import { COLUMN_MAP, DEFAULT_SORT } from "./constants";
 import styles from "./log-table-header.module.css";
-import type { ColumnId, SortColumn, SortConfig } from "./types";
+import type { ColumnId, LogSortState } from "./types";
 
 interface Props {
   visibleColumns: ColumnId[];
-  sortConfig: SortConfig;
-  onSort: (col: SortColumn) => void;
+  sort: LogSortState;
+  onSort: (sort: LogSortState) => void;
   columnFilters: ColumnFilters;
 }
 
-export function LogTableHeader({ visibleColumns, sortConfig, onSort, columnFilters }: Props) {
+export function LogTableHeader({ visibleColumns, sort, onSort, columnFilters }: Props) {
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
+
+  const handleSort = (next: LogSortState) => {
+    if (next.key === DEFAULT_SORT.key && sort.key !== DEFAULT_SORT.key) {
+      onSort(DEFAULT_SORT);
+      return;
+    }
+    onSort(next);
+  };
 
   return (
     <thead class={styles.thead}>
@@ -23,55 +31,15 @@ export function LogTableHeader({ visibleColumns, sortConfig, onSort, columnFilte
           const displayLabel = isMobile && col.shortLabel ? col.shortLabel : col.label;
           const filter = columnFilters[id];
 
-          // Build manual sort props for SortHeader (log table uses SortColumn/SortConfig)
-          const isActive = col.sortKey ? sortConfig.column === col.sortKey : false;
-          const direction = isActive ? (sortConfig.asc ? "asc" : "desc") : "asc";
+          const sortProps = col.sortKey ? { sortKey: col.sortKey, sort, onSort: handleSort } : {};
+          const filterProps = filter ? { filterContent: filter.content, hasActiveFilter: filter.active } : {};
 
-          if (col.sortKey && filter) {
-            return (
-              <SortHeader
-                key={id}
-                active={isActive}
-                direction={direction}
-                onClick={() => onSort(col.sortKey!)}
-                filterContent={filter.content}
-                hasActiveFilter={filter.active}
-                ariaLabel={col.ariaLabel}
-                data-testid={`sort-${col.sortKey}`}
-              >
-                {displayLabel}
-              </SortHeader>
-            );
-          }
-          if (col.sortKey) {
-            return (
-              <SortHeader
-                key={id}
-                active={isActive}
-                direction={direction}
-                onClick={() => onSort(col.sortKey!)}
-                ariaLabel={col.ariaLabel}
-                data-testid={`sort-${col.sortKey}`}
-              >
-                {displayLabel}
-              </SortHeader>
-            );
-          }
-          if (filter) {
-            return (
-              <SortHeader
-                key={id}
-                filterContent={filter.content}
-                hasActiveFilter={filter.active}
-                ariaLabel={col.ariaLabel}
-                data-testid={`filter-${id}-col`}
-              >
-                {displayLabel}
-              </SortHeader>
-            );
-          }
+          let testId = `col-${id}`;
+          if (col.sortKey) testId = `sort-${col.sortKey}`;
+          else if (filter) testId = `filter-${id}-col`;
+
           return (
-            <SortHeader key={id} ariaLabel={col.ariaLabel}>
+            <SortHeader key={id} {...sortProps} {...filterProps} ariaLabel={col.ariaLabel} data-testid={testId}>
               {displayLabel}
             </SortHeader>
           );

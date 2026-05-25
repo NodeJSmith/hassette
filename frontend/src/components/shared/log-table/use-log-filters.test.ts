@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "../../../api/endpoints";
-import { SEARCH_DEBOUNCE_MS } from "./constants";
+import { DEFAULT_SORT, SEARCH_DEBOUNCE_MS } from "./constants";
 import type { LevelFilter } from "./types";
 import { useLogFilters } from "./use-log-filters";
 
@@ -287,40 +287,40 @@ describe("sort", () => {
     expect(messages).toEqual(["new", "mid", "old"]);
   });
 
-  it("toggles timestamp to ascending on second click", () => {
+  it("applies sort state directly", () => {
     const entries = [entry({ timestamp: 1000, message: "old" }), entry({ timestamp: 3000, message: "new" })];
     const { hook } = renderLocal(entries);
-    act(() => hook.result.current.setSort("timestamp"));
+    act(() => hook.result.current.setSort({ key: "timestamp", dir: "asc" }));
     const messages = hook.result.current.filtered.map((e) => e.message);
     expect(messages).toEqual(["old", "new"]);
   });
 
-  it("switches to new column descending on first click of that column", () => {
+  it("applies a different sort column", () => {
     const entries = [entry({ level: "DEBUG", message: "debug" }), entry({ level: "CRITICAL", message: "crit" })];
     const { hook } = renderLocal(entries);
     act(() => hook.result.current.setLevel(""));
-    act(() => hook.result.current.setSort("level"));
+    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
     const { sort } = hook.result.current.filterState.value;
-    expect(sort.column).toBe("level");
-    expect(sort.asc).toBe(false);
+    expect(sort.key).toBe("level");
+    expect(sort.dir).toBe("desc");
   });
 
-  it("toggles same non-timestamp column to ascending on second click", () => {
+  it("can toggle direction on same column", () => {
     const { hook } = renderLocal();
-    act(() => hook.result.current.setSort("level"));
-    act(() => hook.result.current.setSort("level"));
+    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
+    act(() => hook.result.current.setSort({ key: "level", dir: "asc" }));
     const { sort } = hook.result.current.filterState.value;
-    expect(sort.column).toBe("level");
-    expect(sort.asc).toBe(true);
+    expect(sort.key).toBe("level");
+    expect(sort.dir).toBe("asc");
   });
 
   it("resets to timestamp desc on resetSort", () => {
     const { hook } = renderLocal();
-    act(() => hook.result.current.setSort("level"));
+    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
     act(() => hook.result.current.resetSort());
     const { sort } = hook.result.current.filterState.value;
-    expect(sort.column).toBe("timestamp");
-    expect(sort.asc).toBe(false);
+    expect(sort.key).toBe("timestamp");
+    expect(sort.dir).toBe("desc");
   });
 });
 
@@ -336,7 +336,7 @@ describe("livePaused", () => {
 
   it("is true when sorting by any non-timestamp column", () => {
     const { hook } = renderLocal();
-    act(() => hook.result.current.setSort("level"));
+    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
     expect(hook.result.current.livePaused.value).toBe(true);
   });
 
@@ -346,7 +346,7 @@ describe("livePaused", () => {
     const { hook } = renderLocal(live, rest);
 
     act(() => {
-      hook.result.current.setSort("level");
+      hook.result.current.setSort({ key: "level", dir: "desc" });
     });
 
     // After sorting by level, livePaused=true, so restEntries is the source
@@ -372,7 +372,7 @@ describe("livePaused", () => {
     const { hook } = renderLocal(live, rest);
 
     // Pause by sorting by level
-    act(() => hook.result.current.setSort("level"));
+    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
     expect(hook.result.current.filtered.map((e) => e.message)).toContain("rest");
 
     // Unpause by resetting sort
@@ -459,8 +459,8 @@ describe("URL state mode", () => {
     mockSearch = "sort=level&dir=asc";
     const { hook } = renderUrl();
     const { sort } = hook.result.current.filterState.value;
-    expect(sort.column).toBe("level");
-    expect(sort.asc).toBe(true);
+    expect(sort.key).toBe("level");
+    expect(sort.dir).toBe("asc");
   });
 
   it("resets sort by clearing params from URL", () => {
@@ -476,7 +476,7 @@ describe("URL state mode", () => {
     mockSearch = "sort=level";
     const { hook } = renderUrl();
     // Click level once (desc) then timestamp (goes back to default desc)
-    act(() => hook.result.current.setSort("timestamp"));
+    act(() => hook.result.current.setSort(DEFAULT_SORT));
     const lastCall = mockNavigate.mock.calls[mockNavigate.mock.calls.length - 1];
     const [url] = lastCall;
     expect(url).not.toContain("sort");

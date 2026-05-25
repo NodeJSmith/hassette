@@ -1,6 +1,6 @@
 export { LogTableView } from "./log-table-view";
 export { LogTableWithDrawer } from "./log-table-with-drawer";
-export type { ColumnId, FilterState, SortColumn, ViewContext } from "./types";
+export type { ColumnId, FilterState, LogSortKey, LogSortState, ViewContext } from "./types";
 export { sortEntries } from "./use-log-filters";
 export type {
   ColumnPickerProps,

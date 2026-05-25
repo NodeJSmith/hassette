@@ -1,13 +1,11 @@
 import type { LogEntry } from "../../../api/endpoints";
+import type { SortState } from "../sort-header";
 
 export type ColumnId = "level" | "timestamp" | "app" | "instance" | "execution" | "function" | "module" | "message";
 
-export type SortColumn = "timestamp" | "level" | "app" | "function" | "message";
+export type LogSortKey = "timestamp" | "level" | "app" | "function" | "message";
 
-export interface SortConfig {
-  column: SortColumn;
-  asc: boolean;
-}
+export type LogSortState = SortState<LogSortKey>;
 
 export type LevelFilter = "" | "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
 
@@ -19,7 +17,7 @@ export interface FilterState {
   app: string;
   search: string;
   func: string;
-  sort: SortConfig;
+  sort: LogSortState;
 }
 
 export type ViewContext = "global" | "app" | "execution";
@@ -28,7 +26,7 @@ export interface ColumnDef {
   id: ColumnId;
   label: string;
   shortLabel?: string;
-  sortKey?: SortColumn;
+  sortKey?: LogSortKey;
   filterable: boolean;
   width: string;
   mobileWidth: string;

@@ -36,7 +36,6 @@
 
 .row {
   transition: background var(--t-fast) var(--ease);
-  cursor: pointer;
 }
 
 .rowDimmed {
@@ -167,6 +166,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .appsTable {
+    table-layout: auto;
   }
 
   .appsTable thead th:nth-child(n + 3),
