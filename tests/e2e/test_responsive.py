@@ -177,6 +177,59 @@ def test_log_table_app_tag_at_375px(page: Page, base_url: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────
+# Mobile table layout — no horizontal scroll
+# ──────────────────────────────────────────────────────────────────────
+
+SMALL_MOBILE_VIEWPORT = {"width": 320, "height": 480}
+
+
+def test_log_table_no_horizontal_scroll_at_320px(page: Page, base_url: str) -> None:
+    """Log table must not allow horizontal scrolling on small mobile viewports."""
+    page.set_viewport_size(SMALL_MOBILE_VIEWPORT)
+    page.goto(base_url + "/logs")
+    page.locator("text=/\\d+ entr/").wait_for(timeout=5000)
+
+    table = page.locator("[data-testid='log-table']")
+    expect(table).to_be_visible()
+
+    overflow_x = table.evaluate("el => getComputedStyle(el).overflowX")
+    assert overflow_x not in ("auto", "scroll"), (
+        f"Log table has overflow-x: {overflow_x} — must be hidden or visible to prevent horizontal scroll"
+    )
+
+    scroll_container = page.locator(".ht-table-card-scroll")
+    can_scroll = scroll_container.evaluate("el => el.scrollWidth > el.clientWidth")
+    assert not can_scroll, "Table scroll container is wider than viewport — horizontal scroll possible"
+
+
+def test_log_table_no_horizontal_scroll_at_375px(page: Page, base_url: str) -> None:
+    """Log table must not allow horizontal scrolling at standard mobile width."""
+    page.set_viewport_size(MOBILE_VIEWPORT)
+    page.goto(base_url + "/logs")
+    page.locator("text=/\\d+ entr/").wait_for(timeout=5000)
+
+    table = page.locator("[data-testid='log-table']")
+    expect(table).to_be_visible()
+
+    overflow_x = table.evaluate("el => getComputedStyle(el).overflowX")
+    assert overflow_x not in ("auto", "scroll"), (
+        f"Log table has overflow-x: {overflow_x} — must be hidden or visible to prevent horizontal scroll"
+    )
+
+
+def test_apps_table_columns_fill_width_at_mobile(page: Page, base_url: str) -> None:
+    """Visible apps table columns should fill the full table width on mobile."""
+    page.set_viewport_size(MOBILE_VIEWPORT)
+    page.goto(base_url + "/apps")
+
+    table = page.locator("[data-testid='apps-table']")
+    expect(table).to_be_visible()
+
+    table_layout = table.evaluate("el => getComputedStyle(el).tableLayout")
+    assert table_layout == "auto", f"Apps table should use table-layout: auto on mobile, got: {table_layout}"
+
+
+# ──────────────────────────────────────────────────────────────────────
 # Handler detail drill-down on narrow viewport
 # ──────────────────────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-import { render } from "@testing-library/preact";
+import { fireEvent, render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ColumnFilters } from "../table-types";
@@ -11,7 +11,8 @@ vi.mock("../../../hooks/use-media-query", () => ({
 }));
 
 // Stub SortHeader so tests focus on LogTableHeader's own rendering logic.
-// Managed mode receives sortKey/sort/onSort; emit enough attributes to verify.
+// Simulates managed mode: renders attributes for visual checks, and on click
+// calls onSort with the same cycling logic as real SortHeader managed mode.
 vi.mock("../sort-header", () => ({
   SortHeader: (props: {
     children: preact.ComponentChildren;
@@ -26,6 +27,11 @@ vi.mock("../sort-header", () => ({
     const hasSortKey = props.sortKey !== undefined;
     const isActive = hasSortKey && props.sort?.key === props.sortKey;
     const direction = isActive ? props.sort!.dir : "asc";
+    const handleClick = () => {
+      if (hasSortKey && props.onSort) {
+        props.onSort({ key: props.sortKey!, dir: isActive && direction === "asc" ? "desc" : "asc" });
+      }
+    };
     return (
       <th
         data-testid={props["data-testid"]}
@@ -33,6 +39,7 @@ vi.mock("../sort-header", () => ({
         data-sort-active={hasSortKey ? String(isActive) : undefined}
         data-sort-direction={hasSortKey ? direction : undefined}
         data-has-filter={props.filterContent !== undefined ? String(!!props.hasActiveFilter) : undefined}
+        onClick={handleClick}
       >
         {props.children}
       </th>
@@ -262,6 +269,41 @@ describe("LogTableHeader", () => {
     it("renders 'Level' for the level column", () => {
       const { container } = renderHeader({ visibleColumns: ["level"] });
       expect(container.querySelector("th")!.textContent).toContain("Level");
+    });
+  });
+
+  describe("handleSort — timestamp default direction", () => {
+    it("overrides to desc when clicking timestamp while another column is active", () => {
+      const onSort = vi.fn();
+      const { container } = renderHeader({
+        visibleColumns: ["level", "timestamp"],
+        sort: { key: "level" as const, dir: "desc" as const },
+        onSort,
+      });
+      fireEvent.click(container.querySelector("[data-testid='sort-timestamp']")!);
+      expect(onSort).toHaveBeenCalledWith({ key: "timestamp", dir: "desc" });
+    });
+
+    it("allows normal asc/desc cycling when timestamp is already active", () => {
+      const onSort = vi.fn();
+      const { container } = renderHeader({
+        visibleColumns: ["timestamp"],
+        sort: DEFAULT_SORT,
+        onSort,
+      });
+      fireEvent.click(container.querySelector("[data-testid='sort-timestamp']")!);
+      expect(onSort).toHaveBeenCalledWith({ key: "timestamp", dir: "asc" });
+    });
+
+    it("does not override direction for non-timestamp columns", () => {
+      const onSort = vi.fn();
+      const { container } = renderHeader({
+        visibleColumns: ["level", "timestamp"],
+        sort: DEFAULT_SORT,
+        onSort,
+      });
+      fireEvent.click(container.querySelector("[data-testid='sort-level']")!);
+      expect(onSort).toHaveBeenCalledWith({ key: "level", dir: "asc" });
     });
   });
 });
