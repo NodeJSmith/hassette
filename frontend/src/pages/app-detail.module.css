@@ -77,11 +77,11 @@
   gap: var(--sp-2);
   padding: var(--sp-4);
   background: var(--bg-surface);
-  border: 1px solid var(--line-1);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-md);
   text-align: left;
   cursor: pointer;
-  box-shadow: var(--shadow-1);
+  box-shadow: var(--shadow-2);
   transition:
     border-color var(--t-fast),
     box-shadow var(--t-fast);
@@ -91,8 +91,7 @@
 }
 
 .instanceCard:hover {
-  border-color: var(--line-strong);
-  box-shadow: var(--shadow-2);
+  box-shadow: var(--shadow-3);
 }
 
 .instanceCard:focus-visible {

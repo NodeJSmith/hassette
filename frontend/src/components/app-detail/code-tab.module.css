@@ -73,13 +73,11 @@
 
 .body :global(.shiki) span:global(.line--annotated) {
   background: var(--code-annotate-bg);
-  box-shadow: inset 3px 0 0 var(--ink-3);
   cursor: help;
 }
 
 .body :global(.shiki) span:global(.line--focus) {
   background: var(--code-focus-bg);
-  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .body :global(.shiki) :global(.line-num) {
