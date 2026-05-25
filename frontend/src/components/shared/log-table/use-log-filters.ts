@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef } from "preact/hooks";
 import type { LogEntry } from "../../../api/endpoints";
 import { useQueryParams } from "../../../hooks/use-query-params";
 import { useSignal } from "../../../hooks/use-signal";
-import { ALL_LEVELS, DEFAULT_LEVEL, LEVEL_INDEX, LEVELS, resolveSortColumn, SEARCH_DEBOUNCE_MS } from "./constants";
-import type { FilterState, LevelFilter, SortColumn, SortConfig, TierFilter } from "./types";
+import { ALL_LEVELS, DEFAULT_LEVEL, LEVEL_INDEX, LEVELS, resolveSortKey, SEARCH_DEBOUNCE_MS } from "./constants";
+import type { FilterState, LevelFilter, LogSortState, TierFilter } from "./types";
 
 interface UseLogFiltersParams {
   allEntries: LogEntry[];
@@ -24,25 +24,15 @@ interface UseLogFiltersResult {
   setApp: (app: string) => void;
   setSearch: (search: string) => void;
   setFunc: (func: string) => void;
-  setSort: (column: SortColumn) => void;
+  setSort: (sort: LogSortState) => void;
   resetSort: () => void;
   resetFilters: () => void;
 }
 
-function nextSortState(clicked: SortColumn, currentCol: SortColumn, currentAsc: boolean): SortConfig {
-  if (clicked === "timestamp") {
-    return { column: "timestamp", asc: currentCol === "timestamp" ? !currentAsc : false };
-  }
-  if (currentCol === clicked) {
-    return { column: clicked, asc: !currentAsc };
-  }
-  return { column: clicked, asc: false };
-}
-
-export function sortEntries(entries: readonly LogEntry[], column: SortColumn, asc: boolean): LogEntry[] {
-  const direction = asc ? 1 : -1;
+export function sortEntries(entries: readonly LogEntry[], sort: LogSortState): LogEntry[] {
+  const direction = sort.dir === "asc" ? 1 : -1;
   return [...entries].sort((a, b) => {
-    switch (column) {
+    switch (sort.key) {
       case "timestamp":
         return (a.timestamp - b.timestamp) * direction;
       case "level":
@@ -80,8 +70,7 @@ export function useLogFilters({
   const localApp = useSignal("");
   const localSearch = useSignal("");
   const localFunc = useSignal("");
-  const localSortColumn = useSignal<SortColumn>("timestamp");
-  const localSortAsc = useSignal(false);
+  const localSort = useSignal<LogSortState>({ key: "timestamp", dir: "desc" });
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -99,7 +88,7 @@ export function useLogFilters({
         app: localApp.value,
         search: localSearch.value,
         func: localFunc.value,
-        sort: { column: localSortColumn.value, asc: localSortAsc.value },
+        sort: localSort.value,
       };
     }
 
@@ -112,13 +101,13 @@ export function useLogFilters({
     const search = current.get("search") ?? "";
     const func = current.get("func") ?? current.get("fn") ?? "";
     const rawSort = current.get("sort") ?? "timestamp";
-    const column = resolveSortColumn(rawSort);
-    const sortAsc = current.get("dir") === "asc";
+    const key = resolveSortKey(rawSort);
+    const dir = current.get("dir") === "asc" ? "asc" : "desc";
 
-    return { level, tier, app, search, func, sort: { column, asc: sortAsc } };
+    return { level, tier, app, search, func, sort: { key, dir } };
   });
 
-  const livePaused = computed(() => filterState.value.sort.column !== "timestamp");
+  const livePaused = computed(() => filterState.value.sort.key !== "timestamp");
 
   const paused = livePaused.value;
   const { level, tier, app, search, func, sort } = filterState.value;
@@ -155,8 +144,8 @@ export function useLogFilters({
       result = result.filter((e) => (e.func_name ?? "").toLowerCase().includes(lower));
     }
 
-    return sortEntries(result, sort.column, sort.asc);
-  }, [source, level, tier, app, search, func, sort.column, sort.asc]);
+    return sortEntries(result, sort);
+  }, [source, level, tier, app, search, func, sort.key, sort.dir]);
 
   function setLevel(level: LevelFilter) {
     if (useLocalState) {
@@ -208,25 +197,18 @@ export function useLogFilters({
     qpRef.current.set({ func: func || null, fn: null });
   }
 
-  function setSort(column: SortColumn) {
+  function setSort(next: LogSortState) {
     if (useLocalState) {
-      const next = nextSortState(column, localSortColumn.value, localSortAsc.value);
-      localSortColumn.value = next.column;
-      localSortAsc.value = next.asc;
+      localSort.value = next;
       return;
     }
-    const current = qpRef.current;
-    const currentCol = resolveSortColumn(current.get("sort") ?? "timestamp");
-    const currentAsc = current.get("dir") === "asc";
-    const next = nextSortState(column, currentCol, currentAsc);
-    const isDefault = next.column === "timestamp" && !next.asc;
-    current.set({ sort: isDefault ? null : next.column, dir: next.asc ? "asc" : null });
+    const isDefault = next.key === "timestamp" && next.dir === "desc";
+    qpRef.current.set({ sort: isDefault ? null : next.key, dir: next.dir === "asc" ? "asc" : null });
   }
 
   function resetSort() {
     if (useLocalState) {
-      localSortColumn.value = "timestamp";
-      localSortAsc.value = false;
+      localSort.value = { key: "timestamp", dir: "desc" };
       return;
     }
     qpRef.current.set({ sort: null, dir: null });

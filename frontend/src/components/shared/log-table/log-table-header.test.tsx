@@ -2,7 +2,7 @@ import { render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ColumnFilters } from "../table-types";
-import type { ColumnId, SortColumn, SortConfig } from "./types";
+import type { ColumnId, LogSortState } from "./types";
 
 vi.mock("../../../hooks/use-media-query", () => ({
   useMediaQuery: vi.fn(() => false),
@@ -10,28 +10,33 @@ vi.mock("../../../hooks/use-media-query", () => ({
 }));
 
 // Stub SortHeader so tests focus on LogTableHeader's own rendering logic.
-// Emit enough attributes to let tests distinguish sort vs filter vs plain.
+// Managed mode receives sortKey/sort/onSort; emit enough attributes to verify.
 vi.mock("../sort-header", () => ({
   SortHeader: (props: {
     children: preact.ComponentChildren;
-    onClick?: () => void;
+    sortKey?: string;
+    sort?: { key: string; dir: "asc" | "desc" };
+    onSort?: (s: { key: string; dir: "asc" | "desc" }) => void;
     filterContent?: preact.ComponentChildren;
     hasActiveFilter?: boolean;
-    active?: boolean;
-    direction?: "asc" | "desc";
     ariaLabel?: string;
     "data-testid"?: string;
-  }) => (
-    <th
-      data-testid={props["data-testid"]}
-      aria-label={props.ariaLabel}
-      data-sort-active={props.onClick !== undefined ? String(props.active ?? false) : undefined}
-      data-sort-direction={props.onClick !== undefined ? props.direction : undefined}
-      data-has-filter={props.filterContent !== undefined ? String(!!props.hasActiveFilter) : undefined}
-    >
-      {props.children}
-    </th>
-  ),
+  }) => {
+    const hasSortKey = props.sortKey !== undefined;
+    const isActive = hasSortKey && props.sort?.key === props.sortKey;
+    const direction = isActive ? props.sort!.dir : "asc";
+    return (
+      <th
+        data-testid={props["data-testid"]}
+        aria-label={props.ariaLabel}
+        data-sort-active={hasSortKey ? String(isActive) : undefined}
+        data-sort-direction={hasSortKey ? direction : undefined}
+        data-has-filter={props.filterContent !== undefined ? String(!!props.hasActiveFilter) : undefined}
+      >
+        {props.children}
+      </th>
+    );
+  },
 }));
 
 import { LogTableHeader } from "./log-table-header";
@@ -43,7 +48,7 @@ import { LogTableHeader } from "./log-table-header";
 function renderHeader(props: Partial<Parameters<typeof LogTableHeader>[0]> = {}) {
   const defaults = {
     visibleColumns: ["level", "timestamp", "app", "message"] as ColumnId[],
-    sortConfig: { column: "timestamp" as SortColumn, asc: false },
+    sort: { key: "timestamp", dir: "desc" } as LogSortState,
     onSort: vi.fn(),
     columnFilters: {} as ColumnFilters,
   };
@@ -137,50 +142,50 @@ describe("LogTableHeader", () => {
 
   describe("active sort direction", () => {
     it("marks the active sort column with data-sort-active='true'", () => {
-      const sortConfig: SortConfig = { column: "timestamp", asc: false };
+      const sort: LogSortState = { key: "timestamp", dir: "desc" };
       const { container } = renderHeader({
         visibleColumns: ["level", "timestamp"],
-        sortConfig,
+        sort,
       });
       const tsTh = container.querySelector("[data-testid='sort-timestamp']");
       expect(tsTh!.getAttribute("data-sort-active")).toBe("true");
     });
 
     it("marks the inactive sort column with data-sort-active='false'", () => {
-      const sortConfig: SortConfig = { column: "timestamp", asc: false };
+      const sort: LogSortState = { key: "timestamp", dir: "desc" };
       const { container } = renderHeader({
         visibleColumns: ["level", "timestamp"],
-        sortConfig,
+        sort,
       });
       const lvlTh = container.querySelector("[data-testid='sort-level']");
       expect(lvlTh!.getAttribute("data-sort-active")).toBe("false");
     });
 
     it("passes direction='desc' to the active column when asc=false", () => {
-      const sortConfig: SortConfig = { column: "timestamp", asc: false };
+      const sort: LogSortState = { key: "timestamp", dir: "desc" };
       const { container } = renderHeader({
         visibleColumns: ["timestamp"],
-        sortConfig,
+        sort,
       });
       const th = container.querySelector("[data-testid='sort-timestamp']");
       expect(th!.getAttribute("data-sort-direction")).toBe("desc");
     });
 
     it("passes direction='asc' to the active column when asc=true", () => {
-      const sortConfig: SortConfig = { column: "level", asc: true };
+      const sort: LogSortState = { key: "level", dir: "asc" };
       const { container } = renderHeader({
         visibleColumns: ["level"],
-        sortConfig,
+        sort,
       });
       const th = container.querySelector("[data-testid='sort-level']");
       expect(th!.getAttribute("data-sort-direction")).toBe("asc");
     });
 
-    it("passes direction='asc' to inactive sortable columns regardless of sortConfig", () => {
-      const sortConfig: SortConfig = { column: "timestamp", asc: false };
+    it("passes direction='asc' to inactive sortable columns regardless of active sort", () => {
+      const sort: LogSortState = { key: "timestamp", dir: "desc" };
       const { container } = renderHeader({
         visibleColumns: ["level", "timestamp"],
-        sortConfig,
+        sort,
       });
       const lvlTh = container.querySelector("[data-testid='sort-level']");
       expect(lvlTh!.getAttribute("data-sort-direction")).toBe("asc");

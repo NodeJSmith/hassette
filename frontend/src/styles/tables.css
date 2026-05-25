@@ -73,6 +73,7 @@
 }
 
 @media screen and (max-width: 768px) {
+  .ht-table--fixed,
   .ht-table--compact {
     table-layout: auto;
   }

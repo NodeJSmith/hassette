@@ -24,7 +24,7 @@ vi.mock("../components/shared/log-table", () => ({
   useLogTable: () => ({
     tableProps: {
       visibleColumns: [],
-      sortConfig: { column: "timestamp", asc: false },
+      sort: { key: "timestamp", dir: "desc" },
       onSort: vi.fn(),
       columnFilters: {},
       entries: [],

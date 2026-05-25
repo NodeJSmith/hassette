@@ -6,7 +6,7 @@ import type { LogTableViewProps } from "./use-log-table";
 
 export function LogTableView({
   visibleColumns,
-  sortConfig,
+  sort,
   onSort,
   columnFilters,
   entries,
@@ -23,12 +23,7 @@ export function LogTableView({
           return <col key={id} style={w ? { width: w } : undefined} />;
         })}
       </colgroup>
-      <LogTableHeader
-        visibleColumns={visibleColumns}
-        sortConfig={sortConfig}
-        onSort={onSort}
-        columnFilters={columnFilters}
-      />
+      <LogTableHeader visibleColumns={visibleColumns} sort={sort} onSort={onSort} columnFilters={columnFilters} />
       <tbody>
         {entries.map((entry) => {
           const key = rowKey(entry);

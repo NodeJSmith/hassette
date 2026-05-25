@@ -31,16 +31,6 @@
   border-color: var(--accent);
 }
 
-.heading {
-  display: block;
-  font-family: var(--font-body);
-  font-size: var(--fs-micro);
-  color: var(--ink-3);
-  text-transform: uppercase;
-  letter-spacing: var(--tr-label-tight);
-  margin-bottom: var(--sp-1);
-}
-
 /* App filter: tier section + app list */
 .tierGroup {
   display: flex;
