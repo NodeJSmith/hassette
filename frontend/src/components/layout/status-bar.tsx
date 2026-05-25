@@ -2,11 +2,10 @@ import clsx from "clsx";
 import type { RefObject } from "preact";
 
 import { useAppState } from "../../state/context";
+import type { ConnectionStatus } from "../../state/create-app-state";
 import { setStoredValue } from "../../utils/local-storage";
 import styles from "./status-bar.module.css";
 import { TimePresetSelector } from "./time-preset-selector";
-
-type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
 
 const STATUS_CONFIG: Record<ConnectionStatus, { dotClass: string; label: string }> = {
   connecting: { dotClass: clsx(styles.pulseDot, styles.pulseDotConnecting), label: "Connecting..." },

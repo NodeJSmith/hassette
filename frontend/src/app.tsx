@@ -49,9 +49,11 @@ export function App() {
     };
   }, [state]);
 
+  const pathname = location.split("?")[0];
+
   useEffect(() => {
     setDrawerOpen(false);
-  }, [location]);
+  }, [pathname]);
 
   useEffect(() => {
     if (drawerOpen) {
