@@ -6,12 +6,12 @@
 
 /* — Light Theme (default) ——————————————————————————— */
 :root {
-  /* Surfaces */
-  --bg-page: #edede8;
-  --bg-surface: #fafaf8;
-  --bg-sunken: #f2f2ee;
-  --bg-active: #eaeae5;
-  --bg-chrome: #f4f4f0;
+  /* Surfaces — tinted toward accent hue */
+  --bg-page: oklch(0.95 0.006 var(--accent-hue));
+  --bg-surface: oklch(0.995 0.002 var(--accent-hue));
+  --bg-sunken: oklch(0.955 0.006 var(--accent-hue));
+  --bg-active: oklch(0.92 0.01 var(--accent-hue));
+  --bg-chrome: oklch(0.96 0.005 var(--accent-hue));
 
   /* Ink (text) */
   --ink-1: #16181c;

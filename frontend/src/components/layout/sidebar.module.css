@@ -1,8 +1,7 @@
 /* — Sidebar shell —————————————————————————————————————— */
 .sidebar {
   width: 240px;
-  background: var(--bg-chrome);
-  border-right: 1px solid var(--line-1);
+  background: transparent;
   color: var(--ink-2);
   display: flex;
   flex-direction: column;

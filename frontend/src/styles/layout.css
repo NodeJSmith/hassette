@@ -7,11 +7,15 @@
   min-height: 100vh;
   min-height: 100dvh;
   position: relative;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) 0;
 }
 
 .ht-main {
   grid-column: 2;
-  background: var(--bg-page);
+  background: var(--bg-surface);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  box-shadow: var(--shadow-2);
   overflow-y: auto;
   min-width: 0;
   display: flex;

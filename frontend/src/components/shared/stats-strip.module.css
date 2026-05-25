@@ -3,9 +3,9 @@
   grid-template-columns: repeat(var(--stats-cols, 7), 1fr);
   gap: 0;
   background: var(--bg-sunken);
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-1);
+  box-shadow: var(--shadow-2);
   overflow: hidden;
   margin-bottom: var(--sp-4);
 }
