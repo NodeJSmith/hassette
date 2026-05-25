@@ -35,6 +35,11 @@
 /* — Responsive: mobile layout below 768px ———————————————— */
 /* Tables inside cards: horizontal scroll (moved from layout.css) */
 @media screen and (max-width: 768px) {
+  .card {
+    box-shadow: var(--shadow-1);
+    border-color: var(--line-1);
+  }
+
   .card :global(.ht-table) {
     display: block;
     overflow-x: auto;

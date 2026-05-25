@@ -137,11 +137,15 @@
 
   .ht-layout {
     grid-template-columns: 1fr;
+    gap: 0;
+    padding: 0;
   }
 
   .ht-main {
     grid-column: 1;
     padding-top: calc(var(--sp-3) * 2 + var(--sz-touch));
+    border-radius: 0;
+    box-shadow: none;
   }
 }
 
@@ -155,11 +159,11 @@
   }
 
   .ht-page {
-    padding: var(--sp-4);
+    padding: var(--sp-3);
   }
 
   .ht-section {
-    padding: var(--sp-4);
+    padding: var(--sp-3);
   }
 
   /* Level: wrap */
@@ -178,7 +182,11 @@
 /* — Responsive: small phones (max-width: 480px) ———————— */
 /* sync: BREAKPOINT_SMALL_MOBILE in use-media-query.ts */
 @media screen and (max-width: 480px) {
+  .ht-page {
+    padding: var(--sp-2);
+  }
+
   .ht-section {
-    padding: var(--sp-3);
+    padding: var(--sp-2);
   }
 }

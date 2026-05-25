@@ -177,6 +177,8 @@
 @media (max-width: 768px) {
   .ht-search {
     min-width: unset;
+    align-self: stretch;
+    width: 100%;
   }
 }
 

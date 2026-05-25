@@ -157,6 +157,16 @@
   --z-skip: 1000;
 }
 
+/* — Mobile token overrides ————————————————————————————— */
+@media screen and (max-width: 768px) {
+  :root {
+    --r-sm: 6px;
+    --r-md: 8px;
+    --r-lg: 10px;
+    --r-xl: 16px;
+  }
+}
+
 /* — Dark Theme ——————————————————————————————————————— */
 [data-theme="dark"] {
   /* Surfaces */
