@@ -2,7 +2,8 @@ import { render } from "@testing-library/preact";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ColumnFilters } from "../table-types";
-import type { ColumnId, LogSortState } from "./types";
+import { DEFAULT_SORT } from "./constants";
+import type { ColumnId } from "./types";
 
 vi.mock("../../../hooks/use-media-query", () => ({
   useMediaQuery: vi.fn(() => false),
@@ -48,7 +49,7 @@ import { LogTableHeader } from "./log-table-header";
 function renderHeader(props: Partial<Parameters<typeof LogTableHeader>[0]> = {}) {
   const defaults = {
     visibleColumns: ["level", "timestamp", "app", "message"] as ColumnId[],
-    sort: { key: "timestamp", dir: "desc" } as LogSortState,
+    sort: DEFAULT_SORT,
     onSort: vi.fn(),
     columnFilters: {} as ColumnFilters,
   };
@@ -142,7 +143,7 @@ describe("LogTableHeader", () => {
 
   describe("active sort direction", () => {
     it("marks the active sort column with data-sort-active='true'", () => {
-      const sort: LogSortState = { key: "timestamp", dir: "desc" };
+      const sort = DEFAULT_SORT;
       const { container } = renderHeader({
         visibleColumns: ["level", "timestamp"],
         sort,
@@ -152,7 +153,7 @@ describe("LogTableHeader", () => {
     });
 
     it("marks the inactive sort column with data-sort-active='false'", () => {
-      const sort: LogSortState = { key: "timestamp", dir: "desc" };
+      const sort = DEFAULT_SORT;
       const { container } = renderHeader({
         visibleColumns: ["level", "timestamp"],
         sort,
@@ -162,7 +163,7 @@ describe("LogTableHeader", () => {
     });
 
     it("passes direction='desc' to the active column when asc=false", () => {
-      const sort: LogSortState = { key: "timestamp", dir: "desc" };
+      const sort = DEFAULT_SORT;
       const { container } = renderHeader({
         visibleColumns: ["timestamp"],
         sort,
@@ -172,7 +173,7 @@ describe("LogTableHeader", () => {
     });
 
     it("passes direction='asc' to the active column when asc=true", () => {
-      const sort: LogSortState = { key: "level", dir: "asc" };
+      const sort = { key: "level" as const, dir: "asc" as const };
       const { container } = renderHeader({
         visibleColumns: ["level"],
         sort,
@@ -182,7 +183,7 @@ describe("LogTableHeader", () => {
     });
 
     it("passes direction='asc' to inactive sortable columns regardless of active sort", () => {
-      const sort: LogSortState = { key: "timestamp", dir: "desc" };
+      const sort = DEFAULT_SORT;
       const { container } = renderHeader({
         visibleColumns: ["level", "timestamp"],
         sort,

@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "../../../api/endpoints";
 import type { ColumnFilters } from "../table-types";
-import type { ColumnId, LogSortState } from "./types";
+import { DEFAULT_SORT } from "./constants";
+import type { ColumnId } from "./types";
 
 // Stub sub-components so this test focuses solely on LogTableView's own logic.
 vi.mock("./log-table-header", () => ({
@@ -45,8 +46,6 @@ function makeEntry(seq: number): LogEntry {
 }
 
 const DEFAULT_COLUMNS: ColumnId[] = ["level", "timestamp", "app", "message"];
-
-const DEFAULT_SORT: LogSortState = { key: "timestamp", dir: "desc" };
 
 const EMPTY_FILTERS: ColumnFilters = {};
 

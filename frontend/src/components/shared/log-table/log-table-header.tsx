@@ -1,7 +1,7 @@
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../../hooks/use-media-query";
 import { SortHeader } from "../sort-header";
 import type { ColumnFilters } from "../table-types";
-import { COLUMN_MAP } from "./constants";
+import { COLUMN_MAP, DEFAULT_SORT } from "./constants";
 import styles from "./log-table-header.module.css";
 import type { ColumnId, LogSortState } from "./types";
 
@@ -16,8 +16,8 @@ export function LogTableHeader({ visibleColumns, sort, onSort, columnFilters }: 
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
 
   const handleSort = (next: LogSortState) => {
-    if (next.key === "timestamp" && sort.key !== "timestamp") {
-      onSort({ key: "timestamp", dir: "desc" });
+    if (next.key === DEFAULT_SORT.key && sort.key !== DEFAULT_SORT.key) {
+      onSort(DEFAULT_SORT);
       return;
     }
     onSort(next);
@@ -34,7 +34,9 @@ export function LogTableHeader({ visibleColumns, sort, onSort, columnFilters }: 
           const sortProps = col.sortKey ? { sortKey: col.sortKey, sort, onSort: handleSort } : {};
           const filterProps = filter ? { filterContent: filter.content, hasActiveFilter: filter.active } : {};
 
-          const testId = col.sortKey ? `sort-${col.sortKey}` : filter ? `filter-${id}-col` : `col-${id}`;
+          let testId = `col-${id}`;
+          if (col.sortKey) testId = `sort-${col.sortKey}`;
+          else if (filter) testId = `filter-${id}-col`;
 
           return (
             <SortHeader key={id} {...sortProps} {...filterProps} ariaLabel={col.ariaLabel} data-testid={testId}>

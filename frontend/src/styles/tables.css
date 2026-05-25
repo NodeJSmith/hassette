@@ -65,9 +65,11 @@
 .ht-table--compact .ht-col-status {
   width: 14%;
 }
+
 .ht-table--compact .ht-col-time {
   width: 25%;
 }
+
 .ht-table--compact .ht-col-duration {
   width: 14%;
 }

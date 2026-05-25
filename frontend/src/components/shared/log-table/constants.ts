@@ -1,4 +1,4 @@
-import type { ColumnDef, ColumnId, LevelFilter, LogSortKey, TierFilter } from "./types";
+import type { ColumnDef, ColumnId, LevelFilter, LogSortKey, LogSortState, TierFilter } from "./types";
 
 export const LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] as const;
 
@@ -7,6 +7,8 @@ export const DEFAULT_LEVEL: LevelFilter = "INFO";
 export const ALL_LEVELS: LevelFilter = "";
 
 export const COPY_CONFIRM_MS = 1500;
+
+export const DEFAULT_SORT: LogSortState = { key: "timestamp", dir: "desc" };
 
 // Enforced in: use-column-visibility.ts readStored() (persistence) and column-picker.tsx (UI disabled state)
 export const REQUIRED_COLUMNS: ReadonlySet<ColumnId> = new Set(["level", "message"]);

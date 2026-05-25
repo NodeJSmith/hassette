@@ -4,7 +4,15 @@ import { useEffect, useMemo, useRef } from "preact/hooks";
 import type { LogEntry } from "../../../api/endpoints";
 import { useQueryParams } from "../../../hooks/use-query-params";
 import { useSignal } from "../../../hooks/use-signal";
-import { ALL_LEVELS, DEFAULT_LEVEL, LEVEL_INDEX, LEVELS, resolveSortKey, SEARCH_DEBOUNCE_MS } from "./constants";
+import {
+  ALL_LEVELS,
+  DEFAULT_LEVEL,
+  DEFAULT_SORT,
+  LEVEL_INDEX,
+  LEVELS,
+  resolveSortKey,
+  SEARCH_DEBOUNCE_MS,
+} from "./constants";
 import type { FilterState, LevelFilter, LogSortState, TierFilter } from "./types";
 
 interface UseLogFiltersParams {
@@ -70,7 +78,7 @@ export function useLogFilters({
   const localApp = useSignal("");
   const localSearch = useSignal("");
   const localFunc = useSignal("");
-  const localSort = useSignal<LogSortState>({ key: "timestamp", dir: "desc" });
+  const localSort = useSignal<LogSortState>(DEFAULT_SORT);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -202,13 +210,13 @@ export function useLogFilters({
       localSort.value = next;
       return;
     }
-    const isDefault = next.key === "timestamp" && next.dir === "desc";
+    const isDefault = next.key === DEFAULT_SORT.key && next.dir === DEFAULT_SORT.dir;
     qpRef.current.set({ sort: isDefault ? null : next.key, dir: next.dir === "asc" ? "asc" : null });
   }
 
   function resetSort() {
     if (useLocalState) {
-      localSort.value = { key: "timestamp", dir: "desc" };
+      localSort.value = DEFAULT_SORT;
       return;
     }
     qpRef.current.set({ sort: null, dir: null });

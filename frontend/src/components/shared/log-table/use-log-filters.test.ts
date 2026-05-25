@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/preact";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "../../../api/endpoints";
-import { SEARCH_DEBOUNCE_MS } from "./constants";
+import { DEFAULT_SORT, SEARCH_DEBOUNCE_MS } from "./constants";
 import type { LevelFilter } from "./types";
 import { useLogFilters } from "./use-log-filters";
 
@@ -476,7 +476,7 @@ describe("URL state mode", () => {
     mockSearch = "sort=level";
     const { hook } = renderUrl();
     // Click level once (desc) then timestamp (goes back to default desc)
-    act(() => hook.result.current.setSort({ key: "timestamp", dir: "desc" }));
+    act(() => hook.result.current.setSort(DEFAULT_SORT));
     const lastCall = mockNavigate.mock.calls[mockNavigate.mock.calls.length - 1];
     const [url] = lastCall;
     expect(url).not.toContain("sort");
