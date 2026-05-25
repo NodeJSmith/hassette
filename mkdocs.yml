@@ -23,7 +23,6 @@ theme:
     - navigation.indexes
     - navigation.footer
     - navigation.path
-    - navigation.tabs
     - content.code.copy
     - content.code.select
     - content.code.annotate

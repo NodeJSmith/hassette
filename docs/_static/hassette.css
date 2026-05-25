@@ -24,3 +24,10 @@ video.hero-video {
     width: 80%;
   }
 }
+
+/* Reduce sidebar width at mid-range viewports to prevent content squeeze */
+@media screen and (min-width: 1220px) and (max-width: 1440px) {
+  .md-sidebar--primary {
+    width: 220px;
+  }
+}
