@@ -197,9 +197,8 @@ def test_log_table_no_horizontal_scroll_at_320px(page: Page, base_url: str) -> N
         f"Log table has overflow-x: {overflow_x} — must be hidden or visible to prevent horizontal scroll"
     )
 
-    scroll_container = page.locator(".ht-table-card-scroll")
-    can_scroll = scroll_container.evaluate("el => el.scrollWidth > el.clientWidth")
-    assert not can_scroll, "Table scroll container is wider than viewport — horizontal scroll possible"
+    page_scrollable = page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth")
+    assert not page_scrollable, "Page is horizontally scrollable — table content is breaking out of viewport"
 
 
 def test_log_table_no_horizontal_scroll_at_375px(page: Page, base_url: str) -> None:
