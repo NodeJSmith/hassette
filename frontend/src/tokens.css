@@ -146,11 +146,10 @@
   /* Z-index scale */
   --z-table-head: 1;
   --z-tooltip: 15;
-  --z-status-bar: 20;
   --z-sidebar: 30;
-  --z-hamburger: 50;
   --z-drawer-bg: 55;
   --z-drawer: 60;
+  --z-status-bar: 65;
   --z-dialog: 100;
   --z-palette-bg: 200;
   --z-palette: 201;

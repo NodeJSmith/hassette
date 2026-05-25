@@ -1,4 +1,4 @@
-/* Layout — grid, main content area, sections, pages, level bars, hamburger, drawer */
+/* Layout — grid, main content area, sections, pages, level bars, drawer */
 
 /* — Layout grid (240px sidebar + 1fr main) ————————————— */
 .ht-layout {
@@ -74,35 +74,6 @@
 }
 
 /* — Off-canvas Drawer (mobile) ————————————————————————— */
-.ht-hamburger {
-  display: none; /* hidden on desktop; shown via media query */
-  position: fixed;
-  top: var(--sp-3);
-  left: var(--sp-3);
-  z-index: var(--z-hamburger);
-  width: var(--sz-touch);
-  height: var(--sz-touch);
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-md);
-  background: var(--bg-surface);
-  color: var(--ink-2);
-  cursor: pointer;
-  transition: background var(--t-fast) var(--ease);
-}
-
-.ht-hamburger:hover {
-  background: var(--bg-active);
-}
-
-.ht-hamburger svg {
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-
 .ht-drawer {
   position: fixed;
   top: 0;
@@ -128,13 +99,10 @@
 }
 
 /* — Responsive: sidebar hidden below 900px ————————————— */
+/* sync: BREAKPOINT_SIDEBAR in use-media-query.ts */
 
 /* shared — permanent */
 @media screen and (max-width: 900px) {
-  .ht-hamburger {
-    display: flex;
-  }
-
   .ht-layout {
     grid-template-columns: 1fr;
     gap: 0;
@@ -143,7 +111,6 @@
 
   .ht-main {
     grid-column: 1;
-    padding-top: calc(var(--sp-3) * 2 + var(--sz-touch));
     border-radius: 0;
     box-shadow: none;
   }
@@ -155,7 +122,8 @@
 /* shared — permanent */
 @media screen and (max-width: 768px) {
   .ht-main {
-    padding-top: calc(var(--sp-3) * 2 + var(--sz-touch));
+    /* sync: status-bar.module.css @768px padding (sp-2 top + sz-touch content + sp-2 bottom) */
+    padding-top: calc(var(--sp-2) * 2 + var(--sz-touch));
   }
 
   .ht-page {

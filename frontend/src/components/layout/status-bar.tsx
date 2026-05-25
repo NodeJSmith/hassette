@@ -1,11 +1,26 @@
 import clsx from "clsx";
+import type { RefObject } from "preact";
 
 import { useAppState } from "../../state/context";
+import type { ConnectionStatus } from "../../state/create-app-state";
 import { setStoredValue } from "../../utils/local-storage";
 import styles from "./status-bar.module.css";
 import { TimePresetSelector } from "./time-preset-selector";
 
-export function StatusBar() {
+const STATUS_CONFIG: Record<ConnectionStatus, { dotClass: string; label: string }> = {
+  connecting: { dotClass: clsx(styles.pulseDot, styles.pulseDotConnecting), label: "Connecting..." },
+  connected: { dotClass: styles.pulseDot, label: "Connected" },
+  reconnecting: { dotClass: clsx(styles.pulseDot, styles.pulseDotDisconnected), label: "Reconnecting..." },
+  disconnected: { dotClass: clsx(styles.pulseDot, styles.pulseDotDisconnected), label: "Disconnected" },
+};
+
+interface StatusBarProps {
+  onMenuClick: () => void;
+  drawerOpen: boolean;
+  hamburgerRef: RefObject<HTMLButtonElement>;
+}
+
+export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarProps) {
   const {
     connection,
     theme,
@@ -25,21 +40,15 @@ export function StatusBar() {
   const droppedTotal = overflow + exhausted + noSession + shutdown;
   const ehFailures = errorHandlerFailures.value;
 
+  const nextTheme = theme.value === "dark" ? "light" : "dark";
+
   const toggleTheme = () => {
-    const next = theme.value === "dark" ? "light" : "dark";
-    theme.value = next;
-    document.documentElement.setAttribute("data-theme", next);
-    setStoredValue("theme", next);
+    theme.value = nextTheme;
+    document.documentElement.setAttribute("data-theme", nextTheme);
+    setStoredValue("theme", nextTheme);
   };
 
-  const statusConfig: Record<typeof status, { dotClass: string; label: string }> = {
-    connecting: { dotClass: clsx(styles.pulseDot, styles.pulseDotConnecting), label: "Connecting..." },
-    connected: { dotClass: styles.pulseDot, label: "Connected" },
-    reconnecting: { dotClass: clsx(styles.pulseDot, styles.pulseDotDisconnected), label: "Reconnecting..." },
-    disconnected: { dotClass: clsx(styles.pulseDot, styles.pulseDotDisconnected), label: "Disconnected" },
-  };
-
-  const { dotClass, label } = statusConfig[status];
+  const { dotClass, label } = STATUS_CONFIG[status];
 
   // "Disconnected" takes visual precedence over "database degraded"
   const showDegraded = isDegraded && status === "connected";
@@ -47,6 +56,21 @@ export function StatusBar() {
   return (
     <div class={styles.statusBar} data-testid="status-bar">
       <div class={styles.statusBarLeft}>
+        <button
+          ref={hamburgerRef}
+          type="button"
+          class={styles.hamburger}
+          aria-label={drawerOpen ? "Close navigation" : "Open navigation"}
+          aria-expanded={drawerOpen}
+          data-testid="hamburger"
+          onClick={onMenuClick}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
         <TimePresetSelector />
       </div>
       <div class={styles.statusBarRight}>
@@ -92,10 +116,10 @@ export function StatusBar() {
           type="button"
           class={styles.themeToggle}
           data-testid="theme-toggle"
-          aria-label={`Switch to ${theme.value === "dark" ? "light" : "dark"} mode`}
+          aria-label={`Switch to ${nextTheme} mode`}
           onClick={toggleTheme}
         >
-          {theme.value === "dark" ? (
+          {nextTheme === "light" ? (
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="12" cy="12" r="5" />
               <line x1="12" y1="1" x2="12" y2="3" />

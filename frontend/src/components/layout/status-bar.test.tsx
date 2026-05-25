@@ -1,9 +1,17 @@
 import { signal } from "@preact/signals";
 import { fireEvent } from "@testing-library/preact";
+import type { ComponentProps } from "preact";
+import { createRef } from "preact";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithAppState } from "../../test/render-helpers";
 import { StatusBar } from "./status-bar";
+
+const baseProps: ComponentProps<typeof StatusBar> = {
+  onMenuClick: vi.fn(),
+  drawerOpen: false,
+  hamburgerRef: createRef(),
+};
 
 // Mock setStoredValue so theme changes don't hit localStorage
 vi.mock("../../utils/local-storage", () => ({
@@ -19,7 +27,7 @@ vi.mock("../../hooks/use-query-params", () => ({
 
 describe("StatusBar — connection states", () => {
   it("renders connected state with visually-hidden status text", () => {
-    const { getByTestId } = renderWithAppState(<StatusBar />, {
+    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: { connection: signal("connected") },
     });
     const indicator = getByTestId("ws-indicator");
@@ -28,14 +36,14 @@ describe("StatusBar — connection states", () => {
   });
 
   it("renders connecting state with visible text label", () => {
-    const { getByText } = renderWithAppState(<StatusBar />, {
+    const { getByText } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: { connection: signal("connecting") },
     });
     expect(getByText("Connecting...")).toBeDefined();
   });
 
   it("renders disconnected state with visible text label", () => {
-    const { getByText, getByTestId } = renderWithAppState(<StatusBar />, {
+    const { getByText, getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: { connection: signal("disconnected") },
     });
     expect(getByText("Disconnected")).toBeDefined();
@@ -44,7 +52,7 @@ describe("StatusBar — connection states", () => {
   });
 
   it("renders reconnecting state with visible text label", () => {
-    const { getByText, getByTestId } = renderWithAppState(<StatusBar />, {
+    const { getByText, getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: { connection: signal("reconnecting") },
     });
     expect(getByText("Reconnecting...")).toBeDefined();
@@ -53,7 +61,7 @@ describe("StatusBar — connection states", () => {
   });
 
   it("uses role=status for screen reader announcements", () => {
-    const { getByTestId } = renderWithAppState(<StatusBar />, {
+    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: { connection: signal("connected") },
     });
     const indicator = getByTestId("ws-indicator");
@@ -61,7 +69,7 @@ describe("StatusBar — connection states", () => {
   });
 
   it("always includes status text for screen readers", () => {
-    const { getByTestId } = renderWithAppState(<StatusBar />, {
+    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: { connection: signal("disconnected") },
     });
     const indicator = getByTestId("ws-indicator");
@@ -71,7 +79,7 @@ describe("StatusBar — connection states", () => {
 
 describe("StatusBar — database degraded indicator", () => {
   it("shows database degraded indicator when connected and degraded", () => {
-    const { getByLabelText } = renderWithAppState(<StatusBar />, {
+    const { getByLabelText } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: {
         connection: signal("connected"),
         telemetryDegraded: signal(true),
@@ -81,7 +89,7 @@ describe("StatusBar — database degraded indicator", () => {
   });
 
   it("hides database degraded indicator when disconnected even if degraded", () => {
-    const { queryByLabelText } = renderWithAppState(<StatusBar />, {
+    const { queryByLabelText } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: {
         connection: signal("disconnected"),
         telemetryDegraded: signal(true),
@@ -91,7 +99,7 @@ describe("StatusBar — database degraded indicator", () => {
   });
 
   it("hides database degraded indicator when not degraded", () => {
-    const { queryByLabelText } = renderWithAppState(<StatusBar />, {
+    const { queryByLabelText } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: {
         connection: signal("connected"),
         telemetryDegraded: signal(false),
@@ -103,7 +111,7 @@ describe("StatusBar — database degraded indicator", () => {
 
 describe("StatusBar — dropped events indicator", () => {
   it("shows dropped events when overflow > 0", () => {
-    const { getByTestId } = renderWithAppState(<StatusBar />, {
+    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: {
         connection: signal("connected"),
         droppedOverflow: signal(3),
@@ -117,7 +125,7 @@ describe("StatusBar — dropped events indicator", () => {
   });
 
   it("sums all drop counters in the label", () => {
-    const { getByTestId } = renderWithAppState(<StatusBar />, {
+    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: {
         connection: signal("connected"),
         droppedOverflow: signal(1),
@@ -131,7 +139,7 @@ describe("StatusBar — dropped events indicator", () => {
   });
 
   it("hides dropped events indicator when total is 0", () => {
-    const { queryByTestId } = renderWithAppState(<StatusBar />, {
+    const { queryByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: {
         droppedOverflow: signal(0),
         droppedExhausted: signal(0),
@@ -145,14 +153,14 @@ describe("StatusBar — dropped events indicator", () => {
 
 describe("StatusBar — error handler failures indicator", () => {
   it("shows error handler failures when > 0", () => {
-    const { getByTestId } = renderWithAppState(<StatusBar />, {
+    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: { errorHandlerFailures: signal(2) },
     });
     expect(getByTestId("error-handler-failures-indicator")).toBeDefined();
   });
 
   it("hides error handler failures when 0", () => {
-    const { queryByTestId } = renderWithAppState(<StatusBar />, {
+    const { queryByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: { errorHandlerFailures: signal(0) },
     });
     expect(queryByTestId("error-handler-failures-indicator")).toBeNull();
@@ -161,13 +169,13 @@ describe("StatusBar — error handler failures indicator", () => {
 
 describe("StatusBar — theme toggle", () => {
   it("renders theme toggle button", () => {
-    const { getByTestId } = renderWithAppState(<StatusBar />);
+    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />);
     expect(getByTestId("theme-toggle")).toBeDefined();
   });
 
   it("toggles theme from dark to light on click", () => {
     const themeSignal = signal<"dark" | "light">("dark");
-    const { getByTestId } = renderWithAppState(<StatusBar />, {
+    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: { theme: themeSignal },
     });
     const button = getByTestId("theme-toggle");
@@ -178,7 +186,7 @@ describe("StatusBar — theme toggle", () => {
 
   it("toggles theme from light to dark on click", () => {
     const themeSignal = signal<"dark" | "light">("light");
-    const { getByTestId } = renderWithAppState(<StatusBar />, {
+    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
       stateOverrides: { theme: themeSignal },
     });
     const button = getByTestId("theme-toggle");
@@ -190,12 +198,12 @@ describe("StatusBar — theme toggle", () => {
 
 describe("StatusBar — time preset selector", () => {
   it("renders the time preset selector", () => {
-    const { container } = renderWithAppState(<StatusBar />);
+    const { container } = renderWithAppState(<StatusBar {...baseProps} />);
     expect(container.querySelector("[data-testid='time-preset-selector']")).not.toBeNull();
   });
 
   it("renders all 4 time preset buttons", () => {
-    const { getByText } = renderWithAppState(<StatusBar />);
+    const { getByText } = renderWithAppState(<StatusBar {...baseProps} />);
     expect(getByText("Since restart")).toBeDefined();
     expect(getByText("1h")).toBeDefined();
     expect(getByText("24h")).toBeDefined();

@@ -44,7 +44,13 @@ from tests.e2e.mock_fixtures import (
 # Mobile height 812 = iPhone X (safe-area / notch testing).
 # Desktop 1024x768 = standard desktop above mobile breakpoint.
 MOBILE_VIEWPORT = {"width": 375, "height": 812}
+SMALL_MOBILE_VIEWPORT = {"width": 320, "height": 480}
+MOBILE_BOUNDARY_VIEWPORT = {"width": 768, "height": 1024}
+NARROW_DESKTOP_VIEWPORT = {"width": 800, "height": 600}
 DESKTOP_VIEWPORT = {"width": 1024, "height": 768}
+
+ANIMATION_SETTLE_MS = 300
+DATA_LOAD_TIMEOUT_MS = 5000
 
 
 @pytest.fixture(scope="session")
