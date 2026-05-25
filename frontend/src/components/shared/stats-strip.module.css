@@ -2,9 +2,10 @@
   display: grid;
   grid-template-columns: repeat(var(--stats-cols, 7), 1fr);
   gap: 0;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line-2);
+  background: var(--bg-surface);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
   overflow: hidden;
   margin-bottom: var(--sp-4);
 }
@@ -18,7 +19,7 @@
   font-family: var(--font-mono);
   font-size: var(--fs-micro);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--tr-label-wide);
   color: var(--ink-3);
 }
 

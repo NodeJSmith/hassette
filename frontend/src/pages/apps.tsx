@@ -248,7 +248,8 @@ export function AppsPage() {
       {/* Stats strip */}
       <StatsStrip cells={buildAppsCells(allApps, windowSeconds, isMobile)} data-testid="apps-stats-strip" />
 
-      <TableCard search={searchInput} footer={footer}>
+      {searchInput}
+      <TableCard footer={footer}>
         {filtered.length === 0 ? (
           <EmptyState title={emptyStateTitle}>
             {(filter !== "all" || q) && (

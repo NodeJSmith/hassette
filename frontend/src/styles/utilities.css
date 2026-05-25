@@ -23,7 +23,7 @@
   font-size: var(--fs-small);
 }
 .ht-text-semibold {
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 /* Spacing: margin */
@@ -91,8 +91,8 @@
   font-size: var(--fs-micro);
   color: var(--ink-3);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 500;
+  letter-spacing: var(--tr-label);
+  font-weight: var(--fw-medium);
 }
 
 /* — Alert banners —————————————————————————————————————— */
@@ -161,6 +161,7 @@
   color: var(--ink-1);
   outline: none;
   min-width: 160px;
+  align-self: flex-end;
 }
 
 .ht-search:focus-visible {
@@ -176,6 +177,8 @@
 @media (max-width: 768px) {
   .ht-search {
     min-width: unset;
+    align-self: stretch;
+    width: 100%;
   }
 }
 
@@ -183,7 +186,7 @@
 .ht-section-label {
   font-family: var(--font-display);
   font-size: var(--fs-h3);
-  font-weight: 400;
+  font-weight: var(--fw-normal);
   color: var(--ink-1);
   letter-spacing: var(--tr-h3);
   margin-bottom: var(--sp-2);

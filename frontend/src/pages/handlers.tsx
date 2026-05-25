@@ -175,7 +175,8 @@ export function HandlersPage() {
         <h1 class="ht-display">handlers</h1>
       </div>
 
-      <TableCard search={searchInput} footer={footer}>
+      {searchInput}
+      <TableCard footer={footer}>
         {sorted.length === 0 ? (
           <EmptyState title={emptyStateTitle} data-testid="handlers-empty">
             {(selectedApp || search) && (

@@ -43,7 +43,7 @@
 .levelText {
   font-family: var(--font-mono);
   font-size: var(--fs-mono-sm);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
 }
 
 .levelDEBUG {
@@ -60,7 +60,7 @@
 }
 .levelCRITICAL {
   color: var(--err);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
 .mono {

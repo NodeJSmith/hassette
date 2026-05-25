@@ -6,11 +6,12 @@
 
 /* — Light Theme (default) ——————————————————————————— */
 :root {
-  /* Surfaces */
-  --bg-page: #fafaf8;
-  --bg-surface: #fdfdfb;
-  --bg-sunken: #f4f4f1;
-  --bg-active: #f0f0ec;
+  /* Surfaces — tinted toward accent hue */
+  --bg-page: oklch(0.95 0.006 var(--accent-hue));
+  --bg-surface: oklch(0.995 0.002 var(--accent-hue));
+  --bg-sunken: oklch(0.955 0.006 var(--accent-hue));
+  --bg-active: oklch(0.92 0.01 var(--accent-hue));
+  --bg-chrome: oklch(0.96 0.005 var(--accent-hue));
 
   /* Ink (text) */
   --ink-1: #16181c;
@@ -23,11 +24,15 @@
   --line-2: #ecece8;
   --line-strong: #d0d0cc;
 
-  /* Accent */
-  --accent: var(--ink-1);
-  --accent-ink: var(--bg-page);
-  --accent-hover: #2a2d33;
-  --accent-soft: #e8e8e5;
+  /* Accent — derived from hue + chroma */
+  --accent-hue: 255;
+  --accent-chroma: 0.09;
+  --accent: oklch(0.5 var(--accent-chroma) var(--accent-hue));
+  --accent-hover: oklch(0.42 var(--accent-chroma) var(--accent-hue));
+  --accent-ink: oklch(0.98 0.005 var(--accent-hue));
+  --accent-soft: oklch(0.95 calc(var(--accent-chroma) * 0.25) var(--accent-hue));
+  --accent-border: oklch(0.65 calc(var(--accent-chroma) * 0.6) var(--accent-hue)); /* phase 2: depth */
+  --accent-bg: oklch(0.97 calc(var(--accent-chroma) * 0.15) var(--accent-hue)); /* phase 2: depth */
 
   /* Status */
   --ok: #1f7a4d;
@@ -51,6 +56,12 @@
   --font-body: "Geist", system-ui, -apple-system, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
+  /* Font weight */
+  --fw-normal: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
   /* Type scale */
   --fs-display: 38px;
   --lh-display: 1.05;
@@ -68,11 +79,13 @@
   --lh-body: 1.55;
   --fs-small: 12.5px;
   --lh-small: 1.5;
-  --fs-micro: 11px;
+  --fs-micro: 12px;
   --lh-micro: 1.4;
-  --fs-xs: 10px;
+  --fs-xs: 11px;
   --lh-xs: 1.3;
+  --tr-label-tight: 0.03em;
   --tr-label: 0.05em;
+  --tr-label-wide: 0.07em;
   --fs-mono-sm: 12px;
   --fs-mono-md: 13px;
 
@@ -100,10 +113,10 @@
   --fs-badge: 11.5px;
 
   /* Border radius */
-  --r-sm: 4px;
-  --r-md: 6px;
-  --r-lg: 8px;
-  --r-xl: 12px;
+  --r-sm: 10px;
+  --r-md: 15px;
+  --r-lg: 20px;
+  --r-xl: 30px;
   --r-pill: 999px;
 
   /* Shadows */
@@ -114,6 +127,12 @@
   /* Overlay */
   --overlay-bg: rgba(0, 0, 0, 0.45);
   --err-dark: #9a2020;
+
+  /* Opacity */
+  --op-ghost: 0.35;
+  --op-disabled: 0.5;
+  --op-muted: 0.7;
+  --op-subtle: 0.9;
 
   /* Code highlights */
   --code-annotate-bg: oklch(0.97 0.005 80);
@@ -138,13 +157,24 @@
   --z-skip: 1000;
 }
 
+/* — Mobile token overrides ————————————————————————————— */
+@media screen and (max-width: 768px) {
+  :root {
+    --r-sm: 6px;
+    --r-md: 8px;
+    --r-lg: 10px;
+    --r-xl: 16px;
+  }
+}
+
 /* — Dark Theme ——————————————————————————————————————— */
 [data-theme="dark"] {
   /* Surfaces */
-  --bg-page: #111316;
-  --bg-surface: #191b1f;
-  --bg-sunken: #15171b;
-  --bg-active: #1d2026;
+  --bg-page: #0c0e11;
+  --bg-surface: #1a1c21;
+  --bg-sunken: #141619;
+  --bg-active: #22242a;
+  --bg-chrome: #131517;
 
   /* Ink (text) */
   --ink-1: #edeff3;
@@ -157,11 +187,15 @@
   --line-2: #1f2227;
   --line-strong: #3a3e46;
 
-  /* Accent */
-  --accent: #7a8aff;
-  --accent-ink: #0f1115;
-  --accent-hover: #93a0ff;
-  --accent-soft: #1a1f36;
+  /* Accent — same hue, shifted lightness for dark mode */
+  --accent-hue: 255;
+  --accent-chroma: 0.09;
+  --accent: oklch(0.72 var(--accent-chroma) var(--accent-hue));
+  --accent-hover: oklch(0.8 var(--accent-chroma) var(--accent-hue));
+  --accent-ink: oklch(0.15 0.01 var(--accent-hue));
+  --accent-soft: oklch(0.22 calc(var(--accent-chroma) * 0.4) var(--accent-hue));
+  --accent-border: oklch(0.55 calc(var(--accent-chroma) * 0.6) var(--accent-hue));
+  --accent-bg: oklch(0.18 calc(var(--accent-chroma) * 0.2) var(--accent-hue));
 
   /* Status */
   --ok: #5fb988;

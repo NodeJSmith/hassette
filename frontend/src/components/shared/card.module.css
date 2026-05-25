@@ -2,10 +2,10 @@
 
 .card {
   background: var(--bg-surface);
-  border: 1px solid var(--line-1);
-  border-top: 1px solid var(--line-2);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-md);
   padding: var(--sp-5);
+  box-shadow: var(--shadow-2);
 }
 
 /* compact: reduce padding only */
@@ -25,16 +25,21 @@
    separate base class alongside it. */
 .error {
   background: var(--bg-surface);
-  border: 1px solid var(--line-1);
-  border-top: 1px solid var(--line-2);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-md);
   padding: var(--sp-6);
   text-align: center;
+  box-shadow: var(--shadow-2);
 }
 
 /* — Responsive: mobile layout below 768px ———————————————— */
 /* Tables inside cards: horizontal scroll (moved from layout.css) */
 @media screen and (max-width: 768px) {
+  .card {
+    box-shadow: var(--shadow-1);
+    border-color: var(--line-1);
+  }
+
   .card :global(.ht-table) {
     display: block;
     overflow-x: auto;

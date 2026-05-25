@@ -9,7 +9,7 @@
 .heading {
   display: block;
   font-size: var(--fs-small);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--err);
   margin-bottom: var(--sp-1);
 }
@@ -32,7 +32,7 @@
   font-size: var(--fs-mono-sm);
   color: var(--err);
   cursor: pointer;
-  opacity: 0.75;
+  opacity: var(--op-muted);
   transition: opacity var(--t-fast) var(--ease);
 }
 

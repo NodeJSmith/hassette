@@ -14,7 +14,7 @@ h1 {
   font-size: var(--fs-h1);
   line-height: var(--lh-h1);
   letter-spacing: var(--tr-h1);
-  font-weight: 400;
+  font-weight: var(--fw-normal);
   color: var(--ink-1);
 }
 
@@ -23,7 +23,7 @@ h1 {
   font-size: var(--fs-h1);
   line-height: var(--lh-h1);
   letter-spacing: var(--tr-h1);
-  font-weight: 400;
+  font-weight: var(--fw-normal);
 }
 
 h2 {
@@ -31,7 +31,7 @@ h2 {
   font-size: var(--fs-h2);
   line-height: var(--lh-h2);
   letter-spacing: var(--tr-h2);
-  font-weight: 400;
+  font-weight: var(--fw-normal);
   color: var(--ink-1);
 }
 
@@ -40,7 +40,7 @@ h3 {
   font-size: var(--fs-h3);
   line-height: var(--lh-h3);
   letter-spacing: var(--tr-h3);
-  font-weight: 400;
+  font-weight: var(--fw-normal);
   color: var(--ink-1);
 }
 
@@ -48,7 +48,7 @@ h4 {
   font-family: var(--font-body);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--ink-1);
 }
 
@@ -102,7 +102,7 @@ a:hover {
 }
 
 strong {
-  font-weight: 500;
+  font-weight: var(--fw-medium);
 }
 
 ::selection {

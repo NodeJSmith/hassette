@@ -5,7 +5,7 @@
   align-items: center;
   gap: 0.25em;
   font-size: var(--fs-micro);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   padding: 0.15em 0.55em;
   border-radius: var(--r-pill);
   line-height: 1.6;

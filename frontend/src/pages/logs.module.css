@@ -9,7 +9,7 @@
   gap: var(--sp-1);
   font-family: var(--font-body);
   font-size: var(--fs-micro);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--warn);
   padding: var(--sp-0) var(--sp-2);
   border-radius: var(--r-sm);

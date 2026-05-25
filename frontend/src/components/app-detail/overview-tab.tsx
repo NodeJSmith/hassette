@@ -61,8 +61,11 @@ function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: 
 
   return (
     <section class={styles.section} data-testid="overview-logs-section">
-      <h3 class="ht-section-label">logs</h3>
-      <TableCard search={searchInput} footer={footer} scrollHeight="400px">
+      <div class={styles.sectionHeader}>
+        <h3 class="ht-section-label">logs</h3>
+        {searchInput}
+      </div>
+      <TableCard footer={footer} scrollHeight="400px">
         <LogTableWithDrawer drawerProps={log.drawerProps}>
           {log.isEmpty ? <EmptyState title={emptyTitle} body={emptyBody} /> : <LogTableView {...log.tableProps} />}
         </LogTableWithDrawer>

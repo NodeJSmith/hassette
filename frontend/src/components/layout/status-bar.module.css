@@ -11,7 +11,7 @@
 @keyframes breathe {
   0%,
   100% {
-    opacity: 0.4;
+    opacity: 0.35; /* raw: @keyframes can't interpolate CSS vars */
   }
   50% {
     opacity: 1;
@@ -74,7 +74,7 @@
   justify-content: space-between;
   align-items: center;
   padding: var(--sp-2) var(--sp-7);
-  background: var(--bg-surface);
+  background: var(--bg-chrome);
   border-bottom: 1px solid var(--line-1);
   gap: var(--sp-3);
   flex-shrink: 0;
@@ -107,6 +107,6 @@
     position: sticky;
     top: 0;
     z-index: var(--z-status-bar);
-    background: var(--bg-surface);
+    background: var(--bg-chrome);
   }
 }

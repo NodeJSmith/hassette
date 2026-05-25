@@ -252,7 +252,7 @@ export function AppDetailPage({ params }: Props) {
         </div>
       )}
       {activeTab === "logs" && (
-        <div role="tabpanel" id="tabpanel-logs" aria-labelledby="tab-logs">
+        <div class={styles.tabPanel} role="tabpanel" id="tabpanel-logs" aria-labelledby="tab-logs">
           <AppLogsPanel appKey={appKey} />
         </div>
       )}

@@ -73,7 +73,8 @@ export function LogsPage() {
       <div class="ht-page-header">
         <h1 class="ht-display">logs</h1>
       </div>
-      <TableCard search={searchInput} footer={footer} data-testid="logs-card">
+      {searchInput}
+      <TableCard footer={footer} data-testid="logs-card">
         <LogTableWithDrawer drawerProps={log.drawerProps}>
           {log.isEmpty ? (
             <EmptyState

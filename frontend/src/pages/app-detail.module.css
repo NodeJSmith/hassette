@@ -1,27 +1,35 @@
 /* App detail page — component-scoped styles */
 
+/* — Tab panel (content below the tab strip) — */
+.tabPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
 /* — Tab strip (overview | handlers | code | logs | config) — */
 
 .tabStrip {
   display: flex;
   gap: 0;
-  border-bottom: 2px solid var(--line-1);
+  background: var(--bg-surface);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-sm);
+  overflow: hidden;
 }
 
 .tabBtn {
   padding: var(--sp-2) var(--sp-4);
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
   font-family: var(--font-body);
   font-size: var(--fs-mono-md);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--ink-3);
   cursor: pointer;
   transition:
     color var(--t-fast),
-    border-color var(--t-fast);
+    background var(--t-fast);
   white-space: nowrap;
   text-decoration: none;
   display: inline-block;
@@ -29,6 +37,7 @@
 
 .tabBtn:hover {
   color: var(--ink-1);
+  background: var(--bg-sunken);
 }
 
 .tabBtn:focus-visible {
@@ -39,15 +48,15 @@
 
 .tabBtnActive {
   color: var(--ink-1);
-  border-bottom-color: var(--accent);
-  font-weight: 500;
+  background: linear-gradient(to bottom, transparent, var(--accent-soft));
+  font-weight: var(--fw-medium);
 }
 
 .tabBtnBadge {
   margin-left: var(--sp-1);
   font-size: var(--fs-micro);
   color: var(--ink-3);
-  font-weight: 400;
+  font-weight: var(--fw-normal);
 }
 
 /* — Instance grid (multi-instance parent overview) — */
@@ -68,18 +77,21 @@
   gap: var(--sp-2);
   padding: var(--sp-4);
   background: var(--bg-surface);
-  border: 1px solid var(--line-1);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-md);
   text-align: left;
   cursor: pointer;
-  transition: border-color var(--t-fast);
+  box-shadow: var(--shadow-2);
+  transition:
+    border-color var(--t-fast),
+    box-shadow var(--t-fast);
   font-family: inherit;
   font-size: var(--fs-small);
   color: var(--ink-1);
 }
 
 .instanceCard:hover {
-  border-color: var(--line-strong);
+  box-shadow: var(--shadow-3);
 }
 
 .instanceCard:focus-visible {
@@ -95,7 +107,7 @@
 }
 
 .instanceCardName {
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -150,10 +162,10 @@
 }
 
 .instanceSwitcherBtnActive {
-  background: var(--bg-active);
-  border-color: var(--line-strong);
-  color: var(--ink-1);
-  font-weight: 500;
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent);
+  font-weight: var(--fw-medium);
   cursor: default;
 }
 
@@ -171,12 +183,17 @@
 /* — Breadcrumb (app detail only) — */
 
 .breadcrumb {
-  display: flex;
+  display: inline-flex;
+  align-self: flex-start;
   align-items: center;
   gap: var(--sp-2);
   font-size: var(--fs-small);
   color: var(--ink-3);
   margin-bottom: var(--sp-4);
+  background: var(--bg-chrome);
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-2);
 }
 
 .breadcrumb a {
@@ -195,7 +212,7 @@
 
 .breadcrumbCurrent {
   color: var(--ink-1);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
 }
 
 /* — Heading-4 (app detail only) — */
@@ -203,7 +220,7 @@
 .heading4 {
   font-family: var(--font-display);
   font-size: var(--fs-h2);
-  font-weight: 400;
+  font-weight: var(--fw-normal);
   display: flex;
   align-items: center;
   gap: 0.35em;

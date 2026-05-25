@@ -6,7 +6,7 @@
   padding: var(--sp-0) var(--sp-2);
   border-radius: var(--r-sm);
   font-size: var(--fs-micro);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   white-space: nowrap;
   line-height: 1.5;
 }

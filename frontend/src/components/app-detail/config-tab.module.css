@@ -59,7 +59,7 @@
 .instanceHeading {
   font-family: var(--font-body);
   font-size: var(--fs-small);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   padding: var(--sp-2) var(--sp-4);
   background: var(--bg-sunken);
   border-bottom: 1px solid var(--line-1);
@@ -183,7 +183,7 @@
     padding-bottom: var(--sp-2);
     border-bottom: 1px solid var(--line-2);
     word-break: break-word;
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
   }
 
   .configTable tbody tr:nth-child(even) {

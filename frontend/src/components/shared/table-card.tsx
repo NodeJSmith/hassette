@@ -4,7 +4,6 @@ import { useRef } from "preact/hooks";
 import { Card } from "./card";
 
 interface TableCardProps {
-  search?: ComponentChildren;
   footer?: ComponentChildren;
   scrollHeight?: string;
   class?: string;
@@ -14,7 +13,6 @@ interface TableCardProps {
 }
 
 export function TableCard({
-  search,
   footer,
   scrollHeight,
   class: className,
@@ -27,19 +25,6 @@ export function TableCard({
 
   return (
     <Card variant="compact" class={className} containerRef={ref} data-testid={testId}>
-      {search && (
-        <div
-          data-search-bar
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            padding: "var(--sp-2) var(--sp-3)",
-            borderBottom: "1px solid var(--line-2)",
-          }}
-        >
-          {search}
-        </div>
-      )}
       <div class="ht-table-card-scroll" style={scrollHeight ? `--table-scroll-height: ${scrollHeight}` : undefined}>
         {children}
       </div>

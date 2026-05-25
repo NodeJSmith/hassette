@@ -33,7 +33,7 @@
 
 .rowSelected {
   background: var(--accent-soft);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
 }
 
 .status {
@@ -68,20 +68,20 @@
   flex-shrink: 0;
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   background: var(--bg-sunken);
   border: 1px solid var(--line-1);
   border-radius: var(--r-sm);
   padding: 1px var(--sp-1);
   color: var(--ink-3);
   text-transform: lowercase;
-  letter-spacing: 0.02em;
+  letter-spacing: var(--tr-label-tight);
   line-height: 1.4;
 }
 
 .name {
   font-size: var(--fs-small);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--ink-1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -108,12 +108,12 @@
 
 .statsErr {
   color: var(--err);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
 }
 
 .statsWarn {
   color: var(--warn);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
 }
 
 .sublineErr {

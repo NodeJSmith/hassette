@@ -12,7 +12,7 @@
   padding: var(--sp-0) var(--sp-2);
   font-family: var(--font-body);
   font-size: var(--fs-micro);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   line-height: 1.6;
   color: var(--ink-3);
   background: transparent;
@@ -35,8 +35,8 @@
 }
 
 .active {
-  background: var(--bg-active);
-  color: var(--ink-1);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .uptime {

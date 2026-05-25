@@ -144,9 +144,6 @@ describe("AppsPage", () => {
     const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
     const search = await findByTestId("apps-search");
     expect(search).toBeDefined();
-    // Search should be inside the search slot (data-search-bar attribute)
-    const searchBar = search.closest("[data-search-bar]");
-    expect(searchBar).not.toBeNull();
   });
 
   it("shows empty state when no manifests", async () => {

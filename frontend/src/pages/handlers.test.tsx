@@ -106,9 +106,6 @@ describe("HandlersPage", () => {
     const { findByTestId } = renderWithAppState(<HandlersPage />, { stateOverrides });
     const search = await findByTestId("handlers-search");
     expect(search).toBeDefined();
-    // Search should be inside the search slot (data-search-bar attribute)
-    const searchBar = search.closest("[data-search-bar]");
-    expect(searchBar).not.toBeNull();
   });
 
   it("search filters by handler name when ?search= is in URL", async () => {

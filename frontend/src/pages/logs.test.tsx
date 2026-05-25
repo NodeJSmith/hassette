@@ -71,13 +71,11 @@ describe("LogsPage", () => {
     expect(container.querySelector("h1.ht-display")?.textContent).toBe("logs");
   });
 
-  it("renders search input in the card search slot", () => {
+  it("renders search input", () => {
     const { getByTestId } = renderWithAppState(<LogsPage />);
     const searchInput = getByTestId("logs-search");
     expect(searchInput).toBeDefined();
     expect(searchInput.getAttribute("aria-label")).toBe("Search logs");
-    const searchBar = searchInput.closest("[data-search-bar]");
-    expect(searchBar).not.toBeNull();
   });
 
   it("renders LogTableWithDrawer inside the card", () => {

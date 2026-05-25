@@ -138,7 +138,7 @@
 .levelLabel {
   font-family: var(--font-mono);
   font-size: var(--fs-mono-md);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 .levelDEBUG .levelLabel {
@@ -176,7 +176,7 @@
   color: var(--ink-3);
   text-align: right;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: var(--tr-label-tight);
   padding-top: 1px;
 }
 
@@ -226,7 +226,7 @@
   font-size: var(--fs-micro);
   color: var(--ink-3);
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: var(--tr-label-tight);
   flex-shrink: 0;
 }
 

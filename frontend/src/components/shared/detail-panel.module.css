@@ -50,7 +50,7 @@
 .errorLine pre {
   margin: 0;
   font-size: var(--fs-mono-sm);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--err);
   white-space: pre-wrap;
   word-break: break-word;

@@ -24,7 +24,7 @@
 
 .active {
   color: var(--ink-1);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 /* inline-flex wrapper used when filterContent is present */
