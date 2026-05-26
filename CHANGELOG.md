@@ -7,62 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.33.0](https://github.com/NodeJSmith/hassette/compare/v0.32.0...v0.33.0) (2026-05-26)
 
+### Breaking Changes
 
-### ⚠ BREAKING CHANGES
+- `GET /api/logs/by-execution/{execution_id}` has been removed. Use `GET /api/executions/{execution_id}` instead. The response shape (`LogsByExecutionResponse`) is unchanged. ([#865](https://github.com/NodeJSmith/hassette/issues/865))
 
-* `GET /api/logs/by-execution/{execution_id}` has been removed. Use `GET /api/executions/{execution_id}` instead. The response shape (`LogsByExecutionResponse`) is unchanged.
+### CLI
 
-### Features
+- `hassette query` subcommand for querying all read-only API endpoints from the command line — apps, handlers, jobs, invocations, executions, logs, config, and sessions. ([#838](https://github.com/NodeJSmith/hassette/issues/838))
+- `--generate-completion` replaces `--install-completion` — outputs the shell completion script to stdout instead of modifying shell config files. Pipe to a file in your `$fpath` to install. ([#870](https://github.com/NodeJSmith/hassette/issues/870))
+- Fix zsh completion function name with cyclopts 4.16+ — `hassette --generate-completion zsh` now produces the correct `_hassette` function name instead of `_cyclopts_hassette`. ([#871](https://github.com/NodeJSmith/hassette/issues/871))
 
-* add CLI query tool for all read-only API endpoints ([#838](https://github.com/NodeJSmith/hassette/issues/838)) ([e1647c7](https://github.com/NodeJSmith/hassette/commit/e1647c76316f5a5529f67a66c0523dbf31731259))
-* add read timeout to TelemetryQueryService queries ([#860](https://github.com/NodeJSmith/hassette/issues/860)) ([0c41e11](https://github.com/NodeJSmith/hassette/commit/0c41e11c8eaf61cee41449e5af7204d08d0a2dee))
-* **cli:** add --generate-completion and stop modifying .zshrc ([#870](https://github.com/NodeJSmith/hassette/issues/870)) ([cd44db2](https://github.com/NodeJSmith/hassette/commit/cd44db2d054a78dc0f29031bd5b7ab3f5f50996b))
-* generate WebSocket types from JSON Schema and add frontend runtime validation ([#863](https://github.com/NodeJSmith/hassette/issues/863)) ([3b54680](https://github.com/NodeJSmith/hassette/commit/3b546804f0b3a057b08932436d36e0d63561f6ef))
-* harden web API response models with constrained types and query optimization ([#837](https://github.com/NodeJSmith/hassette/issues/837)) ([4d84f8a](https://github.com/NodeJSmith/hassette/commit/4d84f8aece3f97d59d2b5aaae9d3c85e6d10b3d0))
-* migrate frontend data layer to TanStack Query ([#835](https://github.com/NodeJSmith/hassette/issues/835)) ([3b7ad8e](https://github.com/NodeJSmith/hassette/commit/3b7ad8e87ebc067d233fe490144280e5ef7e9817))
-* systematize design tokens, add accent color system, and improve UI depth ([#842](https://github.com/NodeJSmith/hassette/issues/842)) ([2286e8d](https://github.com/NodeJSmith/hassette/commit/2286e8d88cde770d6aa961b5b968bb7fbebb3546))
-* **ui:** consolidate dual query invalidators and replace cancelled flags with AbortController ([#869](https://github.com/NodeJSmith/hassette/issues/869)) ([36e7fae](https://github.com/NodeJSmith/hassette/commit/36e7fae3f2ca8013ebb40e3033e80dfa5e099430))
-* **ui:** integrate hamburger into status bar for mobile layout ([#857](https://github.com/NodeJSmith/hassette/issues/857)) ([6228ce5](https://github.com/NodeJSmith/hassette/commit/6228ce5c562dc2aba8bc5717b0b271d4e71cbf79))
+### Web UI
 
+- Redesigned accent color system and improved visual depth with systematized design tokens. ([#842](https://github.com/NodeJSmith/hassette/issues/842))
+- Mobile navigation integrated into the status bar with a hamburger menu. ([#857](https://github.com/NodeJSmith/hassette/issues/857))
+- Unified table sort headers across all pages and fixed mobile table column rendering. ([#853](https://github.com/NodeJSmith/hassette/issues/853))
+- Aria-live announcements for WebSocket connection status changes. ([#827](https://github.com/NodeJSmith/hassette/issues/827))
 
-### Bug Fixes
+### Configuration
 
-* **cli:** normalize zsh completion function name for cyclopts 4.16+ ([#871](https://github.com/NodeJSmith/hassette/issues/871)) ([6b50939](https://github.com/NodeJSmith/hassette/commit/6b50939046284845556974717452940377b790c8))
-* deep merge TOML [hassette] section to preserve top-level app definitions ([#826](https://github.com/NodeJSmith/hassette/issues/826)) ([7ff9941](https://github.com/NodeJSmith/hassette/commit/7ff99418990cc32ac73970de86906ffe4b479778))
-* migrate HASSETTE__APP_DIR to HASSETTE__APPS__DIRECTORY ([#831](https://github.com/NodeJSmith/hassette/issues/831)) ([71350c7](https://github.com/NodeJSmith/hassette/commit/71350c7d06af02a3120b627d5b9a716d8432572b))
-* preserve env &gt; config file priority for legacy flat config keys ([#836](https://github.com/NodeJSmith/hassette/issues/836)) ([2be64c3](https://github.com/NodeJSmith/hassette/commit/2be64c387c15261229edfa0adf6197cbb89832a8))
-* **ui:** address frontend WTF check findings and add aria-live for connection status ([#827](https://github.com/NodeJSmith/hassette/issues/827)) ([0cfcb67](https://github.com/NodeJSmith/hassette/commit/0cfcb670993883b0500f50735e3ab0873ef45107))
+- TOML `[hassette]` section now deep-merges, preserving top-level app definitions alongside nested sections. ([#826](https://github.com/NodeJSmith/hassette/issues/826))
+- Auto-migrate legacy `HASSETTE__APP_DIR` environment variable to `HASSETTE__APPS__DIRECTORY`. ([#831](https://github.com/NodeJSmith/hassette/issues/831))
+- Environment variables correctly override config file values for legacy flat config keys. ([#836](https://github.com/NodeJSmith/hassette/issues/836))
 
+### Performance
 
-### Refactoring
-
-* extract constants, remove underscore prefixes, and decompose run_apps_pre_check ([#828](https://github.com/NodeJSmith/hassette/issues/828)) ([5d11d76](https://github.com/NodeJSmith/hassette/commit/5d11d76b2c720191f537cfcf20814263427ec4f6))
-* reduce config coupling in test_autodetect_apps and test_hot_reload ([#829](https://github.com/NodeJSmith/hassette/issues/829)) ([e87d52a](https://github.com/NodeJSmith/hassette/commit/e87d52aad31c1ded27e2d30fa549b25a270339b9)), closes [#793](https://github.com/NodeJSmith/hassette/issues/793)
-* route log/execution read queries through TelemetryQueryService ([#865](https://github.com/NodeJSmith/hassette/issues/865)) ([c8d3465](https://github.com/NodeJSmith/hassette/commit/c8d3465b5ada8a134c02efd448cea8670e2eebb5))
-* unify table sort architecture and fix mobile table layout ([#853](https://github.com/NodeJSmith/hassette/issues/853)) ([96a53cf](https://github.com/NodeJSmith/hassette/commit/96a53cfb68343ee4dc787ca320d09b371db2c73f))
-
+- Telemetry database queries now have a configurable read timeout, preventing indefinite hangs on slow or locked databases. ([#860](https://github.com/NodeJSmith/hassette/issues/860))
 
 ### Documentation
 
-* add prior art research for automated doc screenshot capture ([#802](https://github.com/NodeJSmith/hassette/issues/802)) ([09344df](https://github.com/NodeJSmith/hassette/commit/09344df57b62d537bb7ac93dabb5dcec0bc3353d))
-* clean up docs site navigation — remove redundant tabs, fix mid-viewport layout ([#858](https://github.com/NodeJSmith/hassette/issues/858)) ([66c7b74](https://github.com/NodeJSmith/hassette/commit/66c7b74bac056830ffb349a761d7fc7bfc63c469))
-* rewrite web UI documentation with full page coverage ([#806](https://github.com/NodeJSmith/hassette/issues/806)) ([2c2292f](https://github.com/NodeJSmith/hassette/commit/2c2292f48f170fb74df99bcca0aea30ece25bb09))
-* update config references to post-v0.32.0 nested key format ([#818](https://github.com/NodeJSmith/hassette/issues/818)) ([676b851](https://github.com/NodeJSmith/hassette/commit/676b851f28ab7e2a0fd912c3840f2a1bc21d0dc0))
-
-
-### Miscellaneous
-
-* consolidate duplicate test factory functions ([#805](https://github.com/NodeJSmith/hassette/issues/805)) ([323e17b](https://github.com/NodeJSmith/hassette/commit/323e17b1d72ae03ec8301b09254a700f46631022))
-* decompose oversized test files into directory modules ([#809](https://github.com/NodeJSmith/hassette/issues/809)) ([fdac578](https://github.com/NodeJSmith/hassette/commit/fdac578923d5ceb3cf38e741fb94c24b0b3c419a))
-* extract named constants and eliminate code duplication ([#807](https://github.com/NodeJSmith/hassette/issues/807)) ([fb6264b](https://github.com/NodeJSmith/hassette/commit/fb6264b0e8a4117db988541185feb59c182ac69f))
-* frontend CSS tokens, ternary rewrites, and naming cleanup ([#808](https://github.com/NodeJSmith/hassette/issues/808)) ([b54aca6](https://github.com/NodeJSmith/hassette/commit/b54aca6e5e477ccbb51becd5ff6f7ae5f58f14ff))
-* mechanical code hygiene sweep from nitpick audit ([#804](https://github.com/NodeJSmith/hassette/issues/804)) ([da6ca86](https://github.com/NodeJSmith/hassette/commit/da6ca8688c3f5289d3cee1dbaf8c6491cb1d0117))
-* reorganize integration tests and consolidate fixtures ([#817](https://github.com/NodeJSmith/hassette/issues/817)) ([61d64f4](https://github.com/NodeJSmith/hassette/commit/61d64f40df81f9909e2834b23bc18c1f8cbb9143))
-
-
-### CI/CD
-
-* add lint and security checks from framework prior art survey ([#861](https://github.com/NodeJSmith/hassette/issues/861)) ([fadf408](https://github.com/NodeJSmith/hassette/commit/fadf408c161e3c3aed8a43ee051abf7757c150de))
+- Rewrite web UI documentation with full page coverage. ([#806](https://github.com/NodeJSmith/hassette/issues/806))
+- Update configuration references to post-v0.32.0 nested key format. ([#818](https://github.com/NodeJSmith/hassette/issues/818))
+- Clean up docs site navigation — remove redundant tabs, fix mid-viewport layout. ([#858](https://github.com/NodeJSmith/hassette/issues/858))
 
 ## [0.32.0](https://github.com/NodeJSmith/hassette/compare/v0.31.0...v0.32.0) (2026-05-20)
 
