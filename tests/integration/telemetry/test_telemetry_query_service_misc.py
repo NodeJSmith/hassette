@@ -450,11 +450,11 @@ class TestGetAppRecentActivity:
         db_svc, session_id = db
 
         base_ts = BASE_TS
-        l_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
-        l_b = await insert_listener(db_svc, app_key="app_b", handler_method="on_b")
+        listener_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
+        listener_b = await insert_listener(db_svc, app_key="app_b", handler_method="on_b")
 
-        await insert_invocation(db_svc, l_a, session_id, status="success", execution_start_ts=base_ts + 10.0)
-        await insert_invocation(db_svc, l_b, session_id, status="success", execution_start_ts=base_ts + 20.0)
+        await insert_invocation(db_svc, listener_a, session_id, status="success", execution_start_ts=base_ts + 10.0)
+        await insert_invocation(db_svc, listener_b, session_id, status="success", execution_start_ts=base_ts + 20.0)
 
         results = await query_service.get_app_recent_activity(
             app_key="app_a",

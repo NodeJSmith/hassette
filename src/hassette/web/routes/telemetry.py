@@ -21,6 +21,7 @@ from hassette.core.telemetry_models import (
     JobExecution,
     JobSummary,
 )
+from hassette.core.telemetry_query_service import DEFAULT_QUERY_LIMIT
 from hassette.types.types import QuerySourceTier
 from hassette.web.dependencies import SOURCE_TIER_PARAM, HassetteDep, RuntimeDep, SchedulerDep, TelemetryDep
 from hassette.web.mappers import to_listener_with_summary
@@ -206,7 +207,7 @@ async def app_activity(
     instance_index: int | None = Query(
         default=None, description="App instance index. None returns activity across all instances."
     ),  # pyright: ignore[reportCallInDefaultInitializer]
-    limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
+    limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
     source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
 ) -> list[ActivityFeedEntry]:
@@ -271,7 +272,7 @@ async def handler_invocations(
     listener_id: int,
     telemetry: TelemetryDep,
     response: Response,
-    limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
+    limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[HandlerInvocation]:
     """Invocation history for a specific handler."""
@@ -288,7 +289,7 @@ async def job_executions(
     job_id: int,
     telemetry: TelemetryDep,
     response: Response,
-    limit: int = Query(default=50, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
+    limit: int = Query(default=DEFAULT_QUERY_LIMIT, ge=1, le=500),  # pyright: ignore[reportCallInDefaultInitializer]
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> list[JobExecution]:
     """Execution history for a specific job."""
@@ -329,7 +330,7 @@ async def dashboard_app_grid(
             per_app_buckets = await telemetry.get_per_app_activity_buckets(
                 since,
                 now,
-                num_buckets=12,
+                num_buckets=_NUM_SPARKLINE_BUCKETS,
                 source_tier="app",
             )
         except DB_ERRORS:

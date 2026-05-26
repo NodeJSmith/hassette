@@ -29,6 +29,9 @@ if TYPE_CHECKING:
     from hassette import Hassette
 
 
+DEFAULT_QUERY_LIMIT = 50
+
+
 @dataclass(frozen=True)
 class AppHealthAggregates:
     """Single-row aggregate result returned by ``get_app_health_aggregates()``.
@@ -218,7 +221,7 @@ class TelemetryQueryService(Resource):
         since_err_clause, _ = _since_clause(since, "hi_err.execution_start_ts")
 
         join_condition = f"hi.listener_id = l.id {since_join_clause}"
-        params: dict = {"app_key": app_key, "instance_index": instance_index, **tier_params, **since_params}
+        params: dict[str, Any] = {"app_key": app_key, "instance_index": instance_index, **tier_params, **since_params}
 
         query = f"""
             WITH ranked_errors AS (
@@ -293,7 +296,7 @@ class TelemetryQueryService(Resource):
         since_err_clause, _ = _since_clause(since, "je_err.execution_start_ts")
 
         join_condition = f"je.job_id = sj.id {since_join_clause}"
-        params: dict = {"app_key": app_key, "instance_index": instance_index, **tier_params, **since_params}
+        params: dict[str, Any] = {"app_key": app_key, "instance_index": instance_index, **tier_params, **since_params}
 
         query = f"""
             WITH ranked_errors AS (
@@ -368,7 +371,7 @@ class TelemetryQueryService(Resource):
         since_err_clause, _ = _since_clause(since, "je_err.execution_start_ts")
 
         join_condition = f"je.job_id = sj.id {since_join_clause}"
-        params: dict = {**tier_params, **since_params}
+        params: dict[str, Any] = {**tier_params, **since_params}
 
         query = f"""
             WITH ranked_errors AS (
@@ -445,7 +448,7 @@ class TelemetryQueryService(Resource):
         since_hi_clause, since_params = _since_clause(since, "hi.execution_start_ts")
         since_je_clause, _ = _since_clause(since, "je.execution_start_ts")
 
-        params: dict = {
+        params: dict[str, Any] = {
             "app_key": app_key,
             "instance_index": instance_index,
             **tier_params,
@@ -550,7 +553,7 @@ class TelemetryQueryService(Resource):
         since_err_clause, _ = _since_clause(since, "hi_err.execution_start_ts")
 
         join_condition = f"hi.listener_id = l.id {since_join_clause}"
-        params: dict = {**tier_params, **since_params}
+        params: dict[str, Any] = {**tier_params, **since_params}
 
         query = f"""
             WITH ranked_errors AS (
@@ -710,7 +713,7 @@ class TelemetryQueryService(Resource):
         return _build_app_summaries(listener_reg_rows, listener_act_rows, job_reg_rows, job_act_rows, source_tier)
 
     async def get_handler_invocations(
-        self, listener_id: int, limit: int = 50, since: float | None = None
+        self, listener_id: int, limit: int = DEFAULT_QUERY_LIMIT, since: float | None = None
     ) -> list[HandlerInvocation]:
         """Return recent invocation records for a specific listener.
 
@@ -738,12 +741,14 @@ class TelemetryQueryService(Resource):
             ORDER BY hi.execution_start_ts DESC
             LIMIT :limit
         """
-        params: dict = {"listener_id": listener_id, "limit": limit, **since_params}
+        params: dict[str, Any] = {"listener_id": listener_id, "limit": limit, **since_params}
         async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return [HandlerInvocation.model_validate(_row_to_dict(row)) for row in rows]
 
-    async def get_job_executions(self, job_id: int, limit: int = 50, since: float | None = None) -> list[JobExecution]:
+    async def get_job_executions(
+        self, job_id: int, limit: int = DEFAULT_QUERY_LIMIT, since: float | None = None
+    ) -> list[JobExecution]:
         """Return recent execution records for a specific scheduled job.
 
         Args:
@@ -768,13 +773,13 @@ class TelemetryQueryService(Resource):
             ORDER BY je.execution_start_ts DESC
             LIMIT :limit
         """
-        params: dict = {"job_id": job_id, "limit": limit, **since_params}
+        params: dict[str, Any] = {"job_id": job_id, "limit": limit, **since_params}
         async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return [JobExecution.model_validate(_row_to_dict(row)) for row in rows]
 
     async def get_slow_handlers(
-        self, threshold_ms: float, limit: int = 50, source_tier: QuerySourceTier = "app"
+        self, threshold_ms: float, limit: int = DEFAULT_QUERY_LIMIT, source_tier: QuerySourceTier = "app"
     ) -> list[SlowHandlerRecord]:
         """Return handler invocations whose duration exceeds threshold_ms.
 
