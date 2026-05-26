@@ -26,5 +26,6 @@
     // Keep these active — they catch real bugs in snippet code
     "reportAttributeAccessIssue": "error",
     "reportUndefinedVariable": "error",
-    "reportReturnType": "error"
+    "reportReturnType": "error",
+    "reportUnnecessaryComparison": "error"
 }
