@@ -248,4 +248,7 @@ def make_bus_service(*, config_timeout: float | None = 600.0) -> BusService:
         task_bucket=task_bucket,
         logger=svc.logger,
     )
+    svc._dispatch_pending = 0
+    svc._dispatch_idle_event = asyncio.Event()
+    svc._dispatch_idle_event.set()
     return svc

@@ -224,7 +224,7 @@ class DurationHoldManager:
                     return
                 await listener.invoker.dispatch(invoke_fn)
             finally:
-                self._duration_timers_active -= 1
+                self.decrement_timers_active()
                 if listener.options.once:
                     self.remove_listener(listener)
 

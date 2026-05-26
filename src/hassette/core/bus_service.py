@@ -325,23 +325,23 @@ class BusService(Service):
         try:
             state_proxy = self.hassette._state_proxy
             if state_proxy is None:
-                self.logger.debug("immediate_fire: StateProxy not available for entity %s, skipping", entity_id)
+                self.logger.debug("read_entity_state: StateProxy not available for entity %s, skipping", entity_id)
                 return None
             current_state = state_proxy.states.get(entity_id)
             if current_state is None:
-                self.logger.debug("immediate_fire: entity %s not found in StateProxy, skipping", entity_id)
+                self.logger.debug("read_entity_state: entity %s not found in StateProxy, skipping", entity_id)
                 return None
             return current_state
         except ResourceNotReadyError as exc:
             self.logger.error(
-                "immediate_fire: ResourceNotReadyError for entity %s (sequencing violation).",
+                "read_entity_state: ResourceNotReadyError for entity %s (sequencing violation).",
                 entity_id,
                 exc_info=exc,
             )
             return None
         except Exception as exc:
             self.logger.warning(
-                "immediate_fire: unexpected error reading state for entity %s.",
+                "read_entity_state: unexpected error reading state for entity %s.",
                 entity_id,
                 exc_info=exc,
             )
