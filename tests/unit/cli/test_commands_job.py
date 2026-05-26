@@ -121,7 +121,7 @@ class TestCmdJob:
         assert jobs_call["params"]["source_tier"] == "app"
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
-        """job renders a table with job_id and handler_method."""
+        """job renders a table with job_id and app_key."""
         job = make_job_summary(job_id=99, handler_method="check_lights")
         client, _ = cli_client_factory.build_with_routes([("GET", "/api/scheduler/jobs", 200, [job.model_dump()])])
         with (
@@ -132,8 +132,7 @@ class TestCmdJob:
 
         output = buf.getvalue()
         assert "99" in output
-        # Rich may truncate handler name in a narrow console — match the prefix
-        assert "check_lig" in output
+        assert "my_app" in output
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """job --json outputs the job list as a JSON array."""
@@ -168,13 +167,14 @@ class TestCmdJob:
         """JOB_LIST_COLUMNS includes key job fields."""
         field_names = [c.field for c in JOB_LIST_COLUMNS]
         assert "job_id" in field_names
-        assert "handler_method" in field_names
+        assert "app_key" in field_names
+        assert "job_name" in field_names
         assert "trigger_type" in field_names
         assert "total_executions" in field_names
 
     def test_job_list_columns_count_is_compact(self) -> None:
-        """JOB_LIST_COLUMNS uses at most 9 columns for 80-column fit."""
-        assert len(JOB_LIST_COLUMNS) <= 9
+        """JOB_LIST_COLUMNS uses at most 10 columns for wide terminal fit."""
+        assert len(JOB_LIST_COLUMNS) <= 10
 
 
 class TestCmdJobDetail:

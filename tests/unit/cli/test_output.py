@@ -20,11 +20,11 @@ from hassette.cli.output import (
     fmt_duration_ms,
     fmt_duration_s,
     fmt_relative_time,
-    fmt_truncate,
     render_detail,
     render_raw,
     render_table,
 )
+from tests.unit.cli.conftest import capture_human
 
 # ---------------------------------------------------------------------------
 # Simple test models
@@ -43,28 +43,17 @@ class NestedItem(BaseModel):
     inner: dict[str, Any]
 
 
-# ---------------------------------------------------------------------------
-# Helpers for capturing Rich console output
-# ---------------------------------------------------------------------------
+class SubModel(BaseModel):
+    host: str
+    port: int
+    enabled: bool = True
 
 
-def capture_human(func, *args, **kwargs) -> tuple[str, str]:
-    """Call ``func(*args, **kwargs)`` with Rich consoles redirected to StringIO.
-
-    Returns ``(stdout_text, stderr_text)``. This is needed because Rich holds
-    a reference to the original sys.stdout at construction time; pytest's
-    capsys replacement doesn't intercept it. We patch the module-level consoles.
-    """
-    stdout_buf = StringIO()
-    stderr_buf = StringIO()
-    new_stdout = Console(file=stdout_buf, highlight=False, no_color=True)
-    new_stderr = Console(file=stderr_buf, highlight=False, no_color=True)
-    with (
-        patch.object(output_module, "stdout_console", new_stdout),
-        patch.object(output_module, "stderr_console", new_stderr),
-    ):
-        func(*args, **kwargs)
-    return stdout_buf.getvalue(), stderr_buf.getvalue()
+class ParentModel(BaseModel):
+    name: str
+    debug: bool = False
+    tags: list[str] = []
+    sub: SubModel = SubModel(host="localhost", port=8080)
 
 
 # ---------------------------------------------------------------------------
@@ -214,28 +203,6 @@ class TestFmtDurationS:
 
     def test_invalid_value_returns_string(self) -> None:
         assert fmt_duration_s("invalid") == "invalid"
-
-
-class TestFmtTruncate:
-    def test_short_string_unchanged(self) -> None:
-        fmt = fmt_truncate(20)
-        result = fmt("hello")
-        assert result == "hello"
-
-    def test_long_string_truncated(self) -> None:
-        fmt = fmt_truncate(10)
-        result = fmt("1234567890123456")
-        assert len(result) <= 10
-        assert result.endswith("…")
-
-    def test_exact_length_unchanged(self) -> None:
-        fmt = fmt_truncate(5)
-        result = fmt("hello")
-        assert result == "hello"
-
-    def test_none_returns_empty(self) -> None:
-        fmt = fmt_truncate(20)
-        assert fmt(None) == ""
 
 
 # ---------------------------------------------------------------------------
@@ -497,6 +464,52 @@ class TestRenderDetailHumanMode:
         _stdout, stderr = capture_human(render_detail, item, json_mode=False)
         assert stderr == ""
 
+    def test_humanized_panel_title(self) -> None:
+        item = SimpleItem(name="x", count=1)
+        stdout, _stderr = capture_human(render_detail, item, json_mode=False)
+        assert "Simple Item" in stdout
+
+    def test_boolean_renders_lowercase(self) -> None:
+        item = SimpleItem(name="x", count=1, active=True)
+        stdout, _stderr = capture_human(render_detail, item, json_mode=False)
+        assert "true" in stdout
+
+    def test_none_renders_em_dash(self) -> None:
+        item = SimpleItem(name="x", count=1, note=None)
+        stdout, _stderr = capture_human(render_detail, item, json_mode=False)
+        assert "—" in stdout
+
+    def test_nested_dict_renders_as_section(self) -> None:
+        item = ParentModel(name="test", sub=SubModel(host="0.0.0.0", port=9000))
+        stdout, _stderr = capture_human(render_detail, item, json_mode=False)
+        assert "Sub" in stdout
+        assert "host" in stdout
+        assert "0.0.0.0" in stdout
+        assert "port" in stdout
+        assert "9000" in stdout
+
+    def test_nested_section_keys_are_indented(self) -> None:
+        item = ParentModel(name="test")
+        stdout, _stderr = capture_human(render_detail, item, json_mode=False)
+        for line in stdout.splitlines():
+            if "host" in line and "localhost" in line:
+                assert line.startswith(" ") or "  " in line
+                break
+        else:
+            pytest.fail("Expected indented host row in section")
+
+    def test_list_of_scalars_renders_inline(self) -> None:
+        item = ParentModel(name="test", tags=["alpha", "beta", "gamma"])
+        stdout, _stderr = capture_human(render_detail, item, json_mode=False)
+        assert "alpha" in stdout
+        assert "beta" in stdout
+        assert "gamma" in stdout
+
+    def test_empty_list_renders_em_dash(self) -> None:
+        item = ParentModel(name="test", tags=[])
+        stdout, _stderr = capture_human(render_detail, item, json_mode=False)
+        assert "—" in stdout
+
 
 # ---------------------------------------------------------------------------
 # render_raw — JSON mode
@@ -608,4 +621,3 @@ class TestArchitecturalConstraint:
         assert callable(fmt_relative_time)
         assert callable(fmt_duration_ms)
         assert callable(fmt_duration_s)
-        assert callable(fmt_truncate)

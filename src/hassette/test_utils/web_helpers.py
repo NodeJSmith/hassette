@@ -517,6 +517,7 @@ def make_listener_with_summary(
     last_invoked_at: float | None = 1_700_000_000.0,
     last_error_type: str | None = None,
     last_error_message: str | None = None,
+    entity_id: str | None = None,
 ) -> ListenerWithSummary:
     """Build a ListenerWithSummary with sensible defaults."""
     return ListenerWithSummary(
@@ -535,6 +536,7 @@ def make_listener_with_summary(
         last_invoked_at=last_invoked_at,
         last_error_type=last_error_type,
         last_error_message=last_error_message,
+        entity_id=entity_id,
     )
 
 

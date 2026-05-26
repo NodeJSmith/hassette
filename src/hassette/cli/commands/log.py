@@ -4,7 +4,7 @@ from typing import Any
 
 import hassette.cli.globals as cli_globals
 from hassette.cli.client import make_client
-from hassette.cli.output import Column, fmt_relative_time, fmt_truncate, render_table
+from hassette.cli.output import Column, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.web.models import LogEntryResponse, LogsByExecutionResponse
 
@@ -13,20 +13,20 @@ from hassette.web.models import LogEntryResponse, LogsByExecutionResponse
 # ---------------------------------------------------------------------------
 
 LOG_COLUMNS: list[Column] = [
-    Column("timestamp", "When", max_width=9, formatter=fmt_relative_time),
-    Column("level", "Level", max_width=8),
-    Column("app_key", "App", max_width=16),
-    Column("instance_name", "Instance", max_width=12),
-    Column("func_name", "Function", max_width=18),
-    Column("message", "Message", max_width=34, formatter=fmt_truncate(60)),
+    Column("timestamp", "When", formatter=fmt_relative_time),
+    Column("level", "Level"),
+    Column("app_key", "App"),
+    Column("instance_name", "Instance"),
+    Column("func_name", "Function"),
+    Column("message", "Message"),
 ]
 
 EXECUTION_LOG_COLUMNS: list[Column] = [
-    Column("timestamp", "When", max_width=9, formatter=fmt_relative_time),
-    Column("level", "Level", max_width=8),
-    Column("func_name", "Function", max_width=22),
-    Column("lineno", "Line", max_width=5),
-    Column("message", "Message", max_width=38, formatter=fmt_truncate(60)),
+    Column("timestamp", "When", formatter=fmt_relative_time),
+    Column("level", "Level"),
+    Column("func_name", "Function"),
+    Column("lineno", "Line"),
+    Column("message", "Message"),
 ]
 
 # ---------------------------------------------------------------------------

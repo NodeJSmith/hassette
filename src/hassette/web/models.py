@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from hassette.core.domain_models import AppStatusChangedData, ConnectivityData, ServiceStatusData, StateChangedData
 from hassette.types.enums import ResourceStatus
-from hassette.types.types import LOG_LEVEL_TYPE, InvocationStatus, SourceTier
+from hassette.types.types import LOG_LEVEL_TYPE, CliFormat, InvocationStatus, SourceTier
 
 ManifestStatus = Literal["disabled", "blocked", "running", "failed", "stopped"]
 """Status values for app manifests (manifest-scoped, 5 values).
@@ -64,7 +64,7 @@ class ServiceInfoResponse(BaseModel):
 class SystemStatusResponse(BaseModel):
     status: SystemHealthStatus
     websocket_connected: bool
-    uptime_seconds: float
+    uptime_seconds: Annotated[float, CliFormat("uptime")]
     entity_count: int
     app_count: int
     services_running: list[str]
@@ -286,9 +286,9 @@ class AppHealthResponse(BaseModel):
 
     error_rate: float
     error_rate_class: ErrorRateClass
-    handler_avg_duration: float
-    job_avg_duration: float
-    last_activity_ts: float | None
+    handler_avg_duration: Annotated[float, CliFormat("duration_ms")]
+    job_avg_duration: Annotated[float, CliFormat("duration_ms")]
+    last_activity_ts: Annotated[float | None, CliFormat("relative_time")]
     health_status: HealthStatus
 
 

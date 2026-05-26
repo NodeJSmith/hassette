@@ -5,48 +5,9 @@ from hassette.cli.client import make_client
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
 from hassette.web.models import DashboardAppGridResponse, SystemStatusResponse, TelemetryStatusResponse
 
-
-def uptime_fmt(value: object) -> str:
-    """Format uptime_seconds as a human-readable duration string."""
-    if value is None:
-        return ""
-    try:
-        secs = float(value)  # pyright: ignore[reportArgumentType]
-    except (TypeError, ValueError):
-        return str(value)
-    if secs < 60:
-        return f"{secs:.0f}s"
-    if secs < 3600:
-        m, s = divmod(int(secs), 60)
-        return f"{m}m {s}s"
-    h, remainder = divmod(int(secs), 3600)
-    m, s = divmod(remainder, 60)
-    return f"{h}h {m}m {s}s"
-
-
-def boot_issues_fmt(value: object) -> str:
-    """Summarise boot_issues as a count or dash."""
-    if not value:
-        return "—"
-    if isinstance(value, list):
-        return str(len(value))
-    return str(value)
-
-
 # ---------------------------------------------------------------------------
 # hassette status
 # ---------------------------------------------------------------------------
-
-STATUS_COLUMNS: list[Column] = [
-    Column("status", "Status", max_width=12),
-    Column("websocket_connected", "WS", max_width=5),
-    Column("uptime_seconds", "Uptime", formatter=uptime_fmt),
-    Column("entity_count", "Entities", max_width=8),
-    Column("app_count", "Apps", max_width=5),
-    Column("version", "Version", max_width=12),
-    Column("services_running", "Services", max_width=14),
-    Column("boot_issues", "Boot Issues", formatter=boot_issues_fmt),
-]
 
 
 def cmd_status() -> None:
