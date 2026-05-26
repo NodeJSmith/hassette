@@ -42,9 +42,11 @@ export const startApp = (appKey: string) => apiPost<{ status: string }>(`/apps/$
 export const stopApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/stop`);
 export const reloadApp = (appKey: string) => apiPost<{ status: string }>(`/apps/${encodeURIComponent(appKey)}/reload`);
 
-export const getAppConfig = (appKey: string) => apiFetch<AppConfigData>(`/apps/${encodeURIComponent(appKey)}/config`);
+export const getAppConfig = (appKey: string, signal?: AbortSignal) =>
+  apiFetch<AppConfigData>(`/apps/${encodeURIComponent(appKey)}/config`, signal ? { signal } : undefined);
 
-export const getAppSource = (appKey: string) => apiFetch<AppSourceData>(`/apps/${encodeURIComponent(appKey)}/source`);
+export const getAppSource = (appKey: string, signal?: AbortSignal) =>
+  apiFetch<AppSourceData>(`/apps/${encodeURIComponent(appKey)}/source`, signal ? { signal } : undefined);
 
 // ---- Telemetry ----
 

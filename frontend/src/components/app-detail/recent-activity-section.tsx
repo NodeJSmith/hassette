@@ -122,14 +122,10 @@ export function RecentActivitySection({
   useSubscribe(tick);
 
   useQueryInvalidator(
-    invocationCompleted,
-    (events) => events?.some((e) => e.app_key === appKey) ?? false,
-    queryKeys.appActivity.prefix(appKey),
-  );
-
-  useQueryInvalidator(
-    executionCompleted,
-    (events) => events?.some((e) => e.app_key === appKey) ?? false,
+    [
+      [invocationCompleted, (events) => events?.some((e: { app_key: string }) => e.app_key === appKey) ?? false],
+      [executionCompleted, (events) => events?.some((e: { app_key: string }) => e.app_key === appKey) ?? false],
+    ],
     queryKeys.appActivity.prefix(appKey),
   );
 

@@ -127,8 +127,13 @@ export function AppsPage() {
     getDashboardAppGrid(since, signal),
   );
 
-  useQueryInvalidator(invocationCompleted, (events) => events !== null, queryKeys.dashboardGrid());
-  useQueryInvalidator(executionCompleted, (events) => events !== null, queryKeys.dashboardGrid());
+  useQueryInvalidator(
+    [
+      [invocationCompleted, (events) => events !== null],
+      [executionCompleted, (events) => events !== null],
+    ],
+    queryKeys.dashboardGrid(),
+  );
 
   const isMobile = useMediaQuery(BREAKPOINT_MOBILE);
   const qp = useQueryParams();
