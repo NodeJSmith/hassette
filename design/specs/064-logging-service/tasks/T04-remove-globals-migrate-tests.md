@@ -42,7 +42,11 @@ Remove all module-level globals, accessors, and `shutdown_logging()` from `loggi
    ```python
    @pytest.fixture
    def logging_pipeline():
-       """Local logging pipeline for unit tests — no module globals."""
+       """Local logging pipeline for unit tests — no module globals.
+
+       Covers stream + capture only. Tests needing persistence should
+       construct LogPersistenceHandler directly with a mock db_service.
+       """
        stream = StringIO()
        formatter = <create ProcessorFormatter matching production config>
        stream_handler = logging.StreamHandler(stream)
@@ -92,7 +96,7 @@ Remove all module-level globals, accessors, and `shutdown_logging()` from `loggi
 ## Verify
 - [ ] FR#8: RuntimeQueryService contains no logging persistence wiring code (no set_database, no get_log_persistence_handler)
 - [ ] FR#9: before_shutdown() contains no logging-specific cleanup
-- [ ] AC#6: RuntimeQueryService does not import or reference TelemetryRepository
+- [ ] AC#6: RuntimeQueryService does not import `get_log_capture_handler`, `get_log_persistence_handler`, or `TelemetryRepository`
 - [ ] AC#7: command_executor.repository is not accessed by any code outside CommandExecutor
 - [ ] AC#9: Full test suite passes with no behavioral changes
 - [ ] AC#11: before_shutdown() contains no logging cleanup code

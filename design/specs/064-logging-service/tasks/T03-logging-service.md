@@ -103,7 +103,7 @@ Create the `LoggingService` Resource that owns the full async logging pipeline. 
 - [ ] FR#2: on_initialize creates and starts the full async pipeline (QueueHandler + QueueListener + all handlers)
 - [ ] FR#3: on_shutdown stops QueueListener, drains pending records, flushes persistence handler
 - [ ] FR#4: LogPersistenceHandler receives DatabaseService at construction — no set_database()
-- [ ] FR#6: Sync→async swap logs records before and after without loss
+- [ ] FR#6: Sync→async swap test logs N records before on_initialize() and M records after; all N+M records appear in the capture handler buffer and stream output
 - [ ] AC#1: LoggingService appears in the Resource tree and initializes after DatabaseService
 - [ ] AC#2: After init, log records are persisted without any post-hoc wiring call
 - [ ] AC#3: Shutting down stops persistence before database closes
