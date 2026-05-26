@@ -74,6 +74,10 @@ jobs:
               run: npm run types && git diff --exit-code -- src/api/generated-types.ts
               working-directory: frontend
 
+            - name: Check ws-types.ts is up to date
+              run: npm run ws-types && git diff --exit-code -- src/api/ws-types.ts
+              working-directory: frontend
+
             - name: Build frontend
               run: npm run build
               working-directory: frontend

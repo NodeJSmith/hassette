@@ -6,13 +6,12 @@ extract the FastAPI OpenAPI schema and the WsServerMessage Pydantic JSON
 Schema.  Outputs:
 
 - ``frontend/openapi.json``  — for ``openapi-typescript``
-- ``frontend/ws-schema.json`` — for CI conformance testing of hand-authored
-  TypeScript WS types
+- ``frontend/ws-schema.json`` — for ``generate-ws-types.cjs``
 
 Usage::
 
     python scripts/export_schemas.py
-    python scripts/export_schemas.py --types  # also runs openapi-typescript
+    python scripts/export_schemas.py --types  # also generates TypeScript types
 """
 
 import argparse
@@ -70,6 +69,8 @@ def main() -> None:
 
     # --- TypeScript types (optional) ---
     if args.types:
+        scripts_dir = Path(__file__).resolve().parent
+
         print("Running openapi-typescript...")
         try:
             subprocess.run(
@@ -86,6 +87,21 @@ def main() -> None:
             ) from exc
         generated_path = frontend_dir / "src" / "api" / "generated-types.ts"
         print(f"Wrote {generated_path}")
+
+        print("Running generate-ws-types...")
+        try:
+            subprocess.run(
+                ["node", str(scripts_dir / "generate-ws-types.cjs")],
+                cwd=frontend_dir,
+                check=True,
+            )
+        except FileNotFoundError as exc:
+            raise SystemExit("node not found — Node.js is required for WS type generation") from exc
+        except subprocess.CalledProcessError as exc:
+            raise SystemExit(
+                f"generate-ws-types.cjs failed (exit {exc.returncode})"
+                " — run `npm ci` in the frontend directory if dependencies are missing"
+            ) from exc
 
 
 if __name__ == "__main__":
