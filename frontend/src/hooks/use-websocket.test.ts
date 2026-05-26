@@ -672,4 +672,31 @@ describe("useWebSocket", () => {
 
     expect(invalidateSpy).not.toHaveBeenCalled();
   });
+
+  it("drops invalid messages without updating state", () => {
+    const state = createAppState();
+    const queryClient = createTestQueryClient();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    renderHookWithProviders(() => useWebSocket(state), { queryClient });
+
+    const ws = MockWebSocket.instances[0];
+    act(() => {
+      ws.simulateOpen();
+      ws.simulateMessage({
+        type: "connected",
+        data: { uptime_seconds: 60, entity_count: 0, app_count: 0, version: "" },
+        timestamp: 1000,
+      });
+    });
+
+    act(() => {
+      ws.simulateMessage({ type: "invocation_completed", data: "not-an-array", timestamp: 1000 });
+    });
+
+    expect(state.invocationCompleted.value).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("[ws] invalid message:"), expect.anything());
+
+    warnSpy.mockRestore();
+  });
 });
