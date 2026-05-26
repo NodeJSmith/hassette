@@ -91,7 +91,6 @@ class AppLifecycleService(Resource):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.app_handler
 
     @property

@@ -4,6 +4,7 @@ import logging
 import sqlite3
 import time
 import typing
+from typing import Any
 
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
@@ -16,7 +17,7 @@ if typing.TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
 
 
-def _inv_insert_params(record: HandlerInvocationRecord) -> dict:
+def _inv_insert_params(record: HandlerInvocationRecord) -> dict[str, Any]:
     """Build the named-parameter dict for a handler_invocations INSERT.
 
     Includes all columns written by ``persist_batch()`` and
@@ -51,7 +52,7 @@ def _inv_insert_params(record: HandlerInvocationRecord) -> dict:
     }
 
 
-def _job_insert_params(record: JobExecutionRecord) -> dict:
+def _job_insert_params(record: JobExecutionRecord) -> dict[str, Any]:
     """Build the named-parameter dict for a job_executions INSERT.
 
     Includes all columns written by ``persist_batch()`` and
@@ -93,7 +94,7 @@ def _is_fk_violation(exc: sqlite3.IntegrityError) -> bool:
     return "FOREIGN KEY" in str(exc).upper()
 
 
-def _listener_params(registration: ListenerRegistration, once: bool) -> dict:
+def _listener_insert_params(registration: ListenerRegistration, once: bool) -> dict[str, Any]:
     """Build the named-parameter dict for a listeners INSERT.
 
     Args:
@@ -205,7 +206,7 @@ def _build_delete_query(
     Returns:
         A ``(sql, params)`` tuple.
     """
-    params: dict = {"app_key": app_key}
+    params: dict[str, Any] = {"app_key": app_key}
     if live_ids:
         placeholders = ", ".join(f":id_{i}" for i in range(len(live_ids)))
         params.update({f"id_{i}": v for i, v in enumerate(live_ids)})
@@ -247,7 +248,7 @@ def _build_retire_query(
     Returns:
         A ``(sql, params)`` tuple.
     """
-    params: dict = {"app_key": app_key, "now": now}
+    params: dict[str, Any] = {"app_key": app_key, "now": now}
     if live_ids:
         placeholders = ", ".join(f":id_{i}" for i in range(len(live_ids)))
         params.update({f"id_{i}": v for i, v in enumerate(live_ids)})
@@ -325,7 +326,7 @@ class TelemetryRepository:
                 )
                 RETURNING id
                 """,
-                _listener_params(registration, once=True),
+                _listener_insert_params(registration, once=True),
             )
         else:
             # once=False listeners: upsert — return existing ID on conflict so FK
@@ -361,7 +362,7 @@ class TelemetryRepository:
                     retired_at = NULL
                 RETURNING id
                 """,
-                _listener_params(registration, once=False),
+                _listener_insert_params(registration, once=False),
             )
 
         row = await cursor.fetchone()

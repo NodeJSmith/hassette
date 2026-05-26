@@ -67,6 +67,7 @@ RETRYABLE = (
 # Excludes ClientConnectorError and CouldNotFindHomeAssistantError — those indicate
 # the server is unreachable, not that it dropped a post-auth connection.
 EARLY_DROP_RETRYABLE = (RetryableConnectionClosedError, ServerDisconnectedError)
+_CLEANUP_TIMEOUT = 2.0
 
 
 class WebsocketService(Service):
@@ -123,7 +124,6 @@ class WebsocketService(Service):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.websocket
 
     @property
@@ -333,7 +333,7 @@ class WebsocketService(Service):
             with suppress(Exception):
                 await asyncio.wait_for(
                     asyncio.gather(self._recv_task, return_exceptions=True),
-                    timeout=2.0,
+                    timeout=_CLEANUP_TIMEOUT,
                 )
 
         if self._ws is not None and not self._ws.closed:
@@ -485,7 +485,6 @@ class WebsocketService(Service):
 
         if message.get("success"):
             fut.set_result(message.get("result"))
-
         else:
             # HA error envelope shape (see design/specs/2037-helper-crud-api/design.md):
             #   {"type": "result", "success": false, "error": {"code": "<code>", "message": "<msg>"}}
@@ -500,20 +499,8 @@ class WebsocketService(Service):
                 )
             fut.set_exception(FailedMessageError.from_error_response(err, code=code, original_data=message))
 
-    async def send_json(self, **data) -> None:
-        """Send a JSON payload over the WebSocket connection, with an incrementing message ID.
-
-        Args:
-            **data: The data to send as a JSON payload.
-
-        Raises:
-            FailedMessageError: If sending the message fails.
-        """
-
+    async def send_json(self, **data: Any) -> None:
         self.logger.debug("Sending WebSocket message: %s", data)
-
-        if not isinstance(data, dict):
-            raise TypeError("Payload must be a dictionary, got %s", type(data).__name__)
 
         if not self.connected:
             raise ConnectionClosedError("WebSocket connection is not established")
@@ -529,7 +516,6 @@ class WebsocketService(Service):
         except ClientConnectionResetError:
             self.logger.error("WebSocket connection reset by peer")
             raise
-
         except Exception as e:
             self.logger.exception("Exception when sending message: %s", data)
             raise FailedMessageError(f"Failed to send message: {data}") from e
@@ -597,7 +583,7 @@ class WebsocketService(Service):
             close_code = getattr(self._ws, "close_code", None)
             raise RetryableConnectionClosedError(f"WebSocket closed by peer ({msg_type!r})", close_code=close_code)
 
-        # took a while to track this one down - we need to cancel if we get told that the connection is closing
+        # CLOSING arrives before CLOSED — exit early so the recv loop doesn't block on a half-closed socket
         if msg_type == WSMsgType.CLOSING:
             self.logger.debug("WebSocket is closing - exiting receive loop")
             close_code = getattr(self._ws, "close_code", None)

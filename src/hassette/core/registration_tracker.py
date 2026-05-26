@@ -13,6 +13,8 @@ from logging import Logger
 
 from hassette.types.types import is_framework_key
 
+_CANCELLATION_WAIT_TIMEOUT = 1.0
+
 
 class RegistrationTracker:
     """Tracks pending DB registration tasks per app_key.
@@ -63,7 +65,7 @@ class RegistrationTracker:
         if still_pending:
             for task in still_pending:
                 task.cancel()
-            await asyncio.wait(still_pending, timeout=1.0)
+            await asyncio.wait(still_pending, timeout=_CANCELLATION_WAIT_TIMEOUT)
             logger.warning(
                 "await_registrations_complete timed out after %ss for app_key=%r — "
                 "%d registration task(s) incomplete; those registrations will be excluded from live IDs",

@@ -61,14 +61,6 @@ class AppStatusSnapshot:
         """Set of app keys with running instances."""
         return {info.app_key for info in self.running}
 
-    @property
-    def apps_dict(self) -> dict[tuple[str, int], AppInstanceInfo]:
-        """Dictionary of app instances keyed by (app_key, index)."""
-        result: dict[tuple[str, int], AppInstanceInfo] = {}
-        for info in self.running + self.failed:
-            result[(info.app_key, info.index)] = info
-        return result
-
 
 @dataclass
 class AppManifestInfo:
@@ -211,37 +203,43 @@ class AppRegistry:
         """Yield (app_key, index, app) for every running instance."""
         return [(app_key, index, app) for app_key, instances in self._apps.items() for index, app in instances.items()]
 
+    def info_from_running(self, app_key: str, index: int, app: "App[AppConfig]") -> AppInstanceInfo:
+        return AppInstanceInfo(
+            app_key=app_key,
+            index=index,
+            instance_name=app.app_config.instance_name,
+            class_name=app.class_name,
+            status=app.status,
+            owner_id=app.unique_name,
+        )
+
+    def info_from_failure(
+        self, app_key: str, index: int, error: Exception, class_name: str = "Unknown"
+    ) -> AppInstanceInfo:
+        return AppInstanceInfo(
+            app_key=app_key,
+            index=index,
+            instance_name=f"{class_name}.{index}",
+            class_name=class_name,
+            status=ResourceStatus.FAILED,
+            error=error,
+            error_message=str(error),
+            error_traceback=get_traceback_string(error) if error.__traceback__ else None,
+        )
+
     def get_snapshot(self) -> AppStatusSnapshot:
         """Generate immutable status snapshot for web UI."""
-        running: list[AppInstanceInfo] = []
-        failed: list[AppInstanceInfo] = []
-
-        for app_key, instances in self._apps.items():
-            for index, app in instances.items():
-                info = AppInstanceInfo(
-                    app_key=app_key,
-                    index=index,
-                    instance_name=app.app_config.instance_name,
-                    class_name=app.class_name,
-                    status=app.status,
-                    owner_id=app.unique_name,
-                )
-                running.append(info)
-
+        running = [
+            self.info_from_running(app_key, index, app)
+            for app_key, instances in self._apps.items()
+            for index, app in instances.items()
+        ]
+        failed = []
         for app_key, failures in self._failed_apps.items():
+            manifest = self._manifests.get(app_key)
+            cls_name = manifest.class_name if manifest else "Unknown"
             for index, error in failures:
-                manifest = self._manifests.get(app_key)
-                info = AppInstanceInfo(
-                    app_key=app_key,
-                    index=index,
-                    instance_name=f"{manifest.class_name}.{index}" if manifest else f"Unknown.{index}",
-                    class_name=manifest.class_name if manifest else "Unknown",
-                    status=ResourceStatus.FAILED,
-                    error=error,
-                    error_message=str(error),
-                    error_traceback=get_traceback_string(error) if error.__traceback__ else None,
-                )
-                failed.append(info)
+                failed.append(self.info_from_failure(app_key, index, error, cls_name))
 
         return AppStatusSnapshot(
             running=running,
@@ -255,7 +253,6 @@ class AppRegistry:
         counts = {"running": 0, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0}
 
         for app_key, manifest in self._manifests.items():
-            # Derive status
             if not manifest.enabled:
                 status = "disabled"
             elif app_key in self._blocked_apps:
@@ -269,43 +266,22 @@ class AppRegistry:
 
             counts[status] += 1
 
-            # Collect instances
             instances: list[AppInstanceInfo] = []
             error_message: str | None = None
 
             if app_key in self._apps:
                 for index, app in self._apps[app_key].items():
-                    instances.append(
-                        AppInstanceInfo(
-                            app_key=app_key,
-                            index=index,
-                            instance_name=app.app_config.instance_name,
-                            class_name=app.class_name,
-                            status=app.status,
-                            owner_id=app.unique_name,
-                        )
-                    )
+                    instances.append(self.info_from_running(app_key, index, app))
 
             error_traceback: str | None = None
 
             if app_key in self._failed_apps:
                 for index, error in self._failed_apps[app_key]:
-                    tb = get_traceback_string(error) if error.__traceback__ else None
-                    instances.append(
-                        AppInstanceInfo(
-                            app_key=app_key,
-                            index=index,
-                            instance_name=f"{manifest.class_name}.{index}",
-                            class_name=manifest.class_name,
-                            status=ResourceStatus.FAILED,
-                            error=error,
-                            error_message=str(error),
-                            error_traceback=tb,
-                        )
-                    )
+                    info = self.info_from_failure(app_key, index, error, manifest.class_name)
+                    instances.append(info)
                     if error_message is None:
-                        error_message = str(error)
-                        error_traceback = tb
+                        error_message = info.error_message
+                        error_traceback = info.error_traceback
 
             block_reason = self._blocked_apps.get(app_key)
 

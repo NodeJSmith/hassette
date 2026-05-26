@@ -263,19 +263,9 @@ class Hassette(Resource):
         return self._command_executor
 
     def get_drop_counters(self) -> tuple[int, int, int, int]:
-        """Return (dropped_overflow, dropped_exhausted, dropped_no_session, dropped_shutdown) from the CommandExecutor.
-
-        Returns:
-            A tuple of counters where:
-            - overflow_count: records dropped because the write queue was full.
-            - exhausted_count: records dropped because max retries were exceeded.
-            - no_session_count: records dropped because session_id was unavailable.
-            - shutdown_count: records dropped during shutdown flush.
-        """
         return self.command_executor.get_drop_counters()
 
     def get_error_handler_failures(self) -> int:
-        """Return the count of user error handler invocations that raised or timed out."""
         return self.command_executor.get_error_handler_failures()
 
     def get_log_records_dropped(self) -> int:
@@ -508,8 +498,6 @@ class Hassette(Resource):
         # because: (a) CommandExecutor is ready, (b) session_id is set, and (c) the
         # NOT EXISTS(... session_id = ?) guard prevents deletion of any listener that
         # has current-session invocations still in the write queue.
-        if self._session_manager is None:
-            raise RuntimeError("wire_services() has not been called")
         await self._session_manager.cleanup_stale_once_listeners()
 
         # does not take into consideration if apps failed to load, but those errors would have been logged already

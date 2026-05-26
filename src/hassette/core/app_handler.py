@@ -73,7 +73,6 @@ class AppHandler(Resource):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.app_handler
 
     def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":
