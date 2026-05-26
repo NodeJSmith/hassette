@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Rewire BusService to delegate to extracted modules"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02", "T03"]
 implements: ["FR#4", "AC#1", "AC#2", "AC#5"]
 ---

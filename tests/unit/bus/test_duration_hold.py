@@ -215,6 +215,22 @@ class TestImmediateFireTask:
         executor.execute.assert_not_called()
 
 
+class TestDecrementTimersActive:
+    def test_decrement_from_positive(self) -> None:
+        """decrement_timers_active decreases counter by 1."""
+        manager = make_manager()
+        manager._duration_timers_active = 2
+        manager.decrement_timers_active()
+        assert manager.duration_timers_active == 1
+
+    def test_decrement_floors_at_zero(self) -> None:
+        """decrement_timers_active does not go below zero."""
+        manager = make_manager()
+        assert manager.duration_timers_active == 0
+        manager.decrement_timers_active()
+        assert manager.duration_timers_active == 0
+
+
 class TestStartDurationTimer:
     def test_increments_duration_timers_active(self) -> None:
         """start_duration_timer increments duration_timers_active before timer fires."""

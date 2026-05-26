@@ -7,9 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
+from hassette.bus.duration_hold import DurationHoldManager
+from hassette.bus.router import Router
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
+from hassette.core.event_filter import EventFilter
 from hassette.test_utils.mock_hassette import make_mock_hassette
 from hassette.types.enums import ResourceStatus
 
@@ -226,4 +229,23 @@ def make_bus_service(*, config_timeout: float | None = 600.0) -> BusService:
     svc._executor.execute = AsyncMock()
     svc._executor.register_listener = AsyncMock(return_value=0)
     svc.logger = MagicMock()
+    svc._config_resolver = lambda: config_timeout
+    svc._event_filter = EventFilter(
+        excluded_domains=(),
+        excluded_entities=(),
+        logger=svc.logger,
+    )
+    svc.router = Router()
+    task_bucket = MagicMock()
+    task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: asyncio.ensure_future(coro))
+    svc.task_bucket = task_bucket
+    svc._duration_hold = DurationHoldManager(
+        executor=svc._executor,
+        config_resolver=svc._config_resolver,
+        state_reader=lambda _entity_id: None,
+        remove_listener=lambda _listener: None,
+        router=svc.router,
+        task_bucket=task_bucket,
+        logger=svc.logger,
+    )
     return svc

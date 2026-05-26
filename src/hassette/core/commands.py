@@ -45,8 +45,8 @@ class InvokeHandler:
     app_level_error_handler: "BusErrorHandlerType | None" = None
     """App-level error handler resolved at dispatch time from Bus._error_handler.
 
-    Populated by BusService._make_tracked_invoke_fn() as a fallback when the listener
-    has no per-registration error handler. None when the Bus has no app-level handler set.
+    Populated by ``build_tracked_invoke_fn`` (``bus/invocation.py``) as a fallback when
+    the listener has no per-registration error handler. None when no app-level handler set.
     """
 
     is_synthetic: bool = False

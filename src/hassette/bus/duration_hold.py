@@ -68,6 +68,11 @@ class DurationHoldManager:
         """Number of currently active duration timers."""
         return self._duration_timers_active
 
+    def decrement_timers_active(self) -> None:
+        """Decrement the active timer counter on cancellation."""
+        if self._duration_timers_active > 0:
+            self._duration_timers_active -= 1
+
     def make_synthetic_state_event(self, entity_id: str, current_state: "HassStateDict") -> RawStateChangeEvent:
         """Build a synthetic RawStateChangeEvent with old_state=None."""
         return RawStateChangeEvent(
@@ -181,31 +186,7 @@ class DurationHoldManager:
         remaining: float,
     ) -> None:
         """Start a timer for the ``remaining`` hold seconds; rechecks predicates at fire time."""
-
-        async def on_duration_fire() -> None:
-            try:
-                current_state = self.state_reader(entity_id)
-                if current_state is None:
-                    self.logger.debug(
-                        "remaining_duration_fire: entity %s not found in StateProxy, dropping fire",
-                        entity_id,
-                    )
-                    return
-                recheck_event = self.make_synthetic_state_event(entity_id, current_state)
-                if not self.hold_matches(listener, recheck_event):
-                    self.logger.debug(
-                        "remaining_duration_fire: entity %s predicate no longer matches, dropping fire",
-                        entity_id,
-                    )
-                    return
-                await listener.invoker.dispatch(invoke_fn)
-            finally:
-                self._duration_timers_active -= 1
-                if listener.options.once:
-                    self.remove_listener(listener)
-
-        self._duration_timers_active += 1
-        duration_config.timer.start(on_duration_fire, override_duration=remaining)
+        self._start_duration_timer(listener, entity_id, duration_config, invoke_fn, override_duration=remaining)
 
     def start_duration_timer(
         self,
@@ -215,9 +196,17 @@ class DurationHoldManager:
         invoke_fn: "Callable[[], Awaitable[None]]",
     ) -> None:
         """Start the full-duration hold timer; rechecks predicates at fire time."""
+        self._start_duration_timer(listener, entity_id, duration_config, invoke_fn)
 
+    def _start_duration_timer(
+        self,
+        listener: Listener,
+        entity_id: str,
+        duration_config: DurationConfig,
+        invoke_fn: "Callable[[], Awaitable[None]]",
+        override_duration: float | None = None,
+    ) -> None:
         async def on_duration_fire() -> None:
-            """Called by DurationTimer after the full hold period elapses."""
             try:
                 current_state = self.state_reader(entity_id)
                 if current_state is None:
@@ -226,21 +215,13 @@ class DurationHoldManager:
                         entity_id,
                     )
                     return
-
                 recheck_event = self.make_synthetic_state_event(entity_id, current_state)
-
                 if not self.hold_matches(listener, recheck_event):
                     self.logger.debug(
                         "duration_fire: entity %s predicate no longer matches, dropping fire",
                         entity_id,
                     )
                     return
-
-                self.logger.debug(
-                    "duration_fire: entity %s held state for %.2fs, dispatching handler",
-                    entity_id,
-                    duration_config.duration,
-                )
                 await listener.invoker.dispatch(invoke_fn)
             finally:
                 self._duration_timers_active -= 1
@@ -248,7 +229,10 @@ class DurationHoldManager:
                     self.remove_listener(listener)
 
         self._duration_timers_active += 1
-        duration_config.timer.start(on_duration_fire)
+        if override_duration is not None:
+            duration_config.timer.start(on_duration_fire, override_duration=override_duration)
+        else:
+            duration_config.timer.start(on_duration_fire)
 
     def create_cancel_listener(self, main_listener: Listener) -> Subscription:
         """Create and register a cancellation listener for a duration timer.
@@ -321,9 +305,6 @@ def compute_elapsed(current_state: "HassStateDict", duration_config: DurationCon
         return 0.0
 
     last_changed = _date_utils.convert_datetime_str_to_system_tz(last_changed_raw)
-    if last_changed is None:
-        return 0.0
-
     now_dt = _date_utils.now()
     raw_elapsed = (now_dt - last_changed).in_seconds()
     return max(0.0, min(raw_elapsed, duration))

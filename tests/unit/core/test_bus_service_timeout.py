@@ -1,7 +1,8 @@
-"""Tests for BusService._make_tracked_invoke_fn() effective timeout resolution."""
+"""Tests for build_tracked_invoke_fn() effective timeout resolution."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
+from hassette.bus.invocation import build_tracked_invoke_fn
 from hassette.core.commands import InvokeHandler
 from hassette.events.base import Event
 from hassette.test_utils.helpers import create_listener
@@ -14,43 +15,53 @@ def make_event() -> Event:
     return MagicMock(spec=Event)
 
 
+def make_executor() -> MagicMock:
+    """Create a mock executor with an async execute method."""
+    executor = MagicMock()
+    executor.execute = AsyncMock()
+    return executor
+
+
 class TestDispatchResolvesEffectiveTimeout:
     async def test_dispatch_resolves_effective_timeout_from_listener(self) -> None:
         """listener.timeout=5 -> effective_timeout=5."""
-        svc = make_bus_service(config_timeout=600.0)
+        executor = make_executor()
+        config_timeout = 600.0
         listener = create_listener(topic="test.topic", timeout=5.0)
         event = make_event()
 
-        invoke_fn = svc._make_tracked_invoke_fn("test.topic", event, listener)
+        invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: config_timeout)
         await invoke_fn()
 
-        cmd = svc._executor.execute.call_args[0][0]
+        cmd = executor.execute.call_args[0][0]
         assert isinstance(cmd, InvokeHandler)
         assert cmd.effective_timeout == 5.0
 
     async def test_dispatch_resolves_effective_timeout_from_config(self) -> None:
         """listener.timeout=None -> uses config default."""
-        svc = make_bus_service(config_timeout=600.0)
+        executor = make_executor()
+        config_timeout = 600.0
         listener = create_listener(topic="test.topic")
         event = make_event()
 
-        invoke_fn = svc._make_tracked_invoke_fn("test.topic", event, listener)
+        invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: config_timeout)
         await invoke_fn()
 
-        cmd = svc._executor.execute.call_args[0][0]
+        cmd = executor.execute.call_args[0][0]
         assert isinstance(cmd, InvokeHandler)
         assert cmd.effective_timeout == 600.0
 
     async def test_dispatch_resolves_timeout_disabled(self) -> None:
         """listener.timeout_disabled=True -> effective_timeout=None."""
-        svc = make_bus_service(config_timeout=600.0)
+        executor = make_executor()
+        config_timeout = 600.0
         listener = create_listener(topic="test.topic", timeout_disabled=True)
         event = make_event()
 
-        invoke_fn = svc._make_tracked_invoke_fn("test.topic", event, listener)
+        invoke_fn = build_tracked_invoke_fn(listener, event, "test.topic", executor, lambda: config_timeout)
         await invoke_fn()
 
-        cmd = svc._executor.execute.call_args[0][0]
+        cmd = executor.execute.call_args[0][0]
         assert isinstance(cmd, InvokeHandler)
         assert cmd.effective_timeout is None
 
