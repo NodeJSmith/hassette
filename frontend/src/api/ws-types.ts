@@ -156,11 +156,10 @@ export interface ExecutionCompletedData {
   error_type?: string | null;
 }
 
-// Backward-compatible aliases for consumers that use the Ws*Payload naming
 export type WsLogPayload = LogEntryResponse;
 export type WsInvocationCompletedPayload = InvocationCompletedData;
 export type WsExecutionCompletedPayload = ExecutionCompletedData;
 
-// Note: InvocationStatus is also defined in generated-types.ts (from OpenAPI).
+// InvocationStatus is also defined in generated-types.ts (from OpenAPI).
 // Both are generated from the same Python enum via export_schemas.py --types.
 // CI enforces freshness of both files atomically.

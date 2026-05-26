@@ -69,7 +69,7 @@ def main() -> None:
 
     # --- TypeScript types (optional) ---
     if args.types:
-        scripts_dir = Path(__file__).resolve().parent
+        scripts_dir = repo_root / "scripts"
 
         print("Running openapi-typescript...")
         try:

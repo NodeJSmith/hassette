@@ -29,47 +29,51 @@ const BANNER = `/* @generated from ws-schema.json — do not edit by hand.
  */`;
 
 const COMPAT_ALIASES = `
-// Backward-compatible aliases for consumers that use the Ws*Payload naming
 export type WsLogPayload = LogEntryResponse;
 export type WsInvocationCompletedPayload = InvocationCompletedData;
 export type WsExecutionCompletedPayload = ExecutionCompletedData;
 
-// Note: InvocationStatus is also defined in generated-types.ts (from OpenAPI).
+// InvocationStatus is also defined in generated-types.ts (from OpenAPI).
 // Both are generated from the same Python enum via export_schemas.py --types.
 // CI enforces freshness of both files atomically.
 `;
 
-function preprocessDef(obj) {
-  if (!obj || typeof obj !== "object") return;
-  if (obj.properties) {
-    for (const [key, prop] of Object.entries(obj.properties)) {
+const COMPILE_OPTIONS = {
+  additionalProperties: false,
+  unreachableDefinitions: true,
+  bannerComment: "",
+  format: true,
+};
+
+function preprocessDef(schemaDef) {
+  if (!schemaDef || typeof schemaDef !== "object") return;
+  if (schemaDef.properties) {
+    for (const [, prop] of Object.entries(schemaDef.properties)) {
       if (prop && typeof prop === "object") {
-        // Strip property-level titles (they cause noisy type aliases)
         delete prop.title;
         if (prop.anyOf) {
           for (const variant of prop.anyOf) {
             if (variant && typeof variant === "object") delete variant.title;
           }
         }
-        // Recurse into nested schemas (inline objects, items)
         preprocessDef(prop);
       }
     }
-    // Use the schema's own required array if present (Pydantic generates correct
-    // ones). Only compute from properties when absent — fields with "default"
-    // stay optional to match AJV validation and support older servers.
-    if (!obj.required) {
-      const required = Object.entries(obj.properties)
+    // Use the schema's own required array if present. Only compute from
+    // properties when absent — fields with "default" stay optional to match
+    // AJV validation and support older servers.
+    if (!schemaDef.required) {
+      const required = Object.entries(schemaDef.properties)
         .filter(([, prop]) => prop && typeof prop === "object" && !("default" in prop))
         .map(([key]) => key);
       if (required.length > 0) {
-        obj.required = required;
+        schemaDef.required = required;
       }
     }
   }
-  if (obj.items && typeof obj.items === "object") {
-    delete obj.items.title;
-    preprocessDef(obj.items);
+  if (schemaDef.items && typeof schemaDef.items === "object") {
+    delete schemaDef.items.title;
+    preprocessDef(schemaDef.items);
   }
 }
 
@@ -82,12 +86,7 @@ async function main() {
     preprocessDef(def);
   }
 
-  const ts = await compile(schema, "WsServerMessage", {
-    additionalProperties: false,
-    unreachableDefinitions: true,
-    bannerComment: "",
-    format: true,
-  });
+  const ts = await compile(schema, "WsServerMessage", COMPILE_OPTIONS);
 
   const output = `${BANNER}\n\n${ts}${COMPAT_ALIASES}`;
   fs.writeFileSync(OUTPUT_PATH, output);
