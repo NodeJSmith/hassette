@@ -127,27 +127,32 @@ done
 
 ## Shell Completion
 
-Hassette supports tab completion for commands and subcommand names via [cyclopts](https://github.com/BrianPugh/cyclopts). The `--install-completion` flag generates and installs the completion script to the appropriate location for your shell.
+Hassette supports tab completion for commands and subcommand names via [cyclopts](https://github.com/BrianPugh/cyclopts). Two commands are available:
 
-### Bash
+### Generate to stdout
+
+`--generate-completion` prints the completion script to stdout so you can pipe it wherever you want:
 
 ```bash
-hassette --install-completion --shell bash
+# Zsh
+hassette --generate-completion zsh > ~/.zsh/completions/_hassette
+
+# Bash
+hassette --generate-completion bash > ~/.local/share/bash-completion/completions/hassette
+
+# Fish
+hassette --generate-completion fish > ~/.config/fish/completions/hassette.fish
 ```
 
-### Zsh
+### Install to default location
+
+`--install-completion` writes the completion script to the shell's default completion directory and prints instructions for adding it to your path:
 
 ```bash
 hassette --install-completion --shell zsh
 ```
 
-### Fish
-
-```bash
-hassette --install-completion --shell fish
-```
-
-If `--shell` is omitted, the CLI auto-detects the current shell. After installation, restart your shell or source the relevant config file. Pressing Tab after `hassette ` then shows available subcommands. Subcommand-specific flags are also completed.
+If `--shell` is omitted, both commands auto-detect the current shell. After installation, restart your shell or source the relevant config file. Pressing Tab after `hassette ` then shows available subcommands. Subcommand-specific flags are also completed.
 
 ## Error Handling
 
