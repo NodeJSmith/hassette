@@ -1,6 +1,11 @@
 """Integration tests for TelemetryQueryService — source tier, job summary, health, and activity feed."""
 
+import asyncio
 import sqlite3
+import time
+from collections.abc import AsyncIterator
+from pathlib import Path
+from unittest.mock import MagicMock
 
 import aiosqlite
 import pytest
@@ -10,6 +15,7 @@ from hassette.core.telemetry_models import (
     ActivityFeedEntry,
 )
 from hassette.core.telemetry_query_service import TelemetryQueryService, _source_tier_clause
+from hassette.test_utils.mock_hassette import make_mock_hassette
 
 from .helpers import (
     BASE_TS,
@@ -166,6 +172,68 @@ class TestCheckHealth:
             # Restore so fixture teardown doesn't crash
             db_svc._read_db = await aiosqlite.connect(db_svc._db_path, isolation_level=None)
             db_svc._read_db.row_factory = aiosqlite.Row
+
+
+class TestReadTimeout:
+    @pytest.fixture
+    def short_timeout_hassette(self, premigrated_db_path: Path) -> MagicMock:
+        return make_mock_hassette(
+            data_dir=premigrated_db_path.parent,
+            set_ready=False,
+            database={"telemetry_write_queue_max": 500, "max_size_mb": 0, "read_timeout_seconds": 0.1},
+            lifecycle={"resource_shutdown_timeout_seconds": 5},
+            web_api={"run": True},
+        )
+
+    @pytest.fixture
+    async def short_timeout_db(self, short_timeout_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
+        db_service = DatabaseService(short_timeout_hassette, parent=None)
+        await db_service.on_initialize()
+        cursor = await db_service.db.execute(
+            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
+            (time.time(), time.time()),
+        )
+        session_id = cursor.lastrowid
+        await db_service.db.commit()
+        short_timeout_hassette.session_id = session_id
+        short_timeout_hassette.database_service = db_service
+        yield db_service, session_id
+        await db_service.on_shutdown()
+
+    @pytest.fixture
+    def short_timeout_query_service(
+        self,
+        short_timeout_hassette: MagicMock,
+        short_timeout_db: tuple[DatabaseService, int],
+    ) -> TelemetryQueryService:
+        service = TelemetryQueryService.__new__(TelemetryQueryService)
+        service.hassette = short_timeout_hassette
+        service.logger = MagicMock()
+        service._snapshot_lock = asyncio.Lock()
+        return service
+
+    async def test_execute_raises_timeout_error(
+        self,
+        short_timeout_query_service: TelemetryQueryService,
+        short_timeout_db: tuple[DatabaseService, int],
+    ) -> None:
+        """execute() raises TimeoutError when a query exceeds read_timeout_seconds."""
+        db_svc, _ = short_timeout_db
+
+        # Register a custom SQLite function that sleeps, forcing the query to exceed the 100ms timeout
+        await db_svc.read_db.create_function("sleep_ms", 1, lambda ms: time.sleep(ms / 1000))
+
+        with pytest.raises(TimeoutError):
+            async with short_timeout_query_service.execute("SELECT sleep_ms(300)") as cursor:
+                await cursor.fetchone()
+
+    async def test_normal_query_succeeds_within_timeout(
+        self,
+        short_timeout_query_service: TelemetryQueryService,
+        short_timeout_db: tuple[DatabaseService, int],
+    ) -> None:
+        """A fast query completes within even a short timeout."""
+        await short_timeout_query_service.check_health()
 
 
 class TestGetAppRecentActivity:
@@ -382,11 +450,11 @@ class TestGetAppRecentActivity:
         db_svc, session_id = db
 
         base_ts = BASE_TS
-        l_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
-        l_b = await insert_listener(db_svc, app_key="app_b", handler_method="on_b")
+        listener_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
+        listener_b = await insert_listener(db_svc, app_key="app_b", handler_method="on_b")
 
-        await insert_invocation(db_svc, l_a, session_id, status="success", execution_start_ts=base_ts + 10.0)
-        await insert_invocation(db_svc, l_b, session_id, status="success", execution_start_ts=base_ts + 20.0)
+        await insert_invocation(db_svc, listener_a, session_id, status="success", execution_start_ts=base_ts + 10.0)
+        await insert_invocation(db_svc, listener_b, session_id, status="success", execution_start_ts=base_ts + 20.0)
 
         results = await query_service.get_app_recent_activity(
             app_key="app_a",
