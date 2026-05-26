@@ -259,7 +259,7 @@ class CommandExecutor(Service):
         except asyncio.CancelledError:
             self._enqueue_record(self._build_record(cmd, result, execution_start_ts, execution_id))
             raise
-        except Exception:  # noqa: S110 — track_execution() already re-raised; result is populated
+        except Exception:  # noqa: S110 — intentional: ExecutionResult is populated and error logged upstream
             pass
         # result is available for both success and error paths
         if result.is_timed_out:

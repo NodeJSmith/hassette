@@ -14,9 +14,10 @@ on:
             - "pyproject.toml"
             - ".github/workflows/docs.yml"
 
+    workflow_dispatch:
+
 permissions:
     contents: read
-    workflow_dispatch:
 
 jobs:
     build:
