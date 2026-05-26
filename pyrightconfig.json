@@ -93,7 +93,9 @@
     // "reportIncompatibleVariableOverride": "none",
     // "reportImportCycles": "none",
     // "reportMissingSuperCall": "none",
+
     "reportUnnecessaryComparison": "error",
+
     // "reportUnnecessaryIsInstance": "none",
     // "reportUninitializedInstanceVariable": "none",
     // "reportMissingParameterType": "none",

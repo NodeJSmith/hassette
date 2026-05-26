@@ -185,7 +185,6 @@ async def wait_for_ready(
         CancelledError: If the calling task is cancelled while waiting.
     """
     resources = resources if isinstance(resources, list) else [resources]
-
     if not resources:
         return True
 
