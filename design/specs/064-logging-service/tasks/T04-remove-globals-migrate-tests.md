@@ -64,27 +64,72 @@ Remove all module-level globals, accessors, and `shutdown_logging()` from `loggi
        logger.removeHandler(queue_handler)
    ```
 
-5. Migrate `tests/unit/test_logging.py`:
+5. Create `persistence_handler` fixture alongside `logging_pipeline` (same conftest):
+   ```python
+   @dataclass
+   class PersistenceFixture:
+       handler: LogPersistenceHandler
+       db_service: MagicMock
+       enqueued_batches: list[list[dict]]
+
+   @pytest.fixture
+   def persistence_handler():
+       """LogPersistenceHandler with a mock DatabaseService.
+
+       call_soon_threadsafe executes synchronously for deterministic testing.
+       Batches passed to _insert_log_records are captured for assertion.
+       """
+       enqueued_batches: list[list[dict]] = []
+
+       mock_db_service = MagicMock(spec=[])
+       mock_db_service.enqueue = MagicMock(return_value=True)
+
+       def capture_insert(records):
+           enqueued_batches.append(records)
+           coro = AsyncMock()()
+           return coro
+
+       mock_db_service._insert_log_records = MagicMock(side_effect=capture_insert)
+
+       mock_loop = MagicMock(spec=[])
+       mock_loop.call_soon_threadsafe = MagicMock(side_effect=lambda fn: fn())
+       mock_loop.is_running = MagicMock(return_value=True)
+
+       handler = LogPersistenceHandler(
+           mock_db_service, mock_loop, persistence_level=logging.DEBUG
+       )
+
+       yield PersistenceFixture(handler, mock_db_service, enqueued_batches)
+   ```
+
+   Key design decisions:
+   - `spec=[]` on both mocks — prevents auto-attribute creation (project has a known MagicMock deadlock issue with auto-created attributes)
+   - `call_soon_threadsafe` executes the function immediately — makes flush deterministic
+   - `capture_insert` captures the batch AND returns a coroutine (since `enqueue()` receives one)
+   - `enqueued_batches` gives tests a clean assertion target
+   - For queue-full testing, set `mock_db_service.enqueue.return_value = False` and assert `handler.dropped_count`
+
+6. Migrate `tests/unit/test_logging.py`:
    - Remove `cleanup_logging` autouse fixture
    - Remove all `enable_logging()`/`shutdown_logging()` calls
    - Tests that test the full pipeline → use `logging_pipeline` fixture
    - Tests that test individual components (CorrelationFilter, LogCaptureHandler) → continue constructing directly, no fixture needed
-   - Tests that test LogPersistenceHandler → construct with mock db_service directly (constructor injection)
+   - Tests that test LogPersistenceHandler → use `persistence_handler` fixture from step 5
    - ~40 tests affected, changes are mechanical
 
-6. Update `tests/integration/test_core.py`:
+7. Update `tests/integration/test_core.py`:
    - Add `LoggingService` to expected children in `test_constructor_registers_background_services`
    - Add `LoggingService` to `test_init_order_contains_all_children`
    - Update `test_before_shutdown_removes_listeners_and_finalizes` — verify `before_shutdown()` does NOT do any logging cleanup
    - Update `test_before_shutdown_finalizes_even_when_listener_removal_fails` — same
 
-7. Update `tests/e2e/conftest.py`:
+8. Update `tests/e2e/conftest.py`:
    - Lines 237, 240: change the patch target from `hassette.core.runtime_query_service.get_log_capture_handler` to mock `hassette.logging_service.capture_handler` on the mock hassette instance
 
-8. Update `tests/unit/core/test_runtime_query_service.py`:
+9. Update `tests/unit/core/test_runtime_query_service.py`:
    - Remove any mocks of `command_executor.repository` for persistence wiring
 
-9. Run full test suite: `timeout 300 uv run pytest tests/unit/ tests/integration/ -v -n 2`
+10. Run full test suite: `timeout 300 uv run pytest tests/unit/ tests/integration/ -v -n 2`
 
 ## Focus
 - The `logging_pipeline` fixture must mirror production config enough for tests to be valid (structlog processors, formatter) but stay self-contained (no module state).
