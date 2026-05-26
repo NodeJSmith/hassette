@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Extract build_tracked_invoke_fn to bus/invocation.py"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#2", "AC#3", "AC#4"]
 ---
