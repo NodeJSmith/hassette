@@ -10,6 +10,22 @@ repos:
       - id: check-shebang-scripts-are-executable
       - id: debug-statements
 
+  - repo: local
+    hooks:
+      - id: zizmor
+        name: zizmor (GitHub Actions security)
+        language: system
+        entry: env -u GH_TOKEN -u GITHUB_TOKEN uvx zizmor@1.25.2 --offline
+        files: ^\.github/workflows/
+        stages: [pre-commit, pre-push]
+
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.46.3
+    hooks:
+      - id: typos
+        args: [--force-exclude]
+        stages: [pre-commit, pre-push]
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
     rev: "v0.14.9"

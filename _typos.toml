@@ -1,0 +1,54 @@
+[files]
+extend-exclude = [
+    "CHANGELOG.md",
+    "*.svg",
+    "*.lock",
+    "uv.lock",
+    "frontend/package-lock.json",
+    "design/",
+]
+
+[default.extend-words]
+# Home Assistant abbreviation (used everywhere in this project)
+hass = "hass"
+Hass = "Hass"
+HASS = "HASS"
+
+# HTML <th> elements plural in frontend tests
+ths = "ths"
+
+# Acceptable spelling variant
+unparseable = "unparseable"
+Unparseable = "Unparseable"
+
+# Intentional misspellings in validation tests (testing that Pydantic rejects them)
+inital = "inital"
+optionss = "optionss"
+
+# Unicode category names (regex character classes)
+Nd = "Nd"
+
+# Fragment of "WARNINGs" — typos splits on case boundary
+WARNIN = "WARNIN"
+
+# Appear inside base64-encoded strings, ULIDs, and UUIDs
+OT = "OT"
+Hda = "Hda"
+VEW = "VEW"
+AHD = "AHD"
+
+[default.extend-identifiers]
+# Home Assistant types/classes containing "Hass"
+HassAPI = "HassAPI"
+HassStateDict = "HassStateDict"
+HassPayload = "HassPayload"
+HassContext = "HassContext"
+HassetteConfig = "HassetteConfig"
+
+[type.py.extend-words]
+# Python-specific allowances
+caf = "caf"
+
+[type.sql.extend-words]
+
+[type.jsonl.extend-words]

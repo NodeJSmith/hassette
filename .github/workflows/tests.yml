@@ -7,14 +7,19 @@ on:
         branches: [main]
     workflow_dispatch:
 
+permissions:
+    contents: read
+
 jobs:
     changes:
         runs-on: ubuntu-latest
         outputs:
             code: ${{ steps.filter.outputs.code }}
         steps:
-            - uses: actions/checkout@v4
-            - uses: dorny/paths-filter@v3
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
+            - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
               id: filter
               with:
                   filters: |
@@ -34,17 +39,19 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 10
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
 
             - name: Install uv and set the Python version
-              uses: astral-sh/setup-uv@v6
+              uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
               with:
                   python-version: "3.13"
 
             - run: uv sync
 
             - name: Set up Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
               with:
                   node-version: "22"
                   cache: "npm"
@@ -59,7 +66,7 @@ jobs:
               working-directory: frontend
 
             - name: Upload frontend coverage
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
               with:
                   name: frontend-coverage
                   path: frontend/coverage/lcov.info
@@ -98,13 +105,15 @@ jobs:
 
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
 
             - name: Install fd-find
               run: sudo apt-get update && sudo apt-get install -y fd-find
 
             - name: Install uv and set the Python version
-              uses: astral-sh/setup-uv@v6
+              uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
               with:
                   python-version: ${{ matrix.python-version }}
 
@@ -114,7 +123,7 @@ jobs:
               run: uv run nox -t coverage -p ${{ matrix.python-version }}
 
             - name: Upload coverage data
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
               with:
                   name: .coverage.${{ matrix.python-version }}
                   path: .coverage.${{ matrix.python-version }}
@@ -131,10 +140,12 @@ jobs:
 
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
 
             - name: Install uv
-              uses: astral-sh/setup-uv@v6
+              uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
               with:
                   python-version: "3.13"
 
@@ -144,7 +155,7 @@ jobs:
               run: uv run nox -s system_with_coverage
 
             - name: Upload coverage data
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
               with:
                   name: .coverage.system
                   path: .coverage.system
@@ -159,10 +170,12 @@ jobs:
             (needs.frontend.result == 'success' || needs.test.result == 'success' || needs.system.result == 'success')
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
 
             - name: Install uv and set the Python version
-              uses: astral-sh/setup-uv@v6
+              uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
               with:
                   python-version: 3.11
 
@@ -171,14 +184,14 @@ jobs:
                   uv venv
                   uv pip install -U 'coverage[toml]'
 
-            - uses: actions/download-artifact@v5
+            - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
               with:
                   path: coverage-parts
                   pattern: .coverage.*
                   merge-multiple: true
 
             - name: Download frontend coverage
-              uses: actions/download-artifact@v5
+              uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
               with:
                   name: frontend-coverage
                   path: frontend-coverage
@@ -190,20 +203,20 @@ jobs:
                   uv run coverage report
 
             - name: Upload HTML report (artifact)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
               with:
                   name: coverage-html
                   path: htmlcov
 
             - name: Upload XML for integrations
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
               with:
                   name: coverage-xml
                   path: coverage.xml
 
             - name: Upload coverage to Codecov
               if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-              uses: codecov/codecov-action@v5
+              uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
               with:
                   files: coverage.xml,frontend-coverage/lcov.info
                   fail_ci_if_error: true

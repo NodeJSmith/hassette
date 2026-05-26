@@ -38,6 +38,7 @@ target-version = "py311"
 external = ["ASYNC103", "ASYNC104"]
 select = [
     # "ANN",
+    "ASYNC",  # flake8-async
     "E",      # pycodestyle (error)
     "W",      # pycodestyle (warning)
     "F",      # pyflakes
@@ -50,6 +51,7 @@ select = [
     "PD",     # pandas-vet
     "RUF",    # ruff
     "TCH",    # flake8-type-checking
+    "S",      # flake8-bandit (security)
     "I",      # isort
     "DTZ",    # flake8-datetimez
     "PT",     # flake8-pytest-style (PT)
@@ -85,6 +87,7 @@ ignore = [
     "N801",   # invalid-class-name
     "SIM103", # needless-bool
     "N812",   # lowercase-imported-as-non-lowercase
+    "ASYNC109", # timeout-parameter — framework API deliberately passes timeout through
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
@@ -95,6 +98,42 @@ unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",   # assert usage
+    "S104",   # binding to all interfaces (test fixtures)
+    "S105",   # hardcoded passwords (test tokens)
+    "S106",   # hardcoded password arguments
+    "S108",   # insecure temp file paths
+    "S110",   # try-except-pass
+    "S603",   # subprocess calls
+    "S607",   # partial executable paths
+    "S608",   # SQL string construction (test queries)
+    "S610",   # false positive: not Django .extra()
+    "S102",   # exec usage (API surface test)
+    "ASYNC221", # blocking subprocess in async test functions (docker management)
+]
+"tests/integration/telemetry/test_telemetry_query_service_misc.py" = ["ASYNC251"]
+"tools/*.py" = ["S603", "S607"]
+"scripts/*.py" = ["S105", "S310", "S603", "S607"]
+"codegen/**/*.py" = ["S108", "S603", "S607", "S701"]
+"docs/**/*.py" = ["S101", "S105", "S106", "S311", "ASYNC110"]
+"src/hassette/core/telemetry_query_service.py" = ["S608"]
+"src/hassette/core/telemetry_repository.py" = ["S608"]
+"src/hassette/core/session_manager.py" = ["S608"]
+"src/hassette/test_utils/*.py" = ["S101", "S104", "S105", "S311"]
+"src/hassette/cli/client.py" = ["S104"]
+"src/hassette/config/models.py" = ["S104"]
+"src/hassette/api/api.py" = ["S101"]
+"src/hassette/bus/*.py" = ["S101"]
+"src/hassette/core/api_resource.py" = ["S101"]
+"src/hassette/core/bus_service.py" = ["S101"]
+"src/hassette/core/websocket_service.py" = ["S101", "S311"]
+"src/hassette/core/scheduler_service.py" = ["S311"]
+"src/hassette/event_handling/*.py" = ["S101"]
+"src/hassette/scheduler/scheduler.py" = ["S101"]
+"src/hassette/state_manager/state_manager.py" = ["S101"]
+"src/hassette/utils/app_utils.py" = ["S101"]
+"src/hassette/models/states/text.py" = ["S105"]
 
 [format]
 # Like Black, use double quotes for strings.

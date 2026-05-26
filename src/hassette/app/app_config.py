@@ -12,7 +12,7 @@ class AppConfig(BaseSettings):
     This default class allows all extras, so arbitrary additional configuration data
     can be passed without needing to define a custom subclass, at the cost of type safety.
 
-    Fields can be set on subclasses and extra can be overriden by assigning a new value to `model_config`.
+    Fields can be set on subclasses and extra can be overridden by assigning a new value to `model_config`.
     """
 
     model_config = SettingsConfigDict(

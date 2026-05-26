@@ -249,7 +249,7 @@ class TestDependencyInjectionTypeConversionHandlesUnions:
                 signature = get_typed_signature(handler)
                 injector = ParameterInjector(handler.__name__, signature)
 
-                # consider not raising as successs
+                # consider not raising as success
                 injector.inject_parameters(state_change_event)
 
     async def test_typed_annotation_union_with_all_wrong_types_raises(
