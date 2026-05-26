@@ -13,6 +13,9 @@ on:
             - "mkdocs.yml"
             - "pyproject.toml"
             - ".github/workflows/docs.yml"
+
+permissions:
+    contents: read
     workflow_dispatch:
 
 jobs:
@@ -23,6 +26,8 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
 
             - name: Install uv and set the Python version
               uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
@@ -43,6 +48,8 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
 
             - name: Install uv and set the Python version
               uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6

@@ -7,6 +7,9 @@ on:
         branches: [main]
     workflow_dispatch:
 
+permissions:
+    contents: read
+
 jobs:
     changes:
         runs-on: ubuntu-latest
@@ -16,6 +19,8 @@ jobs:
             codegen: ${{ steps.filter.outputs.codegen }}
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
             - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
               id: filter
               with:
@@ -47,6 +52,8 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
 
             - name: Install uv and set the Python version
               uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
@@ -83,6 +90,8 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
 
             - name: Set up Node.js
               uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -135,6 +144,8 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
 
             - name: Set up Python 3.14
               uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -184,6 +195,8 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
 
             - name: Install uv
               uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6

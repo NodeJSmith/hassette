@@ -50,6 +50,7 @@ jobs:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
               with:
                   ref: ${{ inputs.tag_name || github.ref }}
+                  persist-credentials: false
 
             - name: Set up QEMU
               uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
@@ -68,7 +69,7 @@ jobs:
               uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
               with:
                   activate-environment: true
-                  enable-cache: true
+                  enable-cache: false
 
             - name: Classify release tag
               if: env.IS_RELEASE == 'true'

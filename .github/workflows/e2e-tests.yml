@@ -7,6 +7,9 @@ on:
         branches: [main]
     workflow_dispatch:
 
+permissions:
+    contents: read
+
 jobs:
     changes:
         runs-on: ubuntu-latest
@@ -14,6 +17,8 @@ jobs:
             code: ${{ steps.filter.outputs.code }}
         steps:
             - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
             - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
               id: filter
               with:
@@ -39,6 +44,8 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
 
             - name: Install uv and set the Python version
               uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6

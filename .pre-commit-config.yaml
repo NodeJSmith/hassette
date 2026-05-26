@@ -15,7 +15,7 @@ repos:
       - id: zizmor
         name: zizmor (GitHub Actions security)
         language: system
-        entry: env -u GH_TOKEN -u GITHUB_TOKEN uvx zizmor@1.25.2 --offline --min-confidence high
+        entry: env -u GH_TOKEN -u GITHUB_TOKEN uvx zizmor@1.25.2 --offline
         files: ^\.github/workflows/(?!release-please)
         stages: [pre-commit, pre-push]
 
