@@ -111,18 +111,18 @@ def fmt_duration_s(value: Any) -> str:
     return f"{num:.1f}s"
 
 
-def fmt_truncate(max_len: int = 60) -> Callable[[Any], str]:
-    """Return a formatter that truncates strings to ``max_len`` characters."""
+def fmt_next_run(value: Any) -> str:
+    """Format a next-run timestamp: ``None`` → ``'done'``, otherwise relative time."""
+    if value is None:
+        return "done"
+    return fmt_relative_time(value)
 
-    def _fmt(value: Any) -> str:
-        if value is None:
-            return ""
-        s = str(value)
-        if len(s) > max_len:
-            return s[: max_len - 1] + "…"
-        return s
 
-    return _fmt
+def fmt_handler_short(value: Any) -> str:
+    """Extract just the method name from a fully qualified handler path."""
+    if value is None:
+        return ""
+    return str(value).rsplit(".", 1)[-1]
 
 
 def fmt_uptime(value: Any) -> str:

@@ -4,16 +4,9 @@ from typing import Any
 
 import hassette.cli.globals as cli_globals
 from hassette.cli.client import make_client
-from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_table
+from hassette.cli.output import Column, fmt_duration_ms, fmt_next_run, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.core.telemetry_models import JobExecution, JobSummary
-
-
-def _fmt_next_run(value: Any) -> str:
-    if value is None:
-        return "done"
-    return fmt_relative_time(value)
-
 
 JOB_LIST_COLUMNS: list[Column] = [
     Column("job_id", "ID", max_width=6),
@@ -25,7 +18,7 @@ JOB_LIST_COLUMNS: list[Column] = [
     Column("successful", "OK", max_width=6),
     Column("failed", "Fail", max_width=6),
     Column("avg_duration_ms", "Avg", max_width=7, formatter=fmt_duration_ms),
-    Column("next_run", "Next Run", max_width=11, formatter=_fmt_next_run),
+    Column("next_run", "Next Run", max_width=11, formatter=fmt_next_run),
 ]
 
 JOB_EXECUTION_COLUMNS: list[Column] = [
