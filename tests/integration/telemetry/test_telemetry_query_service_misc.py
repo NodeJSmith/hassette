@@ -3,6 +3,7 @@
 import asyncio
 import sqlite3
 import time
+from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -185,7 +186,7 @@ class TestReadTimeout:
         )
 
     @pytest.fixture
-    async def short_timeout_db(self, short_timeout_hassette: MagicMock):
+    async def short_timeout_db(self, short_timeout_hassette: MagicMock) -> AsyncIterator[tuple[DatabaseService, int]]:
         db_service = DatabaseService(short_timeout_hassette, parent=None)
         await db_service.on_initialize()
         cursor = await db_service.db.execute(
@@ -223,7 +224,7 @@ class TestReadTimeout:
         await db_svc.read_db.create_function("sleep_ms", 1, lambda ms: time.sleep(ms / 1000))
 
         with pytest.raises(TimeoutError):
-            async with short_timeout_query_service._execute("SELECT sleep_ms(500)") as cursor:
+            async with short_timeout_query_service.execute("SELECT sleep_ms(300)") as cursor:
                 await cursor.fetchone()
 
     async def test_normal_query_succeeds_within_timeout(

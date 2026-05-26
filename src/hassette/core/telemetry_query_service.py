@@ -1,10 +1,9 @@
 """TelemetryQueryService: historical telemetry queries backed by DatabaseService."""
 
 import asyncio
-import collections.abc
 import contextlib
 import time
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, assert_never
 
@@ -187,16 +186,10 @@ class TelemetryQueryService(Resource):
         """
         return self.hassette.database_service.read_db
 
-    @property
-    def _read_timeout(self) -> float:
-        return self.hassette.config.database.read_timeout_seconds
-
     @contextlib.asynccontextmanager
-    async def _execute(
-        self, query: str, params: dict[str, Any] | None = None
-    ) -> collections.abc.AsyncIterator[aiosqlite.Cursor]:
+    async def execute(self, query: str, params: dict[str, Any] | None = None) -> AsyncIterator[aiosqlite.Cursor]:
         """Execute a query with a read timeout. Cancellation stops the await, not the SQLite thread."""
-        async with asyncio.timeout(self._read_timeout):
+        async with asyncio.timeout(self.hassette.config.database.read_timeout_seconds):
             async with self._db.execute(query, params) as cursor:
                 yield cursor
 
@@ -274,7 +267,7 @@ class TelemetryQueryService(Resource):
             {tier_clause}
             GROUP BY l.id
         """
-        async with self._execute(query, params) as cursor:
+        async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return [ListenerSummary.model_validate(_row_to_dict(row)) for row in rows]
 
@@ -347,7 +340,7 @@ class TelemetryQueryService(Resource):
             {tier_clause}
             GROUP BY sj.id
         """
-        async with self._execute(query, params) as cursor:
+        async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return [JobSummary.model_validate(_row_to_dict(row)) for row in rows]
 
@@ -421,7 +414,7 @@ class TelemetryQueryService(Resource):
             {tier_clause}
             GROUP BY sj.id
         """
-        async with self._execute(query, params) as cursor:
+        async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
 
         return [JobSummary.model_validate(_row_to_dict(row)) for row in rows]
@@ -498,7 +491,7 @@ class TelemetryQueryService(Resource):
                 job_agg.job_last_activity
             FROM handler_agg, job_agg
         """
-        async with self._execute(query, params) as cursor:
+        async with self.execute(query, params) as cursor:
             row = await cursor.fetchone()
 
         if row is None:
@@ -606,7 +599,7 @@ class TelemetryQueryService(Resource):
             {tier_clause}
             GROUP BY l.id
         """
-        async with self._execute(query, params) as cursor:
+        async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return [ListenerSummary.model_validate(_row_to_dict(row)) for row in rows]
 
@@ -696,10 +689,10 @@ class TelemetryQueryService(Resource):
         listener_act_params: dict[str, Any] = {**tier_params, **since_params}
         job_act_params: dict[str, Any] = {**tier_je_params, **since_params}
 
-        # BEGIN DEFERRED pins the WAL read mark on the read-only connection,
-        # ensuring all four queries see a consistent snapshot. ROLLBACK releases it.
-        # The lock serializes access to prevent "cannot start a transaction within a transaction".
-        async with asyncio.timeout(self._read_timeout), self._snapshot_lock:
+        # Timeout applied inline (not via execute()) because the transaction needs
+        # four sequential queries under _snapshot_lock. BEGIN DEFERRED pins the WAL
+        # read mark; ROLLBACK releases it. The lock prevents nested transactions.
+        async with asyncio.timeout(self.hassette.config.database.read_timeout_seconds), self._snapshot_lock:
             try:
                 await self._db.execute("BEGIN DEFERRED")
                 async with self._db.execute(listener_reg_query) as cursor:
@@ -746,7 +739,7 @@ class TelemetryQueryService(Resource):
             LIMIT :limit
         """
         params: dict = {"listener_id": listener_id, "limit": limit, **since_params}
-        async with self._execute(query, params) as cursor:
+        async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return [HandlerInvocation.model_validate(_row_to_dict(row)) for row in rows]
 
@@ -776,7 +769,7 @@ class TelemetryQueryService(Resource):
             LIMIT :limit
         """
         params: dict = {"job_id": job_id, "limit": limit, **since_params}
-        async with self._execute(query, params) as cursor:
+        async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return [JobExecution.model_validate(_row_to_dict(row)) for row in rows]
 
@@ -811,7 +804,7 @@ class TelemetryQueryService(Resource):
             ORDER BY hi.duration_ms DESC
             LIMIT :limit
         """
-        async with self._execute(query, {"threshold_ms": threshold_ms, "limit": limit, **tier_params}) as cursor:
+        async with self.execute(query, {"threshold_ms": threshold_ms, "limit": limit, **tier_params}) as cursor:
             rows = await cursor.fetchall()
         return [SlowHandlerRecord.model_validate(_row_to_dict(row)) for row in rows]
 
@@ -834,7 +827,7 @@ class TelemetryQueryService(Resource):
             ORDER BY s.started_at DESC
             LIMIT :limit
         """
-        async with self._execute(query, {"limit": limit}) as cursor:
+        async with self.execute(query, {"limit": limit}) as cursor:
             rows = await cursor.fetchall()
         return [SessionRecord.model_validate(_row_to_dict(row)) for row in rows]
 
@@ -896,7 +889,7 @@ class TelemetryQueryService(Resource):
             **tier_params,
         }
 
-        async with self._execute(query, params) as cursor:
+        async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
 
         result: dict[str, list[list[int]]] = {}
@@ -953,7 +946,7 @@ class TelemetryQueryService(Resource):
             WHERE rn = 1
         """
         params: dict[str, Any] = {**since_params, **tier_params}
-        async with self._execute(query, params) as cursor:
+        async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return {
             row["app_key"]: AppLastError(row["error_message"] or "", row["error_type"], row["execution_start_ts"])
@@ -986,7 +979,7 @@ class TelemetryQueryService(Resource):
                 {tier_clause}
         """
         params: dict[str, Any] = {"app_key": app_key, "since": one_hour_ago, **tier_params}
-        async with self._execute(query, params) as cursor:
+        async with self.execute(query, params) as cursor:
             row = await cursor.fetchone()
         return int(row[0]) if row else 0
 
@@ -1011,7 +1004,7 @@ class TelemetryQueryService(Resource):
             GROUP BY l.app_key
         """
         params: dict[str, Any] = {"since": one_hour_ago, **tier_params}
-        async with self._execute(query, params) as cursor:
+        async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return {row[0]: int(row[1]) for row in rows}
 
@@ -1104,7 +1097,7 @@ class TelemetryQueryService(Resource):
 
         # Single UNION ALL — no snapshot needed; SQLite guarantees a consistent view per statement.
         # Inner JOINs by design: orphaned invocations (deleted listener/job) are excluded.
-        async with self._execute(query, params) as cursor:
+        async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
 
         return [ActivityFeedEntry.model_validate(_row_to_dict(row)) for row in rows]
@@ -1114,5 +1107,5 @@ class TelemetryQueryService(Resource):
 
         Raises on any database error; callers catch DB_ERRORS to derive degraded state.
         """
-        async with self._execute("SELECT 1") as cursor:
+        async with self.execute("SELECT 1") as cursor:
             await cursor.fetchone()
