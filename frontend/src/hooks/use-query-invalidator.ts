@@ -16,8 +16,8 @@ export const WS_DEBOUNCE_DELAY_MS = 500;
  */
 export const WS_DEBOUNCE_MAX_WAIT_MS = 1500;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SignalFilterPair = readonly [ReadonlySignal<any>, (value: any) => boolean];
+type SignalFilterPair<T> = readonly [ReadonlySignal<T>, (value: T) => boolean];
+type ErasedSignalFilterPair = readonly [ReadonlySignal<unknown>, (value: unknown) => boolean];
 
 /**
  * Subscribes to one or more Preact signals, applies filter functions, and calls
@@ -39,34 +39,34 @@ export function useQueryInvalidator<T>(
   maxWaitMs?: number,
 ): void;
 
-export function useQueryInvalidator(
-  signals: readonly SignalFilterPair[],
+export function useQueryInvalidator<const TValues extends readonly unknown[]>(
+  signals: { readonly [K in keyof TValues]: SignalFilterPair<TValues[K]> },
   queryKey: readonly unknown[],
   delayMs?: number,
   maxWaitMs?: number,
 ): void;
 
-export function useQueryInvalidator<T>(
-  signalOrSignals: ReadonlySignal<T> | readonly SignalFilterPair[],
+export function useQueryInvalidator<T, const TValues extends readonly unknown[]>(
+  signalOrSignals: ReadonlySignal<T> | { readonly [K in keyof TValues]: SignalFilterPair<TValues[K]> },
   filterFnOrQueryKey: ((value: T) => boolean) | readonly unknown[],
   queryKeyOrDelayMs?: readonly unknown[] | number,
   delayMsOrMaxWaitMs?: number,
   maxWaitMsArg?: number,
 ): void {
-  let pairs: readonly SignalFilterPair[];
+  let pairs: readonly ErasedSignalFilterPair[];
   let queryKey: readonly unknown[];
   let delayMs: number;
   let maxWaitMs: number;
 
   if (Array.isArray(signalOrSignals)) {
-    pairs = signalOrSignals as readonly SignalFilterPair[];
+    pairs = signalOrSignals as readonly ErasedSignalFilterPair[];
     queryKey = filterFnOrQueryKey as readonly unknown[];
     delayMs = (queryKeyOrDelayMs as number | undefined) ?? WS_DEBOUNCE_DELAY_MS;
     maxWaitMs = delayMsOrMaxWaitMs ?? WS_DEBOUNCE_MAX_WAIT_MS;
   } else {
     const sig = signalOrSignals as ReadonlySignal<T>;
     const fn = filterFnOrQueryKey as (value: T) => boolean;
-    pairs = [[sig, fn as (value: unknown) => boolean]];
+    pairs = [[sig as ReadonlySignal<unknown>, fn as (value: unknown) => boolean]];
     queryKey = queryKeyOrDelayMs as readonly unknown[];
     delayMs = delayMsOrMaxWaitMs ?? WS_DEBOUNCE_DELAY_MS;
     maxWaitMs = maxWaitMsArg ?? WS_DEBOUNCE_MAX_WAIT_MS;
