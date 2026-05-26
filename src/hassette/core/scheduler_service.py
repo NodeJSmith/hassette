@@ -4,7 +4,7 @@ import random
 import typing
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Generic, TypeVar, cast
+from typing import Any, ClassVar, Generic, TypeVar
 
 from fair_async_rlock import FairAsyncRLock
 from whenever import TimeDelta, ZonedDateTime
@@ -77,11 +77,9 @@ class SchedulerService(Service):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.scheduler_service
 
     async def before_initialize(self) -> None:
-        self.logger.debug("Waiting for Hassette ready event")
         await self.hassette.ready_event.wait()
 
     async def serve(self) -> None:
@@ -103,8 +101,7 @@ class SchedulerService(Service):
 
             await self.sleep(next_run_time)
 
-    def kick(self):
-        """Wake up the scheduler to check for jobs."""
+    def kick(self) -> None:
         self._wakeup_event.set()
 
     async def _enqueue_job(self, job: "ScheduledJob") -> None:
@@ -238,7 +235,7 @@ class SchedulerService(Service):
 
         return TimeDelta(seconds=delay)
 
-    def add_job(self, job: "ScheduledJob"):
+    def add_job(self, job: "ScheduledJob") -> None:
         """Push a job to the queue and register it with the executor.
 
         When the job belongs to an app (has app_key), the job is enqueued
@@ -252,7 +249,6 @@ class SchedulerService(Service):
         app_key = job.app_key or job.owner_id
         task = self.task_bucket.spawn(self._enqueue_then_register(job), name="scheduler:add_job")
         self._reg_tracker.prune_and_track(app_key, task)
-        return task
 
     async def await_registrations_complete(self, app_key: str) -> None:
         """Wait for all pending DB registration tasks for an app to complete.
@@ -320,7 +316,7 @@ class SchedulerService(Service):
                 job.name,
             )
 
-    async def _dispatch_and_log(self, job: "ScheduledJob"):
+    async def _dispatch_and_log(self, job: "ScheduledJob") -> None:
         """Dispatch a job and log its execution.
 
         Args:
@@ -392,7 +388,7 @@ class SchedulerService(Service):
         )
         await self._executor.execute(cmd)
 
-    async def reschedule_job(self, job: "ScheduledJob"):
+    async def reschedule_job(self, job: "ScheduledJob") -> None:
         """Reschedule a job based on its trigger's next_run_time().
 
         If the trigger raises or returns None, the job is treated as exhausted and removed. If the trigger
@@ -468,7 +464,7 @@ class SchedulerService(Service):
         """Return all currently scheduled jobs across all apps."""
         return await self._job_queue.get_all()
 
-    def remove_jobs_by_owner(self, owner: str) -> asyncio.Task:
+    def remove_jobs_by_owner(self, owner: str) -> asyncio.Task[None]:
         """Remove all jobs for a given owner.
 
         Args:
@@ -534,7 +530,6 @@ class _ScheduledJobQueue(Resource):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.scheduler_service
 
     async def add(self, job: "ScheduledJob") -> None:
@@ -702,21 +697,6 @@ class HeapQueue(Generic[T]):
         Returns:
             T | None: The next job in the queue, or None if the queue is empty"""
         return self._queue[0] if self._queue else None
-
-    def peek_or_raise(self) -> T:
-        """Peek at the next job without removing it, raising an error if the queue is empty.
-
-        Method that the type checker knows always return a value - call `is_empty` first to avoid exceptions.
-
-        Returns:
-            The next job in the queue.
-
-        Raises:
-            IndexError: If the queue is empty.
-        """
-        if not self._queue:
-            raise IndexError("Peek from an empty queue")
-        return cast("T", self.peek())
 
     def is_empty(self) -> bool:
         """Check if the queue is empty."""

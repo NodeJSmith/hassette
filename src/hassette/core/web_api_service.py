@@ -16,6 +16,8 @@ from hassette.web.app import create_fastapi_app
 if typing.TYPE_CHECKING:
     from hassette import Hassette
 
+_GRACEFUL_SHUTDOWN_TIMEOUT = 3
+
 
 class WebApiService(Service):
     """Runs the FastAPI/uvicorn server for the web API and healthcheck."""
@@ -64,7 +66,7 @@ class WebApiService(Service):
             log_level=self.config_log_level.lower(),
             lifespan="off",
             ws="websockets-sansio",
-            timeout_graceful_shutdown=3,
+            timeout_graceful_shutdown=_GRACEFUL_SHUTDOWN_TIMEOUT,
         )
         self._server = uvicorn.Server(config)
 

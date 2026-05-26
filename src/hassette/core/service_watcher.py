@@ -95,7 +95,6 @@ class ServiceWatcher(Resource):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.service_watcher
 
     async def on_initialize(self) -> None:
@@ -429,8 +428,6 @@ class ServiceWatcher(Resource):
             self._restarting.discard(key)
 
     async def log_service_event(self, event: HassetteServiceEvent) -> None:
-        """Log the startup of a service."""
-
         name = event.payload.data.resource_name
         role = event.payload.data.role
 
@@ -440,18 +437,13 @@ class ServiceWatcher(Resource):
             self.logger.debug("%s '%s' status unchanged at '%s', not logging", role, name, status)
             return
 
-        try:
-            self.logger.debug(
-                "%s '%s' transitioned to status '%s' from '%s'",
-                role,
-                name,
-                event.payload.data.status,
-                event.payload.data.previous_status,
-            )
-
-        except Exception as e:
-            self.logger.error("Failed to log %s startup for '%s': %s", role, name, e)
-            raise
+        self.logger.debug(
+            "%s '%s' transitioned to status '%s' from '%s'",
+            role,
+            name,
+            event.payload.data.status,
+            event.payload.data.previous_status,
+        )
 
     async def shutdown_if_crashed(self, event: HassetteServiceEvent) -> None:
         """Shutdown the Hassette instance if a service has crashed."""

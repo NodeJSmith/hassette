@@ -11,6 +11,7 @@ from hassette.types.types import LOG_LEVEL_TYPE
 
 _WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 _WATCH_DIRS = [_WEB_DIR / "static", _WEB_DIR / "templates"]
+_DEBOUNCE_MS = 300
 
 
 def _change_kind(path: str) -> str:
@@ -38,7 +39,6 @@ class WebUiWatcherService(Service):
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
-        """Return the log level from the config for this resource."""
         return self.hassette.config.logging.file_watcher
 
     async def on_initialize(self) -> None:
@@ -58,7 +58,7 @@ class WebUiWatcherService(Service):
         self.logger.info("Watching web UI files for hot reload: %s", ", ".join(str(d) for d in dirs))
         self.mark_ready(reason="Web UI hot reload started")
 
-        async for changes in awatch(*dirs, stop_event=self.shutdown_event, debounce=300):
+        async for changes in awatch(*dirs, stop_event=self.shutdown_event, debounce=_DEBOUNCE_MS):
             if self.shutdown_event.is_set():
                 break
 
