@@ -23,6 +23,7 @@ repos:
     rev: v1.46.3
     hooks:
       - id: typos
+        args: [--force-exclude]
         stages: [pre-commit, pre-push]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
