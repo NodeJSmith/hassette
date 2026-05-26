@@ -16,7 +16,7 @@ repos:
         name: zizmor (GitHub Actions security)
         language: system
         entry: env -u GH_TOKEN -u GITHUB_TOKEN uvx zizmor@1.25.2 --offline
-        files: ^\.github/
+        files: ^\.github/workflows/
         stages: [pre-commit, pre-push]
 
   - repo: https://github.com/crate-ci/typos
