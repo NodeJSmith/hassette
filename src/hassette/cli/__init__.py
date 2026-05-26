@@ -3,7 +3,7 @@
 import asyncio
 from importlib.metadata import PackageNotFoundError, version
 from logging import getLogger
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from cyclopts import App, Group, Parameter
 
@@ -42,7 +42,19 @@ app = App(
 )
 
 app.meta.group_parameters = Group("Global Options", sort_key=0)
-app.register_install_completion_command()
+app.register_install_completion_command(add_to_startup=False)
+
+
+@app.command(name="--generate-completion")
+def generate_completion(
+    shell: Annotated[
+        Literal["zsh", "bash", "fish"] | None,
+        Parameter(help="Shell to generate completions for. Auto-detected if omitted."),
+    ] = None,
+) -> None:
+    """Print shell completion script to stdout."""
+    print(app.generate_completion(shell=shell))
+
 
 status_app = App(name="status", help="Show system status.")
 app.command(status_app)
