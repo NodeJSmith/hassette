@@ -217,7 +217,7 @@ class TestReadTimeout:
         short_timeout_query_service: TelemetryQueryService,
         short_timeout_db: tuple[DatabaseService, int],
     ) -> None:
-        """_execute raises TimeoutError when a query exceeds read_timeout_seconds."""
+        """execute() raises TimeoutError when a query exceeds read_timeout_seconds."""
         db_svc, _ = short_timeout_db
 
         # Register a custom SQLite function that sleeps, forcing the query to exceed the 100ms timeout

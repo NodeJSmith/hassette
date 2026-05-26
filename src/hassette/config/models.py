@@ -72,7 +72,7 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     """Maximum consecutive heartbeat failures before the database service is considered unhealthy."""
 
     read_timeout_seconds: float = Field(default=10.0, ge=0.1)
-    """Maximum seconds a telemetry read query may run before being cancelled."""
+    """Maximum seconds to wait for a telemetry read query before raising TimeoutError."""
 
 
 class WebSocketConfig(ExcludeExtrasMixin, BaseModel):
