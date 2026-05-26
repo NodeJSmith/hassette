@@ -91,7 +91,7 @@ RECORD_TYPE_TO_DOMAIN: dict[type, tuple[str, bool]] = {
     TimerRecord: ("timer", False),
 }
 
-if {domain for domain, _ in RECORD_TYPE_TO_DOMAIN.values()} != SUPPORTED_HELPER_DOMAINS:
+if frozenset(domain for domain, _ in RECORD_TYPE_TO_DOMAIN.values()) != SUPPORTED_HELPER_DOMAINS:
     raise ValueError("RECORD_TYPE_TO_DOMAIN and SUPPORTED_HELPER_DOMAINS must enumerate the same set of helper domains")
 
 

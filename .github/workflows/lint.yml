@@ -28,7 +28,9 @@ jobs:
                       python:
                         - 'src/**'
                         - 'tests/**'
+                        - 'examples/**'
                         - 'pyproject.toml'
+                        - 'pyrightconfig.json'
                         - 'uv.lock'
                         - 'ruff.toml'
                         - '_typos.toml'

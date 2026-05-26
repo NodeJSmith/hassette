@@ -320,10 +320,6 @@ class ServiceWatcher(Resource):
         name = data.resource_name
         role = data.role
 
-        if name is None:
-            self.logger.warning("No %s specified to start, skipping", role)
-            return
-
         key = self._service_key(name, role)
 
         # Resolve the service and its restart_spec
@@ -438,10 +434,6 @@ class ServiceWatcher(Resource):
         name = event.payload.data.resource_name
         role = event.payload.data.role
 
-        if name is None:
-            self.logger.warning("No resource specified for startup, cannot log")
-            return
-
         status, previous_status = event.payload.data.status, event.payload.data.previous_status
 
         if status == previous_status:
@@ -485,9 +477,6 @@ class ServiceWatcher(Resource):
         data = event.payload.data
         name = data.resource_name
         role = data.role
-
-        if name is None:
-            return
 
         key = self._service_key(name, role)
         if key not in self._budgets and key not in self._restarting:

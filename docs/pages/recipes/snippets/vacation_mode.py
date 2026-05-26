@@ -49,7 +49,7 @@ class VacationMode(App[VacationModeConfig]):
     async def simulate_presence(self) -> None:
         light = random.choice(self.app_config.lights)
         state = await self.api.get_state(f"{light}")
-        if state.value == "on":
+        if state.value is True:
             await self.api.turn_off(light, domain="light")
             self.logger.debug("Presence sim: turned off %s", light)
         else:

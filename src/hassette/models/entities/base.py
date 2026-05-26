@@ -20,7 +20,7 @@ class BaseEntity(BaseModel, Generic[StateT, StateValueT]):
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
 
     state: StateT
-    _sync: "BaseEntitySyncFacade[StateT, StateValueT]" = PrivateAttr(default=None, init=False)  # pyright: ignore[reportAssignmentType]
+    _sync: "BaseEntitySyncFacade[StateT, StateValueT] | None" = PrivateAttr(default=None, init=False)
 
     async def refresh(self) -> StateT:
         self.state = cast("StateT", await self.hassette.api.get_state(self.entity_id))

@@ -85,9 +85,6 @@ class StateRegistry:
         """
         from hassette.models.states.base import BaseState
 
-        if data is None:
-            raise InvalidDataForStateConversionError(data)
-
         if "event" in data:
             LOGGER.error(
                 "Data contains 'event' key, expected state data, not event data. "

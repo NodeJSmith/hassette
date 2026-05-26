@@ -508,8 +508,6 @@ class Hassette(Resource):
         # because: (a) CommandExecutor is ready, (b) session_id is set, and (c) the
         # NOT EXISTS(... session_id = ?) guard prevents deletion of any listener that
         # has current-session invocations still in the write queue.
-        if self._session_manager is None:
-            raise RuntimeError("wire_services() has not been called")
         await self._session_manager.cleanup_stale_once_listeners()
 
         # does not take into consideration if apps failed to load, but those errors would have been logged already
