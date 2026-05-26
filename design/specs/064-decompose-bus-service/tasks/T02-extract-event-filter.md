@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Extract EventFilter to core/event_filter.py"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#3", "AC#3", "AC#4"]
 ---
