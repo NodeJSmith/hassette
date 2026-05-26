@@ -81,7 +81,7 @@ export function CodeTab({ appKey, listeners }: Props) {
   const annotationMap = buildAnnotationMap(listeners);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     loading.value = true;
     error.value = null;
     source.value = null;
@@ -89,22 +89,22 @@ export function CodeTab({ appKey, listeners }: Props) {
 
     async function load() {
       try {
-        const data = await getAppSource(appKey);
-        if (cancelled) return;
+        const data = await getAppSource(appKey, controller.signal);
+        if (controller.signal.aborted) return;
         source.value = data;
 
         const hl = await getHighlighter();
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
 
         const rawHtml = hl.codeToHtml(data.content, {
           lang: "python",
           themes: { light: "github-light", dark: "github-dark" },
           defaultColor: false,
         });
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         highlightedHtml.value = rawHtml;
       } catch (err) {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
           error.value = "Source file not found at expected path";
@@ -112,13 +112,13 @@ export function CodeTab({ appKey, listeners }: Props) {
           error.value = msg;
         }
       } finally {
-        if (!cancelled) loading.value = false;
+        if (!controller.signal.aborted) loading.value = false;
       }
     }
 
     void load();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [appKey]);
 

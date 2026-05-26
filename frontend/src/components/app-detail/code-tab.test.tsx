@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/preact";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "../../test/server";
@@ -159,5 +159,26 @@ describe("CodeTab", () => {
     await waitFor(() => {
       expect(screen.getByTestId("code-tab-content")).toBeDefined();
     });
+  });
+
+  it("aborts in-flight request on unmount", async () => {
+    let requestSignal: AbortSignal | undefined;
+
+    server.use(
+      http.get("/api/apps/:app_key/source", async ({ request }) => {
+        requestSignal = request.signal;
+        await delay(100);
+        return HttpResponse.json(defaultSource);
+      }),
+    );
+
+    const { unmount } = render(<CodeTab appKey="test_app" listeners={[]} />);
+    expect(screen.getByRole("status")).toBeDefined();
+
+    // Wait for the request to be initiated
+    await waitFor(() => expect(requestSignal).toBeDefined());
+    unmount();
+
+    expect(requestSignal!.aborted).toBe(true);
   });
 });

@@ -165,27 +165,27 @@ export function ConfigTab({ appKey }: Props) {
   const configData = useSignal<AppConfigData | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     loading.value = true;
     error.value = null;
     configData.value = null;
 
     async function load() {
       try {
-        const data = await getAppConfig(appKey);
-        if (cancelled) return;
+        const data = await getAppConfig(appKey, controller.signal);
+        if (controller.signal.aborted) return;
         configData.value = data as AppConfigData;
       } catch (err) {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         error.value = err instanceof Error ? err.message : String(err);
       } finally {
-        if (!cancelled) loading.value = false;
+        if (!controller.signal.aborted) loading.value = false;
       }
     }
 
     void load();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [appKey]);
 

@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/preact";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { server } from "../../test/server";
@@ -61,6 +61,27 @@ describe("ConfigTab", () => {
       expect(screen.getByTestId("config-tab-content")).toBeDefined();
     });
     expect(screen.getByText(/no configuration/i)).toBeDefined();
+  });
+
+  it("aborts in-flight request on unmount", async () => {
+    let requestSignal: AbortSignal | undefined;
+
+    server.use(
+      http.get("/api/apps/:app_key/config", async ({ request }) => {
+        requestSignal = request.signal;
+        await delay(100);
+        return HttpResponse.json(defaultConfig);
+      }),
+    );
+
+    const { unmount } = render(<ConfigTab appKey="test_app" />);
+    expect(screen.getByRole("status")).toBeDefined();
+
+    // Wait for the request to be initiated
+    await waitFor(() => expect(requestSignal).toBeDefined());
+    unmount();
+
+    expect(requestSignal!.aborted).toBe(true);
   });
 
   it("handles multi-instance list config by rendering per-instance blocks", async () => {

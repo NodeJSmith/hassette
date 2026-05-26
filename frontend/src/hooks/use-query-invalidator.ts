@@ -16,34 +16,66 @@ export const WS_DEBOUNCE_DELAY_MS = 500;
  */
 export const WS_DEBOUNCE_MAX_WAIT_MS = 1500;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SignalFilterPair = readonly [ReadonlySignal<any>, (value: any) => boolean];
+
 /**
- * Subscribes to a Preact signal via `useSignalEffect`, applies a filter function,
- * and calls `queryClient.invalidateQueries({ queryKey })` after a debounce.
+ * Subscribes to one or more Preact signals, applies filter functions, and calls
+ * `queryClient.invalidateQueries({ queryKey })` after a debounce.
  *
  * Debounce algorithm:
  * - Trailing timer: resets on each matching event; fires `delayMs` after the last event.
  * - Max-wait timer: starts on the first matching event; fires after `maxWaitMs` regardless
  *   of subsequent events. Does NOT reset on subsequent matching events.
  *
- * @param signal     Preact signal to subscribe to (e.g., `invocationCompleted`)
- * @param filterFn   Return `true` to start/reset the debounce; `false` to skip.
- * @param queryKey   Query key prefix passed to `invalidateQueries` (uses prefix matching).
- * @param delayMs    Trailing debounce delay in milliseconds.
- * @param maxWaitMs  Maximum wait from the first matching event before invalidation is forced.
+ * The multi-signal overload shares a single debounce timer across all signals — two
+ * signals firing within the debounce window produce exactly one `invalidateQueries` call.
  */
 export function useQueryInvalidator<T>(
   signal: ReadonlySignal<T>,
   filterFn: (value: T) => boolean,
   queryKey: readonly unknown[],
-  delayMs: number = WS_DEBOUNCE_DELAY_MS,
-  maxWaitMs: number = WS_DEBOUNCE_MAX_WAIT_MS,
+  delayMs?: number,
+  maxWaitMs?: number,
+): void;
+
+export function useQueryInvalidator(
+  signals: readonly SignalFilterPair[],
+  queryKey: readonly unknown[],
+  delayMs?: number,
+  maxWaitMs?: number,
+): void;
+
+export function useQueryInvalidator<T>(
+  signalOrSignals: ReadonlySignal<T> | readonly SignalFilterPair[],
+  filterFnOrQueryKey: ((value: T) => boolean) | readonly unknown[],
+  queryKeyOrDelayMs?: readonly unknown[] | number,
+  delayMsOrMaxWaitMs?: number,
+  maxWaitMsArg?: number,
 ): void {
+  let pairs: readonly SignalFilterPair[];
+  let queryKey: readonly unknown[];
+  let delayMs: number;
+  let maxWaitMs: number;
+
+  if (Array.isArray(signalOrSignals)) {
+    pairs = signalOrSignals as readonly SignalFilterPair[];
+    queryKey = filterFnOrQueryKey as readonly unknown[];
+    delayMs = (queryKeyOrDelayMs as number | undefined) ?? WS_DEBOUNCE_DELAY_MS;
+    maxWaitMs = delayMsOrMaxWaitMs ?? WS_DEBOUNCE_MAX_WAIT_MS;
+  } else {
+    const sig = signalOrSignals as ReadonlySignal<T>;
+    const fn = filterFnOrQueryKey as (value: T) => boolean;
+    pairs = [[sig, fn as (value: unknown) => boolean]];
+    queryKey = queryKeyOrDelayMs as readonly unknown[];
+    delayMs = delayMsOrMaxWaitMs ?? WS_DEBOUNCE_DELAY_MS;
+    maxWaitMs = maxWaitMsArg ?? WS_DEBOUNCE_MAX_WAIT_MS;
+  }
+
   const queryClient = useQueryClient();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const filterFnRef = useRef(filterFn);
-  filterFnRef.current = filterFn;
   const queryClientRef = useRef(queryClient);
   queryClientRef.current = queryClient;
   const queryKeyRef = useRef(queryKey);
@@ -53,39 +85,46 @@ export function useQueryInvalidator<T>(
   const maxWaitMsRef = useRef(maxWaitMs);
   maxWaitMsRef.current = maxWaitMs;
 
-  const lastValueRef = useRef<T>(signal.peek());
+  const pairsRef = useRef(pairs);
+  pairsRef.current = pairs;
+  const lastValuesRef = useRef<unknown[]>(pairs.map(([s]) => s.peek()));
+  if (lastValuesRef.current.length !== pairs.length) {
+    lastValuesRef.current = pairs.map(([s]) => s.peek());
+  }
+
+  const fireRef = useRef(() => {});
+  fireRef.current = () => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (maxTimerRef.current !== null) {
+      clearTimeout(maxTimerRef.current);
+      maxTimerRef.current = null;
+    }
+    void queryClientRef.current.invalidateQueries({ queryKey: queryKeyRef.current });
+  };
 
   useSignalEffect(() => {
-    const value = signal.value;
-
-    if (Object.is(value, lastValueRef.current)) {
-      return;
-    }
-    lastValueRef.current = value;
-
-    if (!filterFnRef.current(value)) {
-      return;
-    }
-
-    const fire = () => {
-      if (timerRef.current !== null) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
+    let shouldFire = false;
+    for (let i = 0; i < pairsRef.current.length; i++) {
+      const value = pairsRef.current[i][0].value;
+      if (!Object.is(value, lastValuesRef.current[i])) {
+        lastValuesRef.current[i] = value;
+        if (pairsRef.current[i][1](value)) {
+          shouldFire = true;
+        }
       }
-      if (maxTimerRef.current !== null) {
-        clearTimeout(maxTimerRef.current);
-        maxTimerRef.current = null;
-      }
-      void queryClientRef.current.invalidateQueries({ queryKey: queryKeyRef.current });
-    };
+    }
+    if (!shouldFire) return;
 
     if (timerRef.current !== null) {
       clearTimeout(timerRef.current);
     }
-    timerRef.current = setTimeout(fire, delayMsRef.current);
+    timerRef.current = setTimeout(() => fireRef.current(), delayMsRef.current);
 
     if (maxTimerRef.current === null) {
-      maxTimerRef.current = setTimeout(fire, maxWaitMsRef.current);
+      maxTimerRef.current = setTimeout(() => fireRef.current(), maxWaitMsRef.current);
     }
   });
 

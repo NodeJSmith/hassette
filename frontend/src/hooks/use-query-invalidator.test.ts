@@ -44,7 +44,7 @@ describe("useQueryInvalidator", () => {
 
   it("invalidates after delayMs when filter matches", async () => {
     const sig = signal<string | null>(null);
-    const filterFn = (_v: string | null) => _v !== null;
+    const filterFn = (v: string | null) => v !== null;
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
@@ -74,7 +74,7 @@ describe("useQueryInvalidator", () => {
 
   it("does not invalidate when filter returns false", async () => {
     const sig = signal<string | null>(null);
-    const filterFn = (_v: string | null) => false;
+    const filterFn = () => false;
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
@@ -95,7 +95,7 @@ describe("useQueryInvalidator", () => {
 
   it("trailing timer resets on each matching event (debounce)", async () => {
     const sig = signal<string | null>(null);
-    const filterFn = (_v: string | null) => _v !== null;
+    const filterFn = (v: string | null) => v !== null;
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
@@ -133,7 +133,7 @@ describe("useQueryInvalidator", () => {
 
   it("max-wait timer fires during sustained events (trailing timer never settles)", async () => {
     const sig = signal<string | null>(null);
-    const filterFn = (_v: string | null) => _v !== null;
+    const filterFn = (v: string | null) => v !== null;
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
@@ -188,7 +188,7 @@ describe("useQueryInvalidator", () => {
     const delay = 400;
     const maxWait = 1000;
     const sig = signal<string | null>(null);
-    const filterFn = (_v: string | null) => _v !== null;
+    const filterFn = (v: string | null) => v !== null;
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
@@ -227,9 +227,33 @@ describe("useQueryInvalidator", () => {
     expect(invalidateSpy).not.toHaveBeenCalled();
   });
 
+  it("ignores same-value signal updates (deduplication via Object.is)", async () => {
+    const sig = signal<string | null>(null);
+    const filterFn = (v: string | null) => v !== null;
+    const queryClient = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    renderHookWithProviders(
+      () => useQueryInvalidator(sig, filterFn, ["test-dedup"], WS_DEBOUNCE_DELAY_MS, WS_DEBOUNCE_MAX_WAIT_MS),
+      { queryClient },
+    );
+
+    act(() => {
+      sig.value = "event-1";
+    });
+    // Re-assign the same value — should not reset trailing timer
+    act(() => {
+      sig.value = "event-1";
+    });
+    act(() => {
+      vi.advanceTimersByTime(WS_DEBOUNCE_DELAY_MS);
+    });
+    expect(invalidateSpy).toHaveBeenCalledOnce();
+  });
+
   it("cleans up both timers on unmount (no dangling timeouts)", async () => {
     const sig = signal<string | null>(null);
-    const filterFn = (_v: string | null) => _v !== null;
+    const filterFn = (v: string | null) => v !== null;
     const queryClient = createTestQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
@@ -255,6 +279,152 @@ describe("useQueryInvalidator", () => {
     });
 
     // No invalidation should have occurred — both timers were cleared on unmount
+    expect(invalidateSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("useQueryInvalidator (multi-signal)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function setupMultiSignal(queryKey: string) {
+    const sigA = signal<string | null>(null);
+    const sigB = signal<number | null>(null);
+    const queryClient = createTestQueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const result = renderHookWithProviders(
+      () =>
+        useQueryInvalidator(
+          [
+            [sigA, (v: unknown) => v !== null],
+            [sigB, (v: unknown) => v !== null],
+          ],
+          [queryKey],
+          WS_DEBOUNCE_DELAY_MS,
+          WS_DEBOUNCE_MAX_WAIT_MS,
+        ),
+      { queryClient },
+    );
+
+    return { sigA, sigB, invalidateSpy, ...result };
+  }
+
+  it("two signals sharing a key produce exactly one invalidation within the debounce window", () => {
+    const { sigA, sigB, invalidateSpy } = setupMultiSignal("shared-key");
+
+    act(() => {
+      sigA.value = "event-a";
+    });
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    act(() => {
+      sigB.value = 42;
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(WS_DEBOUNCE_DELAY_MS);
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledOnce();
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["shared-key"] });
+  });
+
+  it("signal A firing alone triggers invalidation", () => {
+    const { sigA, invalidateSpy } = setupMultiSignal("solo-a");
+
+    act(() => {
+      sigA.value = "only-a";
+    });
+    act(() => {
+      vi.advanceTimersByTime(WS_DEBOUNCE_DELAY_MS);
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledOnce();
+  });
+
+  it("signal B firing alone triggers invalidation", () => {
+    const { sigB, invalidateSpy } = setupMultiSignal("solo-b");
+
+    act(() => {
+      sigB.value = 99;
+    });
+    act(() => {
+      vi.advanceTimersByTime(WS_DEBOUNCE_DELAY_MS);
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledOnce();
+  });
+
+  it("rapid alternating events from both signals — max-wait fires exactly once", () => {
+    const { sigA, sigB, invalidateSpy } = setupMultiSignal("alternating");
+
+    act(() => {
+      sigA.value = "a1";
+    }); // t=0
+    act(() => {
+      vi.advanceTimersByTime(400);
+    }); // t=400
+    act(() => {
+      sigB.value = 1;
+    }); // t=400
+    act(() => {
+      vi.advanceTimersByTime(400);
+    }); // t=800
+    act(() => {
+      sigA.value = "a2";
+    }); // t=800
+    act(() => {
+      vi.advanceTimersByTime(400);
+    }); // t=1200
+    act(() => {
+      sigB.value = 2;
+    }); // t=1200
+
+    expect(invalidateSpy).not.toHaveBeenCalled();
+
+    // Max-wait fires at t=1500
+    act(() => {
+      vi.advanceTimersByTime(300);
+    }); // t=1500
+    expect(invalidateSpy).toHaveBeenCalledOnce();
+  });
+
+  it("cleans up timers on unmount with no dangling callbacks", () => {
+    const { sigA, sigB, unmount, invalidateSpy } = setupMultiSignal("cleanup-multi");
+
+    act(() => {
+      sigA.value = "start";
+    });
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    act(() => {
+      sigB.value = 1;
+    });
+
+    unmount();
+
+    act(() => {
+      vi.advanceTimersByTime(WS_DEBOUNCE_MAX_WAIT_MS + WS_DEBOUNCE_DELAY_MS);
+    });
+
+    expect(invalidateSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not invalidate on mount (no spurious initial fetch)", () => {
+    const { invalidateSpy } = setupMultiSignal("no-mount-fire");
+
+    act(() => {
+      vi.advanceTimersByTime(WS_DEBOUNCE_MAX_WAIT_MS + 100);
+    });
+
     expect(invalidateSpy).not.toHaveBeenCalled();
   });
 });
