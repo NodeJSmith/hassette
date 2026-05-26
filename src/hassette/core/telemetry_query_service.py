@@ -1160,25 +1160,23 @@ class TelemetryQueryService(Resource):
 
     async def check_execution_predates_retention_cutoff(self, execution_id: str, cutoff: float) -> bool:
         """Check if an execution predates the retention cutoff via handler_invocations and job_executions."""
-        # Two sequential queries under one timeout budget — cannot use self.execute()
-        async with asyncio.timeout(self.hassette.config.database.read_timeout_seconds):
-            async with self._db.execute(
-                "SELECT execution_start_ts FROM handler_invocations WHERE execution_id = :eid LIMIT 1",
-                {"eid": execution_id},
-            ) as cursor:
-                row = await cursor.fetchone()
-            if row is not None:
-                return float(row[0]) < cutoff
+        async with self.execute(
+            "SELECT execution_start_ts FROM handler_invocations WHERE execution_id = :eid LIMIT 1",
+            {"eid": execution_id},
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is not None:
+            return float(row[0]) < cutoff
 
-            async with self._db.execute(
-                "SELECT execution_start_ts FROM job_executions WHERE execution_id = :eid LIMIT 1",
-                {"eid": execution_id},
-            ) as cursor:
-                row = await cursor.fetchone()
-            if row is not None:
-                return float(row[0]) < cutoff
+        async with self.execute(
+            "SELECT execution_start_ts FROM job_executions WHERE execution_id = :eid LIMIT 1",
+            {"eid": execution_id},
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is not None:
+            return float(row[0]) < cutoff
 
-            return False
+        return False
 
     async def check_health(self) -> None:
         """Verify the database connection is alive.

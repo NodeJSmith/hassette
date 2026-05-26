@@ -10,7 +10,7 @@ import aiosqlite
 import pytest
 
 from hassette.core.database_service import DatabaseService
-from hassette.core.telemetry_repository import insert_log_records
+from hassette.core.telemetry_repository import TelemetryRepository
 from hassette.logging_ import LogPersistenceHandler
 from hassette.test_utils.config import SECONDS_PER_DAY
 from hassette.test_utils.mock_hassette import make_mock_hassette
@@ -41,9 +41,17 @@ async def db() -> aiosqlite.Connection:
         await conn.close()
 
 
+@pytest.fixture
+def repo(db: aiosqlite.Connection) -> TelemetryRepository:
+    """TelemetryRepository backed by the in-memory test DB."""
+    mock_db_service = MagicMock()
+    mock_db_service.db = db
+    return TelemetryRepository(mock_db_service)
+
+
 class TestRetentionCleanup:
     async def test_retention_deletes_old_log_records(
-        self, db: aiosqlite.Connection, mock_hassette_for_db: MagicMock
+        self, db: aiosqlite.Connection, repo: TelemetryRepository, mock_hassette_for_db: MagicMock
     ) -> None:
         """_do_run_retention_cleanup() deletes log_records older than log_retention_days."""
 
@@ -52,8 +60,7 @@ class TestRetentionCleanup:
         old_ts = now - (5 * SECONDS_PER_DAY)  # 5 days ago (older than log_retention_days=3)
         recent_ts = now - (1 * SECONDS_PER_DAY)  # 1 day ago (within log_retention_days=3)
 
-        await insert_log_records(
-            db,
+        await repo.insert_log_records(
             [
                 {
                     "seq": 1,
@@ -97,7 +104,7 @@ class TestRetentionCleanup:
         assert remaining == ["recent"]
 
     async def test_retention_keeps_within_log_retention_days(
-        self, db: aiosqlite.Connection, mock_hassette_for_db: MagicMock
+        self, db: aiosqlite.Connection, repo: TelemetryRepository, mock_hassette_for_db: MagicMock
     ) -> None:
         """Retention cleanup keeps records within log_retention_days."""
 
@@ -123,7 +130,7 @@ class TestRetentionCleanup:
             }
             for i, age in enumerate(ages_days)
         ]
-        await insert_log_records(db, records)
+        await repo.insert_log_records(records)
 
         service = DatabaseService(mock_hassette_for_db, parent=None)
         service._db = db  # pyright: ignore[reportPrivateUsage]
@@ -136,15 +143,14 @@ class TestRetentionCleanup:
         assert count == 3  # 0.5, 1.5, 2.5 day records remain
 
     async def test_retention_uses_log_retention_days_not_db_retention_days(
-        self, db: aiosqlite.Connection, mock_hassette_for_db: MagicMock
+        self, db: aiosqlite.Connection, repo: TelemetryRepository, mock_hassette_for_db: MagicMock
     ) -> None:
         """Retention for log_records uses log_retention_days, not db_retention_days."""
 
         # log_retention_days=3, db_retention_days=7
         # A record 5 days old is within db_retention_days but outside log_retention_days
         now = time.time()
-        await insert_log_records(
-            db,
+        await repo.insert_log_records(
             [
                 {
                     "seq": 1,
@@ -175,7 +181,9 @@ class TestRetentionCleanup:
 
 
 class TestSizeFailsafePrePass:
-    async def seed_both_tables(self, db: aiosqlite.Connection, log_count: int = 10, exec_count: int = 5) -> None:
+    async def seed_both_tables(
+        self, db: aiosqlite.Connection, repo: TelemetryRepository, log_count: int = 10, exec_count: int = 5
+    ) -> None:
         """Seed log_records and handler_invocations."""
 
         now = time.time()
@@ -197,7 +205,7 @@ class TestSizeFailsafePrePass:
             }
             for i in range(1, log_count + 1)
         ]
-        await insert_log_records(db, logs)
+        await repo.insert_log_records(logs)
 
         for i in range(exec_count):
             await db.execute(
@@ -207,11 +215,11 @@ class TestSizeFailsafePrePass:
         await db.commit()
 
     async def test_size_failsafe_deletes_log_records_before_execution_records(
-        self, db: aiosqlite.Connection, mock_hassette_for_db: MagicMock
+        self, db: aiosqlite.Connection, repo: TelemetryRepository, mock_hassette_for_db: MagicMock
     ) -> None:
         """Size failsafe pre-pass deletes from log_records before handler_invocations."""
 
-        await self.seed_both_tables(db, log_count=10, exec_count=5)
+        await self.seed_both_tables(db, repo, log_count=10, exec_count=5)
 
         service = DatabaseService(mock_hassette_for_db, parent=None)
         service._db = db  # pyright: ignore[reportPrivateUsage]
@@ -239,7 +247,7 @@ class TestSizeFailsafePrePass:
         assert log_count < 10  # some deleted
 
     async def test_size_failsafe_proceeds_to_execution_records_if_log_prepass_insufficient(
-        self, db: aiosqlite.Connection, mock_hassette_for_db: MagicMock
+        self, db: aiosqlite.Connection, repo: TelemetryRepository, mock_hassette_for_db: MagicMock
     ) -> None:
         """If log pre-pass can't bring size under limit, execution records are also deleted.
 
@@ -249,7 +257,7 @@ class TestSizeFailsafePrePass:
         """
 
         # Seed a small number of logs (all get deleted in pre-pass but still over limit)
-        await self.seed_both_tables(db, log_count=2, exec_count=5)
+        await self.seed_both_tables(db, repo, log_count=2, exec_count=5)
 
         service = DatabaseService(mock_hassette_for_db, parent=None)
         service._db = db  # pyright: ignore[reportPrivateUsage]

@@ -5,14 +5,14 @@ import sqlite3
 import time
 import typing
 
-import aiosqlite
-
 from hassette.bus.invocation_record import HandlerInvocationRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.scheduler.classes import JobExecutionRecord
 from hassette.types.types import is_framework_key
 
 if typing.TYPE_CHECKING:
+    import aiosqlite
+
     from hassette.core.database_service import DatabaseService
 
 
@@ -718,21 +718,3 @@ _LOG_COLUMNS = (
 _LOG_INSERT_SQL = (
     f"INSERT INTO log_records ({', '.join(_LOG_COLUMNS)}) VALUES ({', '.join(':' + c for c in _LOG_COLUMNS)})"
 )
-
-
-async def insert_log_records(db: aiosqlite.Connection, records: list[dict]) -> None:
-    """Batch-insert log records into the log_records table.
-
-    Standalone version for test seeding with raw connections. Production code
-    should use ``TelemetryRepository.insert_log_records()`` instead.
-    """
-    if not records:
-        return
-
-    try:
-        await db.execute("BEGIN")
-        await db.executemany(_LOG_INSERT_SQL, records)
-        await db.commit()
-    except Exception:
-        await db.rollback()
-        raise
