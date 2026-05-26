@@ -49,6 +49,9 @@ def wire_telemetry_stubs(hassette: MagicMock) -> None:
     ts.get_per_app_last_errors = AsyncMock(return_value={})
     ts.get_recent_invocations_1h_all_apps = AsyncMock(return_value={})
     ts.get_app_recent_activity = AsyncMock(return_value=[])
+    ts.get_log_records = AsyncMock(return_value=[])
+    ts.get_log_records_by_execution = AsyncMock(return_value=([], False))
+    ts.check_execution_predates_retention_cutoff = AsyncMock(return_value=False)
     hassette.telemetry_query_service = ts
 
 
@@ -151,13 +154,6 @@ def create_hassette_stub(
 
     hassette.database_service = hassette._database_service
     hassette._database_service.submit = AsyncMock(return_value=[])
-    # read_db: a MagicMock whose execute() returns an async cursor with empty results.
-    # Log routes call repo functions directly with read_db (not through submit).
-    _cursor = MagicMock()
-    _cursor.fetchall = AsyncMock(return_value=[])
-    _cursor.fetchone = AsyncMock(return_value=None)
-    hassette._database_service.read_db = MagicMock()
-    hassette._database_service.read_db.execute = AsyncMock(return_value=_cursor)
 
     wire_telemetry_stubs(hassette)
 

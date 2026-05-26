@@ -10,7 +10,7 @@ import traceback
 from collections import deque
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from typing import IO, Any, Literal
+from typing import IO, TYPE_CHECKING, Any, Literal
 
 import structlog
 import structlog.dev
@@ -19,7 +19,10 @@ import structlog.stdlib
 import structlog.types
 
 from hassette.context import CURRENT_EXECUTION_ID
-from hassette.core import telemetry_repository as _telemetry_repository
+
+if TYPE_CHECKING:
+    from hassette.core.database_service import DatabaseService
+    from hassette.core.telemetry_repository import TelemetryRepository
 
 
 @dataclass
@@ -208,7 +211,8 @@ class LogPersistenceHandler(logging.Handler):
     to wire DB access. Until then, records are counted as dropped.
     """
 
-    _db_service: object | None
+    _db_service: "DatabaseService | None"
+    _repository: "TelemetryRepository | None"
     _loop: asyncio.AbstractEventLoop | None
     _batch: list[dict]
     _dropped: int
@@ -219,15 +223,21 @@ class LogPersistenceHandler(logging.Handler):
     def __init__(self, persistence_level: int = logging.INFO) -> None:
         super().__init__()
         self._db_service = None
+        self._repository = None
         self._loop = None
         self._batch = []
         self._dropped = 0
         self._dropped_lock = threading.Lock()
         self._persistence_level = persistence_level
 
-    def set_database(self, db_service: object, loop: asyncio.AbstractEventLoop) -> None:
-        # Called once from the event loop before the listener processes records at this level.
+    def set_database(
+        self,
+        db_service: "DatabaseService",
+        repository: "TelemetryRepository",
+        loop: asyncio.AbstractEventLoop,
+    ) -> None:
         self._db_service = db_service
+        self._repository = repository
         self._loop = loop
 
     @property
@@ -250,8 +260,9 @@ class LogPersistenceHandler(logging.Handler):
         batch = self._batch
         self._batch = []
         db_service = self._db_service
+        repository = self._repository
         loop = self._loop
-        if db_service is None or loop is None:
+        if db_service is None or repository is None or loop is None:
             with self._dropped_lock:
                 self._dropped += len(batch)
             return
@@ -260,7 +271,7 @@ class LogPersistenceHandler(logging.Handler):
 
         def _do_enqueue(b=batch) -> None:
             try:
-                if not db_service.enqueue(_telemetry_repository.insert_log_records(db_service.db, b)):  # pyright: ignore[reportAttributeAccessIssue]
+                if not db_service.enqueue(repository.insert_log_records(b)):  # pyright: ignore[reportAttributeAccessIssue]
                     with handler._dropped_lock:
                         handler._dropped += batch_len
             except RuntimeError:

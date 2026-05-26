@@ -143,7 +143,11 @@ class RuntimeQueryService(Resource):
         if persistence_handler is not None:
             try:
                 loop = asyncio.get_running_loop()
-                persistence_handler.set_database(self.hassette.database_service, loop)
+                persistence_handler.set_database(
+                    self.hassette.database_service,
+                    self.hassette.command_executor.repository,
+                    loop,
+                )
             except RuntimeError:
                 self.logger.warning("No running event loop, log persistence will not be available")
 

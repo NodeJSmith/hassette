@@ -750,7 +750,7 @@ class TestLogPersistenceDropCountWithDB:
         loop = asyncio.new_event_loop()
         db_service = MagicMock()
         db_service.enqueue = MagicMock(side_effect=self.enqueue_returning_false)
-        handler.set_database(db_service, loop)
+        handler.set_database(db_service, MagicMock(), loop)
 
         for i in range(50):
             record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)
@@ -767,7 +767,7 @@ class TestLogPersistenceDropCountWithDB:
         loop = asyncio.new_event_loop()
         db_service = MagicMock()
         db_service.enqueue = MagicMock(side_effect=self.enqueue_raising_runtime_error)
-        handler.set_database(db_service, loop)
+        handler.set_database(db_service, MagicMock(), loop)
 
         for i in range(50):
             record = logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None)

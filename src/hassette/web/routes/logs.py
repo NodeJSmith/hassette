@@ -5,8 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
-from hassette.core import telemetry_repository as _repo
-from hassette.web.dependencies import HassetteDep
+from hassette.web.dependencies import TelemetryDep
 from hassette.web.models import LogEntryResponse, LogLevelRequest, LogLevelResponse
 from hassette.web.routes.telemetry import DB_ERRORS
 
@@ -20,7 +19,7 @@ _VALID_SOURCE_TIERS = frozenset({"app", "framework"})
 
 @router.get("/logs/recent", response_model=list[LogEntryResponse])
 async def get_logs(
-    hassette: HassetteDep,
+    telemetry: TelemetryDep,
     response: Response,
     limit: Annotated[int, Query(ge=1, le=2000)] = 100,
     app_key: Annotated[str | None, Query()] = None,
@@ -44,8 +43,7 @@ async def get_logs(
             detail=f"Invalid source_tier {source_tier!r}. Must be one of: {', '.join(sorted(_VALID_SOURCE_TIERS))}",
         )
     try:
-        records: list[dict] = await _repo.get_log_records(
-            hassette.database_service.read_db,
+        records = await telemetry.get_log_records(
             limit=limit,
             since=since,
             app_key=app_key,
