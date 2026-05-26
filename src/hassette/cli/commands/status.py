@@ -2,32 +2,12 @@
 
 import hassette.cli.globals as cli_globals
 from hassette.cli.client import make_client
-from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, fmt_uptime, render_detail, render_table
+from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
 from hassette.web.models import DashboardAppGridResponse, SystemStatusResponse, TelemetryStatusResponse
-
-
-def boot_issues_fmt(value: object) -> str:
-    """Summarise boot_issues as a count or dash."""
-    if not value:
-        return "—"
-    if isinstance(value, list):
-        return str(len(value))
-    return str(value)
-
 
 # ---------------------------------------------------------------------------
 # hassette status
 # ---------------------------------------------------------------------------
-
-STATUS_COLUMNS: list[Column] = [
-    Column("status", "Status", max_width=12),
-    Column("websocket_connected", "WS", max_width=5),
-    Column("uptime_seconds", "Uptime", formatter=fmt_uptime),
-    Column("app_count", "Apps", max_width=5),
-    Column("version", "Version", max_width=12),
-    Column("services_running", "Services", max_width=14),
-    Column("boot_issues", "Boot Issues", formatter=boot_issues_fmt),
-]
 
 
 def cmd_status() -> None:

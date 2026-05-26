@@ -121,7 +121,7 @@ class TestCmdListener:
         assert listeners_call["params"]["source_tier"] == "app"
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
-        """listener renders a table with listener_id and topic."""
+        """listener renders a table with listener_id and entity_id."""
         listener = make_listener_with_summary(listener_id=42, entity_id="light.kitchen")
         client, _ = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
         with (

@@ -10,6 +10,7 @@ to the stderr console. The stdout console is used only by render functions.
 """
 
 import json
+import re
 import sys
 import time
 from collections.abc import Callable
@@ -46,7 +47,7 @@ def _now() -> float:
 def fmt_relative_time(value: Any) -> str:
     """Convert an epoch float or ISO string to a relative time string.
 
-    Examples: "2m ago", "1h ago", "just now", "soon".
+    Examples: "2m ago", "1h ago", "just now", "in 5m".
     """
     if value is None:
         return ""
@@ -54,6 +55,7 @@ def fmt_relative_time(value: Any) -> str:
         if isinstance(value, (int, float)):
             epoch = float(value)
         else:
+            # HA timestamps vary: UTC instant, offset, or bare local datetime
             s = str(value)
             try:
                 epoch = Instant.parse_iso(s).timestamp()
@@ -133,6 +135,8 @@ def fmt_uptime(value: Any) -> str:
         secs = float(value)
     except (TypeError, ValueError):
         return str(value)
+    if secs < 0:
+        return "—"
     if secs < 60:
         return f"{secs:.0f}s"
     if secs < 3600:
@@ -204,10 +208,10 @@ def _extract_field(item: Any, field_path: str) -> Any:
 
 
 def _cell_text(value: Any, col: Column) -> str:
-    """Convert a raw field value to a table cell string.
+    """Convert a raw field value to a table cell string (blank for None).
 
-    Applies ``col.formatter`` when present. Truncation is handled at the table
-    level via ``_build_table`` (``max_width`` is set or cleared based on TTY).
+    Tables use empty string for missing values so cells stay visually clean.
+    Detail panels use ``_format_detail_value`` which shows "—" instead.
     """
     if col.formatter is not None:
         try:
@@ -281,9 +285,9 @@ def render_detail(
     table.add_column("value")
 
     has_sections = any(isinstance(v, dict) for v in data.values())
-    has_top_level_scalars = any(not isinstance(v, dict) for v in data.values())
-    if has_sections and has_top_level_scalars:
-        table.add_row("[bold cyan]General[/bold cyan]", "")
+    # When sections exist, scalar fields are indented under a "General" header
+    # to visually separate them from named sub-model sections.
+    general_header_emitted = False
 
     for key, value in data.items():
         if isinstance(value, dict):
@@ -291,10 +295,15 @@ def render_detail(
             table.add_row(f"[bold cyan]{_humanize_key(key)}[/bold cyan]", "")
             for sub_key, sub_value in value.items():
                 table.add_row(f"  {sub_key}", _format_detail_value(sub_value))
-        elif key in field_formatters:
-            table.add_row(f"  {key}" if has_sections else key, field_formatters[key](value))
         else:
-            table.add_row(f"  {key}" if has_sections else key, _format_detail_value(value))
+            if has_sections and not general_header_emitted:
+                table.add_row("[bold cyan]General[/bold cyan]", "")
+                general_header_emitted = True
+            if key in field_formatters and value is not None:
+                formatted = field_formatters[key](value)
+            else:
+                formatted = _format_detail_value(value)
+            table.add_row(f"  {key}" if has_sections else key, formatted)
 
     panel = Panel(table, title=display_title, expand=False)
     stdout_console.print(panel)
@@ -348,12 +357,7 @@ def _humanize_model_name(name: str) -> str:
     ``'ConfigResponse'`` → ``'Config'``, ``'SystemStatusResponse'`` → ``'System Status'``.
     """
     name = name.removesuffix("Response")
-    parts: list[str] = []
-    for i, ch in enumerate(name):
-        if ch.isupper() and i > 0 and name[i - 1].islower():
-            parts.append(" ")
-        parts.append(ch)
-    return "".join(parts)
+    return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", name)
 
 
 def _humanize_key(key: str) -> str:
@@ -379,8 +383,14 @@ def _format_list_inline(items: list[Any]) -> str:
     if not items:
         return "—"
     if all(isinstance(v, (str, int, float, bool)) for v in items):
-        return ", ".join(_format_detail_value(v) for v in items)
+        return ", ".join(_scalar_str(v) for v in items)
     return f"{len(items)} items"
+
+
+def _scalar_str(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
 
 
 def _resolve_cli_formatters(model_cls: type[BaseModel]) -> dict[str, Callable[[Any], str]]:

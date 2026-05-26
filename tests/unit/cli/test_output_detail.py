@@ -1,15 +1,11 @@
 """Tests for CLI detail rendering: helpers, formatters, and CliFormat integration."""
 
 import json
-from io import StringIO
 from typing import Annotated
-from unittest.mock import patch
 
 import pytest
 from pydantic import BaseModel
-from rich.console import Console
 
-import hassette.cli.output as output_module
 from hassette.cli.output import (
     _format_detail_value,
     _format_list_inline,
@@ -22,6 +18,7 @@ from hassette.cli.output import (
     render_detail,
 )
 from hassette.types.types import CliFormat
+from tests.unit.cli.conftest import capture_human
 
 
 class SimpleItem(BaseModel):
@@ -37,19 +34,6 @@ class AnnotatedModel(BaseModel):
     avg_duration: Annotated[float, CliFormat("duration_ms")]
     last_seen: Annotated[float | None, CliFormat("relative_time")]
     plain_float: float = 1.5
-
-
-def capture_human(func, *args, **kwargs) -> tuple[str, str]:
-    stdout_buf = StringIO()
-    stderr_buf = StringIO()
-    new_stdout = Console(file=stdout_buf, highlight=False, no_color=True)
-    new_stderr = Console(file=stderr_buf, highlight=False, no_color=True)
-    with (
-        patch.object(output_module, "stdout_console", new_stdout),
-        patch.object(output_module, "stderr_console", new_stderr),
-    ):
-        func(*args, **kwargs)
-    return stdout_buf.getvalue(), stderr_buf.getvalue()
 
 
 class TestHumanizeModelName:

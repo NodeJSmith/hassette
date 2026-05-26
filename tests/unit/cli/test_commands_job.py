@@ -121,7 +121,7 @@ class TestCmdJob:
         assert jobs_call["params"]["source_tier"] == "app"
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
-        """job renders a table with job_id and handler_method."""
+        """job renders a table with job_id and app_key."""
         job = make_job_summary(job_id=99, handler_method="check_lights")
         client, _ = cli_client_factory.build_with_routes([("GET", "/api/scheduler/jobs", 200, [job.model_dump()])])
         with (
