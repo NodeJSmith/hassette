@@ -24,6 +24,8 @@ from rich.panel import Panel
 from rich.table import Table
 from whenever import Instant, OffsetDateTime, PlainDateTime
 
+from hassette.types.types import CliFormat
+
 # ---------------------------------------------------------------------------
 # Console instances (stdout data, stderr diagnostics)
 # ---------------------------------------------------------------------------
@@ -62,7 +64,14 @@ def fmt_relative_time(value: Any) -> str:
                     epoch = PlainDateTime.parse_iso(s).assume_system_tz().timestamp()
         delta = _now() - epoch
         if delta < 0:
-            return "soon"
+            ahead = -delta
+            if ahead < 60:
+                return "in <1m"
+            if ahead < 3600:
+                return f"in {int(ahead / 60)}m"
+            if ahead < 86400:
+                return f"in {int(ahead / 3600)}h"
+            return f"in {int(ahead / 86400)}d"
         if delta < 5:
             return "just now"
         if delta < 60:
@@ -114,6 +123,36 @@ def fmt_truncate(max_len: int = 60) -> Callable[[Any], str]:
         return s
 
     return _fmt
+
+
+def fmt_uptime(value: Any) -> str:
+    """Convert seconds to a human-readable uptime string (e.g. ``'2h 30m 5s'``)."""
+    if value is None:
+        return ""
+    try:
+        secs = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if secs < 60:
+        return f"{secs:.0f}s"
+    if secs < 3600:
+        m, s = divmod(int(secs), 60)
+        return f"{m}m {s}s"
+    h, remainder = divmod(int(secs), 3600)
+    m, s = divmod(remainder, 60)
+    return f"{h}h {m}m {s}s"
+
+
+# ---------------------------------------------------------------------------
+# CliFormat style → formatter registry
+# ---------------------------------------------------------------------------
+
+CLI_FORMATTERS: dict[str, Callable[[Any], str]] = {
+    "duration_ms": fmt_duration_ms,
+    "duration_s": fmt_duration_s,
+    "uptime": fmt_uptime,
+    "relative_time": fmt_relative_time,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -223,25 +262,41 @@ def render_detail(
 ) -> None:
     """Render a single Pydantic model as a key-value panel or JSON object.
 
-    Args:
-        item: A Pydantic model to render.
-        json_mode: When ``True``, write JSON to stdout. When ``False``,
-            render a Rich key-value panel on stdout.
+    Nested sub-models render as labeled sections with indented key-value rows.
+    Lists of scalars render inline as comma-separated values. Fields annotated
+    with :class:`~hassette.types.types.CliFormat` are formatted via the
+    ``CLI_FORMATTERS`` registry in human mode.
     """
     if json_mode:
         sys.stdout.write(item.model_dump_json(indent=2) + "\n")
         sys.stdout.flush()
         return
 
+    display_title = _humanize_model_name(type(item).__name__)
+    data = item.model_dump(mode="json")
+    field_formatters = _resolve_cli_formatters(type(item))
+
     table = Table(show_header=False, box=None, padding=(0, 1))
     table.add_column("key", style="bold", no_wrap=True)
     table.add_column("value")
 
-    data = item.model_dump(mode="json")
-    for key, value in data.items():
-        table.add_row(key, _format_detail_value(value))
+    has_sections = any(isinstance(v, dict) for v in data.values())
+    has_top_level_scalars = any(not isinstance(v, dict) for v in data.values())
+    if has_sections and has_top_level_scalars:
+        table.add_row("[bold cyan]General[/bold cyan]", "")
 
-    panel = Panel(table, title=type(item).__name__, expand=False)
+    for key, value in data.items():
+        if isinstance(value, dict):
+            table.add_row("", "")
+            table.add_row(f"[bold cyan]{_humanize_key(key)}[/bold cyan]", "")
+            for sub_key, sub_value in value.items():
+                table.add_row(f"  {sub_key}", _format_detail_value(sub_value))
+        elif key in field_formatters:
+            table.add_row(f"  {key}" if has_sections else key, field_formatters[key](value))
+        else:
+            table.add_row(f"  {key}" if has_sections else key, _format_detail_value(value))
+
+    panel = Panel(table, title=display_title, expand=False)
     stdout_console.print(panel)
 
 
@@ -282,15 +337,58 @@ def _build_table(columns: list[Column], is_terminal: bool) -> Table:
             col.header,
             max_width=effective_max_width,
             overflow=col.overflow,
-            no_wrap=False,
+            no_wrap=col.max_width is None,
         )
     return table
+
+
+def _humanize_model_name(name: str) -> str:
+    """Convert a model class name to a human-readable title.
+
+    ``'ConfigResponse'`` → ``'Config'``, ``'SystemStatusResponse'`` → ``'System Status'``.
+    """
+    name = name.removesuffix("Response")
+    parts: list[str] = []
+    for i, ch in enumerate(name):
+        if ch.isupper() and i > 0 and name[i - 1].islower():
+            parts.append(" ")
+        parts.append(ch)
+    return "".join(parts)
+
+
+def _humanize_key(key: str) -> str:
+    """Convert a snake_case field name to a title-cased section header."""
+    return key.replace("_", " ").title()
 
 
 def _format_detail_value(value: Any) -> str:
     """Format a value for the key-value detail panel."""
     if value is None:
-        return ""
-    if isinstance(value, (dict, list)):
+        return "—"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, list):
+        return _format_list_inline(value)
+    if isinstance(value, dict):
         return json.dumps(value, indent=2)
     return str(value)
+
+
+def _format_list_inline(items: list[Any]) -> str:
+    """Format a list for inline display in a detail panel."""
+    if not items:
+        return "—"
+    if all(isinstance(v, (str, int, float, bool)) for v in items):
+        return ", ".join(_format_detail_value(v) for v in items)
+    return f"{len(items)} items"
+
+
+def _resolve_cli_formatters(model_cls: type[BaseModel]) -> dict[str, Callable[[Any], str]]:
+    """Build a field-name → formatter mapping from CliFormat annotations on a model."""
+    result: dict[str, Callable[[Any], str]] = {}
+    for name, field_info in model_cls.model_fields.items():
+        for meta in field_info.metadata:
+            if isinstance(meta, CliFormat) and meta.style in CLI_FORMATTERS:
+                result[name] = CLI_FORMATTERS[meta.style]
+                break
+    return result

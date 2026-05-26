@@ -8,16 +8,24 @@ from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, rend
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.core.telemetry_models import JobExecution, JobSummary
 
+
+def _fmt_next_run(value: Any) -> str:
+    if value is None:
+        return "done"
+    return fmt_relative_time(value)
+
+
 JOB_LIST_COLUMNS: list[Column] = [
     Column("job_id", "ID", max_width=6),
-    Column("handler_method", "Handler", max_width=22),
+    Column("app_key", "App", max_width=18),
+    Column("job_name", "Handler", max_width=22),
     Column("trigger_type", "Trigger", max_width=10),
-    Column("trigger_label", "Schedule", max_width=14),
+    Column("trigger_detail", "Schedule", max_width=20),
     Column("total_executions", "Total", max_width=7),
     Column("successful", "OK", max_width=6),
     Column("failed", "Fail", max_width=6),
     Column("avg_duration_ms", "Avg", max_width=7, formatter=fmt_duration_ms),
-    Column("next_run", "Next Run", max_width=11, formatter=fmt_relative_time),
+    Column("next_run", "Next Run", max_width=11, formatter=_fmt_next_run),
 ]
 
 JOB_EXECUTION_COLUMNS: list[Column] = [

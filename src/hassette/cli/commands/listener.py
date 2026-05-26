@@ -9,11 +9,21 @@ from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, Sourc
 from hassette.core.telemetry_models import HandlerInvocation
 from hassette.web.models import ListenerWithSummary
 
+
+def _fmt_handler_short(value: Any) -> str:
+    """Extract just the method name from a fully qualified handler_method."""
+    if value is None:
+        return ""
+    s = str(value)
+    return s.rsplit(".", 1)[-1]
+
+
 LISTENER_LIST_COLUMNS: list[Column] = [
     Column("listener_id", "ID", max_width=6),
-    Column("topic", "Topic", max_width=24),
-    Column("handler_method", "Handler", max_width=22),
+    Column("app_key", "App", max_width=18),
+    Column("entity_id", "Target", max_width=26),
     Column("listener_kind", "Kind", max_width=12),
+    Column("handler_method", "Handler", max_width=22, formatter=_fmt_handler_short),
     Column("total_invocations", "Total", max_width=7),
     Column("successful", "OK", max_width=6),
     Column("failed", "Fail", max_width=6),

@@ -122,7 +122,7 @@ class TestCmdListener:
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """listener renders a table with listener_id and topic."""
-        listener = make_listener_with_summary(listener_id=42, topic="light.kitchen")
+        listener = make_listener_with_summary(listener_id=42, entity_id="light.kitchen")
         client, _ = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
         with (
             capture_stdout() as buf,
@@ -132,8 +132,7 @@ class TestCmdListener:
 
         output = buf.getvalue()
         assert "42" in output
-        # Rich may truncate the topic in a narrow console — match the prefix
-        assert "light.ki" in output
+        assert "my_app" in output
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """listener --json outputs the listener list as a JSON array."""
@@ -168,13 +167,14 @@ class TestCmdListener:
         """LISTENER_LIST_COLUMNS includes key listener fields."""
         field_names = [c.field for c in LISTENER_LIST_COLUMNS]
         assert "listener_id" in field_names
-        assert "topic" in field_names
+        assert "app_key" in field_names
+        assert "entity_id" in field_names
         assert "handler_method" in field_names
         assert "total_invocations" in field_names
 
     def test_listener_list_columns_count_is_compact(self) -> None:
-        """LISTENER_LIST_COLUMNS uses at most 9 columns for 80-column fit."""
-        assert len(LISTENER_LIST_COLUMNS) <= 9
+        """LISTENER_LIST_COLUMNS uses at most 10 columns for wide terminal fit."""
+        assert len(LISTENER_LIST_COLUMNS) <= 10
 
 
 class TestCmdListenerDetail:
