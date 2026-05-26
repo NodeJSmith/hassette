@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Extract DurationHoldManager to bus/duration_hold.py"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1", "FR#5", "FR#6", "AC#3", "AC#4", "AC#6"]
 ---
