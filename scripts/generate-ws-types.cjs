@@ -33,11 +33,6 @@ const COMPAT_ALIASES = `
 export type WsLogPayload = LogEntryResponse;
 export type WsInvocationCompletedPayload = InvocationCompletedData;
 export type WsExecutionCompletedPayload = ExecutionCompletedData;
-export type WsAppStatusChangedPayload = AppStatusChangedData;
-export type WsConnectedPayload = ConnectedPayload;
-export type WsConnectivityPayload = ConnectivityData;
-export type WsStateChangedPayload = StateChangedData;
-export type WsServiceStatusPayload = ServiceStatusData;
 
 // Note: InvocationStatus is also defined in generated-types.ts (from OpenAPI).
 // Both are generated from the same Python enum via export_schemas.py --types.
@@ -60,14 +55,16 @@ function preprocessDef(obj) {
         preprocessDef(prop);
       }
     }
-    // Mark properties without defaults as required. Fields with "default" in the
-    // schema stay optional — this matches the AJV validation contract and supports
-    // backward compatibility with older servers that may omit defaulted fields.
-    const required = Object.entries(obj.properties)
-      .filter(([, prop]) => prop && typeof prop === "object" && !("default" in prop))
-      .map(([key]) => key);
-    if (required.length > 0) {
-      obj.required = required;
+    // Use the schema's own required array if present (Pydantic generates correct
+    // ones). Only compute from properties when absent — fields with "default"
+    // stay optional to match AJV validation and support older servers.
+    if (!obj.required) {
+      const required = Object.entries(obj.properties)
+        .filter(([, prop]) => prop && typeof prop === "object" && !("default" in prop))
+        .map(([key]) => key);
+      if (required.length > 0) {
+        obj.required = required;
+      }
     }
   }
   if (obj.items && typeof obj.items === "object") {

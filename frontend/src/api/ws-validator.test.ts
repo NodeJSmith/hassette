@@ -53,11 +53,10 @@ describe("validateWsMessage", () => {
     expect(validateWsMessage(msg)).toEqual(msg);
   });
 
-  it("throws WsValidationError for missing required field", () => {
+  it("throws WsValidationError for incomplete message (missing timestamp and app_count)", () => {
     const msg = {
       type: "connected",
       data: { uptime_seconds: 123.4, entity_count: 50 },
-      // missing app_count in data, missing timestamp
     };
     expect(() => validateWsMessage(msg)).toThrow(WsValidationError);
   });

@@ -160,11 +160,6 @@ export interface ExecutionCompletedData {
 export type WsLogPayload = LogEntryResponse;
 export type WsInvocationCompletedPayload = InvocationCompletedData;
 export type WsExecutionCompletedPayload = ExecutionCompletedData;
-export type WsAppStatusChangedPayload = AppStatusChangedData;
-export type WsConnectedPayload = ConnectedPayload;
-export type WsConnectivityPayload = ConnectivityData;
-export type WsStateChangedPayload = StateChangedData;
-export type WsServiceStatusPayload = ServiceStatusData;
 
 // Note: InvocationStatus is also defined in generated-types.ts (from OpenAPI).
 // Both are generated from the same Python enum via export_schemas.py --types.
