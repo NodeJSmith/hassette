@@ -210,8 +210,29 @@ jobs:
                     --ignore-vuln CVE-2025-69872 \
                     --ignore-vuln PYSEC-2026-161  # starlette — fix requires FastAPI bump (#862)
 
+    slotscheck:
+        needs: changes
+        if: needs.changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+              with:
+                persist-credentials: false
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+              with:
+                  python-version: "3.13"
+
+            - name: Install dependencies
+              run: uv sync
+
+            - name: Run slotscheck
+              run: uv run slotscheck -m hassette --exclude-modules "hassette.migrations"
+
     lint-complete:
-        needs: [python, frontend, codegen-freshness, security]
+        needs: [python, frontend, codegen-freshness, security, slotscheck]
         if: always()
         runs-on: ubuntu-latest
         steps:
