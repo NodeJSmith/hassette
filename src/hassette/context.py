@@ -85,12 +85,9 @@ def get_hassette_config() -> "HassetteConfig":
     try:
         config = HASSETTE_CONFIG.get()
         return config
-    except LookupError as e:
+    except LookupError:
         LOGGER.debug("HassetteConfig not found in context, attempting to get from Hassette instance.")
-        c = get_hassette().config
-        if c is None:
-            raise HassetteNotInitializedError("No HassetteConfig found in context or Hassette instance.") from e
-        return c
+        return get_hassette().config
 
 
 ## Context Managers ##
