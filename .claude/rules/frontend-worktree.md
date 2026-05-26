@@ -12,17 +12,21 @@ One-time per worktree. `package-lock.json` is shared via the worktree's file cop
 
 After modifying backend response models (`web/models.py`, `telemetry_models.py`) or route signatures:
 
-1. Regenerate OpenAPI spec and WebSocket schema:
+1. Regenerate schemas and all TypeScript types in one command:
    ```bash
-   uv run python scripts/export_schemas.py
+   uv run python scripts/export_schemas.py --types
    ```
-2. Regenerate TypeScript types:
-   ```bash
-   cd frontend && npx openapi-typescript openapi.json -o src/api/generated-types.ts
-   ```
-3. Rebuild the frontend to verify:
+   This regenerates `openapi.json`, `ws-schema.json`, `generated-types.ts`, and `ws-types.ts`.
+
+2. Rebuild the frontend to verify:
    ```bash
    cd frontend && npm run build
    ```
 
-CI checks schema freshness via `tools/check_schemas_fresh.py` — if you skip step 1-2, the pre-push hook will catch it.
+Individual type generation can also be run standalone:
+- REST API types: `cd frontend && npm run types`
+- WebSocket types: `cd frontend && npm run ws-types`
+
+`ws-types.ts` is generated from `ws-schema.json` via `scripts/generate-ws-types.cjs` — do not edit it by hand.
+
+The pre-push hook (`tools/check_schemas_fresh.py`) checks `ws-schema.json` and `openapi.json` freshness locally. CI additionally checks `ws-types.ts` and `generated-types.ts` via git-diff in `.github/workflows/tests.yml`.

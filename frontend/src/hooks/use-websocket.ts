@@ -4,6 +4,7 @@ import { useEffect, useRef } from "preact/hooks";
 
 import { WS_PATH } from "../api/endpoints";
 import type { WsServerMessage } from "../api/ws-types";
+import { validateWsMessage, WsValidationError } from "../api/ws-validator";
 import type { AppState } from "../state/create-app-state";
 
 const MAX_BACKOFF_MS = 30_000;
@@ -55,9 +56,17 @@ export function useWebSocket(state: AppState): void {
       socket.onmessage = (e: MessageEvent) => {
         let msg: WsServerMessage;
         try {
-          msg = JSON.parse(e.data as string) as WsServerMessage;
-        } catch {
-          return; // Ignore non-JSON frames
+          const raw: unknown = JSON.parse(e.data as string);
+          msg = validateWsMessage(raw);
+        } catch (err) {
+          if (err instanceof WsValidationError) {
+            console.warn("[ws] invalid message:", err.errors);
+            return;
+          }
+          if (err instanceof SyntaxError) {
+            return; // Ignore non-JSON frames
+          }
+          throw err;
         }
 
         batch(() => {
@@ -125,7 +134,7 @@ export function useWebSocket(state: AppState): void {
                   status: msg.data.status,
                   previous_status: msg.data.previous_status,
                   exception: msg.data.exception,
-                  retry_at: msg.data.retry_at,
+                  retry_at: msg.data.retry_at ?? null,
                   ready: msg.data.ready ?? false,
                   ready_phase: msg.data.ready_phase ?? null,
                 },

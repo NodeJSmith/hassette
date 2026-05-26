@@ -1,151 +1,165 @@
-/**
- * Hand-authored TypeScript types for WebSocket messages.
- *
- * These mirror the Pydantic models in hassette.web.models (WsServerMessage
- * discriminated union). A CI conformance test validates these match the
- * exported ws-schema.json.
- *
- * All messages use a consistent { type, data, timestamp } envelope.
+/* @generated from ws-schema.json — do not edit by hand.
+ * Regenerate: node scripts/generate-ws-types.cjs
+ * Or: uv run python scripts/export_schemas.py --types
  */
 
-export interface WsAppStatusChangedPayload {
+export type WsServerMessage =
+  | AppStatusChangedWsMessage
+  | LogWsMessage
+  | ConnectedWsMessage
+  | ConnectivityWsMessage
+  | StateChangedWsMessage
+  | ServiceStatusWsMessage
+  | InvocationCompletedWsMessage
+  | ExecutionCompletedWsMessage;
+/**
+ * Status values for handler invocations and job executions.
+ *
+ * Covers all values allowed by the CHECK constraints in migrations 001 and 005.
+ * Pydantic v2 coerces plain strings to enum members on construction and
+ * serialises back to plain strings in JSON responses.
+ */
+export type InvocationStatus = "success" | "error" | "cancelled" | "timed_out";
+
+export interface AppStatusChangedWsMessage {
+  type: "app_status_changed";
+  data: AppStatusChangedData;
+  timestamp: number;
+}
+/**
+ * Payload for an app lifecycle state-change event broadcast over WebSocket.
+ *
+ * Mirrors ``events.hassette.AppStateChangePayload`` exactly.
+ */
+export interface AppStatusChangedData {
   app_key: string;
   index: number;
   status: string;
-  previous_status: string | null;
-  instance_name: string | null;
-  class_name: string | null;
-  exception: string | null;
-  exception_type: string | null;
-  exception_traceback: string | null;
+  previous_status?: string | null;
+  instance_name?: string | null;
+  class_name?: string | null;
+  exception?: string | null;
+  exception_type?: string | null;
+  exception_traceback?: string | null;
 }
-
-export interface WsConnectedPayload {
+export interface LogWsMessage {
+  type: "log";
+  data: LogEntryResponse;
+  timestamp: number;
+}
+export interface LogEntryResponse {
+  seq: number;
+  timestamp: number;
+  level: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
+  logger_name: string;
+  func_name?: string | null;
+  lineno?: number | null;
+  message: string;
+  exc_info?: string | null;
+  app_key?: string | null;
+  execution_id?: string | null;
+  instance_name?: string | null;
+  instance_index?: number | null;
+  source_tier?: ("app" | "framework") | null;
+}
+export interface ConnectedWsMessage {
+  type: "connected";
+  data: ConnectedPayload;
+  timestamp: number;
+}
+export interface ConnectedPayload {
   uptime_seconds: number;
   entity_count: number;
   app_count: number;
   version?: string;
 }
-
-export interface WsConnectivityPayload {
+export interface ConnectivityWsMessage {
+  type: "connectivity";
+  data: ConnectivityData;
+  timestamp: number;
+}
+/**
+ * Payload for a Home Assistant WebSocket connectivity event.
+ */
+export interface ConnectivityData {
   connected: boolean;
 }
-
-export interface WsStateChangedPayload {
-  entity_id: string;
-  new_state: Record<string, unknown> | null;
-  old_state: Record<string, unknown> | null;
+export interface StateChangedWsMessage {
+  type: "state_changed";
+  data: StateChangedData;
+  timestamp: number;
 }
-
-export interface WsServiceStatusPayload {
+/**
+ * Payload for a Home Assistant ``state_changed`` event broadcast over WebSocket.
+ */
+export interface StateChangedData {
+  entity_id: string;
+  new_state?: {
+    [k: string]: unknown;
+  } | null;
+  old_state?: {
+    [k: string]: unknown;
+  } | null;
+}
+export interface ServiceStatusWsMessage {
+  type: "service_status";
+  data: ServiceStatusData;
+  timestamp: number;
+}
+/**
+ * Payload for an internal service status-change event broadcast over WebSocket.
+ *
+ * Mirrors ``events.hassette.ServiceStatusPayload``.
+ */
+export interface ServiceStatusData {
   resource_name: string;
   role: string;
   status: string;
-  previous_status: string | null;
-  exception: string | null;
-  exception_type: string | null;
-  exception_traceback: string | null;
-  /** Unix timestamp when next restart will be attempted. Populated for
-   * EXHAUSTED_COOLING, null for EXHAUSTED_DEAD and all other statuses. */
-  retry_at: number | null;
-  /** Whether the service has called mark_ready(). False during startup phases. */
-  ready: boolean;
-  /** Human-readable description of the current readiness or startup phase, or null if not available. */
-  ready_phase: string | null;
+  previous_status?: string | null;
+  exception?: string | null;
+  exception_type?: string | null;
+  exception_traceback?: string | null;
+  retry_at?: number | null;
+  ready?: boolean;
+  ready_phase?: string | null;
 }
-
-export interface WsLogPayload {
-  seq: number;
+export interface InvocationCompletedWsMessage {
+  type: "invocation_completed";
+  data: InvocationCompletedData[];
   timestamp: number;
-  level: string;
-  logger_name: string;
-  func_name: string;
-  lineno: number;
-  message: string;
-  exc_info: string | null;
-  app_key: string | null;
-  execution_id: string | null;
-  instance_name: string | null;
-  instance_index: number | null;
-  source_tier: string | null;
 }
-
-export interface WsInvocationCompletedPayload {
+/**
+ * Payload for invocation_completed WebSocket messages.
+ */
+export interface InvocationCompletedData {
   listener_id: number;
   app_key: string;
   instance_index: number;
-  status: string;
+  status: InvocationStatus;
   duration_ms: number;
-  error_type: string | null;
+  error_type?: string | null;
 }
-
-export interface WsExecutionCompletedPayload {
+export interface ExecutionCompletedWsMessage {
+  type: "execution_completed";
+  data: ExecutionCompletedData[];
+  timestamp: number;
+}
+/**
+ * Payload for execution_completed WebSocket messages.
+ */
+export interface ExecutionCompletedData {
   job_id: number;
   app_key: string;
   instance_index: number;
-  status: string;
+  status: InvocationStatus;
   duration_ms: number;
-  error_type: string | null;
+  error_type?: string | null;
 }
 
-// Discriminated union of all server-to-client messages
+export type WsLogPayload = LogEntryResponse;
+export type WsInvocationCompletedPayload = InvocationCompletedData;
+export type WsExecutionCompletedPayload = ExecutionCompletedData;
 
-export interface AppStatusChangedMessage {
-  type: "app_status_changed";
-  data: WsAppStatusChangedPayload;
-  timestamp: number;
-}
-
-export interface LogMessage {
-  type: "log";
-  data: WsLogPayload;
-  timestamp: number;
-}
-
-export interface ConnectedMessage {
-  type: "connected";
-  data: WsConnectedPayload;
-  timestamp: number;
-}
-
-export interface ConnectivityMessage {
-  type: "connectivity";
-  data: WsConnectivityPayload;
-  timestamp: number;
-}
-
-export interface StateChangedMessage {
-  type: "state_changed";
-  data: WsStateChangedPayload;
-  timestamp: number;
-}
-
-export interface ServiceStatusMessage {
-  type: "service_status";
-  data: WsServiceStatusPayload;
-  timestamp: number;
-}
-
-export interface InvocationCompletedMessage {
-  type: "invocation_completed";
-  /** Per-drain batch: all invocations persisted in one _drain_and_persist() cycle. */
-  data: WsInvocationCompletedPayload[];
-  timestamp: number;
-}
-
-export interface ExecutionCompletedMessage {
-  type: "execution_completed";
-  /** Per-drain batch: all executions persisted in one _drain_and_persist() cycle. */
-  data: WsExecutionCompletedPayload[];
-  timestamp: number;
-}
-
-export type WsServerMessage =
-  | AppStatusChangedMessage
-  | LogMessage
-  | ConnectedMessage
-  | ConnectivityMessage
-  | StateChangedMessage
-  | ServiceStatusMessage
-  | InvocationCompletedMessage
-  | ExecutionCompletedMessage;
+// InvocationStatus is also defined in generated-types.ts (from OpenAPI).
+// Both are generated from the same Python enum via export_schemas.py --types.
+// CI enforces freshness of both files atomically.
