@@ -62,7 +62,7 @@ def set_global_hassette(hassette: "Hassette") -> "Token[Hassette] | None":
 
 
 def set_global_hassette_config(config: "HassetteConfig") -> None:
-    """Set the global HassetteConfig instance. This can be overriden using the `use` context manager."""
+    """Set the global HassetteConfig instance. This can be overridden using the `use` context manager."""
     if HASSETTE_CONFIG.get(None) is not None:
         raise RuntimeError("HassetteConfig is already set in context.")
     HASSETTE_CONFIG.set(config)

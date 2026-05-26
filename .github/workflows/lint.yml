@@ -15,8 +15,8 @@ jobs:
             frontend: ${{ steps.filter.outputs.frontend }}
             codegen: ${{ steps.filter.outputs.codegen }}
         steps:
-            - uses: actions/checkout@v4
-            - uses: dorny/paths-filter@v3
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+            - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
               id: filter
               with:
                   filters: |
@@ -25,6 +25,8 @@ jobs:
                         - 'tests/**'
                         - 'pyproject.toml'
                         - 'uv.lock'
+                        - 'ruff.toml'
+                        - '_typos.toml'
                         - '.pre-commit-config.yaml'
                         - 'tools/**'
                         - '.github/workflows/lint.yml'
@@ -44,10 +46,10 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
             - name: Install uv and set the Python version
-              uses: astral-sh/setup-uv@v6
+              uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
               with:
                   python-version: "3.13"
 
@@ -80,17 +82,17 @@ jobs:
         if: needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
             - name: Set up Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
               with:
                   node-version: "22"
                   cache: "npm"
                   cache-dependency-path: frontend/package-lock.json
 
             - name: Install uv
-              uses: astral-sh/setup-uv@v6
+              uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
 
             - name: Install frontend dependencies
               run: npm ci
@@ -132,19 +134,19 @@ jobs:
         if: needs.changes.outputs.codegen == 'true' || github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
             - name: Set up Python 3.14
-              uses: actions/setup-python@v5
+              uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
               with:
                   python-version: "3.14"
 
             - name: Install uv
-              uses: astral-sh/setup-uv@v5
+              uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
 
             - name: Cache HA core checkout
               id: cache-ha
-              uses: actions/cache@v4
+              uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
               with:
                   path: ha-core
                   key: ha-core-${{ hashFiles('codegen/ha-version.txt') }}
@@ -175,8 +177,26 @@ jobs:
               env:
                   GH_TOKEN: ${{ github.token }}
 
+    security:
+        needs: changes
+        if: needs.changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+              with:
+                  python-version: "3.13"
+
+            - name: Export requirements and audit
+              run: |
+                  uv export --no-dev --no-hashes > requirements.txt
+                  uvx pip-audit -r requirements.txt
+
     lint-complete:
-        needs: [python, frontend, codegen-freshness]
+        needs: [python, frontend, codegen-freshness, security]
         if: always()
         runs-on: ubuntu-latest
         steps:
