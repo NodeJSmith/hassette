@@ -3,7 +3,7 @@
 import logging
 import sqlite3
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -13,7 +13,7 @@ from hassette.core.telemetry_models import ListenerSummary
 if TYPE_CHECKING:
     from httpx import AsyncClient
 
-from .conftest import LOGS_REPO, make_log_record
+from .conftest import make_log_record
 
 
 class TestHealthEndpoints:
@@ -247,23 +247,21 @@ class TestLogsEndpoints:
             make_log_record(6, "INFO", "OtherApp ready", app_key="other_app"),
         ]
 
-    @patch(f"{LOGS_REPO}.get_log_records", new_callable=AsyncMock)
     async def test_get_logs_recent_returns_list(
-        self, mock_get: AsyncMock, client: "AsyncClient", sample_records: list[dict]
+        self, client: "AsyncClient", mock_hassette: MagicMock, sample_records: list[dict]
     ) -> None:
-        mock_get.return_value = sample_records
+        mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=sample_records)
         response = await client.get("/api/logs/recent")
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
         assert len(data) == 6
 
-    @patch(f"{LOGS_REPO}.get_log_records", new_callable=AsyncMock)
     async def test_get_logs_recent_new_fields_present(
-        self, mock_get: AsyncMock, client: "AsyncClient", sample_records: list[dict]
+        self, client: "AsyncClient", mock_hassette: MagicMock, sample_records: list[dict]
     ) -> None:
         """New fields (execution_id, instance_name, instance_index, source_tier) are in the response."""
-        mock_get.return_value = sample_records[:1]
+        mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=sample_records[:1])
         response = await client.get("/api/logs/recent")
         assert response.status_code == 200
         entry = response.json()[0]
@@ -272,22 +270,25 @@ class TestLogsEndpoints:
         assert "instance_index" in entry
         assert "source_tier" in entry
 
-    @patch(f"{LOGS_REPO}.get_log_records", new_callable=AsyncMock)
-    async def test_get_logs_recent_returns_503_on_db_error(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
-        mock_get.side_effect = sqlite3.Error("db error")
+    async def test_get_logs_recent_returns_503_on_db_error(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        mock_hassette.telemetry_query_service.get_log_records = AsyncMock(side_effect=sqlite3.Error("db error"))
         response = await client.get("/api/logs/recent")
         assert response.status_code == 503
         assert response.json() == []
 
-    @patch(f"{LOGS_REPO}.get_log_records", new_callable=AsyncMock)
-    async def test_get_logs_recent_accepts_execution_id_param(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
-        mock_get.return_value = []
+    async def test_get_logs_recent_accepts_execution_id_param(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=[])
         response = await client.get("/api/logs/recent?execution_id=abc-123")
         assert response.status_code == 200
 
-    @patch(f"{LOGS_REPO}.get_log_records", new_callable=AsyncMock)
-    async def test_get_logs_recent_accepts_source_tier_param(self, mock_get: AsyncMock, client: "AsyncClient") -> None:
-        mock_get.return_value = []
+    async def test_get_logs_recent_accepts_source_tier_param(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=[])
         response = await client.get("/api/logs/recent?source_tier=app")
         assert response.status_code == 200
 

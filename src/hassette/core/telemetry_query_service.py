@@ -1107,6 +1107,79 @@ class TelemetryQueryService(Resource):
 
         return [ActivityFeedEntry.model_validate(_row_to_dict(row)) for row in rows]
 
+    async def get_log_records(
+        self,
+        *,
+        limit: int = 100,
+        since: float | None = None,
+        app_key: str | None = None,
+        level: str | None = None,
+        execution_id: str | None = None,
+        source_tier: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch log records with optional filters, ordered by timestamp DESC."""
+        clauses: list[str] = []
+        params: dict[str, Any] = {}
+
+        if since is not None:
+            clauses.append("timestamp >= :since")
+            params["since"] = since
+        if app_key is not None:
+            clauses.append("app_key = :app_key")
+            params["app_key"] = app_key
+        if level is not None:
+            clauses.append("level = :level")
+            params["level"] = level
+        if execution_id is not None:
+            clauses.append("execution_id = :execution_id")
+            params["execution_id"] = execution_id
+        if source_tier is not None:
+            clauses.append("source_tier = :source_tier")
+            params["source_tier"] = source_tier
+
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        params["limit"] = limit
+
+        query = f"SELECT * FROM log_records{where} ORDER BY timestamp DESC, seq DESC LIMIT :limit"
+        async with self.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+        return [_row_to_dict(row) for row in rows]
+
+    async def get_log_records_by_execution(
+        self,
+        execution_id: str,
+        *,
+        limit: int = 500,
+    ) -> tuple[list[dict[str, Any]], bool]:
+        """Fetch all log records for a single execution, ordered by seq ASC."""
+        query = "SELECT * FROM log_records WHERE execution_id = :execution_id ORDER BY seq ASC LIMIT :limit"
+        async with self.execute(query, {"execution_id": execution_id, "limit": limit + 1}) as cursor:
+            rows = list(await cursor.fetchall())
+        truncated = len(rows) > limit
+        return [_row_to_dict(row) for row in rows[:limit]], truncated
+
+    async def check_execution_predates_retention_cutoff(self, execution_id: str, cutoff: float) -> bool:
+        """Check if an execution predates the retention cutoff via handler_invocations and job_executions."""
+        # Two sequential queries under one timeout budget — cannot use self.execute()
+        async with asyncio.timeout(self.hassette.config.database.read_timeout_seconds):
+            async with self._db.execute(
+                "SELECT execution_start_ts FROM handler_invocations WHERE execution_id = :eid LIMIT 1",
+                {"eid": execution_id},
+            ) as cursor:
+                row = await cursor.fetchone()
+            if row is not None:
+                return float(row[0]) < cutoff
+
+            async with self._db.execute(
+                "SELECT execution_start_ts FROM job_executions WHERE execution_id = :eid LIMIT 1",
+                {"eid": execution_id},
+            ) as cursor:
+                row = await cursor.fetchone()
+            if row is not None:
+                return float(row[0]) < cutoff
+
+            return False
+
     async def check_health(self) -> None:
         """Verify the database connection is alive.
 

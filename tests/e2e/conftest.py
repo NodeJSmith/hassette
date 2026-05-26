@@ -193,16 +193,15 @@ def ensure_spa_built():
 def make_log_records_from_buffer(handler: LogCaptureHandler):
     """Return an async function that serves log records from the capture handler buffer.
 
-    Replaces ``telemetry_repository.get_log_records`` in E2E tests so the seeded
-    LogCaptureHandler data is returned by the REST API (which now queries the DB
+    Replaces ``TelemetryQueryService.get_log_records`` in E2E tests so the seeded
+    LogCaptureHandler data is returned by the REST API (which queries the DB
     in production, but we don't run a real DB in E2E).
 
-    Filter semantics must match the SQL in ``telemetry_repository.get_log_records()``
+    Filter semantics must match the SQL in ``TelemetryQueryService.get_log_records()``
     (exact equality per column, not range-based).
     """
 
     async def _get_log_records(
-        _db,
         *,
         limit: int = 100,
         since: float | None = None,
@@ -233,18 +232,14 @@ def make_log_records_from_buffer(handler: LogCaptureHandler):
 def fastapi_app(mock_hassette, runtime_query_service, log_handler, ensure_spa_built):  # noqa: ARG001
     """Create the FastAPI app instance."""
 
-    with (
-        patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler),
-        patch("hassette.web.routes.logs._repo.get_log_records", make_log_records_from_buffer(log_handler)),
-    ):
+    mock_hassette.telemetry_query_service.get_log_records = make_log_records_from_buffer(log_handler)
+
+    with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
         app = create_fastapi_app(mock_hassette)
     # Patch persistently so runtime calls also find the handler
     patcher_capture = patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler)
-    patcher_repo = patch("hassette.web.routes.logs._repo.get_log_records", make_log_records_from_buffer(log_handler))
     patcher_capture.start()
-    patcher_repo.start()
     yield app
-    patcher_repo.stop()
     patcher_capture.stop()
 
 

@@ -6,8 +6,6 @@ from hassette.core.app_registry import AppInstanceInfo, AppStatusSnapshot
 from hassette.test_utils.web_mocks import create_hassette_stub
 from hassette.types.enums import ResourceStatus
 
-LOGS_REPO = "hassette.web.routes.logs._repo"
-
 
 @pytest.fixture
 def mock_hassette():

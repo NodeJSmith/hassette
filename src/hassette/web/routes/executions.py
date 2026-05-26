@@ -8,13 +8,12 @@ import uuid_utils
 from fastapi import APIRouter, HTTPException, Query, Response
 
 from hassette.const.misc import SECONDS_PER_DAY
-from hassette.core import telemetry_repository as _repo
-from hassette.web.dependencies import HassetteDep
+from hassette.web.dependencies import HassetteDep, TelemetryDep
 from hassette.web.models import LogEntryResponse, LogsByExecutionResponse
 from hassette.web.routes.telemetry import DB_ERRORS
 
 if TYPE_CHECKING:
-    from hassette import Hassette
+    from hassette.core.telemetry_query_service import TelemetryQueryService
 
 router = APIRouter(prefix="/executions", tags=["executions"])
 
@@ -36,13 +35,10 @@ def extract_uuidv7_timestamp_s(execution_id: str) -> float | None:
     return parsed.timestamp / 1000.0
 
 
-async def check_retention_expired_uuid4(hassette: "Hassette", execution_id: str) -> bool:
+async def check_retention_expired_uuid4(telemetry: "TelemetryQueryService", execution_id: str, cutoff: float) -> bool:
     """Fall back to DB query for non-UUIDv7 execution IDs (historical UUIDv4 IDs)."""
     try:
-        cutoff = time.time() - hassette.config.logging.log_retention_days * SECONDS_PER_DAY
-        return await _repo.check_execution_predates_retention_cutoff(
-            hassette.database_service.read_db, execution_id, cutoff
-        )
+        return await telemetry.check_execution_predates_retention_cutoff(execution_id, cutoff)
     except DB_ERRORS:
         LOGGER.warning("Failed to check retention for %s — assuming not expired", execution_id, exc_info=True)
         return False
@@ -52,6 +48,7 @@ async def check_retention_expired_uuid4(hassette: "Hassette", execution_id: str)
 async def get_execution_logs(
     execution_id: str,
     hassette: HassetteDep,
+    telemetry: TelemetryDep,
     response: Response,
     limit: Annotated[int, Query(ge=1, le=5000)] = 500,
 ) -> LogsByExecutionResponse:
@@ -72,8 +69,7 @@ async def get_execution_logs(
         ) from exc
 
     try:
-        records, truncated = await _repo.get_log_records_by_execution(
-            hassette.database_service.read_db,
+        records, truncated = await telemetry.get_log_records_by_execution(
             execution_id,
             limit=limit,
         )
@@ -84,14 +80,12 @@ async def get_execution_logs(
 
     retention_expired = False
     if not records:
+        cutoff = time.time() - hassette.config.logging.log_retention_days * SECONDS_PER_DAY
         ts_s = extract_uuidv7_timestamp_s(execution_id)
         if ts_s is not None:
-            # UUIDv7: extract embedded timestamp — no DB lookup needed
-            cutoff = time.time() - hassette.config.logging.log_retention_days * SECONDS_PER_DAY
             retention_expired = ts_s < cutoff
         else:
-            # UUIDv4 or other version: fall back to DB query
-            retention_expired = await check_retention_expired_uuid4(hassette, execution_id)
+            retention_expired = await check_retention_expired_uuid4(telemetry, execution_id, cutoff)
 
     log_entries = [LogEntryResponse.model_validate(r) for r in records]
     return LogsByExecutionResponse(records=log_entries, truncated=truncated, retention_expired=retention_expired)

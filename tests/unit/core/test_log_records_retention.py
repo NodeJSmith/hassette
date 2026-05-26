@@ -283,7 +283,7 @@ class TestRuntimeQueryServiceWiring:
         """set_database() stores the db_service reference on LogPersistenceHandler."""
         persistence_handler = LogPersistenceHandler(persistence_level=logging.INFO)
         mock_db_service = MagicMock()
-        persistence_handler.set_database(mock_db_service, asyncio.get_running_loop())
+        persistence_handler.set_database(mock_db_service, MagicMock(), asyncio.get_running_loop())
         assert persistence_handler._db_service is mock_db_service  # pyright: ignore[reportPrivateUsage]
 
     async def test_persistence_handler_dropped_count_starts_at_zero(self) -> None:
