@@ -12,7 +12,7 @@ None.
 3. Extract event filtering into `src/hassette/core/event_filter.py` (~80 lines) as an `EventFilter` class
 4. DurationHoldManager receives `executor` and `config_resolver` directly (not a callback indirection) and imports `build_tracked_invoke_fn` from the sibling module
 5. Callbacks used only for cross-module operations: `state_reader` (absorbs ResourceNotReadyError), `remove_listener` (verified idempotent)
-6. `_should_log_event` stays on BusService — it mixes `@cached_property` with live config reads
+6. `_should_log_event` stays on BusService — it reads both a `@cached_property` (`config_log_all_events`) and live config fields, depending on BusService's config access patterns
 7. Dispatch tracking (`_dispatch_pending`/`_dispatch_idle_event`) stays entirely in BusService — duration timer fires are explicitly excluded from `await_dispatch_idle`
 8. `read_current_state` does NOT move — absorbed into the `state_reader` callback
 

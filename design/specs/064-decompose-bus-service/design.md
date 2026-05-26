@@ -128,7 +128,7 @@ Extracts event filtering into a standalone utility (same pattern as `Registratio
   - `should_skip(topic, event)` — returns True if event should be dropped (was `_should_skip_event`)
 - No dependency on `Resource`, `Service`, or `Hassette` — receives config values, not the config object
 - Snapshots exclusion config at construction time; does not observe config changes after init (same as current behavior — if hot-reload is added later, EventFilter must be reconstructed)
-- `_should_log_event` stays on BusService — it mixes a `@cached_property` with live config reads that cannot be faithfully represented as constructor args without changing behavior
+- `_should_log_event` stays on BusService — it reads both a `@cached_property` (`config_log_all_events`) and live config fields (`config.logging.all_hass_events`, `config.logging.all_hassette_events`), making it dependent on BusService's config access patterns
 
 BusService constructs `EventFilter` in `__init__` with values from `self.hassette.config` and delegates skip/log decisions to it.
 
