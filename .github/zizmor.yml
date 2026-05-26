@@ -1,0 +1,13 @@
+# release-please legitimately needs workflow-level write permissions to create
+# releases and PRs, and uses a GitHub App token by design (not GITHUB_TOKEN).
+# The sync-lockfile job persists credentials because it pushes back to the PR branch.
+rules:
+  excessive-permissions:
+    ignore:
+      - release-please.yml
+  github-app:
+    ignore:
+      - release-please.yml
+  artipacked:
+    ignore:
+      - release-please.yml:49

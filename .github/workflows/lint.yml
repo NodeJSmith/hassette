@@ -205,7 +205,7 @@ jobs:
 
             - name: Export requirements and audit
               run: |
-                  uv export --no-dev --no-hashes > requirements.txt
+                  uv export --frozen --no-dev --no-hashes > requirements.txt
                   uvx pip-audit -r requirements.txt
 
     lint-complete:
