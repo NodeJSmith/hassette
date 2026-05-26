@@ -29,7 +29,7 @@ except DB_ERRORS:
     return []
 ```
 
-`DB_ERRORS = (sqlite3.Error, OSError, ValueError)` — all three are suppressed uniformly.
+`DB_ERRORS = (sqlite3.Error, OSError, ValueError, TimeoutError)` — all four are suppressed uniformly.
 
 ## Route Registration Pattern
 

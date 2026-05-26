@@ -43,11 +43,12 @@ from hassette.web.utils import enrich_jobs_with_heap
 
 LOGGER = getLogger(__name__)
 
-DB_ERRORS: tuple[type[Exception], ...] = (sqlite3.Error, OSError, ValueError)
+DB_ERRORS: tuple[type[Exception], ...] = (sqlite3.Error, OSError, ValueError, TimeoutError)
 """Database error types to catch in telemetry endpoints.
 
 Includes ``ValueError`` because aiosqlite raises it for closed-connection
-errors during shutdown.  All three types are suppressed uniformly — a degraded
+errors during shutdown and ``TimeoutError`` for queries exceeding the
+configured read timeout.  All types are suppressed uniformly — a degraded
 response is always preferable to an unhandled 500."""
 
 router = APIRouter(prefix="/telemetry", tags=["telemetry"])
