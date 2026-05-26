@@ -31,7 +31,7 @@ Create `src/hassette/bus/duration_hold.py` containing the `DurationHoldManager` 
 
 2. Move `compute_elapsed` (bus_service.py:922-946) as a module-level function — logic unchanged.
 
-3. In `immediate_fire_task`: replace `self._make_tracked_invoke_fn(...)` with a direct call to `build_tracked_invoke_fn(listener, event, topic, self.executor, self.config_resolver, is_synthetic=True)`. Replace `self._read_entity_state(entity_id)` with `self.state_reader(entity_id)`. Replace `self.remove_listener(listener)` with `self.remove_listener(listener)`.
+3. In `immediate_fire_task`: replace `self._make_tracked_invoke_fn(...)` with a direct call to `build_tracked_invoke_fn(listener, event, topic, self.executor, self.config_resolver, is_synthetic=True)`. Replace `self._read_entity_state(entity_id)` with `self.state_reader(entity_id)`. For `self.remove_listener(listener)` — the name is the same but the binding changes: it's now calling the injected callback (`self.remove_listener` the constructor param) instead of the BusService method directly. Same applies in `start_duration_timer` and `start_remaining_duration_timer` `finally` blocks.
 
 4. In `start_duration_timer` and `start_remaining_duration_timer`: replace `self._read_entity_state` with `self.state_reader`. Replace `self.remove_listener` with `self.remove_listener`. Timer fire callbacks do NOT touch dispatch tracking.
 

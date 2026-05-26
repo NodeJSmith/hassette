@@ -12,9 +12,10 @@ Modify `src/hassette/core/bus_service.py` to use the three extracted modules. Th
 ## Prompt
 1. In `bus_service.py` `__init__`:
    - Construct `EventFilter` with `self.hassette.config.bus_excluded_domains`, `self.hassette.config.bus_excluded_entities`, and `self.logger`
+   - Store `self._config_resolver = lambda: self.hassette.config.lifecycle.event_handler_timeout_seconds` (MUST be a lambda, not a captured value — reused in both DurationHoldManager construction and direct `build_tracked_invoke_fn` calls in `_dispatch`)
    - Construct `DurationHoldManager` with:
      - `executor=self._executor`
-     - `config_resolver=lambda: self.hassette.config.lifecycle.event_handler_timeout_seconds` (MUST be a lambda, not a captured value)
+     - `config_resolver=self._config_resolver`
      - `state_reader=self._read_entity_state` (a method that absorbs ResourceNotReadyError — see step 2)
      - `remove_listener=self.remove_listener`
      - `router=self.router`
@@ -29,7 +30,7 @@ Modify `src/hassette/core/bus_service.py` to use the three extracted modules. Th
 
 3. Replace delegation points:
    - `dispatch()`: replace `self._should_skip_event(...)` with `self._event_filter.should_skip(...)`
-   - `_dispatch()`: replace `self._make_tracked_invoke_fn(topic, event, listener)` with `build_tracked_invoke_fn(listener, event, topic, self._executor, lambda: self.hassette.config.lifecycle.event_handler_timeout_seconds, is_synthetic=False)`. For the duration path, delegate to `self._duration_hold.start_duration_timer(...)`.
+   - `_dispatch()`: replace `self._make_tracked_invoke_fn(topic, event, listener)` with `build_tracked_invoke_fn(listener, event, topic, self._executor, self._config_resolver, is_synthetic=False)`. For the duration path, delegate to `self._duration_hold.start_duration_timer(...)`.
    - `add_listener()`: delegate duration wiring to `self._duration_hold.create_cancel_listener(...)` where currently `self._create_cancel_listener(...)` is called. Delegate immediate fire task logic (but keep the spawn + done-callback in `add_listener` since dispatch tracking stays here).
    - `duration_timers_active` property: delegate to `self._duration_hold.duration_timers_active`
 

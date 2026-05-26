@@ -24,6 +24,11 @@ None.
 - The non-duration dispatch path must remain in BusService (4-line code path, not worth fragmenting)
 - EventFilter snapshots config at construction — does not observe changes after init
 
+## Test Rewrites Required
+Two existing test files call `BusService._make_tracked_invoke_fn()` directly and must be fully rewritten (not just import-updated) to call `build_tracked_invoke_fn()` with explicit `executor` and `config_resolver` arguments:
+- `tests/unit/core/test_bus_service_timeout.py`
+- `tests/unit/core/test_bus_service_error_handler.py`
+
 ## Design Doc References
 - `## Architecture` — detailed module specs, constructor params, method lists
 - `## Key Constraints` — prohibited approaches
