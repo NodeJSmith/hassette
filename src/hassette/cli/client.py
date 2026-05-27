@@ -15,8 +15,8 @@ from typing import Any, NoReturn, TypeVar, overload
 
 import httpx
 
-import hassette.cli.globals as cli_globals
 import hassette.cli.output as cli_output
+from hassette.cli.context import CLIContext
 from hassette.config.config import HassetteConfig
 from hassette.web.models import AppManifestListResponse
 
@@ -232,18 +232,20 @@ class HassetteCLIClient:
 # ---------------------------------------------------------------------------
 
 
-def make_client() -> HassetteCLIClient:
+def make_client(ctx: CLIContext) -> HassetteCLIClient:
     """Create a CLI client from the default config (no HA token required).
 
-    Respects global options (--env-file, --config-file, --json) set by the meta app launcher.
+    Args:
+        ctx: The CLI context for this invocation, carrying output mode and
+            config file override paths.
     """
-    if cli_globals.env_file_override:
-        HassetteConfig.model_config["env_file"] = cli_globals.env_file_override
-    if cli_globals.config_file_override:
-        HassetteConfig.model_config["toml_file"] = cli_globals.config_file_override
+    if ctx.env_file_override:
+        HassetteConfig.model_config["env_file"] = ctx.env_file_override
+    if ctx.config_file_override:
+        HassetteConfig.model_config["toml_file"] = ctx.config_file_override
 
     config = HassetteConfig(token=None)
-    return HassetteCLIClient(config, json_mode=cli_globals.json_mode, debug_mode=cli_globals.debug_mode)
+    return HassetteCLIClient(config, json_mode=ctx.json_mode, debug_mode=ctx.debug_mode)
 
 
 def _write_json_error(status: int | None, detail: str, debug_extra: dict[str, Any] | None = None) -> None:

@@ -14,6 +14,7 @@ from hassette.cli.commands.log import cmd_execution, cmd_log
 from hassette.cli.commands.misc import cmd_config, cmd_event
 from hassette.cli.commands.run import cmd_run
 from hassette.cli.commands.status import cmd_dashboard, cmd_status, cmd_telemetry
+from hassette.cli.context import CLIContext
 from hassette.config.config import HassetteConfig
 
 # ---------------------------------------------------------------------------
@@ -142,6 +143,7 @@ def launcher(
     cli_globals.config_file_override = config_file
     cli_globals.json_mode = json
     cli_globals.debug_mode = debug
+    ctx = CLIContext(json_mode=json, debug_mode=debug, env_file_override=env_file, config_file_override=config_file)
 
     if env_file:
         HassetteConfig.model_config["env_file"] = env_file
@@ -149,4 +151,6 @@ def launcher(
     if config_file:
         HassetteConfig.model_config["toml_file"] = config_file
 
-    app(tokens)
+    command, bound, _ignored = app.parse_args(tokens)
+    bound.arguments["ctx"] = ctx
+    command(*bound.args, **bound.kwargs)

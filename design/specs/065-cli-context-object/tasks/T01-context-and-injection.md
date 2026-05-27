@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Create CLIContext, update make_client, and wire launcher injection"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#4", "AC#4"]
 ---
