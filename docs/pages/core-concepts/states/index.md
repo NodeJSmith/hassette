@@ -89,11 +89,13 @@ Every domain accessor (e.g., `self.states.light`) returns a `DomainStates` objec
 | Iteration (items) | `for entity_id, state in self.states.light` | Lazy; same as `.items()` |
 | `.items()` | `self.states.light.items()` | Iterator of `(entity_id, state)` pairs |
 | `.keys()` | `self.states.light.keys()` | Eager list of entity IDs |
+| `.iterkeys()` | `self.states.light.iterkeys()` | Lazy iterator of entity IDs |
 | `.values()` | `self.states.light.values()` | Eager list of states |
+| `.itervalues()` | `self.states.light.itervalues()` | Lazy iterator of states |
 | `.to_dict()` | `self.states.light.to_dict()` | Eager `dict[entity_id, state]` |
 
 !!! tip "Prefer lazy iteration for large domains"
-    `.items()` and direct iteration (`for entity_id, state in self.states.light`) are lazy and avoid validating every entity up front. `.keys()`, `.values()`, and `.to_dict()` are eager — they walk the entire domain immediately.
+    `.items()`, `.iterkeys()`, and `.itervalues()` are lazy and avoid validating every entity up front. `.keys()`, `.values()`, and `.to_dict()` are eager — they walk the entire domain immediately.
 
 ## Built-in State Types
 

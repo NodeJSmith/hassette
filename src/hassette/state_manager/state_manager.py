@@ -115,6 +115,11 @@ class DomainStates(Generic[StateT]):
         """Return a list of entity IDs for this domain."""
         return [entity_id for entity_id, _ in self]
 
+    def iterkeys(self) -> Iterator[str]:
+        """Returns an iterator over entity IDs for this domain."""
+        for entity_id, _ in self:
+            yield entity_id
+
     def values(self) -> list[StateT]:
         """Return a list of typed states for this domain.
 
@@ -126,6 +131,11 @@ class DomainStates(Generic[StateT]):
             returned by `__iter__` for lazy evaluation if performance is a concern.
         """
         return [value for _, value in self]
+
+    def itervalues(self) -> Iterator[StateT]:
+        """Returns an iterator over typed states for this domain."""
+        for _, value in self:
+            yield value
 
     def to_dict(self) -> dict[str, StateT]:
         """Return a dictionary of entity_id to typed state for this domain.

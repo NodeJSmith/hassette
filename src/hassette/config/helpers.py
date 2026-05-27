@@ -69,12 +69,24 @@ def _resolve_default_dir(
 
 
 def default_config_dir() -> Path:
-    """Return the config directory: env var > /config (Docker) > platformdirs."""
+    """Return the first found config directory.
+
+    Resolution order:
+        1. ``HASSETTE__CONFIG_DIR`` or ``HASSETTE_CONFIG_DIR`` environment variable
+        2. ``/config`` (Docker convention)
+        3. platformdirs user config path
+    """
     return _resolve_default_dir("HASSETTE__CONFIG_DIR", "HASSETTE_CONFIG_DIR", "/config", platformdirs.user_config_path)
 
 
 def default_data_dir() -> Path:
-    """Return the data directory: env var > /data (Docker) > platformdirs."""
+    """Return the first found data directory.
+
+    Resolution order:
+        1. ``HASSETTE__DATA_DIR`` or ``HASSETTE_DATA_DIR`` environment variable
+        2. ``/data`` (Docker convention)
+        3. platformdirs user data path
+    """
     return _resolve_default_dir("HASSETTE__DATA_DIR", "HASSETTE_DATA_DIR", "/data", platformdirs.user_data_path)
 
 

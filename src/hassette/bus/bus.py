@@ -733,7 +733,17 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
-        """Subscribe to Home Assistant restart events."""
+        """Subscribe to Home Assistant restart events.
+
+        Args:
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
         return self.on_call_service(
             domain="homeassistant", service="restart", handler=handler, where=where, kwargs=kwargs, **opts
         )
@@ -745,7 +755,17 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
-        """Subscribe to Home Assistant start events."""
+        """Subscribe to Home Assistant start events.
+
+        Args:
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
         return self.on_call_service(
             domain="homeassistant", service="start", handler=handler, where=where, kwargs=kwargs, **opts
         )
@@ -757,7 +777,17 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
-        """Subscribe to Home Assistant stop events."""
+        """Subscribe to Home Assistant stop events.
+
+        Args:
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
         return self.on_call_service(
             domain="homeassistant", service="stop", handler=handler, where=where, kwargs=kwargs, **opts
         )
@@ -808,7 +838,18 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
-        """Subscribe to hassette service failed events."""
+        """Subscribe to hassette service failed events.
+
+        Args:
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
+
         return self.on_hassette_service_status(
             status=ResourceStatus.FAILED, handler=handler, where=where, kwargs=kwargs, **opts
         )
@@ -821,7 +862,18 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
-        """Subscribe to hassette service crashed events."""
+        """Subscribe to hassette service crashed events.
+
+        Args:
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
+
         return self.on_hassette_service_status(
             status=ResourceStatus.CRASHED, handler=handler, where=where, kwargs=kwargs, **opts
         )
@@ -834,7 +886,18 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
-        """Subscribe to hassette service started events."""
+        """Subscribe to hassette service started events.
+
+        Args:
+            handler: The function to call when the event matches.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
+
         return self.on_hassette_service_status(
             status=ResourceStatus.RUNNING, handler=handler, where=where, kwargs=kwargs, **opts
         )
@@ -939,7 +1002,19 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
-        """Subscribe to app instances reaching RUNNING status."""
+        """Subscribe to app instances reaching RUNNING status.
+
+        Args:
+            handler: The function to call when the event matches.
+            app_key: Filter events for a specific app key.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
+
         return self.on_app_state_changed(
             handler=handler, app_key=app_key, status=ResourceStatus.RUNNING, where=where, kwargs=kwargs, **opts
         )
@@ -953,7 +1028,19 @@ class Bus(Resource):
         kwargs: Mapping[str, Any] | None = None,
         **opts: Unpack[Options],
     ) -> Subscription:
-        """Subscribe to app instances entering STOPPING status."""
+        """Subscribe to app instances entering STOPPING status.
+
+        Args:
+            handler: The function to call when the event matches.
+            app_key: Filter events for a specific app key.
+            where: Additional predicates to filter events.
+            kwargs: Keyword arguments to pass to the handler.
+            **opts: Additional options like `once`, `debounce`, and `throttle`.
+
+        Returns:
+            A subscription object that can be used to manage the listener.
+        """
+
         return self.on_app_state_changed(
             handler=handler, app_key=app_key, status=ResourceStatus.STOPPING, where=where, kwargs=kwargs, **opts
         )
