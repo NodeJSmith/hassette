@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Delete globals module and run final verification"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#5", "AC#1", "AC#6"]
 ---

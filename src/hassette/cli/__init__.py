@@ -5,7 +5,6 @@ from typing import Annotated, Literal
 
 from cyclopts import App, Group, Parameter
 
-import hassette.cli.globals as cli_globals
 from hassette.app.app_config import AppConfig
 from hassette.cli.commands.app import cmd_app, cmd_app_activity, cmd_app_config, cmd_app_health, cmd_app_source
 from hassette.cli.commands.job import cmd_job
@@ -139,10 +138,6 @@ def launcher(
         bool, Parameter(name=["--debug"], help="Show full HTTP response on CLI errors.", negative=[])
     ] = False,
 ) -> None:
-    cli_globals.env_file_override = env_file
-    cli_globals.config_file_override = config_file
-    cli_globals.json_mode = json
-    cli_globals.debug_mode = debug
     ctx = CLIContext(json_mode=json, debug_mode=debug, env_file_override=env_file, config_file_override=config_file)
 
     if env_file:
