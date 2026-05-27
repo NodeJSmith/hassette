@@ -8,7 +8,7 @@ import pytest
 from cyclopts import App, Parameter
 
 from hassette.cli.client import make_client
-from hassette.cli.context import CLIContext
+from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContext, CLIContextParam
 from tests.unit.cli.conftest import CLIClientFactory
 
 
@@ -65,7 +65,7 @@ class TestLauncherInjectsCtx:
         test_app.command(sub_app)
 
         @sub_app.default
-        def cmd_test(*, ctx: Annotated[CLIContext, Parameter(parse=False)] = CLIContext()) -> None:  # noqa: B008
+        def cmd_test(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
             received.append(ctx)
 
         @test_app.meta.default

@@ -1,11 +1,9 @@
 """App-related CLI commands: app list, health, activity, config, source."""
 
-from typing import Annotated, Any
-
-from cyclopts import Parameter
+from typing import Any
 
 from hassette.cli.client import make_client
-from hassette.cli.context import CLIContext
+from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
 from hassette.cli.types import InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.core.telemetry_models import ActivityFeedEntry
@@ -22,7 +20,7 @@ APP_LIST_COLUMNS: list[Column] = [
 ]
 
 
-def cmd_app(*, ctx: Annotated[CLIContext, Parameter(parse=False)] = CLIContext()) -> None:  # noqa: B008  # pyright: ignore[reportCallInDefaultInitializer]
+def cmd_app(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     """List all apps (GET /api/apps/manifests)."""
     client = make_client(ctx)
     result = client.get("/api/apps/manifests", AppManifestListResponse)
@@ -45,7 +43,7 @@ def cmd_app_health(
     since: SinceArg = None,
     source_tier: SourceTierArg = None,
     *,
-    ctx: Annotated[CLIContext, Parameter(parse=False)] = CLIContext(),  # noqa: B008  # pyright: ignore[reportCallInDefaultInitializer]
+    ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
     """Show health metrics for an app instance (GET /api/telemetry/app/{key}/health)."""
     client = make_client(ctx)
@@ -80,7 +78,7 @@ def cmd_app_activity(
     since: SinceArg = None,
     limit: LimitArg = None,
     *,
-    ctx: Annotated[CLIContext, Parameter(parse=False)] = CLIContext(),  # noqa: B008  # pyright: ignore[reportCallInDefaultInitializer]
+    ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
     """Show recent activity for an app (GET /api/telemetry/app/{key}/activity)."""
     client = make_client(ctx)
@@ -101,7 +99,7 @@ def cmd_app_activity(
 def cmd_app_config(
     key: str,
     *,
-    ctx: Annotated[CLIContext, Parameter(parse=False)] = CLIContext(),  # noqa: B008  # pyright: ignore[reportCallInDefaultInitializer]
+    ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
     """Show app configuration (GET /api/apps/{key}/config)."""
     client = make_client(ctx)
@@ -112,7 +110,7 @@ def cmd_app_config(
 def cmd_app_source(
     key: str,
     *,
-    ctx: Annotated[CLIContext, Parameter(parse=False)] = CLIContext(),  # noqa: B008  # pyright: ignore[reportCallInDefaultInitializer]
+    ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
     """Show app source code (GET /api/apps/{key}/source)."""
     client = make_client(ctx)

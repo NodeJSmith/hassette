@@ -1,11 +1,9 @@
 """Job-related CLI commands: job list and execution history."""
 
-from typing import Annotated, Any
-
-from cyclopts import Parameter
+from typing import Any
 
 from hassette.cli.client import make_client
-from hassette.cli.context import CLIContext
+from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_duration_ms, fmt_next_run, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.core.telemetry_models import JobExecution, JobSummary
@@ -41,7 +39,7 @@ def cmd_job(
     source_tier: SourceTierArg = None,
     limit: LimitArg = None,
     *,
-    ctx: Annotated[CLIContext, Parameter(parse=False)] = CLIContext(),  # noqa: B008  # pyright: ignore[reportCallInDefaultInitializer]
+    ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
     """List scheduled jobs, or show execution history for a specific job."""
     client = make_client(ctx)
