@@ -25,7 +25,6 @@ DEQUEUE_TIMEOUT_SECONDS = 0.2
 
 if TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
-    from hassette.core.telemetry_repository import TelemetryRepository
 
 
 @dataclass
@@ -175,7 +174,7 @@ class CorrelationFilter(logging.Filter):
 class HassetteQueueListener(logging.handlers.QueueListener):
     """QueueListener with dequeue-timeout for periodic batch flushing.
 
-    The default QueueListener blocks forever on dequeue(). This subclass adds a 200ms timeout
+    The default QueueListener blocks forever on dequeue(). This subclass adds a timeout
     so the listener thread periodically wakes up and flushes partial batches in handlers that
     support ``flush_if_pending()``.
     """
@@ -210,38 +209,30 @@ class HassetteQueueListener(logging.handlers.QueueListener):
 class LogPersistenceHandler(logging.Handler):
     """Batches log records for async DB persistence.
 
-    Starts inert (no DB). ``set_database()`` is called later by RuntimeQueryService
-    to wire DB access. Until then, records are counted as dropped.
+    Receives ``db_service`` and ``loop`` at construction — ready to persist immediately.
     """
 
-    _db_service: "DatabaseService | None"
-    _repository: "TelemetryRepository | None"
-    _loop: asyncio.AbstractEventLoop | None
+    _db_service: "DatabaseService"
+    _loop: asyncio.AbstractEventLoop
     _batch: list[dict]
     _dropped: int
     _persistence_level: int
 
     BATCH_SIZE: int = 50
 
-    def __init__(self, persistence_level: int = logging.INFO) -> None:
+    def __init__(
+        self,
+        db_service: "DatabaseService",
+        loop: asyncio.AbstractEventLoop,
+        persistence_level: int = logging.INFO,
+    ) -> None:
         super().__init__()
-        self._db_service = None
-        self._repository = None
-        self._loop = None
+        self._db_service = db_service
+        self._loop = loop
         self._batch = []
         self._dropped = 0
         self._dropped_lock = threading.Lock()
         self._persistence_level = persistence_level
-
-    def set_database(
-        self,
-        db_service: "DatabaseService",
-        repository: "TelemetryRepository",
-        loop: asyncio.AbstractEventLoop,
-    ) -> None:
-        self._db_service = db_service
-        self._repository = repository
-        self._loop = loop
 
     @property
     def dropped_count(self) -> int:
@@ -263,23 +254,18 @@ class LogPersistenceHandler(logging.Handler):
         batch = self._batch
         self._batch = []
         db_service = self._db_service
-        repository = self._repository
         loop = self._loop
-        if db_service is None or repository is None or loop is None:
-            with self._dropped_lock:
-                self._dropped += len(batch)
-            return
-        handler = self
+        dropped_lock = self._dropped_lock
         batch_len = len(batch)
 
         def _do_enqueue(b=batch) -> None:
             try:
-                if not db_service.enqueue(repository.insert_log_records(b)):  # pyright: ignore[reportAttributeAccessIssue]
-                    with handler._dropped_lock:
-                        handler._dropped += batch_len
+                if not db_service.enqueue(db_service._insert_log_records(b)):  # pyright: ignore[reportPrivateUsage]
+                    with dropped_lock:
+                        self._dropped += batch_len
             except RuntimeError:
-                with handler._dropped_lock:
-                    handler._dropped += batch_len
+                with dropped_lock:
+                    self._dropped += batch_len
 
         loop.call_soon_threadsafe(_do_enqueue)
 
@@ -298,25 +284,9 @@ class LogPersistenceHandler(logging.Handler):
     def close(self) -> None:
         # Flushes remaining records via call_soon_threadsafe — the enqueued
         # coroutine may not execute if the event loop is already stopping.
-        # shutdown_logging() should be called before the loop stops to drain.
+        # LoggingService.on_shutdown() flushes pending records before stopping.
         self.flush_if_pending()
         super().close()
-
-
-# Module-level references for shutdown and external wiring
-_log_capture_handler: LogCaptureHandler | None = None
-_log_persistence_handler: LogPersistenceHandler | None = None
-_queue_listener: HassetteQueueListener | None = None
-
-
-def get_log_capture_handler() -> LogCaptureHandler | None:
-    """Return the global LogCaptureHandler instance, if installed."""
-    return _log_capture_handler
-
-
-def get_log_persistence_handler() -> LogPersistenceHandler | None:
-    """Return the global LogPersistenceHandler instance, if installed."""
-    return _log_persistence_handler
 
 
 def add_execution_id(
@@ -356,47 +326,41 @@ def _extract_record_fields(
     return event_dict
 
 
-def enable_logging(
+def enable_basic_logging(
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-    log_buffer_size: int = 2000,
+    *,
     log_format: Literal["auto", "console", "json"] = "auto",
-    log_queue_max: int = 2000,
-    log_persistence_level: int = logging.INFO,
     stream: IO[str] | None = None,
-) -> None:
-    """Set up structured logging via structlog's ProcessorFormatter.
+) -> logging.StreamHandler:
+    """Set up synchronous console-only structured logging.
 
-    All log I/O runs off the event loop: a ``QueueHandler`` on the hassette logger
-    enqueues records (non-blocking), and a background ``HassetteQueueListener`` dispatches
-    them to the stream, capture, and persistence handlers.
+    Phase 1 of the two-phase logging model: configures structlog and attaches a
+    synchronous ``StreamHandler`` directly to the ``hassette`` logger. No queue,
+    no background thread, no persistence. Available immediately — before the
+    Resource tree exists.
+
+    ``LoggingService.on_initialize()`` upgrades to the full async pipeline in Phase 2.
 
     Args:
         log_level: Minimum log level for the hassette logger.
-        log_buffer_size: Capacity of the in-memory ring buffer for WS broadcast.
         log_format: Output format selection.
             ``"console"`` always uses ConsoleRenderer (colored human-readable).
             ``"json"`` always uses JSONRenderer (one JSON object per line).
             ``"auto"`` checks ``stream.isatty()`` (defaults to ``sys.stdout``).
-        log_queue_max: Maximum size of the inter-thread log queue.
-        log_persistence_level: Minimum level for DB persistence (default INFO).
         stream: Output stream. Defaults to ``sys.stdout``.
+
+    Returns:
+        The StreamHandler attached to the hassette logger. Stored on Hassette and
+        passed to LoggingService for the Phase 2 sync→async swap.
     """
-    global _log_capture_handler, _log_persistence_handler, _queue_listener
-
-    # Stop any previously running listener (idempotent re-init)
-    shutdown_logging()
-
-    if stream is None:
-        stream = sys.stdout
-    if stream is None:
-        raise RuntimeError("No output stream available and sys.stdout is None")
+    out: IO[str] = stream if stream is not None else sys.stdout
 
     if log_format == "json":
         use_json = True
     elif log_format == "console":
         use_json = False
     else:
-        use_json = not stream.isatty()
+        use_json = not out.isatty()
 
     shared_processors: list = [
         structlog.contextvars.merge_contextvars,
@@ -433,27 +397,10 @@ def enable_logging(
     logger.handlers.clear()
     logger.filters.clear()
 
-    stream_handler = logging.StreamHandler(stream)
+    stream_handler = logging.StreamHandler(out)
     stream_handler.setLevel(logging.NOTSET)
     stream_handler.setFormatter(formatter)
-
-    _log_capture_handler = LogCaptureHandler(buffer_size=log_buffer_size)
-
-    _log_persistence_handler = LogPersistenceHandler(persistence_level=log_persistence_level)
-
-    q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=log_queue_max)
-    queue_handler = logging.handlers.QueueHandler(q)
-
-    # CorrelationFilter: stamps execution_id, app_key, instance_name, instance_index, seq
-    # on every record before queue handoff. Attached to the QueueHandler (not the logger)
-    # because parent logger filters do NOT run on records propagated from child loggers —
-    # handler.handle() applies the filter for all records reaching this handler.
-    queue_handler.addFilter(CorrelationFilter())
-
-    logger.addHandler(queue_handler)
-
-    _queue_listener = HassetteQueueListener(q, stream_handler, _log_capture_handler, _log_persistence_handler)
-    _queue_listener.start()
+    logger.addHandler(stream_handler)
 
     # Capture warnings.warn(...) and friends messages in logs.
     logging.captureWarnings(True)
@@ -471,27 +418,4 @@ def enable_logging(
         exc_info=(args.exc_type, args.exc_value, args.exc_traceback),  # pyright: ignore[reportArgumentType]
     )
 
-
-def shutdown_logging() -> None:
-    """Flush and stop the QueueListener, draining all pending log records.
-
-    Safe to call multiple times or before ``enable_logging()``.
-    """
-    global _log_capture_handler, _log_persistence_handler, _queue_listener
-
-    if _queue_listener is None:
-        return
-
-    if _log_capture_handler is not None:
-        _log_capture_handler.shutting_down = True
-
-    # Remove the QueueHandler before stopping the listener to prevent
-    # shutdown-time logs from enqueuing into an un-drained queue.
-    logger = logging.getLogger("hassette")
-    logger.handlers = [h for h in logger.handlers if not isinstance(h, logging.handlers.QueueHandler)]
-
-    _queue_listener.stop()
-    _queue_listener = None
-
-    if _log_persistence_handler is not None:
-        _log_persistence_handler.flush_if_pending()
+    return stream_handler

@@ -312,7 +312,7 @@ class HassetteHarness:
             config.strict_lifecycle = True
 
         self.logger = logging.getLogger("hassette")
-        # _TestableHassette.__init__ calls enable_logging() which sets propagate=False and clears handlers.
+        # _TestableHassette.__init__ calls enable_basic_logging() which sets propagate=False and clears handlers.
         # We restore propagate=True afterwards so pytest's caplog fixture can capture hassette log records.
         self.hassette = _TestableHassette(config=self.config)
         logging.getLogger("hassette").propagate = True

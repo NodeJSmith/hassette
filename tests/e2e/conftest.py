@@ -8,7 +8,6 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 import uvicorn
@@ -234,13 +233,11 @@ def fastapi_app(mock_hassette, runtime_query_service, log_handler, ensure_spa_bu
 
     mock_hassette.telemetry_query_service.get_log_records = make_log_records_from_buffer(log_handler)
 
-    with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
-        app = create_fastapi_app(mock_hassette)
-    # Patch persistently so runtime calls also find the handler
-    patcher_capture = patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler)
-    patcher_capture.start()
-    yield app
-    patcher_capture.stop()
+    # Wire log_handler as the capture_handler on the mock logging_service so
+    # RuntimeQueryService.on_initialize() can reach it via hassette.logging_service.capture_handler.
+    mock_hassette.logging_service.capture_handler = log_handler
+
+    return create_fastapi_app(mock_hassette)
 
 
 def get_free_port() -> int:

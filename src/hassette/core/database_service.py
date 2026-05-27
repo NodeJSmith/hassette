@@ -47,6 +47,25 @@ _SIZE_FAILSAFE_VACUUM_PAGES = 100
 # Raise from serve() after this many consecutive heartbeat failures
 _MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
 
+_LOG_COLUMNS = (
+    "seq",
+    "timestamp",
+    "level",
+    "logger_name",
+    "func_name",
+    "lineno",
+    "message",
+    "exc_info",
+    "app_key",
+    "instance_name",
+    "instance_index",
+    "execution_id",
+    "source_tier",
+)
+_LOG_INSERT_SQL = (
+    f"INSERT INTO log_records ({', '.join(_LOG_COLUMNS)}) VALUES ({', '.join(':' + c for c in _LOG_COLUMNS)})"
+)
+
 
 class DatabaseService(Service):
     """Manages the SQLite database for operational telemetry.
@@ -721,3 +740,19 @@ class DatabaseService(Service):
         if self._db_write_queue is None:
             return
         self.enqueue(self._check_size_failsafe())
+
+    async def _insert_log_records(self, records: list[dict]) -> None:
+        """Batch-insert log records into the log_records table.
+
+        Must only be called via enqueue() — never await directly.
+        """
+        if not records:
+            return
+        db = self.db
+        try:
+            await db.execute("BEGIN")
+            await db.executemany(_LOG_INSERT_SQL, records)
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise

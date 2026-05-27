@@ -8,7 +8,7 @@ components for integration tests (bus routing, scheduler, state propagation).
 import asyncio
 from collections import deque
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.core.app_registry import AppManifestInfo, AppStatusSnapshot
@@ -209,12 +209,15 @@ def create_test_fastapi_app(
     *,
     log_handler: Any | None = None,
 ) -> Any:
-    """Build a FastAPI app from the mock Hassette, optionally patching the log handler.
+    """Build a FastAPI app from the mock Hassette, optionally wiring a log handler.
+
+    If ``log_handler`` is provided, it is set as the capture handler on the mock
+    Hassette's logging_service so RuntimeQueryService can reach it via
+    ``hassette.logging_service.capture_handler``.
 
     Returns:
         The FastAPI application instance.
     """
     if log_handler is not None:
-        with patch("hassette.core.runtime_query_service.get_log_capture_handler", return_value=log_handler):
-            return create_fastapi_app(mock_hassette)
+        mock_hassette.logging_service.capture_handler = log_handler
     return create_fastapi_app(mock_hassette)

@@ -117,6 +117,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 "scripts/*.py" = ["S105", "S310", "S603", "S607"]
 "codegen/**/*.py" = ["S108", "S603", "S607", "S701"]
 "docs/**/*.py" = ["S101", "S105", "S106", "S311", "ASYNC110"]
+"src/hassette/core/database_service.py" = ["S608"]
 "src/hassette/core/telemetry_query_service.py" = ["S608"]
 "src/hassette/core/telemetry_repository.py" = ["S608"]
 "src/hassette/core/session_manager.py" = ["S608"]

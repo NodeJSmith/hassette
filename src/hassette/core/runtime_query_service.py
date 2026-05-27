@@ -13,7 +13,6 @@ from hassette.bus import Bus
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_registry import AppFullSnapshot, AppStatusSnapshot
 from hassette.core.bus_service import BusService
-from hassette.core.database_service import DatabaseService
 from hassette.core.domain_models import (
     AppStatusChangedData,
     BootIssue,
@@ -23,9 +22,9 @@ from hassette.core.domain_models import (
     StateChangedData,
     SystemStatus,
 )
+from hassette.core.logging_service import LoggingService
 from hassette.core.state_proxy import StateProxy
 from hassette.events import Event, RawStateChangeEvent
-from hassette.logging_ import get_log_capture_handler, get_log_persistence_handler
 from hassette.resources.base import Resource
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
@@ -44,11 +43,11 @@ class RuntimeQueryService(Resource):
     """Aggregates and caches live system state for the web UI.
 
     Reads from in-memory sources: AppHandler, event buffer, log buffer, WS clients.
-    All reads are instant — no database I/O. DatabaseService is in depends_on
-    to guarantee it is ready before set_database() wires LogPersistenceHandler.
+    All reads are instant — no database I/O. LoggingService is in depends_on to
+    guarantee the capture handler is ready before WS broadcast wiring runs.
     """
 
-    depends_on: ClassVar[list[type[Resource]]] = [BusService, StateProxy, AppHandler, DatabaseService]
+    depends_on: ClassVar[list[type[Resource]]] = [BusService, StateProxy, AppHandler, LoggingService]
 
     bus: Bus
     _event_buffer: deque[dict[str, Any]]
@@ -135,26 +134,12 @@ class RuntimeQueryService(Resource):
         )
 
         # Wire up log capture handler for WS broadcast
-        handler = get_log_capture_handler()
-        if handler is not None:
-            try:
-                loop = asyncio.get_running_loop()
-                handler.set_broadcast(self.broadcast, loop)
-            except RuntimeError:
-                self.logger.warning("No running event loop, log broadcast will not be available")
-
-        # Wire up log persistence handler for DB writes
-        persistence_handler = get_log_persistence_handler()
-        if persistence_handler is not None:
-            try:
-                loop = asyncio.get_running_loop()
-                persistence_handler.set_database(
-                    self.hassette.database_service,
-                    self.hassette.command_executor.repository,
-                    loop,
-                )
-            except RuntimeError:
-                self.logger.warning("No running event loop, log persistence will not be available")
+        handler = self.hassette.logging_service.capture_handler
+        try:
+            loop = asyncio.get_running_loop()
+            handler.set_broadcast(self.broadcast, loop)
+        except RuntimeError:
+            self.logger.warning("No running event loop, log broadcast will not be available")
 
         self.mark_ready(reason="RuntimeQueryService initialized")
 

@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import threading
 import typing
 from types import SimpleNamespace
@@ -7,6 +8,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+import hassette.core.core as core_module
 from hassette import Hassette
 from hassette.bus import Bus
 from hassette.core.api_resource import ApiResource
@@ -15,6 +17,7 @@ from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.file_watcher import FileWatcherService
+from hassette.core.logging_service import LoggingService
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.service_watcher import ServiceWatcher
@@ -38,6 +41,7 @@ def test_unique_name_is_constant(hassette_instance: Hassette) -> None:
 def test_constructor_registers_background_services(hassette_instance: Hassette) -> None:
     """Constructor wires up expected services and resources."""
     assert isinstance(hassette_instance._database_service, DatabaseService)
+    assert isinstance(hassette_instance._logging_service, LoggingService)
     assert isinstance(hassette_instance._command_executor, CommandExecutor)
     assert isinstance(hassette_instance._bus_service, BusService)
     assert isinstance(hassette_instance._service_watcher, ServiceWatcher)
@@ -56,6 +60,7 @@ def test_constructor_registers_background_services(hassette_instance: Hassette) 
     expected_children = [
         hassette_instance._event_stream_service,
         hassette_instance._database_service,
+        hassette_instance._logging_service,
         hassette_instance._session_manager,
         hassette_instance._command_executor,
         hassette_instance._bus_service,
@@ -231,7 +236,11 @@ async def test_run_forever_handles_startup_failure(hassette_instance: Hassette) 
 
 
 async def test_before_shutdown_removes_listeners_and_finalizes(hassette_instance: Hassette) -> None:
-    """before_shutdown removes bus listeners and finalizes the session."""
+    """before_shutdown removes bus listeners and finalizes the session.
+
+    Logging cleanup (shutdown_logging) is NOT performed here — it is handled
+    by LoggingService.on_shutdown() via the Resource lifecycle dependency graph.
+    """
     hassette_instance._bus.remove_all_listeners = Mock()
     hassette_instance._session_manager.finalize_session = AsyncMock()
 
@@ -242,7 +251,11 @@ async def test_before_shutdown_removes_listeners_and_finalizes(hassette_instance
 
 
 async def test_before_shutdown_finalizes_even_when_listener_removal_fails(hassette_instance: Hassette) -> None:
-    """before_shutdown still finalizes session when remove_all_listeners raises."""
+    """before_shutdown still finalizes session when remove_all_listeners raises.
+
+    Logging cleanup (shutdown_logging) is NOT performed here — it is handled
+    by LoggingService.on_shutdown() via the Resource lifecycle dependency graph.
+    """
     hassette_instance._bus.remove_all_listeners = Mock(side_effect=RuntimeError("bus error"))
     hassette_instance._session_manager.finalize_session = AsyncMock()
 
@@ -250,6 +263,20 @@ async def test_before_shutdown_finalizes_even_when_listener_removal_fails(hasset
 
     hassette_instance._bus.remove_all_listeners.assert_called_once()
     hassette_instance._session_manager.finalize_session.assert_awaited_once()
+
+
+def test_before_shutdown_contains_no_logging_cleanup() -> None:
+    """before_shutdown() must not reference shutdown_logging — cleanup is in LoggingService."""
+    # shutdown_logging is removed from logging_.py entirely — verify it's not importable
+    assert not hasattr(core_module, "shutdown_logging"), (
+        "shutdown_logging was re-added to core.py; logging cleanup must stay in LoggingService"
+    )
+
+    # Verify before_shutdown source does not contain shutdown_logging reference
+    source = inspect.getsource(Hassette.before_shutdown)
+    assert "shutdown_logging" not in source, (
+        "before_shutdown() must not call shutdown_logging(); use LoggingService.on_shutdown() instead"
+    )
 
 
 async def test_concurrent_crash_and_finalize_are_serialized(hassette_instance: Hassette) -> None:
