@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Split enable_logging into enable_basic_logging"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#5", "AC#4"]
 ---

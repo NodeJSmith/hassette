@@ -21,6 +21,7 @@ from hassette.logging_ import (
     LogEntry,
     LogPersistenceHandler,
     add_execution_id,
+    enable_basic_logging,
     enable_logging,
     get_log_capture_handler,
     get_log_persistence_handler,
@@ -335,6 +336,79 @@ class TestColoredlogsRemoved:
         """enable_logging() signature includes log_format parameter."""
         sig = inspect.signature(enable_logging)
         assert "log_format" in sig.parameters
+
+
+class TestEnableBasicLogging:
+    """enable_basic_logging() sets up synchronous console logging and returns the StreamHandler."""
+
+    def test_returns_stream_handler(self) -> None:
+        """enable_basic_logging() returns a logging.StreamHandler instance."""
+        stream = StringIO()
+        result = enable_basic_logging("INFO", log_format="console", stream=stream)
+        assert isinstance(result, logging.StreamHandler)
+
+    def test_stream_handler_attached_to_hassette_logger(self) -> None:
+        """The returned StreamHandler is attached directly to the hassette logger."""
+        stream = StringIO()
+        handler = enable_basic_logging("INFO", log_format="console", stream=stream)
+        logger = logging.getLogger("hassette")
+        assert handler in logger.handlers
+
+    def test_no_queue_handler_installed(self) -> None:
+        """enable_basic_logging() does NOT install a QueueHandler — synchronous only."""
+        stream = StringIO()
+        enable_basic_logging("INFO", log_format="console", stream=stream)
+        logger = logging.getLogger("hassette")
+        handler_types = [type(h).__name__ for h in logger.handlers]
+        assert "QueueHandler" not in handler_types
+
+    def test_log_output_is_synchronous(self) -> None:
+        """Records written after enable_basic_logging() appear in the stream immediately."""
+        stream = StringIO()
+        enable_basic_logging("INFO", log_format="console", stream=stream)
+        logger = logging.getLogger("hassette.test_basic_sync")
+        logger.info("synchronous message")
+        output = stream.getvalue()
+        assert "synchronous message" in output
+
+    def test_log_level_applied(self) -> None:
+        """The hassette logger level is set to the requested level."""
+        stream = StringIO()
+        enable_basic_logging("WARNING", log_format="console", stream=stream)
+        assert logging.getLogger("hassette").level == logging.WARNING
+
+    def test_propagate_false(self) -> None:
+        """enable_basic_logging() sets propagate=False on the hassette logger."""
+        stream = StringIO()
+        enable_basic_logging("INFO", log_format="console", stream=stream)
+        assert logging.getLogger("hassette").propagate is False
+
+    def test_noisy_libraries_suppressed(self) -> None:
+        """enable_basic_logging() suppresses noisy library loggers."""
+        stream = StringIO()
+        enable_basic_logging("INFO", log_format="console", stream=stream)
+        assert logging.getLogger("requests").getEffectiveLevel() == logging.WARNING
+        assert logging.getLogger("urllib3").getEffectiveLevel() == logging.WARNING
+        assert logging.getLogger("aiohttp.access").getEffectiveLevel() == logging.WARNING
+        assert logging.getLogger("httpx").getEffectiveLevel() == logging.WARNING
+
+    def test_json_format_selected(self) -> None:
+        """enable_basic_logging() supports log_format='json'."""
+        stream = StringIO()
+        enable_basic_logging("INFO", log_format="json", stream=stream)
+        logger = logging.getLogger("hassette.test_basic_json")
+        logger.info("json basic test")
+        output = stream.getvalue()
+        lines = [line for line in output.strip().splitlines() if line.strip()]
+        assert len(lines) >= 1
+        parsed = json.loads(lines[-1])
+        assert parsed["event"] == "json basic test"
+
+    def test_returned_handler_uses_correct_stream(self) -> None:
+        """The returned StreamHandler's stream matches what was passed."""
+        stream = StringIO()
+        handler = enable_basic_logging("INFO", log_format="console", stream=stream)
+        assert handler.stream is stream
 
 
 class TestCorrelationFilter:

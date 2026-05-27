@@ -347,40 +347,38 @@ def _extract_record_fields(
     return event_dict
 
 
-def enable_logging(
+def enable_basic_logging(
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-    log_buffer_size: int = 2000,
+    *,
     log_format: Literal["auto", "console", "json"] = "auto",
-    log_queue_max: int = 2000,
-    log_persistence_level: int = logging.INFO,
     stream: IO[str] | None = None,
-) -> None:
-    """Set up structured logging via structlog's ProcessorFormatter.
+) -> logging.StreamHandler:
+    """Set up synchronous console-only structured logging.
 
-    All log I/O runs off the event loop: a ``QueueHandler`` on the hassette logger
-    enqueues records (non-blocking), and a background ``HassetteQueueListener`` dispatches
-    them to the stream, capture, and persistence handlers.
+    Phase 1 of the two-phase logging model: configures structlog and attaches a
+    synchronous ``StreamHandler`` directly to the ``hassette`` logger. No queue,
+    no background thread, no persistence. Available immediately — before the
+    Resource tree exists.
+
+    ``LoggingService.on_initialize()`` upgrades to the full async pipeline in Phase 2.
 
     Args:
         log_level: Minimum log level for the hassette logger.
-        log_buffer_size: Capacity of the in-memory ring buffer for WS broadcast.
         log_format: Output format selection.
             ``"console"`` always uses ConsoleRenderer (colored human-readable).
             ``"json"`` always uses JSONRenderer (one JSON object per line).
             ``"auto"`` checks ``stream.isatty()`` (defaults to ``sys.stdout``).
-        log_queue_max: Maximum size of the inter-thread log queue.
-        log_persistence_level: Minimum level for DB persistence (default INFO).
         stream: Output stream. Defaults to ``sys.stdout``.
-    """
-    global _log_capture_handler, _log_persistence_handler, _queue_listener
 
-    # Stop any previously running listener (idempotent re-init)
+    Returns:
+        The StreamHandler attached to the hassette logger. Stored on Hassette and
+        passed to LoggingService for the Phase 2 sync→async swap.
+    """
+    # Stop any previously running listener (idempotent re-init guard)
     shutdown_logging()
 
     if stream is None:
         stream = sys.stdout
-    if stream is None:
-        raise RuntimeError("No output stream available and sys.stdout is None")
 
     if log_format == "json":
         use_json = True
@@ -427,24 +425,7 @@ def enable_logging(
     stream_handler = logging.StreamHandler(stream)
     stream_handler.setLevel(logging.NOTSET)
     stream_handler.setFormatter(formatter)
-
-    _log_capture_handler = LogCaptureHandler(buffer_size=log_buffer_size)
-
-    _log_persistence_handler = LogPersistenceHandler(persistence_level=log_persistence_level)
-
-    q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=log_queue_max)
-    queue_handler = logging.handlers.QueueHandler(q)
-
-    # CorrelationFilter: stamps execution_id, app_key, instance_name, instance_index, seq
-    # on every record before queue handoff. Attached to the QueueHandler (not the logger)
-    # because parent logger filters do NOT run on records propagated from child loggers —
-    # handler.handle() applies the filter for all records reaching this handler.
-    queue_handler.addFilter(CorrelationFilter())
-
-    logger.addHandler(queue_handler)
-
-    _queue_listener = HassetteQueueListener(q, stream_handler, _log_capture_handler, _log_persistence_handler)
-    _queue_listener.start()
+    logger.addHandler(stream_handler)
 
     # Capture warnings.warn(...) and friends messages in logs.
     logging.captureWarnings(True)
@@ -461,6 +442,66 @@ def enable_logging(
         "Uncaught thread exception",
         exc_info=(args.exc_type, args.exc_value, args.exc_traceback),  # pyright: ignore[reportArgumentType]
     )
+
+    return stream_handler
+
+
+def enable_logging(
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+    log_buffer_size: int = 2000,
+    log_format: Literal["auto", "console", "json"] = "auto",
+    log_queue_max: int = 2000,
+    log_persistence_level: int = logging.INFO,
+    stream: IO[str] | None = None,
+) -> None:
+    """Set up structured logging via structlog's ProcessorFormatter.
+
+    .. deprecated::
+        Use ``enable_basic_logging()`` for Phase 1 console logging, and
+        ``LoggingService`` for the full async pipeline. This wrapper exists for
+        backward compatibility during the T02→T04 migration and will be removed
+        once all callers are migrated.
+
+    All log I/O runs off the event loop: a ``QueueHandler`` on the hassette logger
+    enqueues records (non-blocking), and a background ``HassetteQueueListener`` dispatches
+    them to the stream, capture, and persistence handlers.
+
+    Args:
+        log_level: Minimum log level for the hassette logger.
+        log_buffer_size: Capacity of the in-memory ring buffer for WS broadcast.
+        log_format: Output format selection.
+            ``"console"`` always uses ConsoleRenderer (colored human-readable).
+            ``"json"`` always uses JSONRenderer (one JSON object per line).
+            ``"auto"`` checks ``stream.isatty()`` (defaults to ``sys.stdout``).
+        log_queue_max: Maximum size of the inter-thread log queue.
+        log_persistence_level: Minimum level for DB persistence (default INFO).
+        stream: Output stream. Defaults to ``sys.stdout``.
+    """
+    global _log_capture_handler, _log_persistence_handler, _queue_listener
+
+    # Phase 1: synchronous console logging (also calls shutdown_logging() internally)
+    stream_handler = enable_basic_logging(log_level, log_format=log_format, stream=stream)
+
+    # Phase 2: full async pipeline (QueueHandler + QueueListener + capture + persistence)
+    _log_capture_handler = LogCaptureHandler(buffer_size=log_buffer_size)
+    _log_persistence_handler = LogPersistenceHandler(persistence_level=log_persistence_level)
+
+    q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=log_queue_max)
+    queue_handler = logging.handlers.QueueHandler(q)
+
+    # CorrelationFilter: stamps execution_id, app_key, instance_name, instance_index, seq
+    # on every record before queue handoff. Attached to the QueueHandler (not the logger)
+    # because parent logger filters do NOT run on records propagated from child loggers —
+    # handler.handle() applies the filter for all records reaching this handler.
+    queue_handler.addFilter(CorrelationFilter())
+
+    logger = logging.getLogger("hassette")
+    # Swap: add QueueHandler, then remove direct StreamHandler (no gap, brief overlap OK)
+    logger.addHandler(queue_handler)
+    logger.removeHandler(stream_handler)
+
+    _queue_listener = HassetteQueueListener(q, stream_handler, _log_capture_handler, _log_persistence_handler)
+    _queue_listener.start()
 
 
 def shutdown_logging() -> None:

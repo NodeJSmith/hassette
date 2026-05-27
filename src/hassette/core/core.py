@@ -1,5 +1,4 @@
 import asyncio
-import logging
 import threading
 import typing
 from contextlib import suppress
@@ -15,7 +14,7 @@ from hassette.bus import Bus
 from hassette.config import HassetteConfig
 from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, TypeRegistry, validate_registries
 from hassette.exceptions import AppPrecheckFailedError
-from hassette.logging_ import enable_logging, get_log_persistence_handler, shutdown_logging
+from hassette.logging_ import enable_basic_logging, get_log_persistence_handler, shutdown_logging
 from hassette.resources.base import Resource
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
@@ -71,12 +70,9 @@ class Hassette(Resource):
     def __init__(self, config: HassetteConfig) -> None:
         self.config = config
 
-        enable_logging(
+        self._basic_stream_handler = enable_basic_logging(
             self.config.logging.log_level,
-            log_buffer_size=self.config.web_api.log_buffer_size,
             log_format=self.config.logging.log_format,
-            log_queue_max=self.config.logging.log_queue_max,
-            log_persistence_level=logging.getLevelNamesMapping()[self.config.logging.log_persistence_level],
         )
 
         super().__init__(self, task_bucket=TaskBucket(self, parent=self), parent=self)
