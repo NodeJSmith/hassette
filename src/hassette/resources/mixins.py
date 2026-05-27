@@ -148,7 +148,6 @@ class LifecycleMixin(_LifecycleHostStubs):
         self._init_task: asyncio.Task | None = None
         self.shutdown_completed = False
 
-    # --------- props
     @property
     def status(self) -> ResourceStatus:
         return self._status
@@ -187,7 +186,6 @@ class LifecycleMixin(_LifecycleHostStubs):
     def task(self) -> asyncio.Task | None:
         return self._init_task
 
-    # --------- lifecycle ops
     def start(self) -> None:
         """Start the instance by spawning its initialize method in a task."""
         self.shutdown_completed = False
@@ -208,7 +206,6 @@ class LifecycleMixin(_LifecycleHostStubs):
 
         self.logger.debug("%s no running task to cancel", self.unique_name)
 
-    # --------- readiness
     def mark_ready(self, reason: str | None = None) -> None:
         """Mark the instance as ready.
 
@@ -265,7 +262,6 @@ class LifecycleMixin(_LifecycleHostStubs):
         else:
             await asyncio.wait_for(self.ready_event.wait(), timeout)
 
-    # --------- transitions
     async def handle_stop(self) -> None:
         if self.status == ResourceStatus.STOPPED:
             self.logger.debug("%s already stopped", self.unique_name, stacklevel=2)

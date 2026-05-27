@@ -11,6 +11,8 @@ from whenever import ZonedDateTime
 import hassette.utils.date_utils as date_utils
 from hassette.types.types import SourceTier
 
+MAX_CRON_ITERATIONS = 10_000
+
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -78,8 +80,7 @@ class CronTrigger:
         ambiguous_ticks_skipped = 0
         # Bounded iteration — avoids O(N) spin for sub-second crons after long downtime.
         # 10,000 iterations covers ~2.7 hours of per-second crons, which is generous.
-        max_iterations = 10_000
-        for _ in range(max_iterations):
+        for _ in range(MAX_CRON_ITERATIONS):
             next_time = cron.get_next()
             if next_time.astimezone(UTC) > current_dt_utc:
                 result = self._dst_safe_from_dt(next_time)
@@ -108,7 +109,7 @@ class CronTrigger:
         LOGGER.warning(
             "CronTrigger(%s) exceeded %d iterations catching up, skipping ahead from current_time",
             self.cron_expression,
-            max_iterations,
+            MAX_CRON_ITERATIONS,
         )
         skip_ahead_dt = current_time.py_datetime()
         cron = croniter(self.cron_expression, skip_ahead_dt, ret_type=datetime)

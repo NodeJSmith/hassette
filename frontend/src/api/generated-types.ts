@@ -1712,7 +1712,7 @@ export interface operations {
                 instance_index?: number;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-                source_tier?: ("app" | "framework" | "all") | null;
+                source_tier?: "app" | "framework" | "all";
             };
             header?: never;
             path?: never;
@@ -1796,7 +1796,7 @@ export interface operations {
                 instance_index?: number;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-                source_tier?: ("app" | "framework" | "all") | null;
+                source_tier?: "app" | "framework" | "all";
             };
             header?: never;
             path: {
@@ -1834,7 +1834,7 @@ export interface operations {
                 instance_index?: number;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-                source_tier?: ("app" | "framework" | "all") | null;
+                source_tier?: "app" | "framework" | "all";
             };
             header?: never;
             path: {
@@ -1873,7 +1873,7 @@ export interface operations {
                 limit?: number;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-                source_tier?: ("app" | "framework" | "all") | null;
+                source_tier?: "app" | "framework" | "all";
             };
             header?: never;
             path: {
@@ -1911,7 +1911,7 @@ export interface operations {
                 instance_index?: number;
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-                source_tier?: ("app" | "framework" | "all") | null;
+                source_tier?: "app" | "framework" | "all";
             };
             header?: never;
             path: {
@@ -2046,7 +2046,7 @@ export interface operations {
             query?: {
                 since?: number | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
-                source_tier?: ("app" | "framework" | "all") | null;
+                source_tier?: "app" | "framework" | "all";
             };
             header?: never;
             path?: never;

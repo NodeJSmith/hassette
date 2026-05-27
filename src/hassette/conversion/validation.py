@@ -9,16 +9,12 @@ In strict mode (``strict=True``) any error-level issue causes
 (fail-all, not fail-fast). In non-strict mode issues are logged as WARNINGs.
 """
 
-import typing
 from dataclasses import dataclass
 from logging import getLogger
 
 from hassette.conversion.state_registry import StateKey, StateRegistry
 from hassette.conversion.type_registry import TypeRegistry
 from hassette.exceptions import RegistryValidationError
-
-if typing.TYPE_CHECKING:
-    from hassette.models.states.base import BaseState
 
 LOGGER = getLogger(__name__)
 
@@ -75,21 +71,12 @@ def validate_registries(
     return issues
 
 
-def _get_base_state_class() -> type["BaseState"]:
-    """Resolve BaseState at runtime, avoiding the circular import at module level.
-
-    Circular chain: models.states.base → conversion → validation → models.states.base.
-    By the time validate_registries() is called (during wire_services()), all modules
-    are fully loaded and the import succeeds.
-    """
-    from hassette.models.states.base import BaseState
-
-    return BaseState
-
-
 def _validate_state_registry(state_registry: StateRegistry) -> list[RegistryValidationIssue]:
     """Run all STATE_REGISTRY checks and return the collected issues."""
-    base_state_cls = _get_base_state_class()
+    # Deferred import: models.states.base → conversion → validation → models.states.base.
+    # Safe here because validate_registries() runs after all modules are loaded.
+    from hassette.models.states.base import BaseState
+
     issues: list[RegistryValidationIssue] = []
     registry_name = "STATE_REGISTRY"
 
@@ -112,7 +99,7 @@ def _validate_state_registry(state_registry: StateRegistry) -> list[RegistryVali
 
     for key, cls in entries.items():
         try:
-            is_subclass = isinstance(cls, type) and issubclass(cls, base_state_cls)
+            is_subclass = isinstance(cls, type) and issubclass(cls, BaseState)
         except TypeError:
             is_subclass = False
 

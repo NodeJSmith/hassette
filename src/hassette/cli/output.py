@@ -25,18 +25,11 @@ from rich.panel import Panel
 from rich.table import Table
 from whenever import Instant, OffsetDateTime, PlainDateTime
 
+from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
 from hassette.types.types import CliFormat
-
-# ---------------------------------------------------------------------------
-# Console instances (stdout data, stderr diagnostics)
-# ---------------------------------------------------------------------------
 
 stdout_console = Console(file=sys.stdout, highlight=False)
 stderr_console = Console(file=sys.stderr, stderr=True, highlight=False)
-
-# ---------------------------------------------------------------------------
-# Built-in field formatters
-# ---------------------------------------------------------------------------
 
 
 def _now() -> float:
@@ -67,22 +60,22 @@ def fmt_relative_time(value: Any) -> str:
         delta = _now() - epoch
         if delta < 0:
             ahead = -delta
-            if ahead < 60:
+            if ahead < SECONDS_PER_MINUTE:
                 return "in <1m"
-            if ahead < 3600:
-                return f"in {int(ahead / 60)}m"
-            if ahead < 86400:
-                return f"in {int(ahead / 3600)}h"
-            return f"in {int(ahead / 86400)}d"
+            if ahead < SECONDS_PER_HOUR:
+                return f"in {int(ahead / SECONDS_PER_MINUTE)}m"
+            if ahead < SECONDS_PER_DAY:
+                return f"in {int(ahead / SECONDS_PER_HOUR)}h"
+            return f"in {int(ahead / SECONDS_PER_DAY)}d"
         if delta < 5:
             return "just now"
-        if delta < 60:
+        if delta < SECONDS_PER_MINUTE:
             return f"{int(delta)}s ago"
-        if delta < 3600:
-            return f"{int(delta / 60)}m ago"
-        if delta < 86400:
-            return f"{int(delta / 3600)}h ago"
-        return f"{int(delta / 86400)}d ago"
+        if delta < SECONDS_PER_HOUR:
+            return f"{int(delta / SECONDS_PER_MINUTE)}m ago"
+        if delta < SECONDS_PER_DAY:
+            return f"{int(delta / SECONDS_PER_HOUR)}h ago"
+        return f"{int(delta / SECONDS_PER_DAY)}d ago"
     except (TypeError, ValueError, OSError):
         return str(value)
 
@@ -137,19 +130,15 @@ def fmt_uptime(value: Any) -> str:
         return str(value)
     if secs < 0:
         return "—"
-    if secs < 60:
+    if secs < SECONDS_PER_MINUTE:
         return f"{secs:.0f}s"
-    if secs < 3600:
-        m, s = divmod(int(secs), 60)
+    if secs < SECONDS_PER_HOUR:
+        m, s = divmod(int(secs), SECONDS_PER_MINUTE)
         return f"{m}m {s}s"
-    h, remainder = divmod(int(secs), 3600)
-    m, s = divmod(remainder, 60)
+    h, remainder = divmod(int(secs), SECONDS_PER_HOUR)
+    m, s = divmod(remainder, SECONDS_PER_MINUTE)
     return f"{h}h {m}m {s}s"
 
-
-# ---------------------------------------------------------------------------
-# CliFormat style → formatter registry
-# ---------------------------------------------------------------------------
 
 CLI_FORMATTERS: dict[str, Callable[[Any], str]] = {
     "duration_ms": fmt_duration_ms,
@@ -157,11 +146,6 @@ CLI_FORMATTERS: dict[str, Callable[[Any], str]] = {
     "uptime": fmt_uptime,
     "relative_time": fmt_relative_time,
 }
-
-
-# ---------------------------------------------------------------------------
-# Column definition
-# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -185,11 +169,6 @@ class Column:
     max_width: int | None = None
     overflow: OverflowMethod = "ellipsis"
     formatter: Callable[[Any], str] | None = dc_field(default=None, compare=False, hash=False)
-
-
-# ---------------------------------------------------------------------------
-# Field extraction helper
-# ---------------------------------------------------------------------------
 
 
 def _extract_field(item: Any, field_path: str) -> Any:
@@ -221,11 +200,6 @@ def _cell_text(value: Any, col: Column) -> str:
     if value is None:
         return ""
     return str(value)
-
-
-# ---------------------------------------------------------------------------
-# Render functions
-# ---------------------------------------------------------------------------
 
 
 def render_table(
@@ -326,11 +300,6 @@ def render_raw(
         return
 
     stdout_console.print(JSON(json.dumps(data, indent=2)))
-
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
 
 
 def _build_table(columns: list[Column], is_terminal: bool) -> Table:

@@ -8,6 +8,11 @@ from hassette.web.models import ErrorRateClass, HealthStatus
 
 LOGGER = getLogger(__name__)
 
+ERROR_RATE_WARN_THRESHOLD = 5
+ERROR_RATE_BAD_THRESHOLD = 10
+HEALTH_GOOD_THRESHOLD = 95
+HEALTH_WARNING_THRESHOLD = 90
+
 if TYPE_CHECKING:
     from hassette.core.runtime_query_service import RuntimeQueryService
 
@@ -55,9 +60,9 @@ def classify_error_rate(rate: float) -> ErrorRateClass:
 
     Thresholds: <5% = "good", 5-10% = "warn", >=10% = "bad".
     """
-    if rate < 5:
+    if rate < ERROR_RATE_WARN_THRESHOLD:
         return "good"
-    if rate < 10:
+    if rate < ERROR_RATE_BAD_THRESHOLD:
         return "warn"
     return "bad"
 
@@ -70,9 +75,9 @@ def classify_health_bar(success_rate: float) -> HealthStatus:
     """
     if success_rate >= 100:
         return "excellent"
-    if success_rate >= 95:
+    if success_rate >= HEALTH_GOOD_THRESHOLD:
         return "good"
-    if success_rate >= 90:
+    if success_rate >= HEALTH_WARNING_THRESHOLD:
         return "warning"
     return "critical"
 

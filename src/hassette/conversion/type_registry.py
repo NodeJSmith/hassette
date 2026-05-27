@@ -277,8 +277,6 @@ class TypeRegistry:
         cls.conversion_map = snapshot
 
 
-## Value Converters ##
-
 # stdlib classes
 register_simple_type_converter(Decimal, float)
 register_simple_type_converter(Decimal, int)

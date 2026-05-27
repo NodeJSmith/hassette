@@ -23,8 +23,6 @@ HASSETTE_CONFIG: ContextVar["HassetteConfig"] = ContextVar("HASSETTE_CONFIG")
 
 T = TypeVar("T")
 
-## Setters ##
-
 
 def set_global_hassette(hassette: "Hassette") -> "Token[Hassette] | None":
     """Set the global Hassette instance.
@@ -68,9 +66,6 @@ def set_global_hassette_config(config: "HassetteConfig") -> None:
     HASSETTE_CONFIG.set(config)
 
 
-## Getters ##
-
-
 def get_hassette() -> "Hassette":
     """Get the current Hassette instance from context."""
     try:
@@ -88,9 +83,6 @@ def get_hassette_config() -> "HassetteConfig":
     except LookupError:
         LOGGER.debug("HassetteConfig not found in context, attempting to get from Hassette instance.")
         return get_hassette().config
-
-
-## Context Managers ##
 
 
 @contextmanager

@@ -24,7 +24,7 @@ async def all_jobs(
     scheduler_service: SchedulerDep,
     response: Response,
     since: float | None = Query(default=None),  # pyright: ignore[reportCallInDefaultInitializer]
-    source_tier: QuerySourceTier | None = SOURCE_TIER_PARAM,
+    source_tier: QuerySourceTier = SOURCE_TIER_PARAM,
 ) -> list[JobSummary]:
     """All scheduled jobs across all apps, enriched with live heap data.
 
@@ -34,9 +34,8 @@ async def all_jobs(
 
     The heap snapshot is taken once — not per app — to avoid fan-out overhead.
     """
-    effective_tier = source_tier if source_tier is not None else "app"
     try:
-        db_jobs = list(await telemetry.get_all_jobs_summary(since=since, source_tier=effective_tier))
+        db_jobs = list(await telemetry.get_all_jobs_summary(since=since, source_tier=source_tier))
     except DB_ERRORS:
         LOGGER.warning("Failed to fetch global job summaries", exc_info=True)
         response.status_code = 503
