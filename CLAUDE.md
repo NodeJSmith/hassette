@@ -33,6 +33,9 @@ uv run pyright
 # Serve documentation locally
 uv run mkdocs serve
 
+# Start the server
+hassette run
+
 # Query a running instance
 hassette status
 hassette app

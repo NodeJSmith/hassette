@@ -313,34 +313,6 @@ class TestLogsEndpoints:
         assert logging.getLogger("hassette.rqs.test.lvl").level == logging.INFO
 
 
-class TestServicesEndpoint:
-    async def test_get_services_success(self, client: "AsyncClient", mock_hassette) -> None:
-        mock_hassette.api = MagicMock()
-        mock_hassette.api.get_services = AsyncMock(
-            return_value={"light": {"turn_on": {}, "turn_off": {}}, "switch": {"toggle": {}}}
-        )
-        response = await client.get("/api/services")
-        assert response.status_code == 200
-        data = response.json()
-        assert "light" in data
-        assert "switch" in data
-
-    async def test_get_services_ha_failure_returns_502(self, client: "AsyncClient", mock_hassette) -> None:
-        mock_hassette.api = MagicMock()
-        mock_hassette.api.get_services = AsyncMock(side_effect=ConnectionError("HA unreachable"))
-        response = await client.get("/api/services")
-        assert response.status_code == 502
-        data = response.json()
-        assert "detail" in data
-        assert "Home Assistant" in data["detail"]
-
-    async def test_get_services_generic_error_returns_502(self, client: "AsyncClient", mock_hassette) -> None:
-        mock_hassette.api = MagicMock()
-        mock_hassette.api.get_services = AsyncMock(side_effect=RuntimeError("unexpected"))
-        response = await client.get("/api/services")
-        assert response.status_code == 502
-
-
 class TestConfigEndpointExpanded:
     async def test_response_has_nested_groups(self, client: "AsyncClient", mock_hassette) -> None:
         """Response is organized into nested config groups."""
@@ -413,18 +385,6 @@ class TestOpenApiDocs:
         # The schema will be an array whose items reference EventEntry
         schema_str = str(schema)
         assert "EventEntry" in schema_str, f"events/recent schema must reference EventEntry model; got: {schema_str}"
-
-    async def test_services_has_response_schema(self, client: "AsyncClient") -> None:
-        """GET /api/services has a declared response schema in OpenAPI (response_model set)."""
-        response = await client.get("/api/openapi.json")
-        spec = response.json()
-        paths = spec.get("paths", {})
-        assert "/api/services" in paths
-        get_op = paths["/api/services"].get("get", {})
-        responses = get_op.get("responses", {})
-        assert "200" in responses
-        schema_ref = responses["200"].get("content", {}).get("application/json", {}).get("schema")
-        assert schema_ref is not None, "services 200 response must have a JSON schema"
 
     async def test_instance_index_has_description_on_telemetry_health(self, client: "AsyncClient") -> None:
         """instance_index parameter on telemetry app health route has a description."""

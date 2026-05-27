@@ -26,7 +26,7 @@ See [Configuration](configuration.md) for the full conversion guide.
 - [ ] If you have `terminate()`, rename it:
     - `App`: `async def on_shutdown(self)`
     - `AppSync`: `def on_shutdown_sync(self)`
-- [ ] Confirm the app starts without errors (`uv run hassette` or your start command)
+- [ ] Confirm the app starts without errors (`uv run hassette run` or your start command)
 
 See [Mental Model](concepts.md) for the lifecycle differences.
 

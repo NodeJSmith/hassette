@@ -1,6 +1,27 @@
 # Command Reference
 
-Every command supports `--json` for structured output. See [Configuration & Scripting](configuration.md#output-modes) for details on output modes.
+Every command supports `--json` for structured output and `--debug` for verbose error details. See [Configuration & Scripting](configuration.md#output-modes) for details on output modes.
+
+## `hassette run`
+
+Start the Hassette framework server. This is required to connect to Home Assistant and begin running automations.
+
+```bash
+hassette run
+```
+
+### Flags
+
+| Flag | Description |
+|---|---|
+| `--token`, `-t` | Home Assistant access token (overrides config/env) |
+| `--base-url`, `-u`, `--url` | Base URL of the Home Assistant instance |
+| `--verify-ssl` | Whether to verify SSL certificates |
+| `--dev-mode` | Enable developer mode |
+
+All flags are optional — values are resolved from the TOML config file and environment variables when not provided on the command line.
+
+---
 
 ## `hassette status`
 
@@ -317,21 +338,6 @@ hassette config
 Renders as a key-value panel showing the full configuration tree, including nested sections like `web_api`, `apps`, `lifecycle`, etc.
 
 **API endpoint:** `GET /api/config`
-
----
-
-## `hassette service`
-
-Home Assistant services available on the connected instance.
-
-```bash
-hassette service
-```
-
-**API endpoint:** `GET /api/services`
-
-!!! note
-    Service data is proxied directly from Home Assistant and has a variable schema. The output mirrors the HA API response and is not normalized. Use `--json` and `jq` to extract specific services.
 
 ---
 

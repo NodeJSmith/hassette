@@ -1,10 +1,10 @@
-"""Miscellaneous CLI commands: config, service, event."""
+"""Miscellaneous CLI commands: config, event."""
 
 from typing import Any
 
 import hassette.cli.globals as cli_globals
 from hassette.cli.client import make_client
-from hassette.cli.output import Column, fmt_relative_time, render_detail, render_raw, render_table
+from hassette.cli.output import Column, fmt_relative_time, render_detail, render_table
 from hassette.cli.types import LimitArg
 from hassette.web.models import ConfigResponse, EventEntry
 
@@ -14,13 +14,6 @@ def cmd_config() -> None:
     client = make_client()
     result = client.get("/api/config", ConfigResponse)
     render_detail(result, json_mode=cli_globals.json_mode)
-
-
-def cmd_service() -> None:
-    """List available HA services (GET /api/services)."""
-    client = make_client()
-    result: dict[str, Any] = client.get("/api/services", dict)
-    render_raw(result, json_mode=cli_globals.json_mode)
 
 
 EVENT_COLUMNS: list[Column] = [
