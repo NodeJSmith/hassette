@@ -18,7 +18,7 @@ from hassette.config.helpers import coerce_log_level, log_level_default_factory
 from hassette.types.types import LOG_LEVEL_TYPE, RawAppDict
 
 LOGGER = getLogger(__name__)
-APP_SHUTDOWN_TIMEOUT_DEFAULT = 10
+APP_SHUTDOWN_TIMEOUT_SECONDS = 10
 
 
 def validate_positive_or_none(value: Any) -> float | None:
@@ -225,11 +225,11 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     app_startup_timeout_seconds: int = Field(default=20)
     """Length of time to wait for an app to start before giving up."""
 
-    app_shutdown_timeout_seconds: int = Field(default=APP_SHUTDOWN_TIMEOUT_DEFAULT)
+    app_shutdown_timeout_seconds: int = Field(default=APP_SHUTDOWN_TIMEOUT_SECONDS)
     """Length of time to wait for an app to shut down before giving up."""
 
     resource_shutdown_timeout_seconds: int = Field(
-        default_factory=lambda data: data.get("app_shutdown_timeout_seconds", APP_SHUTDOWN_TIMEOUT_DEFAULT)
+        default_factory=lambda data: data.get("app_shutdown_timeout_seconds", APP_SHUTDOWN_TIMEOUT_SECONDS)
     )
     """Per-phase timeout for resource shutdown. Defaults to app_shutdown_timeout_seconds."""
 

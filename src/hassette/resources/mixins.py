@@ -94,7 +94,7 @@ class _HassetteP(Protocol):
 # but we don't want to enforce inheritance from Resource or HassetteBase at runtime
 if typing.TYPE_CHECKING:
 
-    class _LifecycleHostStubs(Protocol):
+    class _LifecycleHostP(Protocol):
         logger: logging.Logger
         hassette: _HassetteP
         role: Any
@@ -113,11 +113,11 @@ if typing.TYPE_CHECKING:
         async def initialize(self, *args, **kwargs) -> None: ...
 else:
 
-    class _LifecycleHostStubs:  # runtime stub (empty)
+    class _LifecycleHostP:  # runtime stub (empty)
         pass
 
 
-class LifecycleMixin(_LifecycleHostStubs):
+class LifecycleMixin(_LifecycleHostP):
     ready_event: asyncio.Event
     """Event to signal readiness of the instance."""
 
@@ -330,7 +330,7 @@ class LifecycleMixin(_LifecycleHostStubs):
         exception: Exception | BaseException | None = None,
         ready: bool = False,
         ready_phase: str | None = None,
-    ):
+    ) -> HassetteServiceEvent:
         return HassetteServiceEvent.from_data(
             resource_name=self.class_name,
             role=self.role,

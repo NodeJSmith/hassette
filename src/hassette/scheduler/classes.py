@@ -26,11 +26,11 @@ LOGGER = getLogger(__name__)
 # next_id() is only called at job creation time on the event loop thread.
 # itertools.count.__next__ is C-atomic. No lock needed unless the project targets
 # free-threaded CPython (PEP 703), which would require a broader concurrency audit.
-job_id_seq = itertools.count(1)
+JOB_ID_SEQ = itertools.count(1)
 
 
 def next_id() -> int:
-    return next(job_id_seq)
+    return next(JOB_ID_SEQ)
 
 
 class CronTrigger:

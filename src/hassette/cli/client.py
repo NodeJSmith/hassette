@@ -15,6 +15,7 @@ from typing import Any, NoReturn, TypeVar, overload
 
 import httpx
 
+import hassette.cli.globals as cli_globals
 import hassette.cli.output as cli_output
 from hassette.config.config import HassetteConfig
 from hassette.web.models import AppManifestListResponse
@@ -230,8 +231,6 @@ def make_client() -> HassetteCLIClient:
 
     Respects global options (--env-file, --config-file, --json) set by the meta app launcher.
     """
-    import hassette.cli.globals as cli_globals
-
     if cli_globals.env_file_override:
         HassetteConfig.model_config["env_file"] = cli_globals.env_file_override
     if cli_globals.config_file_override:

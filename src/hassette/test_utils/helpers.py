@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 STATE_DICT_KEYS = frozenset({"last_changed", "last_updated", "context"})
 
 
-def _noop() -> None:
+def noop() -> None:
     pass
 
 
@@ -481,7 +481,7 @@ def create_listener(
         raise ValueError("'immediate' requires an entity_id — use on_state_change() or on_attribute_change()")
 
     if handler is None:
-        handler = _noop
+        handler = noop
     if task_bucket is None:
         task_bucket = make_task_bucket()
 

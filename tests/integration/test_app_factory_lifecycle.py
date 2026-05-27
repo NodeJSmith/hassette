@@ -27,8 +27,8 @@ TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
 
 def clear_class_cache():
     """Clear the loaded and failed class caches."""
-    app_utils.loaded_classes.clear()
-    app_utils.failed_to_load_classes.clear()
+    app_utils.LOADED_CLASSES.clear()
+    app_utils.FAILED_TO_LOAD_CLASSES.clear()
 
 
 @pytest.fixture

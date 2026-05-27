@@ -1,7 +1,7 @@
 import typing
 from collections.abc import Iterator
 from logging import getLogger
-from typing import Any, Generic, NamedTuple
+from typing import Generic, NamedTuple
 
 from frozendict import deepfreeze, frozendict
 
@@ -115,11 +115,6 @@ class DomainStates(Generic[StateT]):
         """Return a list of entity IDs for this domain."""
         return [entity_id for entity_id, _ in self]
 
-    def iterkeys(self) -> Iterator[str]:
-        """Returns an iterator over entity IDs for this domain."""
-        for entity_id, _ in self:
-            yield entity_id
-
     def values(self) -> list[StateT]:
         """Return a list of typed states for this domain.
 
@@ -131,11 +126,6 @@ class DomainStates(Generic[StateT]):
             returned by `__iter__` for lazy evaluation if performance is a concern.
         """
         return [value for _, value in self]
-
-    def itervalues(self) -> Iterator[StateT]:
-        """Returns an iterator over typed states for this domain."""
-        for _, value in self:
-            yield value
 
     def to_dict(self) -> dict[str, StateT]:
         """Return a dictionary of entity_id to typed state for this domain.
@@ -149,7 +139,7 @@ class DomainStates(Generic[StateT]):
         """
         return {entity_id: value for entity_id, value in self}
 
-    def __iter__(self) -> typing.Generator[tuple[str, StateT], Any, None]:
+    def __iter__(self) -> typing.Generator[tuple[str, StateT], None, None]:
         """Iterate over all states in this domain."""
         for entity_id, state in self._state_proxy.yield_domain_states(self._domain):
             try:
@@ -353,38 +343,17 @@ class StateManager(Resource):
             return None
 
     def __contains__(self, model: type[StateT]) -> bool:
-        """Check if model is registered in the state registry.
-
-        Args:
-            model: The state model class to check.
-
-        Returns:
-            True if the model is registered in the state registry, False otherwise.
-
-        Example:
-            ```python
-            if MyStateClass in self.states:
-                print("States for MyStateClass are available")
-            ```
-        """
+        """Check the global STATE_REGISTRY, not this proxy's cached instances."""
         return model in STATE_REGISTRY
 
     def __iter__(self) -> Iterator[tuple[StateKey, DomainStates[states.BaseState]]]:
-        """Iterate over all registered state classes with their keys.
-
-        Returns:
-            An iterator over tuples of (StateKey, DomainStates) for all registered state classes.
-        """
-        yield from self.items()
-
-    def items(self) -> Iterator[tuple[StateKey, DomainStates[states.BaseState]]]:
-        """Iterate over all registered state classes with their keys.
-
-        Returns:
-            An iterator over tuples of (StateKey, DomainStates) for all registered state classes.
-        """
+        """Iterate over all registered state classes with their keys."""
         for key, state_class in STATE_REGISTRY.items():
             yield key, self[state_class]
+
+    def items(self) -> Iterator[tuple[StateKey, DomainStates[states.BaseState]]]:
+        """Iterate over all registered state classes with their keys."""
+        return iter(self)
 
     def values(self) -> Iterator[DomainStates[states.BaseState]]:
         """Iterate over all registered state classes.

@@ -63,7 +63,7 @@ def register_type_converter_fn(
     *,
     error_message: str | None = None,
     error_types: tuple[type[BaseException], ...] = (ValueError,),
-):
+) -> Callable[[T], R] | Callable[[Callable[[T], R]], Callable[[T], R]]:
     """Register a type conversion function with the TypeRegistry.
 
     Can be used as:
@@ -238,33 +238,6 @@ class TypeRegistry:
             raise UnableToConvertValueError(err_msg) from e
         except Exception as e:
             raise RuntimeError(f"Error converting {value!r} ({type(value).__name__}) to {to_type.__name__}") from e
-
-    def list_conversions(self) -> list[tuple[type, type, TypeConverterEntry]]:
-        """List all registered type conversions.
-
-        Returns a sorted list of all registered type conversions with their metadata.
-        Useful for debugging and inspection of available converters.
-
-        Returns:
-            List of (from_type, to_type, entry) tuples sorted by from_type name then to_type name.
-
-        Example:
-            ```python
-            from hassette import TYPE_REGISTRY
-
-            # List all conversions
-            conversions = TYPE_REGISTRY.list_conversions()
-            for from_type, to_type, entry in conversions:
-                print(f"{from_type.__name__} → {to_type.__name__}: {entry.description}")
-            ```
-        """
-        items = []
-        for (from_type, to_type), entry in self.conversion_map.items():
-            items.append((from_type, to_type, entry))
-
-        # Sort by from_type name, then to_type name
-        items.sort(key=lambda x: (x[0].__name__, x[1].__name__))
-        return items
 
     @classmethod
     def snapshot(cls) -> dict[tuple[type[Any], type[Any]], TypeConverterEntry[Any, Any]]:

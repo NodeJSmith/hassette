@@ -211,7 +211,7 @@ class ScriptStartedEvent(Event[HassPayload[ScriptStartedPayload]]):
     """Event representing a script started in Home Assistant."""
 
 
-def create_event_from_hass(data: HassEventEnvelopeDict):
+def create_event_from_hass(data: HassEventEnvelopeDict) -> Event:
     """Create an Event from a dictionary."""
 
     event = data.get("event", {})

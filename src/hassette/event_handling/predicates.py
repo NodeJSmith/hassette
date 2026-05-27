@@ -73,7 +73,7 @@ from .conditions import ARROW, Glob, Present
 if typing.TYPE_CHECKING:
     from hassette import RawStateChangeEvent
     from hassette.events import CallServiceEvent, Event, HassEvent
-    from hassette.types import ChangeType, Predicate
+    from hassette.types import Predicate
 
 V = TypeVar("V")
 
@@ -615,7 +615,7 @@ def is_predicate_collection(obj: Any) -> TypeGuard[Sequence["Predicate"]]:
     return is_collection(obj)
 
 
-def normalize_where(where: "Predicate | Sequence[Predicate] | None"):
+def normalize_where(where: "Predicate | Sequence[Predicate] | None") -> "Predicate | None":
     """Normalize a 'where' clause into a single Predicate (usually AllOf.ensure_iterable), or None.
 
     - If where is None → None

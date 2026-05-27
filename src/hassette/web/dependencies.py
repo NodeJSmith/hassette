@@ -40,7 +40,6 @@ TelemetryDep = Annotated["TelemetryQueryService", Depends(get_telemetry)]
 SchedulerDep = Annotated["SchedulerService", Depends(get_scheduler)]
 ApiDep = Annotated["Api", Depends(get_api)]
 
-# Shared query parameter for source tier filtering.
 DB_ERRORS: tuple[type[Exception], ...] = (sqlite3.Error, OSError, ValueError, TimeoutError)
 """Database error types to catch in web endpoints.
 

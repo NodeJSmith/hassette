@@ -16,6 +16,7 @@ LOGGER = getLogger(__name__)
 CONVERSION_FAIL_TEMPLATE = (
     "Failed to convert state for entity '%s' (domain: '%s') to class '%s'. Data: %s. Error: %s, Traceback: %s"
 )
+STATE_REPR_MAX_LENGTH = 200
 
 
 @dataclass(frozen=True)
@@ -154,8 +155,8 @@ class StateRegistry:
 
         class_name = state_class.__name__
         truncated_data = repr(data)
-        if len(truncated_data) > 200:
-            truncated_data = truncated_data[:200] + "...[truncated]"
+        if len(truncated_data) > STATE_REPR_MAX_LENGTH:
+            truncated_data = truncated_data[:STATE_REPR_MAX_LENGTH] + "...[truncated]"
 
         try:
             return convert_state_dict_to_model(data, state_class)
