@@ -123,6 +123,8 @@ def callable_short_name(fn: Any, num_parts: int = 1) -> str:
     """
 
     full_name = callable_name(fn)
+    if num_parts <= 0:
+        return full_name
     parts = full_name.split(".")
     if len(parts) >= num_parts:
         return ".".join(parts[-num_parts:])

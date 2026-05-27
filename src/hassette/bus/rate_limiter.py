@@ -112,7 +112,8 @@ class RateLimiter:
 
         # Local capture for the closure + type narrowing (call() already guards for None)
         debounce = self.debounce
-        assert debounce is not None
+        if debounce is None:
+            raise ValueError("debounce must be set before calling debounced_call")
 
         async def delayed_call():
             try:
@@ -137,7 +138,8 @@ class RateLimiter:
         ``time.monotonic()`` and ``self._throttle_last_time = now`` is atomic in asyncio's
         single-threaded event loop (no await point between them).
         """
-        assert self.throttle is not None
+        if self.throttle is None:
+            raise ValueError("throttle must be set before calling throttled_call")
         now = time.monotonic()
         if now - self._throttle_last_time < self.throttle:
             LOGGER.debug("Throttle drop for handler=%s (window=%.1fs)", self.handler_name, self.throttle)
