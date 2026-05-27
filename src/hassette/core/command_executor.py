@@ -41,6 +41,7 @@ _CAPACITY_WARN_RATE_LIMIT_SECS = 30.0
 _TIMEOUT_WARN_SUPPRESS_SECS = 60.0
 _TIMEOUT_WARN_CACHE_MAX = 1000
 _BATCH_DRAIN_CAP = 100
+_RETRY_BACKOFF_BASE_SECONDS = 1.0
 
 
 @dataclass
@@ -51,11 +52,14 @@ class RetryableBatch:
         invocations: Handler invocation records to retry.
         job_executions: Job execution records to retry.
         retry_count: Number of times this batch has been retried.
+        not_before: Monotonic timestamp (time.monotonic()) before which this batch
+            must not be retried. Zero means eligible immediately.
     """
 
     invocations: list[HandlerInvocationRecord] = field(default_factory=list)
     job_executions: list[JobExecutionRecord] = field(default_factory=list)
     retry_count: int = 0
+    not_before: float = 0.0
 
 
 class CommandExecutor(Service):
@@ -125,8 +129,15 @@ class CommandExecutor(Service):
         return self.hassette.config.logging.command_executor
 
     async def serve(self) -> None:
-        """Drain the write queue in batches until shutdown, then flush remaining records."""
+        """Drain the write queue in batches until shutdown, then flush remaining records.
+
+        Uses asyncio.wait() with a timeout equal to max_flush_interval_seconds so that records
+        never sit in the queue longer than that interval, even if the batch size
+        threshold is not reached.  When the timeout fires (done is empty), whatever
+        is currently in the queue is drained immediately.
+        """
         self.mark_ready(reason="CommandExecutor started")
+        flush_interval = self.hassette.config.database.max_flush_interval_seconds
 
         while True:
             get_fut = asyncio.ensure_future(self._write_queue.get())
@@ -134,10 +145,11 @@ class CommandExecutor(Service):
 
             done, pending = await asyncio.wait(
                 [get_fut, shutdown_fut],
+                timeout=flush_interval,
                 return_when=asyncio.FIRST_COMPLETED,
             )
 
-            # Cancel the pending future to avoid task leaks
+            # Cancel the pending futures to avoid task leaks
             for fut in pending:
                 fut.cancel()
                 with contextlib.suppress(asyncio.CancelledError, Exception):
@@ -158,14 +170,23 @@ class CommandExecutor(Service):
                 await self._flush_queue()
                 return
 
-            # Queue has an item — drain the full queue in one batch
             if get_fut in done and not get_fut.cancelled() and get_fut.exception() is None:
+                # An item arrived — drain the full queue in one batch
                 try:
                     await self._drain_and_persist(first_item=get_fut.result())
                 except Exception:
                     self.logger.exception(
                         "_drain_and_persist failed — records from this batch are dropped (already dequeued)"
                     )
+            elif not done:
+                # Timeout — timer fired; drain whatever accumulated without a triggering item
+                if not self._write_queue.empty():
+                    try:
+                        await self._drain_and_persist()
+                    except Exception:
+                        self.logger.exception(
+                            "_drain_and_persist failed (timer flush) — records from this batch may be dropped"
+                        )
 
     def get_drop_counters(self) -> tuple[int, int, int, int]:
         """Return (dropped_overflow, dropped_exhausted, dropped_no_session, dropped_shutdown) counters.
@@ -646,8 +667,24 @@ class CommandExecutor(Service):
         if fresh_invocations or fresh_job_executions:
             await self._persist_batch(fresh_invocations, fresh_job_executions)
 
-        # Process each RetryableBatch separately to preserve its retry_count
+        # Process each RetryableBatch separately to preserve its retry_count.
+        # Skip batches whose backoff window has not yet elapsed — re-enqueue them.
+        now = time.monotonic()
         for batch in retry_batches:
+            if batch.not_before > now:
+                # Backoff window still active — put it back for a later drain cycle
+                try:
+                    self._write_queue.put_nowait(batch)
+                except asyncio.QueueFull:
+                    drop_count = len(batch.invocations) + len(batch.job_executions)
+                    self._dropped_overflow += drop_count
+                    self.logger.error(
+                        "Write queue full while deferring retry batch (not_before not reached) "
+                        "— dropping %d records (total overflow: %d)",
+                        drop_count,
+                        self._dropped_overflow,
+                    )
+                continue
             await self._persist_batch(batch.invocations, batch.job_executions, retry_count=batch.retry_count)
 
     async def _flush_queue(self) -> None:
@@ -668,8 +705,8 @@ class CommandExecutor(Service):
                 break
 
             if isinstance(item, RetryableBatch):
-                # retry_count intentionally discarded — during shutdown, we make a
-                # single best-effort attempt regardless of prior failure count.
+                # retry_count and not_before intentionally bypassed — during shutdown,
+                # we make a single best-effort persist regardless of backoff state.
                 invocations.extend(item.invocations)
                 job_executions.extend(item.job_executions)
             elif isinstance(item, HandlerInvocationRecord):
@@ -804,6 +841,7 @@ class CommandExecutor(Service):
                             invocations=list(invocations),
                             job_executions=list(job_executions),
                             retry_count=retry_count + 1,
+                            not_before=time.monotonic() + _RETRY_BACKOFF_BASE_SECONDS * (retry_count + 1),
                         )
                     )
                 except asyncio.QueueFull:

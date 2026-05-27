@@ -8,9 +8,12 @@ Tests cover:
 - FK violation row-by-row fallback
 - source_tier and is_di_failure in _build_record
 - _flush_queue graceful handling on DB closed
+- RetryableBatch.not_before backoff deferral (#656)
+- serve() timer-based flush (#657)
 """
 
 import asyncio
+import contextlib
 import sqlite3
 import time
 from unittest.mock import AsyncMock, MagicMock
@@ -124,12 +127,12 @@ async def test_retryable_batch_expanded_in_drain():
     executor._write_queue.put_nowait(batch)
 
     captured_invocations = []
-    captured_jobs = []
+    captured_job_executions = []
     captured_retry_counts = []
 
     async def fake_persist_batch(invocations, job_executions, *, retry_count=0):
         captured_invocations.extend(invocations)
-        captured_jobs.extend(job_executions)
+        captured_job_executions.extend(job_executions)
         captured_retry_counts.append(retry_count)
 
     executor._persist_batch = fake_persist_batch  # pyright: ignore[reportAttributeAccessIssue]
@@ -137,7 +140,7 @@ async def test_retryable_batch_expanded_in_drain():
     await executor._drain_and_persist()
 
     assert inv in captured_invocations
-    assert job in captured_jobs
+    assert job in captured_job_executions
     # RetryableBatch should preserve its retry_count (was 1)
     assert 1 in captured_retry_counts
 
@@ -538,3 +541,236 @@ CREATE TABLE job_executions (
         assert row is not None
         assert row["source_tier"] == "framework"
         assert row["is_di_failure"] == 0
+
+
+async def test_retryable_batch_future_not_before_is_requeued():
+    """A RetryableBatch whose not_before is in the future must be re-enqueued, not persisted."""
+    executor = init_executor()
+
+    inv = make_invocation(listener_id=5, session_id=1)
+    batch = RetryableBatch(
+        invocations=[inv],
+        job_executions=[],
+        retry_count=1,
+        not_before=time.monotonic() + 9999.0,
+    )
+    executor._write_queue.put_nowait(batch)
+
+    persist_called = False
+
+    async def fake_persist(_invs, _jobs, **_kwargs):
+        nonlocal persist_called
+        persist_called = True
+
+    executor._persist_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
+
+    await executor._drain_and_persist()
+
+    # Must NOT have been persisted
+    assert not persist_called
+    # Must have been put back into the queue
+    assert not executor._write_queue.empty()
+    requeued = executor._write_queue.get_nowait()
+    assert isinstance(requeued, RetryableBatch)
+    assert requeued is batch
+
+
+async def test_retryable_batch_past_not_before_is_persisted():
+    """A RetryableBatch whose not_before is in the past (or zero) is persisted normally."""
+    executor = init_executor()
+
+    inv = make_invocation(listener_id=5, session_id=1)
+    batch = RetryableBatch(
+        invocations=[inv],
+        job_executions=[],
+        retry_count=1,
+        not_before=time.monotonic() - 1.0,  # already elapsed
+    )
+    executor._write_queue.put_nowait(batch)
+
+    persist_args: list[tuple[list, list, int]] = []
+
+    async def fake_persist(invs, jobs, *, retry_count=0):
+        persist_args.append((list(invs), list(jobs), retry_count))
+
+    executor._persist_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
+
+    await executor._drain_and_persist()
+
+    assert len(persist_args) == 1
+    persisted_invs, _, persisted_retry = persist_args[0]
+    assert inv in persisted_invs
+    assert persisted_retry == 1
+    assert executor._write_queue.empty()
+
+
+async def test_retryable_batch_not_before_set_to_backoff_delay():
+    """When _persist_batch re-enqueues a batch, not_before is set to monotonic + (retry_count + 1)."""
+    executor = init_executor()
+
+    inv = make_invocation(listener_id=5, session_id=1)
+    invocations = [inv]
+
+    async def fail_persist(_invs, _jobs):
+        raise sqlite3.OperationalError("disk I/O error")
+
+    executor.repository.persist_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
+
+    async def direct_submit(coro):
+        return await coro
+
+    executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
+
+    before = time.monotonic()
+    # retry_count=0 → backoff should be 1s (retry_count + 1 = 1)
+    await CommandExecutor._persist_batch(executor, invocations, [], retry_count=0)  # pyright: ignore[reportArgumentType]
+    after = time.monotonic()
+
+    assert not executor._write_queue.empty()
+    queued = executor._write_queue.get_nowait()
+    assert isinstance(queued, RetryableBatch)
+    assert queued.retry_count == 1
+    # not_before should be approximately before + 1s (retry_count + 1 = 0 + 1)
+    assert queued.not_before >= before + 1.0
+    assert queued.not_before <= after + 2.0
+
+
+async def test_retryable_batch_backoff_increases_with_retry_count():
+    """Backoff grows linearly: retry 0→1s, retry 1→2s, retry 2→3s."""
+    for initial_retry in range(3):
+        executor = init_executor()
+        inv = make_invocation(listener_id=5, session_id=1)
+
+        async def fail_persist(_invs, _jobs):
+            raise sqlite3.OperationalError("disk I/O error")
+
+        executor.repository.persist_batch = fail_persist  # pyright: ignore[reportAttributeAccessIssue]
+
+        async def direct_submit(coro):
+            return await coro
+
+        executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
+
+        before = time.monotonic()
+        await CommandExecutor._persist_batch(executor, [inv], [], retry_count=initial_retry)  # pyright: ignore[reportArgumentType]
+        after = time.monotonic()
+
+        queued = executor._write_queue.get_nowait()
+        expected_delay = float(initial_retry + 1)
+        assert queued.not_before >= before + expected_delay
+        assert queued.not_before <= after + expected_delay + 0.1
+
+
+async def test_serve_loops_without_blocking_when_queue_empty():
+    """serve() does not block indefinitely when the queue is empty — the timer causes it to loop."""
+    executor = init_executor()
+
+    # Queue stays empty; the timer should fire and allow the loop to continue (and eventually shut down)
+    drain_calls: list[str] = []
+
+    async def fake_drain(first_item=None):
+        drain_calls.append("timer" if first_item is None else "item")
+
+    shutdown_event = asyncio.Event()
+    executor.shutdown_event = shutdown_event  # pyright: ignore[reportAttributeAccessIssue]
+
+    executor._drain_and_persist = fake_drain  # pyright: ignore[reportAttributeAccessIssue]
+    executor._flush_queue = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    executor.mark_ready = MagicMock()
+    executor.hassette.config.database.max_flush_interval_seconds = 0.05  # very short — timer fires quickly
+
+    # Shut down after two timer cycles; if max_flush_interval_seconds is honoured the whole
+    # serve() call completes in well under 1s.  If it were ignored (infinite wait),
+    # the test would hang until pytest's overall timeout killed it.
+    async def stop_after_two_cycles():
+        await asyncio.sleep(0.15)
+        shutdown_event.set()
+
+    stopper = asyncio.create_task(stop_after_two_cycles())
+    await executor.serve()
+    stopper.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await stopper
+
+    # No drains expected (queue was empty), but serve() must have returned in time
+    assert not drain_calls
+
+
+async def test_serve_timer_drains_items_added_during_drain():
+    """Items put back into the queue during _drain_and_persist (e.g. deferred retries) are
+    picked up on the next loop iteration, not lost."""
+    executor = init_executor()
+
+    # First item to seed the initial drain
+    inv1 = make_invocation(listener_id=1, session_id=1)
+    inv2 = make_invocation(listener_id=2, session_id=1)
+    executor._write_queue.put_nowait(inv1)
+
+    drain_calls: list[str] = []
+
+    async def fake_drain(first_item=None):
+        drain_calls.append("timer" if first_item is None else "item")
+        if len(drain_calls) == 1:
+            # Simulate a deferred retry being re-enqueued during the first drain
+            executor._write_queue.put_nowait(inv2)
+
+    shutdown_event = asyncio.Event()
+    executor.shutdown_event = shutdown_event  # pyright: ignore[reportAttributeAccessIssue]
+
+    executor._drain_and_persist = fake_drain  # pyright: ignore[reportAttributeAccessIssue]
+    executor._flush_queue = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    executor.mark_ready = MagicMock()
+    executor.hassette.config.database.max_flush_interval_seconds = 5.0  # long — rely on item arrival, not timer
+
+    async def stop_after_two_drains():
+        for _ in range(200):
+            await asyncio.sleep(0.01)
+            if len(drain_calls) >= 2:
+                break
+        shutdown_event.set()
+
+    stopper = asyncio.create_task(stop_after_two_drains())
+    await executor.serve()
+    stopper.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await stopper
+
+    # Both drains should have been item-triggered (the re-enqueued item is picked up by queue.get)
+    assert len(drain_calls) >= 2
+    assert all(d == "item" for d in drain_calls)
+
+
+async def test_serve_item_flush_drains_queue_on_arrival():
+    """serve() drains via first_item path when a queue item arrives before timeout."""
+    executor = init_executor()
+
+    drain_calls: list[str] = []
+
+    async def fake_drain(first_item=None):
+        drain_calls.append("timer" if first_item is None else "item")
+
+    shutdown_event = asyncio.Event()
+    executor.shutdown_event = shutdown_event  # pyright: ignore[reportAttributeAccessIssue]
+
+    executor._drain_and_persist = fake_drain  # pyright: ignore[reportAttributeAccessIssue]
+    executor._flush_queue = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    executor.mark_ready = MagicMock()
+    executor.hassette.config.database.max_flush_interval_seconds = 5.0  # long interval — item should arrive first
+
+    async def enqueue_then_stop():
+        await asyncio.sleep(0.01)
+        executor._write_queue.put_nowait(make_invocation(listener_id=1, session_id=1))
+        # wait for drain, then shut down
+        for _ in range(100):
+            await asyncio.sleep(0.01)
+            if drain_calls:
+                break
+        shutdown_event.set()
+
+    stopper = asyncio.create_task(enqueue_then_stop())
+    await executor.serve()
+    stopper.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await stopper
+
+    assert "item" in drain_calls

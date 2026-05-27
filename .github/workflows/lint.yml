@@ -67,8 +67,6 @@ jobs:
             - name: Run lint checks
               run: |
                   uv tool install ruff==0.14.9
-                  uvx ruff format --check --diff .
-                  uvx ruff check .
                   SKIP=eslint,tsc uvx pre-commit run --all-files --hook-stage pre-push
 
             - name: Fail if generators produced drift

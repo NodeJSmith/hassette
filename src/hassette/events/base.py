@@ -107,11 +107,14 @@ class HassettePayload(EventPayload[DataT]):
     for the same event see the same ``event_id``.
     """
 
+    time_fired: ZonedDateTime = field(default_factory=lambda: ZonedDateTime.now("UTC"))
+    """The time the event was fired, defaulting to the current UTC time at construction."""
+
     origin: str = field(default="HASSETTE", init=False)
     """Origin of the event, always 'HASSETTE' for framework-generated events."""
 
     def __repr__(self) -> str:
-        return f"HassettePayload(event_type={self.event_type}, event_id={self.event_id})"
+        return f"HassettePayload(event_type={self.event_type}, event_id={self.event_id}, time_fired={self.time_fired})"
 
 
 @dataclass(frozen=True, slots=True, repr=False)

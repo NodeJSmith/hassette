@@ -74,6 +74,10 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     read_timeout_seconds: float = Field(default=10.0, ge=0.1)
     """Maximum seconds to wait for a telemetry read query before raising TimeoutError."""
 
+    max_flush_interval_seconds: float = Field(default=5.0, ge=0.1)
+    """Maximum seconds a record may sit in the CommandExecutor write queue before a
+    time-based flush is forced, even if the batch size threshold has not been reached."""
+
 
 class WebSocketConfig(ExcludeExtrasMixin, BaseModel):
     """WebSocket connection, retry, and recovery timing settings."""

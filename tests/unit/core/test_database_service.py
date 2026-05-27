@@ -2,13 +2,14 @@
 
 import asyncio
 import contextlib
+import dataclasses
 from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from hassette.core.database_service import DatabaseService
+from hassette.core.database_service import _RETENTION_TABLES, DatabaseService, RetentionTarget
 from hassette.test_utils.mock_hassette import make_mock_hassette
 
 
@@ -253,3 +254,54 @@ async def test_on_shutdown_closes_remaining_items_when_join_interrupted(
 
     assert service._db_worker_task is None
     assert future.cancelled()
+
+
+def test_retention_tables_is_list_of_retention_targets() -> None:
+    assert isinstance(_RETENTION_TABLES, list)
+    assert len(_RETENTION_TABLES) > 0
+    for entry in _RETENTION_TABLES:
+        assert isinstance(entry, RetentionTarget)
+
+
+def test_retention_tables_contains_expected_tables() -> None:
+    table_names = [t.table for t in _RETENTION_TABLES]
+    assert "log_records" in table_names
+    assert "handler_invocations" in table_names
+    assert "job_executions" in table_names
+
+
+def test_retention_tables_priority_ordering() -> None:
+    by_table = {t.table: t for t in _RETENTION_TABLES}
+    assert by_table["log_records"].priority < by_table["handler_invocations"].priority
+    assert by_table["log_records"].priority < by_table["job_executions"].priority
+
+
+def test_retention_tables_same_priority_for_execution_tables() -> None:
+    by_table = {t.table: t for t in _RETENTION_TABLES}
+    assert by_table["handler_invocations"].priority == by_table["job_executions"].priority
+
+
+def test_retention_target_timestamp_columns() -> None:
+    by_table = {t.table: t for t in _RETENTION_TABLES}
+    assert by_table["log_records"].timestamp_col == "timestamp"
+    assert by_table["handler_invocations"].timestamp_col == "execution_start_ts"
+    assert by_table["job_executions"].timestamp_col == "execution_start_ts"
+
+
+def test_retention_days_getter_for_log_records(mock_hassette: MagicMock) -> None:
+    mock_hassette.config.logging.log_retention_days = 3
+    by_table = {t.table: t for t in _RETENTION_TABLES}
+    assert by_table["log_records"].retention_days_getter(mock_hassette.config) == 3
+
+
+def test_retention_days_getter_for_execution_tables(mock_hassette: MagicMock) -> None:
+    mock_hassette.config.database.retention_days = 14
+    by_table = {t.table: t for t in _RETENTION_TABLES}
+    assert by_table["handler_invocations"].retention_days_getter(mock_hassette.config) == 14
+    assert by_table["job_executions"].retention_days_getter(mock_hassette.config) == 14
+
+
+def test_retention_target_is_frozen() -> None:
+    target = _RETENTION_TABLES[0]
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        target.table = "mutated"  # pyright: ignore[reportGeneralTypeIssues]

@@ -2,7 +2,8 @@ import asyncio
 import sqlite3
 import time
 import typing
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -21,6 +22,7 @@ from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.config.config import HassetteConfig
     from hassette.resources.base import Resource
 
 _WriteQueueItem = tuple[Coroutine[Any, Any, Any], asyncio.Future[Any] | None]
@@ -65,6 +67,42 @@ _LOG_COLUMNS = (
 _LOG_INSERT_SQL = (
     f"INSERT INTO log_records ({', '.join(_LOG_COLUMNS)}) VALUES ({', '.join(':' + c for c in _LOG_COLUMNS)})"
 )
+
+
+@dataclass(frozen=True)
+class RetentionTarget:
+    """Declarative specification for a table managed by retention cleanup and size failsafe."""
+
+    table: str
+    timestamp_col: str
+    priority: int
+    retention_days_getter: Callable[["HassetteConfig"], int]
+    failsafe_label: str
+
+
+_RETENTION_TABLES: list[RetentionTarget] = [
+    RetentionTarget(
+        table="log_records",
+        timestamp_col="timestamp",
+        priority=0,
+        retention_days_getter=lambda cfg: cfg.logging.log_retention_days,
+        failsafe_label="log pre-pass",
+    ),
+    RetentionTarget(
+        table="handler_invocations",
+        timestamp_col="execution_start_ts",
+        priority=1,
+        retention_days_getter=lambda cfg: cfg.database.retention_days,
+        failsafe_label="execution records",
+    ),
+    RetentionTarget(
+        table="job_executions",
+        timestamp_col="execution_start_ts",
+        priority=1,
+        retention_days_getter=lambda cfg: cfg.database.retention_days,
+        failsafe_label="execution records",
+    ),
+]
 
 
 class DatabaseService(Service):
@@ -546,19 +584,27 @@ class DatabaseService(Service):
         self.enqueue(self._do_run_retention_cleanup())
 
     async def _do_run_retention_cleanup(self) -> None:
-        """Execute the retention DELETE queries; called by the write-queue worker."""
+        """Execute the retention DELETE queries; called by the write-queue worker.
+
+        Iterates _RETENTION_TABLES for simple age-based deletes, then applies
+        NOT EXISTS guard deletes for parent tables (listeners, scheduled_jobs).
+        """
         try:
             config = self.hassette.config
-            retention_days = config.database.retention_days
-            cutoff = time.time() - (retention_days * SECONDS_PER_DAY)
+            now = time.time()
+            deleted_by_table: dict[str, int] = {}
 
-            # Log records use their own shorter retention window
-            log_retention_days = config.logging.log_retention_days
-            log_cutoff = time.time() - (log_retention_days * SECONDS_PER_DAY)
-            cursor_lr = await self.db.execute("DELETE FROM log_records WHERE timestamp < ?", (log_cutoff,))
+            for target in _RETENTION_TABLES:
+                cutoff = now - (target.retention_days_getter(config) * SECONDS_PER_DAY)
+                cursor = await self.db.execute(
+                    f"DELETE FROM {target.table} WHERE {target.timestamp_col} < ?",
+                    (cutoff,),
+                )
+                deleted_by_table[target.table] = cursor.rowcount or 0
 
-            cursor_hi = await self.db.execute("DELETE FROM handler_invocations WHERE execution_start_ts < ?", (cutoff,))
-            cursor_je = await self.db.execute("DELETE FROM job_executions WHERE execution_start_ts < ?", (cutoff,))
+            # Use the standard retention window for parent-guard deletes.
+            cutoff = now - (config.database.retention_days * SECONDS_PER_DAY)
+
             # Only delete retired listeners when ALL their child invocations have also aged out.
             # This prevents orphaning recent handler_invocations whose parent row would be
             # deleted because retired_at (set at restart time) diverges from last invocation time.
@@ -588,27 +634,19 @@ class DatabaseService(Service):
                 (cutoff, cutoff),
             )
             await self.db.commit()
-            lr_deleted = cursor_lr.rowcount or 0
-            hi_deleted = cursor_hi.rowcount or 0
-            je_deleted = cursor_je.rowcount or 0
-            rl_deleted = cursor_rl.rowcount or 0
-            rj_deleted = cursor_rj.rowcount or 0
-            if lr_deleted:
-                self.logger.info(
-                    "Retention cleanup: deleted %d log_records",
-                    lr_deleted,
-                )
-            if hi_deleted or je_deleted:
-                self.logger.info(
-                    "Retention cleanup: deleted %d handler_invocations, %d job_executions",
-                    hi_deleted,
-                    je_deleted,
-                )
-            if rl_deleted or rj_deleted:
+
+            listeners_deleted = cursor_rl.rowcount or 0
+            jobs_deleted = cursor_rj.rowcount or 0
+
+            deleted_summary = {table: count for table, count in deleted_by_table.items() if count > 0}
+            if deleted_summary:
+                parts = ", ".join(f"{count} {table}" for table, count in deleted_summary.items())
+                self.logger.info("Retention cleanup: deleted %s", parts)
+            if listeners_deleted or jobs_deleted:
                 self.logger.info(
                     "Retention cleanup: deleted %d retired listeners, %d retired scheduled_jobs",
-                    rl_deleted,
-                    rj_deleted,
+                    listeners_deleted,
+                    jobs_deleted,
                 )
         except Exception:
             await self.db.rollback()
@@ -624,12 +662,12 @@ class DatabaseService(Service):
         return total / (1024 * 1024)
 
     async def _check_size_failsafe(self) -> None:
-        """Delete oldest execution records if database exceeds the configured size limit.
+        """Delete oldest records if database exceeds the configured size limit.
 
-        Skips the sessions table. Loops up to _SIZE_FAILSAFE_MAX_ITERATIONS times,
-        deleting _SIZE_FAILSAFE_DELETE_BATCH oldest records per iteration from
-        handler_invocations and job_executions, then running incremental_vacuum
-        and wal_checkpoint to reclaim disk space.
+        Iterates _RETENTION_TABLES grouped by priority (lower priority number = deleted
+        first). Within each priority tier, all tables in the group are deleted together
+        per iteration. After each iteration a vacuum+checkpoint reclaims disk space.
+        The process stops as soon as the database falls within the size limit.
         """
         max_size_mb = self.hassette.config.database.max_size_mb
         if max_size_mb == 0:
@@ -650,58 +688,28 @@ class DatabaseService(Service):
             )
 
         db = self.db
-        total_lr_deleted = 0
-        total_hi_deleted = 0
-        total_je_deleted = 0
+        total_deleted_by_table: dict[str, int] = {t.table: 0 for t in _RETENTION_TABLES}
 
-        for iteration in range(_SIZE_FAILSAFE_MAX_ITERATIONS):
-            cursor_lr = await db.execute(
-                "DELETE FROM log_records WHERE id IN (SELECT id FROM log_records ORDER BY timestamp ASC LIMIT ?)",
-                (_SIZE_FAILSAFE_DELETE_BATCH,),
-            )
-            await db.commit()
-            deleted = cursor_lr.rowcount or 0
-            total_lr_deleted += deleted
+        priorities = sorted({t.priority for t in _RETENTION_TABLES})
+        for priority in priorities:
+            group = [t for t in _RETENTION_TABLES if t.priority == priority]
+            group_label = group[0].failsafe_label
 
-            vacuum_cursor = await db.execute(f"PRAGMA incremental_vacuum({_SIZE_FAILSAFE_VACUUM_PAGES})")
-            await vacuum_cursor.close()
-            await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-
-            current_size = self._get_db_size_mb()
-            if current_size <= max_size_mb:
-                break
-
-            # If log_records is now empty but we're still over, stop the pre-pass
-            if deleted == 0:
-                break
-
-            if iteration == _SIZE_FAILSAFE_MAX_ITERATIONS - 1:
-                self.logger.warning(
-                    "Size failsafe log pre-pass capped at %d iterations; database still %.1f MB (limit %.1f MB)",
-                    _SIZE_FAILSAFE_MAX_ITERATIONS,
-                    current_size,
-                    max_size_mb,
-                )
-
-        # Re-check after log pre-pass; only proceed to execution records if still over limit
-        current_size = self._get_db_size_mb()
-
-        if current_size > max_size_mb:
             for iteration in range(_SIZE_FAILSAFE_MAX_ITERATIONS):
-                cursor_hi = await db.execute(
-                    "DELETE FROM handler_invocations WHERE id IN "
-                    "(SELECT id FROM handler_invocations ORDER BY execution_start_ts ASC LIMIT ?)",
-                    (_SIZE_FAILSAFE_DELETE_BATCH,),
-                )
-                cursor_je = await db.execute(
-                    "DELETE FROM job_executions WHERE id IN "
-                    "(SELECT id FROM job_executions ORDER BY execution_start_ts ASC LIMIT ?)",
-                    (_SIZE_FAILSAFE_DELETE_BATCH,),
-                )
+                group_deleted = 0
+                for target in group:
+                    cursor = await db.execute(
+                        f"DELETE FROM {target.table} WHERE id IN "
+                        f"(SELECT id FROM {target.table} ORDER BY {target.timestamp_col} ASC LIMIT ?)",
+                        (_SIZE_FAILSAFE_DELETE_BATCH,),
+                    )
+                    n = cursor.rowcount or 0
+                    total_deleted_by_table[target.table] += n
+                    group_deleted += n
                 await db.commit()
 
-                total_hi_deleted += cursor_hi.rowcount or 0
-                total_je_deleted += cursor_je.rowcount or 0
+                if group_deleted == 0:
+                    break
 
                 vacuum_cursor = await db.execute(f"PRAGMA incremental_vacuum({_SIZE_FAILSAFE_VACUUM_PAGES})")
                 await vacuum_cursor.close()
@@ -713,25 +721,21 @@ class DatabaseService(Service):
 
                 if iteration == _SIZE_FAILSAFE_MAX_ITERATIONS - 1:
                     self.logger.warning(
-                        "Size failsafe loop capped at %d iterations; database still %.1f MB (limit %.1f MB)",
+                        "Size failsafe %s capped at %d iterations; database still %.1f MB (limit %.1f MB)",
+                        group_label,
                         _SIZE_FAILSAFE_MAX_ITERATIONS,
                         current_size,
                         max_size_mb,
                     )
 
-        if total_lr_deleted:
-            self.logger.info(
-                "Size failsafe: deleted %d log_records (%.1f MB remaining)",
-                total_lr_deleted,
-                current_size,
-            )
-        if total_hi_deleted or total_je_deleted:
-            self.logger.info(
-                "Size failsafe: deleted %d handler_invocations, %d job_executions (%.1f MB remaining)",
-                total_hi_deleted,
-                total_je_deleted,
-                current_size,
-            )
+            current_size = self._get_db_size_mb()
+            if current_size <= max_size_mb:
+                break
+
+        deleted_summary = {table: count for table, count in total_deleted_by_table.items() if count > 0}
+        if deleted_summary:
+            parts = ", ".join(f"{count} {table}" for table, count in deleted_summary.items())
+            self.logger.info("Size failsafe: deleted %s (%.1f MB remaining)", parts, current_size)
 
     async def _run_size_failsafe(self) -> None:
         """Enqueue a size failsafe check; fire-and-forget via enqueue()."""
