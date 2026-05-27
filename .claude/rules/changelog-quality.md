@@ -79,9 +79,30 @@ registry-converted state without a specific model.
 
 ## Pre-release changelog review
 
-Before merging a release-please PR, review the generated changelog and manually edit the CHANGELOG.md on the release-please branch to:
+Before merging a release-please PR, review the generated changelog and manually edit the **CHANGELOG.md file** on the release-please branch to:
 
 1. **Remove internal entries** — prior art research, CI changes, test infrastructure, refactors with no user-visible behavior change
 2. **Expand vague entries** — if a commit subject is too terse, add context from the PR body
 3. **Group by feature area** — reorganize flat lists into topic-grouped sections (matching the v0.24.0 style) when a release has 5+ entries
 4. **Verify breaking change descriptions** — ensure they tell the user what to do, not just what changed internally
+
+### Do NOT edit the PR body (CRITICAL)
+
+Only edit the `CHANGELOG.md` file on the release-please branch. **Never rewrite the PR description body on GitHub.**
+
+Release-please uses its own PR body format (the `:robot: I have created a release *beep* *boop*` block) to recognize merged release PRs. After a release PR is squash-merged, release-please runs again, finds the PR by title, and parses the body to confirm it's a release PR. If the body doesn't match the expected format, release-please treats the merge as a normal commit — no tag, no GitHub Release, no publish.
+
+This happened with v0.34.0: the PR body was rewritten to match the curated changelog, release-please couldn't parse it, and the release silently failed. Recovery required manually creating the tag, GitHub Release, and triggering the publish workflows.
+
+**What to edit:** `CHANGELOG.md` on the branch (commit and push to the release-please branch)
+**What to leave alone:** The PR description on GitHub — release-please owns that
+
+### Recovery: manual release
+
+If a release-please PR is merged but no tag/release appears:
+
+1. Check the post-merge workflow run — look for `✖ Pull request body did not match`
+2. Create the tag: `git tag v<version> <merge-commit-sha> && git push origin v<version>`
+3. Create the GitHub Release: `gh release create v<version> --target <sha> --notes-file <changelog-excerpt>`
+4. Trigger publish workflows manually: `gh workflow run "Publish Python package" -f tag_name=v<version>` and `gh workflow run "Build & Publish Image" -f tag_name=v<version>`
+5. Close any spurious release-please PR that was opened for the next version
