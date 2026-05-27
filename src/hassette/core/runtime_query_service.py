@@ -40,7 +40,7 @@ class RuntimeQueryService(Resource):
 
     Reads from in-memory sources: AppHandler, event buffer, log buffer, WS clients.
     All reads are instant — no database I/O. DatabaseService is in depends_on
-    to guarantee it is ready before set_database() wires LogPersistenceHandler.
+    to guarantee it is ready before set_database() wires the log persistence handler.
     """
 
     depends_on: ClassVar[list[type[Resource]]] = [BusService, StateProxy, AppHandler, DatabaseService]
@@ -145,7 +145,6 @@ class RuntimeQueryService(Resource):
                 loop = asyncio.get_running_loop()
                 persistence_handler.set_database(
                     self.hassette.database_service,
-                    self.hassette.command_executor.repository,
                     loop,
                 )
             except RuntimeError:

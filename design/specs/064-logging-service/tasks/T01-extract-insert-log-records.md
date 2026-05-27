@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Move insert_log_records to DatabaseService"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#7", "AC#8"]
 ---

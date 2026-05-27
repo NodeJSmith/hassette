@@ -684,37 +684,3 @@ class TelemetryRepository:
         except Exception:
             await db.rollback()
             raise
-
-    async def insert_log_records(self, records: list[dict]) -> None:
-        """Batch-insert log records into the log_records table."""
-        if not records:
-            return
-
-        db = self._db_service.db
-        try:
-            await db.execute("BEGIN")
-            await db.executemany(_LOG_INSERT_SQL, records)
-            await db.commit()
-        except Exception:
-            await db.rollback()
-            raise
-
-
-_LOG_COLUMNS = (
-    "seq",
-    "timestamp",
-    "level",
-    "logger_name",
-    "func_name",
-    "lineno",
-    "message",
-    "exc_info",
-    "app_key",
-    "instance_name",
-    "instance_index",
-    "execution_id",
-    "source_tier",
-)
-_LOG_INSERT_SQL = (
-    f"INSERT INTO log_records ({', '.join(_LOG_COLUMNS)}) VALUES ({', '.join(':' + c for c in _LOG_COLUMNS)})"
-)

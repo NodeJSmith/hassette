@@ -2,7 +2,7 @@
 
 Covers:
 - Migration 009 creates the log_records table and indexes
-- insert_log_records() writes records and they're queryable
+- _insert_log_records() writes records and they're queryable
 - get_log_records() filters by app_key, level, execution_id, since
 - get_log_records_by_execution() returns ordered records with truncated flag
 - Retention cleanup deletes log_records older than log_retention_days
@@ -27,9 +27,9 @@ from sqlalchemy import create_engine
 
 from hassette.config.config import HassetteConfig
 from hassette.config.models import LoggingConfig
+from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry_models import LogRecord
 from hassette.core.telemetry_query_service import TelemetryQueryService
-from hassette.core.telemetry_repository import TelemetryRepository
 
 from .conftest import LOG_RECORDS_TEST_DDL as DDL
 
@@ -56,11 +56,13 @@ async def db() -> AsyncIterator[aiosqlite.Connection]:
 
 
 @pytest.fixture
-def repo(db: aiosqlite.Connection) -> TelemetryRepository:
-    """TelemetryRepository backed by the in-memory test DB."""
-    mock_db_service = MagicMock()
-    mock_db_service.db = db
-    return TelemetryRepository(mock_db_service)
+def db_service(db: aiosqlite.Connection) -> DatabaseService:
+    """DatabaseService with an in-memory test DB connection."""
+    mock_hassette = MagicMock()
+    svc = DatabaseService.__new__(DatabaseService)
+    svc.hassette = mock_hassette
+    svc._db = db  # pyright: ignore[reportPrivateUsage]
+    return svc
 
 
 @pytest.fixture
@@ -180,10 +182,11 @@ class TestRestartPersistence:
 
         async with aiosqlite.connect(db_path) as db1:
             db1.row_factory = aiosqlite.Row
-            mock_db_service = MagicMock()
-            mock_db_service.db = db1
-            repo = TelemetryRepository(mock_db_service)
-            await repo.insert_log_records(records)
+            mock_hassette = MagicMock()
+            svc = DatabaseService.__new__(DatabaseService)
+            svc.hassette = mock_hassette
+            svc._db = db1  # pyright: ignore[reportPrivateUsage]
+            await svc._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
             await db1.commit()
 
         async with aiosqlite.connect(db_path) as db2:
@@ -201,8 +204,8 @@ class TestRestartPersistence:
 
 
 class TestInsertLogRecords:
-    async def test_insert_writes_records(self, db: aiosqlite.Connection, repo: TelemetryRepository) -> None:
-        """insert_log_records() inserts records that are queryable."""
+    async def test_insert_writes_records(self, db: aiosqlite.Connection, db_service: DatabaseService) -> None:
+        """_insert_log_records() inserts records that are queryable."""
 
         now = time.time()
         records = [
@@ -237,23 +240,23 @@ class TestInsertLogRecords:
                 "source_tier": "app",
             },
         ]
-        await repo.insert_log_records(records)
+        await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
 
         cursor = await db.execute("SELECT COUNT(*) FROM log_records")
         row = await cursor.fetchone()
         assert row[0] == 2
 
-    async def test_insert_empty_list_is_noop(self, db: aiosqlite.Connection, repo: TelemetryRepository) -> None:
-        """insert_log_records() with empty list does not raise."""
+    async def test_insert_empty_list_is_noop(self, db: aiosqlite.Connection, db_service: DatabaseService) -> None:
+        """_insert_log_records() with empty list does not raise."""
 
-        await repo.insert_log_records([])
+        await db_service._insert_log_records([])  # pyright: ignore[reportPrivateUsage]
 
         cursor = await db.execute("SELECT COUNT(*) FROM log_records")
         row = await cursor.fetchone()
         assert row[0] == 0
 
-    async def test_insert_stores_all_fields(self, db: aiosqlite.Connection, repo: TelemetryRepository) -> None:
-        """insert_log_records() stores all specified fields correctly."""
+    async def test_insert_stores_all_fields(self, db: aiosqlite.Connection, db_service: DatabaseService) -> None:
+        """_insert_log_records() stores all specified fields correctly."""
 
         now = time.time()
         exc_text = "Traceback: something went wrong"
@@ -274,7 +277,7 @@ class TestInsertLogRecords:
                 "source_tier": "app",
             }
         ]
-        await repo.insert_log_records(records)
+        await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
 
         cursor = await db.execute("SELECT * FROM log_records WHERE execution_id = ?", ("exec-xyz",))
         row = await cursor.fetchone()
@@ -293,7 +296,7 @@ class TestInsertLogRecords:
         assert row["source_tier"] == "app"
 
     async def test_insert_framework_record_null_app_key(
-        self, db: aiosqlite.Connection, repo: TelemetryRepository
+        self, db: aiosqlite.Connection, db_service: DatabaseService
     ) -> None:
         """Framework records with no app_key (None) are inserted correctly."""
 
@@ -315,7 +318,7 @@ class TestInsertLogRecords:
                 "source_tier": "framework",
             }
         ]
-        await repo.insert_log_records(records)
+        await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
 
         cursor = await db.execute("SELECT app_key, execution_id, source_tier FROM log_records")
         row = await cursor.fetchone()
@@ -324,7 +327,7 @@ class TestInsertLogRecords:
         assert row["source_tier"] == "framework"
 
 
-async def seed_log_records(repo: TelemetryRepository) -> None:
+async def seed_log_records(db_service: DatabaseService) -> None:
     """Insert a set of log records for filter tests."""
 
     now = time.time()
@@ -390,72 +393,72 @@ async def seed_log_records(repo: TelemetryRepository) -> None:
             "source_tier": "framework",
         },
     ]
-    await repo.insert_log_records(records)
+    await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
 
 
 class TestGetLogRecords:
     async def test_returns_all_records_no_filters(
-        self, repo: TelemetryRepository, service: TelemetryQueryService
+        self, db_service: DatabaseService, service: TelemetryQueryService
     ) -> None:
         """get_log_records() with no filters returns all records."""
 
-        await seed_log_records(repo)
+        await seed_log_records(db_service)
         results = await service.get_log_records(limit=100)
         assert len(results) == 4
 
-    async def test_ordered_by_timestamp_desc(self, repo: TelemetryRepository, service: TelemetryQueryService) -> None:
+    async def test_ordered_by_timestamp_desc(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records() returns results ordered by timestamp DESC."""
 
-        await seed_log_records(repo)
+        await seed_log_records(db_service)
         results = await service.get_log_records(limit=100)
         timestamps = [r["timestamp"] for r in results]
         assert timestamps == sorted(timestamps, reverse=True)
 
-    async def test_filter_by_app_key(self, repo: TelemetryRepository, service: TelemetryQueryService) -> None:
+    async def test_filter_by_app_key(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records() filters by app_key."""
 
-        await seed_log_records(repo)
+        await seed_log_records(db_service)
         results = await service.get_log_records(limit=100, app_key="app_a")
         assert all(r["app_key"] == "app_a" for r in results)
         assert len(results) == 2
 
-    async def test_filter_by_level(self, repo: TelemetryRepository, service: TelemetryQueryService) -> None:
+    async def test_filter_by_level(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records() filters by level."""
 
-        await seed_log_records(repo)
+        await seed_log_records(db_service)
         results = await service.get_log_records(limit=100, level="ERROR")
         assert all(r["level"] == "ERROR" for r in results)
         assert len(results) == 1
 
-    async def test_filter_by_execution_id(self, repo: TelemetryRepository, service: TelemetryQueryService) -> None:
+    async def test_filter_by_execution_id(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records() filters by execution_id."""
 
-        await seed_log_records(repo)
+        await seed_log_records(db_service)
         results = await service.get_log_records(limit=100, execution_id="exec-1")
         assert all(r["execution_id"] == "exec-1" for r in results)
         assert len(results) == 2
 
-    async def test_filter_by_since(self, repo: TelemetryRepository, service: TelemetryQueryService) -> None:
+    async def test_filter_by_since(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records() filters by since (timestamp >= since)."""
 
-        await seed_log_records(repo)
+        await seed_log_records(db_service)
         now = time.time()
         # Only records newer than now-30 (seq 3 and 4)
         results = await service.get_log_records(limit=100, since=now - 30)
         assert len(results) == 2
 
-    async def test_filter_by_source_tier(self, repo: TelemetryRepository, service: TelemetryQueryService) -> None:
+    async def test_filter_by_source_tier(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records() filters by source_tier."""
 
-        await seed_log_records(repo)
+        await seed_log_records(db_service)
         results = await service.get_log_records(limit=100, source_tier="framework")
         assert all(r["source_tier"] == "framework" for r in results)
         assert len(results) == 1
 
-    async def test_limit_applied(self, repo: TelemetryRepository, service: TelemetryQueryService) -> None:
+    async def test_limit_applied(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records() respects the limit parameter."""
 
-        await seed_log_records(repo)
+        await seed_log_records(db_service)
         results = await service.get_log_records(limit=2)
         assert len(results) == 2
 
@@ -467,7 +470,7 @@ class TestGetLogRecords:
 
 
 class TestGetLogRecordsByExecution:
-    async def seed_for_execution(self, repo: TelemetryRepository) -> None:
+    async def seed_for_execution(self, db_service: DatabaseService) -> None:
         now = time.time()
         records = [
             {
@@ -505,56 +508,60 @@ class TestGetLogRecordsByExecution:
                 "source_tier": "app",
             }
         )
-        await repo.insert_log_records(records)
+        await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
 
     async def test_returns_records_for_execution(
-        self, repo: TelemetryRepository, service: TelemetryQueryService
+        self, db_service: DatabaseService, service: TelemetryQueryService
     ) -> None:
         """get_log_records_by_execution() returns records only for the given execution."""
 
-        await self.seed_for_execution(repo)
+        await self.seed_for_execution(db_service)
         records, truncated = await service.get_log_records_by_execution("exec-exec", limit=100)
         assert len(records) == 5
         assert not truncated
 
-    async def test_ordered_by_seq_asc(self, repo: TelemetryRepository, service: TelemetryQueryService) -> None:
+    async def test_ordered_by_seq_asc(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records_by_execution() returns records ordered by seq ASC."""
 
-        await self.seed_for_execution(repo)
+        await self.seed_for_execution(db_service)
         records, _ = await service.get_log_records_by_execution("exec-exec", limit=100)
         seqs = [r["seq"] for r in records]
         assert seqs == sorted(seqs)
 
-    async def test_truncated_when_over_limit(self, repo: TelemetryRepository, service: TelemetryQueryService) -> None:
+    async def test_truncated_when_over_limit(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
         """get_log_records_by_execution() returns truncated=True when count > limit."""
 
-        await self.seed_for_execution(repo)
+        await self.seed_for_execution(db_service)
         records, truncated = await service.get_log_records_by_execution("exec-exec", limit=3)
         assert len(records) == 3
         assert truncated
 
-    async def test_not_truncated_when_at_limit(self, repo: TelemetryRepository, service: TelemetryQueryService) -> None:
+    async def test_not_truncated_when_at_limit(
+        self, db_service: DatabaseService, service: TelemetryQueryService
+    ) -> None:
         """get_log_records_by_execution() returns truncated=False when count == limit."""
 
-        await self.seed_for_execution(repo)
+        await self.seed_for_execution(db_service)
         records, truncated = await service.get_log_records_by_execution("exec-exec", limit=5)
         assert len(records) == 5
         assert not truncated
 
-    async def test_empty_for_unknown_execution(self, repo: TelemetryRepository, service: TelemetryQueryService) -> None:
+    async def test_empty_for_unknown_execution(
+        self, db_service: DatabaseService, service: TelemetryQueryService
+    ) -> None:
         """get_log_records_by_execution() returns empty list for unknown execution_id."""
 
-        await self.seed_for_execution(repo)
+        await self.seed_for_execution(db_service)
         records, truncated = await service.get_log_records_by_execution("no-such-exec", limit=100)
         assert records == []
         assert not truncated
 
     async def test_does_not_include_other_executions(
-        self, repo: TelemetryRepository, service: TelemetryQueryService
+        self, db_service: DatabaseService, service: TelemetryQueryService
     ) -> None:
         """get_log_records_by_execution() excludes records from other executions."""
 
-        await self.seed_for_execution(repo)
+        await self.seed_for_execution(db_service)
         records, _ = await service.get_log_records_by_execution("exec-exec", limit=100)
         assert all(r["execution_id"] == "exec-exec" for r in records)
 

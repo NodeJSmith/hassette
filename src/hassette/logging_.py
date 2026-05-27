@@ -22,7 +22,6 @@ from hassette.context import CURRENT_EXECUTION_ID
 
 if TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
-    from hassette.core.telemetry_repository import TelemetryRepository
 
 
 @dataclass
@@ -207,12 +206,11 @@ class HassetteQueueListener(logging.handlers.QueueListener):
 class LogPersistenceHandler(logging.Handler):
     """Batches log records for async DB persistence.
 
-    Starts inert (no DB). ``set_database()`` is called later by RuntimeQueryService
-    to wire DB access. Until then, records are counted as dropped.
+    Starts inert (no DB). ``set_database()`` is called later to wire DB access.
+    Until then, records are counted as dropped.
     """
 
     _db_service: "DatabaseService | None"
-    _repository: "TelemetryRepository | None"
     _loop: asyncio.AbstractEventLoop | None
     _batch: list[dict]
     _dropped: int
@@ -223,7 +221,6 @@ class LogPersistenceHandler(logging.Handler):
     def __init__(self, persistence_level: int = logging.INFO) -> None:
         super().__init__()
         self._db_service = None
-        self._repository = None
         self._loop = None
         self._batch = []
         self._dropped = 0
@@ -233,11 +230,9 @@ class LogPersistenceHandler(logging.Handler):
     def set_database(
         self,
         db_service: "DatabaseService",
-        repository: "TelemetryRepository",
         loop: asyncio.AbstractEventLoop,
     ) -> None:
         self._db_service = db_service
-        self._repository = repository
         self._loop = loop
 
     @property
@@ -260,9 +255,8 @@ class LogPersistenceHandler(logging.Handler):
         batch = self._batch
         self._batch = []
         db_service = self._db_service
-        repository = self._repository
         loop = self._loop
-        if db_service is None or repository is None or loop is None:
+        if db_service is None or loop is None:
             with self._dropped_lock:
                 self._dropped += len(batch)
             return
@@ -271,7 +265,7 @@ class LogPersistenceHandler(logging.Handler):
 
         def _do_enqueue(b=batch) -> None:
             try:
-                if not db_service.enqueue(repository.insert_log_records(b)):  # pyright: ignore[reportAttributeAccessIssue]
+                if not db_service.enqueue(db_service._insert_log_records(b)):  # pyright: ignore[reportPrivateUsage]
                     with handler._dropped_lock:
                         handler._dropped += batch_len
             except RuntimeError:
