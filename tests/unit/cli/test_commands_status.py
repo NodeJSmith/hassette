@@ -9,6 +9,7 @@ from hassette.cli.commands.status import (
     cmd_status,
     cmd_telemetry,
 )
+from hassette.cli.context import CLIContext
 from hassette.test_utils.web_helpers import (
     make_dashboard_app_grid_response,
     make_system_status_response,
@@ -68,9 +69,8 @@ class TestCmdStatus:
         with (
             patch("hassette.cli.commands.status.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=capture_write),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_status()
+            cmd_status(ctx=CLIContext(json_mode=True))
 
         combined = "".join(captured_stdout)
         parsed = json.loads(combined)
@@ -137,9 +137,8 @@ class TestCmdTelemetry:
         with (
             patch("hassette.cli.commands.status.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_telemetry()
+            cmd_telemetry(ctx=CLIContext(json_mode=True))
 
         parsed = json.loads("".join(captured))
         assert parsed["dropped_overflow"] == 5
@@ -202,9 +201,8 @@ class TestCmdDashboard:
         with (
             patch("hassette.cli.commands.status.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_dashboard()
+            cmd_dashboard(ctx=CLIContext(json_mode=True))
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)

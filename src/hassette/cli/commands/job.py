@@ -2,8 +2,8 @@
 
 from typing import Any
 
-import hassette.cli.globals as cli_globals
 from hassette.cli.client import make_client
+from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_duration_ms, fmt_next_run, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.core.telemetry_models import JobExecution, JobSummary
@@ -38,10 +38,11 @@ def cmd_job(
     since: SinceArg = None,
     source_tier: SourceTierArg = None,
     limit: LimitArg = None,
+    *,
+    ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
     """List scheduled jobs, or show execution history for a specific job."""
-    client = make_client()
-    json_mode = cli_globals.json_mode
+    client = make_client(ctx)
 
     if job_id is not None:
         params: dict[str, Any] = {}
@@ -56,7 +57,7 @@ def cmd_job(
             params=params,
         )
         executions = [JobExecution.model_validate(e) for e in raw]
-        render_table(executions, JOB_EXECUTION_COLUMNS, json_mode=json_mode)  # pyright: ignore[reportArgumentType]
+        render_table(executions, JOB_EXECUTION_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
         return
 
     extra_params: dict[str, Any] = {}
@@ -74,4 +75,4 @@ def cmd_job(
         extra_params=extra_params,
     )
     jobs = [JobSummary.model_validate(e) for e in raw]
-    render_table(jobs, JOB_LIST_COLUMNS, json_mode=json_mode)  # pyright: ignore[reportArgumentType]
+    render_table(jobs, JOB_LIST_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]

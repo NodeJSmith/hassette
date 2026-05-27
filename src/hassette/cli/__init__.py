@@ -5,7 +5,6 @@ from typing import Annotated, Literal
 
 from cyclopts import App, Group, Parameter
 
-import hassette.cli.globals as cli_globals
 from hassette.app.app_config import AppConfig
 from hassette.cli.commands.app import cmd_app, cmd_app_activity, cmd_app_config, cmd_app_health, cmd_app_source
 from hassette.cli.commands.job import cmd_job
@@ -14,6 +13,7 @@ from hassette.cli.commands.log import cmd_execution, cmd_log
 from hassette.cli.commands.misc import cmd_config, cmd_event
 from hassette.cli.commands.run import cmd_run
 from hassette.cli.commands.status import cmd_dashboard, cmd_status, cmd_telemetry
+from hassette.cli.context import CLIContext
 from hassette.config.config import HassetteConfig
 
 # ---------------------------------------------------------------------------
@@ -138,10 +138,7 @@ def launcher(
         bool, Parameter(name=["--debug"], help="Show full HTTP response on CLI errors.", negative=[])
     ] = False,
 ) -> None:
-    cli_globals.env_file_override = env_file
-    cli_globals.config_file_override = config_file
-    cli_globals.json_mode = json
-    cli_globals.debug_mode = debug
+    ctx = CLIContext(json_mode=json, debug_mode=debug, env_file_override=env_file, config_file_override=config_file)
 
     if env_file:
         HassetteConfig.model_config["env_file"] = env_file
@@ -149,4 +146,6 @@ def launcher(
     if config_file:
         HassetteConfig.model_config["toml_file"] = config_file
 
-    app(tokens)
+    command, bound, _ignored = app.parse_args(tokens)
+    bound.arguments["ctx"] = ctx
+    command(*bound.args, **bound.kwargs)

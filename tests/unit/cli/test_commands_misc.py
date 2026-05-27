@@ -5,6 +5,7 @@ from typing import Any
 from unittest.mock import patch
 
 from hassette.cli.commands.misc import EVENT_COLUMNS, cmd_config, cmd_event
+from hassette.cli.context import CLIContext
 from hassette.test_utils.web_helpers import (
     make_config_response,
     make_event_entry,
@@ -59,9 +60,8 @@ class TestCmdConfig:
         with (
             patch("hassette.cli.commands.misc.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_config()
+            cmd_config(ctx=CLIContext(json_mode=True))
 
         parsed = json.loads("".join(captured))
         assert "web_api" in parsed
@@ -156,9 +156,8 @@ class TestCmdEvent:
         with (
             patch("hassette.cli.commands.misc.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_event()
+            cmd_event(ctx=CLIContext(json_mode=True))
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)

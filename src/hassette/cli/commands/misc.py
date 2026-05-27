@@ -2,18 +2,18 @@
 
 from typing import Any
 
-import hassette.cli.globals as cli_globals
 from hassette.cli.client import make_client
+from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_relative_time, render_detail, render_table
 from hassette.cli.types import LimitArg
 from hassette.web.models import ConfigResponse, EventEntry
 
 
-def cmd_config() -> None:
+def cmd_config(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     """Show current configuration (GET /api/config)."""
-    client = make_client()
+    client = make_client(ctx)
     result = client.get("/api/config", ConfigResponse)
-    render_detail(result, json_mode=cli_globals.json_mode)
+    render_detail(result, json_mode=ctx.json_mode)
 
 
 EVENT_COLUMNS: list[Column] = [
@@ -25,12 +25,14 @@ EVENT_COLUMNS: list[Column] = [
 
 def cmd_event(
     limit: LimitArg = None,
+    *,
+    ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
     """Show recent HA events (GET /api/events/recent)."""
-    client = make_client()
+    client = make_client(ctx)
     params: dict[str, Any] = {}
     if limit is not None:
         params["limit"] = limit
     result: list[EventEntry] = client.get("/api/events/recent", list, params=params)
     events = [EventEntry.model_validate(e) for e in result]
-    render_table(events, EVENT_COLUMNS, json_mode=cli_globals.json_mode)  # pyright: ignore[reportArgumentType]
+    render_table(events, EVENT_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]

@@ -15,6 +15,7 @@ from hassette.cli.commands.app import (
     cmd_app_health,
     cmd_app_source,
 )
+from hassette.cli.context import CLIContext
 from hassette.test_utils.web_helpers import (
     make_activity_feed_entry,
     make_app_config_response,
@@ -77,9 +78,8 @@ class TestCmdApp:
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_app()
+            cmd_app(ctx=CLIContext(json_mode=True))
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)
@@ -228,9 +228,8 @@ class TestCmdAppHealth:
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_app_health("my-app")
+            cmd_app_health("my-app", ctx=CLIContext(json_mode=True))
 
         parsed = json.loads("".join(captured))
         assert parsed["error_rate"] == pytest.approx(0.1)
@@ -373,9 +372,8 @@ class TestCmdAppActivity:
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_app_activity("my-app")
+            cmd_app_activity("my-app", ctx=CLIContext(json_mode=True))
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)
@@ -442,9 +440,8 @@ class TestCmdAppConfig:
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_app_config("my-app")
+            cmd_app_config("my-app", ctx=CLIContext(json_mode=True))
 
         parsed = json.loads("".join(captured))
         assert parsed["app_key"] == "my-app"
@@ -498,9 +495,8 @@ class TestCmdAppSource:
         with (
             patch("hassette.cli.commands.app.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_app_source("my-app")
+            cmd_app_source("my-app", ctx=CLIContext(json_mode=True))
 
         parsed = json.loads("".join(captured))
         assert parsed["app_key"] == "my-app"

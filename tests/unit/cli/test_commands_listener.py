@@ -10,6 +10,7 @@ from hassette.cli.commands.listener import (
     LISTENER_LIST_COLUMNS,
     cmd_listener,
 )
+from hassette.cli.context import CLIContext
 from hassette.test_utils.web_helpers import make_handler_invocation, make_listener_with_summary
 from tests.unit.cli.conftest import CLIClientFactory, capture_stderr, capture_stdout
 
@@ -143,9 +144,8 @@ class TestCmdListener:
         with (
             patch("hassette.cli.commands.listener.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_listener()
+            cmd_listener(ctx=CLIContext(json_mode=True))
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)
@@ -275,9 +275,8 @@ class TestCmdListenerDetail:
         with (
             patch("hassette.cli.commands.listener.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_listener(listener_id=1)
+            cmd_listener(listener_id=1, ctx=CLIContext(json_mode=True))
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)

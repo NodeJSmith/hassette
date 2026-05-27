@@ -2,8 +2,8 @@
 
 from typing import Any
 
-import hassette.cli.globals as cli_globals
 from hassette.cli.client import make_client
+from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 from hassette.web.models import LogEntryResponse, LogsByExecutionResponse
@@ -34,9 +34,11 @@ def cmd_log(
     since: SinceArg = None,
     limit: LimitArg = None,
     source_tier: SourceTierArg = None,
+    *,
+    ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
     """Show recent log entries (GET /api/logs/recent)."""
-    client = make_client()
+    client = make_client(ctx)
 
     if instance is not None:
         client.error_usage("--instance is not supported on the log command")
@@ -57,15 +59,17 @@ def cmd_log(
         params=params,
     )
     entries = [LogEntryResponse.model_validate(e) for e in raw]
-    render_table(entries, LOG_COLUMNS, json_mode=cli_globals.json_mode)  # pyright: ignore[reportArgumentType]
+    render_table(entries, LOG_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
 
 
 def cmd_execution(
     uuid: str,
     limit: LimitArg = None,
+    *,
+    ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
     """Show logs for a specific execution (GET /api/executions/{execution_id})."""
-    client = make_client()
+    client = make_client(ctx)
 
     params: dict[str, Any] = {}
     if limit is not None:
@@ -76,4 +80,4 @@ def cmd_execution(
         LogsByExecutionResponse,
         params=params,
     )
-    render_table(response.records, EXECUTION_LOG_COLUMNS, json_mode=cli_globals.json_mode)  # pyright: ignore[reportArgumentType]
+    render_table(response.records, EXECUTION_LOG_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]

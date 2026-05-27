@@ -10,6 +10,7 @@ from hassette.cli.commands.job import (
     JOB_LIST_COLUMNS,
     cmd_job,
 )
+from hassette.cli.context import CLIContext
 from hassette.test_utils.web_helpers import make_job_execution, make_job_summary
 from tests.unit.cli.conftest import CLIClientFactory, capture_stderr, capture_stdout
 
@@ -143,9 +144,8 @@ class TestCmdJob:
         with (
             patch("hassette.cli.commands.job.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_job()
+            cmd_job(ctx=CLIContext(json_mode=True))
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)
@@ -275,9 +275,8 @@ class TestCmdJobDetail:
         with (
             patch("hassette.cli.commands.job.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_job(job_id=1)
+            cmd_job(job_id=1, ctx=CLIContext(json_mode=True))
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)

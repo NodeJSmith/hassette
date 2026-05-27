@@ -1,23 +1,23 @@
 """System-level CLI commands: status, telemetry, dashboard."""
 
-import hassette.cli.globals as cli_globals
 from hassette.cli.client import make_client
+from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
 from hassette.web.models import DashboardAppGridResponse, SystemStatusResponse, TelemetryStatusResponse
 
 
-def cmd_status() -> None:
+def cmd_status(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     """Show system status (GET /api/health)."""
-    client = make_client()
+    client = make_client(ctx)
     result = client.get("/api/health", SystemStatusResponse)
-    render_detail(result, json_mode=cli_globals.json_mode)
+    render_detail(result, json_mode=ctx.json_mode)
 
 
-def cmd_telemetry() -> None:
+def cmd_telemetry(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     """Show telemetry database status (GET /api/telemetry/status)."""
-    client = make_client()
+    client = make_client(ctx)
     result = client.get("/api/telemetry/status", TelemetryStatusResponse)
-    render_detail(result, json_mode=cli_globals.json_mode)
+    render_detail(result, json_mode=ctx.json_mode)
 
 
 DASHBOARD_COLUMNS: list[Column] = [
@@ -31,8 +31,8 @@ DASHBOARD_COLUMNS: list[Column] = [
 ]
 
 
-def cmd_dashboard() -> None:
+def cmd_dashboard(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     """Show app dashboard grid (GET /api/telemetry/dashboard/app-grid)."""
-    client = make_client()
+    client = make_client(ctx)
     result = client.get("/api/telemetry/dashboard/app-grid", DashboardAppGridResponse)
-    render_table(result.apps, DASHBOARD_COLUMNS, json_mode=cli_globals.json_mode)  # pyright: ignore[reportArgumentType]
+    render_table(result.apps, DASHBOARD_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]

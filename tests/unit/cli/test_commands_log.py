@@ -11,6 +11,7 @@ from hassette.cli.commands.log import (
     cmd_execution,
     cmd_log,
 )
+from hassette.cli.context import CLIContext
 from hassette.test_utils.web_helpers import make_log_entry_response, make_logs_by_execution_response
 from tests.unit.cli.conftest import CLIClientFactory, capture_stderr, capture_stdout
 
@@ -166,9 +167,8 @@ class TestCmdLog:
         with (
             patch("hassette.cli.commands.log.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_log()
+            cmd_log(ctx=CLIContext(json_mode=True))
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)
@@ -298,9 +298,8 @@ class TestCmdExecution:
         with (
             patch("hassette.cli.commands.log.make_client", return_value=client),
             patch("sys.stdout.write", side_effect=lambda s: captured.append(s) or len(s)),
-            patch("hassette.cli.globals.json_mode", True),
         ):
-            cmd_execution(uuid="exec-3")
+            cmd_execution(uuid="exec-3", ctx=CLIContext(json_mode=True))
 
         parsed = json.loads("".join(captured))
         assert isinstance(parsed, list)
