@@ -6,8 +6,6 @@ from yarl import URL
 if typing.TYPE_CHECKING:
     from hassette.models.states import BaseState
 
-MAX_ISSUES_IN_SUMMARY = 5
-
 
 class HassetteError(Exception):
     """Base exception for all Hassette errors."""
@@ -303,9 +301,7 @@ class RegistryValidationError(HassetteError):
         warning_count = sum(1 for i in issues if getattr(i, "severity", None) == "warning")
         total = len(issues)
         summary_lines = [f"Registry validation failed: {error_count} error(s), {warning_count} warning(s)"]
-        summary_lines.extend(
-            f"  [{i.severity.upper()}] {i.registry}: {i.message}" for i in issues[:MAX_ISSUES_IN_SUMMARY]
-        )
-        if total > MAX_ISSUES_IN_SUMMARY:
-            summary_lines.append(f"  ... and {total - MAX_ISSUES_IN_SUMMARY} more issue(s)")
+        summary_lines.extend(f"  [{i.severity.upper()}] {i.registry}: {i.message}" for i in issues[:5])
+        if total > 5:
+            summary_lines.append(f"  ... and {total - 5} more issue(s)")
         super().__init__("\n".join(summary_lines))

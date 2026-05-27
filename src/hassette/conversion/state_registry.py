@@ -13,8 +13,6 @@ if typing.TYPE_CHECKING:
 
 
 LOGGER = getLogger(__name__)
-STATE_REPR_MAX_LENGTH = 200
-STATE_REPR_TRUNCATION_SUFFIX = "...[truncated]"
 CONVERSION_FAIL_TEMPLATE = (
     "Failed to convert state for entity '%s' (domain: '%s') to class '%s'. Data: %s. Error: %s, Traceback: %s"
 )
@@ -29,7 +27,9 @@ class StateKey:
     """Optional device class of the entity (e.g., 'temperature', 'humidity'). Not yet being used."""
 
 
-def register_state_converter(state_class: type["BaseState"], domain: Hashable, device_class: Hashable | None = None):
+def register_state_converter(
+    state_class: type["BaseState"], domain: Hashable, device_class: Hashable | None = None
+) -> None:
     """Register a state converter class for a specific domain and optional device class."""
     StateRegistry.register(state_class, domain=domain, device_class=device_class)
 
@@ -120,7 +120,9 @@ class StateRegistry:
         raise RuntimeError("Unreachable code reached in try_convert_state")
 
     @classmethod
-    def register(cls, state_class: type["BaseState"], *, domain: Hashable = None, device_class: Hashable = None):
+    def register(
+        cls, state_class: type["BaseState"], *, domain: Hashable | None = None, device_class: Hashable | None = None
+    ) -> None:
         """Register a state class for a given domain and optional device_class combination.
 
         Args:
@@ -132,7 +134,9 @@ class StateRegistry:
         cls._registry[key] = state_class
 
     @classmethod
-    def resolve(cls, *, domain: Hashable = None, device_class: Hashable = None) -> type["BaseState"] | None:
+    def resolve(
+        cls, *, domain: Hashable | None = None, device_class: Hashable | None = None
+    ) -> type["BaseState"] | None:
         """Resolve a state class from the registry based on domain and device_class."""
         candidates = [StateKey(domain=domain, device_class=device_class)]
         if device_class is not None:
@@ -150,8 +154,8 @@ class StateRegistry:
 
         class_name = state_class.__name__
         truncated_data = repr(data)
-        if len(truncated_data) > STATE_REPR_MAX_LENGTH:
-            truncated_data = truncated_data[:STATE_REPR_MAX_LENGTH] + STATE_REPR_TRUNCATION_SUFFIX
+        if len(truncated_data) > 200:
+            truncated_data = truncated_data[:200] + "...[truncated]"
 
         try:
             return convert_state_dict_to_model(data, state_class)

@@ -32,13 +32,7 @@ def flatten_types(items: Iterable[type | tuple[type, ...]]) -> tuple[type, ...]:
 
 @lru_cache(maxsize=256)
 def normalize_for_isinstance(tp: Any) -> type | tuple[type, ...]:
-    """
-    Normalize a type annotation to something usable in isinstance(x, ...).
-
-    Returns either:
-      - a single runtime class (type)
-      - or a tuple[type, ...] suitable for isinstance(x, tuple_of_types)
-    """
+    """Normalize a type annotation to something usable in isinstance()."""
 
     # ---- Unwrap type aliases (`type Foo = ...`) ----
     value = getattr(tp, "__value__", None)

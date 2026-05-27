@@ -45,7 +45,7 @@ class LogEntry:
     instance_name: str | None = None
     instance_index: int | None = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "seq": self.seq,
             "timestamp": self.timestamp,
@@ -63,7 +63,7 @@ class LogEntry:
         }
 
 
-def _extract_correlation_attrs(record: logging.LogRecord) -> dict:
+def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
     """Extract correlation attributes stamped by CorrelationFilter from a LogRecord."""
     return {
         "app_key": getattr(record, "app_key", None),
@@ -269,7 +269,7 @@ class LogPersistenceHandler(logging.Handler):
 
         loop.call_soon_threadsafe(_do_enqueue)
 
-    def _record_to_dict(self, record: logging.LogRecord) -> dict:
+    def _record_to_dict(self, record: logging.LogRecord) -> dict[str, Any]:
         return {
             "timestamp": record.created,
             "level": record.levelname,

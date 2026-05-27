@@ -58,7 +58,7 @@ def get_hermetic_hassette_config_cls() -> tuple[type[HassetteConfig], list[dict[
         }
 
         @classmethod
-        def settings_customise_sources(cls, settings_cls, **_kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
+        def settings_customise_sources(cls, settings_cls: type, **_kwargs: Any) -> tuple[InitSettingsSource]:  # pyright: ignore[reportIncompatibleMethodOverride]
             return (InitSettingsSource(settings_cls, init_kwargs=cell[0]),)
 
     hermetic_hassette_config_pair = (_Cls, cell)

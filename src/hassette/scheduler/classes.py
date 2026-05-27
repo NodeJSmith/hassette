@@ -26,11 +26,11 @@ LOGGER = getLogger(__name__)
 # next_id() is only called at job creation time on the event loop thread.
 # itertools.count.__next__ is C-atomic. No lock needed unless the project targets
 # free-threaded CPython (PEP 703), which would require a broader concurrency audit.
-seq = itertools.count(1)
+job_id_seq = itertools.count(1)
 
 
 def next_id() -> int:
-    return next(seq)
+    return next(job_id_seq)
 
 
 class CronTrigger:
@@ -253,7 +253,7 @@ class ScheduledJob:
     def __repr__(self) -> str:
         return f"ScheduledJob(name={self.name!r}, owner_id={self.owner_id})"
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timeout is not None and (isinstance(self.timeout, bool) or self.timeout <= 0):
             raise ValueError("timeout must be a positive number")
         if self.timeout_disabled and self.timeout is not None:

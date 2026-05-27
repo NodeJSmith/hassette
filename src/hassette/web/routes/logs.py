@@ -5,9 +5,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
-from hassette.web.dependencies import TelemetryDep
+from hassette.web.dependencies import DB_ERRORS, TelemetryDep
 from hassette.web.models import LogEntryResponse, LogLevelRequest, LogLevelResponse
-from hassette.web.routes.telemetry import DB_ERRORS
 
 router = APIRouter(tags=["logs"])
 

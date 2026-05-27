@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
+from hassette.web.dependencies import DB_ERRORS, HassetteDep, RuntimeDep, TelemetryDep
 from hassette.web.mappers import app_manifest_list_response_from, app_status_response_from
 from hassette.web.models import (
     ActionResponse,
@@ -15,7 +15,6 @@ from hassette.web.models import (
     AppSourceResponse,
     AppStatusResponse,
 )
-from hassette.web.routes.telemetry import DB_ERRORS
 
 LOGGER = getLogger(__name__)
 

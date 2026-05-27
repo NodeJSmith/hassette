@@ -1,5 +1,6 @@
 """FastAPI dependency injection helpers for the Hassette Web API."""
 
+import sqlite3
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, Query, Request
@@ -40,6 +41,14 @@ SchedulerDep = Annotated["SchedulerService", Depends(get_scheduler)]
 ApiDep = Annotated["Api", Depends(get_api)]
 
 # Shared query parameter for source tier filtering.
+DB_ERRORS: tuple[type[Exception], ...] = (sqlite3.Error, OSError, ValueError, TimeoutError)
+"""Database error types to catch in web endpoints.
+
+Includes ``ValueError`` because aiosqlite raises it for closed-connection
+errors during shutdown and ``TimeoutError`` for queries exceeding the
+configured read timeout.  All types are suppressed uniformly — a degraded
+response is always preferable to an unhandled 500."""
+
 SOURCE_TIER_PARAM = Query(
     default="app",
     description="Filter by source tier. 'app' excludes framework internals. "

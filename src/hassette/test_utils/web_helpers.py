@@ -565,13 +565,14 @@ def make_job_summary(
     failed: int = 0,
     total_duration_ms: float | None = None,
     avg_duration_ms: float = 8.0,
-    next_run: float | None = 1_700_003_600.0,
+    next_run: float | None = SYNTHETIC_TIMESTAMP + 3600,
     last_executed_at: float | None = SYNTHETIC_TIMESTAMP,
     last_error_type: str | None = None,
     last_error_message: str | None = None,
     group: str | None = None,
 ) -> JobSummary:
     """Build a JobSummary with sensible defaults."""
+    effective_duration_ms = total_duration_ms if total_duration_ms is not None else total_executions * avg_duration_ms
     return JobSummary(
         job_id=job_id,
         app_key=app_key,
@@ -589,7 +590,7 @@ def make_job_summary(
         successful=successful,
         failed=failed,
         last_executed_at=last_executed_at,
-        total_duration_ms=total_duration_ms if total_duration_ms is not None else total_executions * avg_duration_ms,
+        total_duration_ms=effective_duration_ms,
         avg_duration_ms=avg_duration_ms,
         next_run=next_run,
         last_error_type=last_error_type,
